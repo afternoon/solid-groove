@@ -1,7 +1,7 @@
 import { useParams } from "@solidjs/router";
 import { FirebaseProvider } from "solid-firebase";
 import { AuthProvider } from "../../auth/AuthProvider";
-import ProjectEditor from "../../components/ProjectEditor";
+import Editor from "../../components/editor/Editor";
 import { app } from "../../firebaseConfig";
 
 export default function ProjectPage() {
@@ -9,7 +9,7 @@ export default function ProjectPage() {
 	return (
 		<FirebaseProvider app={app}>
 			<AuthProvider>
-				<ProjectEditor id={params.id} />
+				<Editor id={params.id} />
 			</AuthProvider>
 		</FirebaseProvider>
 	);
