@@ -1,0 +1,89 @@
+* {
+	--color-background: #0f1017;
+	--color-background-secondary: #1a1c25;
+	--color-background-highlight: #2f323e;
+	--color-text: white;
+	--color-text-secondary: lightgrey;
+
+	--font-size-base: 14px;
+	--font-size-lg: calc(var(--font-size-base) * 1.5);
+	--font-size-xl: calc(var(--font-size-base) * 4);
+}
+
+:root {
+	font:
+		14px "Helvetica Neue",
+		Helvetica,
+		Arial,
+		sans-serif;
+	line-height: 1.5;
+	font-weight: 400;
+
+	color-scheme: dark light;
+	color: white;
+	background-color: var(--color-background);
+
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+	margin: 0;
+}
+
+h1 {
+	font-size: var(--font-size-xl);
+	font-weight: 700;
+	margin-bottom: 14px;
+}
+
+h2 {
+	font-size: var(--font-size-lg);
+	font-weight: 700;
+	margin-bottom: 14px;
+}
+
+button {
+	padding: 2px 5px;
+	cursor: pointer;
+	background-color: var(--color-background-secondary);
+	color: var(--color-text);
+	border: none;
+	border-radius: 4px;
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 1.5;
+	text-align: center;
+	text-decoration: none;
+	transition: background-color 0.1s ease;
+
+	&:hover {
+		background-color: var(--color-background-highlight);
+	}
+}
+
+input {
+	background-color: var(--color-background-secondary);
+	color: var(--color-text);
+	border: none;
+	font-size: 14px;
+	font-weight: 400;
+	line-height: 1.5;
+	padding: 3px 5px;
+	transition: background-color 0.1s ease;
+
+	&:hover {
+		background-color: var(--color-background-highlight);
+	}
+}
+
+p.loading {
+	color: grey;
+}
+
+p.error {
+	color: darkred;
+}

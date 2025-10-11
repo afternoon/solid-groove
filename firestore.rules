@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /projects/{document} {
+      // Allow read if the current user owns the document
+      allow read: if request.auth.uid == resource.data.ownerId;
+
+      // Allow creation if the current user owns the new document and ownerId is set
+      allow create: if request.auth.uid == request.resource.data.ownerId
+                    && request.resource.data.ownerId != null;
+
+      // Allow updates by the owner, and prevent change of ownership
+      allow update: if request.auth.uid == request.resource.data.ownerId
+                    && request.auth.uid == resource.data.ownerId;
+
+      // Allow deletion if the current user owns the existing document
+      allow delete: if request.auth.uid == resource.data.ownerId;
+    }
+  }
+}

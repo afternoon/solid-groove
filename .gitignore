@@ -1,0 +1,17 @@
+# secrets
+.env
+.firebaserc
+
+# build dirs
+node_modules/
+.output/
+.vinxi/
+
+# editor directories and files
+.DS_Store
+
+# misc config
+.claude/
+
+# big fat blobs
+public/samples
