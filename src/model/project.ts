@@ -1,27 +1,31 @@
-import { doc, getFirestore } from "firebase/firestore";
-import { useFirebaseApp, useFirestoreOnce } from "solid-firebase";
-import { createMemo, type Signal } from "solid-js";
-import mockProjectData from "./mockProjectData";
+import { createEffect, createSignal, onCleanup, type Signal } from "solid-js";
+import { dataService } from "./dataService";
 import type { Project } from "./types";
 
 interface ProjectState {
-	loading: boolean | null;
+	loading: boolean;
 	error: string | null;
 	data: Project | null;
 }
 
 export function useProject(id: string): Signal<ProjectState> {
-	if (import.meta.env.DEV) {
-		return createMemo(() => {
-			return {
-				loading: false,
-				error: false,
-				data: mockProjectData,
-			};
-		});
-	}
+	const [state, setState] = createSignal<ProjectState>({
+		loading: true,
+		error: null,
+		data: null,
+	});
 
-	const app = useFirebaseApp(); // TODO this relies on context, does it work outside of a component?
-	const db = getFirestore(app);
-	return createMemo(() => useFirestoreOnce(doc(db, "projects", id)));
+	createEffect(() => {
+		const unsubscribe = dataService.subscribeToProject(id, (project) => {
+			setState({
+				loading: false,
+				error: null,
+				data: project,
+			});
+		});
+
+		onCleanup(() => unsubscribe());
+	});
+
+	return state;
 }

@@ -1,18 +1,13 @@
 import { useNavigate } from "@solidjs/router";
-import {
-	GoogleAuthProvider,
-	onAuthStateChanged,
-	signInWithPopup,
-} from "firebase/auth";
 import { HiSolidUser } from "solid-icons/hi";
 import { createEffect, onCleanup } from "solid-js";
-import { auth } from "../firebaseConfig";
+import { authService } from "../auth/authService";
 
 export default function LoginButton() {
 	const navigate = useNavigate();
 
 	createEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, (user) => {
+		const unsubscribe = authService.onAuthStateChanged((user) => {
 			if (user) {
 				navigate("/dashboard");
 			}
@@ -22,9 +17,8 @@ export default function LoginButton() {
 	});
 
 	const signInWithGoogle = async () => {
-		const provider = new GoogleAuthProvider();
 		try {
-			await signInWithPopup(auth, provider);
+			await authService.signInWithGoogle();
 		} catch (error) {
 			console.error("Error signing in with Google:", error);
 		}

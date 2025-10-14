@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import type { User } from "firebase/auth";
 import {
 	createContext,
 	createEffect,
@@ -8,7 +8,7 @@ import {
 	useContext,
 } from "solid-js";
 import { createStore } from "solid-js/store";
-import { auth } from "../firebaseConfig";
+import { authService } from "./authService";
 
 interface AuthState {
 	user: User | null;
@@ -26,7 +26,7 @@ export function AuthProvider(props: ParentProps) {
 	const navigate = useNavigate();
 
 	createEffect(() => {
-		const unsubscribe = onAuthStateChanged(auth, (user) => {
+		const unsubscribe = authService.onAuthStateChanged((user) => {
 			if (!user) {
 				navigate("/");
 				return;
