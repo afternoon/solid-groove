@@ -25,9 +25,9 @@ export default function Editor(props: EditorProps): Component<EditorProps> {
 					<p class="error">Error fetching project {props.id}.</p>
 				</Match>
 				<Match when={project()?.data}>
-          <AudioProvider project={project}>
-            <EditorHeader />
-          </AudioProvider>
+					<AudioProvider project={project}>
+						<EditorHeader />
+					</AudioProvider>
 				</Match>
 			</Switch>
 		</main>
