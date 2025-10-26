@@ -1,15 +1,5 @@
 {
 	"name": "solid-groove",
-	"scripts": {
-		"dev": "vinxi dev",
-		"build": "vinxi build",
-		"start": "vinxi start",
-		"test": "vitest run",
-		"test:watch": "vitest",
-		"test:ui": "vitest --ui",
-		"check": "biome check --write"
-	},
-	"type": "module",
 	"devDependencies": {
 		"@biomejs/biome": "2.2.5",
 		"@solidjs/meta": "^0.29.4",
@@ -31,5 +21,15 @@
 		"vite": "^6.0.0",
 		"vite-plugin-solid": "^2.11.6",
 		"vitest": "3.0.5"
-	}
+	},
+	"scripts": {
+		"dev": "vinxi dev",
+		"build": "vinxi build",
+		"start": "vinxi start",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui",
+		"check": "biome check --write"
+	},
+	"type": "module"
 }
