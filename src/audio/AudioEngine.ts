@@ -20,7 +20,7 @@ export default class AudioEngine {
 		this.project = project;
 		const song = this.project.latestSnapshot?.song;
 		if (song?.tempo) {
-			Tone.Transport.bpm.value = song?.tempo;
+			Tone.getTransport().bpm.value = song?.tempo;
 		}
 	}
 }
