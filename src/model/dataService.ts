@@ -145,7 +145,7 @@ class MockDataService implements DataService {
 
 // Factory function to create the appropriate data service
 export function createDataService(): DataService {
-	if (import.meta.env.DEV) {
+	if (import.meta.env.VITE_MOCK_BACKEND === "true") {
 		return new MockDataService();
 	} else {
 		return new FirebaseDataService();

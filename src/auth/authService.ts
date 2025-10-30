@@ -82,7 +82,7 @@ class MockAuthService implements AuthService {
 
 // Factory function to create the appropriate auth service
 export function createAuthService(): AuthService {
-	if (import.meta.env.DEV) {
+	if (import.meta.env.VITE_MOCK_BACKEND === "true") {
 		return new MockAuthService();
 	} else {
 		return new FirebaseAuthService();
