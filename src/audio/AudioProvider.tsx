@@ -5,11 +5,11 @@ import AudioEngine from "./AudioEngine";
 const AudioContext = createContext<AudioEngine>();
 
 export function AudioProvider(props: { project: Signal<Project> }) {
-	const audio = new AudioEngine();
-	createEffect(() => audio.setProject(props.project()));
+	const audioEngine = new AudioEngine();
+	createEffect(() => audioEngine.setProject(props.project()));
 
 	return (
-		<AudioContext.Provider value={audio}>
+		<AudioContext.Provider value={audioEngine}>
 			{props.children}
 		</AudioContext.Provider>
 	);
