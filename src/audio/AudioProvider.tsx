@@ -6,7 +6,12 @@ const AudioContext = createContext<AudioEngine>();
 
 export function AudioProvider(props: { project: Signal<Project> }) {
 	const audioEngine = new AudioEngine();
-	createEffect(() => audioEngine.setProject(props.project()));
+	createEffect(() => {
+		const state = props.project();
+		if (state?.data) {
+			audioEngine.setProject(state.data);
+		}
+	});
 
 	return (
 		<AudioContext.Provider value={audioEngine}>
