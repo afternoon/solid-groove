@@ -2,7 +2,7 @@ import { createEffect } from "solid-js";
 import * as Tone from "tone";
 import type { ProjectStore } from "../model/project";
 
-export default class AudioEngine {
+export default class SongPlayer {
 	constructor() {
 		console.log("We are the music makers, and we are the dreamers of dreams.");
 	}

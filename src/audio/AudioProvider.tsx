@@ -1,23 +1,23 @@
 import { createContext, useContext } from "solid-js";
 import type { ProjectStore } from "../model/project";
-import AudioEngine from "./AudioEngine";
+import SongPlayer from "./SongPlayer";
 
-const AudioContext = createContext<AudioEngine>();
+const SongPlayerContext = createContext<SongPlayer>();
 
 export function AudioProvider(props: {
 	project: ProjectStore;
 	children?: any;
 }) {
-	const audioEngine = new AudioEngine();
-	audioEngine.setProjectStore(props.project);
+	const songPlayer = new SongPlayer();
+	songPlayer.setProjectStore(props.project);
 
 	return (
-		<AudioContext.Provider value={audioEngine}>
+		<SongPlayerContext.Provider value={songPlayer}>
 			{props.children}
-		</AudioContext.Provider>
+		</SongPlayerContext.Provider>
 	);
 }
 
 export function useAudio() {
-	return useContext(AudioContext) as AudioEngine;
+	return useContext(SongPlayerContext) as SongPlayer;
 }
