@@ -1,17 +1,15 @@
-import { createContext, createEffect, type Signal, useContext } from "solid-js";
-import type { Project } from "../model/types";
+import { createContext, useContext } from "solid-js";
+import type { ProjectStore } from "../model/project";
 import AudioEngine from "./AudioEngine";
 
 const AudioContext = createContext<AudioEngine>();
 
-export function AudioProvider(props: { project: Signal<Project> }) {
+export function AudioProvider(props: {
+	project: ProjectStore;
+	children?: any;
+}) {
 	const audioEngine = new AudioEngine();
-	createEffect(() => {
-		const state = props.project();
-		if (state?.data) {
-			audioEngine.setProject(state.data);
-		}
-	});
+	audioEngine.setProjectStore(props.project);
 
 	return (
 		<AudioContext.Provider value={audioEngine}>

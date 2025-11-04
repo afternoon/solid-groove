@@ -1,9 +1,13 @@
 import { HiSolidPlay, HiSolidStop } from "solid-icons/hi";
 import { type Component, createMemo } from "solid-js";
 import { useAudio } from "../../audio/AudioProvider";
-import type { Project } from "../../model/types";
+import type { ProjectStore } from "../../model/project";
 
-export default function EditorHeader(props: { project: Project }): Component {
+type EditorHeaderProps = {
+	project: ProjectStore;
+};
+
+export default function EditorHeader(props: EditorHeaderProps): Component<EditorHeaderProps> {
 	const audio = useAudio();
 
 	function handlePlay() {
@@ -14,7 +18,7 @@ export default function EditorHeader(props: { project: Project }): Component {
 	}
 
 	const projectName = createMemo(
-		() => props.project?.name || "Untitled Project",
+		() => props.project.data?.name || "Untitled Project",
 	);
 
 	return (

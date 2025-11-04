@@ -1,11 +1,23 @@
+import { createEffect } from "solid-js";
 import * as Tone from "tone";
-import type { Project } from "../model/types";
+import type { ProjectStore } from "../model/project";
 
 export default class AudioEngine {
-	private project: Project | null = null;
-
 	constructor() {
 		console.log("We are the music makers, and we are the dreamers of dreams.");
+	}
+
+	setProjectStore(store: ProjectStore) {
+		// this.store = store;
+
+		// React to changes in the project data
+		createEffect(() => {
+			const project = store.data;
+			if (project?.latestSnapshot?.song?.tempo) {
+				console.log("AudioEngine tempo=", project.latestSnapshot.song.tempo);
+				Tone.getTransport().bpm.value = project.latestSnapshot.song.tempo;
+			}
+		});
 	}
 
 	async play() {
@@ -23,18 +35,18 @@ export default class AudioEngine {
 				"C3",
 				null,
 				null,
-				null,
 				"C3",
-				null,
-				null,
-				null,
-				"C3",
-				null,
 				null,
 				null,
 				"C3",
 				null,
+				"C3",
 				null,
+				null,
+				"C3",
+				null,
+				null,
+				"C3",
 				null,
 			],
 			"16n",
@@ -45,14 +57,5 @@ export default class AudioEngine {
 	stop() {
 		console.log("AudioEngine.stop");
 		Tone.getTransport().stop();
-	}
-
-	setProject(project: Project) {
-		this.project = project;
-		const song = this.project.latestSnapshot?.song;
-		if (song?.tempo) {
-			console.log("AudioEngine tempo=", song?.tempo);
-			Tone.getTransport().bpm.value = song?.tempo;
-		}
 	}
 }
