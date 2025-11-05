@@ -11,7 +11,9 @@
 }
 
 :root {
-	font: var(--font-size-base) system-ui, sans-serif;
+	font:
+		var(--font-size-base) system-ui,
+		sans-serif;
 	line-height: 1.5;
 	font-weight: 400;
 

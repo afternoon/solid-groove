@@ -7,7 +7,9 @@ type EditorHeaderProps = {
 	project: ProjectStore;
 };
 
-export default function EditorHeader(props: EditorHeaderProps): Component<EditorHeaderProps> {
+export default function EditorHeader(
+	props: EditorHeaderProps,
+): Component<EditorHeaderProps> {
 	const audio = useAudio();
 
 	function handlePlay() {

@@ -14,7 +14,7 @@ export default class SongPlayer {
 		createEffect(() => {
 			const project = store.data;
 			if (project?.latestSnapshot?.song?.tempo) {
-				console.log("AudioEngine tempo=", project.latestSnapshot.song.tempo);
+				console.log("AudioEngine tempo", project.latestSnapshot.song.tempo);
 				Tone.getTransport().bpm.value = project.latestSnapshot.song.tempo;
 			}
 		});
