@@ -35,10 +35,9 @@
 	display: grid;
 	grid-template-areas:
 		"header header header"
-		"browser workspace assistant"
-		"browser sound assistant";
+		"browser workspace assistant";
 	grid-template-columns: 2fr 12fr 4fr;
-	grid-template-rows: 32px 1fr 250px;
+	grid-template-rows: 32px 1fr;
 	gap: var(--size-divider);
 
 	header {
@@ -76,7 +75,6 @@
 	}
 
 	.workspace,
-	.sound,
 	.browser,
 	.assistant {
 		background-color: var(--color-background-secondary);
@@ -86,180 +84,38 @@
 
 	.workspace {
 		grid-area: workspace;
-		overflow: hidden;
-		position: relative;
-	}
-
-	.timeline-container {
-		height: 100%;
 		overflow: auto;
 		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: var(--size-divider);
 
-		--timeline-height: 30px;
-		--track-height: 70px;
-
-		--track-width: 200px;
-		--section-width: 200px;
-
-		.tracks-grid {
-			display: grid;
-			grid-template-columns: var(--track-width) repeat(
-					var(--num-sections),
-					var(--section-width)
-				);
-			grid-template-rows: var(--timeline-height) repeat(
-					var(--num-tracks),
-					var(--track-height)
-				);
-			min-height: 100%;
-		}
-
-		.timeline-spacer {
-			position: sticky;
-			top: 0;
-			left: 0;
-			width: var(--track-width);
-			height: var(--timeline-height);
-			z-index: 20;
+		.track-editor {
+			width: 700px;
+			height: 300px;
 			background-color: var(--color-background-secondary);
-			border-bottom: 1px solid #333;
-		}
-
-		.timeline-section {
-			position: sticky;
-			top: 0;
-			z-index: 10;
-			background-color: var(--color-background-secondary);
-			display: flex;
-			align-items: center;
-			border-bottom: 1px solid #333;
-		}
-
-		.bar-numbers {
-			display: flex;
-			width: 100%;
-			justify-content: space-between;
-		}
-
-		.bar-number {
-			font-size: 12px;
-			color: var(--color-text-secondary);
-			width: calc(var(--section-width) / 4);
-		}
-
-		/* Track Header - Sticky to left */
-		.track-header {
-			position: sticky;
-			left: 0;
-			z-index: 5;
-			background-color: var(--color-background-secondary);
-			border-bottom: 1px solid #333;
-			padding: 10px;
-			box-sizing: border-box;
-			display: flex;
-			flex-direction: row;
-			justify-content: space-between;
-		}
-
-		.track-name {
-			font-weight: bold;
-			font-size: 14px;
-			margin-bottom: 10px;
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-		}
-
-		.track-controls {
 			display: flex;
 			flex-direction: column;
-			gap: 10px;
-		}
+			padding: var(--size-divider);
 
-		.volume-control {
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			gap: 5px;
-		}
+			.track-info {
+				padding-bottom: var(--size-divider);
 
-		.volume-slider {
-			width: 60px;
-			height: 4px;
-			background: #333;
-			border-radius: 2px;
-			outline: none;
-			-webkit-appearance: none;
-		}
+				.track-name {
+					font-weight: bold;
+				}
+			}
 
-		.volume-slider::-webkit-slider-thumb {
-			-webkit-appearance: none;
-			width: 12px;
-			height: 12px;
-			background: #fff;
-			border-radius: 50%;
-			cursor: pointer;
-		}
+			.instrument-editor {
+				height: 250px;
+				padding: var(--size-divider);
+			}
 
-		.track-buttons {
-			display: flex;
-			gap: 5px;
-			justify-content: center;
+			.sequence-editor {
+				flex: 1;
+				padding: var(--size-divider);
+			}
 		}
-
-		.track-button {
-			width: 24px;
-			height: 24px;
-			border: 1px solid #666;
-			background: #333;
-			color: #ccc;
-			font-size: 12px;
-			font-weight: bold;
-			cursor: pointer;
-			border-radius: 2px;
-		}
-
-		.track-button:hover {
-			background: #444;
-		}
-
-		.track-button.active {
-			background: #666;
-			color: #fff;
-		}
-
-		.mute-button.active {
-			background: #f44336;
-			border-color: #f44336;
-		}
-
-		.solo-button.active {
-			background: #ffeb3b;
-			border-color: #ffeb3b;
-			color: #333;
-		}
-
-		/* Section Blocks */
-		.section-block {
-			border-left: 1px solid var(--color-background-secondary);
-			border-bottom: 1px solid var(--color-background-secondary);
-			position: relative;
-			box-sizing: border-box;
-		}
-
-		.active-block {
-			width: 100%;
-			height: 100%;
-			border-radius: 3px;
-			background-color: #4caf50;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-		}
-	}
-
-	.sound {
-		grid-area: sound;
 	}
 
 	.browser {

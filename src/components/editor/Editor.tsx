@@ -1,7 +1,7 @@
 import { type Component, For, Match, Switch } from "solid-js";
 import { AudioProvider } from "../../audio/AudioProvider";
 import { useProject } from "../../model/project";
-import EditorAssetsBar from "./EditorAssetsBar";
+import Browser from "./Browser";
 import EditorAssistant from "./EditorAssistant";
 import EditorHeader from "./EditorHeader";
 import TrackEditor from "./TrackEditor";
@@ -26,8 +26,8 @@ export default function Editor(props: EditorProps): Component<EditorProps> {
 				<Match when={project.data}>
 					<AudioProvider project={project}>
 						<EditorHeader project={project} />
-						<EditorAssetsBar project={project} />
-						<div class="track-editors">
+						<Browser project={project} />
+						<div class="workspace">
 							<For each={project.data?.latestSnapshot.song.tracks}>
 								{(track, index) => {
 									// Get the sequence for this track from the first pattern
