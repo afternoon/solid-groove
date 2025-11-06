@@ -1,15 +1,15 @@
 import type { Component } from "solid-js";
 import type { ProjectStore } from "../../model/project";
 
-type EditorAssetsBarProps = {
+type BrowserProps = {
 	project: ProjectStore;
 };
 
-export default function EditorAssetsBar(
-	props: EditorAssetsBarProps,
-): Component<EditorAssetsBarProps> {
+export default function Browser(
+	props: BrowserProps,
+): Component<BrowserProps> {
 	return (
-		<div class="editor-assets-bar">
+		<div class="browser">
 			{/* Asset management UI will go here */}
 		</div>
 	);
