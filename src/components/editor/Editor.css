@@ -91,9 +91,9 @@
 		gap: var(--size-divider);
 
 		.track-editor {
-			width: 700px;
-			height: 300px;
-			background-color: var(--color-background-secondary);
+			width: 610px;
+			height: 250px;
+			background-color: var(--color-background-highlight);
 			display: flex;
 			flex-direction: column;
 			padding: var(--size-divider);

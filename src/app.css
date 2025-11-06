@@ -1,7 +1,10 @@
 * {
 	--color-background: #0f1017;
 	--color-background-secondary: #1a1c25;
+	--color-background-tertiary: #3a3d4a;
 	--color-background-highlight: #2f323e;
+	--color-background-hover: #444859;
+
 	--color-text: white;
 	--color-text-secondary: lightgrey;
 

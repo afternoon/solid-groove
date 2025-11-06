@@ -1,37 +1,36 @@
 .sequence-editor {
+	--size-step-button: 30px;
+
 	display: flex;
 	gap: 8px;
 	align-items: center;
 	flex-wrap: wrap;
-}
 
-.sequence-editor .step {
-	width: 30px;
-	height: 30px;
-	padding: 0;
-	background-color: var(--color-background-highlight);
-	border: none;
-	cursor: pointer;
-	transition: background-color 0.1s ease;
-	display: flex;
-	align-content: center;
-	justify-content: center;
-}
+	.step {
+		width: var(--size-step-button);
+		height: var(--size-step-button);
+		padding: 0;
+		background-color: var(--color-background-tertiary);
+		border: none;
+		border-radius: 0;
+		cursor: pointer;
+		position: relative;
+		transition: background-color 0.1s ease;
+		text-align: center;
+		align-content: center;
+	}
 
-.sequence-editor .step:hover {
-	background-color: #3a3d4a;
-}
+	.step:hover {
+		background-color: var(--color-background-hover);
+	}
 
-.sequence-editor .step.active {
-	background-color: var(--color-background-highlight);
-}
+	.step-number {
+		font-size: 10px;
+		font-weight: bold;
+		color: var(--color-background-secondary);
+	}
 
-.sequence-editor .step-number {
-	font-size: 10px;
-	font-weight: bold;
-	color: var(--color-background-secondary);
-}
-
-.sequence-editor .step.active .step-number {
-	color: white;
+	.step.active .step-number {
+		color: white;
+	}
 }
