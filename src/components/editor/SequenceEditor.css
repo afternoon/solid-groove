@@ -1,0 +1,39 @@
+.sequence-editor {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.sequence-editor .step {
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	background-color: var(--color-background-highlight);
+	border: none;
+	cursor: pointer;
+	position: relative;
+	transition: background-color 0.1s ease;
+}
+
+.sequence-editor .step:hover {
+	background-color: #3a3d4a;
+}
+
+.sequence-editor .step.active {
+	background-color: var(--color-background-highlight);
+}
+
+.sequence-editor .step-cross {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 30px;
+	height: 30px;
+	pointer-events: none;
+}
+
+.sequence-editor .step-cross line {
+	stroke: white;
+	stroke-width: 1;
+}

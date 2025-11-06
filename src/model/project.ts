@@ -72,6 +72,25 @@ export function setSong(song: Song) {
 	dataService.updateProject(store.data);
 }
 
+export function setSequenceStep(
+	patternIndex: number,
+	trackIndex: number,
+	stepIndex: number,
+	note: string | null,
+) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			state.data!.latestSnapshot.song.patterns[patternIndex].sequences[
+				trackIndex
+			].steps[stepIndex] = note;
+		}),
+	);
+
+	dataService.updateProject(store.data);
+}
+
 export function setProject(project: Project) {
 	setStore(
 		produce((state) => {
