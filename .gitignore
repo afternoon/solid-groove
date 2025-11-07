@@ -6,6 +6,7 @@
 node_modules/
 .output/
 .vinxi/
+package-lock.json
 
 # editor directories and files
 .DS_Store
