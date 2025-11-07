@@ -24,20 +24,6 @@
 	background-color: var(--color-background-highlight);
 }
 
-.sequence-editor .step-cross {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 30px;
-	height: 30px;
-	pointer-events: none;
-}
-
-.sequence-editor .step-cross line {
-	stroke: white;
-	stroke-width: 1;
-}
-
 .sequence-editor .step-number {
 	position: absolute;
 	top: 50%;
