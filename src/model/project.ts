@@ -1,7 +1,14 @@
 import { createEffect, onCleanup } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { dataService } from "./dataService";
-import type { Project, Song, Track } from "./types";
+import type {
+	Envelope,
+	FilterConfig,
+	Instrument,
+	Project,
+	Song,
+	Track,
+} from "./types";
 
 export interface ProjectStore {
 	data: Project | null;
@@ -101,4 +108,100 @@ export function setProject(project: Project) {
 	);
 
 	dataService.updateProject(project);
+}
+
+export function setInstrument(trackIndex: number, instrument: Instrument) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			state.data!.latestSnapshot.song.tracks[trackIndex].instrument =
+				instrument;
+		}),
+	);
+
+	dataService.updateProject(store.data);
+}
+
+export function setInstrumentEnvelope(trackIndex: number, envelope: Envelope) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			const instrument =
+				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+			if (instrument.type === "synth" || instrument.type === "sampler") {
+				instrument.envelope = envelope;
+			}
+		}),
+	);
+
+	dataService.updateProject(store.data);
+}
+
+export function setInstrumentFilter(trackIndex: number, filter: FilterConfig) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			const instrument =
+				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+			if (instrument.type === "synth" || instrument.type === "sampler") {
+				instrument.filter = filter;
+			}
+		}),
+	);
+
+	dataService.updateProject(store.data);
+}
+
+export function setOscillatorType(
+	trackIndex: number,
+	oscillatorType: "sine" | "square" | "sawtooth" | "triangle",
+) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			const instrument =
+				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+			if (instrument.type === "synth") {
+				instrument.oscillatorType = oscillatorType;
+			}
+		}),
+	);
+
+	dataService.updateProject(store.data);
+}
+
+export function setSampleUrl(trackIndex: number, sampleUrl: string) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			const instrument =
+				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+			if (instrument.type === "sampler" || instrument.type === "clip") {
+				instrument.sampleUrl = sampleUrl;
+			}
+		}),
+	);
+
+	dataService.updateProject(store.data);
+}
+
+export function setSampleTempo(trackIndex: number, sampleTempo: number) {
+	if (!store.data) return;
+
+	setStore(
+		produce((state) => {
+			const instrument =
+				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+			if (instrument.type === "clip") {
+				instrument.sampleTempo = sampleTempo;
+			}
+		}),
+	);
+
+	dataService.updateProject(store.data);
 }

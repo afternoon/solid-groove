@@ -21,10 +21,7 @@ export default function TrackEditor(
 				instrument={props.track.instrument}
 				trackIndex={props.trackIndex}
 			/>
-			<SequenceEditor
-				sequence={props.sequence}
-				trackIndex={props.trackIndex}
-			/>
+			<SequenceEditor sequence={props.sequence} trackIndex={props.trackIndex} />
 		</div>
 	);
 }
