@@ -12,8 +12,10 @@
 	background-color: var(--color-background-highlight);
 	border: none;
 	cursor: pointer;
-	position: relative;
 	transition: background-color 0.1s ease;
+	display: flex;
+	align-content: center;
+	justify-content: center;
 }
 
 .sequence-editor .step:hover {
@@ -24,16 +26,12 @@
 	background-color: var(--color-background-highlight);
 }
 
-.sequence-editor .step-cross {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 30px;
-	height: 30px;
-	pointer-events: none;
+.sequence-editor .step-number {
+	font-size: 10px;
+	font-weight: bold;
+	color: var(--color-background-secondary);
 }
 
-.sequence-editor .step-cross line {
-	stroke: white;
-	stroke-width: 1;
+.sequence-editor .step.active .step-number {
+	color: white;
 }
