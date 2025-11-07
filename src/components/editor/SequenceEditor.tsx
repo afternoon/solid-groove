@@ -29,6 +29,7 @@ export default function SequenceEditor(
 						onClick={() => handleStepToggle(index())}
 						aria-label={`Step ${index() + 1}${note ? ` - ${note}` : ""}`}
 					>
+						<span class="step-number">{index() + 1}</span>
 						{note !== null && (
 							<svg
 								viewBox="0 0 30 30"
