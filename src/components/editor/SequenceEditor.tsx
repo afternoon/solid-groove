@@ -1,4 +1,4 @@
-import { For, type Component } from "solid-js";
+import { type Component, For } from "solid-js";
 import { setSequenceStep } from "../../model/project";
 import type { Sequence } from "../../model/types";
 import "./SequenceEditor.css";

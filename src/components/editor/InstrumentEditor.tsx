@@ -17,13 +17,17 @@ export default function InstrumentEditor(
 			<Switch>
 				<Match when={props.instrument.type === "clip"}>
 					<ClipInstrumentEditor
-						instrument={props.instrument as Extract<Instrument, { type: "clip" }>}
+						instrument={
+							props.instrument as Extract<Instrument, { type: "clip" }>
+						}
 						trackIndex={props.trackIndex}
 					/>
 				</Match>
 				<Match when={props.instrument.type === "synth"}>
 					<SynthInstrumentEditor
-						instrument={props.instrument as Extract<Instrument, { type: "synth" }>}
+						instrument={
+							props.instrument as Extract<Instrument, { type: "synth" }>
+						}
 						trackIndex={props.trackIndex}
 					/>
 				</Match>
