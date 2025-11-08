@@ -6,10 +6,13 @@
 	--color-background-hover: #444859;
 
 	--color-foreground: #8d92a6;
+  --color-foreground-bright: white;
 
 	--color-text: white;
 	--color-text-secondary: lightgrey;
 
+	--font-size-tiny: 10px;
+	--font-size-small: 11px;
 	--font-size-base: 14px;
 	--font-size-lg: calc(var(--font-size-base) * 1.5);
 	--font-size-xl: calc(var(--font-size-base) * 4);

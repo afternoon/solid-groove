@@ -19,14 +19,14 @@
 		text-align: center;
 		align-content: center;
 		line-height: 0;
-	}
 
-	.step:nth-child(4n+1) {
-		border-color: var(--color-background-secondary);
-	}
+		&:nth-child(4n+1) {
+			border-color: var(--color-background-secondary);
+		}
 
-	.step:hover {
-		background-color: var(--color-background-hover);
+		&:hover {
+			background-color: var(--color-background-hover);
+		}
 	}
 
 	.step-number {

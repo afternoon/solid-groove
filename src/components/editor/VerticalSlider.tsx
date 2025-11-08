@@ -1,4 +1,5 @@
 import { type Component, createSignal } from "solid-js";
+import "./VerticalSlider.css";
 
 interface VerticalSliderProps {
 	label: string;
