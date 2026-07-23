@@ -10,6 +10,7 @@
 
 	--color-text: white;
 	--color-text-secondary: lightgrey;
+	--color-error: #ff6b6b;
 
 	--font-size-tiny: 10px;
 	--font-size-small: 11px;
@@ -87,9 +88,9 @@ input {
 }
 
 p.loading {
-	color: grey;
+	color: var(--color-text-secondary);
 }
 
 p.error {
-	color: darkred;
+	color: var(--color-error);
 }

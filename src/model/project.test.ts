@@ -17,7 +17,7 @@ vi.mock("./dataService", () => ({
 }));
 
 import { newProject } from "./newProject";
-import { setInstrumentEnvelope, setProject } from "./project";
+import { projectStore, setInstrumentEnvelope, setProject } from "./project";
 import type { Envelope } from "./types";
 
 // The store only reads createdAt for display, so a stub Timestamp is enough.
@@ -78,5 +78,60 @@ describe("project store persistence", () => {
 		expect(updateProject).not.toHaveBeenCalled();
 		vi.advanceTimersByTime(1);
 		expect(updateProject).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("save-failure handling", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		setProject({
+			...newProject("user-1"),
+			id: "p1",
+			createdAt: stubTimestamp,
+		});
+		updateProject.mockClear();
+	});
+
+	afterEach(() => {
+		vi.runOnlyPendingTimers();
+		vi.useRealTimers();
+	});
+
+	it("records a saveError when the debounced write rejects", async () => {
+		updateProject.mockRejectedValueOnce(new Error("network down"));
+
+		setInstrumentEnvelope(0, envelope(0.3));
+		expect(projectStore.saveError).toBeNull();
+
+		await vi.advanceTimersByTimeAsync(200);
+
+		expect(projectStore.saveError).toBe("Changes could not be saved.");
+	});
+
+	it("clears a previous saveError once a later write succeeds", async () => {
+		updateProject.mockRejectedValueOnce(new Error("network down"));
+		setInstrumentEnvelope(0, envelope(0.3));
+		await vi.advanceTimersByTimeAsync(200);
+		expect(projectStore.saveError).toBe("Changes could not be saved.");
+
+		updateProject.mockResolvedValueOnce(undefined);
+		setInstrumentEnvelope(0, envelope(0.6));
+		await vi.advanceTimersByTimeAsync(200);
+
+		expect(projectStore.saveError).toBeNull();
+	});
+
+	it("records a saveError when setProject's immediate write rejects", async () => {
+		updateProject.mockRejectedValueOnce(new Error("network down"));
+
+		setProject({
+			...newProject("user-1"),
+			id: "p2",
+			createdAt: stubTimestamp,
+		});
+		// setProject's write is not debounced; flush the microtask queue.
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(projectStore.saveError).toBe("Changes could not be saved.");
 	});
 });

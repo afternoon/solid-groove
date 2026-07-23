@@ -6,6 +6,10 @@
 	box-sizing: border-box;
 }
 
+.dashboard .tape-loader {
+	margin: 48px auto;
+}
+
 .dashboard-title {
 	font-size: var(--font-size-lg);
 	margin-bottom: 24px;
@@ -46,10 +50,18 @@
 
 .dashboard-actions {
 	display: flex;
-	justify-content: flex-end;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 8px;
 	/* Pull the button up so it aligns with the "Projects" header row. */
 	margin-top: -68px;
 	margin-bottom: 28px;
+}
+
+.dashboard-actions .create-error {
+	margin: 0;
+	font-size: var(--font-size-small);
+	color: #ff8a8a;
 }
 
 .project-list {
@@ -123,9 +135,51 @@
 
 .empty-projects {
 	grid-column: 1 / -1;
-	padding: 48px 24px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	padding: 56px 24px;
 	text-align: center;
 	color: var(--color-foreground);
 	border: 1px dashed rgba(255, 255, 255, 0.12);
 	border-radius: 12px;
+}
+
+.empty-projects .empty-projects-title {
+	margin: 0;
+	font-size: var(--font-size-base);
+	font-weight: 600;
+	color: var(--color-text-secondary);
+}
+
+.empty-projects .empty-projects-hint {
+	margin: 0;
+	font-size: var(--font-size-small);
+}
+
+.projects-error {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	padding: 40px 24px;
+	text-align: center;
+	border: 1px solid rgba(255, 122, 122, 0.25);
+	border-radius: 12px;
+	background: rgba(255, 122, 122, 0.06);
+}
+
+.projects-error-message {
+	margin: 0;
+	color: #ff8a8a;
+}
+
+.projects-error .retry-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 16px;
+	border-radius: 8px;
+	cursor: pointer;
 }

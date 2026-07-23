@@ -83,9 +83,17 @@ class FirebaseAuthService implements AuthService {
 class MockAuthService implements AuthService {
 	private mockUser: User | null = null;
 	private callbacks = new Set<(user: User | null) => void>();
+	// Tracks which callbacks have already been sent the current `mockUser`
+	// value, so the deferred "report current state" delivery in
+	// `onAuthStateChanged` (below) can skip itself if a sign-in already
+	// notified the callback with that same state in the meantime.
+	private notified = new WeakSet<(user: User | null) => void>();
 
 	private notify() {
-		for (const cb of this.callbacks) cb(this.mockUser);
+		for (const cb of this.callbacks) {
+			this.notified.add(cb);
+			cb(this.mockUser);
+		}
 	}
 
 	async signInWithGoogle(): Promise<void> {
@@ -129,8 +137,32 @@ class MockAuthService implements AuthService {
 
 	onAuthStateChanged(callback: (user: User | null) => void): () => void {
 		this.callbacks.add(callback);
-		// Immediately report current state
-		setTimeout(() => callback(this.mockUser), 0);
+		// Report current state asynchronously, matching Firebase's real
+		// contract: a newly-registered observer is invoked with the current
+		// user, but only after the current synchronous task finishes, not
+		// during registration itself.
+		//
+		// This must not use `setTimeout`, which schedules a macrotask that
+		// can fire *after* an unrelated later event (e.g. a click handler
+		// that runs synchronously right after subscribing, such as
+		// `signInAnonymously`). If that happens, the pending timeout would
+		// still fire later, re-invoking `callback` directly - bypassing
+		// `callbacks.delete` from an unsubscribe in between - with whatever
+		// `mockUser` happens to be by then, i.e. a stale, duplicate
+		// notification through a dead subscription. A microtask fires
+		// before any such later macrotask/event, so it can't be reordered
+		// past a same-tick synchronous sign-in.
+		//
+		// The `notified` check below covers the remaining case: a sign-in
+		// that runs (synchronously) before this microtask gets a turn will
+		// have already delivered the current state via `notify()`, so this
+		// skips re-delivering the same state as a redundant duplicate.
+		queueMicrotask(() => {
+			if (!this.callbacks.has(callback)) return;
+			if (this.notified.has(callback)) return;
+			this.notified.add(callback);
+			callback(this.mockUser);
+		});
 		return () => {
 			this.callbacks.delete(callback);
 		};

@@ -19,6 +19,13 @@ export interface ProjectStore {
 	 * allowed to read it. Drives the 404 page in the editor.
 	 */
 	notFound: boolean;
+	/**
+	 * Set when a debounced or immediate write to the data service rejects. The
+	 * optimistic local update already happened, so the user's edit is not lost
+	 * locally, but it has not reached the backend and a UI banner should say so.
+	 * Cleared on the next successful write.
+	 */
+	saveError: string | null;
 }
 
 const [store, setStore] = createStore<ProjectStore>({
@@ -26,7 +33,20 @@ const [store, setStore] = createStore<ProjectStore>({
 	loading: true,
 	error: null,
 	notFound: false,
+	saveError: null,
 });
+
+/** Human-readable message stashed on the store when a project write fails. */
+const SAVE_ERROR_MESSAGE = "Changes could not be saved.";
+
+function recordSaveError(error: unknown) {
+	console.error("Error saving project:", error);
+	setStore("saveError", SAVE_ERROR_MESSAGE);
+}
+
+function recordSaveSuccess() {
+	setStore("saveError", null);
+}
 
 /**
  * Trailing-debounced project persistence.
@@ -47,7 +67,7 @@ function persistProject(project: Project) {
 	persistTimer = setTimeout(() => {
 		persistTimer = undefined;
 		pendingProject = undefined;
-		dataService.updateProject(project);
+		dataService.updateProject(project).then(recordSaveSuccess, recordSaveError);
 	}, PERSIST_DEBOUNCE_MS);
 }
 
@@ -62,7 +82,9 @@ function flushPendingWrite() {
 	persistTimer = undefined;
 	const project = pendingProject;
 	pendingProject = undefined;
-	if (project) dataService.updateProject(project);
+	if (project) {
+		dataService.updateProject(project).then(recordSaveSuccess, recordSaveError);
+	}
 }
 
 /**
@@ -82,6 +104,7 @@ export function useProject(id: string): ProjectStore {
 				state.loading = true;
 				state.error = null;
 				state.notFound = false;
+				state.saveError = null;
 			}),
 		);
 
@@ -90,7 +113,9 @@ export function useProject(id: string): ProjectStore {
 				produce((state) => {
 					state.data = result.project;
 					state.loading = false;
-					state.error = null;
+					state.error = result.error
+						? "Something went wrong while loading this project."
+						: null;
 					state.notFound = result.notFound;
 				}),
 			);
@@ -179,7 +204,7 @@ export function setProject(project: Project) {
 		}),
 	);
 
-	dataService.updateProject(project);
+	dataService.updateProject(project).then(recordSaveSuccess, recordSaveError);
 }
 
 export function setInstrument(trackIndex: number, instrument: Instrument) {

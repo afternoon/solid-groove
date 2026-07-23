@@ -3,14 +3,20 @@ import type { Project } from "./types";
 
 /**
  * Result passed to a project subscription callback.
- * - `project` is the loaded project, or `null` when the project does not exist
- *   or the current user is not allowed to read it (Firestore returns a
- *   permission-denied error). Both cases are surfaced as "not found" so we
- *   never leak the existence of another user's project.
+ * - `project` is the loaded project, or `null` when the project does not exist,
+ *   the current user is not allowed to read it (Firestore returns a
+ *   permission-denied error), or the subscription failed to even set up.
+ * - `notFound` covers the first two cases: they are indistinguishable on
+ *   purpose, so we never leak the existence of another user's project.
+ * - `error` covers the third case: a genuine infrastructure failure (e.g. the
+ *   Firestore module or app config failed to load) rather than an access or
+ *   existence question. Distinct from `notFound` so the UI can offer a retry
+ *   instead of a 404.
  */
 export type ProjectSubscriptionResult = {
 	project: Project | null;
 	notFound: boolean;
+	error?: boolean;
 };
 
 export interface DataService {
@@ -21,6 +27,7 @@ export interface DataService {
 	subscribeToUserProjects(
 		userId: string,
 		callback: (projects: Project[]) => void,
+		onError?: (error: unknown) => void,
 	): () => void;
 	updateProject(project: Project): Promise<void>;
 	createProject(project: Omit<Project, "id" | "createdAt">): Promise<string>;
@@ -36,8 +43,8 @@ class FirebaseDataService implements DataService {
 		let unsubscribe: (() => void) | null = null;
 
 		// Use dynamic import to avoid Firebase in mock mode
-		import("firebase/firestore").then(
-			async ({ doc, onSnapshot, getFirestore }) => {
+		import("firebase/firestore")
+			.then(async ({ doc, onSnapshot, getFirestore }) => {
 				const { app } = await import("../firebaseConfig");
 				const db = getFirestore(app);
 				const docRef = doc(db, "projects", id);
@@ -67,8 +74,14 @@ class FirebaseDataService implements DataService {
 						callback({ project: null, notFound: true });
 					},
 				);
-			},
-		);
+			})
+			.catch(() => {
+				// The dynamic import(s) themselves failed (offline, chunk load
+				// failure, bad config) before a Firestore listener could even be
+				// set up. This is a genuine infrastructure failure, not a
+				// not-found/permission question, so surface it distinctly.
+				callback({ project: null, notFound: false, error: true });
+			});
 
 		return () => {
 			if (unsubscribe) unsubscribe();
@@ -78,6 +91,7 @@ class FirebaseDataService implements DataService {
 	subscribeToUserProjects(
 		userId: string,
 		callback: (projects: Project[]) => void,
+		onError?: (error: unknown) => void,
 	): () => void {
 		let unsubscribe: (() => void) | null = null;
 
@@ -91,13 +105,22 @@ class FirebaseDataService implements DataService {
 					where("ownerId", "==", userId),
 				);
 
-				unsubscribe = onSnapshot(q, (querySnapshot) => {
-					const projects = querySnapshot.docs.map((doc) => ({
-						id: doc.id,
-						...doc.data(),
-					})) as Project[];
-					callback(projects);
-				});
+				unsubscribe = onSnapshot(
+					q,
+					(querySnapshot) => {
+						const projects = querySnapshot.docs.map((doc) => ({
+							id: doc.id,
+							...doc.data(),
+						})) as Project[];
+						callback(projects);
+					},
+					(error) => {
+						// Unlike subscribeToProject, there is no "not found" state to fall
+						// back to here — a failed dashboard listing has no sensible default
+						// other than surfacing the error to the caller.
+						onError?.(error);
+					},
+				);
 			},
 		);
 
@@ -153,6 +176,15 @@ class MockDataService implements DataService {
 			setTimeout(() => callback({ project: null, notFound: true }), 0);
 			return () => {};
 		}
+		// A special id lets us exercise the genuine-error path in mock mode
+		// (distinct from "not-found" above), for testing the editor's error UI.
+		if (id === "error") {
+			setTimeout(
+				() => callback({ project: null, notFound: false, error: true }),
+				0,
+			);
+			return () => {};
+		}
 		// Immediately call with mock data
 		setTimeout(
 			() => callback({ project: { ...mockProjectData, id }, notFound: false }),
@@ -165,7 +197,17 @@ class MockDataService implements DataService {
 	subscribeToUserProjects(
 		userId: string,
 		callback: (projects: Project[]) => void,
+		onError?: (error: unknown) => void,
 	): () => void {
+		// A special userId lets us exercise the error path in mock mode, mirroring
+		// the "not-found" id convention in subscribeToProject above.
+		if (userId === "error") {
+			setTimeout(
+				() => onError?.(new Error("mock subscribeToUserProjects failure")),
+				0,
+			);
+			return () => {};
+		}
 		// Immediately call with mock data
 		setTimeout(() => callback([{ ...mockProjectData, ownerId: userId }]), 0);
 		// Return no-op unsubscribe function

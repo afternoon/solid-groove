@@ -40,6 +40,57 @@
 	grid-template-rows: 32px 1fr;
 	gap: var(--size-divider);
 
+	/* Genuine load-failure state (distinct from the 404 page): centered
+	 * message with a retry action and a way back to the dashboard. */
+	.project-error {
+		grid-column: 1 / -1;
+		grid-row: 1 / -1;
+		place-self: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		text-align: center;
+		padding: var(--size-divider);
+
+		.project-error-message {
+			color: var(--color-text-secondary);
+		}
+
+		.project-error-actions {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+
+		.project-error-retry {
+			border-radius: 0;
+			height: 28px;
+			padding: 0 10px;
+		}
+
+		.project-error-home {
+			color: var(--color-text-secondary);
+			text-decoration: underline;
+		}
+	}
+
+	/* Unobtrusive save-failure banner. Fixed and floating above everything else
+	 * so it never displaces the grid layout or the header's own content. */
+	.save-error-banner {
+		position: fixed;
+		top: var(--size-divider);
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 10;
+		margin: 0;
+		padding: 3px 12px;
+		font-size: var(--font-size-small);
+		color: var(--color-foreground-bright);
+		background-color: #c0504d;
+		border-radius: 4px;
+	}
+
 	header {
 		grid-area: header;
 

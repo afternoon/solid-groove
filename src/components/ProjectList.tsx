@@ -13,9 +13,12 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 			<Show
 				when={props.projects.length > 0}
 				fallback={
-					<p class="empty-projects">
-						No projects yet. Create your first one to get started.
-					</p>
+					<div class="empty-projects">
+						<p class="empty-projects-title">No projects yet</p>
+						<p class="empty-projects-hint">
+							Create your first one to get started.
+						</p>
+					</div>
 				}
 			>
 				<For each={props.projects}>

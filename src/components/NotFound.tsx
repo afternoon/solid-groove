@@ -1,21 +1,31 @@
-import { type Component, Show } from "solid-js";
+import { type Component, type JSX, Show } from "solid-js";
 import "./NotFound.css";
 
 type NotFoundProps = {
+	/** Small uppercase kicker above the heading, e.g. "404". */
+	code?: string;
+	/** The page heading. */
+	title: string;
+	/** Body copy. Ignored if `children` is provided. */
+	message?: string;
 	/** Optional call-to-action link back into the app. Defaults to the dashboard. */
 	homeHref?: string;
+	/** Label for the home CTA link. */
+	homeLabel?: string;
+	children?: JSX.Element;
 };
 
 /**
- * A full-page 404 shown when a project does not exist or the current user is
- * not allowed to open it. The illustration is a Roland Juno-106-style
- * synthesizer that has been dropped and cracked clean in half: a wide, shallow
- * control panel with the Juno's signature row of slider faders and a full-width
- * keyboard.
+ * Shared full-page "not found" presentation: a Roland Juno-106-style
+ * synthesizer that has been dropped and cracked clean in half, plus a slot
+ * for heading/message copy. Used for both "this project doesn't exist" and
+ * "this page doesn't exist" cases — see ProjectNotFound and PageNotFound.
  *
- * It's drawn as a monochrome line illustration — thin outlines in the shared
- * foreground colour over the app's dark background, no flat cartoon fills — to
- * sit quietly in the app's visual language (see TapeLoader).
+ * The illustration is a wide, shallow control panel with the Juno's
+ * signature row of slider faders and a full-width keyboard, drawn as a
+ * monochrome line illustration — thin outlines in the shared foreground
+ * colour over the app's dark background, no flat cartoon fills — to sit
+ * quietly in the app's visual language (see TapeLoader).
  *
  * The two halves are knocked apart and askew across a jagged break, with a
  * couple of sliders jolted loose. We keep it calm: nothing animates except an
@@ -166,15 +176,19 @@ const NotFound: Component<NotFoundProps> = (props) => {
 			</svg>
 
 			<div class="not-found-copy">
-				<p class="not-found-code">404</p>
-				<h1 class="not-found-title">This groove is broken</h1>
-				<p class="not-found-message">
-					We couldn't find this project — it may have been deleted, or you might
-					not have access to it.
-				</p>
+				<Show when={props.code}>
+					<p class="not-found-code">{props.code}</p>
+				</Show>
+				<h1 class="not-found-title">{props.title}</h1>
+				<Show
+					when={props.children}
+					fallback={<p class="not-found-message">{props.message}</p>}
+				>
+					{props.children}
+				</Show>
 				<Show when={props.homeHref !== ""}>
 					<a class="not-found-home" href={props.homeHref ?? "/dashboard"}>
-						Back to your projects
+						{props.homeLabel ?? "Back to your projects"}
 					</a>
 				</Show>
 			</div>

@@ -1,7 +1,7 @@
-import { For, type JSX, Match, Switch } from "solid-js";
+import { For, type JSX, Match, Show, Switch } from "solid-js";
 import { AudioProvider } from "../../audio/AudioProvider";
 import { useProject } from "../../model/project";
-import NotFound from "../NotFound";
+import ProjectNotFound from "../ProjectNotFound";
 import TapeLoader from "../TapeLoader";
 import Browser from "./Browser";
 import EditorAssistant from "./EditorAssistant";
@@ -23,13 +23,30 @@ export default function Editor(props: EditorProps): JSX.Element {
 					<TapeLoader label="Loading project" />
 				</Match>
 				<Match when={project.notFound}>
-					<NotFound />
+					<ProjectNotFound />
 				</Match>
 				<Match when={project.error}>
-					<p class="error">Error fetching project {props.id}.</p>
+					<div class="project-error">
+						<p class="project-error-message">{project.error}</p>
+						<div class="project-error-actions">
+							<button
+								type="button"
+								class="project-error-retry"
+								onClick={() => location.reload()}
+							>
+								Try again
+							</button>
+							<a class="project-error-home" href="/dashboard">
+								Back to your projects
+							</a>
+						</div>
+					</div>
 				</Match>
 				<Match when={project.data}>
 					<AudioProvider project={project}>
+						<Show when={project.saveError}>
+							<p class="save-error-banner">{project.saveError}</p>
+						</Show>
 						<EditorHeader project={project} />
 						<Browser project={project} />
 						<div class="workspace">

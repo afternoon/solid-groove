@@ -1,6 +1,6 @@
 import { useNavigate } from "@solidjs/router";
 import { HiSolidBolt, HiSolidUser } from "solid-icons/hi";
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { authService } from "../auth/authService";
 
 export default function LoginButton() {
@@ -45,8 +45,10 @@ export default function LoginButton() {
 				disabled={busy()}
 				onClick={startCreating}
 			>
-				<HiSolidBolt size={20} />
-				<span>Start creating</span>
+				<Show when={!busy()} fallback={<span class="button-spinner" />}>
+					<HiSolidBolt size={20} />
+				</Show>
+				<span>{busy() ? "Starting…" : "Start creating"}</span>
 			</button>
 			<button
 				class="secondary"
@@ -54,8 +56,10 @@ export default function LoginButton() {
 				disabled={busy()}
 				onClick={signInWithGoogle}
 			>
-				<HiSolidUser size={20} />
-				<span>Log in with Google</span>
+				<Show when={!busy()} fallback={<span class="button-spinner" />}>
+					<HiSolidUser size={20} />
+				</Show>
+				<span>{busy() ? "Signing in…" : "Log in with Google"}</span>
 			</button>
 			<p class="entry-hint">
 				No account needed — jump right in. You can sign in later to save your

@@ -34,6 +34,21 @@
 	cursor: default;
 }
 
+.button-spinner {
+	width: 16px;
+	height: 16px;
+	border: 2px solid rgba(255, 255, 255, 0.35);
+	border-top-color: currentColor;
+	border-radius: 50%;
+	animation: button-spinner-spin 0.7s linear infinite;
+}
+
+@keyframes button-spinner-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 .entry-hint {
 	margin-top: 8px;
 	font-size: 0.9rem;
