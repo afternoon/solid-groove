@@ -1,5 +1,5 @@
 import { HiSolidPlay, HiSolidStop } from "solid-icons/hi";
-import { type Component, createMemo, Show } from "solid-js";
+import { createMemo, type JSX, Show } from "solid-js";
 import { useAudio } from "../../audio/AudioProvider";
 import { usePlaybackHotkey } from "../../audio/usePlaybackHotkey";
 import type { ProjectStore } from "../../model/project";
@@ -8,9 +8,7 @@ type EditorHeaderProps = {
 	project: ProjectStore;
 };
 
-export default function EditorHeader(
-	props: EditorHeaderProps,
-): Component<EditorHeaderProps> {
+export default function EditorHeader(props: EditorHeaderProps): JSX.Element {
 	const audio = useAudio();
 
 	usePlaybackHotkey(audio);

@@ -1,10 +1,12 @@
+import type { Timestamp } from "firebase/firestore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Project } from "./types";
 
 // Mock the data service so we can observe writes without touching Firebase.
 // `vi.mock` is hoisted above module-level declarations, so the shared spy must
 // come from `vi.hoisted`.
 const { updateProject } = vi.hoisted(() => ({
-	updateProject: vi.fn(async () => {}),
+	updateProject: vi.fn(async (_project: Project) => {}),
 }));
 
 vi.mock("./dataService", () => ({
@@ -18,6 +20,13 @@ import { newProject } from "./newProject";
 import { setInstrumentEnvelope, setProject } from "./project";
 import type { Envelope } from "./types";
 
+// The store only reads createdAt for display, so a stub Timestamp is enough.
+const stubTimestamp = {
+	toDate: () => new Date("2025-01-01T00:00:00Z"),
+	seconds: 0,
+	nanoseconds: 0,
+} as Timestamp;
+
 const envelope = (attack: number): Envelope => ({
 	attack,
 	decay: 0.1,
@@ -30,7 +39,11 @@ describe("project store persistence", () => {
 		vi.useFakeTimers();
 		// Seed the store synchronously. setProject writes immediately; clear that
 		// so the assertions below only see the debounced setter writes.
-		setProject({ ...newProject("user-1"), id: "p1" });
+		setProject({
+			...newProject("user-1"),
+			id: "p1",
+			createdAt: stubTimestamp,
+		});
 		updateProject.mockClear();
 	});
 
@@ -52,9 +65,7 @@ describe("project store persistence", () => {
 
 		// Exactly one write, carrying the final value.
 		expect(updateProject).toHaveBeenCalledTimes(1);
-		const written = updateProject.mock.calls[0][0] as ReturnType<
-			typeof newProject
-		>;
+		const written = updateProject.mock.calls[0][0];
 		const instrument = written.latestSnapshot.song.tracks[0].instrument;
 		if (instrument.type === "synth" || instrument.type === "sampler") {
 			expect(instrument.envelope.attack).toBeCloseTo(1.0);

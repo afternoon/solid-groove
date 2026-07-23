@@ -1,4 +1,4 @@
-import type { Component } from "solid-js";
+import type { JSX } from "solid-js";
 import { setSampleTempo, setSampleUrl } from "../../model/project";
 import type { ClipInstrument } from "../../model/types";
 import { SampleChooser } from "./SampleChooser";
@@ -11,7 +11,7 @@ type ClipInstrumentEditorProps = {
 
 export default function ClipInstrumentEditor(
 	props: ClipInstrumentEditorProps,
-): Component<ClipInstrumentEditorProps> {
+): JSX.Element {
 	return (
 		<div class="clip-instrument-editor">
 			<div class="instrument-params">

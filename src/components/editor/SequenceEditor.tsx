@@ -1,4 +1,4 @@
-import { type Component, For } from "solid-js";
+import { For, type JSX } from "solid-js";
 import { setSequenceStep } from "../../model/project";
 import type { Sequence } from "../../model/types";
 import "./SequenceEditor.css";
@@ -10,7 +10,7 @@ type SequenceEditorProps = {
 
 export default function SequenceEditor(
 	props: SequenceEditorProps,
-): Component<SequenceEditorProps> {
+): JSX.Element {
 	const handleStepToggle = (stepIndex: number) => {
 		const currentNote = props.sequence.steps[stepIndex];
 		const newNote = currentNote === null ? "C3" : null;

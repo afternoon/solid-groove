@@ -1,4 +1,4 @@
-import type { Component } from "solid-js";
+import type { JSX } from "solid-js";
 import type { ProjectStore } from "../../model/project";
 
 type EditorAssistantProps = {
@@ -7,6 +7,6 @@ type EditorAssistantProps = {
 
 export default function EditorAssistant(
 	_props: EditorAssistantProps,
-): Component<EditorAssistantProps> {
+): JSX.Element {
 	return <div class="assistant">{/* AI assistant UI will go here */}</div>;
 }

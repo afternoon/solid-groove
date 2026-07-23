@@ -1,8 +1,13 @@
 import { A } from "@solidjs/router";
 import since from "since-time-ago";
-import { For, Show } from "solid-js";
+import { For, type JSX, Show } from "solid-js";
+import type { Project } from "../model/types";
 
-export default function ProjectList(props) {
+type ProjectListProps = {
+	projects: Project[];
+};
+
+export default function ProjectList(props: ProjectListProps): JSX.Element {
 	return (
 		<div class="project-list">
 			<Show

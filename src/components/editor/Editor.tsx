@@ -1,4 +1,4 @@
-import { type Component, For, Match, Switch } from "solid-js";
+import { For, type JSX, Match, Switch } from "solid-js";
 import { AudioProvider } from "../../audio/AudioProvider";
 import { useProject } from "../../model/project";
 import NotFound from "../NotFound";
@@ -13,7 +13,7 @@ type EditorProps = {
 	id: string;
 };
 
-export default function Editor(props: EditorProps): Component<EditorProps> {
+export default function Editor(props: EditorProps): JSX.Element {
 	const project = useProject(props.id);
 
 	return (

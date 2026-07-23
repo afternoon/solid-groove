@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import type { Project } from "./types";
 
 // Mock Firestore Timestamp for development
 const mockTimestamp = {
@@ -7,7 +8,7 @@ const mockTimestamp = {
 	nanoseconds: 0,
 } as Timestamp;
 
-export default {
+const mockProjectData: Project = {
 	id: "nn-ts",
 	name: "My First Groove",
 	ownerId: "user-456",
@@ -109,3 +110,5 @@ export default {
 		},
 	},
 };
+
+export default mockProjectData;

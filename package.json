@@ -33,7 +33,8 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:ui": "vitest --ui",
-		"check": "biome check --write"
+		"typecheck": "tsc --noEmit",
+		"check": "tsc --noEmit && biome check --write"
 	},
 	"type": "module"
 }

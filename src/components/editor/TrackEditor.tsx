@@ -1,4 +1,4 @@
-import type { Component } from "solid-js";
+import type { JSX } from "solid-js";
 import { setTrack } from "../../model/project";
 import type { Sequence, Track } from "../../model/types";
 import InstrumentEditor from "./InstrumentEditor";
@@ -11,9 +11,7 @@ type TrackEditorProps = {
 	trackIndex: number;
 };
 
-export default function TrackEditor(
-	props: TrackEditorProps,
-): Component<TrackEditorProps> {
+export default function TrackEditor(props: TrackEditorProps): JSX.Element {
 	return (
 		<div class="track-editor">
 			<div class="track-info">

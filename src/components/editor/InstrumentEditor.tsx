@@ -1,4 +1,4 @@
-import { type Component, Match, Switch } from "solid-js";
+import { type JSX, Match, Switch } from "solid-js";
 import type { Instrument } from "../../model/types";
 import ClipInstrumentEditor from "./ClipInstrumentEditor";
 import SamplerInstrumentEditor from "./SamplerInstrumentEditor";
@@ -11,7 +11,7 @@ type InstrumentEditorProps = {
 
 export default function InstrumentEditor(
 	props: InstrumentEditorProps,
-): Component<InstrumentEditorProps> {
+): JSX.Element {
 	return (
 		<div class="instrument-editor">
 			<Switch>

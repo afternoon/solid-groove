@@ -64,12 +64,10 @@ class ToneSampler extends ToneInstrument {
 				C3: config.sampleUrl,
 			},
 			onload: () => console.log("Sample loaded:", config.sampleUrl),
-			envelope: {
-				attack: config.envelope.attack,
-				decay: config.envelope.decay,
-				sustain: config.envelope.sustain,
-				release: config.envelope.release,
-			},
+			// Tone.Sampler only exposes attack/release — it has no decay or
+			// sustain stage, so those parts of the envelope don't apply here.
+			attack: config.envelope.attack,
+			release: config.envelope.release,
 		}).connect(this.filter);
 
 		this.filter.connect(this.output);

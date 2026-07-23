@@ -1,4 +1,4 @@
-import type { Component } from "solid-js";
+import type { JSX } from "solid-js";
 import {
 	setInstrumentEnvelope,
 	setInstrumentFilter,
@@ -16,7 +16,7 @@ type SamplerInstrumentEditorProps = {
 
 export default function SamplerInstrumentEditor(
 	props: SamplerInstrumentEditorProps,
-): Component<SamplerInstrumentEditorProps> {
+): JSX.Element {
 	return (
 		<div class="sampler-instrument-editor">
 			<div class="instrument-params">
