@@ -13,8 +13,12 @@ const defaultFilter: FilterConfig = {
 	resonance: 0.0,
 };
 
-function emptySteps(): (string | null)[] {
-	return Array.from({ length: 16 }, () => null);
+// Builds a 16-step sequence with the given note placed on the listed (1-based)
+// step numbers and the rest left empty.
+function stepsOn(note: string, positions: number[]): (string | null)[] {
+	return Array.from({ length: 16 }, (_, i) =>
+		positions.includes(i + 1) ? note : null,
+	);
 }
 
 function starterTrack(name: string, sampleUrl: string): Track {
@@ -33,13 +37,14 @@ function starterTrack(name: string, sampleUrl: string): Track {
 }
 
 /**
- * Builds a fresh, empty starter project owned by the given user. Works for
- * both anonymous and signed-in users — ownerId is simply the current uid.
+ * Builds a fresh starter project owned by the given user, pre-loaded with a
+ * simple four-on-the-floor groove so playback produces sound right away. Works
+ * for both anonymous and signed-in users — ownerId is simply the current uid.
  */
 export function newProject(ownerId: string): Omit<Project, "id" | "createdAt"> {
 	const tracks: Track[] = [
-		starterTrack("BD", "/samples/house/drums/bd/909-bd.mp3"),
-		starterTrack("OH", "/samples/house/drums/bd/909-oh.mp3"),
+		starterTrack("BD", "/samples/house/drums/bd/909-bd.wav"),
+		starterTrack("OH", "/samples/house/drums/bd/909-oh.wav"),
 	];
 
 	return {
@@ -52,7 +57,12 @@ export function newProject(ownerId: string): Omit<Project, "id" | "createdAt"> {
 				tracks,
 				patterns: [
 					{
-						sequences: tracks.map(() => ({ steps: emptySteps() })),
+						sequences: [
+							// BD: four-on-the-floor
+							{ steps: stepsOn("C3", [1, 5, 9, 13]) },
+							// OH: offbeat hats
+							{ steps: stepsOn("C4", [3, 7, 11, 15]) },
+						],
 					},
 				],
 			},

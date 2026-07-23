@@ -24,7 +24,7 @@ export default {
 					isSolo: false,
 					instrument: {
 						type: "sampler" as const,
-						sampleUrl: "/samples/house/drums/bd/909-bd.mp3",
+						sampleUrl: "/samples/house/drums/bd/909-bd.wav",
 						envelope: {
 							attack: 0.0,
 							decay: 0.2,
@@ -45,7 +45,7 @@ export default {
 					isSolo: false,
 					instrument: {
 						type: "sampler" as const,
-						sampleUrl: "/samples/house/drums/bd/909-oh.mp3",
+						sampleUrl: "/samples/house/drums/bd/909-oh.wav",
 						envelope: {
 							attack: 0.0,
 							decay: 0.2,
