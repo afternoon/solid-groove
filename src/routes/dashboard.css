@@ -2,3 +2,42 @@
 	width: 800px;
 	margin: 200px auto;
 }
+
+.upgrade-prompt {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 16px 20px;
+	margin-bottom: 24px;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.upgrade-prompt .upgrade-message {
+	margin: 0;
+	opacity: 0.85;
+}
+
+.upgrade-prompt button,
+.dashboard-actions .new-project {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 16px;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.upgrade-prompt button:disabled,
+.dashboard-actions .new-project:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.dashboard-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 20px;
+}

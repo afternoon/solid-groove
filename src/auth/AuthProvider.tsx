@@ -1,4 +1,3 @@
-import { useNavigate } from "@solidjs/router";
 import type { User } from "firebase/auth";
 import {
 	createContext,
@@ -13,6 +12,7 @@ import { authService } from "./authService";
 interface AuthState {
 	user: User | null;
 	loading: boolean;
+	isAnonymous: boolean;
 }
 
 const AuthContext = createContext<AuthState>();
@@ -21,18 +21,23 @@ export function AuthProvider(props: ParentProps) {
 	const [state, setState] = createStore<AuthState>({
 		user: null,
 		loading: true,
+		isAnonymous: false,
 	});
-
-	const navigate = useNavigate();
 
 	createEffect(() => {
 		const unsubscribe = authService.onAuthStateChanged((user) => {
 			if (!user) {
-				navigate("/");
+				// No session yet: sign the visitor in anonymously so they can
+				// start working immediately. Firebase persists this session
+				// locally, so returning users keep their work and uid.
+				authService.signInAnonymously().catch((error) => {
+					console.error("Error signing in anonymously:", error);
+					setState({ user: null, loading: false, isAnonymous: false });
+				});
 				return;
 			}
 
-			setState({ user, loading: false });
+			setState({ user, loading: false, isAnonymous: user.isAnonymous });
 		});
 
 		onCleanup(() => unsubscribe());

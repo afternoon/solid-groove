@@ -11,7 +11,7 @@ export interface DataService {
 		callback: (projects: Project[]) => void,
 	): () => void;
 	updateProject(project: Project): Promise<void>;
-	createProject(project: Omit<Project, "id">): Promise<string>;
+	createProject(project: Omit<Project, "id" | "createdAt">): Promise<string>;
 	deleteProject(id: string): Promise<void>;
 }
 
@@ -86,14 +86,19 @@ class FirebaseDataService implements DataService {
 		await updateDoc(docRef, projectData);
 	}
 
-	async createProject(project: Omit<Project, "id">): Promise<string> {
-		const { collection, addDoc, getFirestore } = await import(
+	async createProject(
+		project: Omit<Project, "id" | "createdAt">,
+	): Promise<string> {
+		const { collection, addDoc, getFirestore, serverTimestamp } = await import(
 			"firebase/firestore"
 		);
 		const { app } = await import("../firebaseConfig");
 
 		const db = getFirestore(app);
-		const docRef = await addDoc(collection(db, "projects"), project);
+		const docRef = await addDoc(collection(db, "projects"), {
+			...project,
+			createdAt: serverTimestamp(),
+		});
 		return docRef.id;
 	}
 
@@ -133,7 +138,9 @@ class MockDataService implements DataService {
 		// No-op for mock
 	}
 
-	async createProject(project: Omit<Project, "id">): Promise<string> {
+	async createProject(
+		project: Omit<Project, "id" | "createdAt">,
+	): Promise<string> {
 		// Return mock id
 		return "mock-project-id";
 	}
