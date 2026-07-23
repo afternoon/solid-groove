@@ -11,6 +11,7 @@
 		"@vitest/ui": "3.0.5",
 		"firebase": "^12.3.0",
 		"jsdom": "^25.0.1",
+		"node-web-audio-api": "^2.1.0",
 		"since-time-ago": "^1.1.1",
 		"solid-firebase": "^0.3.0",
 		"solid-icons": "^1.1.0",

@@ -132,7 +132,9 @@ export default class SongPlayer {
 		if (this.sequence) {
 			this.sequence.dispose();
 		}
-		this.toneInstruments.forEach((inst) => inst.dispose());
+		this.toneInstruments.forEach((inst) => {
+			inst.dispose();
+		});
 		this.toneInstruments = [];
 	}
 }
