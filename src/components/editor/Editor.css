@@ -138,16 +138,93 @@
 
 				.sample-chooser {
 					width: 100px;
-					padding: 20px;
+					padding: 20px 12px;
 					font-weight: bold;
 					background-color: var(--color-background-tertiary);
 					color: var(--color-foreground-bright);
-					border: 2px dashed var(--color-text-secondary);
+					border: 2px solid var(--color-text-secondary);
 					cursor: pointer;
 					transition: all 0.02s ease-out;
+					overflow-wrap: anywhere;
 
 					&:hover {
 						background-color: var(--color-background-secondary);
+					}
+
+					&.sample-chooser-unknown {
+						border-color: #c0504d;
+						color: #e08a87;
+					}
+				}
+
+				.sample-modal {
+					min-width: 240px;
+					max-width: 320px;
+					padding: 20px;
+					background-color: var(--color-background-secondary);
+					color: var(--color-text);
+					border: 2px solid var(--color-background-tertiary);
+					border-radius: 4px;
+				}
+
+				.sample-modal[open] {
+					display: flex;
+					flex-direction: column;
+					gap: 12px;
+				}
+
+				.sample-modal::backdrop {
+					background-color: rgba(0, 0, 0, 0.6);
+				}
+
+				.sample-modal-title {
+					font-size: var(--font-size-small);
+					font-weight: bold;
+					color: var(--color-text-secondary);
+					text-transform: uppercase;
+					letter-spacing: 0.5px;
+				}
+
+				.sample-modal-list {
+					display: flex;
+					flex-direction: column;
+					gap: 4px;
+					margin: 0;
+					padding: 0;
+					list-style: none;
+				}
+
+				.sample-modal-option {
+					width: 100%;
+					padding: 8px 12px;
+					text-align: left;
+					font-weight: bold;
+					background-color: var(--color-background-tertiary);
+					color: var(--color-foreground-bright);
+					border: 2px solid transparent;
+					cursor: pointer;
+					transition: background-color 0.02s ease-out;
+
+					&:hover {
+						background-color: var(--color-background-hover);
+					}
+
+					&.sample-modal-option-selected {
+						border-color: var(--color-foreground-bright);
+					}
+				}
+
+				.sample-modal-close {
+					align-self: flex-end;
+					padding: 6px 12px;
+					background-color: transparent;
+					color: var(--color-text-secondary);
+					border: 2px solid var(--color-text-secondary);
+					cursor: pointer;
+
+					&:hover {
+						color: var(--color-foreground-bright);
+						border-color: var(--color-foreground-bright);
 					}
 				}
 
