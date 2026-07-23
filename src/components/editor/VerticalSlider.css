@@ -42,12 +42,18 @@
 		border: none;
 	}
 
+	/*
+	 * The white .slider-fill bar is what visually represents the value, and it
+	 * spans the full 0→max range. The native thumb is kept at a real size so the
+	 * slider stays grabbable (a zero-size thumb is not draggable), but rendered
+	 * transparent so only the fill shows.
+	 */
 	.slider-track input[type="range"]::-webkit-slider-thumb {
 		-webkit-appearance: none;
 		appearance: none;
 		width: var(--vertical-slider-width);
 		height: var(--vertical-slider-width);
-		background: var(--color-text-primary, #fff);
+		background: transparent;
 		cursor: pointer;
 		border: none;
 	}
@@ -55,7 +61,7 @@
 	.slider-track input[type="range"]::-moz-range-thumb {
 		width: var(--vertical-slider-width);
 		height: var(--vertical-slider-width);
-		background: var(--color-text-primary, #fff);
+		background: transparent;
 		cursor: pointer;
 		border: none;
 	}

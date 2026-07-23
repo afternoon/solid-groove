@@ -45,6 +45,11 @@ class FirebaseDataService implements DataService {
 				unsubscribe = onSnapshot(
 					docRef,
 					(docSnap) => {
+						// Ignore snapshots that merely echo our own in-flight local
+						// writes. During a slider drag we fire many optimistic updates
+						// per second; the store already holds the newest value, so
+						// re-applying the local echo would fight the drag and reset it.
+						if (docSnap.metadata.hasPendingWrites) return;
 						if (docSnap.exists()) {
 							callback({
 								project: { id: docSnap.id, ...docSnap.data() } as Project,

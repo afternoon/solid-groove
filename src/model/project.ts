@@ -28,6 +28,43 @@ const [store, setStore] = createStore<ProjectStore>({
 	notFound: false,
 });
 
+/**
+ * Trailing-debounced project persistence.
+ *
+ * A slider drag fires many setter calls per second. Writing every one to
+ * Firestore is wasteful and amplifies the snapshot echo the subscription has
+ * to filter out. Coalesce rapid edits into a single write once the user pauses.
+ * The optimistic store update stays synchronous; only the network write waits.
+ */
+const PERSIST_DEBOUNCE_MS = 200;
+let persistTimer: ReturnType<typeof setTimeout> | undefined;
+
+let pendingProject: Project | undefined;
+
+function persistProject(project: Project) {
+	pendingProject = project;
+	if (persistTimer !== undefined) clearTimeout(persistTimer);
+	persistTimer = setTimeout(() => {
+		persistTimer = undefined;
+		pendingProject = undefined;
+		dataService.updateProject(project);
+	}, PERSIST_DEBOUNCE_MS);
+}
+
+/**
+ * Immediately write any debounced edit that is still waiting. Called before the
+ * subscription tears down (id change or unmount) so a coalesced edit is never
+ * dropped.
+ */
+function flushPendingWrite() {
+	if (persistTimer === undefined) return;
+	clearTimeout(persistTimer);
+	persistTimer = undefined;
+	const project = pendingProject;
+	pendingProject = undefined;
+	if (project) dataService.updateProject(project);
+}
+
 export function useProject(id: string): ProjectStore {
 	createEffect(() => {
 		// Reset state when the subscribed id changes so a stale project or a
@@ -52,7 +89,12 @@ export function useProject(id: string): ProjectStore {
 			);
 		});
 
-		onCleanup(() => unsubscribe());
+		onCleanup(() => {
+			// Persist any debounced edit before we stop listening, otherwise a
+			// coalesced change made just before navigating away is lost.
+			flushPendingWrite();
+			unsubscribe();
+		});
 	});
 
 	return store as ProjectStore;
@@ -68,7 +110,7 @@ export function setTempo(tempo: number) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setTrack(trackIndex: number, trackUpdates: Partial<Track>) {
@@ -84,7 +126,7 @@ export function setTrack(trackIndex: number, trackUpdates: Partial<Track>) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setSong(song: Song) {
@@ -97,7 +139,7 @@ export function setSong(song: Song) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setSequenceStep(
@@ -117,7 +159,7 @@ export function setSequenceStep(
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setProject(project: Project) {
@@ -143,7 +185,7 @@ export function setInstrument(trackIndex: number, instrument: Instrument) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setInstrumentEnvelope(trackIndex: number, envelope: Envelope) {
@@ -160,7 +202,7 @@ export function setInstrumentEnvelope(trackIndex: number, envelope: Envelope) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setInstrumentFilter(trackIndex: number, filter: FilterConfig) {
@@ -177,7 +219,7 @@ export function setInstrumentFilter(trackIndex: number, filter: FilterConfig) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setOscillatorType(
@@ -197,7 +239,7 @@ export function setOscillatorType(
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setSampleUrl(trackIndex: number, sampleUrl: string) {
@@ -214,7 +256,7 @@ export function setSampleUrl(trackIndex: number, sampleUrl: string) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
 
 export function setSampleTempo(trackIndex: number, sampleTempo: number) {
@@ -231,5 +273,5 @@ export function setSampleTempo(trackIndex: number, sampleTempo: number) {
 		}),
 	);
 
-	dataService.updateProject(store.data);
+	persistProject(store.data);
 }
