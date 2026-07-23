@@ -45,7 +45,8 @@ export function setTempo(tempo: number) {
 
 	setStore(
 		produce((state) => {
-			state.data!.latestSnapshot.song.tempo = tempo;
+			if (!state.data) return;
+			state.data.latestSnapshot.song.tempo = tempo;
 		}),
 	);
 
@@ -57,8 +58,9 @@ export function setTrack(trackIndex: number, trackUpdates: Partial<Track>) {
 
 	setStore(
 		produce((state) => {
+			if (!state.data) return;
 			Object.assign(
-				state.data!.latestSnapshot.song.tracks[trackIndex],
+				state.data.latestSnapshot.song.tracks[trackIndex],
 				trackUpdates,
 			);
 		}),
@@ -72,7 +74,8 @@ export function setSong(song: Song) {
 
 	setStore(
 		produce((state) => {
-			state.data!.latestSnapshot.song = song;
+			if (!state.data) return;
+			state.data.latestSnapshot.song = song;
 		}),
 	);
 
@@ -89,7 +92,8 @@ export function setSequenceStep(
 
 	setStore(
 		produce((state) => {
-			state.data!.latestSnapshot.song.patterns[patternIndex].sequences[
+			if (!state.data) return;
+			state.data.latestSnapshot.song.patterns[patternIndex].sequences[
 				trackIndex
 			].steps[stepIndex] = note;
 		}),
@@ -115,8 +119,8 @@ export function setInstrument(trackIndex: number, instrument: Instrument) {
 
 	setStore(
 		produce((state) => {
-			state.data!.latestSnapshot.song.tracks[trackIndex].instrument =
-				instrument;
+			if (!state.data) return;
+			state.data.latestSnapshot.song.tracks[trackIndex].instrument = instrument;
 		}),
 	);
 
@@ -128,8 +132,9 @@ export function setInstrumentEnvelope(trackIndex: number, envelope: Envelope) {
 
 	setStore(
 		produce((state) => {
+			if (!state.data) return;
 			const instrument =
-				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+				state.data.latestSnapshot.song.tracks[trackIndex].instrument;
 			if (instrument.type === "synth" || instrument.type === "sampler") {
 				instrument.envelope = envelope;
 			}
@@ -144,8 +149,9 @@ export function setInstrumentFilter(trackIndex: number, filter: FilterConfig) {
 
 	setStore(
 		produce((state) => {
+			if (!state.data) return;
 			const instrument =
-				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+				state.data.latestSnapshot.song.tracks[trackIndex].instrument;
 			if (instrument.type === "synth" || instrument.type === "sampler") {
 				instrument.filter = filter;
 			}
@@ -163,8 +169,9 @@ export function setOscillatorType(
 
 	setStore(
 		produce((state) => {
+			if (!state.data) return;
 			const instrument =
-				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+				state.data.latestSnapshot.song.tracks[trackIndex].instrument;
 			if (instrument.type === "synth") {
 				instrument.oscillatorType = oscillatorType;
 			}
@@ -179,8 +186,9 @@ export function setSampleUrl(trackIndex: number, sampleUrl: string) {
 
 	setStore(
 		produce((state) => {
+			if (!state.data) return;
 			const instrument =
-				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+				state.data.latestSnapshot.song.tracks[trackIndex].instrument;
 			if (instrument.type === "sampler" || instrument.type === "clip") {
 				instrument.sampleUrl = sampleUrl;
 			}
@@ -195,8 +203,9 @@ export function setSampleTempo(trackIndex: number, sampleTempo: number) {
 
 	setStore(
 		produce((state) => {
+			if (!state.data) return;
 			const instrument =
-				state.data!.latestSnapshot.song.tracks[trackIndex].instrument;
+				state.data.latestSnapshot.song.tracks[trackIndex].instrument;
 			if (instrument.type === "clip") {
 				instrument.sampleTempo = sampleTempo;
 			}

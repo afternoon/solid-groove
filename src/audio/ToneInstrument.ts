@@ -164,7 +164,11 @@ class ToneClip extends ToneInstrument {
 		}).connect(destination);
 	}
 
-	trigger(note: string, duration: Tone.Unit.Time, time: Tone.Unit.Time): void {
+	trigger(
+		_note: string,
+		_duration: Tone.Unit.Time,
+		time: Tone.Unit.Time,
+	): void {
 		// Only trigger if the buffer is loaded
 		if (!this.player.loaded) return;
 
@@ -209,7 +213,9 @@ export function createToneInstrument(
 		case "clip":
 			return new ToneClip(instrument, destination);
 		default:
-			throw new Error(`Unknown instrument type: ${(instrument as any).type}`);
+			throw new Error(
+				`Unknown instrument type: ${(instrument as { type: string }).type}`,
+			);
 	}
 }
 

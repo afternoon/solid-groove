@@ -1,4 +1,4 @@
-import { createContext, useContext } from "solid-js";
+import { createContext, type JSX, useContext } from "solid-js";
 import type { ProjectStore } from "../model/project";
 import SongPlayer from "./SongPlayer";
 
@@ -6,7 +6,7 @@ const SongPlayerContext = createContext<SongPlayer>();
 
 export function AudioProvider(props: {
 	project: ProjectStore;
-	children?: any;
+	children?: JSX.Element;
 }) {
 	const songPlayer = new SongPlayer();
 	songPlayer.setProjectStore(props.project);

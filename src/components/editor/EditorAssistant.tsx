@@ -6,7 +6,7 @@ type EditorAssistantProps = {
 };
 
 export default function EditorAssistant(
-	props: EditorAssistantProps,
+	_props: EditorAssistantProps,
 ): Component<EditorAssistantProps> {
 	return <div class="assistant">{/* AI assistant UI will go here */}</div>;
 }

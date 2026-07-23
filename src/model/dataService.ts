@@ -134,18 +134,18 @@ class MockDataService implements DataService {
 		return () => {};
 	}
 
-	async updateProject(project: Project): Promise<void> {
+	async updateProject(_project: Project): Promise<void> {
 		// No-op for mock
 	}
 
 	async createProject(
-		project: Omit<Project, "id" | "createdAt">,
+		_project: Omit<Project, "id" | "createdAt">,
 	): Promise<string> {
 		// Return mock id
 		return "mock-project-id";
 	}
 
-	async deleteProject(id: string): Promise<void> {
+	async deleteProject(_id: string): Promise<void> {
 		// No-op for mock
 	}
 }

@@ -101,7 +101,7 @@ export default class SongPlayer {
 		this.sequence = new Tone.Sequence(
 			(time, index) => {
 				const patterns = this.store?.data?.latestSnapshot?.song?.patterns;
-				if (patterns !== undefined && patterns.at(currentPattern)) {
+				if (patterns?.at(currentPattern)) {
 					const sequences: Sequence[] = patterns[currentPattern].sequences;
 
 					// Play each sequence with its corresponding instrument
