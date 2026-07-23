@@ -13,10 +13,12 @@ installWebAudioGlobals();
 // Imported lazily (after globals are installed) to keep import order correct.
 let Tone: typeof import("tone");
 let createToneInstrument: typeof import("./ToneInstrument").createToneInstrument;
+let trackGain: typeof import("./SongPlayer").trackGain;
 
 beforeAll(async () => {
 	Tone = await import("tone");
 	({ createToneInstrument } = await import("./ToneInstrument"));
+	({ trackGain } = await import("./SongPlayer"));
 });
 
 const RENDER_SECONDS = 0.5;
@@ -168,5 +170,59 @@ describe("ToneInstrument envelope", () => {
 		const baselineTail = rmsWindow(shortBaseline, 0.72, 1.0);
 		const changedTail = rmsWindow(afterChange, 0.72, 1.0);
 		expect(changedTail).toBeGreaterThan(baselineTail * 2);
+	});
+});
+
+describe("ToneInstrument volume", () => {
+	it("setVolume scales the output level", async () => {
+		const full = await renderSynth(baseSynth({}));
+		const half = await renderSynth(baseSynth({}), (inst) => {
+			inst.setVolume(0.5);
+		});
+
+		// Measure past the 20ms ramp so the steady-state level is what's compared.
+		const fullLevel = rmsWindow(full, 0.2, 0.65);
+		const halfLevel = rmsWindow(half, 0.2, 0.65);
+
+		expect(halfLevel / fullLevel).toBeGreaterThan(0.4);
+		expect(halfLevel / fullLevel).toBeLessThan(0.6);
+	});
+
+	it("setVolume(0) silences the track", async () => {
+		const silent = await renderSynth(baseSynth({}), (inst) => {
+			inst.setVolume(0);
+		});
+		expect(rmsWindow(silent, 0.2, 0.65)).toBeLessThan(0.001);
+	});
+
+	it("default volume is unity — an untouched track is not attenuated", async () => {
+		// Regression guard: routing every instrument through an output gain node
+		// must not quietly change the level of a track nobody has touched.
+		const viaGainStage = await renderSynth(baseSynth({}));
+		expect(rms(viaGainStage)).toBeGreaterThan(0.01);
+	});
+});
+
+describe("trackGain fader taper", () => {
+	it("maps a full fader to unity and a closed fader to silence", () => {
+		expect(trackGain(1)).toBe(1);
+		expect(trackGain(0)).toBe(0);
+	});
+
+	it("is monotonic and sits below linear in the middle of the range", () => {
+		// The taper must never invert, and a mid fader should be quieter than a
+		// straight linear mapping — that is the point of the curve.
+		const positions = [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1];
+		for (let i = 1; i < positions.length; i++) {
+			expect(trackGain(positions[i])).toBeGreaterThan(
+				trackGain(positions[i - 1]),
+			);
+		}
+		expect(trackGain(0.5)).toBeLessThan(0.5);
+	});
+
+	it("clamps out-of-range fader positions", () => {
+		expect(trackGain(-1)).toBe(0);
+		expect(trackGain(2)).toBe(1);
 	});
 });

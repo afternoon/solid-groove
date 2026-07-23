@@ -65,6 +65,13 @@ function flushPendingWrite() {
 	if (project) dataService.updateProject(project);
 }
 
+/**
+ * The live project store. `useProject` returns this same object after wiring up
+ * a subscription; consumers that only need to read current state (or observe it
+ * reactively) can use it directly.
+ */
+export const projectStore = store as ProjectStore;
+
 export function useProject(id: string): ProjectStore {
 	createEffect(() => {
 		// Reset state when the subscribed id changes so a stale project or a

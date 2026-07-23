@@ -8,9 +8,16 @@ import type {
 
 abstract class ToneInstrument {
 	protected destination: Tone.ToneAudioNode;
+	/**
+	 * Per-track output gain. Every subclass routes its signal chain through this
+	 * node instead of straight to the destination, so track volume is a single
+	 * stage applied uniformly regardless of instrument type.
+	 */
+	protected output: Tone.Gain;
 
 	constructor(destination: Tone.ToneAudioNode) {
 		this.destination = destination;
+		this.output = new Tone.Gain(1).connect(destination);
 	}
 
 	abstract trigger(
@@ -23,7 +30,18 @@ abstract class ToneInstrument {
 
 	abstract getType(): Instrument["type"];
 
-	abstract dispose(): void;
+	/**
+	 * Set the track's output level. `volume` is a linear gain multiplier where
+	 * 1.0 is unity; it is ramped rather than set instantly so slider drags do not
+	 * produce zipper noise.
+	 */
+	setVolume(volume: number): void {
+		this.output.gain.rampTo(volume, 0.02);
+	}
+
+	dispose(): void {
+		this.output.dispose();
+	}
 }
 
 class ToneSampler extends ToneInstrument {
@@ -54,7 +72,7 @@ class ToneSampler extends ToneInstrument {
 			},
 		}).connect(this.filter);
 
-		this.filter.connect(destination);
+		this.filter.connect(this.output);
 	}
 
 	trigger(note: string, duration: Tone.Unit.Time, time: Tone.Unit.Time): void {
@@ -88,6 +106,7 @@ class ToneSampler extends ToneInstrument {
 	dispose(): void {
 		this.sampler.dispose();
 		this.filter.dispose();
+		super.dispose();
 	}
 }
 
@@ -116,7 +135,7 @@ class ToneSynth extends ToneInstrument {
 			},
 		}).connect(this.filter);
 
-		this.filter.connect(destination);
+		this.filter.connect(this.output);
 	}
 
 	trigger(note: string, duration: Tone.Unit.Time, time: Tone.Unit.Time): void {
@@ -145,6 +164,7 @@ class ToneSynth extends ToneInstrument {
 	dispose(): void {
 		this.synth.dispose();
 		this.filter.dispose();
+		super.dispose();
 	}
 }
 
@@ -161,7 +181,7 @@ class ToneClip extends ToneInstrument {
 		this.player = new Tone.Player({
 			url: config.sampleUrl,
 			onload: () => console.log("Clip loaded:", config.sampleUrl),
-		}).connect(destination);
+		}).connect(this.output);
 	}
 
 	trigger(
@@ -198,6 +218,7 @@ class ToneClip extends ToneInstrument {
 
 	dispose(): void {
 		this.player.dispose();
+		super.dispose();
 	}
 }
 
