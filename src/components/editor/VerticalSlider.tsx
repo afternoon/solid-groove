@@ -1,4 +1,4 @@
-import { type Component, createSignal } from "solid-js";
+import type { Component } from "solid-js";
 import "./VerticalSlider.css";
 
 interface VerticalSliderProps {
@@ -11,17 +11,13 @@ interface VerticalSliderProps {
 }
 
 export const VerticalSlider: Component<VerticalSliderProps> = (props) => {
-	const [value, setValue] = createSignal(props.value);
-
 	const handleChange = (e: Event) => {
 		const target = e.target as HTMLInputElement;
-		const newValue = Number.parseFloat(target.value);
-		setValue(newValue);
-		props.onChange(newValue);
+		props.onChange(Number.parseFloat(target.value));
 	};
 
 	const percentage = () =>
-		((value() - props.min) / (props.max - props.min)) * 100;
+		((props.value - props.min) / (props.max - props.min)) * 100;
 
 	return (
 		<div class="vertical-slider">
@@ -32,7 +28,7 @@ export const VerticalSlider: Component<VerticalSliderProps> = (props) => {
 					min={props.min}
 					max={props.max}
 					step={props.step ?? 0.01}
-					value={value()}
+					value={props.value}
 					onInput={handleChange}
 					orient="vertical"
 				/>

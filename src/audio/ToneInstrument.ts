@@ -1,9 +1,9 @@
 import * as Tone from "tone";
 import type {
+	ClipInstrument,
 	Instrument,
 	SamplerInstrument,
 	SynthInstrument,
-	ClipInstrument,
 } from "../model/types";
 
 abstract class ToneInstrument {

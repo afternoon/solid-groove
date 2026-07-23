@@ -20,7 +20,7 @@
 		align-content: center;
 		line-height: 0;
 
-		&:nth-child(4n+1) {
+		&:nth-child(4n + 1) {
 			border-color: var(--color-background-secondary);
 		}
 
