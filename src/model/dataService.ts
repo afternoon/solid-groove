@@ -1,10 +1,22 @@
 import mockProjectData from "./mockProjectData";
 import type { Project } from "./types";
 
+/**
+ * Result passed to a project subscription callback.
+ * - `project` is the loaded project, or `null` when the project does not exist
+ *   or the current user is not allowed to read it (Firestore returns a
+ *   permission-denied error). Both cases are surfaced as "not found" so we
+ *   never leak the existence of another user's project.
+ */
+export type ProjectSubscriptionResult = {
+	project: Project | null;
+	notFound: boolean;
+};
+
 export interface DataService {
 	subscribeToProject(
 		id: string,
-		callback: (project: Project | null) => void,
+		callback: (result: ProjectSubscriptionResult) => void,
 	): () => void;
 	subscribeToUserProjects(
 		userId: string,
@@ -19,7 +31,7 @@ export interface DataService {
 class FirebaseDataService implements DataService {
 	subscribeToProject(
 		id: string,
-		callback: (project: Project | null) => void,
+		callback: (result: ProjectSubscriptionResult) => void,
 	): () => void {
 		let unsubscribe: (() => void) | null = null;
 
@@ -30,13 +42,26 @@ class FirebaseDataService implements DataService {
 				const db = getFirestore(app);
 				const docRef = doc(db, "projects", id);
 
-				unsubscribe = onSnapshot(docRef, (docSnap) => {
-					if (docSnap.exists()) {
-						callback({ id: docSnap.id, ...docSnap.data() } as Project);
-					} else {
-						callback(null);
-					}
-				});
+				unsubscribe = onSnapshot(
+					docRef,
+					(docSnap) => {
+						if (docSnap.exists()) {
+							callback({
+								project: { id: docSnap.id, ...docSnap.data() } as Project,
+								notFound: false,
+							});
+						} else {
+							// Document genuinely does not exist.
+							callback({ project: null, notFound: true });
+						}
+					},
+					() => {
+						// An error here is almost always permission-denied: the security
+						// rules block reading a project the user does not own. Treat it as
+						// "not found" so unauthorized access shows the 404 page.
+						callback({ project: null, notFound: true });
+					},
+				);
 			},
 		);
 
@@ -116,10 +141,18 @@ class FirebaseDataService implements DataService {
 class MockDataService implements DataService {
 	subscribeToProject(
 		id: string,
-		callback: (project: Project | null) => void,
+		callback: (result: ProjectSubscriptionResult) => void,
 	): () => void {
+		// A special id lets us exercise the 404 path in mock mode.
+		if (id === "not-found") {
+			setTimeout(() => callback({ project: null, notFound: true }), 0);
+			return () => {};
+		}
 		// Immediately call with mock data
-		setTimeout(() => callback({ ...mockProjectData, id }), 0);
+		setTimeout(
+			() => callback({ project: { ...mockProjectData, id }, notFound: false }),
+			0,
+		);
 		// Return no-op unsubscribe function
 		return () => {};
 	}

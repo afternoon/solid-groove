@@ -14,22 +14,40 @@ export interface ProjectStore {
 	data: Project | null;
 	loading: boolean;
 	error: string | null;
+	/**
+	 * True when the requested project does not exist or the current user is not
+	 * allowed to read it. Drives the 404 page in the editor.
+	 */
+	notFound: boolean;
 }
 
 const [store, setStore] = createStore<ProjectStore>({
 	data: null,
 	loading: true,
 	error: null,
+	notFound: false,
 });
 
 export function useProject(id: string): ProjectStore {
 	createEffect(() => {
-		const unsubscribe = dataService.subscribeToProject(id, (project) => {
+		// Reset state when the subscribed id changes so a stale project or a
+		// stale 404 from a previous id is never shown.
+		setStore(
+			produce((state) => {
+				state.data = null;
+				state.loading = true;
+				state.error = null;
+				state.notFound = false;
+			}),
+		);
+
+		const unsubscribe = dataService.subscribeToProject(id, (result) => {
 			setStore(
 				produce((state) => {
-					state.data = project;
+					state.data = result.project;
 					state.loading = false;
 					state.error = null;
+					state.notFound = result.notFound;
 				}),
 			);
 		});
@@ -108,6 +126,7 @@ export function setProject(project: Project) {
 			state.data = project;
 			state.loading = false;
 			state.error = null;
+			state.notFound = false;
 		}),
 	);
 
