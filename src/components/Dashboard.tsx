@@ -70,9 +70,6 @@ export default function Dashboard() {
 				<p class="loading">Loading projects...</p>
 			</Match>
 			<Match when={userId()}>
-				<Show when={auth?.isAnonymous}>
-					<UpgradeAccountPrompt />
-				</Show>
 				<div class="dashboard-actions">
 					<button
 						type="button"
@@ -84,6 +81,9 @@ export default function Dashboard() {
 						<span>New Project</span>
 					</button>
 				</div>
+				<Show when={auth?.isAnonymous}>
+					<UpgradeAccountPrompt />
+				</Show>
 				<Switch>
 					<Match when={projectsState().error}>
 						<p class="error">Error fetching projects.</p>

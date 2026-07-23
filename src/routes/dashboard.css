@@ -1,6 +1,14 @@
 .dashboard {
-	width: 800px;
-	margin: 200px auto;
+	width: 100%;
+	max-width: 900px;
+	margin: 64px auto;
+	padding: 0 24px;
+	box-sizing: border-box;
+}
+
+.dashboard-title {
+	font-size: var(--font-size-lg);
+	margin-bottom: 24px;
 }
 
 .upgrade-prompt {
@@ -39,5 +47,85 @@
 .dashboard-actions {
 	display: flex;
 	justify-content: flex-end;
-	margin-bottom: 20px;
+	/* Pull the button up so it aligns with the "Projects" header row. */
+	margin-top: -68px;
+	margin-bottom: 28px;
+}
+
+.project-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 16px;
+}
+
+.project-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 20px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	border-radius: 12px;
+	background: var(--color-background-secondary);
+	transition:
+		border-color 0.15s ease,
+		background 0.15s ease,
+		transform 0.15s ease;
+}
+
+.project-card:hover {
+	border-color: rgba(255, 255, 255, 0.18);
+	background: var(--color-background-highlight);
+	transform: translateY(-2px);
+}
+
+.project-card .project-title {
+	margin: 0;
+	font-size: var(--font-size-base);
+	font-weight: 600;
+}
+
+.project-card .project-title a {
+	color: var(--color-text);
+	text-decoration: none;
+}
+
+.project-card .project-title a::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+}
+
+.project-card .project-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	font-size: var(--font-size-small);
+	color: var(--color-foreground);
+}
+
+.project-card .project-badge {
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: var(--font-size-tiny);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	background: rgba(255, 255, 255, 0.08);
+	color: var(--color-text-secondary);
+}
+
+.project-card .project-badge.is-public {
+	background: rgba(90, 170, 120, 0.18);
+	color: #7fd6a0;
+}
+
+.empty-projects {
+	grid-column: 1 / -1;
+	padding: 48px 24px;
+	text-align: center;
+	color: var(--color-foreground);
+	border: 1px dashed rgba(255, 255, 255, 0.12);
+	border-radius: 12px;
 }

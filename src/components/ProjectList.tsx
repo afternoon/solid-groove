@@ -5,25 +5,41 @@ import { For, Show } from "solid-js";
 export default function ProjectList(props) {
 	return (
 		<div class="project-list">
-			<For each={props.projects}>
-				{(project) => (
-					<div class="project-item">
-						<p class="project-title">
-							<A href={`/projects/${project.id}`}>
-								<Show when={project.name} fallback="Untitled Project">
-									{project.name}
+			<Show
+				when={props.projects.length > 0}
+				fallback={
+					<p class="empty-projects">
+						No projects yet. Create your first one to get started.
+					</p>
+				}
+			>
+				<For each={props.projects}>
+					{(project) => (
+						<div class="project-card">
+							<p class="project-title">
+								<A href={`/projects/${project.id}`}>
+									<Show when={project.name} fallback="Untitled Project">
+										{project.name}
+									</Show>
+								</A>
+							</p>
+							<p class="project-meta">
+								<Show when={project.isPublic !== undefined}>
+									<span
+										class="project-badge"
+										classList={{ "is-public": project.isPublic }}
+									>
+										{project.isPublic ? "Public" : "Private"}
+									</span>
 								</Show>
-							</A>
-						</p>
-						<Show when={project.createdAt}>
-							<p>Created {since(project.createdAt.toDate())}</p>
-						</Show>
-						<Show when={project.isPublic !== undefined}>
-							<p>{project.isPublic ? "Public" : "Private"}</p>
-						</Show>
-					</div>
-				)}
-			</For>
+								<Show when={project.createdAt}>
+									<span>Created {since(project.createdAt.toDate())}</span>
+								</Show>
+							</p>
+						</div>
+					)}
+				</For>
+			</Show>
 		</div>
 	);
 }
