@@ -7,8 +7,8 @@ type TapeLoaderProps = {
 
 /**
  * A large, electronic-music-themed loading spinner: a reel-to-reel tape deck
- * with two spinning reels, fluttering tape, a pulsing capstan and a little VU
- * meter for good measure. Purely CSS/SVG animated.
+ * with two spinning reels and tape running across the bottom. Only the reels
+ * are animated, to keep things calm.
  */
 const TapeLoader: Component<TapeLoaderProps> = (props) => {
 	// One reel rendered as a group so we can reuse it for both spools.
@@ -66,21 +66,18 @@ const TapeLoader: Component<TapeLoaderProps> = (props) => {
 				{Reel(190, 90, "reel-right")}
 
 				{/* Tape runs in a straight line across the bottom of the reels */}
-				<g class="tape-path">
-					<line
-						x1="70"
-						y1="142"
-						x2="190"
-						y2="142"
-						stroke="var(--color-foreground)"
-						stroke-width="2.5"
-						opacity="0.85"
-					/>
-				</g>
+				<line
+					x1="70"
+					y1="142"
+					x2="190"
+					y2="142"
+					stroke="var(--color-foreground)"
+					stroke-width="2.5"
+					opacity="0.85"
+				/>
 
 				{/* Capstan / tape head block sitting on the tape path, centre */}
 				<rect
-					class="capstan"
 					x="116"
 					y="134"
 					width="28"
@@ -88,50 +85,6 @@ const TapeLoader: Component<TapeLoaderProps> = (props) => {
 					rx="2"
 					fill="var(--color-foreground)"
 				/>
-
-				{/* A tiny VU meter to the side for electronic flair */}
-				<g transform="translate(120, 18)">
-					<rect
-						class="vu-bar"
-						x="0"
-						y="0"
-						width="4"
-						height="16"
-						fill="var(--color-foreground-bright)"
-					/>
-					<rect
-						class="vu-bar vu-bar-2"
-						x="6"
-						y="0"
-						width="4"
-						height="16"
-						fill="var(--color-foreground-bright)"
-					/>
-					<rect
-						class="vu-bar vu-bar-3"
-						x="12"
-						y="0"
-						width="4"
-						height="16"
-						fill="var(--color-foreground-bright)"
-					/>
-					<rect
-						class="vu-bar vu-bar-4"
-						x="18"
-						y="0"
-						width="4"
-						height="16"
-						fill="var(--color-foreground-bright)"
-					/>
-					<rect
-						class="vu-bar vu-bar-5"
-						x="24"
-						y="0"
-						width="4"
-						height="16"
-						fill="var(--color-foreground-bright)"
-					/>
-				</g>
 			</svg>
 			<span class="loader-label">{props.label ?? "Loading"}</span>
 		</output>

@@ -46,65 +46,6 @@
 	}
 }
 
-/* The exposed tape between reels wobbles gently, like real tape under tension. */
-.tape-loader .tape-path {
-	animation: tape-flutter 0.9s ease-in-out infinite;
-}
-
-@keyframes tape-flutter {
-	0%,
-	100% {
-		transform: translateY(0);
-	}
-	50% {
-		transform: translateY(1.2px);
-	}
-}
-
-/* Capstan / pinch-roller pulse and a soft glow, giving it an "electronic" life. */
-.tape-loader .capstan {
-	animation: capstan-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes capstan-pulse {
-	0%,
-	100% {
-		opacity: 0.55;
-	}
-	50% {
-		opacity: 1;
-	}
-}
-
-.tape-loader .vu-bar {
-	transform-box: fill-box;
-	transform-origin: bottom;
-	animation: vu-bounce 0.6s ease-in-out infinite;
-}
-
-.tape-loader .vu-bar-2 {
-	animation-delay: 0.12s;
-}
-.tape-loader .vu-bar-3 {
-	animation-delay: 0.24s;
-}
-.tape-loader .vu-bar-4 {
-	animation-delay: 0.36s;
-}
-.tape-loader .vu-bar-5 {
-	animation-delay: 0.48s;
-}
-
-@keyframes vu-bounce {
-	0%,
-	100% {
-		transform: scaleY(0.35);
-	}
-	50% {
-		transform: scaleY(1);
-	}
-}
-
 .tape-loader .loader-label {
 	font-size: var(--font-size-base);
 	letter-spacing: 2px;
@@ -127,9 +68,6 @@
 @media (prefers-reduced-motion: reduce) {
 	.tape-loader .reel-left,
 	.tape-loader .reel-right,
-	.tape-loader .tape-path,
-	.tape-loader .capstan,
-	.tape-loader .vu-bar,
 	.tape-loader .loader-label {
 		animation: none;
 	}
