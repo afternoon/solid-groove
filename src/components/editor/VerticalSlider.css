@@ -28,12 +28,12 @@
 	.slider-track input[type="range"] {
 		-webkit-appearance: none;
 		appearance: none;
+		writing-mode: vertical-lr;
+		direction: rtl;
 		position: absolute;
-		width: 120px;
-		height: 30px;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%) rotate(-90deg);
+		inset: 0;
+		width: 100%;
+		height: 100%;
 		background: transparent;
 		outline: none;
 		cursor: pointer;
@@ -47,7 +47,7 @@
 		appearance: none;
 		width: var(--vertical-slider-width);
 		height: var(--vertical-slider-width);
-		background: transparent;
+		background: var(--color-text-primary, #fff);
 		cursor: pointer;
 		border: none;
 	}
@@ -55,7 +55,7 @@
 	.slider-track input[type="range"]::-moz-range-thumb {
 		width: var(--vertical-slider-width);
 		height: var(--vertical-slider-width);
-		background: transparent;
+		background: var(--color-text-primary, #fff);
 		cursor: pointer;
 		border: none;
 	}

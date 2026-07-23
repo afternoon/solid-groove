@@ -30,7 +30,6 @@ export const VerticalSlider: Component<VerticalSliderProps> = (props) => {
 					step={props.step ?? 0.01}
 					value={props.value}
 					onInput={handleChange}
-					orient="vertical"
 				/>
 			</div>
 			<div class="slider-label">{props.label}</div>
