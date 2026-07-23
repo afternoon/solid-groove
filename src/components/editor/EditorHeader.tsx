@@ -1,6 +1,7 @@
 import { HiSolidPlay, HiSolidStop } from "solid-icons/hi";
-import { type Component, createMemo } from "solid-js";
+import { type Component, createMemo, Show } from "solid-js";
 import { useAudio } from "../../audio/AudioProvider";
+import { usePlaybackHotkey } from "../../audio/usePlaybackHotkey";
 import type { ProjectStore } from "../../model/project";
 
 type EditorHeaderProps = {
@@ -12,11 +13,10 @@ export default function EditorHeader(
 ): Component<EditorHeaderProps> {
 	const audio = useAudio();
 
-	function handlePlay() {
-		audio.play();
-	}
-	function handleStop() {
-		audio.stop();
+	usePlaybackHotkey(audio);
+
+	function handleToggle() {
+		audio.toggle();
 	}
 
 	const projectName = createMemo(
@@ -28,11 +28,21 @@ export default function EditorHeader(
 			<div class="project-name">
 				<h1>{projectName()}</h1>
 			</div>
-			<div className="transport-controls">
-				<HiSolidPlay size={26} onClick={handlePlay} />
-				<HiSolidStop size={26} onClick={handleStop} />
+			<div class="transport-controls">
+				<button
+					type="button"
+					class="transport-toggle"
+					onClick={handleToggle}
+					aria-pressed={audio.isPlaying()}
+					aria-label={audio.isPlaying() ? "Stop playback" : "Start playback"}
+					title={audio.isPlaying() ? "Stop (space)" : "Play (space)"}
+				>
+					<Show when={audio.isPlaying()} fallback={<HiSolidPlay size={26} />}>
+						<HiSolidStop size={26} />
+					</Show>
+				</button>
 			</div>
-			<div className="project-settings"></div>
+			<div class="project-settings"></div>
 		</header>
 	);
 }

@@ -1,4 +1,4 @@
-import { createEffect } from "solid-js";
+import { type Accessor, createEffect, createSignal } from "solid-js";
 import * as Tone from "tone";
 import type { ProjectStore } from "../model/project";
 import type { Sequence, Track } from "../model/types";
@@ -68,9 +68,16 @@ export default class SongPlayer {
 	private toneInstruments: ToneInstrument[] = [];
 	private sequence: Tone.Sequence | null = null;
 	private hasStarted = false; // Track if AudioContext has been started
+	private setPlaying: (value: boolean) => void;
+
+	/** Reactive playback state, for transport UI to follow. */
+	readonly isPlaying: Accessor<boolean>;
 
 	constructor() {
 		console.log("We are the music makers, and we are the dreamers of dreams.");
+		const [isPlaying, setPlaying] = createSignal(false);
+		this.isPlaying = isPlaying;
+		this.setPlaying = setPlaying;
 	}
 
 	setProjectStore(store: ProjectStore) {
@@ -154,29 +161,48 @@ export default class SongPlayer {
 		});
 	}
 
+	/** Start playback if stopped, stop it if playing. */
+	async toggle() {
+		if (this.isPlaying()) {
+			this.stop();
+		} else {
+			await this.play();
+		}
+	}
+
 	async play() {
 		console.log("AudioEngine.play");
+		this.setPlaying(true);
 
 		if (this.sequence) {
 			this.sequence.dispose();
 			this.sequence = null;
 		}
 
-		if (Tone.getContext().state !== "running") {
-			await Tone.start();
-		}
-
-		// After first user interaction, set up instruments if needed
-		if (!this.hasStarted) {
-			this.hasStarted = true;
-			const tracks = this.store?.data?.latestSnapshot?.song?.tracks;
-			if (tracks) {
-				this.setupToneInstruments(tracks);
+		try {
+			if (Tone.getContext().state !== "running") {
+				await Tone.start();
 			}
-		}
 
-		await Tone.loaded();
+			// After first user interaction, set up instruments if needed
+			if (!this.hasStarted) {
+				this.hasStarted = true;
+				const tracks = this.store?.data?.latestSnapshot?.song?.tracks;
+				if (tracks) {
+					this.setupToneInstruments(tracks);
+				}
+			}
+
+			await Tone.loaded();
+		} catch (error) {
+			console.error("AudioEngine.play failed", error);
+			this.setPlaying(false);
+			return;
+		}
 		console.log("All audio buffers loaded");
+
+		// The user may have stopped playback while buffers were loading.
+		if (!this.isPlaying()) return;
 
 		const currentPattern = 0;
 
@@ -207,6 +233,7 @@ export default class SongPlayer {
 
 	stop() {
 		console.log("AudioEngine.stop");
+		this.setPlaying(false);
 		Tone.getTransport().stop();
 	}
 

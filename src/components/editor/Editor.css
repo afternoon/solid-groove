@@ -58,6 +58,26 @@
 
 		.transport-controls {
 			padding-top: var(--size-divider);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		/* Icon-only control: strip the header's default button chrome. */
+		.transport-toggle {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 0;
+			height: auto;
+			background: none;
+			border: none;
+			color: inherit;
+			cursor: pointer;
+		}
+
+		.transport-toggle:hover {
+			opacity: 0.75;
 		}
 
 		.project-settings {
