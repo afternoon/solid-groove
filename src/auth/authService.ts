@@ -1,4 +1,4 @@
-import type { User } from "firebase/auth";
+import type { Auth, User } from "firebase/auth";
 
 export interface AuthService {
 	signInWithGoogle(): Promise<void>;
@@ -11,34 +11,39 @@ export interface AuthService {
 
 // Firebase implementation
 class FirebaseAuthService implements AuthService {
-	private auth;
+	private auth: Auth | undefined;
+	// Firebase is imported dynamically (to keep it out of the mock build), so
+	// `auth` isn't available synchronously. Every method awaits this promise
+	// rather than reading `this.auth` directly, which avoids an "Auth not
+	// initialized" race when a caller runs before the import resolves.
+	private ready: Promise<Auth>;
 
 	constructor() {
-		// Dynamic import to avoid importing Firebase in mock mode
-		import("../firebaseConfig").then((config) => {
+		this.ready = import("../firebaseConfig").then((config) => {
 			this.auth = config.auth;
+			return config.auth;
 		});
 	}
 
 	async signInWithGoogle(): Promise<void> {
+		const auth = await this.ready;
 		const { GoogleAuthProvider, signInWithPopup } = await import(
 			"firebase/auth"
 		);
 		const provider = new GoogleAuthProvider();
-		if (!this.auth) throw new Error("Auth not initialized");
-		await signInWithPopup(this.auth, provider);
+		await signInWithPopup(auth, provider);
 	}
 
 	async signInAnonymously(): Promise<void> {
+		const auth = await this.ready;
 		const { signInAnonymously } = await import("firebase/auth");
-		if (!this.auth) throw new Error("Auth not initialized");
-		await signInAnonymously(this.auth);
+		await signInAnonymously(auth);
 	}
 
 	async linkWithGoogle(): Promise<void> {
+		const auth = await this.ready;
 		const { GoogleAuthProvider, linkWithPopup } = await import("firebase/auth");
-		if (!this.auth) throw new Error("Auth not initialized");
-		const currentUser = this.auth.currentUser;
+		const currentUser = auth.currentUser;
 		if (!currentUser) throw new Error("No user to link");
 		const provider = new GoogleAuthProvider();
 		// Links the Google credential to the existing (anonymous) account,
@@ -47,20 +52,24 @@ class FirebaseAuthService implements AuthService {
 	}
 
 	async signOut(): Promise<void> {
+		const auth = await this.ready;
 		const { signOut } = await import("firebase/auth");
-		if (!this.auth) throw new Error("Auth not initialized");
-		await signOut(this.auth);
+		await signOut(auth);
 	}
 
 	onAuthStateChanged(callback: (user: User | null) => void): () => void {
 		let unsubscribe: (() => void) | null = null;
+		let cancelled = false;
 
-		import("firebase/auth").then(({ onAuthStateChanged }) => {
-			if (!this.auth) throw new Error("Auth not initialized");
-			unsubscribe = onAuthStateChanged(this.auth, callback);
-		});
+		Promise.all([this.ready, import("firebase/auth")]).then(
+			([auth, { onAuthStateChanged }]) => {
+				if (cancelled) return;
+				unsubscribe = onAuthStateChanged(auth, callback);
+			},
+		);
 
 		return () => {
+			cancelled = true;
 			if (unsubscribe) unsubscribe();
 		};
 	}
