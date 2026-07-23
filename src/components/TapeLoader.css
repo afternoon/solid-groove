@@ -1,0 +1,136 @@
+.tape-loader {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 24px;
+	width: 100%;
+	height: 100%;
+	color: var(--color-text-secondary);
+	/* When rendered inside the .project grid loading state, span the whole grid
+	   so the deck sits centred on the page rather than in one grid cell. */
+	grid-column: 1 / -1;
+	grid-row: 1 / -1;
+}
+
+.tape-loader svg {
+	width: 260px;
+	height: auto;
+	display: block;
+}
+
+/* Reels spin. Left reel is the supply reel, right is the take-up reel.
+   They spin at slightly different rates for a lived-in, mechanical feel.
+   transform-box: fill-box makes each reel rotate about its own centre
+   regardless of how the SVG is scaled. */
+.tape-loader .reel-left,
+.tape-loader .reel-right {
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+.tape-loader .reel-left {
+	animation: tape-spin 2.4s linear infinite;
+}
+
+.tape-loader .reel-right {
+	animation: tape-spin 1.9s linear infinite;
+}
+
+@keyframes tape-spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/* The exposed tape between reels wobbles gently, like real tape under tension. */
+.tape-loader .tape-path {
+	animation: tape-flutter 0.9s ease-in-out infinite;
+}
+
+@keyframes tape-flutter {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(1.2px);
+	}
+}
+
+/* Capstan / pinch-roller pulse and a soft glow, giving it an "electronic" life. */
+.tape-loader .capstan {
+	animation: capstan-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes capstan-pulse {
+	0%,
+	100% {
+		opacity: 0.55;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+.tape-loader .vu-bar {
+	transform-box: fill-box;
+	transform-origin: bottom;
+	animation: vu-bounce 0.6s ease-in-out infinite;
+}
+
+.tape-loader .vu-bar-2 {
+	animation-delay: 0.12s;
+}
+.tape-loader .vu-bar-3 {
+	animation-delay: 0.24s;
+}
+.tape-loader .vu-bar-4 {
+	animation-delay: 0.36s;
+}
+.tape-loader .vu-bar-5 {
+	animation-delay: 0.48s;
+}
+
+@keyframes vu-bounce {
+	0%,
+	100% {
+		transform: scaleY(0.35);
+	}
+	50% {
+		transform: scaleY(1);
+	}
+}
+
+.tape-loader .loader-label {
+	font-size: var(--font-size-base);
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: var(--color-foreground);
+	animation: label-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes label-blink {
+	0%,
+	100% {
+		opacity: 0.5;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+/* Respect users who prefer reduced motion: freeze the mechanism. */
+@media (prefers-reduced-motion: reduce) {
+	.tape-loader .reel-left,
+	.tape-loader .reel-right,
+	.tape-loader .tape-path,
+	.tape-loader .capstan,
+	.tape-loader .vu-bar,
+	.tape-loader .loader-label {
+		animation: none;
+	}
+}

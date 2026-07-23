@@ -1,6 +1,7 @@
 import { type Component, For, Match, Switch } from "solid-js";
 import { AudioProvider } from "../../audio/AudioProvider";
 import { useProject } from "../../model/project";
+import TapeLoader from "../TapeLoader";
 import Browser from "./Browser";
 import EditorAssistant from "./EditorAssistant";
 import EditorHeader from "./EditorHeader";
@@ -18,7 +19,7 @@ export default function Editor(props: EditorProps): Component<EditorProps> {
 		<main class="project">
 			<Switch>
 				<Match when={project.loading}>
-					<p>Loading project...</p>
+					<TapeLoader label="Loading project" />
 				</Match>
 				<Match when={project.error}>
 					<p class="error">Error fetching project {props.id}.</p>
