@@ -21,6 +21,13 @@ const CONTRACT_TASKS = ['FND-002', 'FND-003', 'FND-004']
 const BASE_BRANCH = 'claude/dynamic-workflow-clarity-tvo8hv'
 const MAX_REVIEW_ROUNDS = 2
 
+// The agent registry is read once at session start, so `agentType` cannot resolve
+// a definition added during the same session. Each agent reads its own definition
+// from the repo instead — one source of truth, and it works on a cold session.
+const IMPLEMENTER = '.claude/agents/solid-groove-implementer.md'
+const REVIEWER = '.claude/agents/solid-groove-reviewer.md'
+const brief = (path) => `Read \`${path}\` and follow it as your operating instructions for this task.\n\n`
+
 const TASKS = [
   { id: 'FND-001', phase: 'Tooling', title: 'Test and development foundation' },
   { id: 'FND-002', phase: 'Contracts', title: 'Canonical schema-v1 domain model' },
@@ -92,7 +99,7 @@ const REVIEW_SCHEMA = {
   },
 }
 
-const implPrompt = (t, base) => `Implement backlog task ${t.id} - ${t.title}.
+const implPrompt = (t, base) => `${brief(IMPLEMENTER)}Implement backlog task ${t.id} - ${t.title}.
 
 Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.
 
@@ -100,7 +107,7 @@ Branch from ${base} and name your branch claude/${t.id.toLowerCase()}. Commit an
 
 Report the branch name, what you did, the commands you ran with their real results, and any acceptance checkbox you could not satisfy.`
 
-const reviewPrompt = (t, impl, round) => `Review branch ${impl.branch} against backlog task ${t.id} - ${t.title}.${
+const reviewPrompt = (t, impl, round) => `${brief(REVIEWER)}Review branch ${impl.branch} against backlog task ${t.id} - ${t.title}.${
   round > 1 ? `\n\nThis is review round ${round}; a previous round returned blocking findings that the implementer has since addressed. Verify the fixes rather than assuming them.` : ''
 }
 
@@ -114,7 +121,7 @@ Checkboxes it reports unmet: ${impl.unmet.length ? impl.unmet.join('; ') : 'none
 
 Treat all of that as claims to verify, not findings to accept.`
 
-const fixPrompt = (t, impl, review) => `Address blocking review findings on branch ${impl.branch} for backlog task ${t.id} - ${t.title}.
+const fixPrompt = (t, impl, review) => `${brief(IMPLEMENTER)}Address blocking review findings on branch ${impl.branch} for backlog task ${t.id} - ${t.title}.
 
 Check the branch out, fix every finding below, re-run the full check suite, and push to the same branch. Do not rewrite unrelated code and do not widen scope.
 
@@ -138,7 +145,6 @@ async function runTask(t) {
 
   let impl = await agent(implPrompt(t, BASE_BRANCH), {
     model,
-    agentType: 'solid-groove-implementer',
     label: `impl:${t.id}`,
     phase: t.phase,
     isolation: 'worktree',
@@ -151,7 +157,6 @@ async function runTask(t) {
     review = await agent(reviewPrompt(t, impl, round), {
       model: 'opus',
       effort: 'high',
-      agentType: 'solid-groove-reviewer',
       label: `review:${t.id}#${round}`,
       phase: t.phase,
       isolation: 'worktree',
@@ -165,7 +170,6 @@ async function runTask(t) {
 
     const fixed = await agent(fixPrompt(t, impl, review), {
       model,
-      agentType: 'solid-groove-implementer',
       label: `fix:${t.id}#${round}`,
       phase: t.phase,
       isolation: 'worktree',
