@@ -45,11 +45,12 @@ Solid Groove should become the best environment for learning music production by
 2. **AI proposes; the user decides.** Material changes are previewable, attributable, and undoable.
 3. **Everything remains editable.** AI output uses the same tracks, clips, notes, devices, and parameters as manual edits.
 4. **Progressive depth.** Show the controls needed for the current task and allow users to reveal more detail as they grow.
-5. **Use transferable concepts.** Terminology and workflows should prepare users for professional DAWs rather than inventing a dead-end abstraction.
-6. **Fast path to sound.** A new user can hear and alter music before creating an account or configuring audio.
-7. **Protect creative flow.** Playback must be dependable, edits must feel immediate, and persistence must not interrupt work.
-8. **Opinionated, not restrictive.** Good defaults and focused workflows reduce decisions, but users can always modify the result.
-9. **Make room for the unexpected.** Genre-aware starting points must never become genre rules. Device chains and broad parameter ranges should support abrasive, unusual, and surprising results as well as polished ones.
+5. **Legible controls.** A control should teach what it does. Use plain, spelled-out labels, consistent layout, and visual cues that reveal a control's effect on the sound, so users learn the vocabulary of production by touching it, not only by reading the manual or asking the assistant.
+6. **Use transferable concepts.** Terminology and workflows should prepare users for professional DAWs rather than inventing a dead-end abstraction.
+7. **Fast path to sound.** A new user can hear and alter music before creating an account or configuring audio.
+8. **Protect creative flow.** Playback must be dependable, edits must feel immediate, and persistence must not interrupt work.
+9. **Opinionated, not restrictive.** Good defaults and focused workflows reduce decisions, but users can always modify the result.
+10. **Make room for the unexpected.** Genre-aware starting points must never become genre rules. Device chains and broad parameter ranges should support abrasive, unusual, and surprising results as well as polished ones.
 
 ## 4. Target user
 
@@ -599,6 +600,23 @@ Presence, cursors, conflict-free simultaneous edits, and live shared transport a
 - Selecting a clip opens its note editor; selecting a track opens its instrument and mixer controls.
 - Advanced parameters are grouped under expandable device panels rather than mixed into the arrangement.
 - The assistant may navigate to a control but cannot hide manual access to it.
+
+### Legible controls
+
+One of the steepest parts of learning electronic music production is discovering what each instrument and effect control does and how it changes the sound. The assistant helps, but the controls themselves should carry as much of that teaching as possible. These rules apply to instrument, device, and mixer controls throughout the editor.
+
+- **No acronyms or jargon shorthand.** Every control has a clear label using either a well-known full term (for example, `Lowpass`, not `LP`; `Resonance`, not `Q`; `Attack`, not `A`) or plain lay language. Abbreviations are only acceptable when they are the term users actually learn (for example, `BPM`), and the full meaning is available on hover or in an on-demand definition.
+- **Consistent control shape and layout.** Controls of the same kind share size, styling, and layout across every instrument and device. Continuous parameters use vertical sliders with the label above and the current value shown below, so a user can read any control the same way once they have learned one.
+- **Labelled option groups with icons.** A choice among discrete options (for example, an oscillator waveform or a filter type) is presented as a group of clearly labelled options rather than a bare dropdown, and each option carries a recognisable icon where one exists — such as sine, square, sawtooth, and triangle waveform glyphs on the synth wave selector.
+- **Show the effect on the sound.** Where a control shapes the sound in a way that can be drawn, the UI shows that shape and updates it live as the control changes — for example, an envelope's attack/decay/sustain/release curve, a filter's frequency-response curve, or a waveform preview. The visual is a supporting cue, never the only way to read or set the value.
+
+Acceptance criteria:
+
+- No control label in the shipped editor uses an undefined acronym or internal shorthand; a review checklist confirms each instrument and device against this rule.
+- Continuous controls of the same type are visually consistent (vertical slider, label above, value below) across the synth, sampler, drum machine, and all core devices.
+- Option-group controls render as labelled, icon-bearing choices; the current selection is indicated with a non-color cue in addition to color.
+- Controls with a drawable effect (at minimum amplitude envelopes and resonant filters) display a live visualization that tracks parameter changes, and remain fully operable with the visualization hidden or unsupported.
+- Value readouts use human-readable units (for example, `Hz`, `dB`, `ms`, or musical divisions) consistent with the keyboard and mixer requirements.
 
 ### Undo and redo
 
