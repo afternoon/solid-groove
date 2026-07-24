@@ -29,7 +29,11 @@ bun run test:ui     # Vitest UI
 
 Config: `vitest.config.ts`. `vite-plugin-solid` sets `test.environment: "jsdom"` automatically, so both plain unit tests (e.g. `src/shared/id.test.ts`) and component tests using `@solidjs/testing-library` (e.g. `src/components/Dashboard.test.tsx`) run under the same command — see those two files for the canonical shape of each.
 
-`src/audio/ToneInstrument.test.ts` additionally renders real audio via `node-web-audio-api` (see `src/audio/testAudioContext.ts`); it needs a usable audio device and can fail in a container/CI runner with no audio hardware. That is a pre-existing characteristic of the audio suite, not something FND-001 changes.
+`src/audio/ToneInstrument.test.ts` additionally renders real audio via `node-web-audio-api` (see `src/audio/testAudioContext.ts`). Importing `tone` creates a real (non-offline) global `AudioContext` as a side effect, and `node-web-audio-api`'s `cpal` backend needs to find *some* default output device to satisfy that, even though the tests themselves only render through `Tone.Offline`. On a machine with no audio hardware (`/dev/snd` absent — every GitHub-hosted runner, most containers), that context creation throws `InvalidStateError: ... DeviceUnavailable` and the whole file fails before any test runs.
+
+`.github/workflows/ci.yml`'s `checks` job works around this without needing real hardware or a kernel module: it installs the ALSA runtime library (`libasound2t64`) and points `~/.asoundrc` at ALSA's built-in `null` PCM as the default output device (discards every sample, touches no hardware). That gives `cpal` a device to find. Running the same suite locally on a machine with no audio device needs the same `~/.asoundrc` (see the CI step for the exact config) — machines with real audio hardware need no workaround.
+
+Each render in `renderSynth()` (the test file's shared helper) also disposes the `ToneInstrument` it builds once the offline render resolves. Without that, repeated back-to-back offline renders in the same process left native audio nodes bound to torn-down `OfflineAudioContext`s undisposed, which showed up as rare, wildly out-of-range sample values (filter-energy assertions occasionally comparing against values like `1e30`) once the suite could actually run past context creation. Always dispose the built instrument after consuming its rendered buffer in new tests that follow this pattern.
 
 ## Firebase Emulator suite
 
@@ -75,7 +79,7 @@ bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gat
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
 
-1. **`checks`** — `bun run typecheck`, `bun run check:ci`, `bun run test`. Everything else depends on this.
+1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`. Everything else depends on this.
 2. **`browser`** — the Playwright suite, matrixed over `chromium`, `firefox`, `webkit`. Chromium/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
 3. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator.
 
