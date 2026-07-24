@@ -28,6 +28,27 @@ const IMPLEMENTER = '.claude/agents/solid-groove-implementer.md'
 const REVIEWER = '.claude/agents/solid-groove-reviewer.md'
 const brief = (path) => `Read \`${path}\` and follow it as your operating instructions for this task.\n\n`
 
+// Worktree ground rules. Two traps, both of which have already bitten a run:
+// a worktree starts at the commit that was HEAD when the session began, not at
+// the base branch tip; and git refuses to check out a branch that is already
+// checked out in the main worktree, so `git checkout ${BASE_BRANCH}` always
+// fails here. Branch from the remote ref instead. Absolute /home/user/solid-groove
+// paths resolve to the main repo, not to the worktree, so they read stale-free
+// files while git operates somewhere else entirely — always work from your own root.
+const WORKTREE = `## Your worktree
+
+You are in a git worktree, not the main checkout. Two things follow:
+
+- \`cd "$(git rev-parse --show-toplevel)"\` first, and use paths relative to that root. An absolute \`/home/user/solid-groove/...\` path points at a different checkout and will silently mislead you.
+- Your worktree starts at an older commit, and \`${BASE_BRANCH}\` cannot be checked out here because the main worktree holds it. Always branch from the remote ref:
+  \`\`\`
+  git fetch origin ${BASE_BRANCH}
+  git checkout -b <branch> origin/${BASE_BRANCH}
+  \`\`\`
+  Confirm before you start work: \`git merge-base --is-ancestor origin/${BASE_BRANCH} HEAD\` must succeed. Never pipe a git command through \`tail\` or \`head\` in an \`&&\` chain — it hides the exit code and a failed checkout looks like a success.
+
+`
+
 const TASKS = [
   { id: 'FND-001', phase: 'Tooling', title: 'Test and development foundation' },
   { id: 'FND-002', phase: 'Contracts', title: 'Canonical schema-v1 domain model' },
@@ -103,7 +124,7 @@ const implPrompt = (t, base) => `${brief(IMPLEMENTER)}Implement backlog task ${t
 
 Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.
 
-Branch from ${base} and name your branch claude/${t.id.toLowerCase()}. Commit and push it. Do not open a pull request — a reviewer runs before the PR is opened.
+${WORKTREE}Name your branch claude/${t.id.toLowerCase()} and create it from origin/${base} as described above. Commit and push it with \`git push -u origin claude/${t.id.toLowerCase()}\`. Do not open a pull request — a reviewer runs before the PR is opened.
 
 Report the branch name, what you did, the commands you ran with their real results, and any acceptance checkbox you could not satisfy.`
 
@@ -111,7 +132,7 @@ const reviewPrompt = (t, impl, round) => `${brief(REVIEWER)}Review branch ${impl
   round > 1 ? `\n\nThis is review round ${round}; a previous round returned blocking findings that the implementer has since addressed. Verify the fixes rather than assuming them.` : ''
 }
 
-Fetch the branch and read the actual diff against ${BASE_BRANCH}. Run the test suite yourself.
+${WORKTREE}Fetch and check out the branch under review with \`git fetch origin ${impl.branch} && git checkout -b review-${t.id.toLowerCase()} origin/${impl.branch}\`, then read the actual diff against origin/${BASE_BRANCH}. Run the test suite yourself.
 
 The implementer reported:
 ${impl.summary}
@@ -123,7 +144,7 @@ Treat all of that as claims to verify, not findings to accept.`
 
 const fixPrompt = (t, impl, review) => `${brief(IMPLEMENTER)}Address blocking review findings on branch ${impl.branch} for backlog task ${t.id} - ${t.title}.
 
-Check the branch out, fix every finding below, re-run the full check suite, and push to the same branch. Do not rewrite unrelated code and do not widen scope.
+${WORKTREE}Check the branch out with \`git fetch origin ${impl.branch} && git checkout -b ${impl.branch} origin/${impl.branch}\`, fix every finding below, re-run the full check suite, and push to the same branch. Do not rewrite unrelated code and do not widen scope.
 
 ${review.blocking
   .map((b, i) => `${i + 1}. ${b.file}${b.line ? `:${b.line}` : ''} — ${b.issue}\n   Failure: ${b.failure}\n   Suggested resolution: ${b.resolution}`)
