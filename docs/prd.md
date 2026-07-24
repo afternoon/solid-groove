@@ -14,6 +14,8 @@ Related document: [Sample library plan](./sample-library.md)
 
 The UI mocks in [`docs/design`](./design) are **directional**. They depict the north-star end state for Solid Groove — the fullest expression of the product's visual language, instruments, and assistant — not the private alpha or any single earlier milestone. Where a mock shows more than a milestone requires (for example, richer instrument panels, a public marketing site, or the assistant recommending tutorial videos), this PRD's priorities (**P0**/**P1**/**P2**) and delivery phases are authoritative for *what ships when*. The mocks are authoritative for *how it should look and feel* once built. When a mock and this document disagree on a concrete UI detail, the mock wins on visual language and interaction shape; the PRD wins on scope, sequencing, and acceptance criteria. New capability seen only in the mocks is placed in the priority and phase noted here rather than pulled forward into the alpha.
 
+The mocks do not cover every screen and state the alpha needs. Save status (`Saving`, `Saved`, `Save failed`), empty/loading/error/offline states, the step editor and piano roll interiors, and the arrangement at other zoom levels have no mock. Implementers extrapolate those from the documented design DNA — the token set, surface tints, single cyan accent, square corners, and the shared 30px control height in [`docs/design/README.md`](./design/README.md) and the CSS custom properties in `docs/design/Solid Groove Mocks.dc.html` — rather than waiting for a mock or inventing a second visual language. A screen built without a mock is flagged for a design pass before the private alpha; a missing mock never blocks implementation.
+
 ## 1. Product summary
 
 Solid Groove is a browser-based electronic music production environment with an integrated AI producer. It is for people who understand the basics of making beats or loops but repeatedly get stuck when they try to develop those ideas into full tracks. Synthesizers, samples, drum machines, and creative audio processing are its primary sound-making tools; recording acoustic performances is not the initial focus.
@@ -849,14 +851,18 @@ The timeline uses stacked canvases so frequently changing pixels do not invalida
 
 The baseline device is a 2019 13-inch Intel MacBook Pro class machine with integrated Intel graphics and 8 GB RAM, tested without requiring a discrete GPU. The reference arrangement contains 50 tracks, ten minutes of musical time, at least 2,500 clip placements, waveforms on 20 tracks, and 100 populated automation lanes.
 
-- On current and previous major Firefox, Chrome, Edge, and Safari, scripted continuous scroll and zoom after warm-up target a median frame time at or below `16.7 ms` and a 95th percentile at or below `33 ms` on the baseline device.
+- On current and previous major Firefox, Chrome, and Edge, scripted continuous scroll and zoom after warm-up target a median frame time at or below `16.7 ms` and a 95th percentile at or below `33 ms` on the baseline device. Safari is measured on a best-effort basis under the supported-environment policy in section 10.
 - Pointer input to visible hover, selection, drag, or resize feedback is below `50 ms` at the 95th percentile.
 - No arrangement interaction creates a main-thread task longer than `100 ms` in the reference fixture.
 - Opening the already-loaded reference project paints useful arrangement content within `500 ms` after its domain state is available.
 - The arrangement renderer's visual cache budget is at most `128 MiB`, excluding decoded audio buffers managed by the audio engine.
 - Frame cost is proportional primarily to visible objects, not total project duration or total offscreen clips.
 - Performance degradation is acceptable above 50 tracks. Data integrity, scrolling correctness, save/export, and the ability to recover remain required.
-- Release performance is measured on the physical baseline device in all four browsers. Developer laptops and synthetic DOM benchmarks alone are not an acceptable substitute.
+- Release performance is measured on the physical baseline device in the gating browsers. Developer laptops and synthetic DOM benchmarks alone are not an acceptable substitute.
+
+#### When these budgets are enforced
+
+These budgets bind at `ARR-005` in Phase 2, once the production arrangement exists, and again at `HARD-001` in Phase 4. They are **not** a Phase 0 exit condition. The Phase 0 renderer spike (`FND-008`) is required to produce the deterministic fixtures, the scripted scroll/zoom/seek/selection traces, and a harness that emits frame time, long-task, redraw-count and memory numbers on whatever hardware runs it, and to check those numbers in as a baseline. It is not required to hit the targets, and no Phase 0 task may be gated on access to the physical baseline device. Measuring a spike on unrepresentative hardware and declaring the budget met is a worse outcome than an honest early number, so Phase 0 records what it measured and where it ran.
 
 If Canvas 2D misses these targets after viewport culling, layered invalidation, waveform pyramids, allocation profiling, and worker-side preprocessing have been implemented, the team may prototype a WebGL renderer behind the same projection. A GPU rewrite requires an ADR containing profiles, cross-browser fallback behavior, accessibility impact, and measured improvement on the baseline device. WASM is a separate decision and does not follow automatically from choosing WebGL.
 
@@ -877,10 +883,25 @@ This section defines the required conceptual boundaries, not the exact TypeScrip
 - **Asset:** stable ID, URL/storage reference, type, metadata, and licensing provenance.
 - **Revision:** stable ID, project revision number, author, timestamp, and optional name.
 
+#### Identifier format
+
+Every persistent entity ID is a type-prefixed, URL-safe random string: a lowercase type prefix, an underscore, then a 21-character nanoid — for example `trk_V1StGXR8Z5jdHi6B_myT`. The prefix makes an ID self-describing in assistant proposals, diffs, logs, Firestore paths, and test failures, and makes a mismatched reference obvious at runtime as well as to the branded TypeScript type. IDs are opaque: nothing parses or orders them, and the prefix is never used to look up a type that the schema already knows.
+
+| Entity | Prefix | Entity | Prefix |
+| --- | --- | --- | --- |
+| Project | `prj_` | Drum pad | `pad_` |
+| Track | `trk_` | Automation lane | `aut_` |
+| Clip | `clp_` | Section | `sec_` |
+| Placement | `plc_` | Return bus | `ret_` |
+| Note event | `evt_` | Asset | `ast_` |
+| Device | `dev_` | Revision | `rev_` |
+
+Tests use a deterministic ID factory that produces the same prefixed format with a seeded suffix, so fixtures and serialization round trips stay stable without a separate ID shape.
+
 ### 9.5 Domain invariants
 
-1. Persistent relationships use stable IDs, never array positions.
-2. Musical time is stored in integer ticks at a documented PPQ; pixels and floating-point seconds are derived views.
+1. Persistent relationships use stable IDs in the section 9.4 prefixed format, never array positions.
+2. Musical time is stored in integer ticks at **192 PPQ**; pixels and floating-point seconds are derived views. 192 is Tone.js's own transport resolution, so live scheduling needs no conversion between stored and scheduled time. At 192 PPQ a 16th note is 48 ticks, an eighth-note triplet is 64, and a ten-minute arrangement at 240 BPM is under 500,000 ticks. Changing PPQ after schema v1 is a migration, not a configuration value.
 3. Clip content is separate from arrangement placement so reuse and independent variation are explicit.
 4. All user-controlled numeric values have shared validation and clamping rules.
 5. A placement cannot reference a missing clip or a clip owned by a different track unless an explicit cross-track copy operation creates a compatible clip.
@@ -936,12 +957,30 @@ UI components must not mutate the persisted project store directly. The AI endpo
 - Schema migration is separate from UI rendering.
 - Security rules enforce ownership/collaborator access and must be tested against an emulator before sharing ships.
 
+#### Firestore schema-v1 document layout
+
+Schema v1 stores a project across three tiers. This layout is a committed alpha decision; changing it requires an ADR and a migration.
+
+| Path | Contents | Written when |
+| --- | --- | --- |
+| `projects/{projectId}` | Name, owner, collaborators, created/modified timestamps, schema version, current revision, template/genre label | Metadata changes; dashboard queries read only this tier |
+| `projects/{projectId}/song/current` | Tempo, time signature, sections, ordered tracks with instrument state, device chains, sends and mixer state, return buses, master settings, arrangement placements, and automation lanes | Structural and arrangement edits |
+| `projects/{projectId}/clips/{clipId}` | Clip metadata and its note or audio-loop content | Note and clip-content edits |
+
+- The dashboard lists projects without loading song state or clip content.
+- Note editing — the highest-frequency write path — touches one small clip document rather than rewriting song structure.
+- The song document has a documented size budget, asserted in tests against the maximum reference project. If arrangement placements and automation exceed that budget, they split into per-track chunk documents under `projects/{projectId}/arrangement/{trackId}` sharing the same revision. `FND-004` owns the exact budget and chunk boundary and must prove both against the 50-track reference fixture; no document may grow unbounded.
+- Every tier carries the project revision so a stale write or remote echo is detected rather than applied.
+- Prototype `latestSnapshot` documents are not part of this schema and are discarded rather than migrated.
+
 ## 10. Non-functional requirements
 
 ### Supported environment
 
-- P0 support: current and previous major desktop versions of Firefox, Chrome, Edge, and Safari.
-- A compatibility regression in any supported browser blocks the alpha release unless the affected feature has an explicit, usable fallback approved by the product owner.
+- P0 gating support: current and previous major desktop versions of Firefox, Chrome, and Edge. These three are verified in automated suites and block release.
+- Safari is best-effort for the private alpha. It is expected to work, defects found in it are logged and fixed where the cost is reasonable, and Safari is not a release gate. Playwright WebKit runs alongside the gating browsers where it is cheap to do so, and its result is treated as a signal rather than as proof about Safari — WebKit passing is not the same as Safari passing.
+- This is a deliberate scope reduction for the alpha, not a judgement that Safari matters less. Safari diverges most from other engines on Web Audio behavior — autoplay/unlock policy, decoding, and context lifecycle — so it carries the highest chance of a late surprise, and it is the default browser for most Mac users in the target audience. Restoring Safari to gating status is a product-owner decision expected before any public release, and no implementation may knowingly break it in the meantime.
+- A compatibility regression in a gating browser blocks the alpha release unless the affected feature has an explicit, usable fallback approved by the product owner.
 - Browser capabilities are feature-detected. Core behavior does not branch only on user-agent strings.
 - The app detects unsupported Web Audio or decoding capabilities and explains the limitation.
 
@@ -950,7 +989,7 @@ UI components must not mutate the persisted project store directly. The AI endpo
 - Dashboard shell interactive within 3 seconds on a typical broadband connection and mid-range laptop, excluding cold authentication delays.
 - Editor shell visible within 3 seconds; cached starter-project playback ready within 2 seconds after the first play gesture.
 - Pointer-driven note and parameter edits target a visual response within 50 ms.
-- Arrangement scrolling and zooming meet the Section 9.3 acceptance budgets for the 50-track reference project on the baseline device.
+- Arrangement scrolling and zooming meet the Section 9.3 acceptance budgets for the 50-track reference project on the baseline device, enforced from `ARR-005` onward as described in section 9.3.
 - The 40-track, 10-minute audio reference project includes processing on every track and at least 64 active device instances across inserts and returns.
 - Assistant streaming or loading must not block audio, editing, or autosave.
 
@@ -1006,8 +1045,9 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 
 ### Phase 0 - Foundations
 
-- Implement the canonical schema-v1 domain model in TypeScript with runtime validation, stable ID-based entities, integer musical time, explicit invariants, and deterministic serialization. Existing prototype state and documents require no migration or backwards compatibility.
-- Implement the v1 Firebase persistence layout in code, including Firestore collections/documents or chunks, domain-to-storage mapping, ownership metadata, schema and revision fields, indexes, security rules, and repository adapters.
+- Implement the canonical schema-v1 domain model in TypeScript with runtime validation, prefixed stable IDs, integer musical time at 192 PPQ, explicit invariants, and deterministic serialization. Existing prototype state and documents require no migration or backwards compatibility.
+- Implement the shared parameter-definition mechanism — how a parameter declares its range, unit, default, clamping policy, and automation capability, and how UI, command validation, the audio engine, and assistant tools all read one definition. Phase 0 defines the mechanism and the few parameters the vertical slice needs. Per-device values for instruments and effects are authored with their devices in Phase 1, where they can be tuned by ear, and must not be invented into schema v1 ahead of them.
+- Implement the section 9.9 v1 Firebase persistence layout in code, including the metadata/song/clip document tiers, the song-document size budget and its chunk overflow path, domain-to-storage mapping, ownership metadata, schema and revision fields, indexes, security rules, and repository adapters.
 - Add domain fixtures and automated tests for schema validation, invariants, serialization round trips, invalid references, musical-time conversion, repository behavior, Firestore size/chunk boundaries, and Firebase Emulator security rules.
 - Introduce the shared command, validation, transaction, undo/redo, and save-status layers.
 - Build the single-context `AudioRuntime`, ID-keyed graph reconciler, disposal ownership tree, and resource-leak harness outside Solid components.
@@ -1015,7 +1055,7 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 - Build the hybrid DOM/Canvas 2D arrangement renderer vertical slice and automated performance fixture before expanding timeline features.
 - Add reference project fixtures and deterministic audio tests.
 
-Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; and the renderer spike meets its frame budget on the baseline hardware in all four browsers. Prototype projects are not an exit dependency.
+Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; and the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
 
 ### Phase 1 - Complete the loop workflow
 
@@ -1146,7 +1186,7 @@ Produces:
 - **Audio tests:** event schedules, stable-node identity, narrow graph reconciliation, processing-graph changes, parameter extremes, automation boundaries, looping boundaries, idempotent disposal, cancelled/failed initialization, buffer-cache ownership, and offline-render properties.
 - **Web Audio lifecycle tests:** one-context invariant, fifty HMR replacements, fifty project cycles, stale async-load cancellation, resource-counter baselines, and real-browser playback during parameter/topology edits.
 - **Component tests:** editor interactions, every registered shortcut in valid and invalid focus contexts, mapping-guide synchronization, dialogs, accessibility names, and error states.
-- **Rendering performance tests:** deterministic 50-track fixture, scripted scroll/zoom/selection traces, frame/long-task metrics, cache-memory checks, and physical baseline-device runs in all supported browsers.
+- **Rendering performance tests:** deterministic 50-track fixture, scripted scroll/zoom/selection traces, frame/long-task metrics, cache-memory checks, and physical baseline-device runs in the gating browsers from `ARR-005` onward.
 - **Contract tests:** persistence adapters, assistant tool payloads, stale revisions, and domain-to-audio projections.
 - **End-to-end tests:** anonymous start, create loop, arrange, assistant apply/undo, autosave/reopen, stereo export, and multitrack stem export.
 - **Manual tests:** audible glitches, metering, long playback, AudioContext policies, browser decoding, and output-device changes.
@@ -1175,6 +1215,8 @@ A feature is done only when:
 | Browser audio timing or lifecycle defects erode trust | Users abandon projects despite good features | Isolate the engine, schedule ahead, build offline tests, and maintain a maximum-size reference project |
 | HMR, navigation, or reactive updates leak contexts and Tone objects | Chrome context limits, rising memory/CPU, duplicated triggers, and eventual playback failure | Own one application-scoped context, preserve it across compatible HMR, reconcile stable graphs, require idempotent disposal, and assert instrumented resource baselines |
 | Dense arrangement rendering overwhelms older integrated graphics or the main thread | Scrolling and editing become unusable on target hardware | Use viewport-sized layered Canvas 2D, culling, virtualized DOM, waveform pyramids, allocation profiling, and a physical 2019 Intel MacBook Pro release benchmark before considering WebGL |
+| Safari is non-gating during the alpha | Web Audio unlock, decoding, or context-lifecycle defects surface late on the browser most Mac users default to | Keep Playwright WebKit in the automated suite as a signal, feature-detect rather than branch on user agent, fix reasonable-cost Safari defects as they are found, and require an explicit product-owner decision to restore gating status before any public release |
+| Renderer budgets are not enforced until Phase 2 | A structurally slow renderer is discovered after the production arrangement is already built on it | Phase 0 still ships the fixtures, scripted traces, and measurement harness with checked-in baseline numbers; `ARR-005` profiles before the arrangement is called done, and the projection/geometry contracts stay renderer-agnostic so a replacement renderer remains possible |
 | Large or extreme processing chains overload the browser or create unstable output | Glitches interrupt creation or unsafe peaks reach the output | Enforce measured device-count budgets, smooth parameters, bound unstable feedback internally, profile the processed reference project, and retain a transparent master safety limiter |
 | AI changes feel arbitrary or destroy work | Loss of authorship and trust | Structured proposals, validation, selection scope, atomic apply, visible diff, and immediate undo |
 | AI context becomes too large or expensive | Slow, unreliable assistant | Compact musical summaries, scoped selection, deterministic analysis, token/usage budgets, and provider-independent gateway |
@@ -1189,7 +1231,13 @@ A feature is done only when:
 ### Decisions made for implementation
 
 - Desktop web is the alpha production surface.
-- Current and previous major Firefox, Chrome, Edge, and Safari are P0 browsers, with a 2019 Intel MacBook Pro class machine as the performance baseline.
+- Current and previous major Firefox, Chrome, and Edge are the gating P0 browsers, with a 2019 Intel MacBook Pro class machine as the performance baseline. Safari is best-effort for the alpha and expected to return to gating status before public release.
+- Musical time is integer ticks at 192 PPQ, matching Tone.js transport resolution so stored and scheduled time need no conversion.
+- Persistent IDs are type-prefixed 21-character nanoids, for example `trk_V1StGXR8Z5jdHi6B_myT`.
+- Firestore schema v1 stores a project as a metadata document, one song document, and one document per clip, with a documented song-document size budget and a defined per-track chunk overflow path.
+- Phase 0 defines the parameter-definition mechanism; per-device parameter values are authored with their devices in Phase 1.
+- Arrangement frame budgets are enforced at `ARR-005` and `HARD-001`. Phase 0 owes measurement infrastructure and honest baseline numbers, not passing scores, and no Phase 0 task depends on the physical baseline device.
+- Screens and states without a mock are extrapolated from the documented design DNA and flagged for a later design pass rather than blocking implementation.
 - The initial audience produces electronic music primarily with synths, samples, drum machines, sequencing, and processing rather than acoustic recording.
 - Initial content and product testing cover techno, house, drum and bass, hip hop, dubstep, lofi, ambient, trance, UK garage, breakbeat, electronic pop, and other electronic or electronically produced popular styles without genre-locked modes.
 - Overdrive, saturation, compression, reverb, delay, insert chains, and send effects are P0 creation tools rather than post-alpha additions.
