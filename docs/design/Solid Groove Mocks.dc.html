@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  :root{
+    --bg:#141414; --panel:#1e1e1e; --panel2:#181818; --card:#2c2c2c; --card2:#262626;
+    --ctrl:#383838; --hover:#3d3d3d; --line:#0d0d0d; --line2:#3a3a3a;
+    --fg:#8a8a8a; --fg2:#666666; --txt:#e6e6e6; --txt2:#b6b6b6;
+    --acc:#20c8e8; --acc-b:#5ce4ff; --acc-2:#12a7c4;
+    --acc-d:rgba(32,200,232,.16); --acc-2d:rgba(18,167,196,.18);
+    --acc-glow:rgba(32,200,232,.09); --on-acc:#04222b;
+  }
+  *{box-sizing:border-box}
+  button{border:none;font-family:inherit}
+  body{margin:0;background:#161616;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--txt);-webkit-font-smoothing:antialiased}
+  a{color:var(--acc);text-decoration:none}
+  a:hover{color:var(--acc-b)}
+  .dv-turn{padding:52px 56px 40px;border-bottom:1px solid rgba(255,255,255,.06);scroll-margin-top:16px}
+  .dv-thd{display:flex;align-items:baseline;gap:11px;margin:0 0 6px}
+  .dv-tid{font:700 10px ui-monospace,Menlo,monospace;padding:4px 8px;background:var(--acc);color:var(--on-acc);border-radius:0;text-decoration:none;letter-spacing:.5px}
+  .dv-tname{font:700 14px/1.2 system-ui,sans-serif;color:var(--txt);letter-spacing:.2px}
+  .dv-tsub{font:400 12.5px/1.5 system-ui,sans-serif;color:var(--fg);margin:2px 0 26px;max-width:720px}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:11px;scroll-margin-top:16px}
+  .dv-oid{font:700 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.09);color:var(--txt2);border-radius:0;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:9px;font:400 11.5px/1.3 system-ui,sans-serif;color:var(--fg)}
+  .dv-opt:target .dv-oid{background:var(--acc);color:var(--on-acc)}
+  .dv-card{background:var(--bg);border:1px solid #303030;border-radius:0;box-shadow:0 18px 44px rgba(0,0,0,.5);overflow:hidden}
+  .dv-next{margin:26px 0 0;font:12px/1.6 system-ui,sans-serif;color:var(--fg2)}
+  @keyframes meterpulse{0%,100%{opacity:.9}50%{opacity:.55}}
+  @keyframes phblink{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes recdot{0%,100%{opacity:1}50%{opacity:.2}}
+  @keyframes eqbar{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#2c3040;border-radius:0}
+  ::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t7">
+  <div class="dv-thd"><a class="dv-tid" href="#t7">7</a><span class="dv-tname">Assistant — recommends a tutorial video</span></div>
+  <p class="dv-tsub">When a concept clicks faster on video, the producer surfaces a relevant walkthrough from a trusted creator right in the thread. The recommendation is a <b style="color:var(--txt2)">real player</b>: click the thumbnail to play inline, expand to fullscreen, or open it on YouTube. Same flat, square, single-accent DNA as the rest of the editor. <span style="color:var(--fg2)">Try it — the player below is live.</span></p>
+  <div class="dv-opts">
+    <div class="dv-opt" id="7a">
+      <div class="dv-olabel"><a class="dv-oid" href="#7a">7a</a>Assistant panel · video recommendation</div>
+      <div class="dv-card" style="width:372px;height:648px;display:flex;flex-direction:column;background:var(--panel)">
+        <div style="display:flex;align-items:center;gap:10px;height:34px;padding:0 12px;background:var(--panel);flex:none">
+          <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--txt2)">Assistant</span>
+          <div style="flex:1"></div>
+          {{ scopeTabsEl }}
+        </div>
+        <div style="flex:1;overflow:auto;min-height:0;padding:12px 12px 4px;display:flex;flex-direction:column;gap:11px">
+          <div style="align-self:flex-end;max-width:240px;background:var(--acc-d);border:1px solid var(--acc-d);border-radius:0 11px 3px 11px;padding:8px 11px;font-size:12px;line-height:1.5;color:var(--txt2)">How do I get that squelchy acid 303 sound? Mine just sounds flat.</div>
+          <div style="align-self:flex-start;max-width:260px;font-size:12px;line-height:1.55;color:var(--txt2)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;color:var(--fg);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase">Producer</div>
+            It's the interplay of resonance and envelope-mod sweeping the cutoff — subtle to describe, obvious once you watch it. This walkthrough from <b style="color:var(--txt2)">Underdog</b> is the clearest I know:
+          </div>
+          <!-- VIDEO RECOMMENDATION CARD -->
+          <div style="align-self:flex-start;width:100%;border:1px solid var(--acc-2d);background:var(--card2);overflow:hidden">
+            {{ videoBlockEl }}
+            <div style="padding:10px 11px;display:flex;flex-direction:column;gap:9px">
+              <div style="font-size:12.5px;font-weight:700;line-height:1.35;color:var(--txt);text-wrap:pretty">Acid Basslines Explained — the TB-303 from scratch</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc-2));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--on-acc);flex:none">U</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:11px;font-weight:600;color:var(--txt2)">Underdog</div>
+                  <div style="font-size:9.5px;color:var(--fg2)">Techno production · 214K subscribers</div>
+                </div>
+                <a href="https://www.youtube.com/" target="_blank" style="display:flex;align-items:center;gap:5px;padding:5px 9px;background:var(--acc-d);color:var(--acc-b);font-size:10px;font-weight:700" style-hover="filter:brightness(1.15)">↗ YouTube</a>
+              </div>
+              <div style="font-size:10.5px;line-height:1.5;color:var(--fg);text-wrap:pretty">Covers cutoff, resonance and envelope amount — the exact controls in your Acid 303 device. Timestamped to the acid-line section.</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <span style="font-size:10.5px;padding:5px 9px;background:var(--card2);color:var(--txt2);cursor:pointer" style-hover="background:var(--card)">Summarize the video</span>
+            <span style="font-size:10.5px;padding:5px 9px;background:var(--card2);color:var(--txt2);cursor:pointer" style-hover="background:var(--card)">Apply these settings to my 303</span>
+            <span style="font-size:10.5px;padding:5px 9px;background:var(--card2);color:var(--txt2);cursor:pointer" style-hover="background:var(--card)">More from Underdog</span>
+          </div>
+        </div>
+        <div style="padding:10px 12px;flex:none">
+          <div style="display:flex;align-items:flex-end;gap:8px;padding:7px 8px;background:var(--panel2)">
+            <textarea rows="1" placeholder="Ask a follow-up…" value="{{ askText }}" onInput="{{ onAskInput }}" onKeyDown="{{ onAskKey }}" style="flex:1;resize:none;background:transparent;border:none;outline:none;color:var(--txt);font:12px/1.5 system-ui,sans-serif;min-height:20px;max-height:90px;padding:0"></textarea>
+            <div onClick="{{ onAskSend }}" style="width:26px;height:26px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:var(--on-acc);cursor:pointer;font-size:13px;flex:none" style-hover="filter:brightness(1.1)">↑</div>
+          </div>
+          <div style="margin-top:5px;font-size:9.5px;color:var(--fg2);display:flex;gap:12px"><span>Videos are suggestions, not endorsements</span></div>
+        </div>
+      </div>
+      {{ fullOverlayEl }}
+    </div>
+  </div>
+  <p class="dv-next">Try next: "add a mini-playlist of recommended videos" · "show an article/blog recommendation card" · "let the assistant jump the video to a timestamp"</p>
+</section>
+
+<section class="dv-turn" id="t6">
+  <div class="dv-thd"><a class="dv-tid" href="#t6">6</a><span class="dv-tname">Design system — palette, buttons, sliders</span></div>
+  <p class="dv-tsub">The reusable decisions the editor is built from. Regions separate by background <b style="color:var(--txt2)">tint and elevation</b>, not borders; a single accent carries state and focus; one control pattern (the vertical fill-slider) is used for every continuous parameter.</p>
+  <div class="dv-opts">
+
+    <!-- PALETTE -->
+    <div class="dv-opt" id="6a">
+      <div class="dv-olabel"><a class="dv-oid" href="#6a">6a</a>Colour palette</div>
+      <div class="dv-card" style="width:560px;padding:22px;display:flex;flex-direction:column;gap:20px">
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:12px">Surface tints — dark to light = deep to near</div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:56px;background:#141414"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">App</div><div style="font-size:9px;color:var(--fg2)">#141414</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:56px;background:#181818"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Well</div><div style="font-size:9px;color:var(--fg2)">#181818</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:56px;background:#1e1e1e"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Section</div><div style="font-size:9px;color:var(--fg2)">#1e1e1e</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:56px;background:#262626"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Inner</div><div style="font-size:9px;color:var(--fg2)">#262626</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:56px;background:#383838"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Control</div><div style="font-size:9px;color:var(--fg2)">#383838</div></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:12px">Accent &amp; text</div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:44px;background:#20c8e8"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Accent</div><div style="font-size:9px;color:var(--fg2)">#20c8e8</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:44px;background:#5ce4ff"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Accent hi</div><div style="font-size:9px;color:var(--fg2)">#5ce4ff</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:44px;background:#e6e6e6"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Text</div><div style="font-size:9px;color:var(--fg2)">#e6e6e6</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:44px;background:#8a8a8a"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Label</div><div style="font-size:9px;color:var(--fg2)">#8a8a8a</div></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:7px"><div style="height:44px;background:#666666"></div><div style="font-size:10px;color:var(--txt2);font-weight:600">Muted</div><div style="font-size:9px;color:var(--fg2)">#666666</div></div>
+          </div>
+        </div>
+        <ul style="margin:0;padding-left:18px;font:12px/1.7 system-ui,sans-serif;color:var(--txt2)">
+          <li>Regions are separated by <b>tint and elevation</b>, never borders — flatter, calmer, fewer lines.</li>
+          <li>Five neutral surfaces only; each step up in lightness reads as one step closer to the user.</li>
+          <li>A <b>single accent</b> (cyan) signals state — selection, focus, active value, playhead. Nothing else competes for it.</li>
+          <li>Three text weights: primary, label, muted — labels are always the mid grey, never full white.</li>
+          <li>Accent is user-swappable app-wide; every accent shade is derived from one hue so themes stay coherent.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- BUTTONS -->
+    <div class="dv-opt" id="6b">
+      <div class="dv-olabel"><a class="dv-oid" href="#6b">6b</a>Button styles</div>
+      <div class="dv-card" style="width:420px;padding:22px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <button type="button" style="height:30px;padding:0 14px;background:var(--acc);border:none;color:var(--on-acc);font-size:11px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.08)">Primary</button>
+            <span style="font-size:11px;color:var(--fg)">Accent fill · one per context (Play, Audition)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <button type="button" style="height:30px;padding:0 14px;background:var(--acc-d);border:none;color:var(--acc-b);font-size:11px;font-weight:600;cursor:pointer" style-hover="filter:brightness(1.15)">Accent soft</button>
+            <span style="font-size:11px;color:var(--fg)">Tinted · active but secondary emphasis</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <button type="button" style="height:30px;padding:0 14px;background:var(--card);border:none;color:var(--txt2);font-size:11px;font-weight:600;cursor:pointer" style-hover="background:var(--hover);color:var(--txt)">Neutral</button>
+            <span style="font-size:11px;color:var(--fg)">Control tint · standard actions (A/B, Load)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <button type="button" style="height:30px;padding:0 14px;background:transparent;border:none;color:var(--fg);font-size:11px;font-weight:600;cursor:pointer" style-hover="background:var(--card);color:var(--txt2)">Ghost</button>
+            <span style="font-size:11px;color:var(--fg)">No fill until hover · low-stakes / repeated</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="display:flex">
+              <div style="height:30px;display:flex;align-items:center;padding:0 13px;background:var(--acc);color:var(--on-acc);font-size:11px;font-weight:600">On</div>
+              <div style="height:30px;display:flex;align-items:center;padding:0 13px;background:var(--card2);color:var(--fg);font-size:11px;font-weight:600">Off</div>
+            </div>
+            <span style="font-size:11px;color:var(--fg)">Segmented · one active, accent-filled</span>
+          </div>
+        </div>
+        <ul style="margin:0;padding-left:18px;font:12px/1.7 system-ui,sans-serif;color:var(--txt2)">
+          <li>All buttons share one <b>30px height</b> and square corners — no rounding anywhere.</li>
+          <li>Emphasis is set by <b>fill weight</b> (accent → tint → neutral → ghost), not by size or border.</li>
+          <li>Hover always brightens or fills; it never shifts layout or adds a stroke.</li>
+          <li>Exactly one primary (accent) action per context so the eye lands immediately.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- SLIDER -->
+    <div class="dv-opt" id="6c">
+      <div class="dv-olabel"><a class="dv-oid" href="#6c">6c</a>Vertical fill-slider — the one continuous control</div>
+      <div class="dv-card" style="width:400px;padding:22px;display:flex;flex-direction:column;gap:20px">
+        <div style="background:var(--panel);padding:18px 20px;display:flex;justify-content:center">{{ dsSlidersEl }}</div>
+        <ul style="margin:0;padding-left:18px;font:12px/1.7 system-ui,sans-serif;color:var(--txt2)">
+          <li><b>Label above, live value below</b> — same style, same place on every slider, always.</li>
+          <li>Thumbless <b>fill track</b>: the filled portion is the value. Drag up/down maps directly to the fill — no learned rotary gesture.</li>
+          <li>The accent fill marks the parameter you're touching; resting sliders use the muted accent.</li>
+          <li>Fixed <b>48px width</b> (fits an 8-char label) with uniform gaps — sliders only sequence horizontally, never stack.</li>
+          <li>One component everywhere — instruments, effects, mixer — so a slider always reads and behaves the same.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "add a section for the tab / segmented controls" · "show the icon set" · "document the typographic scale"</p>
+</section>
+
+<section class="dv-turn" id="t5">
+  <div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">Taller device strip — instruments fit horizontally at 350px</span></div>
+  <p class="dv-tsub">The device region grows from ~262px to <b style="color:var(--txt2)">350px</b> so the full synth and sampler live in the strip with no compacting and no expand/pop-out. Each stays a <i>simple</i> instrument — every knob visible and worth turning — laid out as clear, labelled sections across the width. Header + body fit exactly inside the 350px strip; the arrangement above simply gives up the pixels.</p>
+  <div class="dv-opts">
+
+    <!-- SYNTH — horizontal, 350px -->
+    <div class="dv-opt" id="5a">
+      <div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a>Synth voice · Acid 303 — in the 350px strip</div>
+      <div class="dv-card" style="width:1268px">
+        <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;background:var(--panel);flex:none">
+          <span style="width:9px;height:9px;background:var(--acc);flex:none"></span>
+          <span style="font-weight:700;font-size:13px">Acid 303</span>
+          <span style="font-size:10.5px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px">Synth voice</span>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;background:var(--card2);font-size:11px;color:var(--txt2);cursor:pointer">Hypnotic Saw <span style="color:var(--fg2)">▾</span></div>
+          <button type="button" style="height:28px;padding:0 9px;background:var(--card);border:none;color:var(--fg);font-size:11px;font-weight:600;cursor:pointer" style-hover="background:var(--hover);color:var(--txt)">A/B</button>
+        </div>
+        <div style="height:306px;flex:none;padding:14px;display:flex;gap:12px;background:var(--panel2);overflow:hidden">
+          <div style="width:504px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Oscillator</div>
+            <div style="display:flex;gap:14px;flex:1;min-height:0">
+              {{ synthWaveEl }}
+              {{ synthOscEl }}
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Filter</div>
+            <div style="display:flex;gap:14px;flex:1;min-height:0">
+              {{ synthFiltTabsEl }}
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">
+                <div style="background:var(--panel2);padding:6px;margin-bottom:12px">{{ synthCurveEl }}</div>
+                {{ synthFiltEl }}
+              </div>
+            </div>
+          </div>
+          <div style="width:258px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Amp Envelope</div>
+            <div style="background:var(--panel2);padding:6px;margin-bottom:12px;align-self:flex-start">{{ synthAdsrEl }}</div>
+            {{ synthAmpEl }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAMPLER — horizontal, 350px -->
+    <div class="dv-opt" id="5b">
+      <div class="dv-olabel"><a class="dv-oid" href="#5b">5b</a>Sampler · Clap one-shot — in the 350px strip</div>
+      <div class="dv-card" style="width:1462px">
+        <div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;background:var(--panel);flex:none">
+          <span style="width:9px;height:9px;background:var(--acc);flex:none"></span>
+          <span style="font-weight:700;font-size:13px">Clap</span>
+          <span style="font-size:10.5px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px">Sampler</span>
+          <div style="flex:1"></div>
+          <button type="button" style="height:28px;padding:0 11px;background:var(--acc-d);border:1px solid var(--acc-d);color:var(--acc-b);font-size:11px;font-weight:600;cursor:pointer" style-hover="filter:brightness(1.1)">▸ Audition</button>
+          <button type="button" style="height:28px;padding:0 10px;background:var(--card);border:none;color:var(--txt2);font-size:11px;font-weight:600;cursor:pointer" style-hover="background:var(--hover)">Load…</button>
+        </div>
+        <div style="height:306px;flex:none;padding:14px;display:flex;gap:12px;background:var(--panel2);overflow:hidden">
+          <div style="width:300px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg)">Sample</span>
+              <span style="font-size:9.5px;color:var(--fg2)">0.28 s · mono</span>
+            </div>
+            {{ sampWaveEl }}
+            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:var(--fg2)"><span>START 0.02 s</span><span style="color:var(--acc)">◻ Loop off</span><span>END 0.26 s</span></div>
+            <div style="margin-top:8px;font-size:9.5px;color:var(--fg2)">Hard Clap Wide · 48 kHz</div>
+          </div>
+          <div style="width:384px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Playback</div>
+            {{ sampPitchEl }}
+          </div>
+          <div style="width:392px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Amp Envelope</div>
+            <div style="background:var(--panel2);padding:6px;margin-bottom:12px;align-self:flex-start">{{ sampAdsrEl }}</div>
+            {{ sampAmpEl }}
+          </div>
+          <div style="width:320px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Filter</div>
+            <div style="display:flex;gap:14px;flex:1;min-height:0">
+              {{ sampFiltTabsEl }}
+              {{ sampFiltEl }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "show these two docked in the full editor shell with the taller strip" · "add a drum-machine pad view at this height" · "trim the synth to two sections"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Full editor shell — the five regions in place</span></div>
+  <p class="dv-tsub">The complete production editor for a techno project at 132 BPM. Transport across the top, sound Browser on the left, the Arrangement timeline as the visual center, an Instrument panel showing the selected track's device below it, and the AI producer on the right. Same dark, sharp DNA as the prototype — refined with one restrained cyan accent for active/playing state and per-role clip tinting.</p>
+  <div class="dv-opts">
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Editor · 1400×880</div>
+      <div class="dv-card" style="width:1400px">
+
+        <!-- ===== TRANSPORT ===== -->
+        <div style="display:flex;align-items:center;height:40px;padding:0 8px;background:var(--panel);gap:8px">
+          <div style="display:flex;align-items:center;gap:9px;width:250px">
+            <div style="width:22px;height:22px;border-radius:0;background:linear-gradient(135deg,var(--acc),var(--acc-2));flex:none"></div>
+            <span style="font-weight:700;font-size:13px;letter-spacing:.2px">Warehouse Sketch</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--fg);margin-left:2px"><span style="width:6px;height:6px;border-radius:50%;background:var(--acc)"></span>Saved</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button type="button" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;border-radius:0;background:var(--card);color:var(--fg);cursor:pointer" style-hover="background:var(--hover);color:var(--txt)" title="Undo (⌘Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H10"></path></svg></button>
+            <button type="button" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;border-radius:0;background:var(--card);color:var(--fg);cursor:pointer" style-hover="background:var(--hover);color:var(--txt)" title="Redo (⌘⇧Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"></path><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H14"></path></svg></button>
+          </div>
+          <div style="width:1px;height:24px;background:var(--line2)"></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" onClick="{{ togglePlay }}" style="{{ playBtnStyle }}" style-hover="filter:brightness(1.12)" title="Play / Stop (Space)">{{ playGlyph }}</button>
+            <button type="button" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:none;background:var(--card);color:var(--acc-2);cursor:pointer" style-hover="background:var(--hover)" title="Metronome (O)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 3.2h5.6l3.2 17.6H6z"></path><path d="M6.7 15.5h10.6"></path><path d="M12 15.5 9.2 6.2"></path><rect x="9.4" y="10.4" width="3.1" height="1.8" rx=".3" transform="rotate(72 10.95 11.3)"></rect></svg></button>
+          </div>
+          <div style="display:flex;align-items:stretch;gap:1px;margin-left:2px;border-radius:0;overflow:hidden">
+            <div style="padding:5px 13px;background:var(--panel2);text-align:center">
+              <div style="font:700 15px system-ui,sans-serif;color:var(--acc);letter-spacing:.5px">132.0</div>
+              <div style="font-size:8.5px;color:var(--fg2);letter-spacing:1px;text-transform:uppercase">bpm</div>
+            </div>
+            <div style="padding:5px 12px;background:var(--panel2);text-align:center">
+              <div style="font:700 15px system-ui,sans-serif;color:var(--txt);letter-spacing:.5px">4/4</div>
+              <div style="font-size:8.5px;color:var(--fg2);letter-spacing:1px;text-transform:uppercase">sig</div>
+            </div>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" style="height:30px;padding:0 12px;border-radius:0;background:transparent;color:var(--txt2);cursor:pointer;font-size:11.5px;font-weight:600" style-hover="background:var(--hover);color:var(--txt)">Export</button>
+            <button type="button" style="height:30px;padding:0 12px;border:none;border-radius:0;background:var(--card);color:var(--txt2);cursor:pointer;font-size:11.5px;font-weight:600" style-hover="background:var(--hover);color:var(--txt)">Share</button>
+            <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,oklch(0.7 0.13 300),oklch(0.7 0.13 200));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">SG</div>
+          </div>
+        </div>
+
+        <!-- ===== BODY: browser | center | assistant ===== -->
+        <div style="display:grid;grid-template-columns:236px 1fr 322px;height:840px;background:var(--panel2)">
+
+          <!-- BROWSER -->
+          <div style="display:flex;flex-direction:column;background:var(--panel);min-height:0">
+            <div style="display:flex;align-items:center;height:34px;padding:0 12px;background:var(--panel)">
+              <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--txt2)">Sounds</span>
+            </div>
+            <div style="padding:11px 12px 9px">
+              <div style="display:flex;align-items:center;gap:7px;height:30px;padding:0 9px;background:var(--panel2);border-radius:0">
+                <span style="color:var(--fg2);font-size:13px">⌕</span>
+                <span style="color:var(--fg2);font-size:12px">Search sounds…</span>
+              </div>
+            </div>
+            {{ browserTabsEl }}
+            <div style="flex:1;overflow:auto;min-height:0;padding:6px 8px">
+              <div style="font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fg2);padding:6px 6px 8px">{{ bcat }} · Techno</div>
+              <sc-for list="{{ browserItems }}" as="it" hint-placeholder-count="8">
+                <div style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:0;cursor:pointer;margin-bottom:1px" style-hover="background:var(--card2)">
+                  <div style="width:26px;height:26px;border-radius:0;background:var(--card);display:flex;align-items:center;justify-content:center;flex:none;color:var(--acc);font-size:11px" style-hover="background:var(--acc);color:var(--on-acc)">▸</div>
+                  {{ it.wave }}
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12px;font-weight:600;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div>
+                    <div style="font-size:9.5px;color:var(--fg2)">{{ it.meta }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:9px 10px;display:flex;gap:7px">
+              <div style="flex:1;padding:8px;border-radius:0;background:var(--card2);text-align:center;cursor:pointer" style-hover="background:var(--card)">
+                <div style="font-size:11px;font-weight:600;color:var(--txt2)">Templates</div>
+                <div style="font-size:9px;color:var(--fg2)">9 genres</div>
+              </div>
+              <div style="flex:1;padding:8px;border-radius:0;background:var(--card2);text-align:center;cursor:pointer" style-hover="background:var(--card)">
+                <div style="font-size:11px;font-weight:600;color:var(--txt2)">Import</div>
+                <div style="font-size:9px;color:var(--fg2)">WAV · MP3</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CENTER: arrangement + detail -->
+          <div style="display:flex;flex-direction:column;min-width:0;min-height:0">
+            <!-- arrangement -->
+            <div style="flex:1;display:flex;flex-direction:column;background:var(--panel2);min-height:0">
+              <div style="display:flex;align-items:center;justify-content:space-between;height:34px;padding:0 12px;background:var(--panel)">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--txt2)">Arrangement</span>
+                  <span style="font-size:10.5px;color:var(--fg2)">10 tracks · 32 bars · 5 sections</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:5px">
+                  <button type="button" style="height:24px;padding:0 9px;border-radius:0;background:transparent;color:var(--fg);cursor:pointer;font-size:10.5px;font-weight:600" style-hover="color:var(--txt);background:var(--hover)">+ Track</button>
+                  <button type="button" style="height:24px;padding:0 9px;border-radius:0;background:transparent;color:var(--fg);cursor:pointer;font-size:10.5px;font-weight:600" style-hover="color:var(--txt);background:var(--hover)">Automation (A)</button>
+                  <div style="display:flex;align-items:center;gap:3px;color:var(--fg2);font-size:11px;margin-left:4px"><span style="cursor:pointer">−</span><span style="width:40px;height:3px;background:var(--card);border-radius:0;position:relative"><span style="position:absolute;left:22px;top:-2px;width:7px;height:7px;border-radius:50%;background:var(--fg)"></span></span><span style="cursor:pointer">+</span></div>
+                </div>
+              </div>
+              <div style="flex:1;display:flex;min-height:0;overflow:hidden">
+                <!-- track headers -->
+                <div style="width:186px;flex:none;background:var(--panel);overflow:hidden">
+                  <div style="height:44px"></div>
+                  <sc-for list="{{ tracks }}" as="t" hint-placeholder-count="10">
+                    <div style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;border-bottom:1px solid rgba(0,0,0,.35);cursor:pointer;background:{{ t.color }}" style-hover="filter:brightness(1.07)">
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:11.5px;font-weight:700;color:#17222e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</div>
+                        <div style="font-size:8.5px;color:rgba(0,0,0,.55)">{{ t.kind }}</div>
+                      </div>
+                      <div style="display:flex;gap:2px;flex:none">
+                        <span style="{{ t.mStyle }}">M</span>
+                        <span style="{{ t.sStyle }}">S</span>
+                      </div>
+                      {{ t.meter }}
+                    </div>
+                  </sc-for>
+                  <div onClick="{{ addTrack }}" style="display:flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 8px;cursor:pointer;color:var(--fg);border-bottom:1px solid rgba(0,0,0,.35)" style-hover="background:var(--card2);color:var(--txt)">
+                    <span style="font-size:15px;line-height:1;font-weight:400">+</span>
+                    <span style="font-size:11px;font-weight:600;letter-spacing:.3px">Add track</span>
+                  </div>
+                </div>
+                <!-- timeline canvas -->
+                <div style="flex:1;overflow:auto;min-width:0">
+                  {{ arrangementEl }}
+                </div>
+              </div>
+            </div>
+
+            <!-- instrument panel -->
+            <div style="flex:none;display:flex;flex-direction:column;background:var(--panel)">
+              <div style="display:flex;align-items:center;gap:10px;height:34px;padding:0 12px;background:var(--panel)">
+                <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--txt2)">Instrument</span>
+                <span style="width:8px;height:8px;background:var(--acc);flex:none"></span>
+                <span style="font-size:12px;font-weight:700;color:var(--txt)">Clap</span>
+                <span style="font-size:10px;color:var(--fg2);text-transform:uppercase;letter-spacing:.5px">Sampler</span>
+                <div style="flex:1"></div>
+                <button type="button" style="height:26px;padding:0 11px;background:var(--acc-d);border:1px solid var(--acc-d);color:var(--acc-b);font-size:11px;font-weight:600;cursor:pointer" style-hover="filter:brightness(1.1)">▸ Audition</button>
+                <button type="button" style="height:26px;padding:0 10px;background:var(--card);border:none;color:var(--txt2);font-size:11px;font-weight:600;cursor:pointer" style-hover="background:var(--hover)">Load…</button>
+              </div>
+              <div style="height:306px;flex:none;padding:14px;display:flex;gap:12px;background:var(--panel2);overflow-x:auto;overflow-y:hidden">
+                <div style="width:300px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <span style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg)">Sample</span>
+                    <span style="font-size:9.5px;color:var(--fg2)">0.28 s · mono</span>
+                  </div>
+                  {{ shellSampWaveEl }}
+                  <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:var(--fg2)"><span>START 0.02 s</span><span style="color:var(--acc)">◻ Loop off</span><span>END 0.26 s</span></div>
+                  <div style="margin-top:8px;font-size:9.5px;color:var(--fg2)">Hard Clap Wide · 48 kHz</div>
+                </div>
+                <div style="width:384px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Playback</div>
+                  {{ shellSampPitchEl }}
+                </div>
+                <div style="width:392px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Amp Envelope</div>
+                  <div style="background:var(--panel2);padding:6px;margin-bottom:12px;align-self:flex-start">{{ shellSampAdsrEl }}</div>
+                  {{ shellSampAmpEl }}
+                </div>
+                <div style="width:320px;flex:none;background:var(--panel);padding:12px;display:flex;flex-direction:column">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--fg);margin-bottom:10px">Filter</div>
+                  <div style="display:flex;gap:14px;flex:1;min-height:0">
+                    {{ shellSampFiltTabsEl }}
+                    {{ shellSampFiltEl }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ASSISTANT -->
+          <div style="display:flex;flex-direction:column;background:var(--panel);min-height:0">
+            <div style="display:flex;align-items:center;gap:10px;height:34px;padding:0 12px;background:var(--panel)">
+              <span style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--txt2)">Assistant</span>
+              <div style="flex:1"></div>
+              {{ scopeTabsEl }}
+            </div>
+            <div style="flex:1;overflow:auto;min-height:0;padding:12px 12px 4px;display:flex;flex-direction:column;gap:11px">
+              <div style="align-self:flex-end;max-width:230px;background:var(--acc-d);border:1px solid var(--acc-d);border-radius:0 11px 3px 11px;padding:8px 11px;font-size:12px;line-height:1.5;color:var(--txt2)">The drop feels flat. Can you build a transition into it?</div>
+              <div style="align-self:flex-start;max-width:250px;font-size:12px;line-height:1.55;color:var(--txt2)">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;color:var(--fg);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase">Producer</div>
+                I can lift bars 15–16 with a filtered riser and a snare roll, then open everything on the downbeat of the drop. Here's the change:
+              </div>
+              <!-- proposal card -->
+              <div style="align-self:flex-start;width:100%;border:1px solid var(--acc-2d);border-radius:0;background:var(--card2);overflow:hidden">
+                <div style="display:flex;align-items:center;gap:7px;padding:9px 11px;background:var(--acc-2d);border-bottom:1px solid var(--acc-2d)">
+                  <span style="font-size:11px">✦</span>
+                  <span style="font-size:11px;font-weight:700;color:var(--acc-b)">Proposal · Build a transition</span>
+                  <div style="flex:1"></div>
+                  <span style="font-size:9px;color:var(--fg2)">3 changes</span>
+                </div>
+                <div style="padding:8px 11px;display:flex;flex-direction:column;gap:5px">
+                  <div style="display:flex;align-items:center;gap:7px;font-size:11px"><span style="width:14px;height:14px;border-radius:0;background:var(--acc-d);color:var(--acc-b);display:flex;align-items:center;justify-content:center;font-size:10px;flex:none">+</span><span style="color:var(--txt2)">Riser FX clip on bars 15–16</span></div>
+                  <div style="display:flex;align-items:center;gap:7px;font-size:11px"><span style="width:14px;height:14px;border-radius:0;background:var(--acc-d);color:var(--acc-b);display:flex;align-items:center;justify-content:center;font-size:10px;flex:none">+</span><span style="color:var(--txt2)">Snare roll, 16ths ramping velocity</span></div>
+                  <div style="display:flex;align-items:center;gap:7px;font-size:11px"><span style="width:14px;height:14px;border-radius:0;background:var(--acc-2d);color:var(--acc-b);display:flex;align-items:center;justify-content:center;font-size:10px;flex:none">~</span><span style="color:var(--txt2)">Automate low-pass sweep on the bus</span></div>
+                </div>
+                <div style="display:flex;gap:6px;padding:9px 11px">
+                  <button type="button" style="flex:1;height:30px;border:none;border-radius:0;background:var(--acc-2);color:var(--on-acc);font-size:11.5px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.08)">Apply</button>
+                  <button type="button" style="flex:1;height:30px;border-radius:0;background:transparent;color:var(--txt2);font-size:11.5px;font-weight:600;cursor:pointer" style-hover="background:var(--hover)">Preview</button>
+                  <button type="button" style="height:30px;padding:0 11px;border-radius:0;background:transparent;color:var(--fg);font-size:11.5px;cursor:pointer" style-hover="color:var(--txt)">✕</button>
+                </div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <span style="font-size:10.5px;padding:5px 9px;border-radius:0;background:var(--card2);color:var(--txt2);cursor:pointer" style-hover="background:var(--card)">Add variation</span>
+                <span style="font-size:10.5px;padding:5px 9px;border-radius:0;background:var(--card2);color:var(--txt2);cursor:pointer" style-hover="background:var(--card)">Balance this section</span>
+                <span style="font-size:10.5px;padding:5px 9px;border-radius:0;background:var(--card2);color:var(--txt2);cursor:pointer" style-hover="background:var(--card)">Why muddy?</span>
+              </div>
+            </div>
+            <div style="padding:10px 12px">
+              <div style="display:flex;align-items:flex-end;gap:8px;padding:7px 8px;background:var(--panel2)">
+                <textarea rows="1" placeholder="Ask about the Drop…" value="{{ askText }}" onInput="{{ onAskInput }}" onKeyDown="{{ onAskKey }}" style="flex:1;resize:none;background:transparent;border:none;outline:none;color:var(--txt);font:12px/1.5 system-ui,sans-serif;min-height:20px;max-height:90px;padding:0"></textarea>
+                <div onClick="{{ onAskSend }}" style="width:26px;height:26px;background:var(--acc);display:flex;align-items:center;justify-content:center;color:var(--on-acc);cursor:pointer;font-size:13px;flex:none" style-hover="filter:brightness(1.1)">↑</div>
+              </div>
+              <div style="margin-top:5px;font-size:9.5px;color:var(--fg2);display:flex;gap:12px"><span><b style="color:var(--txt2)">Enter</b> new line</span><span><b style="color:var(--txt2)">⌘↵ / Ctrl↵</b> send</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <p class="dv-next">Try next: "zoom into the drum step editor" · "show the synth voice as its own panel" · "make the assistant proposal card bigger" · "a lighter/day theme variant"</p>
+</section>
+
+<section class="dv-turn" id="t3">
+  <div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Dashboard &amp; keyboard reference</span></div>
+  <p class="dv-tsub">Where a session starts and how it's driven: the project dashboard (start immediately as a guest, pick a genre starter or reopen recent work — PRJ-01/02) and the in-app keyboard mapping guide opened with <kbd style="font-family:system-ui;background:var(--card2);border-bottom:2px solid #000;padding:1px 5px;font-size:11px">?</kbd> (KEY-02).</p>
+  <div class="dv-opts">
+
+    <!-- DASHBOARD -->
+    <div class="dv-opt" id="3a">
+      <div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Project dashboard</div>
+      <div class="dv-card" style="width:1080px">
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 18px;background:var(--panel)">
+          <div style="width:24px;height:24px;background:linear-gradient(135deg,var(--acc),#e056a0);flex:none"></div>
+          <span style="font-weight:800;font-size:14px;letter-spacing:.2px">Solid Groove</span>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;width:240px;background:var(--panel2)"><span style="color:var(--fg2)">⌕</span><span style="color:var(--fg2);font-size:12px">Search projects…</span></div>
+          <button type="button" style="height:32px;padding:0 14px;background:var(--acc);border:none;color:var(--on-acc);font-size:12px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.08)">+ New Project</button>
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#9b59b6,#3498db);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">SG</div>
+        </div>
+        <div style="padding:20px 22px;background:var(--bg)">
+          <div style="display:flex;align-items:center;gap:12px;padding:11px 15px;background:var(--acc-2d);border:1px solid var(--acc-2d);margin-bottom:22px">
+            <span style="width:8px;height:8px;background:var(--acc-2);flex:none"></span>
+            <div style="flex:1;font-size:12px;color:var(--txt2)"><b style="color:var(--txt)">Working as a guest.</b> Your projects are saved on this device — upgrade to keep them across devices.</div>
+            <button type="button" style="height:28px;padding:0 12px;background:var(--acc-2);border:none;color:var(--on-acc);font-size:11px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.08)">Create account</button>
+            <span style="color:var(--fg2);cursor:pointer;font-size:13px">✕</span>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--fg);margin-bottom:12px">Start something new</div>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:26px">
+            <sc-for list="{{ dashTemplates }}" as="tpl" hint-placeholder-count="9">
+              <div style="width:158px;background:var(--panel);cursor:pointer" style-hover="background:var(--card)">
+                <div style="height:58px;background:{{ tpl.c }};display:flex;align-items:flex-end;padding:8px 10px">
+                  <span style="font-size:12px;font-weight:800;color:#17222e;text-transform:uppercase;letter-spacing:.4px">{{ tpl.name }}</span>
+                </div>
+                <div style="padding:9px 10px">
+                  <div style="font-size:10.5px;color:var(--txt2)">{{ tpl.tag }}</div>
+                  <div style="font-size:9.5px;color:var(--fg2);margin-top:2px">{{ tpl.bpm }} BPM</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--fg);margin-bottom:12px">Your projects</div>
+          <div style="display:flex;flex-wrap:wrap;gap:12px">
+            <sc-for list="{{ dashProjects }}" as="p" hint-placeholder-count="4">
+              <div style="width:238px;background:var(--panel);cursor:pointer" style-hover="background:var(--card)">
+                <div style="height:52px;background:var(--panel2);display:flex;align-items:center;padding:0 12px">{{ p.wave }}</div>
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px">
+                  <span style="width:4px;height:28px;background:{{ p.c }};flex:none"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12.5px;font-weight:600;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+                    <div style="font-size:10px;color:var(--fg2)">{{ p.meta }}</div>
+                  </div>
+                  <span style="color:var(--fg2);cursor:pointer;font-size:15px">⋯</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KEYBOARD GUIDE -->
+    <div class="dv-opt" id="3b">
+      <div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Keyboard mapping guide</div>
+      <div class="dv-card" style="width:600px">
+        <div style="display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;background:var(--panel)">
+          <span style="font-weight:700;font-size:13px">Keyboard Shortcuts</span>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;width:150px;background:var(--panel2)"><span style="color:var(--fg2)">⌕</span><span style="color:var(--fg2);font-size:11px">Search action…</span></div>
+          <span style="color:var(--fg2);cursor:pointer;font-size:15px">✕</span>
+        </div>
+        <div style="padding:6px 16px;background:var(--panel2);font-size:10.5px;color:var(--fg2)">Follows Ableton Live where the browser allows · <span style="color:var(--txt2)">⌘/Ctrl</span> per platform · P0 mappings are read-only</div>
+        <div style="padding:16px;background:var(--bg);display:grid;grid-template-columns:1fr 1fr;gap:16px 22px">
+          <sc-for list="{{ shortcutGroups }}" as="g" hint-placeholder-count="5">
+            <div>
+              <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--acc);margin-bottom:8px">{{ g.title }}</div>
+              <sc-for list="{{ g.rows }}" as="row" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0">
+                  <span style="font-size:11.5px;color:var(--txt2)">{{ row.label }}</span>
+                  {{ row.keysEl }}
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:9px 16px;background:var(--panel);font-size:10.5px;color:var(--fg2);display:flex;justify-content:space-between">
+          <span>Press <b style="color:var(--txt2)">?</b> anytime to open · <b style="color:var(--txt2)">Esc</b> to close</span>
+          <span>Remappable shortcuts — coming in P1</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "add export dialogs (WAV + stems)" · "show the empty-dashboard state" · "a filtered view of the shortcut guide"</p>
+</section>
+
+<section class="dv-turn" id="t4">
+  <div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Marketing — landing page</span></div>
+  <p class="dv-tsub">The public front door, in the same dark studio aesthetic: a hero that states the product promise, a product glimpse, and feature upsell cards mapped to the pillars — AI producer, everything editable, a coherent sound library, and export/handoff.</p>
+  <div class="dv-opts">
+    <div class="dv-opt" id="4a">
+      <div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Landing page</div>
+      <div class="dv-card" style="width:1200px">
+
+        <!-- nav -->
+        <div style="display:flex;align-items:center;gap:14px;height:60px;padding:0 32px;background:var(--panel)">
+          <div style="width:24px;height:24px;background:linear-gradient(135deg,var(--acc),#e056a0);flex:none"></div>
+          <span style="font-weight:800;font-size:15px;letter-spacing:.2px">Solid Groove</span>
+          <div style="display:flex;gap:22px;margin-left:26px">
+            <span style="font-size:12.5px;color:var(--txt2);cursor:pointer">Product</span>
+            <span style="font-size:12.5px;color:var(--fg);cursor:pointer">Sounds</span>
+            <span style="font-size:12.5px;color:var(--fg);cursor:pointer">Learn</span>
+            <span style="font-size:12.5px;color:var(--fg);cursor:pointer">Pricing</span>
+          </div>
+          <div style="flex:1"></div>
+          <span style="font-size:12.5px;color:var(--txt2);cursor:pointer">Log in</span>
+          <button type="button" style="height:34px;padding:0 15px;background:var(--acc);border:none;color:var(--on-acc);font-size:12.5px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.08)">Start free</button>
+        </div>
+
+        <!-- hero -->
+        <div style="display:flex;gap:40px;align-items:center;padding:56px 40px 48px;background:radial-gradient(1100px 480px at 82% -12%, var(--acc-glow), transparent), var(--bg)">
+          <div style="flex:1;min-width:0">
+            <div style="display:inline-flex;align-items:center;gap:7px;padding:5px 11px;background:var(--acc-2d);border:1px solid var(--acc-2d);margin-bottom:22px">
+              <span style="width:6px;height:6px;background:var(--acc-2)"></span>
+              <span style="font-size:11px;font-weight:600;color:var(--acc-b);letter-spacing:.3px">Private alpha · browser-based</span>
+            </div>
+            <h2 style="margin:0 0 18px;font-size:52px;line-height:1.05;font-weight:800;letter-spacing:-1px;color:var(--txt);text-wrap:pretty">Bring a loop.<br>Leave with a track.</h2>
+            <p style="margin:0 0 28px;font-size:16px;line-height:1.6;color:var(--fg);max-width:480px;text-wrap:pretty">A browser music studio with an AI producer beside you. Turn a promising 8-bar idea into a finished, exportable track — and understand how it was made.</p>
+            <div style="display:flex;gap:12px;margin-bottom:18px">
+              <button type="button" style="height:46px;padding:0 22px;background:var(--acc);border:none;color:var(--on-acc);font-size:14px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.08)">Start in your browser</button>
+              <button type="button" style="height:46px;padding:0 20px;background:transparent;color:var(--txt2);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--hover)">▸ Watch the 2-min tour</button>
+            </div>
+            <div style="font-size:11.5px;color:var(--fg2)">No install · Free to start · Chrome · Firefox · Safari · Edge</div>
+          </div>
+          <!-- product glimpse -->
+          <div style="width:520px;flex:none;background:var(--panel);box-shadow:0 24px 60px rgba(0,0,0,.5)">
+            <div style="display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;background:var(--panel2)">
+              <span style="width:9px;height:9px;border-radius:50%;background:#e74c3c"></span>
+              <span style="width:9px;height:9px;border-radius:50%;background:#f39c12"></span>
+              <span style="width:9px;height:9px;border-radius:50%;background:#2ecc71"></span>
+              <span style="margin-left:8px;font-size:10px;color:var(--fg2)">Warehouse Sketch — Solid Groove</span>
+            </div>
+            {{ heroPreviewEl }}
+          </div>
+        </div>
+
+        <!-- features -->
+        <div style="padding:12px 40px 52px;background:var(--bg)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fg2);margin-bottom:18px">Why Solid Groove</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div style="background:var(--panel);padding:20px" style-hover="background:var(--card)">
+              <div style="width:34px;height:34px;background:var(--acc-d);display:flex;align-items:center;justify-content:center;margin-bottom:14px"><span style="width:13px;height:13px;background:var(--acc);transform:rotate(45deg)"></span></div>
+              <div style="font-size:14px;font-weight:700;margin-bottom:7px;color:var(--txt)">An AI producer beside you</div>
+              <div style="font-size:12px;line-height:1.55;color:var(--fg)">Ask for a transition, a bass variation, or a fix. It proposes real, editable changes you preview, apply and undo.</div>
+            </div>
+            <div style="background:var(--panel);padding:20px" style-hover="background:var(--card)">
+              <div style="width:34px;height:34px;background:var(--acc-d);display:flex;align-items:center;justify-content:center;margin-bottom:14px"><span style="width:14px;height:14px;border:2px solid var(--acc)"></span></div>
+              <div style="font-size:14px;font-weight:700;margin-bottom:7px;color:var(--txt)">Everything stays editable</div>
+              <div style="font-size:12px;line-height:1.55;color:var(--fg)">AI output uses the same tracks, clips, notes and devices as your own edits. No black boxes, nothing locked.</div>
+            </div>
+            <div style="background:var(--panel);padding:20px" style-hover="background:var(--card)">
+              <div style="width:34px;height:34px;background:var(--acc-d);display:flex;align-items:center;justify-content:center;margin-bottom:14px"><span style="width:14px;height:14px;border-radius:50%;border:2px solid var(--acc)"></span></div>
+              <div style="font-size:14px;font-weight:700;margin-bottom:7px;color:var(--txt)">Sounds that work together</div>
+              <div style="font-size:12px;line-height:1.55;color:var(--fg)">A curated, licensed library of drums, bass, synths and textures spanning 11 electronic genres — never genre-locked.</div>
+            </div>
+            <div style="background:var(--panel);padding:20px" style-hover="background:var(--card)">
+              <div style="width:34px;height:34px;background:var(--acc-d);display:flex;align-items:center;justify-content:center;margin-bottom:14px"><span style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:12px solid var(--acc)"></span></div>
+              <div style="font-size:14px;font-weight:700;margin-bottom:7px;color:var(--txt)">Export anywhere</div>
+              <div style="font-size:12px;line-height:1.55;color:var(--fg)">Render a stereo WAV, aligned multitrack stems, or hand off a session to Ableton Live and keep producing.</div>
+            </div>
+          </div>
+
+          <!-- genre strip -->
+          <div style="margin-top:34px;padding-top:26px">
+            <div style="font-size:11px;color:var(--fg2);margin-bottom:12px">Built for — and tested across —</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Techno</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">House</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Drum &amp; Bass</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Lofi Hip Hop</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Dubstep</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Trance</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">UK Garage</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Ambient</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Breakbeat</span>
+              <span style="font-size:12px;padding:6px 12px;background:var(--panel);color:var(--txt2)">Electronic Pop</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- final CTA -->
+        <div style="padding:44px 40px;background:var(--panel);display:flex;align-items:center;justify-content:space-between;gap:24px">
+          <div>
+            <div style="font-size:24px;font-weight:800;letter-spacing:-.3px;color:var(--txt);margin-bottom:6px">Start with what you've got.</div>
+            <div style="font-size:13px;color:var(--fg)">Open a blank project or a genre starter — you'll hear sound in seconds.</div>
+          </div>
+          <button type="button" style="height:48px;padding:0 26px;background:var(--acc);border:none;color:var(--on-acc);font-size:14px;font-weight:700;cursor:pointer;flex:none" style-hover="filter:brightness(1.08)">Start free — no account needed</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;padding:16px 40px;background:var(--panel2);font-size:11px;color:var(--fg2)">
+          <span style="color:var(--txt2);font-weight:700">Solid Groove</span><span>© 2026</span><div style="flex:1"></div><span style="cursor:pointer">Privacy</span><span style="cursor:pointer">Terms</span><span style="cursor:pointer">Licensing</span><span style="cursor:pointer">Changelog</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <p class="dv-next">Try next: "a pricing section" · "a testimonials row" · "a light-theme version of the hero" · "swap the product glimpse for a real screenshot"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: {&quot;width&quot;: 1500, &quot;height&quot;: 1000},
+  &quot;accent&quot;: {&quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#20c8e8&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;#20c8e8&quot;, &quot;#1abc9c&quot;, &quot;#3498db&quot;, &quot;#2ecc71&quot;, &quot;#e056a0&quot;], &quot;section&quot;: &quot;Theme&quot;},
+  &quot;baseTheme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;Ableton Dark&quot;, &quot;options&quot;: [&quot;Ableton Dark&quot;, &quot;Graphite&quot;, &quot;Midnight Blue&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Theme&quot;},
+  &quot;colorTracks&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Theme&quot;}
+}">
+class Component extends DCLogic {
+  state = { playing:true, bcat:'Drums', dtab:'Clip', scope:'Section', ask:'', vidPlaying:false, vidFull:false };
+
+  // ---- helpers ----
+  seq(s){ return s.split('').map(c=>c==='x'); }
+  rnd(seed){ let x=Math.sin(seed*99.7)*10000; return x-Math.floor(x); }
+
+  hexA(h,a){ const n=parseInt(h.slice(1),16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+  lighten(h,d){ const n=parseInt(h.slice(1),16), c=x=>Math.min(255,x+d); return `rgb(${c((n>>16)&255)},${c((n>>8)&255)},${c(n&255)})`; }
+  hexToHsl(h){ const n=parseInt(h.slice(1),16), r=((n>>16)&255)/255, g=((n>>8)&255)/255, b=(n&255)/255;
+    const mx=Math.max(r,g,b), mn=Math.min(r,g,b); let hue=0, s=0, l=(mx+mn)/2;
+    if(mx!==mn){ const dd=mx-mn; s=l>.5?dd/(2-mx-mn):dd/(mx+mn);
+      hue=mx===r?(g-b)/dd+(g<b?6:0):mx===g?(b-r)/dd+2:(r-g)/dd+4; hue*=60; }
+    return {h:hue, s:s*100, l:l*100}; }
+  hsl(h,s,l,a){ s=Math.max(0,Math.min(100,s)); l=Math.max(0,Math.min(100,l)); return a==null?`hsl(${h} ${s}% ${l}%)`:`hsl(${h} ${s}% ${l}% / ${a})`; }
+  accentVars(acc){ const {h,s,l}=this.hexToHsl(acc); return {
+    '--acc':acc,
+    '--acc-b':this.hsl(h, Math.min(100,s+4), Math.min(96,l+12)),
+    '--acc-2':this.hsl(h, Math.max(0,s-6), Math.max(0,l-16)),
+    '--acc-d':this.hsl(h,s,l,.16),
+    '--acc-2d':this.hsl(h, Math.max(0,s-6), Math.max(0,l-16), .18),
+    '--acc-glow':this.hsl(h,s,l,.09),
+    '--on-acc':this.hsl(h, Math.min(60,s), 12),
+  }; }
+  applyTheme(){
+    const p=this.props||{}, acc=p.accent||'#20c8e8';
+    const T={
+      'Ableton Dark':{bg:'#141414',panel:'#1e1e1e',panel2:'#181818',card:'#2c2c2c',card2:'#262626',ctrl:'#383838',hover:'#3d3d3d',line:'#0d0d0d',line2:'#3a3a3a',fg:'#8a8a8a',fg2:'#666666',txt:'#e6e6e6',txt2:'#b6b6b6'},
+      'Graphite':{bg:'#1a1d21',panel:'#22262b',panel2:'#1a1d21',card:'#2c3138',card2:'#262b31',ctrl:'#353b43',hover:'#414852',line:'#111417',line2:'#3a4049',fg:'#8b929c',fg2:'#697079',txt:'#e8eaee',txt2:'#bcc0c8'},
+      'Midnight Blue':{bg:'#212f3d',panel:'#2c3e50',panel2:'#273746',card:'#34495e',card2:'#2f4257',ctrl:'#3d566e',hover:'#46627f',line:'#1a2733',line2:'#3d566e',fg:'#95a5a6',fg2:'#7f8c8d',txt:'#ecf0f1',txt2:'#bdc3c7'},
+    };
+    const t=T[p.baseTheme]||T['Ableton Dark'], r=document.documentElement.style;
+    for(const k in t) r.setProperty('--'+k,t[k]);
+    const av=this.accentVars(acc); for(const k in av) r.setProperty(k,av[k]);
+    document.body.style.background=t.bg;
+  }
+  componentDidMount(){ this.applyTheme(); }
+  componentDidUpdate(){ this.applyTheme(); }
+  clipWave(w,seed){
+    const H=React.createElement, n=Math.max(4,Math.round(w/3)), bars=[];
+    for(let i=0;i<n;i++){ const v=0.2+0.8*Math.abs(Math.sin(seed*2.1+i*0.8)*Math.cos(seed*1.3+i*0.27));
+      bars.push(H('div',{key:i,style:{width:'2px',height:Math.round(v*9)+'px',background:'rgba(0,0,0,.42)',flex:'none'}})); }
+    return H('div',{style:{display:'flex',alignItems:'center',gap:'1px',height:'10px',marginTop:'2px',marginLeft:'3px',overflow:'hidden'}},bars);
+  }
+
+  wave(seed,w,hgt,color){
+    const H=React.createElement, n=Math.max(6,Math.round(w/3)), bars=[];
+    for(let i=0;i<n;i++){ const v=0.25+0.75*Math.abs(Math.sin(seed*3.3+i*0.7)*Math.cos(seed+i*0.31));
+      bars.push(H('div',{key:i,style:{width:'2px',height:Math.round(v*hgt)+'px',background:color||'var(--fg2)',borderRadius:'0',flex:'none'}})); }
+    return H('div',{style:{display:'flex',alignItems:'center',gap:'1px',height:hgt+'px',width:w+'px',flex:'none'}},bars);
+  }
+
+  meter(level){
+    const H=React.createElement, segs=[], n=7;
+    for(let i=0;i<n;i++){ const on=(i/n)<level; const c=i>=n-1?'#e74c3c':(i>=n-3?'var(--acc-2)':'var(--acc)');
+      segs.push(H('div',{key:i,style:{width:'3px',height:(4+i*1.4)+'px',background:on?c:'rgba(0,0,0,.3)',alignSelf:'flex-end'}})); }
+    return H('div',{style:{display:'flex',alignItems:'flex-end',gap:'1px',height:'20px',flex:'none'}},segs);
+  }
+
+  // Reusable flat vertical fill-slider used for EVERY continuous control in the app:
+  // label on top, thumbless fill track, current value at the bottom.
+  vslider(l,v,val,hot,minH){
+    const H=React.createElement; const fill=hot?'var(--acc)':'var(--acc-2)';
+    return H('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'6px',flex:'none',width:'48px'}},
+      H('div',{style:{fontSize:'9px',color:'var(--fg2)',letterSpacing:'.4px',textTransform:'uppercase',whiteSpace:'nowrap',lineHeight:1}},l),
+      H('div',{style:{position:'relative',width:'14px',flex:1,minHeight:(minH||96)+'px',background:'var(--panel2)',cursor:'ns-resize'}},
+        H('div',{style:{position:'absolute',left:0,right:0,bottom:0,height:Math.round(v*100)+'%',background:fill}})),
+      H('div',{style:{fontSize:'10px',color:'var(--txt2)',fontWeight:600,whiteSpace:'nowrap',lineHeight:1}},val!=null?val:Math.round(v*100)+'%'));
+  }
+  knobRow(items){
+    const H=React.createElement;
+    return H('div',{style:{display:'flex',gap:'12px',padding:'8px 10px',flex:1,minHeight:0,alignItems:'stretch'}},
+      items.map((k,i)=>React.cloneElement(this.vslider(k.l,k.v,k.val,k.hot,36),{key:i})));
+  }
+
+  // Ableton-style horizontal device strip. Every stage is an equal cell:
+  //   step sequence (MIDI) → instrument → effect → effect → sends
+  chevron(k){ return React.createElement('div',{key:k,style:{display:'flex',alignItems:'center',padding:'0 3px',color:'var(--fg2)',fontSize:'11px',flex:'none'}},'▸'); }
+  deviceCell(w,head,body){ return React.createElement('div',{style:{width:w+'px',flex:'none',display:'flex',flexDirection:'column',background:'var(--card2)',height:'100%',overflow:'hidden'}},head,body); }
+  deviceHead(dot,name,tag,box){
+    const H=React.createElement;
+    return H('div',{style:{display:'flex',alignItems:'center',gap:'6px',padding:'6px 8px',borderBottom:'1px solid var(--line)'}},
+      box?H('span',{style:{width:'14px',height:'14px',border:'1px solid '+dot,display:'flex',alignItems:'center',justifyContent:'center',flex:'none'}},H('span',{style:{width:'7px',height:'7px',background:dot}}))
+        :H('span',{style:{width:'7px',height:'7px',background:dot,flex:'none'}}),
+      H('span',{style:{fontSize:'11px',fontWeight:700,color:'var(--txt2)',flex:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},name),
+      H('span',{style:{fontSize:'8px',color:'var(--fg2)',letterSpacing:'.5px',textTransform:'uppercase',flex:'none'}},tag));
+  }
+  deviceRack(devs, lead){
+    const H=React.createElement, items=[];
+    if(lead){ items.push(lead); items.push(this.chevron('lead')); }
+    // instrument
+    items.push(this.deviceCell(150,
+      this.deviceHead('var(--acc)','Clap','instr',true),
+      H('div',{style:{padding:'9px 8px',display:'flex',flexDirection:'column',gap:'6px',flex:1}},
+        H('div',{style:{fontSize:'8.5px',color:'var(--fg2)',textTransform:'uppercase',letterSpacing:'.6px'}},'Sampler'),
+        this.wave(3,118,26,'var(--fg)'),
+        H('div',{style:{fontSize:'10px',color:'var(--txt2)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},'Hard Clap Wide'))));
+    devs.forEach((d,i)=>{ items.push(this.chevron('c'+i));
+      items.push(this.deviceCell(24+(d.n||4)*44, this.deviceHead(d.dot,d.name,d.tag,true), H('div',{style:{flex:1,display:'flex',flexDirection:'column',minHeight:0}},d.knobs))); });
+    items.push(this.chevron('cs'));
+    items.push(this.deviceCell(122,
+      this.deviceHead('var(--acc-2)','Sends','2 bus',false),
+      H('div',{style:{padding:'9px 8px',display:'flex',flexDirection:'column',gap:'7px',flex:1}},
+        ['A · Delay 3/16','B · Dark Reverb'].map((s,i)=>H('div',{key:i,style:{display:'flex',alignItems:'center',gap:'6px'}},
+          H('div',{style:{flex:1,fontSize:'9.5px',color:'var(--fg)',whiteSpace:'nowrap'}},s),
+          H('div',{style:{width:'26px',height:'4px',background:'var(--ctrl)',flex:'none'}},H('div',{style:{width:i===0?'40%':'22%',height:'100%',background:'var(--acc-2)'}})))))));
+    // add-device affordance
+    items.push(this.chevron('ca'));
+    items.push(H('div',{key:'add',style:{width:'30px',flex:'none',display:'flex',alignItems:'center',justifyContent:'center',height:'100%',border:'1px dashed var(--line2)',color:'var(--fg2)',fontSize:'16px',cursor:'pointer'}},'+'));
+    return H('div',{style:{display:'flex',alignItems:'stretch',height:'100%',overflowX:'auto',overflowY:'hidden',gap:'0',padding:'2px'}},items);
+  }
+  seqCell(grid,vel){
+    const H=React.createElement;
+    const tbtn=(label,active)=>H('div',{style:{height:'20px',padding:'0 8px',display:'flex',alignItems:'center',fontSize:'10px',fontWeight:600,cursor:'pointer',
+      color:active?'var(--on-acc)':'var(--fg)',background:active?'var(--acc)':'var(--card)',border:'none'}},label);
+    const toolbar=H('div',{style:{display:'flex',alignItems:'center',gap:'5px',marginBottom:'8px'}},
+      tbtn('Draw (B)',true), tbtn('Quantize (Q)',false),
+      H('div',{style:{flex:1}}),
+      H('span',{style:{fontSize:'9.5px',color:'var(--fg2)'}},'1 bar'));
+    const body=H('div',{style:{padding:'9px 9px',display:'flex',flexDirection:'column',flex:1,overflow:'auto'}},
+      toolbar, grid, H('div',{style:{height:'6px'}}), vel);
+    return this.deviceCell(452, this.deviceHead('var(--acc)','Step Sequence','midi · 16th',true), body);
+  }
+
+  // step grid: array of lanes {name, hits[16]}
+  drumGrid(lanes,opts){
+    const H=React.createElement, cw=(opts&&opts.cw)||18, ch=(opts&&opts.ch)||16, playStep=(opts&&opts.play);
+    const rows=lanes.map((ln,li)=>{
+      const cells=ln.hits.map((on,i)=>{
+        const grp=Math.floor(i/4)%2===0;
+        const isPlay=playStep===i;
+        return H('div',{key:i,style:{width:cw+'px',height:ch+'px',flex:'none',borderRadius:'0',
+          marginLeft:i%4===0&&i!==0?'6px':'0',
+          background:on?(isPlay?'var(--acc-b)':'var(--acc)'):(grp?'#20222c':'#191b23'),
+          boxShadow:'none',
+          border:isPlay&&!on?'1px solid var(--acc-d)':'1px solid transparent'}});
+      });
+      return H('div',{key:li,style:{display:'flex',alignItems:'center',gap:'3px',marginBottom:'3px'}},
+        H('div',{style:{width:'62px',flex:'none',fontSize:'10px',color:'var(--fg)',fontWeight:600,textAlign:'right',paddingRight:'8px',overflow:'hidden',whiteSpace:'nowrap'}},ln.name),
+        H('div',{style:{display:'flex',alignItems:'center'}},cells));
+    });
+    return H('div',{style:{display:'flex',flexDirection:'column'}},rows);
+  }
+
+  velocity(vals,opts){
+    const H=React.createElement, cw=(opts&&opts.cw)||18, maxH=(opts&&opts.h)||34;
+    const bars=vals.map((v,i)=>H('div',{key:i,style:{width:cw+'px',flex:'none',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:maxH+'px',marginLeft:i%4===0&&i!==0?'6px':'0'}},
+      v>0?H('div',{style:{width:'6px',margin:'0 auto',height:Math.round(v*maxH)+'px',background:'var(--acc-2)',borderRadius:'2px 2px 0 0',opacity:.85}}):null));
+    return H('div',{style:{display:'flex',alignItems:'flex-end',paddingLeft:'70px'}},bars);
+  }
+
+  // ---- arrangement ----
+  arrangement(){
+    const H=React.createElement, bars=32, barW=34, rowH=38;
+    const secs=[
+      {n:'Intro',s:0,l:8,c:'#3498db'},
+      {n:'Build',s:8,l:8,c:'#f39c12'},
+      {n:'Drop',s:16,l:8,c:'#e74c3c'},
+      {n:'Breakdown',s:24,l:4,c:'#1abc9c'},
+      {n:'Outro',s:28,l:4,c:'#9b59b6'},
+    ];
+    const T=this.trackDefs();
+    const clips=[
+      [0,8,8],[0,16,8],[0,28,4],
+      [1,16,8],[1,28,4],
+      [2,12,4],[2,16,8],
+      [3,4,4],[3,8,8],[3,16,8],[3,24,4],[3,28,4],
+      [4,16,8],
+      [5,0,8],[5,8,8],[5,24,4],
+      [6,8,8],[6,16,8],
+      [7,16,8],[7,24,4],
+      [8,14,2],[8,26,2],
+      [9,0,8],[9,24,4],
+    ];
+    const totalW=bars*barW;
+    // section bar
+    const secBar=H('div',{style:{position:'relative',height:'24px',width:totalW+'px'}},
+      secs.map((sc,i)=>H('div',{key:i,style:{position:'absolute',left:(sc.s*barW)+'px',width:(sc.l*barW-1)+'px',top:'0',height:'24px',
+        background:'var(--panel2)',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'center',paddingLeft:'7px'}},
+        H('span',{style:{fontSize:'9.5px',fontWeight:600,letterSpacing:'.5px',textTransform:'uppercase',color:'var(--fg2)',whiteSpace:'nowrap'}},sc.n))));
+    // ruler
+    const ticks=[];
+    for(let b=0;b<bars;b++){ ticks.push(H('div',{key:b,style:{position:'absolute',left:(b*barW)+'px',top:0,bottom:0,width:'1px',background:b%4===0?'#2b2f3c':'transparent'}}));
+      if(b%4===0) ticks.push(H('span',{key:'n'+b,style:{position:'absolute',left:(b*barW+4)+'px',top:'2px',fontSize:'9px',color:'var(--fg2)',fontFamily:'ui-monospace,Menlo,monospace'}},b+1)); }
+    const ruler=H('div',{style:{position:'relative',height:'20px',width:totalW+'px',borderBottom:'1px solid var(--line)',background:'var(--panel)'}},ticks);
+    // lanes
+    const lanes=T.map((t,ti)=>{
+      const myClips=clips.filter(c=>c[0]===ti).map((c,ci)=>{
+        const wpx=c[2]*barW-3;
+        return H('div',{key:ci,style:{position:'absolute',left:(c[1]*barW+1)+'px',top:'0px',width:wpx+'px',height:(rowH-1)+'px',
+          background:t.color,overflow:'hidden',display:'flex',flexDirection:'column',justifyContent:'center',padding:'0 6px'}},
+          this.clipWave(wpx-8, ti*7+ci+1));
+      });
+      const gridlines=[];
+      for(let b=0;b<bars;b++) gridlines.push(H('div',{key:b,style:{position:'absolute',left:(b*barW)+'px',top:0,bottom:0,width:'1px',background:b%4===0?'#23262f':'transparent'}}));
+      return H('div',{key:ti,style:{position:'relative',height:rowH+'px',width:totalW+'px',background:ti%2===0?'transparent':'rgba(255,255,255,.012)',borderBottom:'1px solid var(--line)'}},gridlines,myClips);
+    });
+    // playhead
+    const ph=H('div',{style:{position:'absolute',left:(17*barW)+'px',top:0,bottom:0,width:'2px',background:'var(--acc)',boxShadow:'0 0 8px var(--acc)',zIndex:5,pointerEvents:'none'}},
+      H('div',{style:{position:'absolute',top:'2px',left:'-4px',width:'10px',height:'8px',clipPath:'polygon(0 0,100% 0,50% 100%)',background:'var(--acc)'}}));
+    // loop overlay in Drop
+    // Ableton-style loop brace on the ruler + faint region highlight down the tracks
+    const loopL=16*barW, loopW=8*barW;
+    const brace=H('div',{style:{position:'absolute',left:loopL+'px',top:'24px',width:loopW+'px',height:'20px',background:'var(--acc)',pointerEvents:'none',zIndex:6,display:'flex',alignItems:'center',justifyContent:'center'}},
+      H('span',{style:{fontSize:'9px',fontWeight:700,color:'var(--on-acc)',letterSpacing:'.5px'}},'LOOP · 17–24'));
+    const loop=H('div',{style:{position:'absolute',left:loopL+'px',top:'44px',width:loopW+'px',bottom:0,background:'var(--acc-glow)',borderLeft:'2px solid var(--acc)',borderRight:'2px solid var(--acc)',pointerEvents:'none',zIndex:4}});
+    return H('div',{style:{position:'relative',width:totalW+'px'}},
+      loop, secBar, ruler,
+      H('div',{style:{position:'relative'}},lanes), ph, brace);
+  }
+
+  trackDefs(){
+    const _d=[
+      {name:'Kick 909',kind:'Sampler',color:'#ecf0f1',vol:.82,mute:false,solo:false,lvl:.7},
+      {name:'Rumble Bass',kind:'Synth',color:'#f39c12',vol:.7,mute:false,solo:false,lvl:.55},
+      {name:'Clap',kind:'Sampler',color:'#bdc3c7',vol:.6,mute:false,solo:true,lvl:.42},
+      {name:'Closed Hat',kind:'Sampler',color:'#95a5a6',vol:.5,mute:false,solo:false,lvl:.3},
+      {name:'Open Hat',kind:'Sampler',color:'#7f8c8d',vol:.48,mute:false,solo:false,lvl:.25},
+      {name:'Perc Loop',kind:'Loop 132',color:'#2ecc71',vol:.55,mute:true,solo:false,lvl:0},
+      {name:'Acid 303',kind:'Synth',color:'#1abc9c',vol:.62,mute:false,solo:false,lvl:.5},
+      {name:'Stab',kind:'Sampler',color:'#9b59b6',vol:.5,mute:false,solo:false,lvl:.38},
+      {name:'Riser FX',kind:'Sampler',color:'#e74c3c',vol:.45,mute:false,solo:false,lvl:.6},
+      {name:'Warm Pad',kind:'Synth',color:'#3498db',vol:.4,mute:false,solo:false,lvl:.2},
+    ];
+    if(this.props && this.props.colorTracks===false){
+      const g=['#c9c9c9','#9a9a9a','#bdbdbd','#8f8f8f','#7f7f7f','#a5a5a5','#b0b0b0','#8a8a8a','#9e9e9e','#767676'];
+      _d.forEach((t,i)=>{ t.color=g[i]; });
+    }
+    return _d;
+  }
+
+  browserData(){
+    return {
+      Drums:[
+        {name:'Rounded Analog Kick 01',meta:'One-shot · C1 · 0.42s',seed:2},
+        {name:'Driven Warehouse Kick',meta:'One-shot · 0.51s',seed:7},
+        {name:'Hard Clap Wide',meta:'One-shot · 0.28s',seed:3},
+        {name:'Metallic Closed Hat',meta:'One-shot · 0.09s',seed:9},
+        {name:'Open Hat Long',meta:'One-shot · 0.4s',seed:5},
+        {name:'Industrial Rim',meta:'One-shot · 0.12s',seed:8},
+        {name:'Tuned Tom Low',meta:'One-shot · G1 · 0.6s',seed:1},
+        {name:'Ride Cymbal Dark',meta:'One-shot · 1.2s',seed:6},
+        {name:'Glass Perc Hit',meta:'Experimental · 0.3s',seed:4},
+      ],
+      Bass:[
+        {name:'Clean Sub Sine',meta:'One-shot · C1',seed:2},
+        {name:'Reese Source Tone',meta:'One-shot · A0',seed:5},
+        {name:'808 Distorted',meta:'One-shot · C1',seed:8},
+        {name:'Rolling Bass 132',meta:'Loop · 132 BPM · 2 bar',seed:3},
+      ],
+      Synth:[
+        {name:'Acid 303 Preset',meta:'Synth · saw · reso',seed:6},
+        {name:'Hypnotic Stab',meta:'Preset · minor',seed:2},
+        {name:'Warehouse Drone',meta:'Preset · sustained',seed:9},
+        {name:'FM Alarm Tone',meta:'Preset · atonal',seed:1},
+      ],
+      FX:[
+        {name:'Noise Riser 4-bar',meta:'FX · sweep up',seed:4},
+        {name:'Impact Sub Drop',meta:'FX · downer',seed:7},
+        {name:'Reverse Cymbal',meta:'FX · reverse',seed:3},
+        {name:'Glitch Stutter',meta:'FX · experimental',seed:8},
+      ],
+      Loops:[
+        {name:'Driving Perc 132',meta:'Loop · 132 · 4 bar',seed:5},
+        {name:'Polyrhythm Tops',meta:'Loop · 132 · 2 bar',seed:2},
+        {name:'Industrial Movement',meta:'Loop · 132 · 4 bar',seed:9},
+      ],
+      Devices:[
+        {name:'Overdrive · Warehouse',meta:'Chain preset',seed:6},
+        {name:'Dark Reverb Send',meta:'Device preset',seed:3},
+        {name:'Feedback Delay 3/16',meta:'Device preset',seed:7},
+        {name:'Bus Glue Comp',meta:'Device preset',seed:1},
+      ],
+    };
+  }
+
+  // ---- instrument-zoom helpers ----
+  knobGrid(items){ const H=React.createElement; return H('div',{style:{display:'flex',gap:'14px',flex:1,minHeight:0,alignItems:'stretch'}}, items.map((k,i)=>React.cloneElement(this.vslider(k.l,k.v,k.val,k.hot),{key:i}))); }
+  segTabs(labels,active){ const H=React.createElement;
+    const P={'Low Pass':'M2 4 H15 Q22 4 22 15 L32 15','High Pass':'M2 15 H10 Q17 15 17 4 H32','Band Pass':'M2 15 Q13 15 15 5 Q17 15 32 15','Notch':'M2 5 Q15 5 17 15 Q19 5 32 5'};
+    const ico=l=>H('svg',{width:26,height:16,viewBox:'0 0 34 19',style:{flex:'none'}},H('path',{d:P[l],fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'}));
+    return H('div',{style:{display:'flex',flexDirection:'column',gap:'6px',flex:'none',width:'116px'}}, labels.map(l=>H('div',{key:l,style:{flex:1,minHeight:0,display:'flex',alignItems:'center',gap:'9px',padding:'0 11px',fontSize:'11px',fontWeight:600,cursor:'pointer',background:l===active?'var(--acc)':'var(--card2)',color:l===active?'var(--on-acc)':'var(--fg)'}},ico(l),l))); }
+  adsrGraph(a,d,s,r,w,h){
+    const H=React.createElement, pad=5, W=w-pad*2, Hh=h-pad*2;
+    const x0=pad, xa=x0+a*0.3*W, xd=xa+d*0.3*W, xs=x0+W*0.7, xr=x0+W, yTop=pad, yBot=pad+Hh, ySus=pad+(1-s)*Hh;
+    const pts=`${x0},${yBot} ${xa},${yTop} ${xd},${ySus} ${xs},${ySus} ${xr},${yBot}`;
+    return H('svg',{width:w,height:h,style:{display:'block'}},
+      H('polygon',{points:pts,fill:'var(--acc-d)'}),
+      H('polyline',{points:pts,fill:'none',stroke:'var(--acc)',strokeWidth:2}),
+      [x0,xa,xd,xs,xr].map((x,i)=>H('circle',{key:i,cx:x,cy:i===0?yBot:i===1?yTop:i===4?yBot:ySus,r:3,fill:'var(--acc-b)'})));
+  }
+  waveSel(active){
+    const H=React.createElement;
+    const glyph=(t)=>{
+      if(t==='sine') return H('path',{d:'M2 9 Q7 1 12 9 T22 9 T32 9 T38 9',fill:'none',stroke:'currentColor',strokeWidth:1.6});
+      if(t==='square') return H('polyline',{points:'2,15 2,3 12,3 12,15 22,15 22,3 32,3 32,15 38,15',fill:'none',stroke:'currentColor',strokeWidth:1.6});
+      if(t==='saw') return H('polyline',{points:'2,15 12,3 12,15 22,3 22,15 32,3 32,15 38,15',fill:'none',stroke:'currentColor',strokeWidth:1.6});
+      return H('polyline',{points:'2,15 8,3 14,15 20,3 26,15 32,3 38,15',fill:'none',stroke:'currentColor',strokeWidth:1.6});
+    };
+    return H('div',{style:{display:'flex',flexDirection:'column',gap:'6px',flex:'none',width:'104px'}}, ['sine','square','saw','triangle'].map(t=>{ const on=t===active;
+      return H('div',{key:t,style:{flex:1,minHeight:0,display:'flex',alignItems:'center',gap:'10px',padding:'0 11px',background:on?'var(--acc-d)':'var(--card2)',cursor:'pointer',color:on?'var(--acc-b)':'var(--fg)'}},
+        H('svg',{width:34,height:16,viewBox:'0 0 40 18',style:{flex:'none'}},glyph(t)),
+        H('span',{style:{fontSize:'9.5px',textTransform:'uppercase',letterSpacing:'.4px'}},t));
+    }));
+  }
+  filterCurve(type){
+    const H=React.createElement;
+    let d = type==='LP'?'M4 22 L118 22 Q150 22 160 58 L196 60' : type==='HP'?'M4 60 L60 58 Q92 22 120 22 L196 22' : 'M4 58 Q70 14 110 28 Q150 46 196 58';
+    return H('svg',{width:200,height:46,viewBox:'0 0 200 66',style:{display:'block',width:'100%'}},
+      H('path',{d:'M4 63 H196',stroke:'var(--line2)',strokeWidth:1,fill:'none'}),
+      H('path',{d,stroke:'var(--acc)',strokeWidth:2,fill:'none'}));
+  }
+  piano(n){
+    const H=React.createElement, wk=[], bw=100/n, pat=[1,1,0,1,1,1,0];
+    for(let i=0;i<n;i++) wk.push(H('div',{key:i,style:{flex:1,background:'#e9e9e9',borderRight:'1px solid #b7b7b7',height:'100%'}}));
+    const blk=[]; for(let i=0;i<n-1;i++){ if(pat[i%7]) blk.push(H('div',{key:'b'+i,style:{position:'absolute',left:((i+1)*bw)+'%',transform:'translateX(-50%)',width:(bw*0.62)+'%',height:'62%',background:'#161616',border:'1px solid #000',zIndex:2}})); }
+    return H('div',{style:{position:'relative',display:'flex',height:'52px',width:'100%',background:'#ccc',overflow:'hidden'}}, wk, blk);
+  }
+  sampleWave(){
+    const H=React.createElement, n=130, bars=[];
+    for(let i=0;i<n;i++){ const v=0.08+0.92*Math.abs(Math.sin(i*0.5)*Math.cos(i*0.13)+0.2*Math.sin(i*0.9)); bars.push(H('div',{key:i,style:{flex:1,height:Math.min(100,v*100)+'%',background:'var(--fg)',opacity:(i<9||i>118)?.25:.8}})); }
+    return H('div',{style:{position:'relative',height:'88px',background:'var(--panel2)',overflow:'hidden'}},
+      H('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',gap:'1px',padding:'0 6px'}},bars),
+      H('div',{style:{position:'absolute',top:0,bottom:0,left:'7%',width:'2px',background:'var(--acc)'}},H('div',{style:{position:'absolute',top:'2px',left:'-4px',width:'10px',height:'8px',background:'var(--acc)',clipPath:'polygon(0 0,100% 0,50% 100%)'}})),
+      H('div',{style:{position:'absolute',top:0,bottom:0,left:'90%',width:'2px',background:'var(--acc)'}},H('div',{style:{position:'absolute',top:'2px',left:'-4px',width:'10px',height:'8px',background:'var(--acc)',clipPath:'polygon(0 0,100% 0,50% 100%)'}})),
+      H('div',{style:{position:'absolute',top:0,bottom:0,left:0,width:'7%',background:'rgba(0,0,0,.5)'}}),
+      H('div',{style:{position:'absolute',top:0,bottom:0,left:'92%',right:0,background:'rgba(0,0,0,.5)'}}));
+  }
+
+  heroPreview(){
+    const H=React.createElement, bars=16;
+    const rows=[
+      {c:'#ecf0f1',clips:[[2,5],[9,6]]},{c:'#f39c12',clips:[[3,4],[9,6]]},{c:'#e74c3c',clips:[[6,3],[12,4]]},
+      {c:'#1abc9c',clips:[[4,5],[10,5]]},{c:'#9b59b6',clips:[[8,7]]},{c:'#3498db',clips:[[0,6],[11,4]]},
+    ];
+    const ruler=H('div',{style:{display:'flex',height:'16px',borderBottom:'1px solid var(--line)',background:'var(--panel2)'}},
+      [1,5,9,13].map((n,i)=>H('div',{key:i,style:{flex:1,borderRight:'1px solid var(--line)',fontSize:'8px',color:'var(--fg2)',paddingLeft:'4px',display:'flex',alignItems:'center'}},n)));
+    const rowEls=rows.map((r,ri)=>H('div',{key:ri,style:{position:'relative',height:'26px',borderBottom:'1px solid var(--line)',background:ri%2?'rgba(255,255,255,.012)':'transparent'}},
+      r.clips.map((c,ci)=>H('div',{key:ci,style:{position:'absolute',left:(c[0]/bars*100)+'%',width:(c[1]/bars*100-1)+'%',top:'4px',height:'18px',background:r.c,overflow:'hidden'}},
+        H('div',{style:{height:'8px',margin:'5px 4px 0',backgroundImage:'repeating-linear-gradient(90deg, rgba(0,0,0,.35) 0 1px, transparent 1px 3px)'}})))));
+    const ph=H('div',{style:{position:'absolute',left:'62%',top:0,bottom:0,width:'2px',background:'var(--acc)',zIndex:3}});
+    return H('div',{style:{position:'relative',background:'var(--panel2)'}}, ruler, H('div',{style:{position:'relative'}},rowEls), ph);
+  }
+  keycaps(keys){ const H=React.createElement; return H('div',{style:{display:'flex',gap:'4px'}}, keys.map((k,i)=>H('kbd',{key:i,style:{minWidth:'20px',padding:'3px 6px',textAlign:'center',fontSize:'10.5px',fontWeight:600,fontFamily:'system-ui,sans-serif',color:'var(--txt2)',background:'var(--card2)',borderBottom:'2px solid #000',display:'inline-block'}},k))); }
+
+  // ---- video recommendation player ----
+  eqBars(big){
+    const H=React.createElement, n=big?15:9, bars=[];
+    for(let i=0;i<n;i++) bars.push(H('div',{key:i,style:{width:big?'5px':'3px',height:'100%',background:'var(--acc)',borderRadius:'1px',transformOrigin:'bottom',animation:`eqbar ${(0.7+(i%5)*0.13).toFixed(2)}s ease-in-out ${((i%7)*0.09).toFixed(2)}s infinite alternate`}}));
+    return H('div',{style:{display:'flex',alignItems:'flex-end',gap:big?'5px':'3px',height:big?'42px':'22px'}},bars);
+  }
+  videoIdle(){
+    const H=React.createElement;
+    return H('div',{onClick:()=>this.setState({vidPlaying:true}),
+      style:{position:'relative',width:'100%',aspectRatio:'16/9',cursor:'pointer',overflow:'hidden',
+        background:'repeating-linear-gradient(135deg,#1d1d1d 0 11px,#181818 11px 22px)',
+        display:'flex',alignItems:'center',justifyContent:'center'}},
+      H('div',{style:{position:'absolute',inset:0,background:'radial-gradient(140px 100px at 50% 42%, rgba(0,0,0,.1), rgba(0,0,0,.6))'}}),
+      H('div',{style:{position:'relative',width:'54px',height:'54px',borderRadius:'50%',background:'var(--acc)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 22px rgba(0,0,0,.5)'}},
+        H('svg',{width:22,height:22,viewBox:'0 0 24 24',fill:'var(--on-acc)'},H('path',{d:'M8 5l12 7-12 7z'}))),
+      H('div',{style:{position:'absolute',left:'8px',top:'8px',padding:'3px 7px',background:'rgba(0,0,0,.55)',fontSize:'9px',fontWeight:700,letterSpacing:'.5px',textTransform:'uppercase',color:'#d0d0d0'}},'YouTube · Tutorial'),
+      H('div',{style:{position:'absolute',right:'8px',bottom:'8px',padding:'2px 6px',background:'rgba(0,0,0,.8)',fontSize:'10px',fontWeight:600,color:'#fff',fontFamily:'ui-monospace,Menlo,monospace'}},'14:22'),
+      H('div',{style:{position:'absolute',left:'9px',bottom:'8px',display:'flex',alignItems:'center',gap:'6px'}},
+        H('div',{style:{width:'18px',height:'18px',borderRadius:'50%',background:'linear-gradient(135deg,var(--acc),var(--acc-2))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9px',fontWeight:800,color:'var(--on-acc)'}},'U'),
+        H('span',{style:{fontSize:'10px',fontWeight:700,color:'#e6e6e6',textShadow:'0 1px 3px rgba(0,0,0,.9)'}},'Underdog')));
+  }
+  videoPlayer(big){
+    const H=React.createElement;
+    const stop=()=>this.setState({vidPlaying:false,vidFull:false});
+    const onFull = big ? ()=>this.setState({vidFull:false}) : ()=>this.setState({vidFull:true});
+    const area=H('div',{style:{position:'relative',height: big?'60vh':undefined, aspectRatio: big?undefined:'16/9', width:'100%',
+        background:'repeating-linear-gradient(135deg,#171717 0 14px,#131313 14px 28px)',
+        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:big?'22px':'12px'}},
+      H('div',{style:{position:'absolute',top:'10px',left:'10px',display:'flex',alignItems:'center',gap:'6px',padding:'4px 8px',background:'rgba(0,0,0,.6)'}},
+        H('span',{style:{width:'6px',height:'6px',borderRadius:'50%',background:'#e74c3c',animation:'recdot 1.4s infinite'}}),
+        H('span',{style:{fontSize:'9.5px',fontWeight:700,letterSpacing:'.5px',color:'#fff'}},'NOW PLAYING')),
+      H('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap: big?'14px':'9px'}},
+        H('div',{style:{width:big?'64px':'42px',height:big?'64px':'42px',borderRadius:'50%',background:'linear-gradient(135deg,var(--acc),var(--acc-2))',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:800,color:'var(--on-acc)',fontSize:big?'26px':'17px'}},'U'),
+        H('div',{style:{fontSize:big?'15px':'11px',fontWeight:700,color:'#e6e6e6',textAlign:'center',padding:'0 12px'}},'Underdog · Acid Basslines Explained')),
+      this.eqBars(big));
+    const track=H('div',{style:{flex:1,height:'4px',background:'rgba(255,255,255,.18)',position:'relative',cursor:'pointer'}},
+      H('div',{style:{position:'absolute',left:0,top:0,bottom:0,width:'22%',background:'var(--acc)'}},
+        H('div',{style:{position:'absolute',right:'-5px',top:'50%',transform:'translateY(-50%)',width:'10px',height:'10px',borderRadius:'50%',background:'var(--acc-b)'}})));
+    const iconBtn=(child,on)=>H('div',{onClick:on,style:{display:'flex',alignItems:'center',justifyContent:'center',width:'26px',height:'26px',color:'#cfcfcf',cursor:'pointer',flex:'none'}},child);
+    const pauseGlyph=H('svg',{width:15,height:15,viewBox:'0 0 24 24',fill:'currentColor'},H('rect',{x:6,y:5,width:4,height:14}),H('rect',{x:14,y:5,width:4,height:14}));
+    const volGlyph=H('svg',{width:16,height:16,viewBox:'0 0 24 24',fill:'currentColor'},H('path',{d:'M4 9v6h4l5 4V5L8 9H4z'}));
+    const fsGlyph= big
+      ? H('svg',{width:15,height:15,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},H('path',{d:'M9 4H4v5M20 9V4h-5M15 20h5v-5M4 15v5h5'}))
+      : H('svg',{width:15,height:15,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:2,strokeLinecap:'round',strokeLinejoin:'round'},H('path',{d:'M8 3H3v5M21 8V3h-5M16 21h5v-5M3 16v5h5'}));
+    const bar=H('div',{style:{display:'flex',alignItems:'center',gap:'10px',padding: big?'12px 14px':'8px 10px',background:'#101010'}},
+      iconBtn(pauseGlyph,stop),
+      H('span',{style:{fontSize:'10px',color:'#cfcfcf',fontFamily:'ui-monospace,Menlo,monospace',flex:'none'}},'3:12'),
+      track,
+      H('span',{style:{fontSize:'10px',color:'#8a8a8a',fontFamily:'ui-monospace,Menlo,monospace',flex:'none'}},'14:22'),
+      iconBtn(volGlyph),
+      iconBtn(fsGlyph,onFull));
+    return H('div',{style:{width:'100%',display:'flex',flexDirection:'column',background:'#0c0c0c'}}, area, bar);
+  }
+
+  renderVals(){
+    const H=React.createElement, self=this, s=this.state;
+    // transport
+    const playBtnStyle = s.playing
+      ? 'display:flex;align-items:center;justify-content:center;width:38px;height:30px;border:none;background:#e74c3c;color:#fff;cursor:pointer'
+      : 'display:flex;align-items:center;justify-content:center;width:38px;height:30px;border:none;background:var(--acc);color:var(--on-acc);cursor:pointer';
+    // browser tab strip
+    const cats=['Drums','Bass','Synth','FX','Loops','Devices'];
+    const browserTabsEl = H('div',{style:{display:'flex',gap:'2px',padding:'8px 8px 0',borderBottom:'1px solid var(--line)',overflowX:'auto'}},
+      cats.map(c=>H('div',{key:c,onClick:()=>self.setState({bcat:c}),style:{padding:'6px 9px',fontSize:'10.5px',fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',color:s.bcat===c?'var(--txt)':'var(--fg)',borderBottom:s.bcat===c?'2px solid var(--acc)':'2px solid transparent'}},c)));
+    const bd=this.browserData()[s.bcat]||[];
+    const browserItems = bd.map(it=>({name:it.name,meta:it.meta,wave:this.wave(it.seed,34,18,'var(--fg2)')}));
+
+    // track headers
+    const tracks = this.trackDefs().map(t=>({
+      name:t.name, kind:t.kind, color:t.color,
+      bg:this.hexA(t.color,.15), bgHover:this.hexA(t.color,.24),
+      mStyle:'display:flex;align-items:center;justify-content:center;width:16px;height:15px;font-size:8.5px;font-weight:700;'+(t.mute?'background:#c0392b;color:#fff':'background:rgba(0,0,0,.22);color:rgba(0,0,0,.6)'),
+      sStyle:'display:flex;align-items:center;justify-content:center;width:16px;height:15px;font-size:8.5px;font-weight:700;'+(t.solo?'background:#161616;color:#fff':'background:rgba(0,0,0,.22);color:rgba(0,0,0,.6)'),
+      meter:this.meter(t.lvl),
+    }));
+
+    const arrangementEl = this.arrangement();
+
+    // detail tabs
+    const dtabs=['Clip','Track','Automation'];
+    const detailTabsEl = H('div',{style:{display:'flex',gap:'2px'}},
+      dtabs.map(d=>H('div',{key:d,onClick:()=>self.setState({dtab:d}),style:{padding:'6px 11px',fontSize:'11px',fontWeight:600,cursor:'pointer',borderRadius:'0',
+        color:s.dtab===d?'var(--txt)':'var(--fg)',background:s.dtab===d?'var(--card2)':'transparent'}},d)));
+
+    // drum grid content
+    const lanes=[
+      {name:'Kick',hits:this.seq('x...x...x...x...')},
+      {name:'Clap',hits:this.seq('....x.......x...')},
+      {name:'Snare',hits:this.seq('....x.......x..x')},
+      {name:'Cl.Hat',hits:this.seq('x.x.x.x.x.x.x.x.')},
+      {name:'Op.Hat',hits:this.seq('..x...x...x...x.')},
+      {name:'Rim',hits:this.seq('..x..x..x..x..x.')},
+      {name:'Perc',hits:this.seq('...x....x.....x.')},
+    ];
+    const drumGridEl=this.drumGrid(lanes,{cw:20,ch:15,play:6});
+    const velo=[.7,0,0,0,.85,0,0,0,.6,0,0,0,.9,0,0,.5];
+    const velocityEl=this.velocity(velo,{cw:20,h:30});
+    const seqCellEl=this.seqCell(drumGridEl, velocityEl);
+
+    // devices
+    const devices=[
+      {name:'Filter / EQ',n:4,tag:'insert',dot:'var(--acc)',knobs:this.knobRow([{l:'Freq',v:.55,val:'760',hot:1},{l:'Reso',v:.7,val:'0.7'},{l:'Gain',v:.5,val:'0dB'},{l:'Mix',v:.9,val:'90%'}])},
+      {name:'Overdrive',n:3,tag:'insert',dot:'oklch(0.72 0.11 70)',knobs:this.knobRow([{l:'Drive',v:.72,val:'72%',hot:1},{l:'Tone',v:.45,val:'−2'},{l:'Out',v:.5,val:'0dB'}])},
+      {name:'Compressor',n:5,tag:'insert',dot:'oklch(0.7 0.13 25)',knobs:this.knobRow([{l:'Thr',v:.4,val:'−18'},{l:'Ratio',v:.6,val:'4:1'},{l:'Atk',v:.3,val:'8ms'},{l:'Rel',v:.55,val:'120'},{l:'Gain',v:.5,val:'+3'}])},
+      {name:'Delay 3/16',n:4,tag:'send',dot:'oklch(0.72 0.1 300)',knobs:this.knobRow([{l:'Time',v:.375,val:'3/16',hot:1},{l:'Fbk',v:.5,val:'50%'},{l:'Filt',v:.6,val:'2k'},{l:'Mix',v:.35,val:'35%'}])},
+    ];
+    const deviceRackEl=this.deviceRack(devices, seqCellEl);
+
+    // scope tabs (assistant)
+    const scopes=['Clip','Track','Section','Song'];
+    const scopeTabsEl=H('div',{style:{display:'flex',gap:'1px',background:'var(--panel2)',borderRadius:'0',padding:'2px'}},
+      scopes.map(sc=>H('div',{key:sc,onClick:()=>self.setState({scope:sc}),style:{padding:'4px 8px',fontSize:'10px',fontWeight:600,cursor:'pointer',borderRadius:'0',
+        color:s.scope===sc?'var(--on-acc)':'var(--fg)',background:s.scope===sc?'var(--acc-2)':'transparent'}},sc)));
+
+    // ---- synth voice ----
+    const synthWaveEl=this.waveSel('saw');
+    const synthOscEl=this.knobGrid([{l:'Octave',v:.5,val:'0'},{l:'Coarse',v:.5,val:'0 st'},{l:'Fine',v:.55,val:'+7 c'},{l:'Sub',v:.3,val:'−9 dB'},{l:'PW',v:.5,val:'50%'},{l:'Level',v:.75,val:'−3 dB',hot:1}]);
+    const synthFiltTabsEl=this.segTabs(['Low Pass','High Pass','Band Pass','Notch'],'Low Pass');
+    const synthCurveEl=this.filterCurve('LP');
+    const synthFiltEl=this.knobGrid([{l:'Cutoff',v:.5,val:'760 Hz',hot:1},{l:'Reso',v:.72,val:'0.72'},{l:'Env',v:.6,val:'+52%'},{l:'Drive',v:.35,val:'14%'},{l:'Key',v:.5,val:'50%'}]);
+    const synthAdsrEl=this.adsrGraph(.12,.4,.6,.35,200,76);
+    const synthAmpEl=this.knobGrid([{l:'Attack',v:.12,val:'6 ms'},{l:'Decay',v:.4,val:'180 ms'},{l:'Sustain',v:.6,val:'−6 dB'},{l:'Release',v:.35,val:'220 ms'}]);
+    const keyboardEl=this.piano(21);
+    // ---- sampler ----
+    const sampWaveEl=this.sampleWave();
+    const sampPitchEl=this.knobGrid([{l:'Pitch',v:.5,val:'0 st',hot:1},{l:'Fine',v:.5,val:'0 c'},{l:'Start',v:.07,val:'0.02s'},{l:'End',v:.9,val:'0.26s'},{l:'Gain',v:.7,val:'−2 dB'},{l:'Pan',v:.5,val:'C'}]);
+    const sampAdsrEl=this.adsrGraph(.04,.35,0,.3,200,76);
+    const sampAmpEl=this.knobGrid([{l:'Attack',v:.04,val:'1 ms'},{l:'Hold',v:.2,val:'40 ms'},{l:'Decay',v:.35,val:'150 ms'},{l:'Sustain',v:0,val:'−inf'},{l:'Release',v:.3,val:'170 ms'}]);
+    const sampFiltTabsEl=this.segTabs(['Low Pass','High Pass','Band Pass','Notch'],'Low Pass');
+    const sampFiltEl=this.knobGrid([{l:'Cutoff',v:.82,val:'8.4k'},{l:'Reso',v:.3,val:'0.3'},{l:'Env',v:.4,val:'20%'}]);
+    // fresh instances for the sampler docked in the full editor shell (t1)
+    const shellSampWaveEl=this.sampleWave();
+    const shellSampPitchEl=this.knobGrid([{l:'Pitch',v:.5,val:'0 st',hot:1},{l:'Fine',v:.5,val:'0 c'},{l:'Start',v:.07,val:'0.02s'},{l:'End',v:.9,val:'0.26s'},{l:'Gain',v:.7,val:'−2 dB'},{l:'Pan',v:.5,val:'C'}]);
+    const shellSampAdsrEl=this.adsrGraph(.04,.35,0,.3,200,76);
+    const shellSampAmpEl=this.knobGrid([{l:'Attack',v:.04,val:'1 ms'},{l:'Hold',v:.2,val:'40 ms'},{l:'Decay',v:.35,val:'150 ms'},{l:'Sustain',v:0,val:'−inf'},{l:'Release',v:.3,val:'170 ms'}]);
+    const shellSampFiltTabsEl=this.segTabs(['Low Pass','High Pass','Band Pass','Notch'],'Low Pass');
+    const shellSampFiltEl=this.knobGrid([{l:'Cutoff',v:.82,val:'8.4k'},{l:'Reso',v:.3,val:'0.3'},{l:'Env',v:.4,val:'20%'}]);
+    const _H=React.createElement;
+    const dsSlidersEl=_H('div',{style:{display:'flex',gap:'14px',height:'170px'}},
+      React.cloneElement(this.vslider('Cutoff',.5,'760 Hz',true),{key:'a'}),
+      React.cloneElement(this.vslider('Reso',.72,'0.72',false),{key:'b'}),
+      React.cloneElement(this.vslider('Octave',.5,'0',false),{key:'c'}),
+      React.cloneElement(this.vslider('Sustain',0,'−inf',false),{key:'d'}));
+    // ---- dashboard ----
+    const dashTemplates=[
+      {name:'Techno',bpm:'125–150',c:'#e74c3c',tag:'Warehouse · hypnotic'},
+      {name:'House',bpm:'118–132',c:'#f39c12',tag:'Deep · club · swung'},
+      {name:'Drum & Bass',bpm:'160–180',c:'#1abc9c',tag:'Rollers · reese'},
+      {name:'Lofi Hip Hop',bpm:'70–90',c:'#9b59b6',tag:'Dusty · mellow'},
+      {name:'Dubstep',bpm:'140',c:'#3498db',tag:'Halftime · heavy'},
+      {name:'Trance',bpm:'132–140',c:'#e056a0',tag:'Uplifting · builds'},
+      {name:'UK Garage',bpm:'130–135',c:'#2ecc71',tag:'Shuffled · skippy'},
+      {name:'Ambient',bpm:'free',c:'#95a5a6',tag:'Drones · texture'},
+      {name:'Blank',bpm:'set-up',c:'#7f8c8d',tag:'Start from scratch'},
+    ];
+    const dashProjects=[
+      {name:'Warehouse Sketch',meta:'Techno · edited 2m ago',c:'#e74c3c',seed:2},
+      {name:'Sunset Rollers',meta:'Lofi · 1h ago',c:'#9b59b6',seed:5},
+      {name:'Reese Test 04',meta:'Drum & Bass · yesterday',c:'#1abc9c',seed:8},
+      {name:'Pad Study',meta:'Ambient · 3 days ago',c:'#95a5a6',seed:3},
+    ].map(p=>({...p, wave:this.wave(p.seed,120,26,p.c)}));
+    // ---- shortcuts ----
+    const kc=(keys)=>this.keycaps(keys);
+    const shortcutGroups=[
+      {title:'Transport',rows:[['Play / Stop',['Space']],['Continue from stop',['Shift','Space']],['Toggle metronome',['O']]]},
+      {title:'Global Editing',rows:[['Undo',['⌘','Z']],['Redo',['⌘','⇧','Z']],['Duplicate',['⌘','D']],['Delete selection',['Del']]]},
+      {title:'Arrangement',rows:[['Toggle loop',['L']],['Automation view',['A']],['Split at playhead',['E']],['Zoom to / back',['Z','X']]]},
+      {title:'Clips & Notes',rows:[['Quantize',['Q']],['Draw mode',['B']],['Select all',['⌘','A']],['Cut / Copy / Paste',['⌘','X/C/V']]]},
+      {title:'Navigation',rows:[['Zoom in / out',['+','−']],['Close / cancel',['Esc']],['Keyboard guide',['?']]]},
+    ].map(g=>({title:g.title, rows:g.rows.map(r=>({label:r[0], keysEl:kc(r[1])}))}));
+
+    // ---- video recommendation ----
+    const videoBlockEl = s.vidPlaying ? self.videoPlayer(false) : self.videoIdle();
+    const fullOverlayEl = s.vidFull ? H('div',{onClick:(e)=>{ if(e.target===e.currentTarget) self.setState({vidFull:false}); },
+      style:{position:'fixed',inset:0,zIndex:9999,background:'rgba(6,6,6,.93)',display:'flex',alignItems:'center',justifyContent:'center',padding:'32px'}},
+      H('div',{style:{width:'min(1080px,92vw)',display:'flex',flexDirection:'column',gap:'14px'}},
+        H('div',{style:{display:'flex',alignItems:'center',gap:'12px'}},
+          H('span',{style:{fontSize:'9px',fontWeight:700,letterSpacing:'.6px',textTransform:'uppercase',color:'var(--acc-b)',flex:'none'}},'Recommended by the assistant'),
+          H('span',{style:{fontSize:'13px',fontWeight:700,color:'#fff',flex:1,minWidth:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},'Underdog — Acid Basslines Explained: the TB-303 from scratch'),
+          H('div',{onClick:()=>self.setState({vidFull:false}),style:{display:'flex',alignItems:'center',gap:'6px',height:'30px',padding:'0 13px',background:'var(--card)',color:'var(--txt2)',cursor:'pointer',fontSize:'11px',fontWeight:600,flex:'none'}},'✕  Close')),
+        H('div',{style:{boxShadow:'0 30px 90px rgba(0,0,0,.65)'}}, self.videoPlayer(true)))) : null;
+
+    return {
+      videoBlockEl, fullOverlayEl,
+      togglePlay:()=>self.setState({playing:!s.playing}),
+      playGlyph: s.playing
+        ? H('svg',{width:19,height:19,viewBox:'0 0 24 24',fill:'currentColor'},H('rect',{x:6,y:6,width:12,height:12,rx:1}))
+        : H('svg',{width:16,height:16,viewBox:'0 0 24 24',fill:'currentColor'},H('path',{d:'M7 5l12 7-12 7z'})),
+      playBtnStyle,
+      browserTabsEl, browserItems, bcat:s.bcat,
+      tracks, arrangementEl,
+      detailTabsEl, devices, deviceRackEl,
+      scopeTabsEl,
+      synthWaveEl, synthOscEl, synthFiltTabsEl, synthCurveEl, synthFiltEl, synthAdsrEl, synthAmpEl, keyboardEl,
+      sampWaveEl, sampPitchEl, sampAdsrEl, sampAmpEl, sampFiltTabsEl, sampFiltEl, dsSlidersEl,
+      shellSampWaveEl, shellSampPitchEl, shellSampAdsrEl, shellSampAmpEl, shellSampFiltTabsEl, shellSampFiltEl,
+      addTrack:()=>{},
+      dashTemplates, dashProjects, shortcutGroups,
+      heroPreviewEl:this.heroPreview(),
+      askText: s.ask,
+      onAskInput:(e)=>{ const el=e.target; el.style.height='auto'; el.style.height=Math.min(90,el.scrollHeight)+'px'; self.setState({ask:el.value}); },
+      onAskKey:(e)=>{ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); self.setState({ask:''}); } },
+      onAskSend:()=>self.setState({ask:''}),
+    };
+  }
+}
+</script>
+</body>
+</html>
