@@ -10,6 +10,10 @@
 
 Related document: [Sample library plan](./sample-library.md)
 
+### On the design mocks
+
+The UI mocks in [`docs/design`](./design) are **directional**. They depict the north-star end state for Solid Groove — the fullest expression of the product's visual language, instruments, and assistant — not the private alpha or any single earlier milestone. Where a mock shows more than a milestone requires (for example, richer instrument panels, a public marketing site, or the assistant recommending tutorial videos), this PRD's priorities (**P0**/**P1**/**P2**) and delivery phases are authoritative for *what ships when*. The mocks are authoritative for *how it should look and feel* once built. When a mock and this document disagree on a concrete UI detail, the mock wins on visual language and interaction shape; the PRD wins on scope, sequencing, and acceptance criteria. New capability seen only in the mocks is placed in the priority and phase noted here rather than pulled forward into the alpha.
+
 ## 1. Product summary
 
 Solid Groove is a browser-based electronic music production environment with an integrated AI producer. It is for people who understand the basics of making beats or loops but repeatedly get stuck when they try to develop those ideas into full tracks. Synthesizers, samples, drum machines, and creative audio processing are its primary sound-making tools; recording acoustic performances is not the initial focus.
@@ -154,6 +158,17 @@ Acceptance criteria:
 - A starter template opens with audible musical content and no missing assets.
 - Refreshing or reopening the browser retains projects for the same anonymous session.
 - The UI explains that an anonymous user should upgrade their account to keep access across devices.
+
+**PRJ-06 - Public landing page (P0)**  
+A public marketing landing page (design mock `04-landing-page`) is the product's front door and the entry point into the fast path to sound. It communicates the product promise, shows the editor, and lets a visitor start immediately.
+
+Acceptance criteria:
+
+- The page states the product promise ("Bring a loop. Leave with a track.") and that Solid Groove is a browser-based studio with an AI producer, requiring no install.
+- A primary call to action starts a playable project in the browser with no account required, dropping the visitor into the PRJ-01 anonymous-start flow, and a secondary path leads existing users to log in.
+- The page names the supported browsers and the private-alpha status honestly, and does not advertise capabilities beyond the current milestone (for example, it does not imply generated audio or features not yet shipped).
+- The page follows the same visual language as the editor (see [`docs/design`](./design)) and meets the Section 10 accessibility and performance expectations for a public marketing page.
+- Marketing copy, the "2-minute tour," pricing, and richer marketing content beyond the start path are directional in the mock and may be staged; the alpha requires a functional, honest front door into the app, not the full marketing site.
 
 **PRJ-02 - Project management (P0)**  
 The dashboard supports creating, opening, renaming, duplicating, and deleting a project.
@@ -330,6 +345,8 @@ Acceptance criteria:
 - Replacing an instrument or sample preserves compatible clip data and is undoable.
 - Parameter ranges are validated before reaching the audio graph.
 
+The synth and sampler panels in the design mocks (`05a-synth-voice`, `05b-sampler`) are directional and show a fuller instrument than this alpha baseline. The following controls are the intended end state but are **not required for the alpha** and are deferred to P1/P2: synth sub-oscillator, pulse-width, multi-mode filter (high-pass, band-pass, notch in addition to the P0 resonant low-pass), filter envelope amount, and key tracking; sampler fine tune, gain, pan, an envelope hold stage, and a per-sampler filter. The alpha synth and sampler match INS-01 above; the visual language (vertical fill-sliders, labelled option groups with waveform/filter icons, live envelope and filter-response curves) follows the mocks from the start per the Legible controls requirements.
+
 **INS-02 - Audio loop tracks (P0)**  
 The user can place curated tempo-labelled audio loops that follow project tempo.
 
@@ -474,8 +491,22 @@ Acceptance criteria:
 - Users can combine content from different genres and remove genre filters without losing access to any asset.
 - Content review rejects a library that covers genres only through superficial renaming of the same narrow sound set.
 
-**LIB-03 - User imports (P1)**  
-The user can import WAV, MP3, or supported browser-decodable audio, with explicit storage limits and an upload progress state.
+**LIB-03 - User sample imports and personal library (P1)**  
+The user can bring their own audio into Solid Groove and reuse it across projects. This is a committed post-alpha requirement, not optional polish. Imported audio lives in a persistent per-user library alongside the curated content, and drag-and-drop is a first-class way to add to it.
+
+Acceptance criteria:
+
+- The user can import WAV, MP3, and other browser-decodable audio by dragging files from the operating system onto the browser or user-library area, and by an explicit file-picker fallback. Multi-file drops are supported.
+- Dropping audio onto the arrangement or a track both adds it to the user library and places it, so a drop is never lost as an untracked one-off; the UI makes clear where the sample landed.
+- Drag targets show a clear drop-affordance on drag-over, accept only supported types, and reject unsupported or oversized files with an actionable message rather than failing silently.
+- Imported assets become first-class library entries: stable IDs, type, user-editable name and tags, detected duration, and — where derivable — sample rate and source BPM, and they are searchable, filterable, and auditionable exactly like curated assets (LIB-01).
+- The user library persists across sessions and projects for the same account, is scoped to that user, and is not shared with other users or exposed through another user's project.
+- Uploads show per-file progress and a clear success, failure, or cancel state. A failed or cancelled upload leaves no partial or unplayable asset in the library.
+- File type and size are validated on the client and enforced server-side; stored audio uses Cloud Storage with safe content headers, and per-user storage limits are explicit and surfaced before the limit blocks an import.
+- A user can rename and delete their own imported assets. Deleting an asset that is in use warns and does not silently break existing placements.
+- Imported user audio is clearly distinguished from licensed curated content and is never redistributed through shared projects, read-only links, or exports beyond what the user's own export explicitly includes.
+
+Anonymous (pre-account) import limits, whether imported audio can back a sampler or drum pad versus only audio-loop tracks at first, and any per-account storage tier are settled when this ships; the drag-and-drop-to-library interaction and persistent per-user library are the fixed requirements.
 
 ### 7.7 AI producer
 
@@ -545,6 +576,19 @@ Acceptance criteria:
 **AI-07 - Preview playback (P1)**  
 The user can audition an assistant proposal before committing it. If safe non-destructive preview cannot be implemented, clear diff plus apply/undo remains the P0 behavior.
 
+**AI-08 - Tutorial video recommendations (P2)**  
+When a technique is better shown than described, the assistant can surface a relevant tutorial video from a trusted, curated set of creators inline in the conversation, playable without leaving the project. This is a later-vision capability shown in the design mocks (`07-assistant-video*`); it is not part of the private alpha, whose learning experience is text explanations (LRN-01) plus optional workflow cues (LRN-02).
+
+Acceptance criteria:
+
+- Recommendations are drawn from an allowlisted, curated set of trusted creators, not from open web search. The curation and trust model, including how a creator or video enters the set, is defined before this ships.
+- A recommendation shows title, creator, and duration, plays inline in the conversation, can expand to fullscreen, and can open on the source platform. It never autoplays and never interrupts audio playback or an active edit.
+- The assistant states plainly that a video is a suggestion, not an endorsement, and video recommendations never gate or block free-form conversation or manual editing.
+- Video is embedded through the provider's supported embed surface; no third-party player code is given access to project state, and the assistant continues to change the project only through the AI-03 command layer.
+- Optional follow-ups such as summarizing a video or translating its technique into a concrete, previewable proposal reuse the existing assistant command and explanation layers rather than a parallel path.
+- Failure to load or play a video is isolated and reported; it cannot corrupt or block the project, playback, or the rest of the conversation.
+- The privacy and third-party-embed implications of loading external video are surfaced to the user, consistent with the Section 10 security and privacy requirements.
+
 ### 7.8 Learning experience
 
 **LRN-01 - Contextual explanations (P0)**  
@@ -561,6 +605,9 @@ Acceptance criteria:
 
 **LRN-02 - Transferable workflow cues (P1)**  
 The interface can show optional, dismissible tips for concepts the user is actively using, such as clip versus placement, gain staging, or arrangement contrast.
+
+**LRN-03 - Video-assisted learning (P2)**  
+Some techniques are learned fastest by watching. The later-vision assistant can pair its text explanation with a curated tutorial video (see AI-08). This extends, and never replaces, the contextual text explanations that carry the learning experience through the alpha.
 
 ### 7.9 Sharing and collaboration
 
@@ -974,6 +1021,7 @@ Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-tri
 
 - Track management, sampler, drum machine, synth, audio loops, genre-spanning library browser, mixer, metering, core processing chains, transport, step editor, and piano roll.
 - Starter templates and robust project management/autosave.
+- Public landing page as an honest front door into the anonymous-start flow.
 - Desktop editor layout with collapsible panels, a typed Ableton-familiar shortcut registry, shortcut tooltips, and the `?` keyboard mapping guide.
 
 Exit criteria: a user can create, process, save, reopen, and reliably play an original 1-8 bar multi-track electronic loop without assistant help, including a drum machine and multiple chained effects.
@@ -992,6 +1040,8 @@ Exit criteria: a user can manually build arrangements from two through ten minut
 
 Exit criteria: the assistant can turn a reference loop into a valid editable outline, explain the edits, survive malformed responses, and leave the project identical after one undo.
 
+Later-vision assistant capabilities shown in the design mocks — richer instrument depth (INS-01 note) and curated tutorial video recommendations (AI-08 / LRN-03) — are P2 and land after the alpha, in a phase to be scheduled with their curation, trust, and privacy models. They are not Phase 3 alpha work.
+
 ### Phase 4 - Private-alpha hardening
 
 - Performance profiling, accessibility pass, error recovery, telemetry, browser compatibility, security-rule tests, and curated template/content review.
@@ -1003,6 +1053,7 @@ Exit criteria: all P0 acceptance criteria pass, release-gate reliability metrics
 
 - Ableton Live Set export with portable assets, editable MIDI where possible, rendered stems for unsupported devices, and a compatibility report.
 - Read-only project links, named revisions, and asynchronous collaborator access.
+- User sample imports with drag-and-drop into a persistent per-user library (LIB-03), including client and server-side type/size validation, Cloud Storage-backed audio, and per-user storage limits.
 
 Exit criteria: every Ableton reference project opens without missing assets in the declared target Live version, remains bar-aligned through the full arrangement, and accurately reports any non-editable or omitted state.
 
@@ -1162,6 +1213,7 @@ A feature is done only when:
 - What volume normalization or loudness target should WAV export use, if any?
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
+- For the later-vision tutorial video recommendations (AI-08), which creators or sources are trusted, how does a video enter the curated set, and what embedding and data-sharing terms are acceptable? (Post-alpha.)
 
 ## Appendix A - Initial assistant command families
 

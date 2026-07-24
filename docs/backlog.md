@@ -121,6 +121,15 @@ Recruit 8-20 target users and record their primary tools, experience, genres, br
 
 Choose direct Live Set serialization or a supported partner/integration route. The exporter must still target the oldest Live version that correctly supports the handoff.
 
+### DEC-008 - Tutorial video curation and embed policy
+
+`Status: todo`<br>
+`Owner: product-owner`<br>
+`Needed by: P2-002`<br>
+`Evidence: pending`
+
+Decide the trusted-creator/source allowlist and how a creator or video enters it, the acceptable video provider and embedding surface, and the data-sharing and privacy terms for loading external video. Post-alpha; do not let an implementation default choose product behavior.
+
 ## 4. Phase 0: foundations
 
 ### FND-001 - Test and development foundation
@@ -282,6 +291,17 @@ Implement anonymous entry plus create, open, rename, duplicate, and confirmed-de
 - [ ] Blank and starter creation, independent deep duplication, empty/loading/error states, and last-modified metadata are tested.
 - [ ] Anonymous retention and upgrade messaging match `DEC-001`; refresh preserves the session.
 - [ ] Dashboard browser tests cover access control and destructive confirmation.
+
+### LOOP-001b - Public landing page
+
+`Status: todo | Owner: unassigned | Dependencies: LOOP-001`<br>
+`PRD: PRJ-06 | Evidence: pending`
+
+Implement the public marketing landing page as an honest front door into the anonymous-start flow.
+
+- [ ] The page states the product promise, the browser-based/no-install nature, supported browsers, and the honest private-alpha status without advertising unshipped capabilities.
+- [ ] A primary call to action starts a playable project via the PRJ-01 anonymous-start flow with no account; a secondary path leads existing users to log in.
+- [ ] The page follows the editor's visual language and passes the alpha accessibility and marketing-page performance expectations; tour/pricing/richer marketing content may be staged.
 
 ### LOOP-002 - Autosave and recovery UX
 
@@ -457,7 +477,7 @@ Build Blank plus approved featured starters from normal editable tracks, clips, 
 
 ### LOOP-016 - Manual loop workflow gate
 
-`Status: todo | Owner: unassigned | Dependencies: LOOP-001, LOOP-002, LOOP-003, LOOP-004, LOOP-005, LOOP-006, LOOP-007, LOOP-008, LOOP-009, LOOP-010, LOOP-011, LOOP-012, LOOP-013, LOOP-014, LOOP-015, CNT-002`<br>
+`Status: todo | Owner: unassigned | Dependencies: LOOP-001, LOOP-001b, LOOP-002, LOOP-003, LOOP-004, LOOP-005, LOOP-006, LOOP-007, LOOP-008, LOOP-009, LOOP-010, LOOP-011, LOOP-012, LOOP-013, LOOP-014, LOOP-015, CNT-002`<br>
 `PRD: Phase 1 exit criteria; Appendix B scenario 1 | Evidence: pending`
 
 Validate that a user can create, edit, process, save, and reopen an original 1-8 bar multi-track loop without AI.
@@ -731,12 +751,12 @@ Add named checkpoints, safe restore, published immutable revisions, revocable li
 
 Add collaborator invitations, permissions, attribution, conflict behavior, and revision history without promising simultaneous editing.
 
-### P1-005 - User audio imports
+### P1-005 - User sample imports and personal library
 
 `Status: parked | Owner: unassigned | Dependencies: REL-003`<br>
 `PRD: LIB-03 | Evidence: pending`
 
-Add browser-decodable upload, validation, quotas, progress, Storage security, metadata analysis, project references, and deletion semantics.
+Add browser-decodable upload with drag-and-drop into a persistent per-user library, validation, quotas, progress, Storage security, metadata analysis, project references, and deletion semantics. Drag-and-drop-to-library and the persistent per-user library are fixed requirements; anonymous import limits, whether imports can back a sampler/drum pad or only audio-loop tracks first, and storage tiers are settled when unparked. Imported assets become first-class library entries reusing the CNT-001 manifest/audition path and are never redistributed through shares, links, or others' projects.
 
 ### P1-006 - Preview, learning cues, and shortcut customization
 
@@ -745,12 +765,26 @@ Add browser-decodable upload, validation, quotas, progress, Storage security, me
 
 Evaluate non-destructive proposal preview, optional contextual learning cues, and persisted remappable shortcuts without weakening P0 diff/apply/undo behavior.
 
+### P1-007 - Deeper synth and sampler controls
+
+`Status: parked | Owner: unassigned | Dependencies: REL-003`<br>
+`PRD: INS-01 (post-alpha extras); design mocks 05a, 05b | Evidence: pending`
+
+Extend the alpha synth and sampler toward the fuller instrument shown in the design mocks: synth sub-oscillator, pulse-width, multi-mode filter (high-pass, band-pass, notch beyond the P0 resonant low-pass), filter envelope amount, and key tracking; sampler fine tune, gain, pan, an envelope hold stage, and a per-sampler filter. Reuse the LOOP-004 instrument graph, shared parameter schema, and legible-controls visual language; the alpha baseline (INS-01) already ships these instruments, so this is additive depth, not a rebuild.
+
 ### P2-001 - Real-time collaboration discovery
 
 `Status: parked | Owner: unassigned | Dependencies: P1-004`<br>
 `PRD: SHR-05 | Evidence: pending`
 
 Research presence, simultaneous command ordering, conflict resolution, audio asset coordination, offline rejoin, and cost before committing to an architecture or delivery task.
+
+### P2-002 - Assistant tutorial video recommendations
+
+`Status: parked | Owner: unassigned | Dependencies: REL-002, DEC-008`<br>
+`PRD: AI-08, LRN-03 | Evidence: pending`
+
+Add curated, trusted-creator tutorial video recommendations that the assistant can surface inline (idle, inline-play, and fullscreen states per design mocks `07-*`), with no autoplay and no interruption of audio or edits. Video embeds through the provider's supported surface and is never given project-state access; optional follow-ups (summarize a video, translate a technique into a previewable proposal) reuse the existing AI command and explanation layers. Load/play failures are isolated. Depends on the DEC-008 curation, trust, embedding, and data-sharing decision.
 
 ## 10. Completion log
 
