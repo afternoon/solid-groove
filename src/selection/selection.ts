@@ -266,6 +266,12 @@ export function reconcileSelection(
 	// focus is tracked by the *original* key it was found under rather than by
 	// re-deriving a key from the (possibly now-different) survivor.
 	const survivorByOriginalKey = new Map<string, SelectionScope>();
+	// Narrowing a barRange's trackIds can make two originally-distinct scopes
+	// converge on the same key (two bar ranges losing different tracks down to
+	// the same surviving set). Track emitted keys so `scopes` stays the
+	// duplicate-free set SelectionState documents, dropping the second
+	// convergent survivor while still resolving focus to the one that's kept.
+	const scopesByKey = new Map<string, SelectionScope>();
 	for (const scope of state.scopes) {
 		const originalKey = scopeKey(scope);
 		const survivor = scopeIsLive(scope, index);
@@ -276,6 +282,14 @@ export function reconcileSelection(
 		if (survivor !== scope) {
 			changed = true;
 		}
+		const survivorKey = scopeKey(survivor);
+		const existingSurvivor = scopesByKey.get(survivorKey);
+		if (existingSurvivor) {
+			changed = true;
+			survivorByOriginalKey.set(originalKey, existingSurvivor);
+			continue;
+		}
+		scopesByKey.set(survivorKey, survivor);
 		scopes.push(survivor);
 		survivorByOriginalKey.set(originalKey, survivor);
 	}

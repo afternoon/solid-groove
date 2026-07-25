@@ -520,6 +520,40 @@ describe("reconcileSelection: bar-range scopes", () => {
 		};
 		expect(reconcileSelection(state, prunedProject)).toBe(state);
 	});
+
+	it("dedupes two bar ranges that converge on the same track set after narrowing", () => {
+		const project = createReferenceProject({
+			trackCount: 3,
+			placementCount: 6,
+		});
+		const [trackA, trackB, trackC] = project.song.tracks;
+		const range = {
+			kind: "barRange" as const,
+			startTicks: toTicks(0),
+			endTicks: toTicks(TICKS_PER_BAR),
+		};
+		// Two distinct scopes: {A, B} and {A, C}. Deleting B and C narrows both
+		// down to the identical {A} scope.
+		const state = addToSelection(
+			selectOnly({ ...range, trackIds: [trackA.id, trackB.id] }),
+			{ ...range, trackIds: [trackA.id, trackC.id] },
+		);
+		expect(state.scopes).toHaveLength(2);
+
+		const prunedProject: Project = {
+			...project,
+			song: {
+				...project.song,
+				tracks: project.song.tracks.filter((t) => t.id === trackA.id),
+			},
+		};
+		const reconciled = reconcileSelection(state, prunedProject);
+
+		expect(reconciled.scopes).toEqual([{ ...range, trackIds: [trackA.id] }]);
+		// Focus (originally the second scope) still resolves to the one
+		// surviving, deduped instance rather than falling through to a stale key.
+		expect(reconciled.focus).toBe(reconciled.scopes[0]);
+	});
 });
 
 describe("reconcileSelection: reorder", () => {

@@ -18,6 +18,7 @@ import type {
 	AutomationId,
 	ClipId,
 	PlacementId,
+	ReturnId,
 	TrackId,
 } from "../domain/ids";
 import type { Ticks } from "../domain/time";
@@ -39,10 +40,11 @@ import { fingerprintOf } from "./fingerprint";
  * exact same entry object — a track whose `fingerprint` has not changed comes
  * back as the identical reference, so a consumer that keys its own resources
  * off object identity (or does a `===` check before doing any work) never
- * sees a track it did not actually change. Renaming a track or clip changes
- * neither `fingerprint` nor `topologyFingerprint` on this projection, because
- * `name`/`color` never appear in it at all — by construction, a rename
- * cannot look like an audio change, topology or otherwise.
+ * sees a track it did not actually change. Renaming a track, clip, or return
+ * bus changes neither `fingerprint` nor `topologyFingerprint` on this
+ * projection, because `name`/`color` never appear in it at all — by
+ * construction, a rename cannot look like an audio change, topology or
+ * otherwise.
  */
 
 export interface AudioTrackProjection {
@@ -62,6 +64,23 @@ export interface AudioTrackProjection {
 	 * pre- or post-fader. Continuous values (mixer volume/pan, device
 	 * parameters, send levels, device bypass) are excluded, since those update
 	 * an existing node rather than reshape the graph.
+	 */
+	readonly topologyFingerprint: string;
+}
+
+export interface AudioReturnProjection {
+	readonly id: ReturnId;
+	readonly order: number;
+	/** Ordered by chain position (the `order` field), not array insertion order. */
+	readonly devices: readonly Device[];
+	readonly mixer: ReturnBus["mixer"];
+	/** Changes for any audio-relevant edit to this return bus. */
+	readonly fingerprint: string;
+	/**
+	 * Changes only when the return bus's node graph *shape* would need to
+	 * change: device chain composition and order. Continuous values (mixer
+	 * volume/pan/muted, device parameters, device bypass) are excluded, since
+	 * those update an existing node rather than reshape the graph.
 	 */
 	readonly topologyFingerprint: string;
 }
@@ -104,13 +123,24 @@ export interface AudioAssetProjection {
 	readonly fingerprint: string;
 }
 
+export interface AudioMasterProjection {
+	readonly volume: MasterSettings["volume"];
+	/** Ordered by chain position (the `order` field), not array insertion order. */
+	readonly devices: readonly Device[];
+	/** Changes for any audio-relevant edit to the master bus. */
+	readonly fingerprint: string;
+	/** Changes only when the master device chain's composition or order changes. */
+	readonly topologyFingerprint: string;
+}
+
 export interface AudioSongProjection {
 	/** The project's own revision counter — the real, stored "song" granularity. */
 	readonly revision: number;
 	readonly tempo: number;
 	readonly timeSignature: Readonly<{ numerator: number; denominator: number }>;
-	readonly master: MasterSettings;
-	readonly returns: readonly ReturnBus[];
+	readonly master: AudioMasterProjection;
+	readonly returns: readonly AudioReturnProjection[];
+	readonly returnsById: ReadonlyMap<ReturnId, AudioReturnProjection>;
 	readonly tracks: readonly AudioTrackProjection[];
 	readonly tracksById: ReadonlyMap<TrackId, AudioTrackProjection>;
 	readonly clips: readonly AudioClipProjection[];
@@ -220,6 +250,84 @@ function buildAudioTrack(
 	};
 }
 
+function returnTopologyShape(devices: readonly Device[]): unknown {
+	return {
+		devices: devices.map((device) => ({ id: device.id, type: device.type })),
+	};
+}
+
+function returnFullShape(
+	order: number,
+	devices: readonly Device[],
+	mixer: ReturnBus["mixer"],
+): unknown {
+	return {
+		order,
+		topology: returnTopologyShape(devices),
+		devices: devices.map((device) => ({
+			id: device.id,
+			bypassed: device.bypassed,
+			parameters: device.parameters,
+		})),
+		mixer,
+	};
+}
+
+function buildAudioReturn(
+	bus: ReturnBus,
+	previous: AudioReturnProjection | undefined,
+): AudioReturnProjection {
+	const devices = sortDevices(bus.devices);
+	const topologyFingerprint = fingerprintOf(returnTopologyShape(devices));
+	const fingerprint = fingerprintOf(
+		returnFullShape(bus.order, devices, bus.mixer),
+	);
+	if (
+		previous &&
+		previous.fingerprint === fingerprint &&
+		previous.topologyFingerprint === topologyFingerprint
+	) {
+		return previous;
+	}
+	return {
+		id: bus.id,
+		order: bus.order,
+		devices,
+		mixer: bus.mixer,
+		fingerprint,
+		topologyFingerprint,
+	};
+}
+
+function buildAudioMaster(
+	master: MasterSettings,
+	previous: AudioMasterProjection | undefined,
+): AudioMasterProjection {
+	const devices = sortDevices(master.devices);
+	const topologyFingerprint = fingerprintOf(returnTopologyShape(devices));
+	const fingerprint = fingerprintOf({
+		volume: master.volume,
+		devices: devices.map((device) => ({
+			id: device.id,
+			bypassed: device.bypassed,
+			parameters: device.parameters,
+		})),
+	});
+	if (
+		previous &&
+		previous.fingerprint === fingerprint &&
+		previous.topologyFingerprint === topologyFingerprint
+	) {
+		return previous;
+	}
+	return {
+		volume: master.volume,
+		devices,
+		fingerprint,
+		topologyFingerprint,
+	};
+}
+
 function buildAudioClip(
 	clip: Project["clips"][number],
 	previous: AudioClipProjection | undefined,
@@ -317,6 +425,12 @@ export function buildAudioProjection(
 		.sort((a, b) => compareStrings(a.id, b.id))
 		.map((track) => buildAudioTrack(track, previous?.tracksById.get(track.id)));
 
+	const returns = [...project.song.returns]
+		.sort((a, b) => compareStrings(a.id, b.id))
+		.map((bus) => buildAudioReturn(bus, previous?.returnsById.get(bus.id)));
+
+	const master = buildAudioMaster(project.song.master, previous?.master);
+
 	const clips = [...project.clips]
 		.sort((a, b) => compareStrings(a.id, b.id))
 		.map((clip) => buildAudioClip(clip, previous?.clipsById.get(clip.id)));
@@ -350,8 +464,9 @@ export function buildAudioProjection(
 		revision: project.metadata.revision,
 		tempo: project.song.tempo,
 		timeSignature: project.song.timeSignature,
-		master: project.song.master,
-		returns: project.song.returns,
+		master,
+		returns,
+		returnsById: new Map(returns.map((bus) => [bus.id, bus])),
 		tracks,
 		tracksById: new Map(tracks.map((track) => [track.id, track])),
 		clips,

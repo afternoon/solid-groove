@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../domain/entities";
+import { createFactoryContext, createReturnBus } from "../domain/factories";
 import {
 	createDrumMachineFixtureProject,
 	createReferenceProject,
@@ -13,6 +14,13 @@ function requireDefined<T>(value: T | undefined, message: string): T {
 		throw new Error(message);
 	}
 	return value;
+}
+
+/** A project with one return bus, so return-bus projection has something to test. */
+function withReturnBus(project: Project, seed: string): Project {
+	const context = createFactoryContext({ ids: createSeededIdFactory(seed) });
+	const bus = createReturnBus(context, { name: "Reverb", order: 0 });
+	return { ...project, song: { ...project.song, returns: [bus] } };
 }
 
 describe("buildAudioProjection", () => {
@@ -36,6 +44,25 @@ describe("buildAudioProjection", () => {
 		const projection = buildAudioProjection(project);
 		expect(projection.tracks[0]).not.toHaveProperty("name");
 		expect(projection.tracks[0]).not.toHaveProperty("color");
+	});
+
+	it("projects return buses with a fingerprint and no name, alongside the master bus", () => {
+		const project = withReturnBus(
+			createSliceFixtureProject(),
+			"audio-projection-returns",
+		);
+		const projection = buildAudioProjection(project);
+
+		expect(projection.returns).toHaveLength(1);
+		const returnBus = projection.returns[0];
+		expect(returnBus.id).toBe(project.song.returns[0].id);
+		expect(returnBus).not.toHaveProperty("name");
+		expect(typeof returnBus.fingerprint).toBe("string");
+		expect(typeof returnBus.topologyFingerprint).toBe("string");
+		expect(projection.returnsById.get(returnBus.id)).toBe(returnBus);
+
+		expect(typeof projection.master.fingerprint).toBe("string");
+		expect(typeof projection.master.topologyFingerprint).toBe("string");
 	});
 
 	it("does not mutate the source project", () => {
@@ -81,6 +108,33 @@ describe("buildAudioProjection", () => {
 			const after = buildAudioProjection(renamed, before);
 
 			expect(after.clips[0]).toBe(before.clips[0]);
+		});
+
+		it("keeps the same fingerprint, topologyFingerprint, and reference after a return bus rename", () => {
+			const project = withReturnBus(
+				createSliceFixtureProject(),
+				"audio-projection-return-rename",
+			);
+			const before = buildAudioProjection(project);
+
+			const renamed: Project = {
+				...project,
+				song: {
+					...project.song,
+					returns: project.song.returns.map((bus) => ({
+						...bus,
+						name: "Room",
+					})),
+				},
+			};
+			const after = buildAudioProjection(renamed, before);
+
+			expect(after.returns[0].fingerprint).toBe(before.returns[0].fingerprint);
+			expect(after.returns[0].topologyFingerprint).toBe(
+				before.returns[0].topologyFingerprint,
+			);
+			// Nothing audio-relevant changed, so the previous object is reused.
+			expect(after.returns[0]).toBe(before.returns[0]);
 		});
 	});
 
@@ -191,6 +245,70 @@ describe("buildAudioProjection", () => {
 			expect(afterTrack.topologyFingerprint).not.toBe(
 				beforeTrack.topologyFingerprint,
 			);
+		});
+
+		it("changes a return bus's topologyFingerprint when its device chain changes", () => {
+			const project = withReturnBus(
+				createSliceFixtureProject(),
+				"audio-projection-return-device",
+			);
+			const before = buildAudioProjection(project);
+
+			const deviceId = createSeededIdFactory("audio-projection-return-device")(
+				"device",
+			);
+			const edited: Project = {
+				...project,
+				song: {
+					...project.song,
+					returns: project.song.returns.map((bus) => ({
+						...bus,
+						devices: [
+							{
+								id: deviceId,
+								type: "filter",
+								order: 0,
+								bypassed: false,
+								parameters: {},
+								preset: null,
+							},
+						],
+					})),
+				},
+			};
+			const after = buildAudioProjection(edited, before);
+
+			expect(after.returns[0].topologyFingerprint).not.toBe(
+				before.returns[0].topologyFingerprint,
+			);
+		});
+
+		it("changes a return bus's fingerprint but not topologyFingerprint for a mixer volume edit", () => {
+			const project = withReturnBus(
+				createSliceFixtureProject(),
+				"audio-projection-return-mixer",
+			);
+			const before = buildAudioProjection(project);
+
+			const edited: Project = {
+				...project,
+				song: {
+					...project.song,
+					returns: project.song.returns.map((bus) => ({
+						...bus,
+						mixer: { ...bus.mixer, volume: -6 },
+					})),
+				},
+			};
+			const after = buildAudioProjection(edited, before);
+
+			expect(after.returns[0].topologyFingerprint).toBe(
+				before.returns[0].topologyFingerprint,
+			);
+			expect(after.returns[0].fingerprint).not.toBe(
+				before.returns[0].fingerprint,
+			);
+			expect(after.returns[0]).not.toBe(before.returns[0]);
 		});
 	});
 
