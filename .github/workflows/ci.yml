@@ -92,6 +92,38 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # TEMPORARY, one-off: captures the first FND-008 arrangement-spike
+  # baseline for docs/perf/arrangement-spike-baseline.json using this
+  # push's real CI outbound access (the review sandbox that implemented
+  # FND-008 could not reach cdn.playwright.dev to install a browser at
+  # all). `bench-arrangement.yml`'s `workflow_dispatch` can't be invoked via
+  # the API until it exists on the default branch, so this job rides the
+  # push trigger that's already active instead. Remove this job (keeping
+  # `bench-arrangement.yml`) once the baseline artifact has been downloaded
+  # and committed. Not `needs:` anything and `continue-on-error`: it must
+  # never block the real gating jobs above.
+  bench-arrangement-oneoff:
+    name: "TEMPORARY: capture FND-008 baseline artifact"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser (chromium)
+        run: bunx playwright install --with-deps chromium
+      - name: Run the arrangement-spike benchmark
+        run: bun run bench:arrangement
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: arrangement-spike-baseline
+          path: docs/perf/arrangement-spike-baseline.json
+          retention-days: 7
+
   # Firebase Emulator suite: contract tests for firestore.rules against a
   # real local Firestore instance (PRD 9.9).
   emulator:
