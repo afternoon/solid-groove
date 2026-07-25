@@ -529,6 +529,21 @@ Acceptance criteria:
 
 Anonymous (pre-account) import limits, whether imported audio can back a sampler or drum pad versus only audio-loop tracks at first, and any per-account storage tier are settled when this ships; the drag-and-drop-to-library interaction and persistent per-user library are the fixed requirements.
 
+**LIB-04 - Curator tooling for CC0 acquisition (P1)**  
+Selecting third-party CC0 content file-by-file is the human bottleneck between the approved sources (`LIB-00`) and a shipped organic library. A local curator tool makes that review fast without weakening it: it turns a hand-written list of candidate sample *pages* into a guided, one-at-a-time audition, and records only what a person confirmed.
+
+This requirement governs the *tooling*, not the rights policy. It does not add a source, relax the licence allowlist, or introduce a way to bulk-import; those remain governed by `LIB-00` and the sample plan's section 3.
+
+Acceptance criteria:
+
+- A committed config lists candidate sample pages, each naming an approved source, the page URL, a seed role/tag mapping, and a licence-confidence tier. A candidate on a non-approved host or source is rejected before any page is fetched. The list may be generated from enumerable CC0 collections rather than hand-written, provided the generator fabricates no URL and its output is committed and reproducible.
+- Each candidate carries a licence-confidence tier that is surfaced to the curator as a review-order hint, never a rights decision: a candidate can claim high confidence and still be rejected on the page, and the authoritative rights position remains the evidence captured at ingest. An unverified candidate is a lead to audition, not content that ships.
+- A single documented command serves a local review UI that steps through the candidates one at a time: the source page in an embedded frame for listening, and a best-effort guess of the direct file URL and metadata in an editable form. Every guessed value is a suggestion the curator confirms or corrects; nothing is auto-accepted.
+- The tool never discovers new URLs, follows catalogue or search links, or downloads audio for redistribution — it reads only the pages the config already names. There is no crawl mode and no search mode.
+- Confirming a candidate ("Verify") writes a *draft* selection to the acquisition lockfile: the reviewed download URL, source page, creator, filename, reviewer, and role/tag mapping — but not a checksum. A real reviewer name is required; the draft is not shippable until the existing pin step downloads the file and records the checksum of exactly what arrived, and a person commits it.
+- Re-verifying the same candidate updates its draft rather than duplicating it, and reopening the tool shows selections already committed to the lockfile rather than a blank form.
+- The download-and-checksum, rights re-check, licence-evidence capture, and ingest stages are unchanged: a verified draft flows through the same pin → review → ingest path as a hand-written selection, and a checksum that does not match still fails rather than being re-pinned automatically.
+
 ### 7.7 AI producer
 
 **AI-01 - Project-aware conversation (P0)**  

@@ -5,7 +5,7 @@
 // deterministic — same catalogue in, byte-identical JSON out — so a rebuild
 // that changes nothing produces no diff and no re-upload.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CATALOG } from "./catalog/index.mjs";
@@ -164,14 +164,11 @@ export const ACQUIRED_DIR = resolve(
 );
 
 /**
- * Load whatever `library:acquire` last ingested.
- *
- * Acquired content is optional by design: it needs network access and reviewed,
- * pinned selections, while the synthesized library must always build. With
- * nothing acquired this returns nothing and the library is exactly the
- * generated catalogue — which is why `library:build` never requires a network.
+ * Read one acquired bundle: an `entries.json` and its `audio/` beside it.
+ * A bundle is written by an ingest path (the lockfile ingest, or the VCSL bulk
+ * ingest) into its own directory so the two never overwrite each other.
  */
-export function loadAcquiredAssets(dir = ACQUIRED_DIR) {
+function loadAcquiredBundle(dir) {
 	const entriesPath = join(dir, "entries.json");
 	if (!existsSync(entriesPath)) return [];
 	const assets = JSON.parse(readFileSync(entriesPath, "utf8"));
@@ -185,6 +182,31 @@ export function loadAcquiredAssets(dir = ACQUIRED_DIR) {
 		}
 		return { asset, bytes: readFileSync(path) };
 	});
+}
+
+/**
+ * Load everything the acquire pipeline has ingested, across all sources.
+ *
+ * Acquired content is optional by design: it needs network access and reviewed
+ * or trusted-bulk sources, while the synthesized library must always build. With
+ * nothing acquired this returns nothing and the library is exactly the generated
+ * catalogue — which is why `library:build` never requires a network.
+ *
+ * Each ingest path writes its own bundle directory (`<source>/entries.json` +
+ * `<source>/audio/`), and they are merged here. The legacy flat layout (an
+ * `entries.json` directly under the root) is still read, so an older acquired
+ * directory keeps working.
+ */
+export function loadAcquiredAssets(dir = ACQUIRED_DIR) {
+	if (!existsSync(dir)) return [];
+	const merged = [...loadAcquiredBundle(dir)]; // legacy flat layout
+	for (const name of readdirSync(dir)) {
+		const child = join(dir, name);
+		if (existsSync(join(child, "entries.json"))) {
+			merged.push(...loadAcquiredBundle(child));
+		}
+	}
+	return merged;
 }
 
 /** Render and describe the whole catalogue, plus anything acquired. */
