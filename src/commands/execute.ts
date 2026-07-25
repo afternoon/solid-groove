@@ -9,6 +9,7 @@ import type {
 	CommandIssue,
 	CommandIssueCode,
 	RawCommandInput,
+	RegisteredCommand,
 } from "./types";
 
 /**
@@ -19,6 +20,8 @@ import type {
  * then does it become the new project. Any failure at any step returns the
  * original project object untouched — "leaves the project valid or makes no
  * change" (invariant 6) is enforced here rather than trusted to each command.
+ * Failure is always a returned `CommandIssue`: a command that throws is caught
+ * and reported, so no caller of the kernel has to guard against exceptions.
  *
  * Exactly one revision is produced per committed transaction, so a revision
  * number, a history entry, and an autosave write all mean the same thing.
@@ -90,6 +93,49 @@ function fail(
 		project,
 		issues: [{ code, commandType, commandIndex, message, domainIssues }],
 	};
+}
+
+interface CommandStep {
+	readonly project: Project;
+	readonly summary: string;
+	readonly inverse: readonly RawCommandInput[];
+}
+
+function describeError(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Runs one command's transition, summary, and inverse.
+ *
+ * A command that throws instead of rejecting is caught here. The kernel's
+ * contract is that a command either produces the next project or reports an
+ * issue, so a payload that passes a command's schema but drives its arithmetic
+ * out of range — or an outright bug in a definition — becomes a `rejected`
+ * issue rather than an exception escaping into the caller. That matters most
+ * for assistant-generated and remotely replayed commands, whose payloads are
+ * not built by the editor UI.
+ */
+function runCommand(
+	definition: RegisteredCommand,
+	project: Project,
+	payload: unknown,
+): CommandStep | { readonly error: string } {
+	try {
+		const result = definition.apply(project, payload);
+		if (!result.ok) {
+			return { error: result.message };
+		}
+		return {
+			project: result.project,
+			summary: definition.summarize(payload, project),
+			inverse: definition.invert(payload, project, result.project),
+		};
+	} catch (error) {
+		return {
+			error: `Command "${definition.type}" failed: ${describeError(error)}`,
+		};
+	}
 }
 
 /** Applies one command as a single-command transaction. */
@@ -172,16 +218,14 @@ export function executeTransaction(
 				parsed.message,
 			);
 		}
-		const result = definition.apply(working, parsed.payload);
-		if (!result.ok) {
-			return fail(project, "rejected", input.type, index, result.message);
+		const step = runCommand(definition, working, parsed.payload);
+		if ("error" in step) {
+			return fail(project, "rejected", input.type, index, step.error);
 		}
-		summaries.push(definition.summarize(parsed.payload, working));
+		summaries.push(step.summary);
 		// Inverses run newest-first, and each command's inverse is generated
 		// against the state it saw, not the final state.
-		inverse.unshift(
-			...definition.invert(parsed.payload, working, result.project),
-		);
+		inverse.unshift(...step.inverse);
 		envelopes.push({
 			type: definition.type,
 			version: definition.version,
@@ -190,7 +234,7 @@ export function executeTransaction(
 			correlationId,
 			baseRevision,
 		});
-		working = result.project;
+		working = step.project;
 	}
 
 	const clock = options.clock ?? systemClock;

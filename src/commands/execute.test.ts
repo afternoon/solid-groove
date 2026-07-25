@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH, toTicks } from "../domain";
 import { createManualClock } from "../shared/clock";
 import { updateNote, updateTrack } from ".";
 import { executeCommand, executeTransaction } from "./execute";
 import { findClip, findTrack, noteEventsOf } from "./projectEdits";
+import { requireCommand } from "./registry";
 import {
 	ABSENT_IDS,
 	type CommandTestProject,
@@ -145,6 +146,37 @@ describe("command execution", () => {
 		});
 		expect(result.project).toBe(fixture.project);
 	});
+
+	// A command that throws would otherwise escape the kernel, so a caller that
+	// correctly handles `result.ok === false` would still crash. Every phase a
+	// definition contributes — transition, summary, inverse — is covered.
+	it.each(["apply", "summarize", "invert"] as const)(
+		"turns a command that throws in %s into a rejection",
+		(phase) => {
+			const definition = requireCommand("track.update");
+			const spy = vi.spyOn(definition, phase).mockImplementation(() => {
+				throw new Error("kaboom");
+			});
+			try {
+				const result = executeCommand(
+					fixture.project,
+					updateTrack(fixture.trackAId, { name: "Sub bass" }),
+				);
+
+				expect(result.ok).toBe(false);
+				if (result.ok) return;
+				expect(result.issues[0]).toMatchObject({
+					code: "rejected",
+					commandType: "track.update",
+					commandIndex: 0,
+				});
+				expect(result.issues[0].message).toMatch(/kaboom/);
+				expect(result.project).toBe(fixture.project);
+			} finally {
+				spy.mockRestore();
+			}
+		},
+	);
 
 	it("refuses an unregistered command type", () => {
 		const result = executeCommand(fixture.project, {

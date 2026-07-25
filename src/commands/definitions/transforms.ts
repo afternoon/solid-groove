@@ -8,7 +8,7 @@ import {
 	type IdFactory,
 } from "../../domain/ids";
 import { clampParameterValue, NOTE_VELOCITY } from "../../domain/parameters";
-import { type Ticks, toTicks } from "../../domain/time";
+import { isTicks, type Ticks, toTicks } from "../../domain/time";
 import {
 	clipLabel,
 	findClip,
@@ -337,27 +337,25 @@ export const notesDuplicateCommand = defineCommand<NotesDuplicatePayload>({
 			(noteEventsOf(selection.clip) ?? []).map((event) => event.id),
 		);
 		const copies: NoteEvent[] = [];
-		selection.events.forEach((event, index) => {
+		for (const [index, event] of selection.events.entries()) {
 			const id = payload.newIds[index];
 			if (existing.has(id)) {
-				return;
+				continue;
 			}
-			copies.push({
-				...event,
-				id,
-				startTicks: toTicks(event.startTicks + payload.offsetTicks),
-			});
-		});
+			// The offset is only bounded below by the schema, so the copy's
+			// position is range-checked before it becomes a tick: an offset that
+			// leaves the safe-integer range is a rejection with a reason, not a
+			// throw out of `toTicks`.
+			const startTicks = event.startTicks + payload.offsetTicks;
+			if (!isTicks(startTicks) || startTicks >= selection.clip.lengthTicks) {
+				return rejected(
+					`Duplicating by ${payload.offsetTicks} ticks would push a note past the end of clip ${selection.clip.id}`,
+				);
+			}
+			copies.push({ ...event, id, startTicks });
+		}
 		if (copies.length !== payload.newIds.length) {
 			return rejected("Duplicate note ids must be new");
-		}
-		const outside = copies.find(
-			(copy) => copy.startTicks >= selection.clip.lengthTicks,
-		);
-		if (outside) {
-			return rejected(
-				`Duplicating by ${payload.offsetTicks} ticks would push a note past the end of clip ${selection.clip.id}`,
-			);
 		}
 		return applied(
 			replaceClip(

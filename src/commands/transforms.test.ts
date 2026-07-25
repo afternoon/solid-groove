@@ -41,6 +41,12 @@ function pitchesOf(
 	);
 }
 
+/** Four fresh event ids, one per note in the test clip. */
+function createFourIds(): string[] {
+	const ids = createIdFactory();
+	return Array.from({ length: 4 }, () => ids("event"));
+}
+
 /** Applies a command and unwraps the new project, failing loudly otherwise. */
 function apply(
 	project: Project,
@@ -237,6 +243,28 @@ describe("musical transformations (CLP-04)", () => {
 			expect(result.ok).toBe(false);
 			if (result.ok) return;
 			expect(result.issues[0].message).toMatch(/past the end/);
+		});
+
+		it("rejects an out-of-range offset instead of throwing", () => {
+			const run = () =>
+				executeCommand(fixture.project, {
+					type: "notes.duplicate",
+					payload: {
+						clipId: fixture.clipAId,
+						eventIds: null,
+						// Passes the payload schema, but the copy's position would
+						// leave the safe-integer range that ticks live in.
+						offsetTicks: Number.MAX_SAFE_INTEGER,
+						newIds: createFourIds(),
+					},
+				});
+
+			expect(run).not.toThrow();
+			const result = run();
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.issues[0].code).toBe("rejected");
+			expect(result.project).toBe(fixture.project);
 		});
 
 		it("refuses a payload whose new id count does not match the selection", () => {
