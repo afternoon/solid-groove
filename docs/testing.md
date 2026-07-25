@@ -79,7 +79,7 @@ bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gat
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
 
-1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`. Everything else depends on this.
+1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this.
 2. **`browser`** — the Playwright suite, matrixed over `chromium`, `firefox`, `webkit`. Chromium/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
 3. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator.
 
@@ -102,3 +102,34 @@ The prototype `firebase.json` pointed `database.rules.json` at a file that never
 ## Generated sample audio and the test suites
 
 `scripts/generate-samples.mjs` (idempotent — it only writes files that are missing) runs via `predev`/`prebuild`, and now also via `pretest:browser`, since the E2E suite loads the real app, which needs `public/samples/*` to exist. It intentionally does **not** run before `test` or `test:emulator`: neither suite serves the app or touches sample audio, so running it there would be pure overhead on every invocation.
+
+## Starter sound library
+
+```sh
+bun run library:build       # render 200 one-shots + manifest into public/samples/starter-library
+bun run library:validate    # render and validate without writing anything
+bun run library:upload      # publish to Cloud Storage (see .env.example for credentials)
+```
+
+`scripts/starter-library/` generates the `LIB-00` testing library — 200 synthesized one-shots with a full asset manifest — and publishes it to Cloud Storage. [`docs/sample-library.md` section 15](./sample-library.md) covers what it contains, why it is synthesized rather than downloaded, and the delivery layout.
+
+Its unit tests (`scripts/starter-library/*.test.mjs`) run under the normal `bun run test`, and are written to stay fast: rendering all 200 assets takes about 20 seconds, so the suite renders a handful of representative assets and drives the validation rules with fixtures. **The full catalogue is validated by `bun run library:validate`**, which CI runs as its own step — that is what enforces the collection-level rules (role coverage, genre coverage, the section 6.4 balance floors, the metadata payload budget) against the real library rather than a fixture.
+
+`library:validate` needs no credentials, no network, and no emulator: it renders in-process and throws on the first validation failure.
+
+### Exercising upload without a real project
+
+`bun run library:upload -- --dry-run` computes and prints the whole plan — every object path, its cache headers, and the total payload — without touching the network. To exercise the real client, point it at the Storage emulator (`firebase.json` declares it on port `9199`):
+
+```sh
+firebase emulators:start --only storage --project demo-solid-groove
+FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
+  bun run library:upload -- --bucket demo-solid-groove.firebasestorage.app
+```
+
+Two caveats, both emulator limitations rather than bugs:
+
+- The Admin SDK routes *writes* through `FIREBASE_STORAGE_EMULATOR_HOST` but metadata reads through `@google-cloud/storage`, which reads `STORAGE_EMULATOR_HOST` and wants a scheme. `upload.mjs` derives the second from the first, so setting only the documented variable works.
+- The emulator answers `setCorsConfiguration` with "Not Implemented" and serves permissive CORS anyway, so `--configure-bucket` reports CORS as skipped there. Bucket CORS can only be verified against a real bucket.
+
+A second run of the same command should report every audio object and the versioned manifest as skipped, and rewrite only the mutable `latest.json` pointer — that is the idempotency check.
