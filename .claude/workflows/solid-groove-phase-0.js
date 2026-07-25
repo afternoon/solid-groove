@@ -61,6 +61,26 @@ const TASKS = [
   { id: 'FND-009', phase: 'Slice', title: 'Foundation vertical slice gate' },
 ]
 
+// Fail loud on a malformed subset request. `args` passed as a JSON-encoded
+// string ('["FND-001"]') rather than a real array is not an array, so the old
+// `Array.isArray(args) ? ... : null` silently degraded "run one task" into
+// "run the entire phase" — which is exactly what happened once, opening PRs
+// for six tasks that were never asked for. A bad filter must stop the run.
+if (args !== undefined && args !== null && !Array.isArray(args)) {
+  throw new Error(
+    `args must be an array of task ids, got ${typeof args}: ${JSON.stringify(args)}. ` +
+      'Pass a real JSON array (args: ["FND-001"]), not a JSON-encoded string — ' +
+      'a stringified list reaches the script as one string and would run every task.',
+  )
+}
+const known = new Set(TASKS.map((t) => t.id))
+const unknown = (args ?? []).filter((id) => !known.has(id))
+if (unknown.length) {
+  throw new Error(
+    `args contains unknown task id(s): ${unknown.join(', ')}. Known ids: ${[...known].join(', ')}.`,
+  )
+}
+
 const only = Array.isArray(args) && args.length ? new Set(args) : null
 const task = (id) => TASKS.find((t) => t.id === id)
 const wanted = (id) => !only || only.has(id)
