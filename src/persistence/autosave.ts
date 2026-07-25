@@ -21,7 +21,9 @@ import type {
  *
  * - **Coalescing.** Repeated edits to the same entity collapse to one queued
  *   write, so dragging a slider or typing a name produces a single document
- *   write with the final value rather than one per frame.
+ *   write with the final value rather than one per frame. Intermediate values
+ *   are dropped; the final one never is, including when the edit lands while
+ *   the previous write is still in flight.
  * - **Revision checks.** Every write states the revision it was made against;
  *   the repository refuses a stale one, so a slow tab cannot clobber newer state.
  * - **Retryable local state.** A failed write stays queued with its value, and
@@ -232,7 +234,14 @@ export class ProjectAutosave {
 				this.publish();
 				return;
 			}
-			this.queue.delete(key);
+			// Compare-and-delete: an edit to the same entity made *during* the await
+			// replaced the slot, and that newer value has not been written. Dropping
+			// it here would lose the user's final value while reporting "saved", so
+			// only the entry that was actually written is dequeued; a replacement
+			// stays queued and the loop writes it at the new revision.
+			if (this.queue.get(key) === entry) {
+				this.queue.delete(key);
+			}
 			this.revision = result.revision;
 			this.lastSavedAt = result.modifiedAt;
 		}

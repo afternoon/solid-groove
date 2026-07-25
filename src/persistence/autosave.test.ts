@@ -9,6 +9,46 @@ import {
 import { ProjectAutosave, type SaveStatus } from "./autosave";
 import { clipDocumentPath, songDocumentPath } from "./documents";
 import { InMemoryProjectRepository } from "./inMemoryProjectRepository";
+import type { ProjectRepository } from "./projectRepository";
+
+/**
+ * Wraps a repository so the first `saveSong` blocks until the test releases it.
+ * It stands in for network latency: the value handed to the repository is the
+ * one captured when the write started, so an edit made during the await is a
+ * genuinely newer value that must still reach the store.
+ */
+function gateFirstSongSave(inner: ProjectRepository): {
+	repository: ProjectRepository;
+	release: () => void;
+} {
+	let release: () => void = () => {};
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let gated = true;
+	const repository: ProjectRepository = {
+		createProject: (project) => inner.createProject(project),
+		loadProject: (projectId) => inner.loadProject(projectId),
+		listProjects: (ownerId) => inner.listProjects(ownerId),
+		loadProjectMetadata: (projectId) => inner.loadProjectMetadata(projectId),
+		saveMetadata: (projectId, patch, base) =>
+			inner.saveMetadata(projectId, patch, base),
+		saveSong: async (projectId, song, base) => {
+			if (gated) {
+				gated = false;
+				await gate;
+			}
+			return inner.saveSong(projectId, song, base);
+		},
+		saveClip: (projectId, clip, base) => inner.saveClip(projectId, clip, base),
+		deleteClip: (projectId, clipId, base) =>
+			inner.deleteClip(projectId, clipId, base),
+		deleteProject: (projectId) => inner.deleteProject(projectId),
+		watchProject: (projectId, listener) =>
+			inner.watchProject(projectId, listener),
+	};
+	return { repository, release: () => release() };
+}
 
 describe("ProjectAutosave", () => {
 	let repository: InMemoryProjectRepository;
@@ -67,6 +107,45 @@ describe("ProjectAutosave", () => {
 		if (!loaded.ok) return;
 		// The final value survives coalescing — only the intermediate ones are lost.
 		expect(loaded.value.song.tempo).toBe(140);
+	});
+
+	it("keeps an edit made while a write is in flight instead of dropping it", async () => {
+		const { repository: gated, release } = gateFirstSongSave(repository);
+		const songPath = songDocumentPath(project.metadata.id);
+		// Sampled whenever a status is published, so a "saved" that was announced
+		// before the final value reached the store is visible to the assertions.
+		const savedWith: Array<number | undefined> = [];
+		const controller = new ProjectAutosave({
+			repository: gated,
+			projectId: project.metadata.id,
+			revision: project.metadata.revision,
+			coalesceMs: 400,
+			scheduler,
+			onStatus: (status) => {
+				if (status.state === "saved") {
+					savedWith.push(repository.readDocument(songPath)?.tempo as number);
+				}
+			},
+		});
+
+		controller.queueSong(renamedSong(121));
+		const firstFlush = controller.flush();
+		// Let drain() reach the awaited write before the next edit arrives.
+		await Promise.resolve();
+		controller.queueSong(renamedSong(140));
+		release();
+		await firstFlush;
+		scheduler.runAll();
+		await controller.flush();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		expect(loaded.ok).toBe(true);
+		if (!loaded.ok) return;
+		expect(loaded.value.song.tempo).toBe(140);
+		expect(controller.status).toMatchObject({ state: "saved", pending: 0 });
+		// Every "saved" the UI could have shown was backed by the final value.
+		expect(savedWith.length).toBeGreaterThan(0);
+		expect(savedWith).toEqual(savedWith.map(() => 140));
 	});
 
 	it("writes each edited entity once, in the order the edits were made", async () => {
