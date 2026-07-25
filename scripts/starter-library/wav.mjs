@@ -7,16 +7,33 @@ import { dbfs, peak, rms, SAMPLE_RATE } from "./dsp.mjs";
 export const BIT_DEPTH = 24;
 
 /**
- * Encode mono float samples in [-1, 1] as a 24-bit PCM WAV.
+ * Normalize the two accepted shapes — one `Float32Array` (mono) or an array of
+ * them (one per channel) — into a channel list.
+ */
+function asChannels(samples) {
+	return ArrayBuffer.isView(samples) ? [samples] : samples;
+}
+
+/**
+ * Encode float samples in [-1, 1] as a 24-bit PCM WAV.
  *
- * Masters are 48 kHz / 24-bit per the audio preparation standards. Sources are
- * genuinely mono here — these are synthesized one-shots with no meaningful
- * spatial information — so they stay mono rather than being widened to claim a
- * bigger specification.
+ * Masters are 48 kHz / 24-bit per the audio preparation standards. Accepts mono
+ * or interleaved multi-channel: the synthesized library is genuinely mono and
+ * stays mono rather than being widened to claim a bigger specification, while
+ * acquired stereo ambiences and field recordings keep the spatial information
+ * that is the reason to use them (section 10).
  */
 export function encodeWav(samples, sampleRate = SAMPLE_RATE) {
+	const channels = asChannels(samples);
+	const frames = channels[0]?.length ?? 0;
+	for (const channel of channels) {
+		if (channel.length !== frames) {
+			throw new Error("every channel must have the same number of frames");
+		}
+	}
 	const bytesPerSample = BIT_DEPTH / 8;
-	const dataSize = samples.length * bytesPerSample;
+	const blockAlign = bytesPerSample * channels.length;
+	const dataSize = frames * blockAlign;
 	const buffer = Buffer.alloc(44 + dataSize);
 	let offset = 0;
 	const ascii = (text) => {
@@ -38,26 +55,29 @@ export function encodeWav(samples, sampleRate = SAMPLE_RATE) {
 	ascii("fmt ");
 	u32(16); // PCM chunk size
 	u16(1); // format: PCM
-	u16(1); // channels: mono
+	u16(channels.length);
 	u32(sampleRate);
-	u32(sampleRate * bytesPerSample); // byte rate
-	u16(bytesPerSample); // block align
+	u32(sampleRate * blockAlign); // byte rate
+	u16(blockAlign);
 	u16(BIT_DEPTH);
 	ascii("data");
 	u32(dataSize);
 
-	// 24-bit signed little-endian. The asymmetric clamp keeps the negative
-	// extreme representable instead of wrapping to positive full scale.
+	// 24-bit signed little-endian, channel-interleaved. The asymmetric clamp
+	// keeps the negative extreme representable instead of wrapping to positive
+	// full scale.
 	const maximum = 2 ** (BIT_DEPTH - 1) - 1;
 	const minimum = -(2 ** (BIT_DEPTH - 1));
-	for (let i = 0; i < samples.length; i++) {
-		const clamped = Math.max(-1, Math.min(1, samples[i]));
-		const value = Math.max(
-			minimum,
-			Math.min(maximum, Math.round(clamped * maximum)),
-		);
-		buffer.writeIntLE(value, offset, 3);
-		offset += 3;
+	for (let frame = 0; frame < frames; frame++) {
+		for (const channel of channels) {
+			const clamped = Math.max(-1, Math.min(1, channel[frame]));
+			const value = Math.max(
+				minimum,
+				Math.min(maximum, Math.round(clamped * maximum)),
+			);
+			buffer.writeIntLE(value, offset, 3);
+			offset += 3;
+		}
 	}
 	return buffer;
 }
@@ -71,18 +91,25 @@ export function sha256(buffer) {
  * without downloading the audio (docs/sample-library.md section 12).
  */
 export function waveformPeaks(samples, buckets = 64) {
+	// One waveform per asset regardless of channel count: the browser draws a
+	// single overview, and a per-channel payload would double the metadata for
+	// no visible difference at this bucket resolution.
+	const channels = asChannels(samples);
+	const frames = channels[0]?.length ?? 0;
 	const peaks = [];
 	// Bucket boundaries are computed proportionally rather than by a fixed
 	// stride: a stride leaves short assets with fewer buckets than declared,
 	// and a client that trusts `buckets` would then draw a truncated waveform.
 	for (let bucket = 0; bucket < buckets; bucket++) {
-		const start = Math.floor((bucket * samples.length) / buckets);
-		const end = Math.floor(((bucket + 1) * samples.length) / buckets);
+		const start = Math.floor((bucket * frames) / buckets);
+		const end = Math.floor(((bucket + 1) * frames) / buckets);
 		let low = 0;
 		let high = 0;
 		for (let i = start; i < end; i++) {
-			if (samples[i] < low) low = samples[i];
-			if (samples[i] > high) high = samples[i];
+			for (const channel of channels) {
+				if (channel[i] < low) low = channel[i];
+				if (channel[i] > high) high = channel[i];
+			}
 		}
 		peaks.push(round(low, 3), round(high, 3));
 	}
@@ -96,14 +123,21 @@ function round(value, places) {
 
 /** The audio facts the manifest records for every asset. */
 export function analyze(samples, sampleRate = SAMPLE_RATE) {
-	const peakAmplitude = peak(samples);
+	const channels = asChannels(samples);
+	const frames = channels[0]?.length ?? 0;
+	// Peak and RMS are taken across every channel, so a loud right channel
+	// cannot hide behind a quiet left one in the headroom check.
+	const peakAmplitude = Math.max(...channels.map(peak));
+	const meanSquare =
+		channels.reduce((sum, channel) => sum + rms(channel) ** 2, 0) /
+		channels.length;
 	return {
 		sampleRate,
 		bitDepth: BIT_DEPTH,
-		channels: 1,
-		durationSeconds: round(samples.length / sampleRate, 4),
+		channels: channels.length,
+		durationSeconds: round(frames / sampleRate, 4),
 		peakDbfs: round(dbfs(peakAmplitude), 2),
-		rmsDbfs: round(dbfs(rms(samples)), 2),
+		rmsDbfs: round(dbfs(Math.sqrt(meanSquare)), 2),
 	};
 }
 

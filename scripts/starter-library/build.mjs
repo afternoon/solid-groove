@@ -12,6 +12,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readLockfile, validateLockfile } from "./acquire/lockfile.mjs";
 import { buildLibrary, manifestStorageKey, serialize } from "./manifest.mjs";
 import { formatReport, validateManifest } from "./validate.mjs";
 
@@ -53,6 +54,16 @@ export function buildToDisk({
 	dryRun = false,
 	log = console.log,
 } = {}) {
+	// The acquisition lockfile is checked even when nothing has been acquired.
+	// It is committed, so a selection with a missing checksum or an unbundleable
+	// licence fails CI where it was added — not later, on whichever machine
+	// first runs `library:acquire`.
+	const lockfileErrors = validateLockfile(readLockfile());
+	if (lockfileErrors.length > 0) {
+		const detail = lockfileErrors.map((error) => `  - ${error}`).join("\n");
+		throw new Error(`sources.lock.json is not shippable:\n${detail}`);
+	}
+
 	const { files, manifest } = buildLibrary();
 	const serialized = serialize(manifest);
 	const { errors, warnings, stats } = validateManifest(manifest, {

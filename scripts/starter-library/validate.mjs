@@ -7,6 +7,7 @@
 // here so the same rules run in the build, in the unit suite, and in CI.
 
 import { gzipSync } from "node:zlib";
+import { licenseRejectionReason } from "./acquire/sources.mjs";
 import {
 	CHARACTERS,
 	DRY_CHARACTERS,
@@ -28,6 +29,7 @@ export const BALANCE = {
 	minDryShare: 0.3,
 	maxSingleRoleShare: 0.2,
 	minAssetsPerGenre: 10,
+	minRecordedShare: 0.2,
 };
 
 /**
@@ -169,7 +171,13 @@ function validateAsset(asset, { errors, seenIds, seenNames, seenHashes }) {
 		if (audio.sampleRate !== 48000)
 			errors.push(`${where}: sampleRate must be 48000`);
 		if (audio.bitDepth !== 24) errors.push(`${where}: bitDepth must be 24`);
-		if (audio.channels !== 1) errors.push(`${where}: channels must be 1`);
+		// Mono or stereo. Section 10 allows stereo "only when spatial information
+		// is musically meaningful", which the ingest path enforces by collapsing
+		// dual-mono; anything wider is not something the alpha's audio graph or
+		// payload budget is built for.
+		if (![1, 2].includes(audio.channels)) {
+			errors.push(`${where}: channels must be 1 or 2, not ${audio.channels}`);
+		}
 		if (!(audio.durationSeconds > 0))
 			errors.push(`${where}: durationSeconds must be positive`);
 		if (!Number.isFinite(audio.peakDbfs)) {
@@ -229,6 +237,11 @@ function validateAsset(asset, { errors, seenIds, seenNames, seenHashes }) {
 		if (license.rawRedistributionAllowed !== true) {
 			errors.push(`${where}: raw redistribution is not approved`);
 		}
+		// The section 3.2 allowlist, enforced at the last point before delivery.
+		// CC-BY and friends may be perfectly legal to use in a track and still
+		// be unbundleable here, so "it's an open licence" is not the test.
+		const rejection = license.id ? licenseRejectionReason(license.id) : null;
+		if (rejection) errors.push(`${where}: ${rejection}`);
 	}
 
 	const provenance = asset?.provenance;
@@ -242,12 +255,42 @@ function validateAsset(asset, { errors, seenIds, seenNames, seenHashes }) {
 		}
 		if (!provenance.reviewState)
 			errors.push(`${where}: provenance.reviewState is required`);
-		if (provenance.sourceType === "synthesized" && !provenance.recipe?.voice) {
+		if (provenance.sourceType === "synthesized") {
 			// Section 14 item 6: keep the generation recipe. Without it a
 			// synthesized asset cannot be reproduced or audited.
-			errors.push(
-				`${where}: synthesized asset is missing its generation recipe`,
-			);
+			if (!provenance.recipe?.voice) {
+				errors.push(
+					`${where}: synthesized asset is missing its generation recipe`,
+				);
+			}
+		} else {
+			// Acquired audio cannot be regenerated, so its provenance has to
+			// stand on the record instead: where it came from, what arrived, and
+			// who checked it (section 3.4).
+			for (const field of [
+				"sourceId",
+				"downloadUrl",
+				"originalFilename",
+				"originalSha256",
+			]) {
+				if (!provenance[field]) {
+					errors.push(
+						`${where}: acquired asset is missing provenance.${field}`,
+					);
+				}
+			}
+			if (
+				provenance.originalSha256 &&
+				!HEX_64.test(provenance.originalSha256)
+			) {
+				errors.push(`${where}: provenance.originalSha256 is not a SHA-256`);
+			}
+			if (!provenance.reviewer) {
+				errors.push(`${where}: acquired asset has no named reviewer`);
+			}
+			if (!license?.sourceUrl) {
+				errors.push(`${where}: acquired asset is missing license.sourceUrl`);
+			}
 		}
 	}
 }
@@ -262,6 +305,7 @@ function emptyStats() {
 		bySourceType: {},
 		experimentalShare: 0,
 		dryShare: 0,
+		recordedShare: 0,
 		totalAudioBytes: 0,
 		longestSeconds: 0,
 	};
@@ -327,16 +371,17 @@ function checkBalance(stats, total, { errors, warnings }) {
 	}
 
 	// Section 6.4 also wants at least 20% organic, recorded, or non-instrument
-	// derived material. A synthesized library cannot satisfy that by
-	// construction, so it is reported as an open gap rather than quietly
-	// dropped or satisfied by relabelling — `CNT-002` closes it with recorded
-	// and commissioned content.
+	// derived material. Synthesis cannot satisfy that by construction, so it is
+	// reported as an open gap rather than quietly dropped or satisfied by
+	// relabelling. It closes as `library:acquire` brings in CC0 recordings and
+	// field recordings; a warning here means the balance is not there yet.
 	const recorded =
 		(stats.bySourceType.recorded ?? 0) +
 		(stats.bySourceType["field-recording"] ?? 0);
-	if (recorded / total < 0.2) {
+	stats.recordedShare = recorded / total;
+	if (stats.recordedShare < BALANCE.minRecordedShare) {
 		warnings.push(
-			`${percent(recorded / total)} of assets are recorded or field-recorded, below the 20% section 6.4 target; a synthesized starter library cannot meet it (see CNT-002)`,
+			`${percent(stats.recordedShare)} of assets are recorded or field-recorded, below the ${percent(BALANCE.minRecordedShare)} section 6.4 target; synthesis cannot close this — run \`bun run library:acquire\` with pinned CC0 selections`,
 		);
 	}
 }

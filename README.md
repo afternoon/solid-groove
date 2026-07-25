@@ -33,12 +33,13 @@ bun run dev
 
 ## Sounds
 
-The app ships a starter library of 200 synthesized one-shots — drums, bass, tonal material, textures, and transitions — generated from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute.
+The app ships a starter library of 200 one-shots — drums, bass, tonal material, textures, and transitions — synthesized from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute. Alongside it there is an acquisition path for CC0 content from vetted sources, where each file is individually selected, checksum-pinned, and reviewed.
 
 ```sh
-bun run library:build       # render the library and its manifest locally
-bun run library:validate    # render and validate without writing (the CI gate)
-bun run library:upload      # publish to Cloud Storage
+bun run library:acquire -- --plan   # approved CC0 sources and what is pinned
+bun run library:build               # render + merge the library and its manifest
+bun run library:validate            # build and validate without writing (the CI gate)
+bun run library:upload              # publish to Cloud Storage
 ```
 
 See [`docs/sample-library.md`](./docs/sample-library.md) section 15 for what it contains and how it is delivered, and [`docs/licenses/starter-library-v1.md`](./docs/licenses/starter-library-v1.md) for its rights position.

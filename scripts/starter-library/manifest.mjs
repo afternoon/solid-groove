@@ -5,6 +5,9 @@
 // deterministic — same catalogue in, byte-identical JSON out — so a rebuild
 // that changes nothing produces no diff and no re-upload.
 
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { CATALOG } from "./catalog/index.mjs";
 import { createRng, seedFromString } from "./dsp.mjs";
 import { renderVoice } from "./voices.mjs";
@@ -147,9 +150,49 @@ export function buildAsset(entry) {
 	};
 }
 
-/** Render and describe the whole catalogue. */
-export function buildLibrary(catalog = CATALOG) {
-	const built = catalog.map(buildAsset);
+/**
+ * Where `bun run library:acquire` leaves prepared CC0 masters. Gitignored:
+ * third-party audio is fetched and verified, never committed.
+ */
+export const ACQUIRED_DIR = resolve(
+	dirname(fileURLToPath(import.meta.url)),
+	"..",
+	"..",
+	"public",
+	"samples",
+	"acquired-library",
+);
+
+/**
+ * Load whatever `library:acquire` last ingested.
+ *
+ * Acquired content is optional by design: it needs network access and reviewed,
+ * pinned selections, while the synthesized library must always build. With
+ * nothing acquired this returns nothing and the library is exactly the
+ * generated catalogue — which is why `library:build` never requires a network.
+ */
+export function loadAcquiredAssets(dir = ACQUIRED_DIR) {
+	const entriesPath = join(dir, "entries.json");
+	if (!existsSync(entriesPath)) return [];
+	const assets = JSON.parse(readFileSync(entriesPath, "utf8"));
+	return assets.map((asset) => {
+		const path = join(dir, "audio", asset.files.master.storageKey);
+		if (!existsSync(path)) {
+			throw new Error(
+				`${asset.id} is listed in ${entriesPath} but its audio is missing at ${path}. ` +
+					"Re-run `bun run library:acquire`.",
+			);
+		}
+		return { asset, bytes: readFileSync(path) };
+	});
+}
+
+/** Render and describe the whole catalogue, plus anything acquired. */
+export function buildLibrary(catalog = CATALOG, { acquired } = {}) {
+	const built = [
+		...catalog.map(buildAsset),
+		...(acquired ?? loadAcquiredAssets()),
+	];
 	return {
 		files: built.map(({ asset, bytes }) => ({
 			storageKey: asset.files.master.storageKey,
