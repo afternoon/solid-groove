@@ -18,7 +18,7 @@ export const meta = {
 // dependent task and surfaces late; everything else runs on Sonnet. Review is
 // always Opus, at high effort, and runs before any PR is opened.
 const CONTRACT_TASKS = ['FND-002', 'FND-003', 'FND-004']
-const BASE_BRANCH = 'claude/dynamic-workflow-clarity-tvo8hv'
+const BASE_BRANCH = 'main'
 const MAX_REVIEW_ROUNDS = 2
 
 // The agent registry is read once at session start, so `agentType` cannot resolve
