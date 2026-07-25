@@ -55,6 +55,13 @@ src/
 │   ├── serialize.ts         # Deterministic JSON serialization
 │   ├── factories.ts         # Blank/entity factories
 │   └── fixtures.ts          # Deterministic reference projects
+├── commands/           # Shared command, transaction, and history kernel
+│   ├── types.ts             # Actors, envelopes, issues, command definitions
+│   ├── registry.ts          # The one typed command registry
+│   ├── execute.ts           # Validation, atomic transactions, revisions
+│   ├── history.ts           # Local bounded undo/redo and gestures
+│   ├── projectEdits.ts      # Immutable edit helpers with structural sharing
+│   └── definitions/         # Registered commands, grouped by entity
 ├── model/              # Prototype state, superseded by src/domain
 │   ├── types.ts             # Prototype types (removed by the FND-009 slice)
 │   ├── project.ts           # Project store and update functions
@@ -179,6 +186,14 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - A user-controlled numeric value declares its range, unit, default, clamping policy, and automation capability once in `src/domain/parameters.ts`; UI, validation, audio, and assistant tools read that definition instead of repeating literals.
 - `parseProject` is the only way to obtain a `Project`. It either returns a fully valid project or a list of issues, and never partially repairs input.
 - Changing this contract is its own backlog task, not incidental work inside a feature.
+
+### Shared command layer (`src/commands`)
+- Every project mutation — pointer, keyboard, or assistant — is a registered command (PRD section 9.6). Components never write to project state; they build a typed command and hand it to `CommandHistory`.
+- A command declares a versioned type, a Zod payload schema, a pure `apply`, a generated `invert`, and a one-line `summarize`. Payloads carry explicit IDs for anything they create, so replay, redo, and assistant previews reproduce the same project.
+- `executeTransaction` is the atomic unit: commands apply to a working copy, the result is checked against every domain invariant, and any failure returns the original project object untouched. One committed transaction produces exactly one revision and one history entry.
+- Continuous gestures use `history.beginGesture()`; every step applies immediately but the whole drag commits as one entry and one revision.
+- Undo/redo is session-local, bounded, and replays inverse commands rather than project snapshots. Only an explicit `replaceProject` clears it — a save acknowledgement or remote echo must never touch it.
+- Like `src/domain`, this layer imports no Firebase, Tone, or Solid. Adding or changing a command is a contract change; see the registry test's pinned command list.
 
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)
