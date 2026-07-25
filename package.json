@@ -2,6 +2,8 @@
 	"name": "solid-groove",
 	"devDependencies": {
 		"@biomejs/biome": "2.2.5",
+		"@firebase/rules-unit-testing": "^5.0.1",
+		"@playwright/test": "^1.62.0",
 		"@solidjs/meta": "^0.29.4",
 		"@solidjs/router": "^0.15.0",
 		"@solidjs/start": "^1.1.0",
@@ -11,6 +13,7 @@
 		"@vitest/ui": "3.0.5",
 		"fast-check": "^4.9.0",
 		"firebase": "^12.3.0",
+		"firebase-tools": "^15.24.0",
 		"jsdom": "^25.0.1",
 		"nanoid": "^6.0.0",
 		"node-web-audio-api": "^2.1.0",
@@ -36,8 +39,18 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:ui": "vitest --ui",
+		"test:emulator": "firebase emulators:exec --only firestore --project demo-solid-groove \"vitest run --config vitest.emulator.config.ts\"",
+		"pretest:browser": "node scripts/generate-samples.mjs",
+		"test:browser": "playwright test",
+		"test:browser:install": "playwright install --with-deps chromium firefox webkit",
 		"typecheck": "tsc --noEmit",
-		"check": "tsc --noEmit && biome check --write"
+		"check": "tsc --noEmit && biome check --write",
+		"check:ci": "tsc --noEmit && biome check"
 	},
-	"type": "module"
+	"type": "module",
+	"trustedDependencies": [
+		"@firebase/util",
+		"@parcel/watcher",
+		"protobufjs"
+	]
 }

@@ -1,6 +1,14 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.2.5/schema.json",
 	"files": {
-		"includes": ["**", "!**/.claude", "!**/.output", "!**/.vinxi"]
+		"includes": [
+			"**",
+			"!.claude",
+			"!.output",
+			"!.vinxi",
+			"!docs/design",
+			"!playwright-report",
+			"!test-results"
+		]
 	}
 }
