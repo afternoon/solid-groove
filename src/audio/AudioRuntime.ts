@@ -16,6 +16,34 @@ export type AudioRuntimeState =
 const RUNTIME_OWNER = "runtime";
 
 /**
+ * Contexts a `close()` call has already run against — regardless of whether
+ * `context.close()` itself resolved or rejected. Some Web Audio
+ * implementations don't update a context's `.state` synchronously with
+ * their `close()` promise settling, so `isAdoptableContext()` cannot rely on
+ * `.state` alone the instant a previous `close()` returns; membership here
+ * is authoritative and doesn't depend on that timing.
+ */
+const closedContexts = new WeakSet<Tone.BaseContext>();
+
+/**
+ * True when `context` is a genuine, still-live Tone `Context` rather than
+ * Tone's internal `DummyContext` placeholder (what `Tone.getContext()`
+ * returns before any real context exists — e.g. under Node with no Web
+ * Audio implementation installed) or a context that has already been
+ * closed. Only a context meeting this bar is safe for `ensureContext()` to
+ * adopt instead of constructing a new one.
+ */
+function isAdoptableContext(
+	context: Tone.BaseContext,
+): context is Tone.Context {
+	return (
+		context instanceof Tone.Context &&
+		context.state !== "closed" &&
+		!closedContexts.has(context)
+	);
+}
+
+/**
  * A disposal scope for one project graph. Every resource a project registers
  * through it is torn down by `dispose()` without touching the shared context
  * or any other project's resources — this is what lets a route/component
@@ -38,8 +66,22 @@ export interface AudioDiagnostics {
 	state: AudioRuntimeState;
 	/** How many real-time `AudioContext`s this runtime has ever constructed. */
 	contextsCreated: number;
-	/** How many of those it has fully closed. */
+	/**
+	 * How many times this runtime took ownership of an already-live context
+	 * instead of constructing one — see `ensureContext()`. Counted separately
+	 * from `contextsCreated` so a browser test can assert the document never
+	 * has more than one live real-time context regardless of which path
+	 * produced it.
+	 */
+	contextsAdopted: number;
+	/** How many contexts it has fully closed. */
 	contextsClosed: number;
+	/**
+	 * How many `context.close()` calls rejected. The runtime still reaches
+	 * `"closed"` state when this happens (see `close()`) — this only tracks
+	 * that the underlying browser call itself failed.
+	 */
+	contextsCloseFailed: number;
 	resources: ReturnType<ResourceRegistry["counts"]>;
 }
 
@@ -67,7 +109,9 @@ export class AudioRuntime implements AudioHost {
 	private state: AudioRuntimeState = "uninitialized";
 	private closePromise: Promise<void> | null = null;
 	private contextsCreated = 0;
+	private contextsAdopted = 0;
 	private contextsClosed = 0;
+	private contextsCloseFailed = 0;
 
 	/** Owners for contexts, graphs, nodes, schedules, buffers, subscriptions, timers, workers, and pending loads. */
 	readonly registry = new ResourceRegistry();
@@ -77,20 +121,39 @@ export class AudioRuntime implements AudioHost {
 	}
 
 	/**
-	 * Return the live context, lazily creating and installing one the first
-	 * time it's needed. Reused across projects, navigation, and compatible
-	 * HMR — this never recreates the context just because a project graph
-	 * was replaced.
+	 * Return the live context, lazily adopting or creating and installing one
+	 * the first time it's needed. Reused across projects, navigation, and
+	 * compatible HMR — this never recreates the context just because a
+	 * project graph was replaced.
+	 *
+	 * `import * as Tone from "tone"` has a module-evaluation side effect:
+	 * Tone's barrel module reads `getContext()` at import time, and
+	 * `getContext()` lazily constructs a real `AudioContext` the moment it's
+	 * first called with none installed — which happens before a single line
+	 * of this runtime's code runs, in any browser. Unconditionally
+	 * constructing another context here would leave the document with two
+	 * live real-time `AudioContext`s, only one of which this runtime (and
+	 * therefore `close()`) ever knows about — exactly what AUD-07/AUD-09
+	 * exist to prevent. So this adopts that existing context when it's a
+	 * genuine, still-live one instead, and only falls back to constructing a
+	 * fresh context when there's nothing usable to adopt (e.g. after a
+	 * previous context was fully closed).
 	 */
 	ensureContext(): Tone.Context {
 		if (this.context && this.state !== "closed" && this.state !== "closing") {
 			return this.context;
 		}
 
-		const context = new Tone.Context();
-		this.contextsCreated++;
-		Tone.setContext(context);
-		this.context = context;
+		const existing = Tone.getContext();
+		if (isAdoptableContext(existing)) {
+			this.context = existing;
+			this.contextsAdopted++;
+		} else {
+			const context = new Tone.Context();
+			this.contextsCreated++;
+			Tone.setContext(context);
+			this.context = context;
+		}
 		this.state = "suspended";
 		// A stale, already-settled promise from a previous close() would
 		// otherwise short-circuit the *next* close() below without ever
@@ -100,7 +163,7 @@ export class AudioRuntime implements AudioHost {
 		// resource; disposal is a no-op here because `close()` owns the actual
 		// `context.close()` call.
 		this.registry.register(RUNTIME_OWNER, "context", () => {});
-		return context;
+		return this.context;
 	}
 
 	/** The shared destination node. Ensures the context exists first. */
@@ -143,6 +206,15 @@ export class AudioRuntime implements AudioHost {
 	 * same in-flight/settled promise instead of closing twice, and closing a
 	 * runtime that never created a context (partial initialization, or the
 	 * context construction itself failed) resolves without throwing.
+	 *
+	 * Always settles to `"closed"`, even if the underlying
+	 * `context.close()` itself rejects (e.g. `InvalidStateError` from a
+	 * context that was already closing). A rejection there is logged and
+	 * tracked in `diagnostics().contextsCloseFailed` rather than left to
+	 * propagate — otherwise the runtime would get stuck in `"closing"`
+	 * forever, `close()` would keep returning that same rejected promise to
+	 * every future caller, and `resume()` (which awaits any in-flight
+	 * `closePromise`) would never recover either.
 	 */
 	async close(): Promise<void> {
 		if (this.state === "closed") return;
@@ -156,8 +228,17 @@ export class AudioRuntime implements AudioHost {
 			if (context) {
 				try {
 					if (context.state !== "closed") await context.close();
-				} finally {
 					this.contextsClosed++;
+				} catch (cause) {
+					this.contextsCloseFailed++;
+					const error =
+						cause instanceof Error ? cause : new Error(String(cause));
+					console.error("AudioRuntime: context.close() failed", error);
+				} finally {
+					// Recorded regardless of success/failure: a context this
+					// runtime has attempted to close must never be adopted
+					// again by any runtime, whatever its `.state` reports.
+					closedContexts.add(context);
 				}
 			}
 			this.state = "closed";
@@ -188,7 +269,9 @@ export class AudioRuntime implements AudioHost {
 		return {
 			state: this.state,
 			contextsCreated: this.contextsCreated,
+			contextsAdopted: this.contextsAdopted,
 			contextsClosed: this.contextsClosed,
+			contextsCloseFailed: this.contextsCloseFailed,
 			resources: this.registry.counts(),
 		};
 	}
@@ -236,11 +319,22 @@ export function getAudioRuntime(): AudioRuntime {
  * part of routine navigation or project switching — those reuse the runtime
  * via `getAudioRuntime()` — it exists for the rare case a compatible HMR
  * handoff genuinely cannot be made (e.g. the runtime's own shape changed).
+ *
+ * `close()` itself is designed to always settle rather than reject, but this
+ * still installs the replacement even if closing the old runtime somehow
+ * throws — an old runtime stuck mid-teardown must never block the new one
+ * from becoming reachable through `getAudioRuntime()`, which is the escape
+ * hatch this function exists for in the first place.
  */
 export async function replaceAudioRuntime(): Promise<AudioRuntime> {
 	const slot = globalSlot();
 	if (slot.runtime) {
-		await slot.runtime.close();
+		try {
+			await slot.runtime.close();
+		} catch (cause) {
+			const error = cause instanceof Error ? cause : new Error(String(cause));
+			console.error("AudioRuntime: closing the previous runtime failed", error);
+		}
 	}
 	const runtime = new AudioRuntime();
 	slot.runtime = runtime;

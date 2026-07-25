@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * `resume()`'s own logic — call `Tone.start()` only when needed, wait out an
@@ -34,13 +34,34 @@ vi.mock("tone", () => {
 		setContext: vi.fn((ctx: unknown) => {
 			current = ctx;
 		}),
+		// `null` here (nothing installed yet) is intentionally not an
+		// `instanceof Context` — it plays the same role as Tone's real
+		// `DummyContext`: nothing adoptable, so `ensureContext()` falls
+		// through to constructing a fresh one, matching this suite's
+		// `contextsCreated` expectations.
+		getContext: vi.fn(() => current),
 		getDestination: vi.fn(() => ({})),
 		start,
+		// Test-only: this fake module is one singleton shared by every test in
+		// this file (`vi.mock` factories run once), so without an explicit
+		// reset a context a later test's runtime could wrongly "adopt" — from
+		// an earlier test — the same way a stale global would. Production
+		// code has no equivalent reset because `Tone`'s real global context
+		// is meant to persist; only the test double needs unwinding.
+		__resetForTest: () => {
+			current = null;
+		},
 	};
 });
 
 import * as Tone from "tone";
 import { AudioRuntime } from "./AudioRuntime";
+
+beforeEach(() => {
+	(Tone as unknown as { __resetForTest: () => void }).__resetForTest();
+	vi.mocked(Tone.start).mockClear();
+	vi.mocked(Tone.setContext).mockClear();
+});
 
 describe("AudioRuntime.resume", () => {
 	it("creates the context if needed, calls Tone.start(), and marks the runtime running", async () => {

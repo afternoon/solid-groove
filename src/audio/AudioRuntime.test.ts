@@ -41,7 +41,15 @@ describe("AudioRuntime context ownership", () => {
 		const second = runtime.ensureContext();
 
 		expect(second).toBe(first);
-		expect(runtime.diagnostics().contextsCreated).toBe(1);
+		// Whether this is the very first context Tone's own module-import
+		// side effect already created (adopted — see "AudioRuntime single
+		// real-time context" for a test that pins this down deterministically)
+		// or one this runtime had to construct itself (created) depends on
+		// what ran before it in this file, but either way `ensureContext()`
+		// must account for exactly one real context, never a second one on
+		// top of an existing live one (AUD-07/AUD-09).
+		const { contextsCreated, contextsAdopted } = runtime.diagnostics();
+		expect(contextsCreated + contextsAdopted).toBe(1);
 
 		return runtime.close();
 	});
