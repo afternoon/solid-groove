@@ -9,8 +9,10 @@
 		"@testing-library/jest-dom": "^6.6.2",
 		"@testing-library/user-event": "^14.5.2",
 		"@vitest/ui": "3.0.5",
+		"fast-check": "^4.9.0",
 		"firebase": "^12.3.0",
 		"jsdom": "^25.0.1",
+		"nanoid": "^6.0.0",
 		"node-web-audio-api": "^2.1.0",
 		"since-time-ago": "^1.1.1",
 		"solid-firebase": "^0.3.0",
@@ -21,7 +23,8 @@
 		"vinxi": "^0.5.7",
 		"vite": "^6.0.0",
 		"vite-plugin-solid": "^2.11.6",
-		"vitest": "3.0.5"
+		"vitest": "3.0.5",
+		"zod": "^4.4.3"
 	},
 	"scripts": {
 		"samples": "node scripts/generate-samples.mjs",
