@@ -43,6 +43,8 @@ interface BaselineResult {
 	readonly frameCount: number;
 	readonly medianFrameMs: number;
 	readonly p95FrameMs: number;
+	readonly medianDrawMs: number;
+	readonly p95DrawMs: number;
 	readonly longTaskCount: number;
 	readonly longTaskTotalMs: number;
 	readonly redrawCounts: TraceResult["redrawCounts"];

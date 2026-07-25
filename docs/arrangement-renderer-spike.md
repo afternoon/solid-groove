@@ -45,11 +45,12 @@ benchmarks well."
   every existing caller/test is unaffected.
 - `createArrangementSpikeProject(trackCount)` — the task's three benchmark
   fixtures: `20`, `40`, or `50` tracks (`ARRANGEMENT_SPIKE_TRACK_COUNTS`), each
-  a ten-minute arrangement with `20 × trackCount` placements (dense: ~20 per
-  track spread across the ten minutes), `2 × trackCount` automation lanes, and
-  ~40% of tracks as waveform-bearing audio tracks. Deterministic (seeded by
-  track count) and validated by `parseProject`, like every other domain
-  fixture.
+  a ten-minute arrangement with `50 × trackCount` placements (50 per track
+  spread across the ten minutes — the same per-track density as the PRD 9.3
+  reference arrangement, so the 50-track case reaches its "at least 2,500
+  clip placements"), `2 × trackCount` automation lanes, and ~40% of tracks as
+  waveform-bearing audio tracks. Deterministic (seeded by track count) and
+  validated by `parseProject`, like every other domain fixture.
 - `createArrangementSpikeFixtures()` — all three, keyed by track count, for
   tests or tooling that want to iterate over the full matrix.
 
@@ -94,10 +95,17 @@ This is `playwright test --config=playwright.bench.config.ts` (a
    selection** — for 120 animation frames apiece, through the same public API
    a real gesture would use (`window.__arrangementSpike`,
    `ArrangementSpikeHandle` in `ArrangementSpike.tsx`).
-3. Collects, per trace: frame count, median and p95 frame time, long-task
-   count and total duration (Chromium-only `PerformanceObserver`
-   `"longtask"` entries — Firefox/WebKit simply report zero), redraw counts
-   per layer, and JS heap usage where the browser exposes it
+3. Collects, per trace: frame count; median and p95 **frame time**
+   (`medianFrameMs`/`p95FrameMs` — the wall-clock interval between
+   consecutive presented animation frames, the basis PRD 9.3's budget
+   ("median frame time at or below 16.7 ms, p95 at or below 33 ms") is
+   stated against, spanning rasterization/compositing/layout/reactive work
+   as well as the draw call itself); median and p95 **draw time**
+   (`medianDrawMs`/`p95DrawMs` — just the synchronous canvas draw-command
+   issue duration, a strict lower bound on frame cost, not frame time);
+   long-task count and total duration (Chromium-only `PerformanceObserver`
+   `"longtask"` entries — Firefox/WebKit simply report zero); redraw counts
+   per layer; and JS heap usage where the browser exposes it
    (`performance.memory`, Chromium-only).
 4. Writes everything to `docs/perf/arrangement-spike-baseline.json`, tagged
    with the browser and the hardware (`os.cpus()`, `os.totalmem()`,

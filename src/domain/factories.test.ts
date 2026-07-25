@@ -182,7 +182,13 @@ describe("FND-008 arrangement spike fixtures", () => {
 
 			expect(parseProject(project).ok).toBe(true);
 			expect(project.song.tracks).toHaveLength(trackCount);
-			expect(project.song.placements.length).toBeGreaterThan(trackCount);
+			// Density, not just "more than one per track": must match the PRD 9.3
+			// reference arrangement's 50 placements/track (50 tracks * 50 = 2,500,
+			// its "at least 2,500 clip placements"), so a future change can't
+			// silently thin the fixture back to an unrepresentative benchmark.
+			expect(project.song.placements.length).toBeGreaterThanOrEqual(
+				trackCount * 50,
+			);
 			expect(project.song.automation.length).toBeGreaterThan(0);
 
 			const waveformTracks = project.song.tracks.filter(

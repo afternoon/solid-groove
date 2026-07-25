@@ -74,8 +74,21 @@ export type TraceName = "scroll" | "zoom" | "seek" | "selection";
 export interface TraceResult {
 	readonly trace: TraceName;
 	readonly frameCount: number;
+	/** Wall-clock time between consecutive presented animation frames
+	 * (`FrameSample.timestampMs` deltas) — the basis PRD 9.3's frame budget
+	 * ("median frame time at or below 16.7 ms, p95 at or below 33 ms") is
+	 * stated against. This spans everything that happens between one
+	 * rAF-callback invocation and the next: rasterization, compositing, DOM
+	 * layout/style for the header column, and Solid's reactive work, none of
+	 * which the synchronous draw-call duration below captures. */
 	readonly medianFrameMs: number;
 	readonly p95FrameMs: number;
+	/** Synchronous canvas draw-command issue duration alone (the
+	 * `performance.now()` bracket in `drawDirtyLayers`). Useful for isolating
+	 * draw-call cost, but it is a strict lower bound on frame cost, not frame
+	 * time itself — see `medianFrameMs`/`p95FrameMs`. */
+	readonly medianDrawMs: number;
+	readonly p95DrawMs: number;
 	readonly longTaskCount: number;
 	readonly longTaskTotalMs: number;
 	readonly redrawCounts: Readonly<Record<DirtyLayer, number>>;
@@ -314,9 +327,13 @@ export default function ArrangementSpike(props: ArrangementSpikeProps) {
 
 	onMount(() => {
 		const resizeObserver = new ResizeObserver(() => {
+			// `containerEl` (`.arrangement-spike-viewport`) is a flex sibling of
+			// the header column (`.arrangement-spike` is `display: flex`), so its
+			// own rect already excludes the header width — subtracting
+			// `HEADER_WIDTH_PX` again would double-count it.
 			const rect = containerEl.getBoundingClientRect();
 			applyViewport({
-				width: Math.round(rect.width - HEADER_WIDTH_PX),
+				width: Math.round(rect.width),
 				height: Math.round(rect.height),
 			});
 			markDirty("background", "content", "interaction");
@@ -365,12 +382,21 @@ export default function ArrangementSpike(props: ArrangementSpikeProps) {
 		for (let frame = 0; frame < frames; frame += 1) {
 			const t = frame / frames;
 			switch (trace) {
-				case "scroll":
+				case "scroll": {
+					// Sweep both axes over the trace so track-count comparisons
+					// exercise rows past the first screenful, not just the initial
+					// ~30 visible rows (row virtualization, header windowing).
+					const rowOffsets = projection().rowOffsets;
+					const maxScrollTop = Math.max(
+						0,
+						rowOffsets[rowOffsets.length - 1] - port.height,
+					);
 					setScroll(
 						t * (totalTicks * port.pixelsPerTick * 0.5),
-						port.scrollTop,
+						t * maxScrollTop,
 					);
 					break;
+				}
 				case "zoom":
 					zoomAt(
 						port.width / 2,
@@ -399,7 +425,15 @@ export default function ArrangementSpike(props: ArrangementSpikeProps) {
 		}
 
 		const snapshot = instrumentation.snapshot();
-		const durations = snapshot.frames.map((f) => f.durationMs);
+		// Frame time is the interval between consecutive presented frames, not
+		// how long the synchronous draw call took (see `TraceResult`'s doc
+		// comments) — derive it from consecutive `FrameSample.timestampMs`
+		// values, which are captured once per rAF callback.
+		const frameTimestamps = snapshot.frames.map((f) => f.timestampMs);
+		const frameIntervals = frameTimestamps
+			.slice(1)
+			.map((timestamp, index) => timestamp - frameTimestamps[index]);
+		const drawDurations = snapshot.frames.map((f) => f.durationMs);
 		const longTaskTotalMs = snapshot.longTasks.reduce(
 			(sum, task) => sum + task.durationMs,
 			0,
@@ -407,8 +441,10 @@ export default function ArrangementSpike(props: ArrangementSpikeProps) {
 		return {
 			trace,
 			frameCount: snapshot.frames.length,
-			medianFrameMs: durations.length ? median(durations) : 0,
-			p95FrameMs: durations.length ? percentile(durations, 95) : 0,
+			medianFrameMs: frameIntervals.length ? median(frameIntervals) : 0,
+			p95FrameMs: frameIntervals.length ? percentile(frameIntervals, 95) : 0,
+			medianDrawMs: drawDurations.length ? median(drawDurations) : 0,
+			p95DrawMs: drawDurations.length ? percentile(drawDurations, 95) : 0,
 			longTaskCount: snapshot.longTasks.length,
 			longTaskTotalMs,
 			redrawCounts: snapshot.redrawCounts,
@@ -472,11 +508,7 @@ export default function ArrangementSpike(props: ArrangementSpikeProps) {
 					</For>
 				</ul>
 			</div>
-			<div
-				class="arrangement-spike-viewport"
-				ref={containerEl}
-				style={{ left: `${HEADER_WIDTH_PX}px` }}
-			>
+			<div class="arrangement-spike-viewport" ref={containerEl}>
 				<canvas class="arrangement-spike-layer" ref={backgroundCanvas} />
 				<canvas class="arrangement-spike-layer" ref={contentCanvas} />
 				<canvas

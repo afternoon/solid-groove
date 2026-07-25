@@ -451,9 +451,12 @@ export function createArrangementSpikeProject(
 		...options,
 		seed: options.seed ?? `arrangement-spike-${trackCount}`,
 		trackCount,
-		// 2 placements/track/minute keeps every track count "dense" without the
-		// placement count growing unboundedly with track count.
-		placementCount: trackCount * 20,
+		// 50 placements/track matches the PRD 9.3 reference arrangement's
+		// density (50 tracks * 50 = 2,500, its "at least 2,500 clip
+		// placements"). Per-frame draw cost is proportional to placement
+		// density, not track count alone, so the 50-track benchmark must reach
+		// the reference arrangement's occupancy, not a sparser stand-in.
+		placementCount: trackCount * 50,
 		automationLaneCount: Math.round(trackCount * 2),
 		waveformTrackCount: Math.round(trackCount * 0.4),
 	});
