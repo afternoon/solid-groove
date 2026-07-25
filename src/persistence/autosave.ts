@@ -151,13 +151,34 @@ export class ProjectAutosave {
 	 */
 	async flush(): Promise<SaveStatus> {
 		this.cancelPending();
-		if (this.inFlight) {
+		// `while`, not `if`. Several callers can park here at once — every edit
+		// re-arms the coalescing timer and each firing calls flush — and they all
+		// wake when the drain they were waiting on settles. If each then started
+		// its own drain, two loops would write the same entry at the same base
+		// revision: one wins, the other comes back `revision_conflict` against
+		// this controller's own write, leaving an unclearable "save failed" over a
+		// project that is fully saved.
+		//
+		// Re-testing closes that. The first caller to wake exits the loop and
+		// assigns `inFlight` with no await in between, so by the time any other
+		// caller resumes the handle is already set and it joins that drain rather
+		// than starting a second one.
+		while (this.inFlight) {
 			await this.inFlight;
 		}
 		if (this.queue.size > 0 && !this.disposed) {
-			this.inFlight = this.drain();
-			await this.inFlight;
-			this.inFlight = null;
+			const drain = this.drain();
+			this.inFlight = drain;
+			try {
+				await drain;
+			} finally {
+				// Only ever clear the handle this call owns. Clearing unconditionally
+				// would let the next caller past the guard while a drain it did not
+				// start was still running.
+				if (this.inFlight === drain) {
+					this.inFlight = null;
+				}
+			}
 		}
 		return this.status;
 	}

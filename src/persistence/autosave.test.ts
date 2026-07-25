@@ -148,6 +148,65 @@ describe("ProjectAutosave", () => {
 		expect(savedWith).toEqual(savedWith.map(() => 140));
 	});
 
+	it("does not report a conflict against a write it just made itself", async () => {
+		autosave.queueSong(renamedSong(140));
+		// The first write fails, so the entry stays queued and every flush that
+		// wakes afterwards finds work to do.
+		repository.failNextWrites({ count: 1 });
+
+		// Three flushes with nothing awaited between them. This is ordinary use,
+		// not a test-only contrivance: every edit re-arms the coalescing timer, so
+		// a user who keeps editing through one slow write produces exactly this.
+		// All three park on the same in-flight drain.
+		await Promise.all([autosave.flush(), autosave.flush(), autosave.flush()]);
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		expect(loaded.ok).toBe(true);
+		if (!loaded.ok) return;
+		expect(loaded.value.song.tempo).toBe(140);
+		// Two drains racing the same queue at the same base revision would both
+		// write; one wins and the other comes back `revision_conflict`. That is a
+		// conflict with this controller's own write, and it would surface as a
+		// permanent "save failed" over a project that is in fact fully saved —
+		// unclearable, because `retry()` finds an empty queue and returns early.
+		expect(autosave.status).toMatchObject({
+			state: "saved",
+			pending: 0,
+			failure: null,
+		});
+		expect(
+			repository.writes.filter(
+				(write) => write.path === songDocumentPath(project.metadata.id),
+			),
+		).toHaveLength(1);
+	});
+
+	it("never reports failure with an empty queue, whatever the flush interleaving", async () => {
+		// A clip queued behind the song gives the racing drains different entries
+		// to pick up, which is how the inconsistency showed as a stale `failure`
+		// hanging off an otherwise-"saved" status rather than as a failed state.
+		autosave.queueSong(renamedSong(141));
+		autosave.queueClip(project.clips[0]);
+		repository.failNextWrites({ count: 1 });
+
+		await Promise.all([
+			autosave.flush(),
+			autosave.flush(),
+			autosave.flush(),
+			autosave.retry(),
+		]);
+
+		// The invariant a consumer reads: a failure means something is still
+		// queued to retry. Anything else cannot be rendered coherently — there is
+		// nothing for a "retry" affordance to act on.
+		const status = autosave.status;
+		if (status.failure !== null || status.state === "failed") {
+			expect(status.pending).toBeGreaterThan(0);
+		} else {
+			expect(status).toMatchObject({ state: "saved", pending: 0 });
+		}
+	});
+
 	it("writes each edited entity once, in the order the edits were made", async () => {
 		autosave.queueMetadata({ name: "Renamed" });
 		autosave.queueClip(project.clips[0]);
