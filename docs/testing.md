@@ -106,3 +106,24 @@ The prototype `firebase.json` pointed `database.rules.json` at a file that never
 ## Generated sample audio and the test suites
 
 `scripts/generate-samples.mjs` (idempotent — it only writes files that are missing) runs via `predev`/`prebuild`, and now also via `pretest:browser`, since the E2E suite loads the real app, which needs `public/samples/*` to exist. It intentionally does **not** run before `test` or `test:emulator`: neither suite serves the app or touches sample audio, so running it there would be pure overhead on every invocation.
+
+## `bun run clean`, and the stale-cache failure it exists for
+
+```bash
+bun run clean
+```
+
+Deletes `.vinxi`, `.output`, `node_modules/.vinxi`, `node_modules/.vite`, and the `test-results` / `playwright-report` / `blob-report` output directories. It does **not** touch `node_modules` itself, so no reinstall is needed afterwards, and it leaves `public/samples` alone — those are generated artifacts rather than caches, and regenerating them is slow (see above).
+
+It exists because of a failure mode that is genuinely hard to recognise. Vite's dependency pre-bundling cache lives *inside* `node_modules/`, so it survives `git checkout`, `bun install`, and restarting the dev server. A long-lived local clone can therefore serve module output built from a commit you are no longer on, and nothing in the normal workflow invalidates it.
+
+The symptom to recognise:
+
+- A route in `src/routes/` **matches** — you get a blank page rather than the `[...404]` page — but its component never mounts.
+- **No error in the browser console, and none in the dev server terminal.**
+- `bun run test` passes, because Vitest does not use that cache.
+- A fresh clone of the same commit works.
+
+The tell is the disagreement between those first two facts: route scanning reads the filesystem directly and sees your checkout, while module loading goes through the cache and sees the older build. When a route matches but renders nothing, suspect the cache before suspecting the code, and run `bun run clean` first.
+
+It is also worth reaching for before trusting any local run of a suite that loads the real app — the browser E2E suite, and any future measurement harness, go through the same cache.

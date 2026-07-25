@@ -36,6 +36,7 @@
 		"prebuild": "node scripts/generate-samples.mjs",
 		"build": "vinxi build",
 		"start": "vinxi start",
+		"clean": "rm -rf .vinxi .output node_modules/.vinxi node_modules/.vite test-results playwright-report blob-report",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:ui": "vitest --ui",
