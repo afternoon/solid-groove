@@ -61,27 +61,53 @@ const TASKS = [
   { id: 'FND-009', phase: 'Slice', title: 'Foundation vertical slice gate' },
 ]
 
-// Fail loud on a malformed subset request. `args` passed as a JSON-encoded
-// string ('["FND-001"]') rather than a real array is not an array, so the old
-// `Array.isArray(args) ? ... : null` silently degraded "run one task" into
-// "run the entire phase" — which is exactly what happened once, opening PRs
-// for six tasks that were never asked for. A bad filter must stop the run.
-if (args !== undefined && args !== null && !Array.isArray(args)) {
+// Normalise the subset request, and fail loud on anything malformed.
+//
+// The rule that matters: a filter the script cannot understand must stop the
+// run, never degrade into "run every task". An earlier version used
+// `Array.isArray(args) ? ... : null`, so a non-array `args` fell through to
+// null and ran the entire phase — that once opened PRs for six tasks nobody
+// asked for.
+//
+// Rejecting every non-array outright was too strict, though: some callers hand
+// `args` to the script already JSON-encoded ('["FND-001"]'), which made the
+// subset feature unusable rather than merely safe. So decode that form
+// explicitly. A string that is not a JSON array, and any other non-array type,
+// still throws.
+const parseTaskIds = (raw) => {
+  if (raw === undefined || raw === null) return null
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    let decoded
+    try {
+      decoded = JSON.parse(raw)
+    } catch {
+      throw new Error(
+        `args must be an array of task ids; got a string that is not JSON: ${raw}`,
+      )
+    }
+    if (!Array.isArray(decoded)) {
+      throw new Error(
+        `args must be an array of task ids; the string decoded to ${typeof decoded}: ${raw}`,
+      )
+    }
+    return decoded
+  }
   throw new Error(
-    `args must be an array of task ids, got ${typeof args}: ${JSON.stringify(args)}. ` +
-      'Pass a real JSON array (args: ["FND-001"]), not a JSON-encoded string — ' +
-      'a stringified list reaches the script as one string and would run every task.',
+    `args must be an array of task ids, got ${typeof raw}: ${JSON.stringify(raw)}.`,
   )
 }
+
+const taskIds = parseTaskIds(args)
 const known = new Set(TASKS.map((t) => t.id))
-const unknown = (args ?? []).filter((id) => !known.has(id))
+const unknown = (taskIds ?? []).filter((id) => !known.has(id))
 if (unknown.length) {
   throw new Error(
     `args contains unknown task id(s): ${unknown.join(', ')}. Known ids: ${[...known].join(', ')}.`,
   )
 }
 
-const only = Array.isArray(args) && args.length ? new Set(args) : null
+const only = taskIds && taskIds.length ? new Set(taskIds) : null
 const task = (id) => TASKS.find((t) => t.id === id)
 const wanted = (id) => !only || only.has(id)
 
