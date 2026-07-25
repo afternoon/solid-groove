@@ -147,7 +147,9 @@ function serializeTrack(track: Track): JsonObject {
 		type: track.type,
 		instrument: track.instrument ? serializeInstrument(track.instrument) : null,
 		devices: serializeDevices(track.devices),
-		sends: sortBy(track.sends, (send) => [send.returnId]).map(serializeSend),
+		sendConfig: sortBy(track.sendConfig, (send) => [send.returnId]).map(
+			serializeSend,
+		),
 		mixer: {
 			volume: track.mixer.volume,
 			pan: track.mixer.pan,

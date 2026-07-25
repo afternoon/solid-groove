@@ -307,8 +307,8 @@ export function checkSongIntegrity(
 		issues.push(...checkInstrument(track, trackPath, assetIds, seenIds));
 
 		const usedReturns = new Set<string>();
-		track.sends.forEach((send, sendIndex) => {
-			const sendPath = [...trackPath, "sends", sendIndex] as const;
+		track.sendConfig.forEach((send, sendIndex) => {
+			const sendPath = [...trackPath, "sendConfig", sendIndex] as const;
 			if (!returnIds.has(send.returnId)) {
 				issues.push(
 					issue(
@@ -593,7 +593,7 @@ function checkAutomationLane(
 				);
 			}
 		} else if (target.scope === "send") {
-			const send = track.sends.find(
+			const send = track.sendConfig.find(
 				(entry) => entry.returnId === target.returnId,
 			);
 			if (!send) {

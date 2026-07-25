@@ -150,7 +150,7 @@ export const trackSchema = z.strictObject({
 	type: trackTypeSchema,
 	instrument: instrumentSchema.nullable(),
 	devices: z.array(deviceSchema),
-	sends: z.array(sendSchema),
+	sendConfig: z.array(sendSchema),
 	mixer: trackMixerSchema,
 });
 export type Track = z.infer<typeof trackSchema>;
@@ -197,6 +197,11 @@ export type Placement = z.infer<typeof placementSchema>;
 
 export const automationInterpolationSchema = z.enum(["linear", "step"]);
 
+/**
+ * `track` targets a parameter the track itself owns (mixer volume, pan, ...);
+ * `trackDevice` targets a parameter on one device in that track's chain, so
+ * it also needs `deviceId` to say which device.
+ */
 export const automationTargetSchema = z.discriminatedUnion("scope", [
 	z.strictObject({
 		scope: z.literal("track"),

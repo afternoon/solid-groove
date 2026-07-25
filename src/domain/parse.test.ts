@@ -50,7 +50,7 @@ interface MutableTrack extends JsonRecord {
 	id: string;
 	order: number;
 	devices: (JsonRecord & { id: string; order: number })[];
-	sends: (JsonRecord & { returnId: string })[];
+	sendConfig: (JsonRecord & { returnId: string })[];
 	instrument:
 		| (JsonRecord & {
 				assetId?: string | null;
@@ -233,7 +233,7 @@ describe("parseProject", () => {
 
 	it("rejects a send to a missing return bus", () => {
 		const input = baseProject();
-		input.song.tracks[0].sends = [
+		input.song.tracks[0].sendConfig = [
 			{ returnId: ids("return"), level: 0.5, preFader: false },
 		];
 		expectIssue(parseProject(input), "dangling_reference");
@@ -251,7 +251,7 @@ describe("parseProject", () => {
 				mixer: { volume: 0, pan: 0, muted: false },
 			},
 		];
-		input.song.tracks[0].sends = [
+		input.song.tracks[0].sendConfig = [
 			{ returnId, level: 0.5, preFader: false },
 			{ returnId, level: 0.2, preFader: false },
 		];

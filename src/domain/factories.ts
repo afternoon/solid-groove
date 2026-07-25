@@ -46,14 +46,52 @@ import { TICKS_PER_BAR, type Ticks, toTicks } from "./time";
  * has passed `assertProject`, so an invalid project cannot escape a factory.
  */
 
-/** Track colors from the editor palette, cycled by track order. */
+/**
+ * Track colors from the editor palette, cycled by track order. Spans the hue
+ * wheel once at a mid tone, once lighter, then a handful more at a darker
+ * tone, so tracks stay visually distinct well past a typical track count.
+ */
 export const TRACK_COLORS = [
-	"#e0573e",
-	"#e8a33d",
-	"#4fa86b",
-	"#3d7fe8",
-	"#8a5ce0",
-	"#d84f9c",
+	"#ef4444",
+	"#f97316",
+	"#f59e0b",
+	"#eab308",
+	"#84cc16",
+	"#22c55e",
+	"#10b981",
+	"#14b8a6",
+	"#06b6d4",
+	"#0ea5e9",
+	"#3b82f6",
+	"#6366f1",
+	"#8b5cf6",
+	"#a855f7",
+	"#d946ef",
+	"#ec4899",
+	"#f43f5e",
+	"#f87171",
+	"#fb923c",
+	"#fbbf24",
+	"#facc15",
+	"#a3e635",
+	"#4ade80",
+	"#34d399",
+	"#2dd4bf",
+	"#22d3ee",
+	"#38bdf8",
+	"#60a5fa",
+	"#818cf8",
+	"#a78bfa",
+	"#c084fc",
+	"#e879f9",
+	"#f472b6",
+	"#fb7185",
+	"#dc2626",
+	"#ca8a04",
+	"#059669",
+	"#0284c7",
+	"#9333ea",
+	"#e11d48",
 ] as const;
 
 export type Clock = () => number;
@@ -63,14 +101,19 @@ export interface DomainFactoryContext {
 	readonly now: Clock;
 }
 
+function resolveClock(now: number | Clock | undefined): Clock {
+	if (typeof now === "function") return now;
+	if (typeof now === "number") return () => now;
+	return () => Date.now();
+}
+
 export function createFactoryContext(
 	options: { ids?: IdFactory; now?: number | Clock } = {},
 ): DomainFactoryContext {
-	const now =
-		typeof options.now === "function"
-			? options.now
-			: () => (typeof options.now === "number" ? options.now : Date.now());
-	return { ids: options.ids ?? createIdFactory(), now };
+	return {
+		ids: options.ids ?? createIdFactory(),
+		now: resolveClock(options.now),
+	};
 }
 
 export function trackColor(order: number): string {
@@ -84,7 +127,7 @@ export interface CreateTrackOptions {
 	instrument?: Instrument | null;
 	color?: string;
 	devices?: Device[];
-	sends?: Track["sends"];
+	sendConfig?: Track["sendConfig"];
 	volume?: number;
 	pan?: number;
 	muted?: boolean;
@@ -103,7 +146,7 @@ export function createTrack(
 		type: options.type ?? "instrument",
 		instrument: options.instrument ?? null,
 		devices: options.devices ?? [],
-		sends: options.sends ?? [],
+		sendConfig: options.sendConfig ?? [],
 		mixer: {
 			volume: clampParameterValue(
 				TRACK_VOLUME,
@@ -174,7 +217,7 @@ export function createSend(
 	returnId: ReturnId,
 	level: number = TRACK_SEND_LEVEL.defaultValue,
 	preFader = false,
-): Track["sends"][number] {
+): Track["sendConfig"][number] {
 	return {
 		returnId,
 		level: clampParameterValue(TRACK_SEND_LEVEL, level),

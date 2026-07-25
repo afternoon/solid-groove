@@ -97,9 +97,16 @@ describe("parameter definitions", () => {
 		expect(clampParameterValue(TRACK_VOLUME, 40)).toBe(6);
 		expect(clampParameterValue(TRACK_VOLUME, -400)).toBe(-60);
 		expect(clampParameterValue(TRACK_PAN, -1.5)).toBe(-1);
+		// "non-finite" covers both NaN and +/-Infinity; exercise both kinds.
 		expect(() => clampParameterValue(TRACK_PAN, Number.NaN)).toThrow(
 			/non-finite/,
 		);
+		expect(() =>
+			clampParameterValue(TRACK_PAN, Number.POSITIVE_INFINITY),
+		).toThrow(/non-finite/);
+		expect(() =>
+			clampParameterValue(TRACK_PAN, Number.NEGATIVE_INFINITY),
+		).toThrow(/non-finite/);
 	});
 
 	it("quantizes to the declared step", () => {
