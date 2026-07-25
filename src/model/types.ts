@@ -1,5 +1,16 @@
 import type { Timestamp } from "firebase/firestore";
 
+/**
+ * Prototype project types — superseded by the canonical schema-v1 domain model
+ * in `src/domain`.
+ *
+ * These index-based types (a pattern's sequence index implies a track) are not
+ * schema v1 and are not persisted by it. They remain only because the current
+ * editor, player, and Firestore service still read them; the `FND-009` slice
+ * migrates those consumers onto `src/domain` and deletes this file. Do not add
+ * new fields or new consumers here.
+ */
+
 export type Note = string | null;
 
 export interface Envelope {

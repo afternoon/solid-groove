@@ -46,8 +46,17 @@ src/
 │   ├── Dashboard.tsx
 │   ├── LoginButton.tsx
 │   └── ProjectList.tsx
-├── model/              # Data models and state management
-│   ├── types.ts             # TypeScript types for data models
+├── domain/             # Canonical schema-v1 domain model (authoritative)
+│   ├── entities.ts          # Entity shapes and their Zod schemas
+│   ├── ids.ts               # Prefixed stable IDs and ID factories
+│   ├── time.ts              # Integer musical time at 192 PPQ
+│   ├── parameters.ts        # Shared parameter definitions
+│   ├── parse.ts             # Validation and domain invariants
+│   ├── serialize.ts         # Deterministic JSON serialization
+│   ├── factories.ts         # Blank/entity factories
+│   └── fixtures.ts          # Deterministic reference projects
+├── model/              # Prototype state, superseded by src/domain
+│   ├── types.ts             # Prototype types (removed by the FND-009 slice)
 │   ├── project.ts           # Project store and update functions
 │   └── dataService.ts       # Firestore data access layer
 ├── routes/             # File-based routing
@@ -155,11 +164,20 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - Example: `import { useAuth } from "~/auth/AuthProvider"`
 
 ### TypeScript
-- Define types in `src/model/types.ts` for data models
-- Use discriminated unions for variant types (see Instrument type)
+- Define domain types in `src/domain` alongside their runtime schema; `src/model/types.ts` holds prototype types only
+- Use discriminated unions for variant types (see the domain Instrument and ClipContent types)
 - Leverage `Partial<T>` for update operations
 
 ## Architecture Patterns
+
+### Canonical domain model (`src/domain`)
+- `src/domain` is the authoritative schema-v1 contract (PRD sections 9.4 and 9.5). Its types, Zod schemas, invariants, and tests replace any separate domain-model document.
+- It has no Firebase, Tone.js, or SolidJS imports. Persistence, commands, audio, and rendering consume it from outside; audio nodes and Firestore `Timestamp`s never enter project state.
+- Persistent relationships use prefixed IDs from `createIdFactory()` (`createSeededIdFactory()` in tests), never array positions.
+- Musical time is integer ticks at 192 PPQ. Seconds, bars/beats/16ths, and pixels are derived through `src/domain/time.ts`.
+- A user-controlled numeric value declares its range, unit, default, clamping policy, and automation capability once in `src/domain/parameters.ts`; UI, validation, audio, and assistant tools read that definition instead of repeating literals.
+- `parseProject` is the only way to obtain a `Project`. It either returns a fully valid project or a list of issues, and never partially repairs input.
+- Changing this contract is its own backlog task, not incidental work inside a feature.
 
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)
