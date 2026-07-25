@@ -471,6 +471,25 @@ Recording knob movements, freehand curves, bezier editing, audio-rate modulation
 
 ### 7.6 Sound library
 
+**LIB-00 - Starter library of sounds for testing (P0)**  
+A starting library of real, playable sounds exists early and is delivered from Cloud Storage, so that every feature built on top of the library — the browser, sampler, drum machine, audio loops, caching, export, and genre starters — is developed and tested against real audio and real metadata rather than against two prototype WAV files.
+
+This requirement is deliberately about *availability*, not curation. It is satisfied by a library that is legally unambiguous, broad enough to exercise every code path, and reproducible in CI. `LIB-01` and `LIB-02` remain the standard the reviewed factory library has to meet, and this requirement does not lower either of them.
+
+Acceptance criteria:
+
+- A single documented command generates the starter library and its manifest, and a second publishes both to the project's Cloud Storage bucket. Neither requires a developer to hold production credentials on their own machine.
+- Generation is deterministic: the same source produces byte-identical audio and a byte-identical manifest, so a rebuild that changes nothing produces no diff and re-uploads nothing.
+- The library covers every one-shot role in the sample plan's taxonomy, spans the required genre set, and is large enough to build a complete loop in each — a minimum of 200 assets for the alpha.
+- Every asset carries the full manifest record: stable prefixed ID, immutable content-addressed storage key and checksum, role, tags, audio metadata, waveform peaks, licence, and provenance. Validation fails CI when any of those is missing, as it does for the factory library.
+- Every asset has approved raw-redistribution rights with archived evidence. Content whose rights are unresolved does not ship, and an unapproved content source is not a way to satisfy this requirement faster.
+- Content may be generated or acquired. Acquired content comes only from sources whose licence permits redistributing the raw files, is selected file-by-file rather than by bulk import, is pinned to a checksum recorded at review time, and carries a captured copy of the licence statement as it stood when the file was taken. A checksum that no longer matches fails the ingest rather than being re-pinned automatically.
+- The manifest records that this is the testing library rather than approved factory content, so hardening and the content audit can tell the two apart and neither is mistaken for the other.
+- Assets are served with the cross-origin and cache headers Web Audio decoding, range requests, and offline export require, and the bucket denies client writes.
+- The starter library is superseded, not extended, by the reviewed factory library. Replacing it must not require changing how the app resolves, caches, or exports an asset.
+
+The rights position, generation recipe, and intake state for the shipped starter library are recorded in [`docs/licenses/starter-library-v1.md`](./licenses/starter-library-v1.md).
+
 **LIB-01 - Curated assets (P0)**  
 The browser contains a licensed, quality-controlled library of one-shots, loops, and instrument presets.
 
@@ -1184,6 +1203,7 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 - Separate transport/audio runtime from Solid components and define incremental synchronization.
 - Build the hybrid DOM/Canvas 2D arrangement renderer vertical slice and automated performance fixture before expanding timeline features.
 - Add reference project fixtures and deterministic audio tests.
+- Build and publish the `LIB-00` starter library of sounds for testing, with its manifest, validator, and Cloud Storage delivery. This is not the curated factory library — it is the real audio every later slice is built and tested against, and it lands early for the same reason the deploy pipeline does: so the library browser, sampler, drum machine, caching, and export are exercised against real assets from their first commit rather than against two prototype WAV files.
 
 Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers; that vertical slice is reachable in a deployed build on Firebase Hosting, deployed by CI and identifiable by its release SHA; and the slice's Phase 0 analytics events and a deliberately triggered test error are observable end to end from that deployed build. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
 
@@ -1290,6 +1310,7 @@ Owns licensed sample/preset metadata, genre coverage, starter templates, test fi
 Produces:
 
 - Validated asset manifest with provenance.
+- The `LIB-00` starter library of sounds for testing, its generation and publishing pipeline, and the Cloud Storage bucket configuration that serves it.
 - Audited bundled-content demo projects for every required initial genre.
 - Reference projects covering empty, typical, maximum, migrated, and corrupt states.
 - The Firebase Hosting deploy pipeline, rules/index deployment, release stamping, rollback procedure, and deployed-build smoke test.

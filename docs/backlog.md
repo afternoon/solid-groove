@@ -65,7 +65,7 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 | G5: AI complete | `REL-002` done | Private-alpha hardening and user validation |
 | G6: Private alpha ready | `REL-003` done | P1 work may be unparked by the product owner |
 
-Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally but makes everything after it verifiable in a real environment, and every later task's definition of done assumes it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. `FND-003` through `FND-005` depend on the canonical domain schema. Broad feature parallelism begins only after `FND-009` proves the contracts together.
+Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `CNT-000` joins them once `FND-001b` closes: it produces the real audio every later slice is tested against, owns only `scripts/` and the Storage configuration, and touches no domain, command, or audio boundary, so it never blocks and is never blocked by the contract tasks. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally but makes everything after it verifiable in a real environment, and every later task's definition of done assumes it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. `FND-003` through `FND-005` depend on the canonical domain schema. Broad feature parallelism begins only after `FND-009` proves the contracts together.
 
 ## 3. Product decisions
 
@@ -313,6 +313,32 @@ Build a disposable but representative hybrid virtualized-DOM/Canvas-2D spike, an
 - [ ] Baseline numbers are checked in together with the hardware, browser, and browser version that produced them. Results are not described as meeting or missing a budget when they were not measured on the baseline device.
 - [ ] Reusable projection/geometry contracts and benchmark fixtures are retained and stay renderer-agnostic; experimental UI is not treated as production merely because it benchmarks well.
 
+### CNT-000 - Starter library of sounds for testing
+
+`Dependencies: FND-001b`<br>
+`PRD: LIB-00; LIB-01; LIB-02; sample-library sections 3, 5, 6, 9, 10, 12`
+
+Ship a real, playable library of at least 200 one-shots and publish it to Cloud Storage, so every task after this one is built and tested against real audio and real metadata instead of the two prototype WAV files in `public/samples`.
+
+This is the **testing** library, not the factory library. `CNT-001` owns the production ingestion pipeline and `CNT-002` owns the curated, musically reviewed content; this task is what stops both of them from being a prerequisite for building the browser, sampler, drum machine, caching, and export at all.
+
+It depends on `FND-001b` for the Firebase project and CI credentials, and on nothing else — it touches no domain type, command, or audio boundary, so it may run in parallel with the whole of `FND-002` onwards.
+
+Content comes from two routes, and both are in scope. **Synthesis** by this repository is the baseline: it needs no counterparty, runs offline, and is reproducible byte-for-byte, so the library always builds. **Acquisition** covers the section 4.1 and 4.2 sources whose licence permits redistributing raw files, and is the only way to reach the section 6.4 organic-source floor.
+
+Acquisition is a review workflow, not a download button. Every file is declared in an approved-source registry, selected individually, pinned to a checksum by a named reviewer, and verified on every fetch. An agent must not add a crawl mode, a search-API mode, or any bulk import: section 4.2 forbids importing search results blindly, and a tool that can do it will eventually be used to do it. Model-generated audio is out of scope entirely (PRD section 5 non-goals).
+
+- [ ] One documented command generates the library and manifest; a second publishes both to Cloud Storage. Publishing works from CI credentials and needs no production key on a developer machine.
+- [ ] Acquired CC0 content flows through the same manifest, validator, delivery layout, and uploader as generated content, differing only in its provenance record. The build works with nothing acquired, so CI never depends on a third-party host being up.
+- [ ] Nothing is fetched that is not declared in the source registry and pinned in a committed lockfile with a named reviewer. A checksum mismatch, an unapproved licence, or acquired audio claiming to be synthesized fails validation. Each source's licence statement is captured and committed at fetch time, and a failed capture blocks ingest.
+- [ ] Generation is deterministic — identical audio bytes and an identical manifest across runs and machines — so a no-op rebuild uploads nothing and produces no diff.
+- [ ] Every one-shot role in the sample-plan taxonomy is covered, every genre in `LIB-02` has usable material across at least three families, and the section 6.4 experimental and dry-material floors are met.
+- [ ] Every asset carries a stable prefixed ID, content-addressed storage key, checksum, role and tags from the controlled vocabulary, audio metadata, waveform peaks, licence with archived evidence, and a reproducible generation recipe. Validation fails CI on any missing or invalid field, on a duplicate ID or name, on byte-identical assets, and on a name carrying third-party branding.
+- [ ] The manifest declares this as the testing tier and records the honest intake state; nothing is marked `approved` without human musical review, and these counts do not satisfy the section 6.1 milestones.
+- [ ] Storage rules deny all client writes, factory content is publicly readable, and no other path is reachable. Objects are served with content types, immutable cache headers for content-addressed assets, and CORS allowing Web Audio decoding, range requests, and offline export.
+- [ ] Validation runs in CI, and the upload path has been exercised end to end against the Firebase Storage emulator with evidence of idempotency on a second run.
+- [ ] `docs/sample-library.md`, `docs/testing.md`, `README.md`, and `.env.example` document the commands, the bucket layout, the credentials, and the fact that this library is superseded rather than extended by `CNT-002`.
+
 ### FND-009 - Foundation vertical slice gate
 
 `Dependencies: FND-001c, FND-003, FND-004, FND-005, FND-007, FND-008`<br>
@@ -488,10 +514,12 @@ Implement transpose, velocity scale, quantize, duplicate, clear, and seeded rhyt
 
 ### CNT-001 - Asset manifest and ingestion pipeline
 
-`Status: todo | Owner: unassigned | Dependencies: FND-002`<br>
+`Status: todo | Owner: unassigned | Dependencies: FND-002, CNT-000`<br>
 `PRD: LIB-01; sample-library sections 4, 8, 10 | Evidence: pending`
 
 Implement stable asset manifests, validation, generated indexes, waveform/metadata hooks, provenance, export policy, and missing/corrupt isolation.
+
+`CNT-000` already ships a manifest schema, validator, content-addressed delivery, and provenance for the synthesized starter library. This task generalizes that pipeline to acquired content — per-asset licence evidence, quarantine and intake states, loops with verified BPM/bar/seam metadata, presets, and multisample instruments — rather than starting a second one beside it.
 
 - [ ] One-shots, loops, presets, and derived files have stable IDs and required searchable metadata.
 - [ ] CI rejects duplicate IDs, absent licences, invalid audio metadata, broken paths, loop seams, and unapproved redistribution policy.
@@ -516,9 +544,13 @@ Implement search, filters, keyboard navigation, sync-aware audition, insertion, 
 
 Acquire, commission, normalize, tag, review, and ingest the initial distributable library according to `docs/sample-library.md`.
 
+This **supersedes** the `CNT-000` starter library rather than extending it. Starter assets are testing content at the `metadata-review` intake state; they are promoted only by passing the same section 11 musical review as everything else, and the ones that do not pass are retired. Replacing them must not change how the app resolves, caches, or exports an asset.
+
 - [ ] Every asset has auditable source, licence evidence, attribution, and raw/stem/Ableton export policy.
 - [ ] Role, character, tempo, key, tuning, loudness, seam, duplicate, and browser-decode audits pass.
 - [ ] Library counts and coverage meet the approved sample plan without superficial genre relabelling.
+- [ ] The section 6.4 organic and recorded-source floor is met with real recorded or commissioned material — the gap `CNT-000` reports and cannot close by synthesis.
+- [ ] Every starter asset is either promoted through musical review or deprecated, and deprecating one does not break a project that already references it.
 
 ### LOOP-014 - Shortcut registry and mapping guide
 

@@ -1,0 +1,222 @@
+{
+	"generatedAt": "2026-07-25T18:21:48.916Z",
+	"task": "FND-008",
+	"note": "Phase 0 renderer-spike baseline. Not gated on the PRD 9.3 performance budgets, which bind at ARR-005/HARD-001 on the physical baseline device — see docs/arrangement-renderer-spike.md. These numbers are whatever this run's hardware measured, recorded honestly rather than compared against a target.",
+	"hardware": {
+		"platform": "linux",
+		"arch": "x64",
+		"cpuModel": "AMD EPYC 9V74 80-Core Processor",
+		"cpuCount": 4,
+		"totalMemoryGiB": 15.6
+	},
+	"browser": {
+		"name": "chromium",
+		"version": "151.0.7922.34"
+	},
+	"results": [
+		{
+			"trackCount": 20,
+			"trace": "scroll",
+			"frameCount": 120,
+			"medianFrameMs": 16.60000000000582,
+			"p95FrameMs": 17.199999999998546,
+			"medianDrawMs": 0.6999999999970896,
+			"p95DrawMs": 0.9050000000082943,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 120,
+				"content": 120,
+				"interaction": 120
+			},
+			"heapUsedMB": 18.405914306640625
+		},
+		{
+			"trackCount": 20,
+			"trace": "zoom",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.910000000007855,
+			"medianDrawMs": 0.6000000000058208,
+			"p95DrawMs": 0.9000000000087311,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 120,
+				"content": 120,
+				"interaction": 120
+			},
+			"heapUsedMB": 15.354156494140625
+		},
+		{
+			"trackCount": 20,
+			"trace": "seek",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.80000000000291,
+			"medianDrawMs": 0.10000000000582077,
+			"p95DrawMs": 0.19999999999708962,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 0,
+				"content": 0,
+				"interaction": 120
+			},
+			"heapUsedMB": 12.111663818359375
+		},
+		{
+			"trackCount": 20,
+			"trace": "selection",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.70000000001164,
+			"medianDrawMs": 0.09999999999126885,
+			"p95DrawMs": 0.19999999999708962,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 0,
+				"content": 0,
+				"interaction": 120
+			},
+			"heapUsedMB": 12.77923583984375
+		},
+		{
+			"trackCount": 40,
+			"trace": "scroll",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 17,
+			"medianDrawMs": 0.8000000000029104,
+			"p95DrawMs": 1.105000000005384,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 120,
+				"content": 120,
+				"interaction": 120
+			},
+			"heapUsedMB": 14.495849609375
+		},
+		{
+			"trackCount": 40,
+			"trace": "zoom",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.89999999999418,
+			"medianDrawMs": 0.8000000000029104,
+			"p95DrawMs": 1.105000000005384,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 120,
+				"content": 120,
+				"interaction": 120
+			},
+			"heapUsedMB": 16.307830810546875
+		},
+		{
+			"trackCount": 40,
+			"trace": "seek",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.710000000009313,
+			"medianDrawMs": 0.09999999999126885,
+			"p95DrawMs": 0.19999999999708962,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 0,
+				"content": 0,
+				"interaction": 120
+			},
+			"heapUsedMB": 14.495849609375
+		},
+		{
+			"trackCount": 40,
+			"trace": "selection",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.80000000000291,
+			"medianDrawMs": 0.10000000000582077,
+			"p95DrawMs": 0.19999999999708962,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 0,
+				"content": 0,
+				"interaction": 120
+			},
+			"heapUsedMB": 14.495849609375
+		},
+		{
+			"trackCount": 50,
+			"trace": "scroll",
+			"frameCount": 120,
+			"medianFrameMs": 16.60000000000582,
+			"p95FrameMs": 17,
+			"medianDrawMs": 0.8000000000029104,
+			"p95DrawMs": 1.2050000000112047,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 120,
+				"content": 120,
+				"interaction": 120
+			},
+			"heapUsedMB": 13.637542724609375
+		},
+		{
+			"trackCount": 50,
+			"trace": "zoom",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.90000000000873,
+			"medianDrawMs": 0.6999999999970896,
+			"p95DrawMs": 1.1000000000058208,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 120,
+				"content": 120,
+				"interaction": 120
+			},
+			"heapUsedMB": 15.354156494140625
+		},
+		{
+			"trackCount": 50,
+			"trace": "seek",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.71000000001077,
+			"medianDrawMs": 0.09999999999126885,
+			"p95DrawMs": 0.19999999999708962,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 0,
+				"content": 0,
+				"interaction": 120
+			},
+			"heapUsedMB": 13.637542724609375
+		},
+		{
+			"trackCount": 50,
+			"trace": "selection",
+			"frameCount": 120,
+			"medianFrameMs": 16.69999999999709,
+			"p95FrameMs": 16.80000000000291,
+			"medianDrawMs": 0.10000000000582077,
+			"p95DrawMs": 0.19999999999708962,
+			"longTaskCount": 0,
+			"longTaskTotalMs": 0,
+			"redrawCounts": {
+				"background": 0,
+				"content": 0,
+				"interaction": 120
+			},
+			"heapUsedMB": 14.495849609375
+		}
+	]
+}
