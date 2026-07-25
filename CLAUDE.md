@@ -59,6 +59,15 @@ src/
 │   ├── types.ts             # Prototype types (removed by the FND-009 slice)
 │   ├── project.ts           # Project store and update functions
 │   └── dataService.ts       # Firestore data access layer
+├── selection/          # Selection/focus state (UI-only, never persisted)
+│   ├── types.ts             # SelectionScope union and SelectionState
+│   └── selection.ts         # Pure selection ops + project-driven reconciliation
+├── projection/         # Read-only consumer projections built from a Project
+│   ├── fingerprint.ts       # Deterministic content fingerprint for change detection
+│   ├── audioProjection.ts        # Audio engine's song projection (PRD 9.7)
+│   ├── arrangementProjection.ts  # Arrangement renderer's projection (PRD 9.3)
+│   ├── projectSummaryProjection.ts # Dashboard/persistence summary (PRD 9.9)
+│   └── assistantContextProjection.ts # Compact assistant context (PRD 9.8)
 ├── routes/             # File-based routing
 │   ├── index.tsx            # Home/landing page
 │   ├── dashboard.tsx        # User dashboard
