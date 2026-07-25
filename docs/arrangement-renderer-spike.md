@@ -123,19 +123,34 @@ on the physical baseline device.
 
 ## Baseline status
 
-**No baseline is checked in by this change.** `bun run test:browser:install`
-downloads Playwright's browser binaries from `cdn.playwright.dev`; the
-sandbox this task was implemented in has no outbound access to that host
-(the same constraint `docs/testing.md` already documents for
-`bun run test:browser`), so `bench:arrangement` could not actually be
-executed here. `playwright test --config=playwright.bench.config.ts --list`
-does not need the binaries and confirms the harness itself is wired up
-correctly (12 tests: 3 track counts × 4 traces).
+**A baseline is checked in**: `docs/perf/arrangement-spike-baseline.json`.
+`bun run test:browser:install` downloads Playwright's browser binaries from
+`cdn.playwright.dev`; the sandbox this task (and its review pass) ran in has
+no outbound access to that host (the same constraint `docs/testing.md`
+already documents for `bun run test:browser`), so `bench:arrangement` could
+not run there. Rather than land the task with the checkbox unmet, the review
+pass ran it for real on this repository's own GitHub Actions CI, which does
+have outbound access — see `.github/workflows/bench-arrangement.yml`
+(`workflow_dispatch`, currently invokable only once it exists on the default
+branch; a one-off job on `ci.yml`'s existing push trigger produced this
+baseline in the meantime) — and committed the resulting numbers here.
 
-Per PRD 9.3's own instruction — "Measuring a spike on unrepresentative
-hardware and declaring the budget met is a worse outcome than an honest early
-number" — no fabricated or borrowed numbers are substituted here. The next
-agent or developer with browser access should run:
+Recorded on: Linux x64, AMD EPYC 9V74 80-Core Processor (GitHub Actions
+`ubuntu-latest` runner, 4 vCPUs allotted, 15.6 GiB RAM), Chromium 151.0.7922.34.
+This is **not** the PRD 9.3 physical baseline device (a 2019 13-inch Intel
+MacBook Pro class machine, 8 GB RAM, integrated graphics) — that device binds
+at `ARR-005`/`HARD-001`, not here — but per PRD 9.3's own instruction,
+"Measuring a spike on unrepresentative hardware and declaring the budget met
+is a worse outcome than an honest early number," so this is recorded exactly
+as measured rather than adjusted or waited on. All twelve traces land at or
+near the ~16.7 ms vsync cadence with p95 no higher than ~17.2 ms and zero
+long tasks — a CI headless-Chromium runner under light load is not a
+substitute for the physical baseline device's stress case, so this should
+read as "the harness runs correctly end-to-end and produces sane numbers,"
+not as evidence the PRD 9.3 budgets are met.
+
+To refresh this baseline later (e.g. on the physical baseline device, or
+after a renderer change worth re-measuring), run:
 
 ```sh
 bun run test:browser:install   # one-time
@@ -143,9 +158,9 @@ bun run bench:arrangement
 ```
 
 and commit the resulting `docs/perf/arrangement-spike-baseline.json`, noting
-the machine (ideally the physical baseline device from PRD 9.3: a 2019
-13-inch Intel MacBook Pro class machine, 8 GB RAM, integrated graphics — but
-any machine is an honest starting point per the "Phase 0 owes... honest
-recorded numbers" instruction) and browser version it ran on, which the
-harness records automatically from `os` and Playwright's own browser
-metadata.
+the machine and browser version it ran on, which the harness records
+automatically from `os` and Playwright's own browser metadata. From a
+sandbox without `cdn.playwright.dev` access, dispatch
+`bench-arrangement.yml` instead (`gh workflow run bench-arrangement.yml` or
+the Actions UI) and pull the `arrangement-spike-baseline` artifact it
+uploads.
