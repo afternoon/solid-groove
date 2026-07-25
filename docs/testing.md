@@ -35,6 +35,8 @@ Config: `vitest.config.ts`. `vite-plugin-solid` sets `test.environment: "jsdom"`
 
 Each render in `renderSynth()` (the test file's shared helper) also disposes the `ToneInstrument` it builds once the offline render resolves. Without that, repeated back-to-back offline renders in the same process left native audio nodes bound to torn-down `OfflineAudioContext`s undisposed, which showed up as rare, wildly out-of-range sample values (filter-energy assertions occasionally comparing against values like `1e30`) once the suite could actually run past context creation. Always dispose the built instrument after consuming its rendered buffer in new tests that follow this pattern.
 
+`renderSynth()` also **copies** the rendered samples (`Float32Array.from(buffer.getChannelData(0))`) instead of returning the view directly. `getChannelData` returns a view backed by memory the native `AudioBuffer` owns, and the buffer becomes unreachable as soon as the helper returns — so the backing store could be freed while a test still held the view, and an assertion would then compare against whatever had taken over that memory. This was the remaining cause of the same out-of-range symptom after the disposal fix: `src/audio/ToneInstrument.test.ts` failed about 1 run in 10 (measured at 3/30) with an `hfEnergy` of `1571` for a signal bounded by ±1, and 0/30 once the samples were copied. **Never hold a `getChannelData` view beyond the lifetime of its `AudioBuffer`** — copy it out at the boundary, as `scripts/starter-library/acquire/audio.mjs` also does when decoding.
+
 ## Firebase Emulator suite
 
 ```sh

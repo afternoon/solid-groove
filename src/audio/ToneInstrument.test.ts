@@ -70,7 +70,14 @@ async function renderSynth(
 		SAMPLE_RATE,
 	);
 	built?.dispose();
-	return buffer.getChannelData(0);
+	// Copy the samples out rather than returning the view `getChannelData`
+	// hands back. That view is backed by memory the native `AudioBuffer` owns,
+	// and `buffer` becomes unreachable the moment this function returns — so the
+	// backing store could be freed while a test still held the view, and the
+	// filter-energy assertions would then compare against whatever now occupied
+	// that memory. That is the source of the intermittent wildly-out-of-range
+	// readings (an hfEnergy of 1571 for a signal bounded by ±1).
+	return Float32Array.from(buffer.getChannelData(0));
 }
 
 describe("ToneInstrument filter", () => {
