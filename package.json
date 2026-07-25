@@ -43,6 +43,8 @@
 		"pretest:browser": "node scripts/generate-samples.mjs",
 		"test:browser": "playwright test",
 		"test:browser:install": "playwright install --with-deps chromium firefox webkit",
+		"prebench:arrangement": "node scripts/generate-samples.mjs",
+		"bench:arrangement": "playwright test --config=playwright.bench.config.ts",
 		"typecheck": "tsc --noEmit",
 		"check": "tsc --noEmit && biome check --write",
 		"check:ci": "tsc --noEmit && biome check"

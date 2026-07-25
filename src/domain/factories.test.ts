@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { SCHEMA_VERSION } from "./entities";
 import { createBlankProject } from "./factories";
-import { createReferenceProject, createSliceFixtureProject } from "./fixtures";
+import {
+	ARRANGEMENT_SPIKE_TRACK_COUNTS,
+	createArrangementSpikeFixtures,
+	createArrangementSpikeProject,
+	createReferenceProject,
+	createSliceFixtureProject,
+} from "./fixtures";
 import { createSeededIdFactory, idPattern } from "./ids";
 import { MASTER_VOLUME, SONG_TEMPO } from "./parameters";
 import { isProject, parseProject } from "./parse";
@@ -125,5 +131,84 @@ describe("fixtures", () => {
 		});
 		expect(parseProject(small).ok).toBe(true);
 		expect(small.song.tracks).toHaveLength(4);
+	});
+
+	it("adds audio tracks with audioLoop clips when waveformTrackCount is set", () => {
+		const project = createReferenceProject({
+			trackCount: 10,
+			waveformTrackCount: 4,
+		});
+		expect(parseProject(project).ok).toBe(true);
+
+		const audioTracks = project.song.tracks.filter(
+			(track) => track.type === "audio",
+		);
+		expect(audioTracks).toHaveLength(4);
+		expect(audioTracks.every((track) => track.instrument === null)).toBe(true);
+
+		const clipsByTrack = new Map(
+			project.clips.map((clip) => [clip.trackId, clip]),
+		);
+		for (const track of audioTracks) {
+			expect(clipsByTrack.get(track.id)?.content.kind).toBe("audioLoop");
+		}
+		const instrumentTracks = project.song.tracks.filter(
+			(track) => track.type === "instrument",
+		);
+		for (const track of instrumentTracks) {
+			expect(clipsByTrack.get(track.id)?.content.kind).toBe("notes");
+		}
+		// The waveform-bearing asset is registered on the song, not orphaned.
+		const audioLoopAssetIds = new Set(
+			project.clips
+				.map((clip) => clip.content)
+				.filter((content) => content.kind === "audioLoop")
+				.map((content) => content.assetId),
+		);
+		for (const assetId of audioLoopAssetIds) {
+			expect(project.song.assets.some((asset) => asset.id === assetId)).toBe(
+				true,
+			);
+		}
+	});
+});
+
+describe("FND-008 arrangement spike fixtures", () => {
+	it.each(ARRANGEMENT_SPIKE_TRACK_COUNTS)(
+		"builds a valid, ten-minute, dense, automated %i-track arrangement",
+		(trackCount) => {
+			const project = createArrangementSpikeProject(trackCount);
+			const lengthTicks = minutesToTicks(10, project.song.tempo);
+
+			expect(parseProject(project).ok).toBe(true);
+			expect(project.song.tracks).toHaveLength(trackCount);
+			expect(project.song.placements.length).toBeGreaterThan(trackCount);
+			expect(project.song.automation.length).toBeGreaterThan(0);
+
+			const waveformTracks = project.song.tracks.filter(
+				(track) => track.type === "audio",
+			);
+			expect(waveformTracks.length).toBeGreaterThan(0);
+
+			const lastTick = Math.max(
+				...project.song.placements.map(
+					(placement) => placement.startTicks + placement.durationTicks,
+				),
+			);
+			expect(lastTick).toBeLessThanOrEqual(lengthTicks);
+		},
+	);
+
+	it("is deterministic across calls at the same track count", () => {
+		expect(createArrangementSpikeProject(20)).toEqual(
+			createArrangementSpikeProject(20),
+		);
+	});
+
+	it("builds all three benchmark track counts keyed by count", () => {
+		const fixtures = createArrangementSpikeFixtures();
+		for (const trackCount of ARRANGEMENT_SPIKE_TRACK_COUNTS) {
+			expect(fixtures[trackCount].song.tracks).toHaveLength(trackCount);
+		}
 	});
 });
