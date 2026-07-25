@@ -89,6 +89,7 @@ bun run dev          # Start development server
 # Build and production
 bun run build        # Build for production
 bun run start        # Start production server
+bun run clean        # Delete build/dev caches and test output (see docs/testing.md)
 
 # Code quality
 bun run check        # Run Biome linting and formatting (auto-fix)

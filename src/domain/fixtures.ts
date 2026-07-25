@@ -249,6 +249,15 @@ export interface ReferenceProjectOptions extends FixtureOptions {
 	placementCount?: number;
 	/** Automation lanes. The PRD reference project uses 100. */
 	automationLaneCount?: number;
+	/**
+	 * How many of `trackCount` tracks are `audio` tracks holding an
+	 * `audioLoop` clip instead of an `instrument` track holding a note clip.
+	 * The PRD reference project puts "waveforms on 20 tracks" — the FND-008
+	 * renderer spike needs this to exercise waveform-preview placements, not
+	 * just note-preview ones. Defaults to `0` so the plain reference project
+	 * (used by existing schema/persistence tests) is unchanged.
+	 */
+	waveformTrackCount?: number;
 }
 
 /**
@@ -265,6 +274,14 @@ export function createReferenceProject(
 	const minutes = options.minutes ?? 10;
 	const placementCount = options.placementCount ?? 2_500;
 	const automationLaneCount = options.automationLaneCount ?? 100;
+	const waveformTrackCount = Math.min(
+		trackCount,
+		Math.max(0, options.waveformTrackCount ?? 0),
+	);
+	const waveformTrackIndices = evenlySpacedIndices(
+		trackCount,
+		waveformTrackCount,
+	);
 
 	const lengthTicks = minutesToTicks(minutes, tempo);
 	const barCount = Math.floor(lengthTicks / TICKS_PER_BAR);
@@ -282,30 +299,54 @@ export function createReferenceProject(
 		sampleRate: 44_100,
 		channelCount: 2,
 	});
+	const loopAsset =
+		waveformTrackCount > 0
+			? createAsset(context, {
+					name: "Reference waveform loop",
+					kind: "loop",
+					storageRef: "samples/reference/waveform-loop.wav",
+					url: "/samples/reference/waveform-loop.wav",
+					durationSeconds: 4,
+					sampleRate: 44_100,
+					channelCount: 2,
+				})
+			: null;
 
 	const placementsPerTrack = Math.ceil(placementCount / trackCount);
 
 	for (let index = 0; index < trackCount; index += 1) {
+		const isWaveformTrack = waveformTrackIndices.has(index);
+
 		const track = createTrack(context, {
-			name: `Track ${index + 1}`,
+			name: isWaveformTrack ? `Loop ${index + 1}` : `Track ${index + 1}`,
 			order: index,
-			instrument: createSamplerInstrument(asset.id),
+			type: isWaveformTrack ? "audio" : "instrument",
+			instrument: isWaveformTrack ? null : createSamplerInstrument(asset.id),
 		});
 		tracks.push(track);
 
-		const clip = createNoteClip(context, {
-			trackId: track.id,
-			name: `Clip ${index + 1}`,
-			lengthTicks: TICKS_PER_BAR * 2,
-			events: [0, 2, 4, 6, 8, 10, 12, 14].map((sixteenth) =>
-				createNoteEvent(context, {
-					startTicks: sixteenth * TICKS_PER_SIXTEENTH,
-					durationTicks: TICKS_PER_SIXTEENTH,
-					pitch: 36 + (index % 24),
-					velocity: 0.6 + (index % 4) / 10,
-				}),
-			),
-		});
+		const clip =
+			isWaveformTrack && loopAsset
+				? createAudioLoopClip(context, {
+						trackId: track.id,
+						assetId: loopAsset.id,
+						name: `Loop clip ${index + 1}`,
+						lengthTicks: TICKS_PER_BAR * 2,
+						sourceTempo: tempo,
+					})
+				: createNoteClip(context, {
+						trackId: track.id,
+						name: `Clip ${index + 1}`,
+						lengthTicks: TICKS_PER_BAR * 2,
+						events: [0, 2, 4, 6, 8, 10, 12, 14].map((sixteenth) =>
+							createNoteEvent(context, {
+								startTicks: sixteenth * TICKS_PER_SIXTEENTH,
+								durationTicks: TICKS_PER_SIXTEENTH,
+								pitch: 36 + (index % 24),
+								velocity: 0.6 + (index % 4) / 10,
+							}),
+						),
+					});
 		clips.push(clip);
 
 		const spacingBars = Math.max(
@@ -368,7 +409,7 @@ export function createReferenceProject(
 		}),
 		song: {
 			...createEmptySong(tempo),
-			assets: [asset],
+			assets: loopAsset ? [asset, loopAsset] : [asset],
 			tracks,
 			placements,
 			automation,
@@ -376,4 +417,61 @@ export function createReferenceProject(
 		},
 		clips,
 	});
+}
+
+/** `count` indices spread as evenly as possible across `[0, total)`. */
+function evenlySpacedIndices(total: number, count: number): Set<number> {
+	const indices = new Set<number>();
+	if (count <= 0 || total <= 0) return indices;
+	const stride = total / count;
+	for (let slot = 0; slot < count; slot += 1) {
+		indices.add(Math.min(total - 1, Math.floor(slot * stride)));
+	}
+	return indices;
+}
+
+/** Track counts the `FND-008` renderer spike's fixtures cover (backlog task). */
+export const ARRANGEMENT_SPIKE_TRACK_COUNTS = [20, 40, 50] as const;
+export type ArrangementSpikeTrackCount =
+	(typeof ARRANGEMENT_SPIKE_TRACK_COUNTS)[number];
+
+/**
+ * The `FND-008` renderer-spike fixture: a ten-minute, densely placed,
+ * automated arrangement at one of the spike's three benchmark track counts,
+ * with a proportional share of `audio` tracks holding `audioLoop` clips so
+ * waveform-preview placements (not just note-preview ones) get exercised.
+ * Built on {@link createReferenceProject} so it stays the same shape as the
+ * PRD 9.3 reference arrangement, just parameterized by track count.
+ */
+export function createArrangementSpikeProject(
+	trackCount: ArrangementSpikeTrackCount,
+	options: FixtureOptions = {},
+): Project {
+	return createReferenceProject({
+		...options,
+		seed: options.seed ?? `arrangement-spike-${trackCount}`,
+		trackCount,
+		// 50 placements/track matches the PRD 9.3 reference arrangement's
+		// density (50 tracks * 50 = 2,500, its "at least 2,500 clip
+		// placements"). Per-frame draw cost is proportional to placement
+		// density, not track count alone, so the 50-track benchmark must reach
+		// the reference arrangement's occupancy, not a sparser stand-in.
+		placementCount: trackCount * 50,
+		automationLaneCount: Math.round(trackCount * 2),
+		waveformTrackCount: Math.round(trackCount * 0.4),
+	});
+}
+
+/** All three `FND-008` benchmark fixtures, keyed by track count. */
+export function createArrangementSpikeFixtures(
+	options: FixtureOptions = {},
+): Record<ArrangementSpikeTrackCount, Project> {
+	const entries = ARRANGEMENT_SPIKE_TRACK_COUNTS.map(
+		(trackCount) =>
+			[trackCount, createArrangementSpikeProject(trackCount, options)] as const,
+	);
+	return Object.fromEntries(entries) as Record<
+		ArrangementSpikeTrackCount,
+		Project
+	>;
 }
