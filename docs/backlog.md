@@ -150,7 +150,7 @@ Decide the trusted-creator/source allowlist and how a creator or video enters it
 `Needed by: LOOP-001b, HARD-003`<br>
 `Evidence: pending`
 
-Decide whether product analytics are on by default with an opt-out or require opt-in, what the user-facing disclosure says, how long event and error data are retained, and any regional constraints. `FND-001c` builds the opt-out mechanism and the disclosure hook regardless; this decision sets the default state and the wording. It does not block `FND-001c`, and it must be settled before the cohort is invited in `HARD-005`.
+Decide whether product analytics are on by default with an opt-out or require opt-in, what the user-facing disclosure says, how long event and error data are retained, and any regional constraints. The disclosure covers two processors — Google Analytics for product events and Sentry for error monitoring ([ADR 0001](./adr/0001-sentry-for-error-monitoring.md)) — and a regional constraint Sentry's SaaS regions cannot meet would reopen the self-hosting option that ADR rejected. `FND-001c` builds the opt-out mechanism and the disclosure hook regardless; this decision sets the default state and the wording. It does not block `FND-001c`, and it must be settled before the cohort is invited in `HARD-005`.
 
 ## 4. Phase 0: foundations
 
@@ -183,7 +183,7 @@ This task claims the deploy pipeline. It extends the `FND-001` CI workflows rath
 
 - [ ] `bun run build` output deploys to Firebase Hosting through one documented command and automatically from CI on merge to the default branch, using credentials held in CI rather than on a developer machine.
 - [ ] Firestore rules and indexes deploy from the same pipeline as the application; a failing rules or index step fails the deploy instead of shipping code that its deployed rules do not match.
-- [ ] The build stamps the git commit SHA into the client, the app can display it, and it is available to the `FND-001c` analytics and error events.
+- [ ] The build stamps the git commit SHA into the client, the app can display it, and it is available to the `FND-001c` analytics and error events. The pipeline has a place for `FND-001c` to add its release registration and source-map upload without restructuring the deploy job.
 - [ ] A post-deploy smoke test against the hosted URL covers app load, anonymous session start, project open, and audio start after a user gesture; a failed smoke test is a failed deploy.
 - [ ] Rollback to the previous Hosting release and its matching rules revision is documented and has been performed once as evidence, not just described.
 - [ ] No secret, provider credential, or privileged configuration reaches the client bundle; a check fails the build if one does.
@@ -194,21 +194,26 @@ This task claims the deploy pipeline. It extends the `FND-001` CI workflows rath
 ### FND-001c - Analytics and error-monitoring foundation
 
 `Dependencies: FND-001b`<br>
-`PRD: OPS-02, OPS-03; 11; 14 Feature definition of done`
+`PRD: OPS-02, OPS-03; 11; 14 Feature definition of done; ADR 0001`
 
 Build the typed analytics catalog, the logging boundary, and the error-reporting path that every later task uses. This task owns the contract; it does not instrument other tasks' features. Each Phase 1-4 feature task ships its own events through this boundary as part of its definition of done.
+
+Error monitoring uses Sentry via `@sentry/solidstart`, per [ADR 0001](./adr/0001-sentry-for-error-monitoring.md). The SDK sits *behind* this task's reporting boundary: application code calls the boundary, never the SDK, so the platform stays replaceable. Pin the SDK version — the SolidStart package is beta.
 
 This is a **contract-owning task**: it lands before Phase 1 fans out, and changing the published catalog shape later is its own issue.
 
 - [ ] One typed catalog module declares every PRD OPS-02 event, its parameters, and their allowed values or buckets. Event and parameter strings appear nowhere else, and logging an unregistered event or parameter is a type error.
 - [ ] The logging boundary attaches the release SHA, surface, and account-type user property automatically, and callers cannot pass free text where an enum or bucket is required.
 - [ ] Phase 0 events are emitted and verified from a deployed build: `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception`. Later-phase events exist in the catalog as declarations without call sites.
-- [ ] Global `error`/`unhandledrejection` handlers and Solid error boundaries report an error once, with release SHA, browser and engine version, area, stable error code, and redacted message, to an `exception` event and a Cloud Functions sink writing to Cloud Logging. Duplicate reports from one error collapse; a failing sink cannot stop the transport, block editing, lose unsaved state, or recurse.
-- [ ] Fatal and non-fatal errors are distinguishable so a crash-free session rate is computable.
-- [ ] Source maps are produced and retained for the deployed revision and are not served publicly from Hosting.
-- [ ] A test rejects any event or error parameter carrying a project, track, clip, section, or asset name, assistant text, a user-entered string, a URL, or a token. It runs over the whole catalog so it also covers events added by later tasks.
-- [ ] A test runs the core journey with the analytics transport failing and asserts no behavioral difference; a user-facing opt-out disables collection without disabling any product capability. `DEC-009` sets the default state and disclosure wording and does not block this task.
-- [ ] A deliberately triggered test error is shown to arrive in the sink with its release SHA, and `docs/testing.md` documents how to verify events and errors against the deployed build.
+- [ ] Global `error`/`unhandledrejection` handlers and Solid error boundaries report an error once, with release SHA, browser and engine version, area, stable error code, and redacted message, through one application-owned reporting boundary that fans out to the GA4 `exception` counter event and to Sentry. Application code cannot reach the Sentry SDK directly. Duplicate reports from one error collapse; a failing or blocked reporter cannot stop the transport, block editing, lose unsaved state, or recurse.
+- [ ] Fatal and non-fatal errors are distinguishable, and crash-free session rate comes from Sentry release-health session tracking rather than a hand-built derivation.
+- [ ] Sentry is configured for a product whose value is the user's private music: `sendDefaultPii` off, console breadcrumbs disabled rather than filtered, network and DOM breadcrumbs scrubbed in `beforeSend`/`beforeBreadcrumb`, and **Session Replay not enabled** — turning it on needs a superseding ADR.
+- [ ] Source maps are produced for the deployed revision, uploaded to Sentry through an authenticated channel from the `FND-001b` pipeline, and never served publicly from Hosting.
+- [ ] The SDK initializes lazily after first paint with a minimal integration set, is not loaded on the marketing landing page, and its bundle cost is measured against the PRD section 10 interactive budget rather than assumed acceptable.
+- [ ] A test rejects any event or error parameter carrying a project, track, clip, section, or asset name, assistant text, a user-entered string, a URL, or a token. It runs over the whole catalog **and over the Sentry payload by exercising the scrubbing functions directly**, so it also covers events and breadcrumbs added by later tasks.
+- [ ] A test runs the core journey with both the analytics and error transports failing and asserts no behavioral difference; a user-facing opt-out disables collection without disabling any product capability. `DEC-009` sets the default state and disclosure wording and does not block this task.
+- [ ] A deliberately triggered test error is shown arriving in Sentry from the deployed build with its release SHA and a symbolicated stack trace, and `docs/testing.md` documents how to verify events and errors against that build.
+- [ ] The Sentry DSN, auth token, and org/project configuration are handled as deploy configuration: the auth token lives in CI only, and the client DSN is documented as a public-by-design value rather than a secret.
 
 ### FND-002 - Canonical schema-v1 domain model
 
@@ -790,7 +795,7 @@ Run facilitated loop-to-track sessions with the target cohort, categorize blocke
 Produce the traceability matrix and release report for every P0 acceptance criterion, supported browser, reference scenario, security control, and performance/reliability budget.
 
 - [ ] All P0 criteria are evidenced, deferred explicitly by the product owner, or block release.
-- [ ] Production configuration, Firebase rules/indexes/functions, monitoring, rollback, and incident ownership are verified against the deployed production build, including a practised rollback and a live error reaching the monitoring sink with its release SHA.
+- [ ] Production configuration, Firebase rules/indexes/functions, monitoring, rollback, and incident ownership are verified against the deployed production build, including a practised rollback and a live error reaching Sentry with its release SHA and a symbolicated stack trace.
 - [ ] No open critical/high defect, unexplained resource leak, save-loss path, or unlicensed asset remains.
 
 ## 9. Parked post-alpha backlog

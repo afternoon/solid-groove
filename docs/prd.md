@@ -738,18 +738,22 @@ Acceptance criteria:
 **OPS-03 - Error and crash monitoring (P0)**  
 Crash-free sessions, save success, and successful audio start are release gates in section 11. They are only gates if they are observable, so the alpha reports uncaught errors and the specific failures those gates depend on.
 
-Firebase Crashlytics does not support the Firebase Web SDK, so "crash reporting" here means browser error reporting, not Crashlytics. The alpha uses global `error` and `unhandledrejection` handlers plus the section 10 error boundaries, which record an `exception` analytics event (OPS-02) and send a structured report to a Cloud Functions endpoint that writes to Cloud Logging. Adopting a third-party error-tracking service instead requires an ADR under the section 9.1 rules.
+Firebase Crashlytics does not support the Firebase Web SDK, so "crash reporting" here means browser error reporting, not Crashlytics. The alpha uses **Sentry**, through the official SolidStart SDK, as its error and crash monitoring platform. This is a committed decision recorded in [ADR 0001](./adr/0001-sentry-for-error-monitoring.md); replacing it requires a superseding ADR under the section 9.1 rules.
+
+The application's own reporting boundary — global `error` and `unhandledrejection` handlers plus the section 10 error boundaries — remains the single place errors are captured. Sentry is the transport and backend behind that boundary, not a substitute for it, so application code never calls the Sentry SDK directly and the platform stays replaceable. Google Analytics keeps the `exception` counter event from OPS-02 so the section 11 measures compute from one catalog; Sentry is where an engineer debugs a specific error, not where the product dashboard is assembled.
 
 Acceptance criteria:
 
 - An uncaught error in any surface — editor, assistant, audio engine, renderer, export, or persistence — is reported once with the release SHA, browser and engine version, the area it came from, a stable error code, and a redacted message. Duplicate reports from one error are collapsed.
-- Reports carry no project content, assistant text, user-entered strings, asset URLs, or tokens, consistent with OPS-02 and the section 10 logging rules.
-- Fatal and non-fatal errors are distinguishable, so a crash-free session rate can be computed from sessions with and without a fatal `exception`.
-- Production stack traces are readable: source maps are produced and retained for the deployed revision, and are not served publicly from Hosting.
+- Reports carry no project content, assistant text, user-entered strings, asset URLs, or tokens, consistent with OPS-02 and the section 10 logging rules. Because a third-party SDK collects more by default than a hand-built reporter does, this is enforced positively rather than assumed: `sendDefaultPii` is off, console breadcrumbs are disabled rather than filtered, network and DOM breadcrumbs are scrubbed before transmission, and the OPS-02 parameter-content test extends to the Sentry payload by exercising the scrubbing functions directly, so it also covers breadcrumbs and events added later.
+- Session Replay is not enabled. It would capture the arrangement, clip names, and assistant conversation on screen; turning it on requires a superseding ADR.
+- Fatal and non-fatal errors are distinguishable, and crash-free session rate is reported by the platform's release-health session tracking rather than derived by hand.
+- Production stack traces are readable: source maps are produced for the deployed revision, uploaded to the monitoring platform through an authenticated channel, and never served publicly from Hosting.
 - The reliability gates have dedicated events, not just generic exceptions: `save_failed` / `save_recovered`, `audio_start_failed`, `audio_underrun`, `asset_load_failed`, and `export_failed` each carry an actionable error code.
-- Error reporting is best-effort and non-blocking. A failing reporting endpoint cannot stop the transport, block editing, lose unsaved state, or recurse into another report.
-- Monitoring is verified end to end from a deployed build: a deliberately triggered test error appears in the sink with its release SHA, and the check runs as part of accepting `FND-001c`.
-- Firebase Performance Monitoring may be enabled for page-load and network traces (P1). It never substitutes for the section 9.3 lab measurements of arrangement frame budgets.
+- Error reporting is best-effort and non-blocking. A failing, blocked, or ad-blocker-suppressed reporter cannot stop the transport, block editing, lose unsaved state, or recurse into another report. Reports are not tunnelled through a first-party endpoint in the alpha; the resulting undercount is documented rather than engineered around.
+- Monitoring does not compromise the section 10 performance budgets: the SDK initializes lazily after first paint with a minimal integration set and is not loaded on the marketing landing page.
+- Monitoring is verified end to end from a deployed build: a deliberately triggered test error arrives with its release SHA and a symbolicated stack trace, and the check runs as part of accepting `FND-001c`.
+- Firebase Performance Monitoring may be enabled for page-load and network traces (P1). Neither it nor the monitoring platform's own tracing substitutes for the section 9.3 lab measurements of arrangement frame budgets.
 
 ## 8. Interaction requirements
 
@@ -855,6 +859,8 @@ Acceptance criteria:
 
 These are hard decisions for the alpha, not provisional preferences. An implementation agent must not replace one with an alternative without a written architecture decision record (ADR) approved by the product owner.
 
+Approved ADRs live in [`docs/adr`](./adr), numbered and named after the decision they record. An ADR states the context, the decision, its consequences including what it costs, and the alternatives rejected. A decision that changes a row in the table below updates that row to point at its ADR; the ADR is the reasoning, and this table stays the index.
+
 | Area | Alpha decision | Commitment |
 | --- | --- | --- |
 | Product surface | Desktop web application | No Electron/native wrapper or mobile-editor parity in the alpha |
@@ -866,7 +872,7 @@ These are hard decisions for the alpha, not provisional preferences. An implemen
 | Privileged backend | Cloud Functions for Firebase | AI-provider calls, privileged validation, quotas, and future background work execute server-side; provider code never ships to the client |
 | Hosting and deployment | Firebase Hosting, deployed from CI | One hosted environment for the alpha — the production project — with rules and indexes deployed from the same pipeline (OPS-01) |
 | Product analytics | Google Analytics for Firebase | User-action events come from one typed catalog (OPS-02); no second analytics vendor and no ad-hoc event strings |
-| Error monitoring | Browser error handlers plus a Cloud Functions sink into Cloud Logging | Crashlytics does not support the Firebase Web SDK; a third-party error tracker requires an ADR (OPS-03) |
+| Error monitoring | Sentry, behind the application's own reporting boundary | Crashlytics does not support the Firebase Web SDK, and Cloud Error Reporting cannot symbolicate browser traces without publicly served source maps; see [ADR 0001](./adr/0001-sentry-for-error-monitoring.md) |
 | Arrangement rendering | Hybrid DOM plus Canvas 2D | DOM provides application structure and semantics; viewport-sized canvases render dense timeline graphics |
 | Test foundation | Vitest plus browser end-to-end and audio fixture tests | Performance and compatibility require real-browser tests in addition to unit tests |
 
@@ -1124,7 +1130,8 @@ These are alpha targets and must be measured before being treated as launch guar
 - Asset uploads are type/size validated and served with safe content headers when P1 import ships.
 - Users are told what project data is sent to an AI provider and can decline assistant use without losing manual DAW features.
 - Users are told what product analytics and error reports are collected (OPS-02, OPS-03) and can decline product analytics without losing any DAW or assistant capability.
-- Analytics and error events never carry project content, user-entered text, asset URLs, or authentication tokens, and this is enforced by a test rather than by reviewer memory.
+- Analytics and error events never carry project content, user-entered text, asset URLs, or authentication tokens, and this is enforced by a test rather than by reviewer memory. The test covers the third-party monitoring payload as well as our own event catalog, because that SDK collects breadcrumbs by default that the rule forbids.
+- Error monitoring uses a third-party processor (Sentry, per ADR 0001). It is disclosed to the user alongside product analytics, its retention and regional storage are part of the same product decision, and no additional processor is added to the alpha without an ADR.
 - The alpha's single hosted environment is the production project (OPS-01). Test suites run against the emulator suite and must not write to it, and deployment credentials live in CI rather than on developer machines.
 
 ## 11. Success measures
@@ -1148,7 +1155,7 @@ Every measure below is derived from the OPS-02 event catalog; the event names th
 - Percentage of applied assistant proposals manually edited afterward, indicating ownership rather than passive generation. (`assistant_proposal_applied`, `assistant_result_edited`.)
 - Project reopen rate after 1 and 7 days. (`project_opened` with `project_age_bucket` and `is_first_open`.)
 - Save failures, missing assets, audio start failures, scheduling underruns, and export failures. (`save_failed`, `save_recovered`, `asset_load_failed`, `audio_start_failed`, `audio_underrun`, `export_failed`.)
-- Crash-free session rate. (Sessions with and without a fatal `exception`, per OPS-03.)
+- Crash-free session rate. (Reported by the OPS-03 monitoring platform's release-health session tracking, with the GA4 `exception` counter available to cross-check it against the other measures.)
 
 ### Qualitative validation
 
@@ -1167,7 +1174,7 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 ### Phase 0 - Foundations
 
 - **Deploy the application to Firebase Hosting first.** Before the domain model, the audio runtime, or the renderer spike, establish the deploy pipeline so every subsequent slice can be checked in a real browser against real Firebase services. Rules and indexes deploy with the app, the release SHA is stamped into the build, and rollback is documented. The alpha's only hosted environment is the production project (OPS-01).
-- Land the analytics and error-monitoring foundation immediately after: the typed OPS-02 event catalog, the logging boundary every later feature uses, and the OPS-03 error handlers, boundaries, and reporting sink. Phase 0 emits the events it can honestly emit — `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception` — and publishes the catalog contract that every Phase 1-4 feature task extends with its own events. Instrumentation is never deferred to a cleanup task.
+- Land the analytics and error-monitoring foundation immediately after: the typed OPS-02 event catalog, the logging boundary every later feature uses, and the OPS-03 error handlers, error boundaries, and Sentry integration with its scrubbing and source-map upload. Phase 0 emits the events it can honestly emit — `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception` — and publishes the catalog contract that every Phase 1-4 feature task extends with its own events. Instrumentation is never deferred to a cleanup task.
 - Implement the canonical schema-v1 domain model in TypeScript with runtime validation, prefixed stable IDs, integer musical time at 192 PPQ, explicit invariants, and deterministic serialization. Existing prototype state and documents require no migration or backwards compatibility.
 - Implement the shared parameter-definition mechanism — how a parameter declares its range, unit, default, clamping policy, and automation capability, and how UI, command validation, the audio engine, and assistant tools all read one definition. Phase 0 defines the mechanism and the few parameters the vertical slice needs. Per-device values for instruments and effects are authored with their devices in Phase 1, where they can be tuned by ear, and must not be invented into schema v1 ahead of them.
 - Implement the section 9.9 v1 Firebase persistence layout in code, including the metadata/song/clip document tiers, the song-document size budget and its chunk overflow path, domain-to-storage mapping, ownership metadata, schema and revision fields, indexes, security rules, and repository adapters.
@@ -1286,7 +1293,7 @@ Produces:
 - Audited bundled-content demo projects for every required initial genre.
 - Reference projects covering empty, typical, maximum, migrated, and corrupt states.
 - The Firebase Hosting deploy pipeline, rules/index deployment, release stamping, rollback procedure, and deployed-build smoke test.
-- The typed OPS-02 analytics catalog and logging boundary, the OPS-03 error handlers and reporting sink, and the tests that keep project content out of both. Other workstreams add their own events through this contract; this workstream does not instrument their features for them.
+- The typed OPS-02 analytics catalog and logging boundary, the OPS-03 error-reporting boundary and its Sentry integration including scrubbing and release/source-map upload, and the tests that keep project content out of both. Other workstreams add their own events through this contract; this workstream does not instrument their features for them.
 - Release dashboard for the success and guardrail measures.
 - Manual test script for supported browsers and audio devices.
 
@@ -1360,6 +1367,7 @@ A feature is done only when:
 | Production is the alpha's only hosted environment | A bad deploy reaches the cohort, or a deploy damages real project data | Deploy rules/indexes with the app from one pipeline, stamp and smoke-test every release, keep rollback documented and practised, hold incomplete journeys behind feature flags, and revisit the single-environment decision before public launch or before data loss would be unrecoverable |
 | Instrumentation is deferred to a later "telemetry" task | The alpha ends with no baseline for its own success measures and cannot tell which features were tried first | Ship the event catalog in Phase 0, make analytics part of the definition of done for every feature task, and assign each catalogued event to the task that builds the feature it measures |
 | Analytics or error reports leak project content | A privacy failure in the product whose value is the user's own music | One typed catalog with enumerated parameters, prefixed IDs instead of names, a test that rejects content-bearing parameters and covers events added later, and a user-facing opt-out that costs no capability |
+| A third-party monitoring SDK collects more than the product allows | Clip names, console output, or on-screen music reach an external processor by default rather than by decision | Keep the reporting boundary in application code, disable console breadcrumbs and `sendDefaultPii`, scrub before transmission, forbid Session Replay without a superseding ADR, and extend the content test to the SDK payload rather than only our own events |
 
 ## 16. Decisions and open questions
 
@@ -1368,7 +1376,8 @@ A feature is done only when:
 - Desktop web is the alpha production surface.
 - The application deploys to Firebase Hosting from CI starting in Phase 0, and the private alpha runs on one hosted environment — the production Firebase project. Rules and indexes deploy with the app; the decision is revisited before public launch.
 - Product analytics use Google Analytics for Firebase through one typed event catalog (OPS-02), and shipping a feature's events is part of that feature's definition of done rather than a later instrumentation pass.
-- Crash and error monitoring use browser error handlers plus a Cloud Functions sink into Cloud Logging, because Firebase Crashlytics does not support the Web SDK. A third-party error tracker would require an ADR.
+- Crash and error monitoring use Sentry behind the application's own reporting boundary ([ADR 0001](./adr/0001-sentry-for-error-monitoring.md)). Firebase Crashlytics does not support the Web SDK, and Google Cloud Error Reporting cannot symbolicate browser stack traces without publicly serving our source maps — which `OPS-03` forbids. Session Replay stays off, and replacing Sentry requires a superseding ADR.
+- Approved architecture decision records live in [`docs/adr`](./adr); the section 9.1 stack table indexes them.
 - Current and previous major Firefox, Chrome, and Edge are the gating P0 browsers, with a 2019 Intel MacBook Pro class machine as the performance baseline. Safari is best-effort for the alpha and expected to return to gating status before public release.
 - Musical time is integer ticks at 192 PPQ, matching Tone.js transport resolution so stored and scheduled time need no conversion.
 - Persistent IDs are type-prefixed 21-character nanoids, for example `trk_V1StGXR8Z5jdHi6B_myT`.
@@ -1399,7 +1408,7 @@ A feature is done only when:
 - What volume normalization or loudness target should WAV export use, if any?
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
-- What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, and how long is event and error data retained? (`DEC-009`.)
+- What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)
 - When does the alpha stop deploying only to production: what triggers adding a separate staging or preview environment, and does it happen before the cohort grows or before public launch?
 - For the later-vision tutorial video recommendations (AI-08), which creators or sources are trusted, how does a video enter the curated set, and what embedding and data-sharing terms are acceptable? (Post-alpha.)
 
