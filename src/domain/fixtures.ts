@@ -9,6 +9,9 @@ import type {
 import {
 	bars,
 	createAsset,
+	createAudioLoopClip,
+	createDrumMachineInstrument,
+	createDrumPad,
 	createEmptySong,
 	createFactoryContext,
 	createNoteClip,
@@ -115,6 +118,125 @@ export function createSliceFixtureProject(
 			placements: [placement],
 		},
 		clips: [clip],
+	});
+}
+
+/**
+ * The drum-machine fixture: a `drumMachine` track whose pads reference assets
+ * and whose clip triggers those pads, plus an audio track holding an
+ * `audioLoop` clip. It covers the clip-content and instrument variants the
+ * slice fixture deliberately leaves out.
+ */
+export function createDrumMachineFixtureProject(
+	options: FixtureOptions = {},
+): Project {
+	const context = fixtureContext(options, "drum-machine-fixture");
+	const tempo = options.tempo ?? 120;
+	const song = createEmptySong(tempo);
+
+	const kickAsset = createAsset(context, {
+		name: "909 Bass Drum",
+		storageRef: "samples/house/drums/bd/909-bd.wav",
+		url: "/samples/house/drums/bd/909-bd.wav",
+		durationSeconds: 0.6,
+		sampleRate: 44_100,
+		channelCount: 1,
+	});
+	const clapAsset = createAsset(context, {
+		name: "909 Clap",
+		storageRef: "samples/house/drums/cp/909-cp.wav",
+		url: "/samples/house/drums/cp/909-cp.wav",
+		durationSeconds: 0.4,
+		sampleRate: 44_100,
+		channelCount: 1,
+	});
+	const loopAsset = createAsset(context, {
+		name: "Break loop",
+		kind: "loop",
+		storageRef: "samples/house/loops/break-120.wav",
+		url: "/samples/house/loops/break-120.wav",
+		durationSeconds: 4,
+		sampleRate: 44_100,
+		channelCount: 2,
+	});
+
+	const kickPad = createDrumPad(context, {
+		name: "BD",
+		assetId: kickAsset.id,
+	});
+	const clapPad = createDrumPad(context, {
+		name: "CP",
+		assetId: clapAsset.id,
+	});
+
+	const drumTrack = createTrack(context, {
+		name: "Drums",
+		order: 0,
+		instrument: createDrumMachineInstrument([kickPad, clapPad]),
+	});
+	const audioTrack = createTrack(context, {
+		name: "Break",
+		order: 1,
+		type: "audio",
+		instrument: null,
+	});
+
+	const drumClip = createNoteClip(context, {
+		trackId: drumTrack.id,
+		name: "Beat",
+		lengthTicks: TICKS_PER_BAR,
+		events: [
+			...[0, 4, 8, 12].map((sixteenth) =>
+				createNoteEvent(context, {
+					startTicks: sixteenth * TICKS_PER_SIXTEENTH,
+					durationTicks: TICKS_PER_SIXTEENTH,
+					padId: kickPad.id,
+				}),
+			),
+			...[4, 12].map((sixteenth) =>
+				createNoteEvent(context, {
+					startTicks: sixteenth * TICKS_PER_SIXTEENTH,
+					durationTicks: TICKS_PER_SIXTEENTH,
+					padId: clapPad.id,
+				}),
+			),
+		],
+	});
+
+	const loopClip = createAudioLoopClip(context, {
+		trackId: audioTrack.id,
+		assetId: loopAsset.id,
+		name: "Break loop",
+		lengthTicks: TICKS_PER_BAR * 2,
+		sourceTempo: tempo,
+	});
+
+	return assertProject({
+		metadata: createProjectMetadata(context, {
+			ownerId: options.ownerId ?? "user_fixture",
+			name: "Drum machine fixture",
+			template: "blank",
+		}),
+		song: {
+			...song,
+			assets: [kickAsset, clapAsset, loopAsset],
+			tracks: [drumTrack, audioTrack],
+			placements: [
+				createPlacement(context, {
+					clipId: drumClip.id,
+					trackId: drumTrack.id,
+					startTicks: 0,
+					durationTicks: TICKS_PER_BAR,
+				}),
+				createPlacement(context, {
+					clipId: loopClip.id,
+					trackId: audioTrack.id,
+					startTicks: 0,
+					durationTicks: TICKS_PER_BAR * 2,
+				}),
+			],
+		},
+		clips: [drumClip, loopClip],
 	});
 }
 

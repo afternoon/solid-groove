@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { SCHEMA_VERSION } from "./entities";
-import { createSliceFixtureProject } from "./fixtures";
+import {
+	createDrumMachineFixtureProject,
+	createSliceFixtureProject,
+} from "./fixtures";
 import { createSeededIdFactory } from "./ids";
 import {
 	assertProject,
@@ -48,8 +51,18 @@ interface MutableTrack extends JsonRecord {
 	order: number;
 	devices: (JsonRecord & { id: string; order: number })[];
 	sends: (JsonRecord & { returnId: string })[];
-	instrument: (JsonRecord & { assetId?: string | null }) | null;
+	instrument:
+		| (JsonRecord & {
+				assetId?: string | null;
+				pads?: MutableDrumPad[];
+		  })
+		| null;
 	mixer: JsonRecord & { volume: number };
+}
+
+interface MutableDrumPad extends JsonRecord {
+	id: string;
+	assetId: string | null;
 }
 
 interface MutablePlacement extends JsonRecord {
@@ -70,6 +83,7 @@ interface MutableClip extends JsonRecord {
 	lengthTicks: number;
 	content: JsonRecord & {
 		kind: string;
+		assetId?: string;
 		events: (JsonRecord & { id: string; startTicks: number })[];
 	};
 }
@@ -81,6 +95,33 @@ function baseProject(): MutableProject {
 	return JSON.parse(
 		JSON.stringify(serializeProject(createSliceFixtureProject())),
 	) as MutableProject;
+}
+
+/** A serialized copy of the drum-machine/audio-loop fixture, safe to mutate. */
+function drumMachineProject(): MutableProject {
+	return JSON.parse(
+		JSON.stringify(serializeProject(createDrumMachineFixtureProject())),
+	) as MutableProject;
+}
+
+function audioLoopClip(project: MutableProject): MutableClip {
+	const clip = project.clips.find(
+		(entry) => entry.content.kind === "audioLoop",
+	);
+	if (!clip) {
+		throw new Error("fixture has no audioLoop clip");
+	}
+	return clip;
+}
+
+function drumPads(project: MutableProject): MutableDrumPad[] {
+	const pads = project.song.tracks.find(
+		(track) => track.instrument?.kind === "drumMachine",
+	)?.instrument?.pads;
+	if (!pads || pads.length === 0) {
+		throw new Error("fixture has no drum pads");
+	}
+	return pads;
 }
 
 function expectIssue<T>(result: ParseResult<T>, code: DomainIssueCode): void {
@@ -262,6 +303,59 @@ describe("parseProject", () => {
 		expectIssue(parseProject(fixedParameter), "invalid_automation");
 	});
 
+	it("rejects automation targeting a device the track does not own", () => {
+		const input = baseProject();
+		input.song.automation = [
+			{
+				id: ids("automation"),
+				target: {
+					scope: "trackDevice",
+					trackId: input.song.tracks[0].id,
+					deviceId: ids("device"),
+					parameterId: "track.volume",
+				},
+				interpolation: "linear",
+				points: [{ tick: 0, value: 0 }],
+			},
+		];
+		expectIssue(parseProject(input), "dangling_reference");
+	});
+
+	it("rejects automation targeting a send the track does not have", () => {
+		const input = baseProject();
+		input.song.automation = [
+			{
+				id: ids("automation"),
+				target: {
+					scope: "send",
+					trackId: input.song.tracks[0].id,
+					returnId: ids("return"),
+					parameterId: "track.sendLevel",
+				},
+				interpolation: "linear",
+				points: [{ tick: 0, value: 0 }],
+			},
+		];
+		expectIssue(parseProject(input), "dangling_reference");
+	});
+
+	it("rejects automation targeting a missing return bus", () => {
+		const input = baseProject();
+		input.song.automation = [
+			{
+				id: ids("automation"),
+				target: {
+					scope: "return",
+					returnId: ids("return"),
+					parameterId: "return.volume",
+				},
+				interpolation: "linear",
+				points: [{ tick: 0, value: 0 }],
+			},
+		];
+		expectIssue(parseProject(input), "dangling_reference");
+	});
+
 	it("rejects automation points that are unordered or out of range", () => {
 		const unordered = baseProject();
 		const unorderedLane = lane(
@@ -344,6 +438,28 @@ describe("parseProject", () => {
 	});
 });
 
+describe("audio loop clips and drum pads", () => {
+	it("accepts the drum-machine fixture", () => {
+		const input = drumMachineProject();
+		const result = parseProject(input);
+		expect(result.ok, `issues: ${JSON.stringify(result)}`).toBe(true);
+		expect(audioLoopClip(input).content.kind).toBe("audioLoop");
+		expect(drumPads(input).length).toBeGreaterThan(0);
+	});
+
+	it("rejects an audio-loop clip that references a missing asset", () => {
+		const input = drumMachineProject();
+		audioLoopClip(input).content.assetId = ids("asset");
+		expectIssue(parseProject(input), "dangling_reference");
+	});
+
+	it("rejects a drum pad that references a missing asset", () => {
+		const input = drumMachineProject();
+		drumPads(input)[0].assetId = ids("asset");
+		expectIssue(parseProject(input), "dangling_reference");
+	});
+});
+
 describe("persistence tier parsers", () => {
 	it("parses metadata, song, and clip documents separately", () => {
 		const input = baseProject();
@@ -356,6 +472,24 @@ describe("persistence tier parsers", () => {
 		const input = baseProject();
 		input.song.tracks[0].order = 4;
 		expectIssue(parseSong(input.song), "invalid_order");
+	});
+
+	it("rejects a standalone song whose placement references a missing track", () => {
+		const input = baseProject();
+		input.song.placements[0].trackId = ids("track");
+		expectIssue(parseSong(input.song), "dangling_reference");
+	});
+
+	it("applies clip-local invariants to a standalone clip document", () => {
+		const outsideClip = baseProject();
+		outsideClip.clips[0].content.events[0].startTicks =
+			outsideClip.clips[0].lengthTicks + 10_000;
+		expectIssue(parseClip(outsideClip.clips[0]), "invalid_musical_time");
+
+		const duplicateEvent = baseProject();
+		const events = duplicateEvent.clips[0].content.events;
+		events[1].id = events[0].id;
+		expectIssue(parseClip(duplicateEvent.clips[0]), "duplicate_id");
 	});
 
 	it("refuses a future schema version on the metadata document", () => {

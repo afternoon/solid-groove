@@ -109,9 +109,21 @@ export function parseSong(input: unknown): ParseResult<Song> {
 	return issues.length > 0 ? { ok: false, issues } : result;
 }
 
-/** Parses one `projects/{projectId}/clips/{clipId}` document. */
+/**
+ * Parses one `projects/{projectId}/clips/{clipId}` document.
+ *
+ * A clip document carries no track or asset context, so this applies every
+ * invariant that a clip can be judged on alone. Owner-dependent rules (pad
+ * ownership, audio-loop asset) are checked in the aggregate path, which holds
+ * the track and asset sets.
+ */
 export function parseClip(input: unknown): ParseResult<Clip> {
-	return parseWith(clipSchema, input);
+	const result = parseWith(clipSchema, input);
+	if (!result.ok) {
+		return result;
+	}
+	const issues = checkClipInvariants(result.value, []);
+	return issues.length > 0 ? { ok: false, issues } : result;
 }
 
 /** Parses and fully validates a whole project aggregate. */
@@ -208,7 +220,8 @@ export function checkProjectIntegrity(project: Project): DomainIssue[] {
 				),
 			);
 		}
-		issues.push(...checkClipContent(clip, owner, assetIds, [...path], seenIds));
+		issues.push(...checkClipInvariants(clip, [...path], seenIds));
+		issues.push(...checkClipOwnership(clip, owner, assetIds, [...path]));
 	});
 
 	project.song.placements.forEach((placement, index) => {
@@ -419,12 +432,48 @@ function checkInstrument(
 	return issues;
 }
 
-function checkClipContent(
+/**
+ * Clip-local integrity: everything a clip document can be judged on without its
+ * owning track or the song's assets. Both `parseClip` and the aggregate path run
+ * this, so the two entry points agree on what a valid clip is.
+ *
+ * Aggregate callers pass their `seenIds` set so event IDs are also unique across
+ * the whole project.
+ */
+export function checkClipInvariants(
+	clip: Clip,
+	path: ReadonlyArray<string | number>,
+	seenIds: Set<string> = new Set(),
+): DomainIssue[] {
+	const issues: DomainIssue[] = [];
+	if (clip.content.kind !== "notes") {
+		return issues;
+	}
+	clip.content.events.forEach((event, index) => {
+		const eventPath = [...path, "content", "events", index] as const;
+		claimId(seenIds, event.id, [...eventPath, "id"], issues);
+		if (event.startTicks >= clip.lengthTicks) {
+			issues.push(
+				issue(
+					"invalid_musical_time",
+					[...eventPath, "startTicks"],
+					`Note ${event.id} starts at ${event.startTicks} which is outside its ${clip.lengthTicks}-tick clip`,
+				),
+			);
+		}
+	});
+	return issues;
+}
+
+/**
+ * Clip integrity that depends on the clip's owner and the song's assets, and so
+ * is only decidable in the aggregate path.
+ */
+function checkClipOwnership(
 	clip: Clip,
 	owner: Track | undefined,
 	assetIds: ReadonlySet<string>,
 	path: ReadonlyArray<string | number>,
-	seenIds: Set<string>,
 ): DomainIssue[] {
 	const issues: DomainIssue[] = [];
 	if (clip.content.kind === "audioLoop") {
@@ -446,16 +495,6 @@ function checkClipContent(
 	);
 	clip.content.events.forEach((event, index) => {
 		const eventPath = [...path, "content", "events", index] as const;
-		claimId(seenIds, event.id, [...eventPath, "id"], issues);
-		if (event.startTicks >= clip.lengthTicks) {
-			issues.push(
-				issue(
-					"invalid_musical_time",
-					[...eventPath, "startTicks"],
-					`Note ${event.id} starts at ${event.startTicks} which is outside its ${clip.lengthTicks}-tick clip`,
-				),
-			);
-		}
 		if (event.trigger.kind === "pad" && !padIds.has(event.trigger.padId)) {
 			issues.push(
 				issue(

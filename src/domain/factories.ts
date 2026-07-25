@@ -147,6 +147,12 @@ export function createDrumPad(
 	};
 }
 
+export function createDrumMachineInstrument(
+	pads: readonly DrumPad[] = [],
+): Instrument {
+	return { kind: "drumMachine", pads: [...pads], parameters: {} };
+}
+
 export function createReturnBus(
 	context: DomainFactoryContext,
 	options: { name: string; order: number },
@@ -224,6 +230,38 @@ export function createNoteClip(
 		color: options.color ?? TRACK_COLORS[0],
 		lengthTicks: toTicks(options.lengthTicks ?? TICKS_PER_BAR),
 		content: { kind: "notes", events: options.events ?? [] },
+	};
+}
+
+export interface CreateAudioLoopClipOptions {
+	trackId: TrackId;
+	assetId: AssetId;
+	name: string;
+	lengthTicks?: number;
+	color?: string;
+	sourceTempo?: number;
+	startOffsetTicks?: number;
+}
+
+export function createAudioLoopClip(
+	context: DomainFactoryContext,
+	options: CreateAudioLoopClipOptions,
+): Clip {
+	return {
+		id: context.ids("clip"),
+		trackId: options.trackId,
+		name: options.name,
+		color: options.color ?? TRACK_COLORS[0],
+		lengthTicks: toTicks(options.lengthTicks ?? TICKS_PER_BAR),
+		content: {
+			kind: "audioLoop",
+			assetId: options.assetId,
+			sourceTempo: clampParameterValue(
+				SONG_TEMPO,
+				options.sourceTempo ?? SONG_TEMPO.defaultValue,
+			),
+			startOffsetTicks: toTicks(options.startOffsetTicks ?? 0),
+		},
 	};
 }
 
