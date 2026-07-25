@@ -1,0 +1,13 @@
+{
+	"indexes": [
+		{
+			"collectionGroup": "projects",
+			"queryScope": "COLLECTION",
+			"fields": [
+				{ "fieldPath": "ownerId", "order": "ASCENDING" },
+				{ "fieldPath": "modifiedAt", "order": "DESCENDING" }
+			]
+		}
+	],
+	"fieldOverrides": []
+}

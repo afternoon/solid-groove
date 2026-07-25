@@ -16,6 +16,7 @@
 // server to answer it).
 
 import type { Project, SamplerInstrument, Song, Track } from "../model/types";
+import type { RawProjectDocuments } from "../persistence/documents";
 
 const isNodeRuntime =
 	typeof process !== "undefined" && !!process.versions?.node;
@@ -65,6 +66,22 @@ function toFixtureTimestamp(iso: string): Project["createdAt"] {
 		seconds: Math.floor(date.getTime() / 1000),
 		nanoseconds: 0,
 	} as Project["createdAt"];
+}
+
+/**
+ * Loads a stored schema-vN project fixture from
+ * `public/fixtures/persistence/v{version}-{name}.json`.
+ *
+ * This is the fixture convention the persistence migration harness follows
+ * (see `src/persistence/migrations.ts`): each supported source version keeps a
+ * file of the documents exactly as they were stored, so a migration added after
+ * schema v1 is tested against real historical state rather than against state
+ * reconstructed by today's encoder.
+ */
+export async function loadStoredProjectFixture(
+	fileName: string,
+): Promise<RawProjectDocuments> {
+	return loadFixtureJson<RawProjectDocuments>(`persistence/${fileName}`);
 }
 
 /** Loads the canonical fixture project used across unit, component, and browser suites. */
