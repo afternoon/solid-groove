@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Implement Solid Groove Phase 0 (FND-001..009) — Sonnet implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to execute Phase 0 of docs/backlog.md. Pass args to run a subset, e.g. args: ["FND-001","FND-002"].',
+    'Run to execute Phase 0 of docs/backlog.md. Name tasks to run a subset, either positionally (solid-groove-phase-0 FND-003 FND-004) or as args: ["FND-003","FND-004"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
   phases: [
     { title: 'Tooling', detail: 'FND-001 — test, CI and emulator foundation' },
     { title: 'Contracts', detail: 'FND-002 domain schema, then command kernel, repository and projections', model: 'opus' },
@@ -64,38 +64,67 @@ const TASKS = [
 // Normalise the subset request, and fail loud on anything malformed.
 //
 // The rule that matters: a filter the script cannot understand must stop the
-// run, never degrade into "run every task". An earlier version used
+// run, never degrade into "run every task". An early version used
 // `Array.isArray(args) ? ... : null`, so a non-array `args` fell through to
 // null and ran the entire phase — that once opened PRs for six tasks nobody
-// asked for.
+// asked for. Every branch below either yields a non-empty id list or throws.
 //
-// Rejecting every non-array outright was too strict, though: some callers hand
-// `args` to the script already JSON-encoded ('["FND-001"]'), which made the
-// subset feature unusable rather than merely safe. So decode that form
-// explicitly. A string that is not a JSON array, and any other non-array type,
-// still throws.
-const parseTaskIds = (raw) => {
-  if (raw === undefined || raw === null) return null
+// Three accepted forms, because callers differ in what they can send:
+//
+//   real array          ["FND-003", "FND-004"]
+//   JSON-encoded array  '["FND-003","FND-004"]'   the Workflow tool's transport
+//                                                 stringifies args, so this is
+//                                                 what usually arrives
+//   positional list     'FND-003 FND-004'         what a slash-command run
+//                       'FND-003,FND-004'         sends, since the Skill tool
+//                                                 passes args as one string
+//
+// Ids are matched case-insensitively; they are validated against TASKS below,
+// so a typo is still an error rather than a silently dropped filter.
+const normaliseId = (id) => (typeof id === 'string' ? id.trim().toUpperCase() : id)
+
+const toIdList = (raw) => {
   if (Array.isArray(raw)) return raw
-  if (typeof raw === 'string') {
+  if (typeof raw !== 'string') {
+    throw new Error(`args must be task ids, got ${typeof raw}: ${JSON.stringify(raw)}.`)
+  }
+
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+
+  // A leading bracket or brace means the caller meant JSON. Honour that reading
+  // so a malformed JSON filter is reported as malformed JSON, rather than being
+  // split on whitespace into tokens that fail later as "unknown task id".
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
     let decoded
     try {
-      decoded = JSON.parse(raw)
+      decoded = JSON.parse(trimmed)
     } catch {
-      throw new Error(
-        `args must be an array of task ids; got a string that is not JSON: ${raw}`,
-      )
+      throw new Error(`args looks like JSON but does not parse: ${raw}`)
     }
     if (!Array.isArray(decoded)) {
-      throw new Error(
-        `args must be an array of task ids; the string decoded to ${typeof decoded}: ${raw}`,
-      )
+      throw new Error(`args must be a list of task ids; it decoded to ${typeof decoded}: ${raw}`)
     }
     return decoded
   }
-  throw new Error(
-    `args must be an array of task ids, got ${typeof raw}: ${JSON.stringify(raw)}.`,
-  )
+
+  return trimmed.split(/[\s,]+/)
+}
+
+// Only an *absent* filter means "run everything". A filter that is present but
+// empty — '', '   ', [], '[]' — is ambiguous: it reads equally as "run nothing"
+// and as "a list I meant to populate and did not", and the second is how the
+// six-unwanted-PRs run happened. Refuse it and make the caller say which.
+const parseTaskIds = (raw) => {
+  if (raw === undefined || raw === null) return null
+  const ids = toIdList(raw).map(normaliseId)
+  if (!ids.length) {
+    throw new Error(
+      'args was present but empty, which is ambiguous. Omit args entirely to run the ' +
+        'whole phase, or name the tasks to run, e.g. "FND-003 FND-004".',
+    )
+  }
+  return ids
 }
 
 const taskIds = parseTaskIds(args)
@@ -107,7 +136,8 @@ if (unknown.length) {
   )
 }
 
-const only = taskIds && taskIds.length ? new Set(taskIds) : null
+// parseTaskIds returns null or a non-empty list, so this needs no length check.
+const only = taskIds ? new Set(taskIds) : null
 const task = (id) => TASKS.find((t) => t.id === id)
 const wanted = (id) => !only || only.has(id)
 
