@@ -8,6 +8,14 @@ node_modules/
 .vinxi/
 package-lock.json
 
+# test/tool output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+*-debug.log
+.firebase/
+
 # editor directories and files
 .DS_Store
 
