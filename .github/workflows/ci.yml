@@ -2,7 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `claude/**` covers the implementation branches the Phase 0 workflow
+    # pushes. The review stage runs against a pushed branch *before* a pull
+    # request exists, so a `pull_request`-only trigger leaves reviewers with no
+    # CI run to read at the moment they have to decide. That is not
+    # hypothetical: FND-001's reviewer waived the "browser suite has never
+    # executed" finding on the grounds that a green run was structurally
+    # unobtainable at review time, and the browser jobs then failed on the
+    # first PR run. Building CI on push makes that checkable when it matters.
+    branches: [main, "claude/**"]
   pull_request:
 
 # Cancel superseded runs on the same ref so pushes to an open PR don't queue

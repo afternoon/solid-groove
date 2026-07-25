@@ -3,12 +3,12 @@
 	"files": {
 		"includes": [
 			"**",
-			"!**/.claude",
-			"!**/.output",
-			"!**/.vinxi",
-			"!**/docs/design",
-			"!**/playwright-report",
-			"!**/test-results"
+			"!.claude",
+			"!.output",
+			"!.vinxi",
+			"!docs/design",
+			"!playwright-report",
+			"!test-results"
 		]
 	}
 }
