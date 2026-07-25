@@ -12,7 +12,10 @@ package-lock.json
 .DS_Store
 
 # misc config
-.claude/
+# Shared agent and workflow definitions are checked in; local settings are not.
+.claude/*
+!.claude/agents/
+!.claude/workflows/
 
 # big fat blobs
 public/samples

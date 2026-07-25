@@ -9,27 +9,36 @@
 
 ## 1. How agents use this backlog
 
-This file is the operational source of truth for implementation order and ownership. The PRD remains authoritative for product behavior and acceptance criteria. A task does not weaken or replace any linked PRD requirement.
+This file is the **specification and index** for implementation order: what each task covers, what it depends on, which PRD requirements it satisfies, and what "done" means for it. The PRD remains authoritative for product behavior and acceptance criteria. A task does not weaken or replace any linked PRD requirement.
 
-### Status values
+This file is **not** the live status board. Task blocks below are not edited to record progress.
 
-- `todo`: not claimed and dependencies may or may not be complete.
-- `in-progress`: owned by exactly one agent and actively being implemented.
-- `blocked`: work started but cannot continue; the task records the concrete blocker.
-- `review`: implementation is complete but requires contract, product, or integration review.
-- `done`: merged implementation and tests satisfy every task checkbox.
-- `parked`: intentionally outside the current release phase; do not claim.
+### Tracking: one GitHub issue per task
 
-### Claim and completion protocol
+Each task in this backlog has one GitHub issue in `afternoon/solid-groove`, titled with the task ID (for example `FND-002 - Canonical schema-v1 domain model`). The issue is the live record.
 
-1. Before changing product code, set the task's `Status` to `in-progress` and replace `unassigned` with the agent identifier. Coordinate that claim on the shared branch before doing substantial work; Git history records when ownership changed.
-2. Claim only one implementation task at a time. Do not claim a task until every dependency is `done` unless the task explicitly permits parallel discovery work.
-3. The owning agent is the only agent that edits its task block. Cross-task discoveries are recorded under `Notes` in the affected task or proposed as a new task instead of silently expanding scope.
-4. Keep changes vertical and mergeable. Product code, tests, fixtures, documentation, and the final backlog update belong in the same implementation commit or PR.
-5. To finish, check every acceptance box, set `Status` to `done`, and replace `Evidence: pending` with the relevant test commands and durable artifact paths. Git history is the completion record; do not put a commit hash into the commit itself.
-6. Use `blocked` only with a named unmet dependency or decision. Include what was tried and the smallest action needed to unblock it.
-7. An agent must not alter a published domain, command, persistence, selection, audio-projection, or rendering-projection contract as incidental feature work. Create or claim a contract-change task and update all contract tests and consumers together.
-8. Do not preserve compatibility with prototype project data. Schema v1 is the first production schema; migrations are required only for persisted changes after v1 is established.
+- **Status** is the issue's state and labels: open/closed, plus `blocked`, `needs-review`, or `parked` where they apply. `parked` tasks in section 9 get an issue only when the product owner unparks them.
+- **Ownership** is the issue assignee. An agent picking up a task assigns itself before changing product code.
+- **Progress, blockers, and discoveries** are issue comments. A blocker names the unmet dependency or decision, what was tried, and the smallest action that would unblock it. A cross-task discovery goes in a comment on the affected task's issue, or becomes a new issue — never a silent scope expansion.
+- **Evidence** — the test commands that were run and the paths to durable artifacts — goes in the closing comment and in the PR description.
+- The task's acceptance checkboxes are copied into the issue body when it is created, and are ticked there rather than in this file.
+
+Phase 0 task blocks have had their `Status`, `Owner`, and `Evidence` fields removed accordingly. The section 3 decision blocks, later-phase blocks, and parked blocks still carry them; those fields are historical, and once a phase is prepared for implementation its issues govern. `Dependencies` and `PRD` stay on every block — they are the work graph and the requirement trace, not status.
+
+This removes the write contention that made the old in-file claim protocol unworkable: parallel agents never edit a shared Markdown file to announce themselves, and the record survives a bad merge.
+
+### Landing work
+
+1. **One PR per task**, branched off the active feature branch, each agent working in its own git worktree so parallel implementations do not collide on the filesystem. A broken task never blocks review of an unrelated one.
+2. Keep the change vertical and self-contained: product code, tests, fixtures, and documentation for that task in one PR. The PR body links its issue and states the evidence.
+3. Do not claim a task until every dependency is closed, unless the task explicitly permits parallel discovery work.
+4. A **contract-owning task lands before its dependents start.** Domain schema, command registry, parameter definitions, persistence layout, selection, audio projection, and rendering projection are contracts; an agent must not alter a published one as incidental feature work. Changing a landed contract is its own issue, updating every contract test and consumer together.
+5. Git history is the completion record. Do not put a commit hash into the commit itself.
+6. Do not preserve compatibility with prototype project data. Schema v1 is the first production schema; migrations are required only for persisted changes after v1 is established.
+
+### Fanning out
+
+The `Dependencies:` line on every task is the machine-readable work graph. An orchestrator topologically sorts it, holds live in-flight state during a run, and opens or updates the GitHub issues; implementation agents receive a single task and never need to read another agent's state. The release gates in section 2 are the synchronization points — everything inside a gate may run concurrently, and nothing crosses a gate until it closes.
 
 ### Definition of done for every task
 
@@ -134,32 +143,32 @@ Decide the trusted-creator/source allowlist and how a creator or video enters it
 
 ### FND-001 - Test and development foundation
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: none`<br>
-`PRD: 9.1, 10, 14`<br>
-`Evidence: pending`
+`PRD: 9.1, 10, 14`
 
 Establish the shared tooling all later agents use: runtime schema validation, browser E2E tests, Firebase Emulator tests, deterministic IDs/time, and fixture builders. Prefer Zod for runtime schemas and Playwright for Chromium, Firefox, and WebKit unless a concrete incompatibility is documented before implementation.
 
+This task owns its own infrastructure. It creates `.github/workflows` for CI and adds the missing `emulators` block to `firebase.json`, whose current `database.rules.json` reference points at a file that does not exist and must be either supplied or removed.
+
 - [ ] Dependencies and Bun scripts are committed without introducing `package-lock.json`.
-- [ ] Unit, component, browser, and Firebase Emulator suites have isolated example tests and documented commands.
-- [ ] CI runs typecheck, non-mutating formatting/lint checks, unit tests, and the appropriate integration suites.
-- [ ] Test helpers provide deterministic clocks, IDs, Firebase setup/teardown, and browser-safe fixture loading.
+- [ ] A non-mutating `check:ci` script exists. The current `check` runs `biome check --write`, which cannot be used as a CI gate; `check` may keep its auto-fix behavior for local use.
+- [ ] Unit, component, browser, and Firebase Emulator suites have isolated example tests and documented commands. `firebase.json` gains a working emulator configuration and its dangling `database.rules.json` reference is resolved.
+- [ ] CI workflows run typecheck, `check:ci`, unit tests, and the appropriate integration suites on Chromium and Firefox as gating browsers, with WebKit run as a non-gating signal per the PRD supported-environment policy.
+- [ ] Test helpers provide deterministic clocks, deterministic prefixed IDs matching the PRD section 9.4 format, Firebase setup/teardown, and browser-safe fixture loading.
 - [ ] Existing tests still pass, and generated sample work is not needlessly repeated by every test command.
 
 ### FND-002 - Canonical schema-v1 domain model
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-001`<br>
-`PRD: PRJ-04; 9.4-9.5; Phase 0`<br>
-`Evidence: pending`
+`PRD: PRJ-04; 9.4-9.5; Phase 0`
 
 Replace index-based prototype types with the authoritative code-first TypeScript and runtime schemas for project metadata, song, tracks, clips, placements, events, devices, returns, automation, sections, and assets.
 
-- [ ] Stable branded IDs and integer musical time at a documented PPQ are used for persistent relationships.
-- [ ] Parameter definitions share ranges, defaults, units, clamping policy, and automation capability across consumers.
+This task owns the domain contract. It lands before `FND-003`, `FND-004`, `FND-005`, and `FND-007` start.
+
+- [ ] Branded IDs use the PRD section 9.4 prefixed nanoid format (`trk_`, `clp_`, `evt_`, …), produced by one shared factory with a deterministic seeded variant for tests.
+- [ ] Musical time is integer ticks at 192 PPQ, with conversion helpers for bars/beats/16ths and seconds, and no floating-point musical time in persistent state.
+- [ ] The parameter-definition mechanism is implemented — range, unit, default, clamping policy, and automation capability declared once and read by UI, command validation, audio, and assistant tools. Only the parameters the `FND-009` slice needs are defined; per-device instrument and effect values are authored in Phase 1 and must not be invented here.
 - [ ] Parsing rejects malformed, non-finite, dangling, cross-owner, and future-version state without partial mutation.
 - [ ] Deterministic schema-v1 serialization round trips through JSON-compatible values.
 - [ ] Factories produce independent valid blank and fixture projects without Firebase types leaking into the domain.
@@ -167,11 +176,8 @@ Replace index-based prototype types with the authoritative code-first TypeScript
 
 ### FND-003 - Command, transaction, and history kernel
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-002`<br>
-`PRD: CLP-04; 8 Undo and redo; 9.6`<br>
-`Evidence: pending`
+`PRD: CLP-04; 8 Undo and redo; 9.6`
 
 Implement one typed command registry used by pointer UI, shortcuts, and later AI actions, with validation, atomic transactions, summaries, undo, and redo.
 
@@ -183,16 +189,14 @@ Implement one typed command registry used by pointer UI, shortcuts, and later AI
 
 ### FND-004 - Firebase schema-v1 repository
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-002`<br>
-`PRD: PRJ-01, PRJ-02, PRJ-03, PRJ-04; 9.1, 9.9; Phase 0`<br>
-`Evidence: pending`
+`PRD: PRJ-01, PRJ-02, PRJ-03, PRJ-04; 9.1, 9.9; Phase 0`
 
-Implement the v1 Firestore document/chunk layout and repository boundary. Prototype `latestSnapshot` documents may be discarded and require no migration.
+Implement the PRD section 9.9 three-tier Firestore layout and the repository boundary: `projects/{projectId}` metadata, `projects/{projectId}/song/current`, and `projects/{projectId}/clips/{clipId}`. Prototype `latestSnapshot` documents may be discarded and require no migration.
 
-- [ ] The checked-in mapping documents collection paths, document shapes, ownership, schema version, revision, timestamps, and chunking boundaries in code.
-- [ ] Project metadata is queryable without loading full song state; no document can grow indefinitely toward the Firestore size limit.
+- [ ] The checked-in mapping documents collection paths, document shapes, ownership, schema version, revision, and timestamps in code, matching the section 9.9 tiers.
+- [ ] The song document has a documented size budget asserted against the 50-track ten-minute reference fixture, and the per-track `arrangement/{trackId}` chunk overflow path is implemented and tested rather than left as a described intention. This task owns the exact budget and chunk boundary.
+- [ ] Project metadata is queryable for the dashboard without loading song state or clip content; note edits write one clip document rather than rewriting song structure.
 - [ ] Local/in-memory and Firestore repositories satisfy the same contract tests.
 - [ ] Optimistic saves use revision checks, coalesce rapid writes, ignore stale remote echoes, expose save state, and retain retryable local state.
 - [ ] Security rules and indexes are checked in; emulator tests cover owner access, anonymous identity, denial, deletion, malformed writes, and cross-project references.
@@ -200,11 +204,8 @@ Implement the v1 Firestore document/chunk layout and repository boundary. Protot
 
 ### FND-005 - Selection and consumer projections
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-002`<br>
-`PRD: 9.2-9.3, 9.7-9.8`<br>
-`Evidence: pending`
+`PRD: 9.2-9.3, 9.7-9.8`
 
 Define stable selection/focus state and read-only projections for editor, audio, arrangement rendering, persistence summaries, and assistant context. UI-only state must not enter persisted song state.
 
@@ -215,11 +216,8 @@ Define stable selection/focus state and read-only projections for editor, audio,
 
 ### FND-006 - Single-context AudioRuntime and diagnostics
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-001`<br>
-`PRD: AUD-07, AUD-09; 9.7`<br>
-`Evidence: pending`
+`PRD: AUD-07, AUD-09; 9.7`
 
 Replace route/component-owned Tone lifecycle with one application-scoped `AudioRuntime`, explicit ownership/disposal, HMR handoff, and development diagnostics.
 
@@ -231,11 +229,8 @@ Replace route/component-owned Tone lifecycle with one application-scoped `AudioR
 
 ### FND-007 - Stable ID-keyed audio graph
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-002, FND-005, FND-006`<br>
-`PRD: AUD-03, AUD-08; 9.7`<br>
-`Evidence: pending`
+`PRD: AUD-03, AUD-08; 9.7`
 
 Implement `ProjectAudioGraph` and track/device factories that reconcile typed domain changes narrowly instead of rebuilding Tone objects from Solid effects.
 
@@ -245,31 +240,29 @@ Implement `ProjectAudioGraph` and track/device factories that reconcile typed do
 - [ ] Scheduling uses musical-time projections and tracked owner handles rather than anonymous global callbacks.
 - [ ] Instrumented tests prove stable identities, no unrelated node churn, idempotent teardown, and no stale-load reconnection.
 
-### FND-008 - Arrangement renderer spike and benchmark
+### FND-008 - Arrangement renderer spike and measurement harness
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-001`<br>
-`PRD: ARR-01; 9.3; Performance budgets`<br>
-`Evidence: pending`
+`PRD: ARR-01; 9.3 including "When these budgets are enforced"; Performance budgets`
 
-Build a disposable but representative hybrid virtualized-DOM/Canvas-2D spike before the production arrangement editor expands.
+Build a disposable but representative hybrid virtualized-DOM/Canvas-2D spike, and the measurement infrastructure that Phase 2 will enforce budgets with, before the production arrangement editor expands.
+
+**This task is not gated on hitting the PRD frame budgets, and not gated on the physical baseline device.** Budgets bind at `ARR-005` and `HARD-001`. What Phase 0 owes is fixtures, traces, a working harness, and honest recorded numbers.
 
 - [ ] Deterministic fixtures include 20, 40, and 50 tracks, ten-minute arrangements, dense placements, automation, and waveform placeholders.
 - [ ] The spike implements viewport culling, layered invalidation, pointer hit testing, wheel/pinch zoom anchoring, and virtualized track headers.
-- [ ] Scripted scroll, zoom, seek, and selection traces capture frame time, long tasks, memory, and redraw counts.
-- [ ] Results meet PRD budgets on the physical 2019 Intel MacBook Pro in supported browsers or produce an ADR with profiles and next action.
-- [ ] Reusable projection/geometry contracts and benchmark fixtures are retained; experimental UI is not treated as production merely because it benchmarks well.
+- [ ] Scripted scroll, zoom, seek, and selection traces capture frame time, long tasks, memory, and redraw counts, and are runnable by a single documented command.
+- [ ] Baseline numbers are checked in together with the hardware, browser, and browser version that produced them. Results are not described as meeting or missing a budget when they were not measured on the baseline device.
+- [ ] Reusable projection/geometry contracts and benchmark fixtures are retained and stay renderer-agnostic; experimental UI is not treated as production merely because it benchmarks well.
 
 ### FND-009 - Foundation vertical slice gate
 
-`Status: todo`<br>
-`Owner: unassigned`<br>
 `Dependencies: FND-003, FND-004, FND-005, FND-007, FND-008`<br>
-`PRD: Phase 0 exit criteria; section 13 dependency order`<br>
-`Evidence: pending`
+`PRD: Phase 0 exit criteria; section 13 dependency order`
 
 Integrate the new boundaries through the smallest end-to-end musical path: open a schema-v1 project, add one note, play it, undo it, save it, reload it, and reproduce playback.
+
+The slice's surface is a **16-step grid on a sampler track** — the cheapest UI that still exercises the real UI-to-command-to-audio-to-persistence path, and closest to what the prototype already has. The full step editor is `LOOP-010` and the piano roll is `LOOP-011`; neither is built here, and this grid is expected to be replaced by `LOOP-010` rather than grown into it.
 
 - [ ] UI and keyboard actions dispatch the same command; no component mutates domain or Firestore data directly.
 - [ ] Audible playback uses the stable graph and one shared context.
@@ -539,7 +532,7 @@ Implement one visible lane per track for volume, pan, send, and supported device
 
 Profile and optimize the production arrangement using deterministic 20/40/50-track ten-minute fixtures.
 
-- [ ] PRD frame, input, long-task, load, memory, and visible-object scaling targets pass on the physical baseline device in four supported browsers.
+- [ ] PRD frame, input, long-task, load, memory, and visible-object scaling targets pass on the physical baseline device in the gating browsers. This is where those budgets first bind; `FND-008` supplied the fixtures, traces, and harness.
 - [ ] Waveform peak pyramids, caches, culling, and invalidation have bounded memory and deterministic eviction.
 - [ ] Performance evidence is checked in; a WebGL proposal is forbidden unless the required measured-failure ADR is produced.
 
@@ -661,7 +654,7 @@ Run the full AI evaluation and failure matrix against stable manual commands.
 `Status: todo | Owner: unassigned | Dependencies: REL-002`<br>
 `PRD: Supported environment; section 14 | Evidence: pending`
 
-Expand Playwright and physical-browser procedures across current/previous Firefox, Chrome, Edge, and Safari for every core journey.
+Expand Playwright and physical-browser procedures across current/previous Firefox, Chrome, and Edge for every core journey. Safari is best-effort for the alpha per the PRD supported-environment policy: run it, log what breaks, fix what is reasonably cheap, and record the residual risk for the product-owner decision on restoring gating status before public release.
 
 - [ ] Capability fallbacks, audio unlock, decoding, shortcuts, downloads, Canvas/DPR, Firebase, and failure states are covered.
 - [ ] Unsupported capability messages are actionable; browser regressions block release unless product-approved fallback exists.
