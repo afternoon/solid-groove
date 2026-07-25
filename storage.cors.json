@@ -1,0 +1,23 @@
+[
+	{
+		"_comment": "CORS policy for the Cloud Storage bucket that serves the factory library. `{{PROJECT_ID}}` is substituted with the target project by scripts/starter-library/upload.mjs, so this file stays correct for any Firebase project. Apply it with `bun run library:upload -- --configure-bucket` (or `gcloud storage buckets update gs://BUCKET --cors-file=` once the placeholders are replaced). Reads only: nothing writes to this bucket from a browser (see storage.rules).",
+		"origin": [
+			"https://{{PROJECT_ID}}.web.app",
+			"https://{{PROJECT_ID}}.firebaseapp.com",
+			"http://localhost:3000",
+			"http://127.0.0.1:3000"
+		],
+		"method": ["GET", "HEAD"],
+		"responseHeader": [
+			"Content-Type",
+			"Content-Length",
+			"Content-Range",
+			"Accept-Ranges",
+			"Cache-Control",
+			"ETag",
+			"Range",
+			"x-goog-meta-sha256"
+		],
+		"maxAgeSeconds": 3600
+	}
+]

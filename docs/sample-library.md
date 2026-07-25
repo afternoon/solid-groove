@@ -532,6 +532,8 @@ Initial performance targets:
 
 ## 13. Implementation phases
 
+Phase A is implemented and phase B's one-shot targets are met by the starter library in section 15. Phases C, D, and E are open.
+
 ### Phase A: policy and tooling
 
 - Approve this licence policy and commissioned-content agreement requirements.
@@ -577,6 +579,10 @@ Exit criteria: every required genre demo opens, plays, saves, renders, exports s
 
 ## 14. Immediate acquisition backlog
 
+Items 6 and 8 are done: the starter library in section 15 ships 200 original synthesized one-shots with their generation recipes retained, and the manifest validator gates CI.
+
+Items 1-5 are **unblocked but unstarted**. The acquisition pipeline in section 15.5 exists and is tested, and the tier-1 and tier-2 sources are registered with their licence positions; what remains is the human half — choosing individual files, pinning them, and reviewing them. `sources.lock.json` is empty, so no third-party audio is in the repository yet. `DEC-003` still owns the commissioning budget, attribution policy, and any export exclusions; it does not gate CC0 selections from the already-approved section 4.1 sources.
+
 1. Download and archive the Producer Space full pack and official licence; quarantine vocals and select the first 40 clearly sourced non-vocal assets.
 2. Import FreePats CC0 electronic percussion, Lately Bass, Synth Bass #1/#2, and a small pad set with original SFZ mappings.
 3. Select 30-50 VCSL files covering organic percussion, mallets, resonances, and experimental textures.
@@ -586,7 +592,141 @@ Exit criteria: every required genre demo opens, plays, saves, renders, exports s
 7. Assemble four bootstrap kits: clean electronic, driven club, broken/organic, and experimental.
 8. Implement the manifest validator before adding further bulk content.
 
-## 15. Alpha acceptance checklist
+## 15. Implemented starter library
+
+The first slice of this plan is built. `CNT-000` delivers a **starter library of 200 synthesized one-shots** — PRD requirement `LIB-00` — so that the browser, sampler, drum machine, caching, and export are developed against real audio and real metadata instead of two prototype WAV files.
+
+It is testing content, not factory content. It executes phase A end to end and covers phase B's one-shot targets; it does not replace phases C and D, and its assets are not counted towards the section 6.1 approved-asset milestones.
+
+### 15.1 Two halves: synthesized and acquired
+
+The library is built from two independent routes through section 3.2, and both are implemented.
+
+| | Synthesized (`library:build`) | Acquired (`library:acquire`) |
+| --- | --- | --- |
+| Rights route | 3.2 route 2 — created entirely from sources Solid Groove owns | 3.2 route 1 — CC0 1.0 from a credible rights holder |
+| Source | `scripts/starter-library/catalog/` | The section 4 sources, pinned in `sources.lock.json` |
+| Needs network | No | Yes |
+| Reproducible | Byte-for-byte from a seed | By checksum, against a pinned download |
+| Ships today | 200 assets | 0 assets — nothing is pinned yet |
+| Closes 6.4 organic floor | No, by construction | Yes |
+
+**Synthesis** is deterministic, needs no counterparty, and runs offline, so the library always builds and CI can verify it byte-for-byte. It cannot produce recorded or field-recorded material, so it cannot reach the section 6.4 floor of 20% organic sources.
+
+**Acquisition** is what closes that gap. It is deliberately not a downloader: nothing is fetched that is not declared in `acquire/sources.mjs`, selected file-by-file in `sources.lock.json`, pinned to a SHA-256, and attributed to a named reviewer. There is no crawl mode and no search mode, because section 4.2 forbids importing search results blindly and a tool that *can* do it will eventually be used to do it.
+
+The synthesized library's rights position is recorded in [`docs/licenses/starter-library-v1.md`](./licenses/starter-library-v1.md). Acquired content captures its licence statement per source at fetch time, into `docs/licenses/sources/`.
+
+### 15.2 What it contains
+
+200 one-shots covering every role in the section 5 taxonomy, allocated in the section 6.2 proportions:
+
+| Family | Count | Roles |
+| --- | ---: | --- |
+| Drums | 111 | 24 kicks, 13 snares, 9 claps, 5 rims, 12 closed hats, 7 open hats, 9 cymbals, 8 toms, 24 percussion |
+| Bass | 21 | 8 sub, 5 sustained, 4 reese, 4 stab |
+| Tonal | 25 | 7 chord, 4 stab, 4 pluck, 4 key, 3 mallet, 3 bell |
+| Texture | 19 | 5 noise, 4 ambience, 4 drone, 3 mechanical, 3 organic |
+| FX | 24 | 6 impact, 5 riser, 4 downer, 3 sweep, 3 reverse, 3 glitch |
+
+Every genre in PRD `LIB-02` has at least 10 tagged assets spanning at least three families. Masters are 48 kHz / 24-bit mono WAV, DC-corrected, tail-trimmed, edge-faded, and peak-normalized to -1.5 dBFS — headroom management, not the brick-walling section 10 rejects. Total payload is roughly 42 MiB of audio and 72 KiB of gzipped metadata, against the 1 MiB metadata budget in section 12.
+
+Against section 6.4 the library meets the experimental floor (23.5% against 15%) and the dry, shapeable floor (34.0% against 30%), and no single role exceeds the 20% ceiling. It does **not** meet the 20% organic and recorded-source target, because everything shipped so far is synthesized. The validator reports that as a standing warning rather than passing it silently or satisfying it by relabelling; pinning CC0 recordings through `library:acquire` is what clears it.
+
+### 15.3 Commands
+
+```sh
+bun run library                     # print the workflow and the current on-disk state
+bun run library:build               # render synthesized assets, merge acquired, write the manifest
+bun run library:audition            # serve the merged library locally so you can listen to it
+bun run library:validate            # build and validate without writing (the CI gate)
+bun run library:upload              # publish to Cloud Storage; idempotent
+bun run library:test                # the library test suites only
+
+bun run library:acquire -- --plan   # what is approved and what is pinned; no network
+bun run library:acquire -- --pin    # download declared selections and record checksums
+bun run library:acquire             # download, verify, prepare, and ingest pinned CC0 content
+```
+
+`library:audition` builds the library **in memory** and serves it at
+`http://127.0.0.1:4180`, so what you hear is exactly the bytes `library:upload`
+would publish — there is no stale-build failure mode where the audition sounds
+right and the upload ships something else. The page renders its waveforms from
+the manifest's own `waveform.peaks`, so browsing it also exercises the section 12
+claim that a client can draw an asset without downloading its audio.
+
+Auditioning is not optional polish. Delivery keys are content hashes
+(`sha256/ab/cd/…wav`), so the output directory is unbrowsable by ear, and the
+validator only proves an asset is well-formed — that it has a checksum, rights,
+headroom, and honest metadata. Whether a kick sounds like a kick is a question
+only listening answers.
+
+`library:build` merges whatever `library:acquire` last ingested. With nothing acquired it produces the 200 synthesized assets and needs no network — which is why CI can gate on it unconditionally.
+
+`library:upload` accepts `--dry-run` (plan only, no network), `--bucket <name>`, `--force` (re-upload existing objects), and `--configure-bucket` (apply the CORS policy in `storage.cors.json`). Credentials come from `GOOGLE_APPLICATION_CREDENTIALS` or `FIREBASE_SERVICE_ACCOUNT`; see `.env.example`.
+
+To exercise the whole publish path with no real project, point it at the Storage emulator:
+
+```sh
+firebase emulators:start --only storage --project demo-solid-groove
+FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
+  bun run library:upload -- --bucket demo-solid-groove.firebasestorage.app
+```
+
+Bucket CORS is the one thing the emulator cannot exercise — it answers `setCorsConfiguration` with "Not Implemented" and serves permissive CORS regardless — so the script reports it as skipped rather than failing.
+
+### 15.4 Delivery layout
+
+```text
+library/
+  audio/sha256/<aa>/<bb>/<sha256>.wav          immutable, public, max-age=1y
+  manifests/sg-starter-library/v1.json         immutable, public, max-age=1y
+  manifests/sg-starter-library/latest.json     mutable pointer, max-age=60
+```
+
+Identity is the SHA-256 of the bytes, so a storage key cannot collide, a re-run uploads only what changed, and a project can pin an exact asset version. Clients read `latest.json` first, then the versioned manifest it names, then audio lazily on selection. `storage.rules` denies every client write and every path outside `library/`.
+
+### 15.5 Adding CC0 content
+
+Acquisition is a review workflow with a script attached, not a download button. The steps are deliberately manual where section 4.2 requires judgement:
+
+1. **Choose a source** from `acquire/sources.mjs`. Adding a source is a rights decision: it needs a licence the section 3.2 allowlist accepts, a canonical licence URL, and a written note on what may and may not be taken. Tier-2 sources host mixed licences, so a site-wide CC0 claim is never evidence for an individual file.
+2. **Select individual files** and add them to `sources.lock.json` with their download URL, the source page a reviewer actually read, the creator, and the role/tag mapping. Vocals, recognizable media, and identifiable people stay out (section 3.3).
+3. **Pin them** with `library:acquire -- --pin`. This downloads into quarantine, records the SHA-256 of exactly what arrived, and writes it back for review. It never ingests.
+4. **Review and commit** the lockfile. A named reviewer is required — `"unreviewed"` fails validation, so a pin cannot be mistaken for a decision.
+5. **Ingest** with `library:acquire`. It re-checks rights, verifies every checksum, captures each source's licence statement into `docs/licenses/sources/`, extracts only the pinned archive member, decodes, prepares to the section 10 standard, and emits manifest entries in the same shape the synthesized library produces.
+
+A checksum mismatch is a hard failure at every stage. The bytes a person reviewed are not the bytes that arrived, and which of the two is wrong is not something a script can decide.
+
+Acquired assets take IDs from `sg-one-shot-<family>-<role>-5001` upward so the two ranges can never collide. Downloaded originals and prepared masters are gitignored; the lockfile and the captured licence statements are committed, because those are the evidence.
+
+### 15.6 Code
+
+```text
+scripts/starter-library/
+  dsp.mjs           seeded RNG, oscillators, noise, filters, saturation, reverb, delay
+  music.mjs         note names, frequencies, chord voicings
+  voices.mjs        one renderer per sound family; conditioning chain
+  taxonomy.mjs      the section 5 and 9 controlled vocabulary
+  catalog/          the 200 synthesized entries, as data, split by family
+  acquire/
+    sources.mjs     approved sources, licence allowlist, and what may be taken
+    lockfile.mjs    pinned selections and their validation
+    fetch.mjs       download, quarantine, checksum, licence-evidence capture
+    archive.mjs     zip member extraction
+    audio.mjs       decode, resample, and the section 10 preparation chain
+    ingest.mjs      selection -> manifest entry
+  sources.lock.json the committed pins
+  manifest.mjs      section 9 manifest records; merges both halves
+  validate.mjs      per-asset and collection-level rules; the CI gate
+  acquire.mjs       CLI: plan, pin, ingest
+  build.mjs         render and merge to disk
+  upload.mjs        publish to Cloud Storage
+```
+
+Asset IDs are `sg-one-shot-<family>-<role>-NNNN`, numbered by position within a role group. Groups are **append-only**: reordering or removing an entry renumbers every later asset and breaks IDs that saved projects reference, so `catalog.test.mjs` pins the numbering.
+
+## 16. Alpha acceptance checklist
 
 - Every delivered factory asset has approved raw-redistribution rights and archived evidence.
 - No standard consumer royalty-free pack is bundled without a separate OEM grant.

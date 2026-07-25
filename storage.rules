@@ -1,0 +1,35 @@
+rules_version = '2';
+
+// Cloud Storage rules for Solid Groove.
+//
+// Deny by default: a path that is not named below is unreachable from any
+// client. Adding a path is a deliberate act, not a side effect of uploading
+// something into the bucket.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Factory content: the curated library the app reads.
+    //
+    // Readable without authentication. These assets are synthesized or licensed
+    // for raw redistribution (docs/sample-library.md section 3.2), and public
+    // reads are what let the browser cache and range-request them through the
+    // CDN without minting a token per audition. Nothing here is user data.
+    //
+    // No client writes at any path. The library is published by the ingestion
+    // pipeline using an admin credential held in CI, which bypasses these
+    // rules; a browser that could write here could replace an asset that other
+    // people's saved projects resolve.
+    match /library/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // LIB-03 adds per-user imported audio under `users/{uid}/**`. That work
+    // owns its own rules, quota, and content-type enforcement, so this file
+    // deliberately does not pre-declare the shape of a path nothing writes yet.
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

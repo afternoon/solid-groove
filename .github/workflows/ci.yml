@@ -58,6 +58,12 @@ jobs:
           EOF
       - name: Unit and component tests
         run: bun run test
+      - name: Validate the starter sound library
+        # Renders all 200 assets and runs the full manifest validation
+        # (docs/sample-library.md section 9), including the collection-level
+        # coverage and balance rules the unit suite cannot check against the
+        # representative sample it renders. Needs no credentials or network.
+        run: bun run library:validate
 
   # Browser end-to-end suite. Chromium and Firefox are the P0 gating
   # browsers (PRD section 10) and fail the workflow. WebKit runs alongside
