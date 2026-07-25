@@ -636,13 +636,30 @@ Against section 6.4 the library meets the experimental floor (23.5% against 15%)
 ### 15.3 Commands
 
 ```sh
+bun run library                     # print the workflow and the current on-disk state
+bun run library:build               # render synthesized assets, merge acquired, write the manifest
+bun run library:audition            # serve the merged library locally so you can listen to it
+bun run library:validate            # build and validate without writing (the CI gate)
+bun run library:upload              # publish to Cloud Storage; idempotent
+bun run library:test                # the library test suites only
+
 bun run library:acquire -- --plan   # what is approved and what is pinned; no network
 bun run library:acquire -- --pin    # download declared selections and record checksums
 bun run library:acquire             # download, verify, prepare, and ingest pinned CC0 content
-bun run library:build               # render synthesized assets, merge acquired, write the manifest
-bun run library:validate            # build and validate without writing (the CI gate)
-bun run library:upload              # publish to Cloud Storage; idempotent
 ```
+
+`library:audition` builds the library **in memory** and serves it at
+`http://127.0.0.1:4180`, so what you hear is exactly the bytes `library:upload`
+would publish — there is no stale-build failure mode where the audition sounds
+right and the upload ships something else. The page renders its waveforms from
+the manifest's own `waveform.peaks`, so browsing it also exercises the section 12
+claim that a client can draw an asset without downloading its audio.
+
+Auditioning is not optional polish. Delivery keys are content hashes
+(`sha256/ab/cd/…wav`), so the output directory is unbrowsable by ear, and the
+validator only proves an asset is well-formed — that it has a checksum, rights,
+headroom, and honest metadata. Whether a kick sounds like a kick is a question
+only listening answers.
 
 `library:build` merges whatever `library:acquire` last ingested. With nothing acquired it produces the 200 synthesized assets and needs no network — which is why CI can gate on it unconditionally.
 

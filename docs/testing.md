@@ -108,11 +108,19 @@ The prototype `firebase.json` pointed `database.rules.json` at a file that never
 ## Starter sound library
 
 ```sh
-bun run library:acquire -- --plan   # approved CC0 sources and what is pinned; no network
+bun run library                     # print the workflow and the current on-disk state
+bun run library:test                # the library suites only, without the rest of `bun run test`
 bun run library:build               # render synthesized assets, merge acquired, write the manifest
+bun run library:audition            # listen to the merged library at http://127.0.0.1:4180
 bun run library:validate            # build and validate without writing anything
 bun run library:upload              # publish to Cloud Storage (see .env.example for credentials)
 ```
+
+`bun run library` is the entry point: it prints the ordered workflow and reports
+what has been built, pinned, and ingested, so the next step is stated rather than
+inferred. `library:test` is the fast inner loop while changing the catalogue or
+the pipeline; `library:audition` is the manual check no automated rule replaces —
+the validator proves an asset is well-formed, not that it sounds right.
 
 `scripts/starter-library/` produces the `LIB-00` testing library and publishes it to Cloud Storage. It has two halves: 200 **synthesized** one-shots that need no network and rebuild byte-for-byte, and an **acquisition** path for pinned CC0 downloads from the approved sources. [`docs/sample-library.md` section 15](./sample-library.md) covers both, the delivery layout, and how to add CC0 content.
 
