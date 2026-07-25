@@ -56,9 +56,11 @@ async function renderSynth(
 	instrument: SynthInstrument,
 	mutate?: (built: ReturnType<typeof createToneInstrument>) => void,
 ): Promise<Float32Array> {
+	let built: ReturnType<typeof createToneInstrument> | undefined;
 	const buffer = await Tone.Offline(
 		({ destination }) => {
 			const inst = createToneInstrument(instrument, destination);
+			built = inst;
 			mutate?.(inst);
 			// Sustain most of the render window so the note is fully audible.
 			inst.trigger("C3", RENDER_SECONDS * 0.7, 0);
@@ -67,6 +69,7 @@ async function renderSynth(
 		1,
 		SAMPLE_RATE,
 	);
+	built?.dispose();
 	return buffer.getChannelData(0);
 }
 

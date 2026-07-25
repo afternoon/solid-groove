@@ -54,9 +54,19 @@ src/
 │   ├── index.tsx            # Home/landing page
 │   ├── dashboard.tsx        # User dashboard
 │   └── projects/[id].tsx    # Project editor route
+├── shared/             # Helpers production code AND tests depend on
+│   ├── id.ts                # PRD 9.4 prefixed-ID factory (+ seeded test variant)
+│   ├── clock.ts              # Injectable Clock abstraction
+│   └── schema.ts             # Shared Zod parse helper (PRD 9.1 runtime-schema decision)
+├── testing/            # Helpers only tests use
+│   └── fixtures.ts          # Browser-safe fixture loading + fixture builders
 ├── app.tsx             # Root application component
 ├── entry-client.tsx    # Client entry point
 └── firebaseConfig.ts   # Firebase configuration
+
+e2e/                    # Playwright browser E2E suite
+tests/emulator/         # Firebase Emulator suite (Firestore rules, etc.)
+public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 ```
 
 ## Commands
@@ -73,12 +83,18 @@ bun run start        # Start production server
 
 # Code quality
 bun run check        # Run Biome linting and formatting (auto-fix)
+bun run check:ci     # Same checks, non-mutating (CI gate; use `check` locally)
 
 # Testing
-bun run test         # Run tests once
-bun run test:watch   # Run tests in watch mode
-bun run test:ui      # Run tests with UI
+bun run test              # Unit + component tests, once
+bun run test:watch        # Unit + component tests, watch mode
+bun run test:ui           # Unit + component tests, Vitest UI
+bun run test:emulator     # Firebase Emulator suite (Firestore rules, etc.)
+bun run test:browser      # Browser E2E suite (Playwright: Chromium/Firefox/WebKit)
+bun run test:browser:install  # One-time: download Playwright's browser binaries
 ```
+
+See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI gates on them, and the shared test helpers (`src/shared/id.ts`, `src/shared/clock.ts`, `src/testing/fixtures.ts`).
 
 ## Code Style Guidelines
 
@@ -171,6 +187,9 @@ bun run test:ui      # Run tests with UI
 - Vitest configured with jsdom for DOM testing
 - Use `@solidjs/testing-library` for component tests
 - Use `@testing-library/jest-dom` for DOM assertions
+- Beyond unit/component tests, the project has a Firebase Emulator suite (`tests/emulator/`, `bun run test:emulator`) and a Playwright browser E2E suite (`e2e/`, `bun run test:browser`) — see [`docs/testing.md`](./docs/testing.md) for what each covers and how CI gates on them
+- Use `src/shared/id.ts`'s `createId`/`createSeededIdFactory` for entity IDs and `src/shared/clock.ts`'s `Clock` for anything that needs the current time, rather than calling `nanoid()`/`Date.now()` directly, so tests can be deterministic
+- Use `src/testing/fixtures.ts`'s builders (`buildProject`, `buildTrack`, ...) instead of hand-writing fixture literals in new tests
 
 ## Important Configuration Notes
 
