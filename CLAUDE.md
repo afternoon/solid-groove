@@ -46,17 +46,36 @@ src/
 │   ├── Dashboard.tsx
 │   ├── LoginButton.tsx
 │   └── ProjectList.tsx
-├── model/              # Data models and state management
-│   ├── types.ts             # TypeScript types for data models
+├── domain/             # Canonical schema-v1 domain model (authoritative)
+│   ├── entities.ts          # Entity shapes and their Zod schemas
+│   ├── ids.ts               # Prefixed stable IDs and ID factories
+│   ├── time.ts              # Integer musical time at 192 PPQ
+│   ├── parameters.ts        # Shared parameter definitions
+│   ├── parse.ts             # Validation and domain invariants
+│   ├── serialize.ts         # Deterministic JSON serialization
+│   ├── factories.ts         # Blank/entity factories
+│   └── fixtures.ts          # Deterministic reference projects
+├── model/              # Prototype state, superseded by src/domain
+│   ├── types.ts             # Prototype types (removed by the FND-009 slice)
 │   ├── project.ts           # Project store and update functions
 │   └── dataService.ts       # Firestore data access layer
 ├── routes/             # File-based routing
 │   ├── index.tsx            # Home/landing page
 │   ├── dashboard.tsx        # User dashboard
 │   └── projects/[id].tsx    # Project editor route
+├── shared/             # Helpers production code AND tests depend on
+│   ├── id.ts                # PRD 9.4 prefixed-ID factory (+ seeded test variant)
+│   ├── clock.ts              # Injectable Clock abstraction
+│   └── schema.ts             # Shared Zod parse helper (PRD 9.1 runtime-schema decision)
+├── testing/            # Helpers only tests use
+│   └── fixtures.ts          # Browser-safe fixture loading + fixture builders
 ├── app.tsx             # Root application component
 ├── entry-client.tsx    # Client entry point
 └── firebaseConfig.ts   # Firebase configuration
+
+e2e/                    # Playwright browser E2E suite
+tests/emulator/         # Firebase Emulator suite (Firestore rules, etc.)
+public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 ```
 
 ## Commands
@@ -73,12 +92,18 @@ bun run start        # Start production server
 
 # Code quality
 bun run check        # Run Biome linting and formatting (auto-fix)
+bun run check:ci     # Same checks, non-mutating (CI gate; use `check` locally)
 
 # Testing
-bun run test         # Run tests once
-bun run test:watch   # Run tests in watch mode
-bun run test:ui      # Run tests with UI
+bun run test              # Unit + component tests, once
+bun run test:watch        # Unit + component tests, watch mode
+bun run test:ui           # Unit + component tests, Vitest UI
+bun run test:emulator     # Firebase Emulator suite (Firestore rules, etc.)
+bun run test:browser      # Browser E2E suite (Playwright: Chromium/Firefox/WebKit)
+bun run test:browser:install  # One-time: download Playwright's browser binaries
 ```
+
+See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI gates on them, and the shared test helpers (`src/shared/id.ts`, `src/shared/clock.ts`, `src/testing/fixtures.ts`).
 
 ## Code Style Guidelines
 
@@ -139,11 +164,20 @@ bun run test:ui      # Run tests with UI
 - Example: `import { useAuth } from "~/auth/AuthProvider"`
 
 ### TypeScript
-- Define types in `src/model/types.ts` for data models
-- Use discriminated unions for variant types (see Instrument type)
+- Define domain types in `src/domain` alongside their runtime schema; `src/model/types.ts` holds prototype types only
+- Use discriminated unions for variant types (see the domain Instrument and ClipContent types)
 - Leverage `Partial<T>` for update operations
 
 ## Architecture Patterns
+
+### Canonical domain model (`src/domain`)
+- `src/domain` is the authoritative schema-v1 contract (PRD sections 9.4 and 9.5). Its types, Zod schemas, invariants, and tests replace any separate domain-model document.
+- It has no Firebase, Tone.js, or SolidJS imports. Persistence, commands, audio, and rendering consume it from outside; audio nodes and Firestore `Timestamp`s never enter project state.
+- Persistent relationships use prefixed IDs from `createIdFactory()` (`createSeededIdFactory()` in tests), never array positions.
+- Musical time is integer ticks at 192 PPQ. Seconds, bars/beats/16ths, and pixels are derived through `src/domain/time.ts`.
+- A user-controlled numeric value declares its range, unit, default, clamping policy, and automation capability once in `src/domain/parameters.ts`; UI, validation, audio, and assistant tools read that definition instead of repeating literals.
+- `parseProject` is the only way to obtain a `Project`. It either returns a fully valid project or a list of issues, and never partially repairs input.
+- Changing this contract is its own backlog task, not incidental work inside a feature.
 
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)
@@ -171,6 +205,9 @@ bun run test:ui      # Run tests with UI
 - Vitest configured with jsdom for DOM testing
 - Use `@solidjs/testing-library` for component tests
 - Use `@testing-library/jest-dom` for DOM assertions
+- Beyond unit/component tests, the project has a Firebase Emulator suite (`tests/emulator/`, `bun run test:emulator`) and a Playwright browser E2E suite (`e2e/`, `bun run test:browser`) — see [`docs/testing.md`](./docs/testing.md) for what each covers and how CI gates on them
+- Use `src/shared/id.ts`'s `createId`/`createSeededIdFactory` for entity IDs and `src/shared/clock.ts`'s `Clock` for anything that needs the current time, rather than calling `nanoid()`/`Date.now()` directly, so tests can be deterministic
+- Use `src/testing/fixtures.ts`'s builders (`buildProject`, `buildTrack`, ...) instead of hand-writing fixture literals in new tests
 
 ## Important Configuration Notes
 

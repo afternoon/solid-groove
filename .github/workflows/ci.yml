@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    # `claude/**` covers the implementation branches the Phase 0 workflow
+    # pushes. The review stage runs against a pushed branch *before* a pull
+    # request exists, so a `pull_request`-only trigger leaves reviewers with no
+    # CI run to read at the moment they have to decide. That is not
+    # hypothetical: FND-001's reviewer waived the "browser suite has never
+    # executed" finding on the grounds that a green run was structurally
+    # unobtainable at review time, and the browser jobs then failed on the
+    # first PR run. Building CI on push makes that checkable when it matters.
+    branches: [main, "claude/**"]
+  pull_request:
+
+# Cancel superseded runs on the same ref so pushes to an open PR don't queue
+# up stale checks.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast, no-external-service gate: typecheck, lint/format check, and the
+  # unit + component suites. Everything else depends on this passing first.
+  checks:
+    name: typecheck, check:ci, unit + component tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Lint and format check (non-mutating)
+        run: bun run check:ci
+      - name: Configure a null ALSA output device
+        # ubuntu-latest has no /dev/snd, so Tone.js's real (non-offline) global
+        # AudioContext — created as a side effect of importing "tone" in
+        # src/audio/ToneInstrument.test.ts — cannot initialize: node-web-audio-api's
+        # cpal backend fails with "DeviceUnavailable" when it queries a default
+        # output device and finds none. Installing the ALSA runtime library plus a
+        # `null` PCM as the default output device (discards every sample, never
+        # touches hardware) gives cpal a device to find, without needing a kernel
+        # module (snd-dummy) or real audio hardware.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64
+          cat > ~/.asoundrc <<'EOF'
+          pcm.!default {
+              type null
+          }
+          ctl.!default {
+              type null
+          }
+          EOF
+      - name: Unit and component tests
+        run: bun run test
+
+  # Browser end-to-end suite. Chromium and Firefox are the P0 gating
+  # browsers (PRD section 10) and fail the workflow. WebKit runs alongside
+  # them as a signal only — `continue-on-error` means a WebKit-only failure
+  # is reported but never blocks the required checks, per the PRD's
+  # supported-environment policy: "WebKit passing is not the same as Safari
+  # passing," and the alpha does not gate release on it.
+  browser:
+    name: browser e2e (${{ matrix.browser }})
+    needs: checks
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.browser == 'webkit' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser (${{ matrix.browser }})
+        run: bunx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run browser suite
+        run: bunx playwright test --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7
+
+  # Firebase Emulator suite: contract tests for firestore.rules against a
+  # real local Firestore instance (PRD 9.9).
+  emulator:
+    name: firebase emulator tests
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Run Firebase Emulator suite
+        run: bun run test:emulator
