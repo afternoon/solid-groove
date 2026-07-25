@@ -14,6 +14,15 @@ export default defineConfig({
 		conditions: ["development", "browser"],
 	},
 	test: {
-		exclude: [...configDefaults.exclude, "e2e/**", "tests/emulator/**"],
+		// `.claude/**` keeps the runner out of git worktrees, which the agent
+		// workflow creates under `.claude/worktrees/`. Each is a full checkout,
+		// so without this a stray worktree's suites are collected alongside the
+		// real ones and fail against the main checkout's paths.
+		exclude: [
+			...configDefaults.exclude,
+			"e2e/**",
+			"tests/emulator/**",
+			".claude/**",
+		],
 	},
 });
