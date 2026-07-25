@@ -66,6 +66,10 @@ Three projects run: `chromium`, `firefox`, `webkit`. Per the PRD section 10 supp
 
 `bun run test:browser:install` (`playwright install --with-deps chromium firefox webkit`) downloads browser binaries from Playwright's CDN. That download needs outbound access to `cdn.playwright.dev`; a locked-down sandbox that blocks that host cannot run this suite even though the config and tests are otherwise valid (verify with `bunx playwright test --list`, which does not need the binaries).
 
+## Arrangement renderer spike measurement harness
+
+`bun run bench:arrangement` (`playwright.bench.config.ts`, `perf/`) is a separate, non-gating Playwright suite: the `FND-008` renderer-spike measurement harness, not a functional or CI-blocking suite. See [`docs/arrangement-renderer-spike.md`](./arrangement-renderer-spike.md) for what it measures and where its baseline is checked in. It needs the same browser binaries as the Browser E2E suite above.
+
 ## `check` vs `check:ci`
 
 ```sh
