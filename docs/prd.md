@@ -641,6 +641,120 @@ An owner can invite another registered user to edit a project. The product recor
 **SHR-05 - Real-time collaboration (P2)**  
 Presence, cursors, conflict-free simultaneous edits, and live shared transport are later work and require a separate technical design.
 
+### 7.10 Deployment, analytics, and monitoring
+
+This section covers how Solid Groove reaches a real browser and how the team learns what happens there. Both start in Phase 0: a feature that has only ever run against a local dev server and an emulator is not known to work, and a feature that ships without its events cannot answer the section 11 success measures.
+
+**OPS-01 - Deployed environment from Phase 0 (P0)**  
+Solid Groove is deployed to Firebase Hosting from the first foundation milestone, so every later slice can be exercised in a real browser against real Firebase Authentication, Firestore, Storage, and Functions rather than only against a local dev server and the emulator suite.
+
+The alpha has exactly one hosted environment: the **production** Firebase project. This is a deliberate decision for a private alpha whose only users are the team and an invited cohort, not an oversight. It is revisited before public launch, and before there is real user data that a bad deploy could destroy.
+
+Acceptance criteria:
+
+- The application builds and deploys to Firebase Hosting through one documented command and automatically from CI on merge to the default branch. Deployment does not depend on a developer's local machine state.
+- Firestore security rules and indexes deploy from the same repository and the same pipeline as the application. A deploy whose rules or index step fails, fails the whole pipeline rather than leaving shipped code and deployed rules out of step.
+- The deployed revision is identifiable: the build stamps the git commit SHA into the client, the app can display it, and every analytics and error event carries it (see OPS-02 and OPS-03).
+- Rollback is a documented, practiced operation, not an improvisation. Because production is the only hosted environment, the team can restore the previous Hosting release and the matching rules revision without rebuilding from scratch.
+- Deploying is not releasing. The deployed alpha is discoverable only to people given the URL and an account, and incomplete journeys stay behind the section 13 feature flags. Nothing in this requirement permits shipping a half-built journey to real users.
+- Secrets, provider credentials, and privileged configuration never enter the client bundle. Hosting configuration, security rules, indexes, and function configuration are checked in and reviewable.
+- Local development and every automated suite continue to run against the Firebase Emulator suite. Running the tests must not require access to the production project, and the test suites must not write to it.
+- Traffic from the team is distinguishable from cohort traffic, so internal sessions can be excluded from the section 11 measures.
+- A deployed build is smoke-tested against the hosted environment — the app loads, an anonymous session starts, a project opens, and audio starts after a user gesture — and a failed smoke test is treated as a failed deploy.
+
+**OPS-02 - Product analytics events (P0)**  
+Solid Groove logs a defined set of user actions to Google Analytics for Firebase so the team can answer two questions the alpha exists to answer: *when do people actually use the app*, and *which features do they reach for first*. Instrumentation is part of building a feature, not a later archaeology project (see the section 14 definition of done).
+
+Events are declared once in a shared typed analytics catalog — the same single-source-of-truth pattern as the KEY-01 shortcut registry. UI, audio, persistence, and assistant code log through that catalog; no component calls the analytics SDK with an ad-hoc event name or parameter string.
+
+Sessions, first opens, page views, and engagement time come from Google Analytics automatic collection and are not re-implemented as custom events.
+
+*Event rules*
+
+- Names are `snake_case`, at most 40 characters, and avoid Google Analytics reserved names and the `firebase_`, `google_`, and `ga_` prefixes.
+- Parameter values are enumerated keys, stable Solid Groove IDs, booleans, or bucketed numbers — never free text, and never a value the user typed.
+- **No project content, ever.** Project, track, clip, section, and asset *names*; note and automation data; assistant prompts and replies; user-entered search terms; file names; asset URLs; email addresses; and authentication tokens are never event parameters. Where an entity must be identified, the prefixed ID (section 9.4) is logged, not its name.
+- Counts and durations are bucketed rather than exact, so a rare exact combination cannot re-identify a session.
+- No event fires per note, per animation frame, or per parameter tick. Continuous gestures collapse into one event on gesture completion, and high-frequency signals are debounced, aggregated per session, or sampled with the sampling rate recorded.
+- Analytics fails open. A blocked, failed, or unavailable analytics endpoint — including a browser extension blocking it — never breaks playback, editing, saving, or export, and never surfaces an error to the user.
+- Every event carries the release SHA (OPS-01) and the surface it came from. User properties are limited to coarse, non-identifying facts: account type (anonymous or registered) and whether the session is internal.
+- The user is told what is collected and can decline product analytics without losing any DAW or assistant capability. Reliability events required to keep the release gates honest (OPS-03) are described in the same disclosure.
+
+*Event catalog*
+
+The `Owning task` column names the backlog task that must ship the event with the feature it measures. An event has no separate "instrumentation task" later.
+
+| Event | Fires when | Key parameters | Phase / owning task |
+| --- | --- | --- | --- |
+| `app_opened` | The editor or dashboard shell becomes interactive | `surface`, `account_type`, `release_sha` | 0 / `FND-001c` |
+| `landing_cta_click` | A visitor activates a landing-page call to action | `cta_id` (`start_free`, `log_in`) | 1 / `LOOP-001b` |
+| `anon_session_created` | An anonymous Firebase identity is created for a new visitor | — | 1 / `LOOP-001` |
+| `account_upgraded` | An anonymous account becomes a registered account | `method` | 1 / `LOOP-001` |
+| `project_created` | A project is created | `source` (`blank`, `template`, `duplicate`), `template_id`, `genre` | 1 / `LOOP-001`, `LOOP-015` |
+| `project_opened` | A project is opened in the editor | `project_age_bucket`, `track_count_bucket`, `is_first_open` | 1 / `LOOP-001` |
+| `project_deleted` | A project is deleted after confirmation | `project_age_bucket` | 1 / `LOOP-001` |
+| `first_edit` | The first user-authored mutation in a project, once per project | `command_id`, `seconds_since_open_bucket` | 0 / `FND-009` |
+| `feature_first_use` | An account uses a tracked feature for the first time | `feature` (see below) | 0 / `FND-001c`, then each owning feature task |
+| `transport_play` | Playback starts from a user gesture | `surface`, `is_first_play_in_session` | 1 / `LOOP-003` |
+| `track_added` | A track is added | `track_type` | 1 / `LOOP-007` |
+| `instrument_changed` | A track's instrument or its sample selection changes | `instrument_type` | 1 / `LOOP-004`, `LOOP-005` |
+| `device_added` | A processing device is added to an insert chain, return, or master | `device_type`, `chain` | 1 / `LOOP-008`, `LOOP-009` |
+| `library_audition` | A library asset is auditioned | `asset_type`, `had_genre_filter` | 1 / `LOOP-013` |
+| `clip_edited` | A step-editor or piano-roll editing gesture completes | `editor` (`step`, `piano_roll`), `event_count_bucket` | 1 / `LOOP-010`, `LOOP-011` |
+| `shortcut_used` | A registered keyboard shortcut fires | `action_id` | 1 / `LOOP-014` |
+| `undo_used` | Undo or redo is invoked | `direction`, `actor` (`user`, `assistant`) | 1 / `LOOP-002` |
+| `section_created` | A song section marker is created | `origin` (`manual`, `template`, `assistant`) | 2 / `ARR-003` |
+| `arrangement_outline_created` | A loop-to-song outline is applied | `template_id`, `section_count` | 2 / `ARR-003` |
+| `automation_lane_created` | An automation lane gets its first breakpoint | `target_kind` | 2 / `ARR-004` |
+| `arrangement_milestone` | A project first reaches ≥3 named sections and ≥2 minutes | `section_count`, `duration_bucket` | 2 / `ARR-003` |
+| `export_started` | An export begins | `export_type` (`stereo`, `stems`), `duration_bucket`, `track_count_bucket` | 2 / `EXP-002`, `EXP-003` |
+| `export_completed` | An export finishes and the file or package is delivered | `export_type`, `elapsed_ms_bucket` | 2 / `EXP-002`, `EXP-003` |
+| `export_failed` | An export fails or is cancelled | `export_type`, `error_code`, `was_cancelled` | 2 / `EXP-002`, `EXP-003` |
+| `assistant_message_sent` | The user sends a message to the assistant | `scope` (`clip`, `track`, `section`, `song`) | 3 / `AI-004` |
+| `assistant_suggestion_clicked` | A suggested next step is activated | `suggestion_id` | 3 / `AI-004` |
+| `assistant_proposal_shown` | A validated proposal is presented to the user | `capability`, `command_count_bucket` | 3 / `AI-003` |
+| `assistant_proposal_applied` | A proposal is applied | `capability`, `seconds_to_decision_bucket` | 3 / `AI-003` |
+| `assistant_proposal_cancelled` | A proposal is cancelled without applying | `capability` | 3 / `AI-003` |
+| `assistant_proposal_undone` | An applied proposal is undone | `capability`, `seconds_to_undo_bucket` | 3 / `AI-003` |
+| `assistant_result_edited` | The user manually edits an entity an applied proposal changed | `capability` | 3 / `AI-004` |
+| `save_failed` | A persistence write fails | `error_code`, `retry_count` | 0 / `FND-001c`, `LOOP-002` |
+| `save_recovered` | A previously failed save succeeds on retry | `retry_count` | 1 / `LOOP-002` |
+| `audio_start_failed` | Playback cannot start after a user gesture | `error_code`, `was_browser_blocked` | 0 / `FND-001c`, `LOOP-003` |
+| `audio_underrun` | The engine detects skipped or late scheduled events (sampled) | `dropped_event_bucket`, `sample_rate` | 1 / `LOOP-003` |
+| `asset_load_failed` | A library or user asset fails to load or decode | `asset_type`, `error_code` | 1 / `LOOP-013` |
+| `exception` | An uncaught error reaches a boundary or global handler (OPS-03) | `fatal`, `area`, `error_code` | 0 / `FND-001c` |
+
+`feature_first_use` carries a single low-cardinality `feature` key rather than a separate event name per feature, so the catalog stays well inside the Google Analytics distinct-event-name limit and first-use across features is comparable in one report. The alpha keys are: `step_editor`, `piano_roll`, `drum_machine`, `synth`, `sampler`, `audio_loop`, `device_chain`, `send_return`, `mixer`, `library_browser`, `shortcut_guide`, `sections`, `automation`, `assistant`, `export_stereo`, `export_stems`. A feature task adds its key with the feature.
+
+Acceptance criteria:
+
+- A shared typed analytics catalog declares every event name, its parameters, their allowed values or buckets, and the phase that introduces it. Logging an unregistered event or parameter is a type error, and the catalog is the only place event strings appear.
+- Every event in the table above is emitted by the task named in its `Owning task` column, at the moment described in `Fires when`, and is verifiable in the production project's Google Analytics debug view from a deployed build.
+- Automated tests assert, for each instrumented user action, that the expected event and parameters are logged exactly once, that repeated gestures do not multiply events, and that once-per-project or once-per-account events fire once.
+- A test asserts that no event parameter carries a project, track, clip, section, or asset name; assistant text; a user-entered string; a URL; or an authentication token. This test is part of the analytics catalog's own suite so it covers events added later.
+- Disabling or blocking analytics leaves every product behavior unchanged, proven by a test that runs the core journey with the analytics transport failing.
+- The section 11 success measures are each derivable from the catalog, and a check confirms no measure depends on an event that is not in it.
+
+**OPS-03 - Error and crash monitoring (P0)**  
+Crash-free sessions, save success, and successful audio start are release gates in section 11. They are only gates if they are observable, so the alpha reports uncaught errors and the specific failures those gates depend on.
+
+Firebase Crashlytics does not support the Firebase Web SDK, so "crash reporting" here means browser error reporting, not Crashlytics. The alpha uses **Sentry**, through the official SolidStart SDK, as its error and crash monitoring platform. This is a committed decision recorded in [ADR 0001](./adr/0001-sentry-for-error-monitoring.md); replacing it requires a superseding ADR under the section 9.1 rules.
+
+The application's own reporting boundary — global `error` and `unhandledrejection` handlers plus the section 10 error boundaries — remains the single place errors are captured. Sentry is the transport and backend behind that boundary, not a substitute for it, so application code never calls the Sentry SDK directly and the platform stays replaceable. Google Analytics keeps the `exception` counter event from OPS-02 so the section 11 measures compute from one catalog; Sentry is where an engineer debugs a specific error, not where the product dashboard is assembled.
+
+Acceptance criteria:
+
+- An uncaught error in any surface — editor, assistant, audio engine, renderer, export, or persistence — is reported once with the release SHA, browser and engine version, the area it came from, a stable error code, and a redacted message. Duplicate reports from one error are collapsed.
+- Reports carry no project content, assistant text, user-entered strings, asset URLs, or tokens, consistent with OPS-02 and the section 10 logging rules. Because a third-party SDK collects more by default than a hand-built reporter does, this is enforced positively rather than assumed: `sendDefaultPii` is off, console breadcrumbs are disabled rather than filtered, network and DOM breadcrumbs are scrubbed before transmission, and the OPS-02 parameter-content test extends to the Sentry payload by exercising the scrubbing functions directly, so it also covers breadcrumbs and events added later.
+- Session Replay is not enabled. It would capture the arrangement, clip names, and assistant conversation on screen; turning it on requires a superseding ADR.
+- Fatal and non-fatal errors are distinguishable, and crash-free session rate is reported by the platform's release-health session tracking rather than derived by hand.
+- Production stack traces are readable: source maps are produced for the deployed revision, uploaded to the monitoring platform through an authenticated channel, and never served publicly from Hosting.
+- The reliability gates have dedicated events, not just generic exceptions: `save_failed` / `save_recovered`, `audio_start_failed`, `audio_underrun`, `asset_load_failed`, and `export_failed` each carry an actionable error code.
+- Error reporting is best-effort and non-blocking. A failing, blocked, or ad-blocker-suppressed reporter cannot stop the transport, block editing, lose unsaved state, or recurse into another report. Reports are not tunnelled through a first-party endpoint in the alpha; the resulting undercount is documented rather than engineered around.
+- Monitoring does not compromise the section 10 performance budgets: the SDK initializes lazily after first paint with a minimal integration set and is not loaded on the marketing landing page.
+- Monitoring is verified end to end from a deployed build: a deliberately triggered test error arrives with its release SHA and a symbolicated stack trace, and the check runs as part of accepting `FND-001c`.
+- Firebase Performance Monitoring may be enabled for page-load and network traces (P1). Neither it nor the monitoring platform's own tracing substitutes for the section 9.3 lab measurements of arrangement frame budgets.
+
 ## 8. Interaction requirements
 
 ### Progressive disclosure
@@ -745,6 +859,8 @@ Acceptance criteria:
 
 These are hard decisions for the alpha, not provisional preferences. An implementation agent must not replace one with an alternative without a written architecture decision record (ADR) approved by the product owner.
 
+Approved ADRs live in [`docs/adr`](./adr), numbered and named after the decision they record. An ADR states the context, the decision, its consequences including what it costs, and the alternatives rejected. A decision that changes a row in the table below updates that row to point at its ADR; the ADR is the reasoning, and this table stays the index.
+
 | Area | Alpha decision | Commitment |
 | --- | --- | --- |
 | Product surface | Desktop web application | No Electron/native wrapper or mobile-editor parity in the alpha |
@@ -754,6 +870,9 @@ These are hard decisions for the alpha, not provisional preferences. An implemen
 | Structured persistence | Cloud Firestore | Project metadata, versioned domain state, revisions, save acknowledgements, and permissions use Firestore |
 | Binary storage | Cloud Storage for Firebase | User audio, derived waveform data where persisted, and server-retained export artifacts use Storage rather than Firestore documents |
 | Privileged backend | Cloud Functions for Firebase | AI-provider calls, privileged validation, quotas, and future background work execute server-side; provider code never ships to the client |
+| Hosting and deployment | Firebase Hosting, deployed from CI | One hosted environment for the alpha — the production project — with rules and indexes deployed from the same pipeline (OPS-01) |
+| Product analytics | Google Analytics for Firebase | User-action events come from one typed catalog (OPS-02); no second analytics vendor and no ad-hoc event strings |
+| Error monitoring | Sentry, behind the application's own reporting boundary | Crashlytics does not support the Firebase Web SDK, and Cloud Error Reporting cannot symbolicate browser traces without publicly served source maps; see [ADR 0001](./adr/0001-sentry-for-error-monitoring.md) |
 | Arrangement rendering | Hybrid DOM plus Canvas 2D | DOM provides application structure and semantics; viewport-sized canvases render dense timeline graphics |
 | Test foundation | Vitest plus browser end-to-end and audio fixture tests | Performance and compatibility require real-browser tests in addition to unit tests |
 
@@ -1010,24 +1129,33 @@ These are alpha targets and must be measured before being treated as launch guar
 - Rich text from users or models is rendered without executable HTML.
 - Asset uploads are type/size validated and served with safe content headers when P1 import ships.
 - Users are told what project data is sent to an AI provider and can decline assistant use without losing manual DAW features.
+- Users are told what product analytics and error reports are collected (OPS-02, OPS-03) and can decline product analytics without losing any DAW or assistant capability.
+- Analytics and error events never carry project content, user-entered text, asset URLs, or authentication tokens, and this is enforced by a test rather than by reviewer memory. The test covers the third-party monitoring payload as well as our own event catalog, because that SDK collects breadcrumbs by default that the rule forbids.
+- Error monitoring uses a third-party processor (Sentry, per ADR 0001). It is disclosed to the user alongside product analytics, its retention and regional storage are part of the same product decision, and no additional processor is added to the alpha without an ADR.
+- The alpha's single hosted environment is the production project (OPS-01). Test suites run against the emulator suite and must not write to it, and deployment credentials live in CI rather than on developer machines.
 
 ## 11. Success measures
 
 The private alpha should instrument events needed to establish baselines rather than optimize for vanity usage.
 
+Every measure below is derived from the OPS-02 event catalog; the event names that produce it are listed in parentheses. A measure that no catalogued event can produce is a gap in the catalog, not a reason to add a bespoke logging path.
+
 ### Primary measure
 
-**Track progression rate:** percentage of activated projects that reach an arrangement with at least three named sections and two minutes of content, then play through or export. Two minutes is an analytics threshold, not a project-duration limit.
+**Track progression rate:** percentage of activated projects that reach an arrangement with at least three named sections and two minutes of content, then play through or export. Two minutes is an analytics threshold, not a project-duration limit. (`project_created`, `arrangement_milestone`, `transport_play`, `export_completed`.)
 
 ### Supporting measures
 
-- Time from project creation to first user-authored audible edit.
-- Percentage of projects progressing from a loop to at least three sections.
-- Percentage of activated users exporting a stereo mix, multitrack stems, or both.
-- Assistant proposal apply, cancel, undo, and follow-up rates by capability.
-- Percentage of applied assistant proposals manually edited afterward, indicating ownership rather than passive generation.
-- Project reopen rate after 1 and 7 days.
-- Save failures, missing assets, audio start failures, scheduling underruns, and export failures.
+- Time from project creation to first user-authored audible edit. (`project_created`, `first_edit`.)
+- Which features a new user reaches for first, and how quickly. (`feature_first_use`, against `app_opened` and `project_created`.)
+- When and how often people use the app: sessions, session length, and return frequency. (Google Analytics automatic session collection, plus `app_opened` and `project_opened`.)
+- Percentage of projects progressing from a loop to at least three sections. (`section_created`, `arrangement_outline_created`, `arrangement_milestone`.)
+- Percentage of activated users exporting a stereo mix, multitrack stems, or both. (`export_started`, `export_completed`.)
+- Assistant proposal apply, cancel, undo, and follow-up rates by capability. (`assistant_proposal_shown`, `assistant_proposal_applied`, `assistant_proposal_cancelled`, `assistant_proposal_undone`.)
+- Percentage of applied assistant proposals manually edited afterward, indicating ownership rather than passive generation. (`assistant_proposal_applied`, `assistant_result_edited`.)
+- Project reopen rate after 1 and 7 days. (`project_opened` with `project_age_bucket` and `is_first_open`.)
+- Save failures, missing assets, audio start failures, scheduling underruns, and export failures. (`save_failed`, `save_recovered`, `asset_load_failed`, `audio_start_failed`, `audio_underrun`, `export_failed`.)
+- Crash-free session rate. (Reported by the OPS-03 monitoring platform's release-health session tracking, with the GA4 `exception` counter available to cross-check it against the other measures.)
 
 ### Qualitative validation
 
@@ -1045,6 +1173,8 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 
 ### Phase 0 - Foundations
 
+- **Deploy the application to Firebase Hosting first.** Before the domain model, the audio runtime, or the renderer spike, establish the deploy pipeline so every subsequent slice can be checked in a real browser against real Firebase services. Rules and indexes deploy with the app, the release SHA is stamped into the build, and rollback is documented. The alpha's only hosted environment is the production project (OPS-01).
+- Land the analytics and error-monitoring foundation immediately after: the typed OPS-02 event catalog, the logging boundary every later feature uses, and the OPS-03 error handlers, error boundaries, and Sentry integration with its scrubbing and source-map upload. Phase 0 emits the events it can honestly emit — `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception` — and publishes the catalog contract that every Phase 1-4 feature task extends with its own events. Instrumentation is never deferred to a cleanup task.
 - Implement the canonical schema-v1 domain model in TypeScript with runtime validation, prefixed stable IDs, integer musical time at 192 PPQ, explicit invariants, and deterministic serialization. Existing prototype state and documents require no migration or backwards compatibility.
 - Implement the shared parameter-definition mechanism — how a parameter declares its range, unit, default, clamping policy, and automation capability, and how UI, command validation, the audio engine, and assistant tools all read one definition. Phase 0 defines the mechanism and the few parameters the vertical slice needs. Per-device values for instruments and effects are authored with their devices in Phase 1, where they can be tuned by ear, and must not be invented into schema v1 ahead of them.
 - Implement the section 9.9 v1 Firebase persistence layout in code, including the metadata/song/clip document tiers, the song-document size budget and its chunk overflow path, domain-to-storage mapping, ownership metadata, schema and revision fields, indexes, security rules, and repository adapters.
@@ -1055,7 +1185,7 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 - Build the hybrid DOM/Canvas 2D arrangement renderer vertical slice and automated performance fixture before expanding timeline features.
 - Add reference project fixtures and deterministic audio tests.
 
-Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; and the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
+Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers; that vertical slice is reachable in a deployed build on Firebase Hosting, deployed by CI and identifiable by its release SHA; and the slice's Phase 0 analytics events and a deliberately triggered test error are observable end to end from that deployed build. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
 
 ### Phase 1 - Complete the loop workflow
 
@@ -1063,13 +1193,15 @@ Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-tri
 - Starter templates and robust project management/autosave.
 - Public landing page as an honest front door into the anonymous-start flow.
 - Desktop editor layout with collapsible panels, a typed Ableton-familiar shortcut registry, shortcut tooltips, and the `?` keyboard mapping guide.
+- The acquisition, activation, and creation events in the OPS-02 catalog, each shipped by the feature it measures: `landing_cta_click`, `anon_session_created`, `account_upgraded`, `project_created`, `project_opened`, `project_deleted`, `transport_play`, `track_added`, `instrument_changed`, `device_added`, `library_audition`, `clip_edited`, `shortcut_used`, `undo_used`, plus the `save_recovered`, `audio_underrun`, and `asset_load_failed` reliability events and each feature's `feature_first_use` key.
 
-Exit criteria: a user can create, process, save, reopen, and reliably play an original 1-8 bar multi-track electronic loop without assistant help, including a drum machine and multiple chained effects.
+Exit criteria: a user can create, process, save, reopen, and reliably play an original 1-8 bar multi-track electronic loop without assistant help, including a drum machine and multiple chained effects, and the loop-workflow events above are observable from the deployed build.
 
 ### Phase 2 - Arrangement and export
 
 - Timeline placements, section markers, clip reuse/variation, focused automation, selection tools, and manual structure templates.
 - Arrangement scheduling, master limiter, offline stereo WAV render, and aligned multitrack stem packaging.
+- The arrangement and export events in the OPS-02 catalog: `section_created`, `arrangement_outline_created`, `automation_lane_created`, `arrangement_milestone`, `export_started`, `export_completed`, and `export_failed`. `arrangement_milestone` is what makes the section 11 primary measure computable, so it ships with the sections work rather than at hardening.
 
 Exit criteria: a user can manually build arrangements from two through ten minutes, export a stereo mix, and import the exported stem package into another DAW with every track aligned.
 
@@ -1077,6 +1209,7 @@ Exit criteria: a user can manually build arrangements from two through ten minut
 
 - Compact project analysis, server model gateway, tool schema, proposal cards, atomic apply/undo, contextual explanations, and initial capability set.
 - Evaluation fixtures for arrangement, variation, transformation, and invalid/stale responses.
+- The assistant events in the OPS-02 catalog: `assistant_message_sent`, `assistant_suggestion_clicked`, `assistant_proposal_shown`, `assistant_proposal_applied`, `assistant_proposal_cancelled`, `assistant_proposal_undone`, and `assistant_result_edited`. These carry capability and scope keys only — never prompts, replies, or project content.
 
 Exit criteria: the assistant can turn a reference loop into a valid editable outline, explain the edits, survive malformed responses, and leave the project identical after one undo.
 
@@ -1086,8 +1219,9 @@ Later-vision assistant capabilities shown in the design mocks — richer instrum
 
 - Performance profiling, accessibility pass, error recovery, telemetry, browser compatibility, security-rule tests, and curated template/content review.
 - Facilitated target-user sessions and fixes for blocked core journeys.
+- Audit rather than build the analytics: confirm every OPS-02 event fires from the deployed build, that no event leaks project content, that internal traffic is excluded, and that the section 11 measures and release-gate dashboards compute from real cohort data. Hardening adds dashboards and disclosures, not the instrumentation itself — an event missing here is a defect in the phase that owned it.
 
-Exit criteria: all P0 acceptance criteria pass, release-gate reliability metrics are observable, and the qualitative validation exercise is completed.
+Exit criteria: all P0 acceptance criteria pass, release-gate reliability metrics are observable from the deployed production build, and the qualitative validation exercise is completed.
 
 ### Phase 5 - Professional handoff and sharing
 
@@ -1151,13 +1285,15 @@ Produces:
 
 ### Workstream E - Content, quality, and release
 
-Owns licensed sample/preset metadata, genre coverage, starter templates, test fixtures, end-to-end tests, telemetry schema, accessibility verification, security-rule tests, compatibility matrix, and alpha operations.
+Owns licensed sample/preset metadata, genre coverage, starter templates, test fixtures, end-to-end tests, the deploy pipeline, the analytics catalog and error-monitoring boundary, accessibility verification, security-rule tests, compatibility matrix, and alpha operations.
 
 Produces:
 
 - Validated asset manifest with provenance.
 - Audited bundled-content demo projects for every required initial genre.
 - Reference projects covering empty, typical, maximum, migrated, and corrupt states.
+- The Firebase Hosting deploy pipeline, rules/index deployment, release stamping, rollback procedure, and deployed-build smoke test.
+- The typed OPS-02 analytics catalog and logging boundary, the OPS-03 error-reporting boundary and its Sentry integration including scrubbing and release/source-map upload, and the tests that keep project content out of both. Other workstreams add their own events through this contract; this workstream does not instrument their features for them.
 - Release dashboard for the success and guardrail measures.
 - Manual test script for supported browsers and audio devices.
 
@@ -1202,7 +1338,10 @@ A feature is done only when:
 - Loading, empty, error, offline, and permission states are handled.
 - Keyboard and screen-reader semantics are present for non-audio interaction.
 - New or changed user actions register shortcuts and mapping-guide metadata where applicable, with no component-local duplicate binding.
-- Relevant telemetry contains no project content or secrets.
+- **Analytics ships with the feature.** Every new or changed user action that the OPS-02 catalog covers emits its events through the shared typed catalog, with no ad-hoc event strings, and its principal failure path emits the relevant reliability event. A feature whose events are "to be added later" is not done. If a feature introduces a user action the catalog does not cover, the catalog is extended in the same change — with a `feature_first_use` key at minimum — rather than shipping unmeasured.
+- Instrumentation is tested at the same layer as the behavior: the event fires once per action, repeated or continuous gestures do not multiply it, and disabling analytics changes nothing about the feature.
+- Relevant telemetry contains no project content or secrets, verified by the OPS-02 parameter-content test rather than by inspection.
+- The feature has been exercised in a deployed build on the hosted environment, not only against a local dev server and the emulator suite.
 - Tests cover the happy path and the principal failure path.
 - Arrangement changes do not regress the committed reference performance budgets.
 - User-facing terminology matches this document.
@@ -1225,12 +1364,20 @@ A feature is done only when:
 | Ableton's project format or behavior changes | Exported sets fail or silently lose work | Target a declared Live version, isolate the serializer, test fixture exports in Live, report conversion loss, and always include portable stems/MIDI |
 | Autosave conflicts with rapid edits | Lost changes or controls jumping backward | Optimistic local authority, coalesced writes, revision checks, and explicit save state |
 | The interface becomes a smaller but still intimidating DAW | Target users remain stuck | Progressive disclosure, task-based user tests, opinionated templates, and arrangement-first assistant suggestions |
+| Production is the alpha's only hosted environment | A bad deploy reaches the cohort, or a deploy damages real project data | Deploy rules/indexes with the app from one pipeline, stamp and smoke-test every release, keep rollback documented and practised, hold incomplete journeys behind feature flags, and revisit the single-environment decision before public launch or before data loss would be unrecoverable |
+| Instrumentation is deferred to a later "telemetry" task | The alpha ends with no baseline for its own success measures and cannot tell which features were tried first | Ship the event catalog in Phase 0, make analytics part of the definition of done for every feature task, and assign each catalogued event to the task that builds the feature it measures |
+| Analytics or error reports leak project content | A privacy failure in the product whose value is the user's own music | One typed catalog with enumerated parameters, prefixed IDs instead of names, a test that rejects content-bearing parameters and covers events added later, and a user-facing opt-out that costs no capability |
+| A third-party monitoring SDK collects more than the product allows | Clip names, console output, or on-screen music reach an external processor by default rather than by decision | Keep the reporting boundary in application code, disable console breadcrumbs and `sendDefaultPii`, scrub before transmission, forbid Session Replay without a superseding ADR, and extend the content test to the SDK payload rather than only our own events |
 
 ## 16. Decisions and open questions
 
 ### Decisions made for implementation
 
 - Desktop web is the alpha production surface.
+- The application deploys to Firebase Hosting from CI starting in Phase 0, and the private alpha runs on one hosted environment — the production Firebase project. Rules and indexes deploy with the app; the decision is revisited before public launch.
+- Product analytics use Google Analytics for Firebase through one typed event catalog (OPS-02), and shipping a feature's events is part of that feature's definition of done rather than a later instrumentation pass.
+- Crash and error monitoring use Sentry behind the application's own reporting boundary ([ADR 0001](./adr/0001-sentry-for-error-monitoring.md)). Firebase Crashlytics does not support the Web SDK, and Google Cloud Error Reporting cannot symbolicate browser stack traces without publicly serving our source maps — which `OPS-03` forbids. Session Replay stays off, and replacing Sentry requires a superseding ADR.
+- Approved architecture decision records live in [`docs/adr`](./adr); the section 9.1 stack table indexes them.
 - Current and previous major Firefox, Chrome, and Edge are the gating P0 browsers, with a 2019 Intel MacBook Pro class machine as the performance baseline. Safari is best-effort for the alpha and expected to return to gating status before public release.
 - Musical time is integer ticks at 192 PPQ, matching Tone.js transport resolution so stored and scheduled time need no conversion.
 - Persistent IDs are type-prefixed 21-character nanoids, for example `trk_V1StGXR8Z5jdHi6B_myT`.
@@ -1261,6 +1408,8 @@ A feature is done only when:
 - What volume normalization or loudness target should WAV export use, if any?
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
+- What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)
+- When does the alpha stop deploying only to production: what triggers adding a separate staging or preview environment, and does it happen before the cohort grows or before public launch?
 - For the later-vision tutorial video recommendations (AI-08), which creators or sources are trusted, how does a video enter the curated set, and what embedding and data-sharing terms are acceptable? (Post-alpha.)
 
 ## Appendix A - Initial assistant command families

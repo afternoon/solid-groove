@@ -47,13 +47,17 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 - Tests fail before the implementation and pass afterward at the lowest useful layer.
 - `bun run typecheck`, `bun run test`, and `bun run check` pass. Tasks that touch browser, Firebase, audio, performance, or export behavior also run their task-specific suites.
 - Resource ownership, accessibility, supported-browser behavior, and persistence effects have been considered and tested where applicable.
+- **Analytics ships with the feature.** From `FND-001c` onward, any task that adds or changes a user action emits its PRD OPS-02 events through the shared typed analytics catalog, plus the reliability event for its principal failure path, with tests that the event fires once per action and that disabling analytics changes nothing. A task whose events are left for later is not done. A user action the catalog does not yet cover extends the catalog in the same PR — at minimum a `feature_first_use` key — rather than shipping unmeasured, and no task introduces an ad-hoc event string outside the catalog.
+- No event or error-report parameter carries a project, track, clip, section, or asset name, assistant text, a user-entered string, an asset URL, or a token.
+- From `FND-001b` onward, the slice has been exercised in a deployed build on the hosted environment, not only against a local dev server and the emulator suite.
 - No unrelated formatting, dependency, generated-file, or refactor churn is included.
 
 ## 2. Release gates and parallelism
 
 | Gate | Opens when | Work unlocked |
 | --- | --- | --- |
-| G0: Tooling ready | `FND-001` done | Code-first contracts and independent architecture spikes |
+| G0: Tooling ready | `FND-001` done | Deployment, code-first contracts, and independent architecture spikes |
+| G0.5: Deployed and observable | `FND-001b` and `FND-001c` done | Every later task can verify itself in a real browser and instrument itself through the published analytics catalog |
 | G1: Contracts published | `FND-002` through `FND-005` done | Audio, renderer, content, and thin-slice integration |
 | G2: Foundation slice proven | `FND-009` done | Broad Phase 1 loop-workflow parallelism |
 | G3: Manual loop complete | `LOOP-016` done | Arrangement, automation, and export expansion |
@@ -61,7 +65,7 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 | G5: AI complete | `REL-002` done | Private-alpha hardening and user validation |
 | G6: Private alpha ready | `REL-003` done | P1 work may be unparked by the product owner |
 
-Only `FND-001` starts immediately. After it lands, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `FND-003` through `FND-005` depend on the canonical domain schema. Broad feature parallelism begins only after `FND-009` proves the contracts together.
+Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally but makes everything after it verifiable in a real environment, and every later task's definition of done assumes it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. `FND-003` through `FND-005` depend on the canonical domain schema. Broad feature parallelism begins only after `FND-009` proves the contracts together.
 
 ## 3. Product decisions
 
@@ -139,6 +143,15 @@ Choose direct Live Set serialization or a supported partner/integration route. T
 
 Decide the trusted-creator/source allowlist and how a creator or video enters it, the acceptable video provider and embedding surface, and the data-sharing and privacy terms for loading external video. Post-alpha; do not let an implementation default choose product behavior.
 
+### DEC-009 - Analytics consent and retention policy
+
+`Status: todo`<br>
+`Owner: product-owner`<br>
+`Needed by: LOOP-001b, HARD-003`<br>
+`Evidence: pending`
+
+Decide whether product analytics are on by default with an opt-out or require opt-in, what the user-facing disclosure says, how long event and error data are retained, and any regional constraints. The disclosure covers two processors — Google Analytics for product events and Sentry for error monitoring ([ADR 0001](./adr/0001-sentry-for-error-monitoring.md)) — and a regional constraint Sentry's SaaS regions cannot meet would reopen the self-hosting option that ADR rejected. `FND-001c` builds the opt-out mechanism and the disclosure hook regardless; this decision sets the default state and the wording. It does not block `FND-001c`, and it must be settled before the cohort is invited in `HARD-005`.
+
 ## 4. Phase 0: foundations
 
 ### FND-001 - Test and development foundation
@@ -156,6 +169,51 @@ This task owns its own infrastructure. It creates `.github/workflows` for CI and
 - [ ] CI workflows run typecheck, `check:ci`, unit tests, and the appropriate integration suites on Chromium and Firefox as gating browsers, with WebKit run as a non-gating signal per the PRD supported-environment policy.
 - [ ] Test helpers provide deterministic clocks, deterministic prefixed IDs matching the PRD section 9.4 format, Firebase setup/teardown, and browser-safe fixture loading.
 - [ ] Existing tests still pass, and generated sample work is not needlessly repeated by every test command.
+
+### FND-001b - Firebase deployment and hosted alpha environment
+
+`Dependencies: FND-001`<br>
+`PRD: OPS-01; 9.1; 10 Security and privacy`
+
+Deploy the application to Firebase Hosting, from CI, before the rest of Phase 0 is built on top of it. Everything after this task is expected to be checked in a real browser against real Firebase services rather than only against the dev server and the emulator suite.
+
+The alpha's only hosted environment is the **production** Firebase project — a deliberate decision recorded in PRD section 16, not an omission. Nothing here permits exposing an incomplete journey: the deployed alpha is reachable only to people given the URL and an account, and unfinished work stays behind feature flags.
+
+This task claims the deploy pipeline. It extends the `FND-001` CI workflows rather than creating a competing one, and it owns `firebase.json` hosting configuration, the deploy job, and the release-stamping mechanism.
+
+- [ ] `bun run build` output deploys to Firebase Hosting through one documented command and automatically from CI on merge to the default branch, using credentials held in CI rather than on a developer machine.
+- [ ] Firestore rules and indexes deploy from the same pipeline as the application; a failing rules or index step fails the deploy instead of shipping code that its deployed rules do not match.
+- [ ] The build stamps the git commit SHA into the client, the app can display it, and it is available to the `FND-001c` analytics and error events. The pipeline has a place for `FND-001c` to add its release registration and source-map upload without restructuring the deploy job.
+- [ ] A post-deploy smoke test against the hosted URL covers app load, anonymous session start, project open, and audio start after a user gesture; a failed smoke test is a failed deploy.
+- [ ] Rollback to the previous Hosting release and its matching rules revision is documented and has been performed once as evidence, not just described.
+- [ ] No secret, provider credential, or privileged configuration reaches the client bundle; a check fails the build if one does.
+- [ ] Unit, component, browser, and emulator suites still run without access to the production project and do not write to it.
+- [ ] Team traffic is marked so internal sessions can be excluded from the PRD section 11 measures.
+- [ ] `.env.example`, `README.md`, and `docs/testing.md` describe the deploy, the single-environment decision, and how to get a local build talking to the right project.
+
+### FND-001c - Analytics and error-monitoring foundation
+
+`Dependencies: FND-001b`<br>
+`PRD: OPS-02, OPS-03; 11; 14 Feature definition of done; ADR 0001`
+
+Build the typed analytics catalog, the logging boundary, and the error-reporting path that every later task uses. This task owns the contract; it does not instrument other tasks' features. Each Phase 1-4 feature task ships its own events through this boundary as part of its definition of done.
+
+Error monitoring uses Sentry via `@sentry/solidstart`, per [ADR 0001](./adr/0001-sentry-for-error-monitoring.md). The SDK sits *behind* this task's reporting boundary: application code calls the boundary, never the SDK, so the platform stays replaceable. Pin the SDK version — the SolidStart package is beta.
+
+This is a **contract-owning task**: it lands before Phase 1 fans out, and changing the published catalog shape later is its own issue.
+
+- [ ] One typed catalog module declares every PRD OPS-02 event, its parameters, and their allowed values or buckets. Event and parameter strings appear nowhere else, and logging an unregistered event or parameter is a type error.
+- [ ] The logging boundary attaches the release SHA, surface, and account-type user property automatically, and callers cannot pass free text where an enum or bucket is required.
+- [ ] Phase 0 events are emitted and verified from a deployed build: `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception`. Later-phase events exist in the catalog as declarations without call sites.
+- [ ] Global `error`/`unhandledrejection` handlers and Solid error boundaries report an error once, with release SHA, browser and engine version, area, stable error code, and redacted message, through one application-owned reporting boundary that fans out to the GA4 `exception` counter event and to Sentry. Application code cannot reach the Sentry SDK directly. Duplicate reports from one error collapse; a failing or blocked reporter cannot stop the transport, block editing, lose unsaved state, or recurse.
+- [ ] Fatal and non-fatal errors are distinguishable, and crash-free session rate comes from Sentry release-health session tracking rather than a hand-built derivation.
+- [ ] Sentry is configured for a product whose value is the user's private music: `sendDefaultPii` off, console breadcrumbs disabled rather than filtered, network and DOM breadcrumbs scrubbed in `beforeSend`/`beforeBreadcrumb`, and **Session Replay not enabled** — turning it on needs a superseding ADR.
+- [ ] Source maps are produced for the deployed revision, uploaded to Sentry through an authenticated channel from the `FND-001b` pipeline, and never served publicly from Hosting.
+- [ ] The SDK initializes lazily after first paint with a minimal integration set, is not loaded on the marketing landing page, and its bundle cost is measured against the PRD section 10 interactive budget rather than assumed acceptable.
+- [ ] A test rejects any event or error parameter carrying a project, track, clip, section, or asset name, assistant text, a user-entered string, a URL, or a token. It runs over the whole catalog **and over the Sentry payload by exercising the scrubbing functions directly**, so it also covers events and breadcrumbs added by later tasks.
+- [ ] A test runs the core journey with both the analytics and error transports failing and asserts no behavioral difference; a user-facing opt-out disables collection without disabling any product capability. `DEC-009` sets the default state and disclosure wording and does not block this task.
+- [ ] A deliberately triggered test error is shown arriving in Sentry from the deployed build with its release SHA and a symbolicated stack trace, and `docs/testing.md` documents how to verify events and errors against that build.
+- [ ] The Sentry DSN, auth token, and org/project configuration are handled as deploy configuration: the auth token lives in CI only, and the client DSN is documented as a public-by-design value rather than a secret.
 
 ### FND-002 - Canonical schema-v1 domain model
 
@@ -257,7 +315,7 @@ Build a disposable but representative hybrid virtualized-DOM/Canvas-2D spike, an
 
 ### FND-009 - Foundation vertical slice gate
 
-`Dependencies: FND-003, FND-004, FND-005, FND-007, FND-008`<br>
+`Dependencies: FND-001c, FND-003, FND-004, FND-005, FND-007, FND-008`<br>
 `PRD: Phase 0 exit criteria; section 13 dependency order`
 
 Integrate the new boundaries through the smallest end-to-end musical path: open a schema-v1 project, add one note, play it, undo it, save it, reload it, and reproduce playback.
@@ -268,6 +326,8 @@ The slice's surface is a **16-step grid on a sampler track** — the cheapest UI
 - [ ] Audible playback uses the stable graph and one shared context.
 - [ ] Save state and revision behavior are visible and stale echoes cannot restore the undone note.
 - [ ] Unit, repository, component, browser, and audio lifecycle tests cover the slice.
+- [ ] The slice emits `first_edit` and the `step_editor` `feature_first_use` key through the `FND-001c` catalog, and both are observed from the deployed build alongside its `app_opened`, `save_failed`, and `audio_start_failed` paths.
+- [ ] The whole slice — add a note, play it, undo it, save it, reload it — is exercised on the hosted environment, not only locally.
 - [ ] Obsolete prototype model/audio paths are removed or isolated so new work cannot import them accidentally.
 
 ## 5. Phase 1: complete the loop workflow
@@ -277,24 +337,26 @@ Tasks in this phase may proceed in parallel after `FND-009`, subject to their ad
 ### LOOP-001 - Anonymous start and project dashboard
 
 `Status: todo | Owner: unassigned | Dependencies: FND-009, DEC-001`<br>
-`PRD: PRJ-01, PRJ-02 | Evidence: pending`
+`PRD: PRJ-01, PRJ-02, OPS-02 | Evidence: pending`
 
 Implement anonymous entry plus create, open, rename, duplicate, and confirmed-delete flows against the v1 repository.
 
 - [ ] Blank and starter creation, independent deep duplication, empty/loading/error states, and last-modified metadata are tested.
 - [ ] Anonymous retention and upgrade messaging match `DEC-001`; refresh preserves the session.
 - [ ] Dashboard browser tests cover access control and destructive confirmation.
+- [ ] Emits `anon_session_created`, `account_upgraded`, `project_created` (with `source`, `template_id`, `genre`), `project_opened` (with `project_age_bucket`, `track_count_bucket`, `is_first_open`), and `project_deleted`. `project_opened` is what makes the 1- and 7-day reopen measure computable, so its parameters are not optional.
 
 ### LOOP-001b - Public landing page
 
 `Status: todo | Owner: unassigned | Dependencies: LOOP-001`<br>
-`PRD: PRJ-06 | Evidence: pending`
+`PRD: PRJ-06, OPS-02 | Evidence: pending`
 
 Implement the public marketing landing page as an honest front door into the anonymous-start flow.
 
 - [ ] The page states the product promise, the browser-based/no-install nature, supported browsers, and the honest private-alpha status without advertising unshipped capabilities.
 - [ ] A primary call to action starts a playable project via the PRJ-01 anonymous-start flow with no account; a secondary path leads existing users to log in.
 - [ ] The page follows the editor's visual language and passes the alpha accessibility and marketing-page performance expectations; tour/pricing/richer marketing content may be staged.
+- [ ] Emits `landing_cta_click` with a `cta_id` distinguishing the start-free and log-in paths, and carries the analytics disclosure and opt-out surface from `FND-001c` per `DEC-009`.
 
 ### LOOP-002 - Autosave and recovery UX
 
@@ -306,6 +368,7 @@ Complete `Saving`, `Saved`, `Save failed`, retry, navigation flush, and optimist
 - [ ] High-frequency gestures coalesce writes without losing final state or blocking playback.
 - [ ] Offline/transient failure retains edits and retry is explicit; stale acknowledgements never move controls backward.
 - [ ] Fake-timer, repository, and browser navigation tests cover success and failure paths.
+- [ ] Emits `save_failed` with an actionable `error_code` and `retry_count`, `save_recovered` on successful retry, and `undo_used` with `direction` and `actor`. Coalesced writes emit one event per failure episode, not one per attempt.
 
 ### LOOP-003 - Transport, tempo, loop, and metronome
 
@@ -317,6 +380,7 @@ Implement dependable play/pause/stop/seek, playhead, 40-240 BPM tempo, fixed 4/4
 - [ ] Scheduling is ahead-of-time and remains aligned across seek, tempo change, repeated loops, and editor load.
 - [ ] User-gesture unlock and focus-safe `Space` behavior work in all supported browsers.
 - [ ] Master safety and meter tests include silence, extreme chains, and no transport restart on parameter edit.
+- [ ] Emits `transport_play` (with `surface` and `is_first_play_in_session`), `audio_start_failed` with a browser-blocked flag when the context cannot unlock, and sampled `audio_underrun` events with the sampling rate recorded. Playback emits nothing per scheduled event or animation frame.
 
 ### LOOP-004 - Synth and one-shot sampler
 
@@ -328,6 +392,7 @@ Implement reusable synth and sampler graph/UI slices with presets, audition, pit
 - [ ] Controls dispatch validated commands and parameter changes reuse nodes with safe smoothing.
 - [ ] Sample replacement cancels stale loads and preserves compatible clip data through undo/redo.
 - [ ] Audio fixtures test parameter extremes, repeated triggers, cache ownership, export compatibility, and disposal.
+- [ ] Emits `instrument_changed` with `instrument_type` and the `synth` and `sampler` `feature_first_use` keys. Continuous parameter gestures emit nothing per tick.
 
 ### LOOP-005 - Drum machine
 
@@ -339,6 +404,7 @@ Implement a 16-pad drum machine with per-pad sample, audition, pitch, level, pan
 - [ ] Pad and hit IDs survive reorder/duplication and all edits use shared commands.
 - [ ] Chokes and multiple simultaneous hits schedule deterministically without leaking short-lived voices.
 - [ ] Tests cover mute-wins-solo, choke timing, pad replacement, undo, save/reload, and teardown.
+- [ ] Emits `instrument_changed` on pad sample replacement and the `drum_machine` `feature_first_use` key.
 
 ### LOOP-006 - Tempo-aware audio loops
 
@@ -350,6 +416,7 @@ Implement loop-track playback and UI that distinguishes tempo-labelled loops fro
 - [ ] Source BPM and bar length validate at ingestion and remain aligned over repeated playback from 40-240 BPM.
 - [ ] Seek, loop boundary, tempo change, mute/solo, save/reload, missing asset, and disposal are tested.
 - [ ] The chosen alpha stretch behavior and audible limitations are documented honestly in the UI.
+- [ ] Emits the `audio_loop` `feature_first_use` key and `asset_load_failed` for a missing or undecodable loop.
 
 ### LOOP-007 - Track management and mixer
 
@@ -361,6 +428,7 @@ Implement add, rename, reorder, duplicate, delete, mute, solo, volume, pan, and 
 - [ ] Deletion warning and deep duplication behavior are explicit; reorder preserves ownership and routing.
 - [ ] Multiple solo, mute precedence, perceptual faders, readable values, smoothing, and keyboard access are tested.
 - [ ] At least 50 tracks remain correct; metadata-only edits create no audio resources.
+- [ ] Emits `track_added` with `track_type` and the `mixer` `feature_first_use` key. Fader and pan drags emit one event per gesture at most, never per pointer move.
 
 ### LOOP-008 - Device-chain and routing framework
 
@@ -372,6 +440,7 @@ Implement typed ordered devices, eight inserts per track, master devices, two st
 - [ ] Device/routing commands preserve invariants, history, autosave, and stable IDs.
 - [ ] Reorder reuses nodes with a measured click-safe reconnection strategy; unrelated graphs retain identity.
 - [ ] Extreme but finite ranges remain creative while invalid values and unsafe feedback are rejected.
+- [ ] Emits `device_added` with `device_type` and `chain` (insert, return, or master), plus the `device_chain` and `send_return` `feature_first_use` keys.
 
 ### LOOP-009 - Core processing devices
 
@@ -383,6 +452,7 @@ Implement filter/EQ, overdrive, saturation, compression, tempo-sync/free delay, 
 - [ ] Each required control, wet/dry/output behavior, bypass, reset, duplication, metering, and preset path is present.
 - [ ] Parameters smooth without node replacement; duplicate effects and unconventional ordering are supported.
 - [ ] Deterministic audio/property tests cover normal and extreme settings, limiter interaction, tails, and disposal.
+- [ ] Each device type is a registered `device_type` value in the analytics catalog, so `device_added` reports which processing users reach for first.
 
 ### LOOP-010 - Step editor
 
@@ -393,6 +463,7 @@ Implement the 1-8 bar 16th-note grid for sampler and drum-machine clips.
 
 - [ ] Paint/erase, velocity, named lanes, beat/bar styling, playback step, selection, and one-gesture history work without text selection.
 - [ ] Pointer, keyboard, save/reload, resize, and 8-bar dense-fixture component tests pass.
+- [ ] Emits `clip_edited` with `editor: step` and an `event_count_bucket`, once per completed paint or erase gesture rather than per step toggled, plus the `step_editor` `feature_first_use` key.
 
 ### LOOP-011 - Piano roll
 
@@ -403,6 +474,7 @@ Implement synth-note create, move, resize, group select, duplicate, delete, velo
 
 - [ ] Pointer geometry remains correct under scroll/zoom and every gesture is one undo transaction.
 - [ ] Overlap, boundary, multi-select, keyboard, save/reload, and playback-follow tests pass.
+- [ ] Emits `clip_edited` with `editor: piano_roll` and an `event_count_bucket`, once per completed gesture, plus the `piano_roll` `feature_first_use` key.
 
 ### LOOP-012 - Shared musical transformations
 
@@ -435,6 +507,7 @@ Implement search, filters, keyboard navigation, sync-aware audition, insertion, 
 - [ ] Audition routes through the shared runtime, never enters export, and stops on selection change, close, navigation, or project teardown.
 - [ ] Search/filter behavior remains responsive at the planned library size and exposes all content when genre filters clear.
 - [ ] Missing/corrupt assets report locally without blocking other results or project playback.
+- [ ] Emits `library_audition` with `asset_type` and `had_genre_filter`, `asset_load_failed` with `asset_type` and `error_code`, and the `library_browser` `feature_first_use` key. Search terms are never logged.
 
 ### CNT-002 - Rounded alpha factory library
 
@@ -456,6 +529,7 @@ Implement one typed, context-aware shortcut registry powering handlers, menus, t
 
 - [ ] PRD mappings and intentional Ableton deviations are encoded once; browser/OS and text-entry conflicts are respected.
 - [ ] Focus restore, modal accessibility, layout-aware character matching, disabled actions, and every registered context are tested.
+- [ ] Emits `shortcut_used` with `action_id` from the registry itself rather than from each handler, plus the `shortcut_guide` `feature_first_use` key when the `?` guide is first opened.
 
 ### LOOP-015 - Starter projects and genre templates
 
@@ -467,6 +541,7 @@ Build Blank plus approved featured starters from normal editable tracks, clips, 
 - [ ] Each starter opens audibly with no missing assets, independent IDs, hidden state, or inaccessible backing track.
 - [ ] AI-generated variation may diversify instances, but a deterministic validated fallback always exists.
 - [ ] Bundled demo projects cover every required genre and pass save, reopen, playback, and asset-policy audits.
+- [ ] Every starter reports a stable `template_id` and `genre` through `project_created`, so template choice is comparable across the cohort.
 
 ### LOOP-016 - Manual loop workflow gate
 
@@ -478,6 +553,7 @@ Validate that a user can create, edit, process, save, and reopen an original 1-8
 - [ ] The reference journey includes drum machine, synth or sampler, audio loop, device chain, send, mixer, step editor, piano roll, shortcuts, and library audition.
 - [ ] All supported-browser E2E tests pass with no leaked audio resources or direct state mutation.
 - [ ] Phase 1 PRD requirements have requirement-to-test traceability and no unresolved P0 defects.
+- [ ] Every Phase 1 event in the PRD OPS-02 catalog has a call site and is observed from the deployed build during the reference journey; no Phase 1 event is still declaration-only.
 
 ## 6. Phase 2: arrangement and export
 
@@ -513,6 +589,7 @@ Implement add/rename/resize/color/reorder section markers and an editable manual
 - [ ] Section reorder moves contained placements without hidden audio and is one undoable transaction.
 - [ ] Outline creation uses linked or copied clips explicitly, is immediately playable, and undoes atomically.
 - [ ] Boundary collisions, partial ranges, automation movement hooks, and save/reload are tested.
+- [ ] Emits `section_created` with `origin`, `arrangement_outline_created` with `template_id` and `section_count`, the `sections` `feature_first_use` key, and `arrangement_milestone` the first time a project reaches at least three named sections and two minutes. `arrangement_milestone` is the PRD section 11 primary measure and fires once per project.
 
 ### ARR-004 - Focused breakpoint automation
 
@@ -524,6 +601,7 @@ Implement one visible lane per track for volume, pan, send, and supported device
 - [ ] Add/move/delete, target switch, copy range, section reorder, selection, and one-gesture undo work in musical time.
 - [ ] Live playback, seek, loop, and offline projection reproduce parameter values without boundary discontinuities.
 - [ ] Automated controls are visibly distinct and safe manual adjustment behavior is defined and tested.
+- [ ] Emits `automation_lane_created` with `target_kind` on a lane's first breakpoint, plus the `automation` `feature_first_use` key. Drawing and dragging breakpoints emit nothing per point.
 
 ### ARR-005 - Arrangement performance and duration gate
 
@@ -557,6 +635,7 @@ Implement full-arrangement stereo WAV export with progress, cancellation, safe f
 - [ ] Duration includes release tails without drift or truncation; format metadata is valid and documented.
 - [ ] The 40-track ten-minute processed fixture renders within browser memory limits on supported hardware.
 - [ ] Error/cancel paths never present a partial file as successful or disturb live playback.
+- [ ] Emits `export_started`, `export_completed`, and `export_failed` with `export_type: stereo`, bucketed duration, track count, and elapsed time, a `was_cancelled` flag, and an actionable `error_code`, plus the `export_stereo` `feature_first_use` key. File names are never logged.
 
 ### EXP-003 - Aligned stem package
 
@@ -568,6 +647,7 @@ Implement selectable 16/24-bit stem export with one aligned WAV per track, separ
 - [ ] Track stems include source, inserts, automation, fader, and pan but exclude master processing; mute/solo policy matches the PRD.
 - [ ] All stems share sample rate, format, bar-1 origin, padded tail duration, and sample alignment.
 - [ ] Progress, cancellation, worker/memory limits, asset policies, and recoverable failures are tested with the maximum reference fixture.
+- [ ] Emits the same export event trio with `export_type: stems` plus the `export_stems` `feature_first_use` key, so stereo and stem adoption are separable in the PRD section 11 export measure.
 
 ### REL-001 - Arrangement and export gate
 
@@ -579,6 +659,7 @@ Validate manual creation of a two-to-ten-minute arrangement and import of its st
 - [ ] Playback, save/reopen, stereo render, and stems agree on arrangement bounds and musical events.
 - [ ] Supported-browser reference runs show no skipped events, drift, missing tracks, clipped tails, leaks, or memory failure.
 - [ ] Every P0 arrangement/export requirement maps to an automated test or named physical-device test procedure.
+- [ ] Every Phase 2 event in the PRD OPS-02 catalog has a call site and is observed from the deployed build, and the primary track-progression measure computes end to end from `project_created`, `arrangement_milestone`, and `export_completed`.
 
 ## 7. Phase 3: AI producer
 
@@ -613,6 +694,7 @@ Expose an allowlisted, versioned subset of shared commands to the model and impl
 - [ ] Invalid IDs, ranges, combinations, unknown tools, and stale revisions make no change.
 - [ ] Valid multi-command proposals summarize impact, apply atomically as one history entry, and undo exactly.
 - [ ] Every Appendix A command family has schema, authorization, invariant, malformed-response, and round-trip tests.
+- [ ] Emits `assistant_proposal_shown`, `assistant_proposal_applied`, `assistant_proposal_cancelled`, and `assistant_proposal_undone` with `capability`, bucketed command count, and bucketed decision/undo times. Prompts, replies, summaries, and command payloads are never logged.
 
 ### AI-004 - Assistant conversation and proposal UI
 
@@ -624,6 +706,7 @@ Implement streaming conversation, scope indicator, suggestions, proposal cards, 
 - [ ] Conversation remains responsive during playback and manual editing remains available during provider failure.
 - [ ] Focus, keyboard, screen-reader announcements, cancellation, retry, stale proposal, and follow-up control highlighting are tested.
 - [ ] Explanations link audible goal, accurate technique, and actual changed controls without mandatory lessons.
+- [ ] Emits `assistant_message_sent` with `scope`, `assistant_suggestion_clicked` with `suggestion_id`, `assistant_result_edited` when the user manually edits an entity an applied proposal changed, and the `assistant` `feature_first_use` key. `assistant_result_edited` is what makes the ownership measure real, so it is not deferred.
 
 ### AI-005 - Alpha musical capability evaluations
 
@@ -646,6 +729,7 @@ Run the full AI evaluation and failure matrix against stable manual commands.
 - [ ] Reference loops become valid editable outlines and one undo restores byte-equivalent canonical song state.
 - [ ] Malformed, stale, cancelled, timed-out, rate-limited, and provider-failed requests never mutate the project.
 - [ ] Context size, latency, usage, error categories, and proposal acceptance are observable within approved privacy rules.
+- [ ] Every Phase 3 event in the PRD OPS-02 catalog has a call site and is observed from the deployed build; apply, cancel, undo, and follow-up-edit rates compute per capability.
 
 ## 8. Phase 4: private-alpha hardening
 
@@ -671,14 +755,16 @@ Audit and fix full keyboard operation, focus, semantics, names, contrast, reduce
 
 ### HARD-003 - Security, privacy, reliability, and telemetry
 
-`Status: todo | Owner: unassigned | Dependencies: REL-002, DEC-001, DEC-005`<br>
-`PRD: 10, 11, 14 | Evidence: pending`
+`Status: todo | Owner: unassigned | Dependencies: REL-002, DEC-001, DEC-005, DEC-009`<br>
+`PRD: 10, 11, 14, OPS-01, OPS-02, OPS-03 | Evidence: pending`
 
-Complete rule audits, validation, quotas, deletion/retention, CSP/secrets review, crash/save/audio-start instrumentation, recovery UX, and privacy-safe product metrics.
+Complete rule audits, validation, quotas, deletion/retention, CSP/secrets review, recovery UX, and the release dashboards over the already-shipped analytics. This task audits and reports on instrumentation; it does not add instrumentation that a feature task should have shipped. A missing event is a defect filed against the task that owned it.
 
 - [ ] Security emulator tests and abuse cases cover all public backend surfaces and asset access.
 - [ ] Crash, save failure, audio start failure, export result, AI failure, and leak signals are actionable without recording project content.
-- [ ] Anonymous retention/deletion and AI data handling match product decisions and user-facing disclosures.
+- [ ] Anonymous retention/deletion, analytics consent/retention (`DEC-009`), and AI data handling match product decisions and user-facing disclosures.
+- [ ] Every event in the PRD OPS-02 catalog is confirmed firing from the deployed production build with the expected parameters, and any gap is filed against its owning task rather than patched here.
+- [ ] Release dashboards compute the PRD section 11 primary, supporting, and guardrail measures — including crash-free session rate — from real cohort data with internal traffic excluded.
 
 ### HARD-004 - Content and template release audit
 
@@ -709,7 +795,7 @@ Run facilitated loop-to-track sessions with the target cohort, categorize blocke
 Produce the traceability matrix and release report for every P0 acceptance criterion, supported browser, reference scenario, security control, and performance/reliability budget.
 
 - [ ] All P0 criteria are evidenced, deferred explicitly by the product owner, or block release.
-- [ ] Production configuration, Firebase rules/indexes/functions, monitoring, rollback, and incident ownership are verified.
+- [ ] Production configuration, Firebase rules/indexes/functions, monitoring, rollback, and incident ownership are verified against the deployed production build, including a practised rollback and a live error reaching Sentry with its release SHA and a symbolicated stack trace.
 - [ ] No open critical/high defect, unexplained resource leak, save-loss path, or unlicensed asset remains.
 
 ## 9. Parked post-alpha backlog
