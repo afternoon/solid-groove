@@ -43,14 +43,5 @@ export default defineConfig({
 			"perf/**",
 			".claude/**",
 		],
-		// Explicit rather than left to vite-plugin-solid's auto-detected bare
-		// specifier (`@testing-library/jest-dom/vitest`, resolved directly
-		// against `test.setupFiles` outside Vite's own module graph): running
-		// from a git-worktree checkout nested under the main checkout (see the
-		// `exclude` note above) can make that raw specifier resolve against the
-		// main checkout's `node_modules` instead of the worktree's own, which
-		// then fails to load. A real relative setup file resolves through
-		// Vite's normal import graph like every other project module instead.
-		setupFiles: ["./src/testing/jest-dom-setup.ts"],
 	},
 });
