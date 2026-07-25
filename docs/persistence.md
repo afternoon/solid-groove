@@ -1,0 +1,102 @@
+# Schema-v1 persistence
+
+| Field | Value |
+| --- | --- |
+| Status | Implemented (`FND-004`) |
+| Scope | The Firestore document layout, the repository boundary, optimistic autosave, and the migration harness |
+
+Related documents: [Product requirements](./prd.md) ([PRJ-01…04](./prd.md#71-projects-and-persistence), [9.1](./prd.md#91-committed-alpha-stack), [9.9](./prd.md#99-persistence-boundary)), [backlog](./backlog.md#fnd-004---firebase-schema-v1-repository), [testing](./testing.md)
+
+Code: [`src/persistence/`](../src/persistence). The canonical domain model it stores is [`src/domain/`](../src/domain); persistence never redefines a domain rule, it only decides where bytes live.
+
+## Document layout
+
+`src/persistence/documents.ts` is the checked-in mapping. Nothing else may build a Firestore path or document body for a project.
+
+| Path | Contents | Written when |
+| --- | --- | --- |
+| `projects/{projectId}` | Name, owner, collaborators, created/modified time, schema version, current revision, template/genre | Metadata edits. The dashboard reads only this tier. |
+| `projects/{projectId}/song/current` | Tempo, time signature, sections, tracks with instrument state, device chains, sends, mixer state, return buses, master, assets, and — while it fits — arrangement placements and automation | Structural and arrangement edits |
+| `projects/{projectId}/clips/{clipId}` | One clip and its note or audio-loop content | Note and clip-content edits |
+| `projects/{projectId}/arrangement/{trackId}` | One track's placements and its track-owned automation lanes | Only when the song document exceeds its budget |
+
+Conventions that hold on every tier:
+
+- **Ownership** lives on the metadata document alone (`ownerId`, `collaboratorIds`). Child documents inherit it and the security rules resolve the parent, so no tier can hold an owner its project disagrees with.
+- **Schema version** (`schemaVersion`) is written on every document, so no reader can silently accept state it does not understand.
+- **Revision** is on every document. Metadata holds the project's current revision; a child holds the revision it was written at; arrangement chunks always share their song document's revision, which makes a torn multi-document write detectable on read.
+- **Timestamps** are integer epoch milliseconds (`createdAt`/`modifiedAt` on metadata, `updatedAt` on children), never Firestore `Timestamp`s — a Firebase type must never reach the domain model, and an integer field still sorts and queries.
+- **`projectId`** is repeated on every child document, so a document copied between projects is rejected by both the rules and the decoder.
+- The project ID is **not** duplicated as a metadata field: the document path already carries it, and a second copy could disagree.
+
+`encodeProject` produces these documents from a `Project`; `decodeProject` reassembles one and runs it through the domain's `parseProject`, so persistence has no second, weaker definition of a valid project.
+
+## Size budget and the chunk boundary
+
+`FND-004` owns these numbers; they live in `src/persistence/documentSize.ts`.
+
+| Budget | Value | Why |
+| --- | --- | --- |
+| Firestore hard limit | 1,048,576 bytes | Platform limit; a larger write always fails |
+| Song document | 262,144 bytes (256 KiB) | A quarter of the hard limit. The song document holds the structure a project keeps growing, so a budget near the limit would leave a project one edit away from being unwritable. |
+| Arrangement chunk | 262,144 bytes | One track's arrangement is the smallest unit this layout can split, so the budget detects a track that has outgrown the layout rather than triggering a further split |
+| Clip document | 262,144 bytes | The highest-frequency write path; kept small on purpose |
+
+Sizes are measured with Firestore's own accounting (document name + field names and values + 32 bytes per document), not with JSON length, so a budget assertion means what it says.
+
+**The chunk boundary.** The song document is built whole. If it exceeds its budget, *all* per-track arrangement content — placements, and automation lanes targeting a track, a device on a track, or one of its sends — moves into `arrangement/{trackId}` documents written at the same revision, and the song document records `arrangementChunked: true` plus the `chunkTrackIds` it wrote. The split is all-or-nothing so a reader has exactly one rule to follow. Automation on returns and the master bus stays in the song document: it is bounded by the number of buses and has no per-track chunk to live in.
+
+Measured against the PRD reference project (50 tracks, ten minutes, 2,500 placements, 100 automation lanes), asserted in `src/persistence/songBudget.test.ts`:
+
+| Document | Bytes |
+| --- | --- |
+| Song document if the arrangement stayed inline | ~534,000 (over budget — chunking is exercised, not hypothetical) |
+| Song document after chunking | 13,450 |
+| Largest of the 50 arrangement chunks | 10,718 |
+| Largest clip document | 1,408 |
+| Metadata document | 245 |
+| `FND-009` slice fixture's song document | 1,027 (no chunks) |
+
+If a *single track* ever exceeds the chunk budget, the write fails with `document_too_large` rather than being silently truncated or split further. Sub-chunking one track's arrangement is deliberately not implemented: no fixture reaches it, and an unproven mechanism is worse than an explicit failure.
+
+## Repository boundary
+
+`ProjectRepository` (`src/persistence/projectRepository.ts`) has two implementations — `InMemoryProjectRepository` for unit, component, and browser tests, and `FirestoreProjectRepository` for production — and both run the same contract suite (`projectRepositoryContract.ts`, executed by `src/persistence/inMemoryProjectRepository.test.ts` and `tests/emulator/firestoreProjectRepository.emulator.test.ts`). The in-memory store keeps *encoded* documents at their real paths, so it exercises the same encoding, chunking, and revision logic; only the transport differs.
+
+Two rules shape the interface:
+
+- **Every write is revision-checked.** The caller states the revision it wrote against; the repository applies the write and returns the new revision, or reports `revision_conflict` and changes nothing.
+- **Tiers are written independently.** `saveClip` writes one clip document plus the metadata revision — never song structure.
+
+`FirestoreProjectRepository` runs each revision-checked write in a Firestore transaction so the tier document and the revision bump commit together. Creating a project takes two steps — claim the metadata document, then write the remaining tiers — because the security rules resolve a child's owner from its parent and rule `get()`s see the database as it was before the write commits. If the second step fails, the claimed metadata document is removed rather than left as a project with no song.
+
+Reads report a permission denial as `not_found`, so the API never confirms the existence of a project the caller may not see. A listing the caller is not entitled to comes back empty rather than as an error.
+
+## Autosave
+
+`ProjectAutosave` (`src/persistence/autosave.ts`) implements PRJ-03 and has no SolidJS dependency — it exposes a plain listener a provider can adapt into a signal.
+
+- **Coalescing.** Edits are queued per entity (`song`, `clip:{id}`, `metadata`); a second edit to the same entity replaces the first, so a slider drag produces one write with the final value. The window defaults to 400 ms and uses an injectable `Scheduler` (`src/shared/scheduler.ts`) so tests drive it deterministically.
+- **Save state.** `idle → pending → saving → saved`, or `failed` with the underlying failure. `flush()` writes everything immediately and is what a `pagehide` handler calls.
+- **Retryable local state.** A failed write stays queued with its value and the drain stops there, so later writes do not burn revisions past a gap. `retry()` writes exactly what the user last saw.
+- **Echo rejection.** A remote snapshot at or below the local revision is this client's own echo; one that arrives while a local edit is queued would overwrite state the user can still see. Both are ignored, and the caller is told which.
+
+## Migrations
+
+Schema v1 is the first production schema, so `PROJECT_MIGRATIONS` is empty and prototype `latestSnapshot` documents are discarded rather than migrated. `src/persistence/migrations.ts` provides the mechanism and its rules:
+
+- A **newer** schema version is never read and never overwritten — it is reported so the UI can ask the user to update.
+- An **older** version is upgraded by applying every registered migration in order; a gap in the chain is an error, not a partial upgrade.
+- Migration is pure documents-to-documents, and the result still goes through `decodeProject`.
+
+**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v1-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v2-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
+
+## Security rules and indexes
+
+`firestore.rules` enforces the layout: owner-or-collaborator access resolved from the metadata document, no ownership reassignment, no backwards revision, a `song` collection that only accepts `current`, clip and chunk documents whose ID matches their path, and a `projectId` that must match the path a document is written to. Structurally wrong writes — unknown schema version, missing revision, unexpected metadata field — are rejected by the rules as well as by the decoder. Each child write costs one document read for the parent lookup, which is the price of not duplicating ownership onto every tier.
+
+Anonymous Firebase identities are ordinary identities here (PRJ-01): they own projects exactly like registered users, and upgrading an account keeps the same uid, so no rule distinguishes them.
+
+`firestore.indexes.json` carries the dashboard's composite index (`ownerId` ascending, `modifiedAt` descending) and is wired into `firebase.json`.
+
+Coverage lives in `tests/emulator/` (`bun run test:emulator`): `firestoreRules.emulator.test.ts` for owner, collaborator, anonymous, unauthenticated, deletion, malformed-write, and cross-project cases, and `firestoreProjectRepository.emulator.test.ts` for the repository contract against a real Firestore instance.

@@ -49,7 +49,12 @@ bun run test:emulator
 
 Suite location: `tests/emulator/`, isolated from `vitest.config.ts` via `vitest.emulator.config.ts`'s own `include`. `tests/emulator/setup.ts` provides `createTestEnvironment()`, which reads `firestore.rules` (the real rules file, not a copy) and connects to whatever host/port the running emulator reports.
 
-The example suite, `tests/emulator/firestoreRules.emulator.test.ts`, proves `firestore.rules`' ownership model against a real Firestore instance: owner read/write, cross-owner denial, unauthenticated denial, and the "cannot reassign ownership on update" rule — the PRD 9.9 requirement that "security rules enforce ownership/collaborator access and must be tested against an emulator before sharing ships." Later tasks extend this file (or add siblings under `tests/emulator/`) as collaborator access and the `song`/`clips` subcollections land.
+Test files run in parallel against one emulator and `clearFirestore()` wipes a whole project, so each file takes its own project ID via `emulatorProjectId("<suite>")` — without that, one file's teardown deletes another file's data mid-test.
+
+Two suites run here:
+
+- `firestoreRules.emulator.test.ts` proves `firestore.rules` against a real Firestore instance across the schema-v1 three-tier layout: owner and collaborator access, anonymous identities (PRJ-01), unauthenticated and cross-owner denial, ownership reassignment, backwards revisions, deletion, malformed writes, and documents that claim another project. This is the PRD 9.9 requirement that "security rules enforce ownership/collaborator access and must be tested against an emulator before sharing ships."
+- `firestoreProjectRepository.emulator.test.ts` runs the shared `ProjectRepository` contract suite (`src/persistence/projectRepositoryContract.ts`) against Firestore, so the in-memory repository the fast suites use is held to the behavior of the real backend. See [`docs/persistence.md`](./persistence.md).
 
 Requires a JDK (the emulator runs on the JVM); `.github/workflows/ci.yml` installs Temurin 21.
 
@@ -96,6 +101,9 @@ bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gat
 | `createId`, `createSeededIdFactory`, `isPrefixedId` | `src/shared/id.ts` | The PRD section 9.4 prefixed-ID format (`trk_...`, `clp_...`, ...). `createId` is the production generator; `createSeededIdFactory(seed)` is deterministic for fixtures and round-trip tests. One shared factory, not a separate test-only ID shape. |
 | `systemClock`, `createManualClock` | `src/shared/clock.ts` | A `Clock` abstraction so domain code depends on an injectable clock instead of calling `Date.now()` directly. `createManualClock` never advances on its own — tests control time explicitly. |
 | `parseOrThrow`, `safeParseWithIssues`, `finiteNumberInRange` | `src/shared/schema.ts` | The shared Zod entry point PRD section 9.1 commits to for runtime schemas. `parseOrThrow` fails closed (throws `SchemaValidationError`, never returns a partial value) per invariant 6; `finiteNumberInRange` is the shared clamping primitive invariant 4 asks for. `FND-002` builds the schema-v1 domain schemas on top of this rather than inventing its own parse/error shape. |
+| `timeoutScheduler`, `createManualScheduler` | `src/shared/scheduler.ts` | A `Scheduler` abstraction for deferred work (autosave coalescing, backoff), so a test drives the delay explicitly instead of sleeping. Same rationale as `clock.ts`: production code is a consumer too. |
+| `loadStoredProjectFixture` | `src/testing/fixtures.ts` | Loads a stored schema-vN project from `public/fixtures/persistence/v{version}-{name}.json`. The fixture convention the persistence migration harness follows — see [`docs/persistence.md`](./persistence.md). |
+| `describeProjectRepositoryContract` | `src/persistence/projectRepositoryContract.ts` | The shared `ProjectRepository` contract suite. Any new repository implementation runs it; behavior specific to one implementation stays in that implementation's own test file. |
 | `loadFixtureJson`, `loadSampleProjectFixture` | `src/testing/fixtures.ts` | Browser-safe fixture loading: reads `public/fixtures/*.json` from disk under Node (unit/component/emulator suites) or fetches it as a static asset under a real browser, picking the strategy at call time. |
 | `buildProject`, `buildTrack`, `buildSong`, `buildInstrument` | `src/testing/fixtures.ts` | Override-friendly builders for the current prototype domain types (`src/model/types.ts`), so a test constructs one valid object and overrides only what it cares about. `FND-002` replaces the prototype types with the schema-v1 domain model and supersedes these. |
 

@@ -16,6 +16,15 @@ import {
 
 export const EMULATOR_PROJECT_ID = "demo-solid-groove";
 
+/**
+ * Test files run in parallel against one emulator, and `clearFirestore()` wipes
+ * a whole project. Each file therefore uses its own `demo-` project ID so one
+ * file's teardown cannot delete another file's data mid-test.
+ */
+export function emulatorProjectId(suite: string): string {
+	return `${EMULATOR_PROJECT_ID}-${suite}`;
+}
+
 function parseHostAndPort(
 	envValue: string | undefined,
 	fallbackPort: number,
@@ -41,6 +50,20 @@ export async function createTestEnvironment(
 			...firestore,
 			rules: readFileSync(resolve(process.cwd(), "firestore.rules"), "utf8"),
 		},
+	});
+}
+
+/**
+ * A context for an anonymous Firebase identity (PRJ-01). It is an ordinary
+ * authenticated identity whose sign-in provider happens to be `anonymous`, so
+ * the rules treat it exactly like a registered user's.
+ */
+export function anonymousContext(
+	testEnv: RulesTestEnvironment,
+	uid: string,
+): ReturnType<RulesTestEnvironment["authenticatedContext"]> {
+	return testEnv.authenticatedContext(uid, {
+		firebase: { sign_in_provider: "anonymous" },
 	});
 }
 

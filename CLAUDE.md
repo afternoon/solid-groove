@@ -55,6 +55,14 @@ src/
 │   ├── serialize.ts         # Deterministic JSON serialization
 │   ├── factories.ts         # Blank/entity factories
 │   └── fixtures.ts          # Deterministic reference projects
+├── persistence/        # Schema-v1 Firestore layout and repository boundary
+│   ├── documents.ts         # Collection paths, document shapes, chunk overflow
+│   ├── documentSize.ts      # Firestore size accounting and the size budgets
+│   ├── projectRepository.ts # The repository contract both stores satisfy
+│   ├── inMemoryProjectRepository.ts   # Local/test store
+│   ├── firestoreProjectRepository.ts  # Production store (only Firebase import)
+│   ├── autosave.ts          # Coalescing, revision-checked optimistic saves
+│   └── migrations.ts        # Forward-migration harness (PRJ-04)
 ├── commands/           # Shared command, transaction, and history kernel
 │   ├── types.ts             # Actors, envelopes, issues, command definitions
 │   ├── registry.ts          # The one typed command registry
@@ -73,6 +81,7 @@ src/
 ├── shared/             # Helpers production code AND tests depend on
 │   ├── id.ts                # PRD 9.4 prefixed-ID factory (+ seeded test variant)
 │   ├── clock.ts              # Injectable Clock abstraction
+│   ├── scheduler.ts          # Injectable Scheduler for coalescing/deferred work
 │   └── schema.ts             # Shared Zod parse helper (PRD 9.1 runtime-schema decision)
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading + fixture builders
@@ -186,6 +195,13 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - A user-controlled numeric value declares its range, unit, default, clamping policy, and automation capability once in `src/domain/parameters.ts`; UI, validation, audio, and assistant tools read that definition instead of repeating literals.
 - `parseProject` is the only way to obtain a `Project`. It either returns a fully valid project or a list of issues, and never partially repairs input.
 - Changing this contract is its own backlog task, not incidental work inside a feature.
+
+### Schema-v1 persistence (`src/persistence`)
+- The PRD section 9.9 three-tier Firestore layout is a contract: `projects/{projectId}` metadata, `projects/{projectId}/song/current`, `projects/{projectId}/clips/{clipId}`, and `projects/{projectId}/arrangement/{trackId}` chunks when the song document exceeds its budget. See [`docs/persistence.md`](./docs/persistence.md).
+- `src/persistence/documents.ts` owns every collection path and document body. No other module builds a Firestore path or document for a project.
+- Every write is revision-checked and every tier is written independently: a note edit writes one clip document, never song structure.
+- `ProjectRepository` has an in-memory and a Firestore implementation, and both run the same contract suite. Only `firestoreProjectRepository.ts` imports `firebase/firestore`, so it is not re-exported from the directory barrel.
+- Autosave (`autosave.ts`) coalesces rapid edits, exposes save state, keeps a failed write queued for retry, and ignores remote echoes at or below the local revision.
 
 ### Shared command layer (`src/commands`)
 - Every project mutation — pointer, keyboard, or assistant — is a registered command (PRD section 9.6). Components never write to project state; they build a typed command and hand it to `CommandHistory`.

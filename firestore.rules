@@ -1,21 +1,108 @@
 rules_version = '2';
 
+// Schema-v1 security rules (PRD 9.9).
+//
+// Ownership lives on the metadata document only. Child documents under
+// `song`, `clips`, and `arrangement` inherit access by resolving their parent,
+// so a document can never claim an owner its project does not agree with. Each
+// child write costs one document read for that lookup, which is the price of
+// not duplicating (and eventually contradicting) ownership on every tier.
+//
+// The rules also refuse structurally wrong writes: an unknown schema version, a
+// missing revision, an unexpected metadata field, or a child document whose
+// `projectId` does not match the path it is being written to.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /projects/{document} {
-      // Allow read if the current user owns the document
-      allow read: if request.auth.uid == resource.data.ownerId;
 
-      // Allow creation if the current user owns the new document and ownerId is set
-      allow create: if request.auth.uid == request.resource.data.ownerId
-                    && request.resource.data.ownerId != null;
+    function signedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
 
-      // Allow updates by the owner, and prevent change of ownership
-      allow update: if request.auth.uid == request.resource.data.ownerId
-                    && request.auth.uid == resource.data.ownerId;
+    // Anonymous Firebase identities are real identities (PRJ-01): they own
+    // projects exactly like a registered user, and upgrading the account keeps
+    // the same uid, so nothing here distinguishes them.
+    // `get(field, default)` keeps the check total: a document that predates or
+    // violates the schema is denied, not an evaluation error that fails a whole
+    // query.
+    function isMember(data) {
+      return signedIn() && (
+        request.auth.uid == data.get('ownerId', '') ||
+        request.auth.uid in data.get('collaboratorIds', [])
+      );
+    }
 
-      // Allow deletion if the current user owns the existing document
-      allow delete: if request.auth.uid == resource.data.ownerId;
+    function memberOfProject(projectId) {
+      return exists(/databases/$(database)/documents/projects/$(projectId))
+        && isMember(get(/databases/$(database)/documents/projects/$(projectId)).data);
+    }
+
+    function metadataFields() {
+      return ['schemaVersion', 'revision', 'name', 'ownerId', 'collaboratorIds',
+              'createdAt', 'modifiedAt', 'template', 'genre'];
+    }
+
+    function validMetadata(data) {
+      return data.keys().hasOnly(metadataFields())
+        && data.keys().hasAll(metadataFields())
+        && data.schemaVersion == 1
+        && data.revision is int && data.revision >= 0
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.ownerId is string && data.ownerId.size() > 0
+        && data.collaboratorIds is list
+        && data.createdAt is int && data.createdAt >= 0
+        && data.modifiedAt is int && data.modifiedAt >= data.createdAt;
+    }
+
+    // Every child document names the project it belongs to, so a document
+    // copied out of another project is rejected rather than silently adopted.
+    function validChild(projectId, data) {
+      return data.projectId == projectId
+        && data.schemaVersion == 1
+        && data.revision is int && data.revision >= 0
+        && data.updatedAt is int && data.updatedAt >= 0;
+    }
+
+    match /projects/{projectId} {
+      // A read of a document that does not exist is allowed and returns nothing:
+      // every revision-checked write starts by reading the metadata document,
+      // which is missing when the project is being created.
+      allow read: if resource == null || isMember(resource.data);
+
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.ownerId
+        && validMetadata(request.resource.data);
+
+      // Ownership cannot be reassigned, and the revision only moves forward.
+      allow update: if isMember(resource.data)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && validMetadata(request.resource.data)
+        && request.resource.data.revision >= resource.data.revision;
+
+      allow delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+
+      match /song/{songId} {
+        allow read: if memberOfProject(projectId);
+        allow create, update: if memberOfProject(projectId)
+          && songId == 'current'
+          && validChild(projectId, request.resource.data);
+        allow delete: if memberOfProject(projectId);
+      }
+
+      match /clips/{clipId} {
+        allow read: if memberOfProject(projectId);
+        allow create, update: if memberOfProject(projectId)
+          && request.resource.data.id == clipId
+          && validChild(projectId, request.resource.data);
+        allow delete: if memberOfProject(projectId);
+      }
+
+      match /arrangement/{trackId} {
+        allow read: if memberOfProject(projectId);
+        allow create, update: if memberOfProject(projectId)
+          && request.resource.data.trackId == trackId
+          && validChild(projectId, request.resource.data);
+        allow delete: if memberOfProject(projectId);
+      }
     }
   }
 }
