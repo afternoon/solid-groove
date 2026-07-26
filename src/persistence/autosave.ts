@@ -1,3 +1,6 @@
+import type { Analytics } from "../analytics/analytics";
+import { analytics as defaultAnalytics } from "../analytics/analytics";
+import { toErrorCode } from "../analytics/errorCodes";
 import type { Clip, ProjectMetadata, Song } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
 import {
@@ -67,6 +70,11 @@ export interface AutosaveOptions {
 	onStatus?: (status: SaveStatus) => void;
 	/** Called when a remote snapshot is newer than local state and adopted. */
 	onRemoteMetadata?: (metadata: ProjectMetadata) => void;
+	/**
+	 * Analytics boundary for the PRD `OPS-02` `save_failed` reliability event.
+	 * Injectable so tests assert the event without touching global state.
+	 */
+	analytics?: Analytics;
 }
 
 type PendingEntry =
@@ -84,6 +92,14 @@ export class ProjectAutosave {
 	private readonly scheduler: Scheduler;
 	private readonly listeners = new Set<(status: SaveStatus) => void>();
 	private readonly onRemoteMetadata?: (metadata: ProjectMetadata) => void;
+	private readonly analytics: Analytics;
+	/**
+	 * Consecutive failed drains. Save success is a PRD section 11 release gate,
+	 * so `save_failed` reports how many attempts a write has already cost —
+	 * one failure that resolves on retry is a very different signal from a
+	 * write that keeps failing.
+	 */
+	private consecutiveFailures = 0;
 	/**
 	 * Keyed so a second edit to the same entity replaces the first. Insertion
 	 * order is preserved, so writes go out in the order the user made them.
@@ -105,6 +121,7 @@ export class ProjectAutosave {
 		this.coalesceMs = options.coalesceMs ?? DEFAULT_COALESCE_MS;
 		this.scheduler = options.scheduler ?? timeoutScheduler;
 		this.onRemoteMetadata = options.onRemoteMetadata;
+		this.analytics = options.analytics ?? defaultAnalytics;
 		if (options.onStatus) {
 			this.listeners.add(options.onStatus);
 		}
@@ -252,6 +269,14 @@ export class ProjectAutosave {
 				// coming back online — can write exactly what the user last saw.
 				this.failure = result;
 				this.state = "failed";
+				// PRD `OPS-02`: the reliability event for this task's principal
+				// failure path. `reason` is already a stable, enumerated code, so
+				// nothing derived from the failure *message* is logged.
+				this.analytics.log("save_failed", {
+					error_code: toErrorCode(result.reason),
+					retry_count: this.consecutiveFailures,
+				});
+				this.consecutiveFailures += 1;
 				this.publish();
 				return;
 			}
@@ -268,6 +293,10 @@ export class ProjectAutosave {
 		}
 
 		if (!this.disposed) {
+			// A clean drain ends the failure streak. `save_recovered` — the event
+			// that pairs with this — belongs to `LOOP-002`, which owns the retry
+			// UX that makes recovery observable to the user.
+			this.consecutiveFailures = 0;
 			this.state = "saved";
 			this.publish();
 		}

@@ -1,0 +1,59 @@
+/* Sits beside the release badge as unobtrusive app chrome, so the PRD OPS-02
+   opt-out is reachable from every surface. LOOP-001b gives the disclosure a
+   designed home on the landing page per DEC-009. */
+.telemetry-disclosure {
+	position: fixed;
+	right: 8px;
+	bottom: 26px;
+	z-index: 1000;
+	max-width: min(340px, calc(100vw - 24px));
+	font-size: var(--font-size-small);
+	color: var(--color-foreground);
+}
+
+.telemetry-disclosure-summary {
+	padding: 2px 6px;
+	border-radius: 4px;
+	background-color: var(--color-background-secondary);
+	cursor: pointer;
+	list-style: none;
+	text-align: right;
+	opacity: 0.55;
+}
+
+.telemetry-disclosure-summary::-webkit-details-marker {
+	display: none;
+}
+
+.telemetry-disclosure-summary:hover,
+.telemetry-disclosure[open] .telemetry-disclosure-summary {
+	opacity: 1;
+}
+
+.telemetry-disclosure-body {
+	margin-top: 6px;
+	padding: 10px 12px;
+	border-radius: 6px;
+	background-color: var(--color-background-secondary);
+	color: var(--color-text-secondary);
+	line-height: 1.5;
+}
+
+.telemetry-disclosure-body p {
+	margin: 0 0 8px;
+}
+
+.telemetry-disclosure-toggle {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin: 10px 0 6px;
+	color: var(--color-text);
+	cursor: pointer;
+}
+
+.telemetry-disclosure-note {
+	margin: 0;
+	font-size: var(--font-size-tiny);
+	opacity: 0.8;
+}

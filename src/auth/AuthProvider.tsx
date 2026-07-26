@@ -7,6 +7,7 @@ import {
 	useContext,
 } from "solid-js";
 import { createStore } from "solid-js/store";
+import { analytics } from "../analytics/analytics";
 import { authService } from "./authService";
 
 interface AuthState {
@@ -22,6 +23,16 @@ export function AuthProvider(props: ParentProps) {
 		user: null,
 		loading: true,
 		isAnonymous: false,
+	});
+
+	// PRD `OPS-02`: account type is a GA4 *user property*, not an event
+	// parameter, and it is the only account fact analytics carries. The
+	// boundary attaches it to every subsequent event, so no call site passes
+	// it and none can get it wrong.
+	createEffect(() => {
+		analytics.setAccountType(
+			state.loading ? "unknown" : state.user ? accountTypeOf(state) : "unknown",
+		);
 	});
 
 	createEffect(() => {
@@ -50,4 +61,9 @@ export function AuthProvider(props: ParentProps) {
 
 export function useAuth() {
 	return useContext(AuthContext) as AuthState;
+}
+
+/** Coarse, non-identifying account fact for the GA4 user property. */
+function accountTypeOf(state: AuthState): "anonymous" | "registered" {
+	return state.isAnonymous ? "anonymous" : "registered";
 }

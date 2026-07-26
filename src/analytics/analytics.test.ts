@@ -1,0 +1,328 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Analytics } from "./analytics";
+import { ConsentStore } from "./consent";
+import {
+	type AnalyticsTransport,
+	createFailingTransport,
+	createRecordingTransport,
+	type RecordingTransport,
+} from "./transport";
+
+/** An in-memory `Storage`, so tests never share jsdom's localStorage. */
+function memoryStorage(): Storage {
+	const map = new Map<string, string>();
+	return {
+		get length() {
+			return map.size;
+		},
+		clear: () => map.clear(),
+		getItem: (key) => map.get(key) ?? null,
+		key: (index) => [...map.keys()][index] ?? null,
+		removeItem: (key) => {
+			map.delete(key);
+		},
+		setItem: (key, value) => {
+			map.set(key, value);
+		},
+	} as Storage;
+}
+
+/** A storage whose every operation throws, like a locked-down private window. */
+function hostileStorage(): Storage {
+	const boom = () => {
+		throw new Error("storage disabled");
+	};
+	return {
+		get length(): number {
+			return boom();
+		},
+		clear: boom,
+		getItem: boom,
+		key: boom,
+		removeItem: boom,
+		setItem: boom,
+	} as unknown as Storage;
+}
+
+function setup(overrides: Partial<Parameters<typeof Analytics>[0]> = {}) {
+	const transport = createRecordingTransport();
+	const consent = new ConsentStore(memoryStorage());
+	const analytics = new Analytics({
+		transport,
+		consent,
+		releaseSha: "abc123def456",
+		surface: "editor",
+		storage: memoryStorage(),
+		...overrides,
+	});
+	return { analytics, transport, consent };
+}
+
+describe("enrichment (PRD OPS-02)", () => {
+	it("attaches the release SHA and surface to every event", () => {
+		const { analytics, transport } = setup();
+		analytics.log("app_opened");
+		expect(transport.events[0]).toEqual({
+			name: "app_opened",
+			params: { release_sha: "abc123def456", surface: "editor" },
+		});
+	});
+
+	it("does not let a caller override an automatic parameter", () => {
+		const { analytics, transport } = setup();
+		// Automatic parameters are not in the payload type; this is the untyped
+		// edge the runtime validator guards.
+		(analytics.log as (n: string, p: unknown) => void)("app_opened", {
+			release_sha: "deadbeef",
+			surface: "landing",
+		});
+		// The event is dropped rather than sent with a forged release.
+		expect(transport.events).toHaveLength(0);
+	});
+
+	it("follows the surface as the user navigates", () => {
+		const { analytics, transport } = setup();
+		analytics.setSurface("dashboard");
+		analytics.log("app_opened");
+		expect(transport.events[0].params.surface).toBe("dashboard");
+	});
+
+	it("sets account type and internal traffic as user properties", () => {
+		const { analytics, transport } = setup();
+		analytics.setAccountType("anonymous");
+		analytics.log("app_opened");
+		expect(transport.userProperties).toEqual({
+			account_type: "anonymous",
+			internal: "false",
+		});
+		// A user property is never smuggled into the event parameters.
+		expect(transport.events[0].params).not.toHaveProperty("account_type");
+	});
+
+	it("re-sends user properties to a transport swapped in later", () => {
+		const { analytics } = setup();
+		analytics.setAccountType("registered");
+		const replacement = createRecordingTransport();
+		analytics.setTransport(replacement);
+		expect(replacement.userProperties.account_type).toBe("registered");
+	});
+});
+
+describe("validation", () => {
+	it("drops an event whose parameter value is not declared", () => {
+		const onIssue = vi.fn();
+		const { analytics, transport } = setup({ onIssue });
+		(analytics.log as (n: string, p: unknown) => void)("clip_edited", {
+			editor: "Some Project Name",
+			event_count_bucket: "1_4",
+		});
+		expect(transport.events).toHaveLength(0);
+		expect(onIssue).toHaveBeenCalled();
+	});
+
+	it("never passes a rejected value to the issue handler", () => {
+		const onIssue = vi.fn();
+		const { analytics } = setup({ onIssue });
+		(analytics.log as (n: string, p: unknown) => void)("clip_edited", {
+			editor: "Midnight Drive",
+			event_count_bucket: "1_4",
+		});
+		expect(JSON.stringify(onIssue.mock.calls)).not.toContain("Midnight Drive");
+	});
+});
+
+describe("consent (PRD OPS-02 opt-out)", () => {
+	it("sends nothing once the user opts out", () => {
+		const { analytics, transport, consent } = setup();
+		consent.optOut();
+		analytics.log("app_opened");
+		analytics.setAccountType("registered");
+		expect(transport.events).toHaveLength(0);
+		expect(transport.userProperties).toEqual({});
+	});
+
+	it("resumes when consent is granted again", () => {
+		const { analytics, transport, consent } = setup();
+		consent.optOut();
+		analytics.log("app_opened");
+		consent.optIn();
+		analytics.log("app_opened");
+		expect(transport.events).toHaveLength(1);
+	});
+
+	it("does not consume a once-only event while opted out", () => {
+		// Otherwise opting back in would permanently lose a first-use signal.
+		const { analytics, transport, consent } = setup();
+		consent.optOut();
+		expect(analytics.logFeatureFirstUse("step_editor")).toBe(false);
+		consent.optIn();
+		expect(analytics.logFeatureFirstUse("step_editor")).toBe(true);
+		expect(transport.named("feature_first_use")).toHaveLength(1);
+	});
+});
+
+describe("fail-open (PRD OPS-02)", () => {
+	it("swallows a throwing transport", () => {
+		const { analytics } = setup({ transport: createFailingTransport() });
+		expect(() => analytics.log("app_opened")).not.toThrow();
+	});
+
+	it("swallows a throwing transport when setting user properties", () => {
+		const { analytics } = setup({ transport: createFailingTransport() });
+		expect(() => analytics.setAccountType("registered")).not.toThrow();
+	});
+
+	it("keeps working when storage is unavailable", () => {
+		const { analytics, transport } = setup({ storage: hostileStorage() });
+		expect(() => analytics.log("app_opened")).not.toThrow();
+		expect(transport.events).toHaveLength(1);
+	});
+
+	it("still fires a once-only event exactly once without storage", () => {
+		// Degrades from once-per-account to once-per-session rather than
+		// once-per-call, which would multiply a first-use measure.
+		const { analytics, transport } = setup({ storage: hostileStorage() });
+		analytics.logFeatureFirstUse("synth");
+		analytics.logFeatureFirstUse("synth");
+		expect(transport.named("feature_first_use")).toHaveLength(1);
+	});
+
+	it("swallows a throwing issue handler", () => {
+		const { analytics } = setup({
+			onIssue: () => {
+				throw new Error("handler exploded");
+			},
+		});
+		expect(() =>
+			(analytics.log as (n: string, p: unknown) => void)("clip_edited", {
+				editor: "nope",
+			}),
+		).not.toThrow();
+	});
+});
+
+describe("once-only events (PRD OPS-02)", () => {
+	let storage: Storage;
+	let transport: RecordingTransport;
+
+	beforeEach(() => {
+		storage = memoryStorage();
+		transport = createRecordingTransport();
+	});
+
+	function make() {
+		return new Analytics({
+			transport,
+			consent: new ConsentStore(memoryStorage()),
+			storage,
+			surface: "editor",
+		});
+	}
+
+	it("fires feature_first_use once per feature", () => {
+		const analytics = make();
+		expect(analytics.logFeatureFirstUse("step_editor")).toBe(true);
+		expect(analytics.logFeatureFirstUse("step_editor")).toBe(false);
+		expect(transport.named("feature_first_use")).toHaveLength(1);
+		expect(transport.events[0].params.feature).toBe("step_editor");
+	});
+
+	it("fires once per feature, not once overall", () => {
+		const analytics = make();
+		analytics.logFeatureFirstUse("step_editor");
+		analytics.logFeatureFirstUse("synth");
+		expect(transport.named("feature_first_use")).toHaveLength(2);
+	});
+
+	it("stays fired across a reload", () => {
+		make().logFeatureFirstUse("mixer");
+		// A fresh instance over the same storage is what a page reload looks like.
+		make().logFeatureFirstUse("mixer");
+		expect(transport.named("feature_first_use")).toHaveLength(1);
+	});
+
+	it("scopes first_edit per project", () => {
+		const analytics = make();
+		const payload = {
+			command_id: "note.add",
+			seconds_since_open_bucket: "0_5s",
+		} as const;
+		expect(analytics.logOnce("first_edit:prj_a", "first_edit", payload)).toBe(
+			true,
+		);
+		expect(analytics.logOnce("first_edit:prj_a", "first_edit", payload)).toBe(
+			false,
+		);
+		expect(analytics.logOnce("first_edit:prj_b", "first_edit", payload)).toBe(
+			true,
+		);
+		expect(transport.named("first_edit")).toHaveLength(2);
+	});
+});
+
+describe("type safety (PRD OPS-02: logging an unregistered event is a type error)", () => {
+	it("rejects unregistered events, parameters, and values at compile time", () => {
+		const { analytics } = setup();
+
+		// @ts-expect-error - "definitely_not_an_event" is not in the catalog.
+		analytics.log("definitely_not_an_event");
+
+		// @ts-expect-error - "project_name" is not a declared parameter.
+		analytics.log("app_opened", { project_name: "Midnight Drive" });
+
+		// @ts-expect-error - "steps" is not a declared value of `editor`.
+		analytics.log("clip_edited", { editor: "steps", event_count_bucket: "1_4" });
+
+		// @ts-expect-error - free text can never satisfy an enum parameter.
+		analytics.log("clip_edited", {
+			editor: "user typed this" as string,
+			event_count_bucket: "1_4",
+		});
+
+		// @ts-expect-error - `event_count_bucket` is required.
+		analytics.log("clip_edited", { editor: "step" });
+
+		// A correct call still compiles.
+		analytics.log("clip_edited", { editor: "step", event_count_bucket: "1_4" });
+	});
+
+	it("cannot log an event whose keys a later task still owns", () => {
+		const { analytics } = setup();
+		// `shortcut_used`'s `action_id` comes from the LOOP-014 shortcut
+		// registry. Until that lands the enum is empty, so the event is declared
+		// but un-loggable — no call site can ship ahead of its keys.
+		// @ts-expect-error - no value satisfies an empty enum.
+		analytics.log("shortcut_used", { action_id: "transport.play" });
+	});
+});
+
+describe("transports", () => {
+	it("records nothing through the no-op default", () => {
+		const analytics = new Analytics({
+			consent: new ConsentStore(memoryStorage()),
+			storage: memoryStorage(),
+		});
+		expect(() => analytics.log("app_opened")).not.toThrow();
+	});
+
+	it("reports whether a once-only key has already fired", () => {
+		const { analytics } = setup();
+		expect(analytics.hasFired("feature:synth")).toBe(false);
+		analytics.logFeatureFirstUse("synth");
+		expect(analytics.hasFired("feature:synth")).toBe(true);
+	});
+
+	it("keeps a failing transport from stopping a later working one", () => {
+		const failing: AnalyticsTransport = createFailingTransport();
+		const analytics = new Analytics({
+			transport: failing,
+			consent: new ConsentStore(memoryStorage()),
+			storage: memoryStorage(),
+		});
+		analytics.log("app_opened");
+		const working = createRecordingTransport();
+		analytics.setTransport(working);
+		analytics.log("app_opened");
+		expect(working.events).toHaveLength(1);
+	});
+});
