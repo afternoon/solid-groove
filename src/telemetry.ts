@@ -33,8 +33,12 @@ export interface InitTelemetryOptions {
 	surface: Surface;
 	/** Overridden in tests so no test loads a vendor SDK. */
 	createAnalyticsTransport?: () => AnalyticsTransport;
-	/** Returns a started error sink, or `null` if monitoring is not wired. */
-	startErrorSink?: (release: string) => Promise<void>;
+	/**
+	 * Starts the error sink in place of the real dynamic import. May resolve to
+	 * a stopper, which lets a test observe that a sink started during a consent
+	 * withdrawal is stopped again.
+	 */
+	startErrorSink?: StartErrorSink;
 	/** Schedules work for after first paint. */
 	afterPaint?: (task: () => void) => void;
 	reporter?: ErrorReporter;
@@ -46,6 +50,14 @@ export interface Telemetry {
 	/** Removes global handlers and stops vendor transports. */
 	dispose: () => Promise<void>;
 }
+
+/** Detaches a started error sink and shuts its vendor transport down. */
+type StopErrorSink = () => Promise<void>;
+
+/** A test's stand-in for the real dynamic import, optionally returning a stopper. */
+type StartErrorSink = (
+	release: string,
+) => Promise<void> | Promise<StopErrorSink>;
 
 /**
  * Wires telemetry for one app load. Returns a disposer.
@@ -78,14 +90,24 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 		}
 	}
 
-	let stopSink: (() => Promise<void>) | null = null;
+	let stopSink: StopErrorSink | null = null;
 
-	const shouldStartMonitoring =
-		options.surface !== "landing" && consent.errorMonitoringAllowed;
-
-	if (shouldStartMonitoring) {
+	// The surface is fixed for this app load, but consent is not: the deferred
+	// start below lands two animation frames plus an idle callback later, and
+	// `TelemetryDisclosure` is reachable from first paint. So consent is checked
+	// *inside* the deferred task and again once the sink has resolved, rather
+	// than once here. Missing either re-check lets `sentry.init()` run — and
+	// with it a Release Health session envelope — for a user who has already
+	// declined; the consent subscription below cannot catch that, because
+	// `stopSink` is still null throughout the window.
+	if (options.surface !== "landing") {
 		afterPaint(() => {
+			if (!consent.errorMonitoringAllowed) return;
 			void startMonitoring(reporter, options.startErrorSink).then((stop) => {
+				if (!consent.errorMonitoringAllowed) {
+					void stop();
+					return;
+				}
 				stopSink = stop;
 			});
 		});
@@ -121,11 +143,11 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
  */
 async function startMonitoring(
 	reporter: ErrorReporter,
-	override?: (release: string) => Promise<void>,
-): Promise<() => Promise<void>> {
+	override?: StartErrorSink,
+): Promise<StopErrorSink> {
 	if (override) {
-		await override(RELEASE_SHA).catch(() => {});
-		return async () => {};
+		const stop = await override(RELEASE_SHA).catch(() => undefined);
+		return typeof stop === "function" ? stop : async () => {};
 	}
 	try {
 		const { SentrySink } = await import("./monitoring/sentrySink");

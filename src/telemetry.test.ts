@@ -150,6 +150,85 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 		expect(createAnalyticsTransport).not.toHaveBeenCalled();
 	});
 
+	it("does not start it when consent is withdrawn before the deferred start runs", () => {
+		// The window between `initTelemetry` and first paint is two animation
+		// frames plus an idle callback, and the disclosure is on screen for all of
+		// it. Starting anyway would run `sentry.init()` — and transmit a Release
+		// Health session — for a user who has just declined.
+		const consent = new ConsentStore(memoryStorage());
+		const paint = deferredPaint();
+		const startErrorSink = vi.fn(async () => {});
+
+		initTelemetry({
+			surface: "editor",
+			consent,
+			target: fakeTarget(),
+			afterPaint: paint.schedule,
+			startErrorSink,
+			createAnalyticsTransport: createRecordingTransport,
+		});
+		consent.optOut();
+		paint.flush();
+
+		expect(startErrorSink).not.toHaveBeenCalled();
+	});
+
+	it("stops the sink when consent is withdrawn while it is still loading", async () => {
+		// Opt-out landing after the deferred start but before the sink resolves:
+		// `stopSink` is still null, so the consent subscription cannot see it and
+		// the resolution path has to stop it itself. Otherwise the sink stays
+		// attached for the rest of the session.
+		const consent = new ConsentStore(memoryStorage());
+		const paint = deferredPaint();
+		const stop = vi.fn(async () => {});
+		let finishLoading: () => void = () => {};
+		const loaded = new Promise<void>((resolve) => {
+			finishLoading = resolve;
+		});
+		const startErrorSink = vi.fn(async () => {
+			await loaded;
+			return stop;
+		});
+
+		initTelemetry({
+			surface: "editor",
+			consent,
+			target: fakeTarget(),
+			afterPaint: paint.schedule,
+			startErrorSink,
+			createAnalyticsTransport: createRecordingTransport,
+		});
+		paint.flush();
+		expect(startErrorSink).toHaveBeenCalledTimes(1);
+
+		consent.optOut();
+		finishLoading();
+		await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
+	});
+
+	it("keeps a sink that started while consent was still granted", async () => {
+		// The counterpart: the re-checks must not tear down a legitimate sink.
+		const consent = new ConsentStore(memoryStorage());
+		const paint = deferredPaint();
+		const stop = vi.fn(async () => {});
+		const telemetry = initTelemetry({
+			surface: "editor",
+			consent,
+			target: fakeTarget(),
+			afterPaint: paint.schedule,
+			startErrorSink: async () => stop,
+			createAnalyticsTransport: createRecordingTransport,
+		});
+		paint.flush();
+		// A macrotask tick drains the start promise's microtask chain.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(stop).not.toHaveBeenCalled();
+
+		// It is still the disposer's to stop.
+		await telemetry.dispose();
+		expect(stop).toHaveBeenCalledTimes(1);
+	});
+
 	it("stops sending when consent is withdrawn mid-session", () => {
 		const consent = new ConsentStore(memoryStorage());
 		const transport = createRecordingTransport();

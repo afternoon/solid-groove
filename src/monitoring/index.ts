@@ -35,12 +35,14 @@ export type {
 	ScrubbableException,
 	ScrubbableFrame,
 } from "./scrub";
+// `pathOnly` is deliberately absent for the same reason as `sentrySink.ts`: it
+// returns a raw pathname, which still carries whatever the user named. Callers
+// outside `scrub.ts` want `scrubRoute`.
 export {
 	ALLOWED_CONTEXTS,
 	ALLOWED_ROUTE_SEGMENTS,
 	ALLOWED_TAGS,
 	MAX_MESSAGE_LENGTH,
-	pathOnly,
 	redactText,
 	scrubBreadcrumb,
 	scrubFramePath,

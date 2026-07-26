@@ -90,7 +90,16 @@ export function redactText(value: unknown): string {
 		: result;
 }
 
-/** Reduces a URL to its path, dropping origin, query, and fragment. */
+/**
+ * Reduces a URL to its path, dropping origin, query, and fragment.
+ *
+ * **Not safe to transmit on its own.** The pathname it returns is whatever the
+ * URL contained, so a user-named asset or project survives it intact, and a
+ * non-`http` scheme puts its whole payload in the pathname
+ * (`data:audio/wav;base64,…` → `audio/wav;base64,…`). It exists as the input
+ * step of `scrubRoute`, which is what rebuilds the path into a safe shape.
+ * Anything leaving this module URL-shaped goes through `scrubRoute`.
+ */
 export function pathOnly(value: unknown): string {
 	if (typeof value !== "string" || value.length === 0) return "";
 	try {
@@ -128,17 +137,21 @@ export const ALLOWED_ROUTE_SEGMENTS = [
 const PREFIXED_ID = /^[a-z]{2,5}_[A-Za-z0-9_-]{4,}$/;
 
 /**
- * Reduces a transaction name to its route *shape*.
+ * Reduces a URL or transaction name to its route *shape*.
  *
- * `transaction` is derived from the URL, so it is a route identifier rather
- * than free text, and `redactText` is the wrong tool for it: a bare path
- * segment like `/projects/Midnight Drive Demo` contains no quotes, scheme, or
- * separator for a text rule to key on, so it would travel intact.
+ * Applies to every URL-derived value we transmit: `event.transaction`, the
+ * network breadcrumb's request URL, and the navigation breadcrumb's `from`/
+ * `to`. All of them are route identifiers rather than free text, and
+ * `redactText` is the wrong tool for them: a bare path segment like
+ * `/projects/Midnight Drive Demo` contains no quotes, scheme, or separator for
+ * a text rule to key on, so it would travel intact.
  *
  * Treated structurally instead, matching this file's allowlist stance: a
  * segment is kept only if it is a route word we ship or a prefixed domain ID.
- * Anything else — which is to say anything a user could have named — becomes
- * `:param`.
+ * Anything else — which is to say anything a user could have named, including
+ * an asset filename inside a storage URL — becomes `:param`. That also makes
+ * this total for the schemes an audio app produces: `data:` and `blob:` put
+ * their payload in the pathname, and every segment of it is `:param`.
  */
 export function scrubRoute(value: unknown): string | undefined {
 	if (typeof value !== "string" || value.length === 0) return undefined;
@@ -294,13 +307,16 @@ export function scrubBreadcrumb(
 		const data = breadcrumb.data ?? {};
 		return {
 			...base,
-			// The message is the request URL. A request to our own asset endpoint
-			// carries the asset path, so only method and status survive.
+			// The message is the request URL and is dropped outright. The request
+			// path survives only as a route *shape*: a request to our own asset
+			// endpoint carries a user-named file
+			// (`/o/users%2Fu1%2FMy Secret Sample.wav`), which `scrubRoute` reduces
+			// to `:param` while keeping the endpoint recognizable.
 			data: {
 				method: typeof data.method === "string" ? data.method : undefined,
 				status_code:
 					typeof data.status_code === "number" ? data.status_code : undefined,
-				url_path: pathOnly(data.url),
+				url_path: scrubRoute(data.url),
 			},
 		};
 	}
@@ -314,7 +330,9 @@ export function scrubBreadcrumb(
 		const data = breadcrumb.data ?? {};
 		return {
 			...base,
-			data: { from: pathOnly(data.from), to: pathOnly(data.to) },
+			// A route can contain a name the user chose (`/projects/My Demo`), so
+			// both endpoints are reduced to a route shape rather than a raw path.
+			data: { from: scrubRoute(data.from), to: scrubRoute(data.to) },
 		};
 	}
 

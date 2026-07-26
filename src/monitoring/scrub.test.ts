@@ -179,7 +179,7 @@ describe("scrubBreadcrumb", () => {
 		).toBeNull();
 	});
 
-	it("keeps only method, status, and path for network breadcrumbs", () => {
+	it("keeps only method, status, and route shape for network breadcrumbs", () => {
 		const crumb = scrubBreadcrumb({
 			category: "fetch",
 			message: FORBIDDEN.assetUrl,
@@ -194,6 +194,42 @@ describe("scrubBreadcrumb", () => {
 		expect(crumb?.data?.status_code).toBe(404);
 	});
 
+	it("does not transmit an asset name carried inside a request URL", () => {
+		// The leak class scrubRoute exists for: the name is a bare path segment,
+		// so no text rule can see it, and it survives a plain pathname.
+		const crumb = scrubBreadcrumb({
+			category: "fetch",
+			data: {
+				url: `https://firebasestorage.googleapis.com/v0/b/sg/o/users%2Fu1%2F${encodeURIComponent(
+					FORBIDDEN.assetName,
+				)}?alt=media`,
+				method: "GET",
+				status_code: 200,
+			},
+		});
+		const serialized = JSON.stringify(crumb);
+		expectScrubbed(serialized);
+		expect(serialized).not.toContain("secret");
+		expect(crumb?.data?.url_path).toBe("/:param/:param/:param/:param/:param");
+	});
+
+	it("does not transmit the payload of a data or blob URL", () => {
+		// pathOnly is not total for these schemes: the whole payload lands in the
+		// pathname. The route shape has to hold for them too.
+		expect(
+			scrubBreadcrumb({
+				category: "xhr",
+				data: { url: "data:audio/wav;base64,UklGRiQAAABXQVZF" },
+			})?.data?.url_path,
+		).toBe("/:param/:param");
+		expect(
+			scrubBreadcrumb({
+				category: "xhr",
+				data: { url: "blob:https://app.example.com/9f0c-uuid" },
+			})?.data?.url_path,
+		).not.toContain("app.example.com");
+	});
+
 	it("reduces DOM breadcrumbs to a tag name", () => {
 		const crumb = scrubBreadcrumb({
 			category: "ui.click",
@@ -202,16 +238,31 @@ describe("scrubBreadcrumb", () => {
 		expect(crumb?.message).toBe("button");
 	});
 
-	it("reduces navigation breadcrumbs to paths", () => {
+	it("reduces navigation breadcrumbs to route shapes", () => {
 		const crumb = scrubBreadcrumb({
 			category: "navigation",
 			data: {
 				from: "https://app.example.com/dashboard?q=dusty vinyl piano",
-				to: "https://app.example.com/projects/prj_abc#token",
+				to: "https://app.example.com/projects/prj_abc123#token",
 			},
 		});
-		expect(crumb?.data?.to).toBe("/projects/prj_abc");
+		expect(crumb?.data?.from).toBe("/dashboard");
+		expect(crumb?.data?.to).toBe("/projects/:id");
 		expect(JSON.stringify(crumb)).not.toContain("dusty");
+	});
+
+	it("does not transmit a project name carried in a navigated route", () => {
+		const crumb = scrubBreadcrumb({
+			category: "navigation",
+			data: {
+				from: `/projects/${FORBIDDEN.projectName}`,
+				to: `/projects/${encodeURIComponent(FORBIDDEN.projectName)}`,
+			},
+		});
+		const serialized = JSON.stringify(crumb);
+		expectScrubbed(serialized);
+		expect(serialized).not.toContain("Midnight");
+		expect(crumb?.data?.to).toBe("/projects/:param");
 	});
 
 	it("redacts an unrecognized breadcrumb category", () => {
@@ -293,7 +344,20 @@ describe("scrubSentryEvent", () => {
 				{
 					category: "fetch",
 					message: FORBIDDEN.assetUrl,
-					data: { url: FORBIDDEN.assetUrl, method: "PUT", status_code: 500 },
+					data: {
+						// The asset name planted *inside* the URL, where no text rule
+						// can see it.
+						url: `${FORBIDDEN.assetUrl}/${FORBIDDEN.assetName}`,
+						method: "PUT",
+						status_code: 500,
+					},
+				},
+				{
+					category: "navigation",
+					data: {
+						from: "/dashboard",
+						to: `/projects/${FORBIDDEN.projectName}`,
+					},
 				},
 				{
 					category: "ui.input",
@@ -358,9 +422,10 @@ describe("scrubSentryEvent", () => {
 
 	it("drops the console breadcrumb and keeps the scrubbed others", () => {
 		const scrubbed = scrubSentryEvent(hostileEvent());
-		expect(scrubbed.breadcrumbs).toHaveLength(2);
+		expect(scrubbed.breadcrumbs).toHaveLength(3);
 		expect(scrubbed.breadcrumbs?.map((crumb) => crumb.category)).toEqual([
 			"fetch",
+			"navigation",
 			"ui.input",
 		]);
 	});
