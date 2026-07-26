@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project } from "../domain/entities";
 import { createFactoryContext, createReturnBus } from "../domain/factories";
 import {
@@ -6,7 +6,7 @@ import {
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
-import { TICKS_PER_SIXTEENTH } from "../domain/time";
+import { TICKS_PER_SIXTEENTH, ticksToSeconds } from "../domain/time";
 import { buildAudioProjection } from "../projection/audioProjection";
 import { installWebAudioGlobals } from "./testAudioContext";
 
@@ -35,22 +35,29 @@ afterEach(async () => {
 function fakeTransport(): import("./ProjectAudioGraph").AudioTransport & {
 	scheduled: Map<number, string>;
 	cleared: number[];
+	callbacks: Map<number, (time: number) => void>;
 } {
 	let nextId = 1;
 	const scheduled = new Map<number, string>();
 	const cleared: number[] = [];
+	// Kept so a test can fire a scheduled event and assert what actually
+	// reaches Tone, rather than only that something was scheduled.
+	const callbacks = new Map<number, (time: number) => void>();
 	return {
 		bpm: { value: 120 },
 		scheduled,
 		cleared,
-		schedule(_callback, time) {
+		callbacks,
+		schedule(callback, time) {
 			const id = nextId++;
 			scheduled.set(id, time);
+			callbacks.set(id, callback);
 			return id;
 		},
 		clear(id) {
 			cleared.push(id);
 			scheduled.delete(id);
+			callbacks.delete(id);
 		},
 	};
 }
@@ -452,6 +459,81 @@ describe("ProjectAudioGraph", () => {
 		expect(runtime.getState()).not.toBe("closed");
 
 		await other.dispose();
+		await runtime.close();
+	});
+
+	// Every fixture in this repo authors its audio at `sourceTempo === tempo`,
+	// where buffer seconds and song seconds coincide and a units bug in either
+	// `player.start()` argument is invisible. This is the one test that pulls
+	// them apart, so it is the only thing standing between a rate != 1 project
+	// and silently truncated or overrunning loops (also inherited by the
+	// AUD-05/AUD-06 offline and stem exports, which reuse this expansion).
+	it("hands Tone buffer-timeline seconds for a loop whose sample tempo differs from the song", async () => {
+		const Tone = await import("tone");
+		const base = createReferenceProject({
+			trackCount: 1,
+			waveformTrackCount: 1,
+			placementCount: 1,
+			minutes: 1,
+			automationLaneCount: 0,
+		});
+		// Authored at 60 BPM, played back in a 120 BPM song => playbackRate 2.
+		const project: Project = {
+			...base,
+			clips: base.clips.map((clip) =>
+				clip.content.kind === "audioLoop"
+					? { ...clip, content: { ...clip.content, sourceTempo: 60 } }
+					: clip,
+			),
+		};
+
+		const { loader, pending } = manualBufferLoader();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			bufferLoader: loader,
+		});
+
+		const projection = buildAudioProjection(project);
+		graph.reconcile(projection);
+		for (const p of pending) p.resolve(fakeBuffer());
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const start = vi
+			.spyOn(Tone.Player.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+
+		try {
+			for (const callback of transport.callbacks.values()) callback(0);
+
+			expect(start).toHaveBeenCalled();
+			const [, offsetArg, durationArg] = start.mock.calls[0];
+			// Both must be plain buffer-seconds numbers. A tick string like
+			// "768i" here is the regression: Tone divides the duration by the
+			// playback rate, so song-timeline ticks sound for half as long at
+			// rate 2.
+			expect(typeof offsetArg).toBe("number");
+			expect(typeof durationArg).toBe("number");
+
+			// The scheduled event covers min(clip length, placement duration)
+			// of song time; at rate 2 that has to reach Tone doubled, so that
+			// Tone's divide-by-rate leaves the correct sounded length.
+			const clip = project.clips.find((c) => c.content.kind === "audioLoop");
+			const placement = project.song.placements.find(
+				(p) => p.clipId === clip?.id,
+			);
+			if (!clip || !placement) throw new Error("fixture has no audio loop");
+			const eventTicks = Math.min(clip.lengthTicks, placement.durationTicks);
+			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 120) * 2);
+		} finally {
+			start.mockRestore();
+		}
+
+		await graph.dispose();
 		await runtime.close();
 	});
 });

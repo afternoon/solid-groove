@@ -53,6 +53,24 @@ export function audioLoopOffsetSeconds(
 	return ticksToSeconds(loop.sourceOffsetTicks, tempo) * loop.playbackRate;
 }
 
+/**
+ * The `player.start()` duration for a scheduled loop, in the decoded buffer's
+ * own seconds — the same timeline as the offset above, and for the same reason.
+ *
+ * `Tone.Player` divides this by the playback rate to get the wall-clock length
+ * it sounds for (`Player.js`: `computedDuration = toSeconds(duration) /
+ * playbackRate`), so passing song-timeline seconds makes a non-unity rate
+ * truncate the loop (rate > 1) or overrun into the next repeat (rate < 1).
+ * Scaling by the rate cancels that division and leaves the event sounding for
+ * exactly the song-time span the arrangement draws.
+ */
+export function audioLoopDurationSeconds(
+	loop: ScheduledAudioLoop,
+	tempo: number,
+): number {
+	return ticksToSeconds(loop.durationTicks, tempo) * loop.playbackRate;
+}
+
 export interface PlacementSchedule {
 	readonly notes: readonly ScheduledNote[];
 	readonly audioLoops: readonly ScheduledAudioLoop[];

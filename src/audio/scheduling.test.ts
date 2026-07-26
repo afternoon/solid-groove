@@ -7,6 +7,7 @@ import type {
 	AudioPlacementProjection,
 } from "../projection/audioProjection";
 import {
+	audioLoopDurationSeconds,
 	audioLoopOffsetSeconds,
 	computePlacementSchedule,
 	ticksToToneTime,
@@ -323,6 +324,43 @@ describe("audioLoopOffsetSeconds", () => {
 		const schedule = computePlacementSchedule(placement(), clip, 120);
 
 		expect(audioLoopOffsetSeconds(schedule.audioLoops[0], 120)).toBe(0);
+	});
+});
+
+describe("audioLoopDurationSeconds", () => {
+	// `Tone.Player` divides the duration it is given by the playback rate to get
+	// the wall-clock length it sounds for, so this helper has to pre-multiply by
+	// the rate. Both cases below sound for the same 2s the arrangement draws for
+	// a one-bar placement at 120 BPM; only the number handed to Tone differs.
+	it("scales by the playback rate so a fast sample is not truncated", () => {
+		// Authored at 60 BPM, played at 120 => rate 2. Tone will halve whatever
+		// we pass, so the song-time 2s has to go in as 4s.
+		const clip = audioLoopClip(60, TICKS_PER_BAR);
+		const schedule = computePlacementSchedule(placement(), clip, 120);
+
+		const [loop] = schedule.audioLoops;
+		expect(loop.playbackRate).toBeCloseTo(2);
+		expect(audioLoopDurationSeconds(loop, 120)).toBeCloseTo(4);
+	});
+
+	it("scales by the playback rate so a slow sample does not overrun", () => {
+		// Authored at 140 BPM, played at 120 => rate ~0.857. Tone divides by
+		// that, so passing the song-time 2s would sound for ~2.333s and flam
+		// into the next repeat.
+		const clip = audioLoopClip(140, TICKS_PER_BAR);
+		const schedule = computePlacementSchedule(placement(), clip, 120);
+
+		const [loop] = schedule.audioLoops;
+		expect(audioLoopDurationSeconds(loop, 120)).toBeCloseTo(2 * (120 / 140));
+	});
+
+	it("is the plain song-time duration at unity rate", () => {
+		const clip = audioLoopClip(120);
+		const schedule = computePlacementSchedule(placement(), clip, 120);
+
+		expect(audioLoopDurationSeconds(schedule.audioLoops[0], 120)).toBeCloseTo(
+			2,
+		);
 	});
 });
 

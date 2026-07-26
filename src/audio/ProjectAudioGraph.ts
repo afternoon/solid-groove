@@ -20,6 +20,7 @@ import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
 import type { ResourceHandle } from "./resourceRegistry";
 import {
+	audioLoopDurationSeconds,
 	audioLoopOffsetSeconds,
 	computePlacementSchedule,
 	ticksToToneTime,
@@ -305,6 +306,7 @@ export class ProjectAudioGraph {
 				entry.handles.push(this.subscribeAudioLoopAsset(asset, bufferBox));
 			}
 			const offsetSeconds = audioLoopOffsetSeconds(loop, tempo);
+			const durationSeconds = audioLoopDurationSeconds(loop, tempo);
 			const scheduleId = this.transport.schedule((time) => {
 				const track = this.tracks.get(loop.trackId);
 				if (track && bufferBox.current) {
@@ -312,7 +314,7 @@ export class ProjectAudioGraph {
 						bufferBox.current,
 						track.audioInput,
 						time,
-						ticksToToneTime(loop.durationTicks),
+						durationSeconds,
 						loop.playbackRate,
 						offsetSeconds,
 					);
