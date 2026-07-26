@@ -31,6 +31,12 @@ cp .env.example .env   # fill in your Firebase project's values
 bun run dev
 ```
 
+Without a Firebase project of your own, set `VITE_MOCK_BACKEND=true` in `.env` instead — the app runs entirely against in-memory mock services (the same mode the browser E2E suite uses), so local UI work needs no Firebase project at all.
+
+## Deployment
+
+The private alpha has exactly one hosted environment — the **production** Firebase project — deployed to Firebase Hosting from CI on every merge to `main`, never from a developer machine. `bun run deploy` is the one documented command (it builds, scans the build for secrets, then ships Hosting, Firestore rules/indexes, and Storage rules together so a failing rules step fails the whole deploy); `.github/workflows/ci.yml`'s `deploy` job runs it automatically and follows it with a post-deploy smoke test against the real hosted URL. See [`docs/testing.md`](./docs/testing.md#deploy) for the full pipeline, the CI secrets/variables it needs, rollback, and how to get a local build talking to the right project.
+
 ## Sounds
 
 The app ships a starter library of 200 one-shots — drums, bass, tonal material, textures, and transitions — synthesized from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute. Alongside it there is an acquisition path for CC0 content from vetted sources, where each file is individually selected, checksum-pinned, and reviewed.

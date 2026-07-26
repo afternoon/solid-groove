@@ -37,6 +37,7 @@ export default defineConfig({
 		exclude: [
 			...configDefaults.exclude,
 			"e2e/**",
+			"e2e-hosted/**",
 			"tests/emulator/**",
 			// The FND-008 arrangement-spike measurement harness: Playwright specs
 			// (`playwright.bench.config.ts`), not Vitest ones.
