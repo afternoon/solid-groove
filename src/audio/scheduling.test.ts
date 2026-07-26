@@ -6,7 +6,11 @@ import type {
 	AudioClipProjection,
 	AudioPlacementProjection,
 } from "../projection/audioProjection";
-import { computePlacementSchedule, ticksToToneTime } from "./scheduling";
+import {
+	audioLoopOffsetSeconds,
+	computePlacementSchedule,
+	ticksToToneTime,
+} from "./scheduling";
 
 const trackId = "trk_00000000000000000001" as TrackId;
 const clipId = "clp_00000000000000000001" as ClipId;
@@ -40,6 +44,7 @@ function notesClip(
 function audioLoopClip(
 	sourceTempo: number,
 	lengthTicks = TICKS_PER_BAR,
+	startOffsetTicks = 0,
 ): AudioClipProjection {
 	return {
 		id: clipId,
@@ -49,7 +54,7 @@ function audioLoopClip(
 			kind: "audioLoop",
 			assetId,
 			sourceTempo,
-			startOffsetTicks: toTicks(0),
+			startOffsetTicks: toTicks(startOffsetTicks),
 		},
 		fingerprint: "fp",
 	};
@@ -188,6 +193,136 @@ describe("computePlacementSchedule", () => {
 			0,
 			TICKS_PER_BAR,
 		]);
+	});
+
+	it("plays a left-trimmed audio loop from inside the sample rather than dropping it", () => {
+		// The user drags the placement's left edge one beat right: clip length
+		// 768 ticks, placement { start 0, duration 768, clipOffset 192 }. The
+		// renderer draws a trimmed placement, so the engine must play the same
+		// 576 ticks — starting 192 ticks into the sample — not fall silent.
+		const clip = audioLoopClip(120, 768);
+		const schedule = computePlacementSchedule(
+			placement({
+				startTicks: toTicks(0),
+				durationTicks: toTicks(768),
+				clipOffsetTicks: toTicks(192),
+				looped: false,
+			}),
+			clip,
+			120,
+		);
+
+		expect(schedule.audioLoops).toHaveLength(1);
+		expect(schedule.audioLoops[0].absoluteTicks).toBe(0);
+		expect(schedule.audioLoops[0].sourceOffsetTicks).toBe(192);
+		expect(schedule.audioLoops[0].durationTicks).toBe(576);
+	});
+
+	it("starts a left-trimmed looped audio placement at the placement start", () => {
+		// Same trim, but looped across two clip lengths: the first repeat must
+		// still sound at the placement start, and every later repeat lands on
+		// the placement's own grid.
+		const clip = audioLoopClip(120, 768);
+		const schedule = computePlacementSchedule(
+			placement({
+				startTicks: toTicks(0),
+				durationTicks: toTicks(1536),
+				clipOffsetTicks: toTicks(192),
+				looped: true,
+			}),
+			clip,
+			120,
+		);
+
+		expect(schedule.audioLoops.map((l) => l.absoluteTicks)).toEqual([
+			0, 576, 1344,
+		]);
+		expect(schedule.audioLoops.map((l) => l.sourceOffsetTicks)).toEqual([
+			192, 0, 0,
+		]);
+		expect(schedule.audioLoops.map((l) => l.durationTicks)).toEqual([
+			576, 768, 192,
+		]);
+	});
+
+	it("honours a clip's authored startOffsetTicks as the sample's start position", () => {
+		const clip = audioLoopClip(120, TICKS_PER_BAR, 192);
+		const schedule = computePlacementSchedule(placement(), clip, 120);
+
+		expect(schedule.audioLoops).toHaveLength(1);
+		expect(schedule.audioLoops[0].absoluteTicks).toBe(0);
+		expect(schedule.audioLoops[0].sourceOffsetTicks).toBe(192);
+	});
+
+	it("adds a placement's left trim to the clip's authored start offset", () => {
+		const clip = audioLoopClip(120, 768, 96);
+		const schedule = computePlacementSchedule(
+			placement({
+				durationTicks: toTicks(768),
+				clipOffsetTicks: toTicks(192),
+			}),
+			clip,
+			120,
+		);
+
+		expect(schedule.audioLoops).toHaveLength(1);
+		expect(schedule.audioLoops[0].sourceOffsetTicks).toBe(288);
+	});
+
+	it("drops an audio loop repeat that ends before the placement's clip offset", () => {
+		// clipOffsetTicks past a whole clip length: the first repeat is entirely
+		// trimmed away, and the repeats that do overlap start mid-sample.
+		const clip = audioLoopClip(120, 384);
+		const schedule = computePlacementSchedule(
+			placement({
+				looped: true,
+				durationTicks: toTicks(384),
+				clipOffsetTicks: toTicks(576),
+			}),
+			clip,
+			120,
+		);
+
+		expect(schedule.audioLoops.map((l) => l.absoluteTicks)).toEqual([0, 192]);
+		expect(schedule.audioLoops.map((l) => l.sourceOffsetTicks)).toEqual([
+			192, 0,
+		]);
+		expect(schedule.audioLoops.map((l) => l.durationTicks)).toEqual([192, 192]);
+	});
+
+	it("drops a non-looped audio placement trimmed past the end of its clip", () => {
+		const clip = audioLoopClip(120, 384);
+		const schedule = computePlacementSchedule(
+			placement({
+				looped: false,
+				durationTicks: toTicks(384),
+				clipOffsetTicks: toTicks(576),
+			}),
+			clip,
+			120,
+		);
+
+		expect(schedule.audioLoops).toHaveLength(0);
+	});
+});
+
+describe("audioLoopOffsetSeconds", () => {
+	it("converts the source offset at the sample's authored tempo, not the song tempo", () => {
+		// A one-bar sample authored at 60 BPM is 4s long and plays at rate 2 in
+		// a 120 BPM song. One beat into that sample is 1s of buffer, not the
+		// 0.5s a song-tempo conversion would give.
+		const clip = audioLoopClip(60, TICKS_PER_BAR, 192);
+		const schedule = computePlacementSchedule(placement(), clip, 120);
+
+		expect(schedule.audioLoops).toHaveLength(1);
+		expect(audioLoopOffsetSeconds(schedule.audioLoops[0], 120)).toBeCloseTo(1);
+	});
+
+	it("is zero for an untrimmed loop", () => {
+		const clip = audioLoopClip(120);
+		const schedule = computePlacementSchedule(placement(), clip, 120);
+
+		expect(audioLoopOffsetSeconds(schedule.audioLoops[0], 120)).toBe(0);
 	});
 });
 

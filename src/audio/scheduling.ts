@@ -1,7 +1,7 @@
 import type { NoteTrigger } from "../domain/entities";
 import type { AssetId, TrackId } from "../domain/ids";
 import type { Ticks } from "../domain/time";
-import { toTicks } from "../domain/time";
+import { ticksToSeconds, toTicks } from "../domain/time";
 import type {
 	AudioClipProjection,
 	AudioPlacementProjection,
@@ -31,6 +31,26 @@ export interface ScheduledAudioLoop {
 	readonly assetId: AssetId;
 	/** Ratio of song tempo to the loop's authored source tempo. */
 	readonly playbackRate: number;
+	/**
+	 * Where inside the clip's own timeline this event starts, in ticks: the
+	 * clip's authored `startOffsetTicks` plus however much of this repeat the
+	 * placement's left-edge trim (`clipOffsetTicks`) cuts away. The consumer
+	 * converts it to buffer seconds — see `audioLoopOffsetSeconds`.
+	 */
+	readonly sourceOffsetTicks: Ticks;
+}
+
+/**
+ * The `player.start()` offset for a scheduled loop, in the decoded buffer's
+ * own seconds. The sample was authored at the clip's source tempo, so a
+ * clip-tick offset is song-tempo seconds scaled by the playback rate
+ * (`ticksToSeconds(t, tempo) * tempo / sourceTempo === ticksToSeconds(t, sourceTempo)`).
+ */
+export function audioLoopOffsetSeconds(
+	loop: ScheduledAudioLoop,
+	tempo: number,
+): number {
+	return ticksToSeconds(loop.sourceOffsetTicks, tempo) * loop.playbackRate;
 }
 
 export interface PlacementSchedule {
@@ -87,16 +107,26 @@ export function computePlacementSchedule(
 			}
 		} else {
 			const startInPlacement = repeatOffset - placement.clipOffsetTicks;
-			if (startInPlacement < 0 || startInPlacement >= placement.durationTicks) {
+			if (startInPlacement >= placement.durationTicks) {
 				continue;
 			}
-			const remaining = placement.durationTicks - startInPlacement;
+			// A repeat straddling the placement's left edge is not skipped: it
+			// sounds at the placement start, from `trimmed` ticks into the
+			// sample, so a left-edge trim plays the material the arrangement
+			// renderer draws instead of falling silent.
+			const trimmed = Math.max(0, -startInPlacement);
+			if (trimmed >= clipLength) {
+				continue;
+			}
+			const startedAt = startInPlacement + trimmed;
+			const remaining = placement.durationTicks - startedAt;
 			audioLoops.push({
 				trackId: placement.trackId,
-				absoluteTicks: toTicks(placement.startTicks + startInPlacement),
-				durationTicks: toTicks(Math.min(clipLength, remaining)),
+				absoluteTicks: toTicks(placement.startTicks + startedAt),
+				durationTicks: toTicks(Math.min(clipLength - trimmed, remaining)),
 				assetId: clip.content.assetId,
 				playbackRate: tempo / clip.content.sourceTempo,
+				sourceOffsetTicks: toTicks(clip.content.startOffsetTicks + trimmed),
 			});
 		}
 	}

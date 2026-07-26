@@ -48,6 +48,10 @@ export type InstrumentNodeFactory = (
  * Plays `buffer` once through `destination`, self-disposing once it stops —
  * the "short-lived source node" AUD-08 explicitly permits per note/trigger,
  * as long as its schedule and references don't accumulate after completion.
+ *
+ * `offsetSeconds` is a position inside the buffer's own timeline, so a clip
+ * or placement trimmed at its left edge starts from the material the
+ * arrangement draws rather than from sample zero.
  */
 export function playOneShot(
 	buffer: Tone.ToneAudioBuffer,
@@ -55,11 +59,12 @@ export function playOneShot(
 	time: Tone.Unit.Time,
 	duration: Tone.Unit.Time,
 	playbackRate = 1,
+	offsetSeconds = 0,
 ): void {
 	const player = new Tone.Player(buffer).connect(destination);
 	player.playbackRate = playbackRate;
 	player.onstop = () => player.dispose();
-	player.start(time, 0, duration);
+	player.start(time, offsetSeconds, duration);
 }
 
 /** A live subscription to one asset's decoded buffer, reattachable to a new asset id. */

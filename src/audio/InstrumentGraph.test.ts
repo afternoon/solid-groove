@@ -307,3 +307,52 @@ describe("createInstrumentNode", () => {
 		await runtime.close();
 	});
 });
+
+describe("playOneShot", () => {
+	it("starts the player at the requested offset inside the buffer", async () => {
+		const Tone = await import("tone");
+		const buffer = Tone.ToneAudioBuffer.fromArray(new Float32Array(1024));
+		const destination = new Tone.Gain(1);
+		const start = vi
+			.spyOn(Tone.Player.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+
+		try {
+			InstrumentGraphModule.playOneShot(
+				buffer,
+				destination,
+				0,
+				"192i",
+				1,
+				0.25,
+			);
+			expect(start).toHaveBeenCalledWith(0, 0.25, "192i");
+		} finally {
+			start.mockRestore();
+			destination.dispose();
+			buffer.dispose();
+		}
+	});
+
+	it("defaults to the start of the buffer when no offset is given", async () => {
+		const Tone = await import("tone");
+		const buffer = Tone.ToneAudioBuffer.fromArray(new Float32Array(1024));
+		const destination = new Tone.Gain(1);
+		const start = vi
+			.spyOn(Tone.Player.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+
+		try {
+			InstrumentGraphModule.playOneShot(buffer, destination, 0, "192i");
+			expect(start).toHaveBeenCalledWith(0, 0, "192i");
+		} finally {
+			start.mockRestore();
+			destination.dispose();
+			buffer.dispose();
+		}
+	});
+});

@@ -19,7 +19,11 @@ import { playOneShot } from "./InstrumentGraph";
 import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
 import type { ResourceHandle } from "./resourceRegistry";
-import { computePlacementSchedule, ticksToToneTime } from "./scheduling";
+import {
+	audioLoopOffsetSeconds,
+	computePlacementSchedule,
+	ticksToToneTime,
+} from "./scheduling";
 import { TrackAudioGraph } from "./TrackAudioGraph";
 import { toneBufferLoader } from "./toneBufferLoader";
 
@@ -300,6 +304,7 @@ export class ProjectAudioGraph {
 			if (asset) {
 				entry.handles.push(this.subscribeAudioLoopAsset(asset, bufferBox));
 			}
+			const offsetSeconds = audioLoopOffsetSeconds(loop, tempo);
 			const scheduleId = this.transport.schedule((time) => {
 				const track = this.tracks.get(loop.trackId);
 				if (track && bufferBox.current) {
@@ -309,6 +314,7 @@ export class ProjectAudioGraph {
 						time,
 						ticksToToneTime(loop.durationTicks),
 						loop.playbackRate,
+						offsetSeconds,
 					);
 				}
 			}, ticksToToneTime(loop.absoluteTicks));
