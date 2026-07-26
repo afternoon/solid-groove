@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import { defineConfig } from "@solidjs/start/config";
 
 // PRD `OPS-01`: every build stamps the git commit SHA into the client so the
@@ -24,6 +25,61 @@ function resolveReleaseSha(): string {
 	}
 }
 
+const releaseSha = resolveReleaseSha();
+
+// `FND-001c` (PRD `OPS-03`): "Source maps are produced for the deployed
+// revision, uploaded to Sentry through an authenticated channel from the
+// `FND-001b` pipeline, and never served publicly from Hosting."
+//
+// Three separate mechanisms, one per clause:
+//
+//  1. **Produced.** `build.sourcemap: "hidden"` below emits a map for every
+//     chunk but omits the `//# sourceMappingURL=` comment, so nothing in the
+//     shipped JavaScript advertises where a map would live.
+//  2. **Uploaded authenticated.** This plugin uploads over HTTPS with
+//     `SENTRY_AUTH_TOKEN`, which exists only as a CI secret (see `.env.example`).
+//     It also injects debug IDs into both the chunk and its map, so Sentry
+//     matches them by ID rather than by URL — which is what makes clause 3
+//     possible at all: the maps do not need to be reachable to be usable.
+//  3. **Never served.** `filesToDeleteAfterUpload` removes the maps from the
+//     build output once they are safely in Sentry, so `firebase deploy` has
+//     nothing to publish. `firebase.json`'s `hosting.ignore` refuses to upload
+//     `**/*.map` regardless, which is the guarantee that does not depend on
+//     this plugin having run — a local build, or a build with no Sentry
+//     credentials, still cannot publish a map.
+//
+// Inactive unless all three values are present, so a local `bun run build` and
+// the always-on CI `build` job neither need credentials nor contact Sentry.
+function sentryBuildPlugins() {
+	const authToken = process.env.SENTRY_AUTH_TOKEN;
+	const org = process.env.SENTRY_ORG;
+	const project = process.env.SENTRY_PROJECT;
+	if (!authToken || !org || !project) return [];
+
+	return [
+		sentryVitePlugin({
+			authToken,
+			org,
+			project,
+			// Registers the release under the same SHA the client stamps into every
+			// analytics and error event (PRD OPS-01), which is what lets a report in
+			// Sentry be tied back to the exact deployed revision.
+			release: { name: releaseSha },
+			sourcemaps: {
+				// Both trees: vinxi's per-router vite output, which is where a map
+				// exists when that router's build closes, and the assembled Hosting
+				// directory nitro copies it into afterwards.
+				filesToDeleteAfterUpload: [
+					".vinxi/build/**/*.map",
+					".output/public/**/*.map",
+				],
+			},
+			// No build-time telemetry to the vendor beyond the upload itself.
+			telemetry: false,
+		}),
+	];
+}
+
 export default defineConfig({
 	ssr: false,
 	server: {
@@ -33,7 +89,13 @@ export default defineConfig({
 	},
 	vite: {
 		define: {
-			"import.meta.env.VITE_RELEASE_SHA": JSON.stringify(resolveReleaseSha()),
+			"import.meta.env.VITE_RELEASE_SHA": JSON.stringify(releaseSha),
 		},
+		build: {
+			// "hidden": maps are emitted but not referenced from the bundle. See
+			// `sentryBuildPlugins` above for why they are still usable in Sentry.
+			sourcemap: "hidden",
+		},
+		plugins: sentryBuildPlugins(),
 	},
 });

@@ -1,4 +1,9 @@
-import { getAnalytics, isSupported } from "firebase/analytics";
+import {
+	type Analytics,
+	getAnalytics,
+	isSupported,
+	setAnalyticsCollectionEnabled,
+} from "firebase/analytics";
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -32,11 +37,56 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Analytics is optional and only works in supported environments with a valid
-// measurementId. Initialize it lazily so a missing/invalid config never breaks
-// app startup (e.g. when running without Firebase env vars configured).
-export const analytics = isSupported()
-	.then((supported) =>
-		supported && firebaseConfig.measurementId ? getAnalytics(app) : null,
-	)
-	.catch(() => null);
+// Google Analytics (PRD `OPS-02`).
+//
+// Deliberately *not* initialized at module evaluation. `getAnalytics(app)`
+// bootstraps gtag, and gtag immediately begins GA4 automatic collection —
+// `page_view`, `session_start`, `first_visit`, `user_engagement`, and the `_ga`
+// cookies — which `OPS-02` counts as collection just as much as a custom event
+// does. This module is imported for `auth` and `db` on every app load, so
+// initializing here would collect for a user who has opted out, before consent
+// had ever been consulted, and the disclosure's "turning this off stops
+// collection" would be false.
+//
+// `src/telemetry.ts` is the only caller, and it calls in only once the consent
+// store says analytics is allowed.
+
+/** Memoized so gtag is bootstrapped at most once per page. */
+let analyticsInstance: Promise<Analytics | null> | null = null;
+
+/**
+ * Initializes Google Analytics, or resolves `null` where it cannot run.
+ *
+ * Analytics is optional and only works in supported environments with a valid
+ * `measurementId`, so every failure path resolves `null` rather than throwing:
+ * running without Firebase env vars configured must not break app startup.
+ */
+export function loadAnalytics(): Promise<Analytics | null> {
+	analyticsInstance ??= isSupported()
+		.then((supported) =>
+			supported && firebaseConfig.measurementId ? getAnalytics(app) : null,
+		)
+		.catch(() => null);
+	return analyticsInstance;
+}
+
+/**
+ * Applies a consent decision to the vendor SDK itself (PRD `OPS-02` opt-out).
+ *
+ * Switching collection *off* never initializes: if `loadAnalytics` has not been
+ * called there is nothing collecting, and bootstrapping gtag in order to
+ * disable it would perform the exact automatic collection the opt-out exists to
+ * prevent.
+ *
+ * Never rejects. A consent preference is not a reason for the app to fail.
+ */
+export async function setAnalyticsCollection(enabled: boolean): Promise<void> {
+	if (!enabled && analyticsInstance === null) return;
+	try {
+		const instance = await loadAnalytics();
+		if (instance) setAnalyticsCollectionEnabled(instance, enabled);
+	} catch {
+		// Unsupported environment, blocked SDK, or no measurementId. Collection
+		// that never started needs no switching off.
+	}
+}

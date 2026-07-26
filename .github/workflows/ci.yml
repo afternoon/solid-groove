@@ -145,6 +145,13 @@ jobs:
         run: bun run build
       - name: Verify no secret reaches the client bundle
         run: bun run verify:bundle
+      # FND-001c (PRD OPS-03 / section 10): the error-monitoring SDK's bundle
+      # cost is measured here rather than assumed acceptable. Fails if the SDK
+      # ever lands in an eagerly-loaded chunk (i.e. if the dynamic import() in
+      # src/telemetry.ts becomes a static one) or if its lazy chunk outgrows
+      # the budget declared in the script. Needs no credentials.
+      - name: Measure the error-monitoring SDK's bundle cost
+        run: bun run verify:budget
 
   # FND-001b (PRD OPS-01): deploys to the alpha's one hosted environment --
   # the production Firebase project -- from CI on every merge to `main`, never
@@ -197,16 +204,54 @@ jobs:
       # deploys Hosting, Firestore rules/indexes, and Storage rules together,
       # so a failing rules/index step fails the deploy instead of shipping
       # application code its deployed rules don't match. `VITE_RELEASE_SHA`
-      # stamps this exact commit into the client build (PRD OPS-01), which is
-      # available to every analytics and error event once FND-001c lands --
-      # its release registration and source-map upload belong as their own
-      # step(s) here, right around this one, without reshaping the job.
+      # stamps this exact commit into the client build (PRD OPS-01), and every
+      # analytics and error event carries it (FND-001c).
+      #
+      # FND-001c (PRD OPS-03) hooks in through the three `SENTRY_*` values
+      # below. They are consumed by app.config.ts's build plugin during this
+      # step's `predeploy` build, which is the only point at which the deployed
+      # artifacts and their source maps both exist:
+      #
+      #   - registers the release in Sentry under this exact commit SHA, and
+      #   - uploads the source maps for it over an authenticated HTTPS channel,
+      #     then deletes them from the build output so `firebase deploy` has no
+      #     map to publish (firebase.json also refuses to upload `**/*.map`).
+      #
+      # All three are optional: with any of them unset the plugin is inactive
+      # and the deploy proceeds unchanged, minus symbolication. That keeps this
+      # job working before the Sentry project exists, exactly like the Firebase
+      # gate above. See .env.example and docs/testing.md "Verifying analytics
+      # and errors against a deployed build".
       - name: Build, verify, and deploy
         run: bun run deploy
         env:
           VITE_RELEASE_SHA: ${{ github.sha }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-deploy-service-account.json
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      # FND-001c (PRD OPS-03): the second half of release registration. The
+      # build step above created the release and attached its source maps;
+      # this records that the release actually reached the hosted environment,
+      # which is what makes Sentry's "first seen in" and regression detection
+      # line up with real deploys instead of with build times.
+      #
+      # Deliberately after the deploy and before the smoke test: a deploy that
+      # never shipped must not be marked as deployed, and a smoke-test failure
+      # should still leave the release marked (it did ship; it is broken).
+      # `sentry-cli` comes from @sentry/vite-plugin's own dependency, so there
+      # is nothing extra to install. No-ops when the Sentry values are unset.
+      - name: Mark the release as deployed in Sentry
+        if: ${{ vars.SENTRY_ORG != '' && vars.SENTRY_PROJECT != '' }}
+        run: bunx sentry-cli releases deploys "$SENTRY_RELEASE" new --env alpha
+        env:
+          SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - name: Install Playwright browser (chromium) for the post-deploy smoke test
         run: bunx playwright install --with-deps chromium

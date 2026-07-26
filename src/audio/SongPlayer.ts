@@ -5,8 +5,10 @@ import {
 	createSignal,
 } from "solid-js";
 import * as Tone from "tone";
+import { analytics } from "../analytics/analytics";
 import type { ProjectStore } from "../model/project";
 import type { Sequence, Track } from "../model/types";
+import { codeFor, reportError } from "../monitoring/errorReporting";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
 import type { ResourceHandle } from "./resourceRegistry";
 import { createToneInstrument, type ToneInstrument } from "./ToneInstrument";
@@ -245,7 +247,16 @@ export default class SongPlayer {
 
 			await Tone.loaded();
 		} catch (error) {
-			console.error("SongPlayer.play failed", error);
+			// PRD `OPS-02`/`OPS-03`: successful audio start is a release gate, so
+			// this failure gets its own reliability event with an actionable code
+			// rather than only a generic exception. Non-fatal — playback did not
+			// start, but nothing was lost and the user can try again.
+			const code = codeFor(error);
+			analytics.log("audio_start_failed", {
+				error_code: code,
+				was_browser_blocked: code === "autoplay_blocked",
+			});
+			reportError(error, { area: "audio", fatal: false, code });
 			this.setPlaying(false);
 			return;
 		}
