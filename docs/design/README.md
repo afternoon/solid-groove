@@ -47,6 +47,17 @@ source of truth.
 | `07-assistant-video-playing.png` | Video player playing inline |
 | `07-assistant-video-fullscreen.png` | Video player fullscreen |
 
+## Not yet mocked: the pack browser
+
+`01-editor-shell.png` shows the browser as a flat list of sounds. It predates
+the pack model (PRD `LIB-04`): content is organized into named, versioned packs
+— "Techno Drums", "Orchestral Sounds" — that a user browses as coherent sets,
+with search and filters cutting across all of them. A pack-organized browser,
+the pack index, and the missing-pack state have no mock yet and are due a design
+pass before `LOOP-013` builds them. Per the PRD's note on mocks, a missing mock
+does not block implementation: extrapolate from the DNA above and flag the
+screen for review.
+
 ## Assistant video recommendations
 
 The assistant can surface a tutorial video from a trusted creator inline in the

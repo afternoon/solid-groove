@@ -58,14 +58,14 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 | --- | --- | --- |
 | G0: Tooling ready | `FND-001` done | Deployment, code-first contracts, and independent architecture spikes |
 | G0.5: Deployed and observable | `FND-001b` and `FND-001c` done | Every later task can verify itself in a real browser and instrument itself through the published analytics catalog |
-| G1: Contracts published | `FND-002` through `FND-005` done | Audio, renderer, content, and thin-slice integration |
+| G1: Contracts published | `FND-002` through `FND-005`, including `FND-002b`, done | Audio, renderer, content, and thin-slice integration |
 | G2: Foundation slice proven | `FND-009` done | Broad Phase 1 loop-workflow parallelism |
 | G3: Manual loop complete | `LOOP-016` done | Arrangement, automation, and export expansion |
 | G4: Arrangement/export complete | `REL-001` done | AI integration against stable commands |
 | G5: AI complete | `REL-002` done | Private-alpha hardening and user validation |
 | G6: Private alpha ready | `REL-003` done | P1 work may be unparked by the product owner |
 
-Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `CNT-000` joins them once `FND-001b` closes: it produces the real audio every later slice is tested against, owns only `scripts/` and the Storage configuration, and touches no domain, command, or audio boundary, so it never blocks and is never blocked by the contract tasks. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally but makes everything after it verifiable in a real environment, and every later task's definition of done assumes it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. `FND-003` through `FND-005` depend on the canonical domain schema. Broad feature parallelism begins only after `FND-009` proves the contracts together.
+Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `CNT-000` joins them once `FND-001b` closes: it produces the real audio every later slice is tested against, owns only `scripts/` and the Storage configuration, and touches no domain, command, or audio boundary, so it never blocks and is never blocked by the contract tasks. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally but makes everything after it verifiable in a real environment, and every later task's definition of done assumes it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. `FND-003` through `FND-005` depend on the canonical domain schema. `FND-002b` adds packs to that schema and is a contract change in its own right, so it lands inside G1 rather than as incidental work in a later content or browser task; `CNT-000b` follows it and `CNT-000` to put the shipped library on packs. Both are Phase 0 because the alternative is migrating saved asset references later. Broad feature parallelism begins only after `FND-009` proves the contracts together.
 
 ## 3. Product decisions
 
@@ -152,6 +152,17 @@ Decide the trusted-creator/source allowlist and how a creator or video enters it
 
 Decide whether product analytics are on by default with an opt-out or require opt-in, what the user-facing disclosure says, how long event and error data are retained, and any regional constraints. The disclosure covers two processors — Google Analytics for product events and Sentry for error monitoring ([ADR 0001](./adr/0001-sentry-for-error-monitoring.md)) — and a regional constraint Sentry's SaaS regions cannot meet would reopen the self-hosting option that ADR rejected. `FND-001c` builds the opt-out mechanism and the disclosure hook regardless; this decision sets the default state and the wording. It does not block `FND-001c`, and it must be settled before the cohort is invited in `HARD-005`.
 
+### DEC-010 - Shipped pack list and marketplace posture
+
+`Status: todo`<br>
+`Owner: product-owner`<br>
+`Needed by: CNT-002, P2-003`<br>
+`Evidence: pending`
+
+Approve the factory packs the alpha ships — each pack's name, scope, and coverage claim — against what `DEC-003` has actually cleared. The proposal in `docs/sample-library.md` section 6.5 is a starting point, not a commitment; a pack that cannot meet its coverage claim is merged or dropped rather than shipped thin.
+
+Separately, record the intended posture on the `LIB-05` marketplace: whether Solid Groove intends users to publish and sell packs at all, and if so, what rights, revenue-sharing, and moderation model applies. The posture question does not block any alpha task — it exists so the alpha's pack model is not quietly built toward a business decision nobody has made. It must be answered before `P2-003` is unparked.
+
 ## 4. Phase 0: foundations
 
 ### FND-001 - Test and development foundation
@@ -231,6 +242,25 @@ This task owns the domain contract. It lands before `FND-003`, `FND-004`, `FND-0
 - [ ] Deterministic schema-v1 serialization round trips through JSON-compatible values.
 - [ ] Factories produce independent valid blank and fixture projects without Firebase types leaking into the domain.
 - [ ] Unit and property-oriented tests cover every invariant in PRD section 9.5 and projects at ten-minute bounds.
+
+### FND-002b - Packs and pack-qualified asset identity
+
+`Dependencies: FND-002`<br>
+`PRD: LIB-04; 9.4-9.5 (invariant 12); 9.9; Phase 0`
+
+Add the `Pack` entity and pack-qualified asset identity to schema v1, and record a project's pack dependencies in its metadata tier.
+
+This is a **contract change** to a landed contract (`FND-002`), which is why it is its own task rather than incidental work inside a content or browser task. It is scheduled in Phase 0 for one reason: after Phase 0 there are saved projects whose asset references would need migrating, and the PRD makes moving from a flat content namespace to packs an alpha decision precisely to pay that cost once, while it is still nearly free.
+
+Scope is the model, not the experience. Browsing by pack is `LOOP-013`, packing the shipped library is `CNT-000b`, and the marketplace is `P2-003`. Nothing here implies installation, entitlement, or purchase: the alpha's packs are all bundled factory packs, and the only per-project state is which packs and versions the project depends on.
+
+- [ ] The `Pack` entity carries a `pak_`-prefixed ID, name, version, publisher, kind (`factory`, `user`, `third-party`), description, and one rights position, and is registered in the shared ID factory and its seeded test variant.
+- [ ] Every asset reference names its owning pack and the pack version it resolved from. Parsing rejects an asset with no pack, an unknown pack, or a pack version the project does not declare.
+- [ ] A project's pack dependency list is derived from project state rather than maintained by hand, is recomputed inside the same transaction that adds or removes the last reference to a pack, and is asserted to stay consistent across command, undo, and redo paths.
+- [ ] The dependency list is persisted in the `projects/{projectId}` metadata tier so the dashboard and export can read it without loading song state or clip content, and the repository contract tests cover it in both implementations.
+- [ ] PRD invariant 12 has unit and property-oriented tests, including an unavailable pack producing a reported missing-pack state — naming affected tracks and clips — rather than a dangling reference, a thrown parse error, or a silent substitution.
+- [ ] Domain fixtures, factories, and the reference projects carry packs; a fixture project spanning two packs exists, because single-pack fixtures cannot catch a pack-qualification bug.
+- [ ] `docs/persistence.md` and the domain documentation state the pack model and where a pack dependency lives.
 
 ### FND-003 - Command, transaction, and history kernel
 
@@ -339,9 +369,32 @@ Acquisition is a review workflow, not a download button. Every file is declared 
 - [ ] Validation runs in CI, and the upload path has been exercised end to end against the Firebase Storage emulator with evidence of idempotency on a second run.
 - [ ] `docs/sample-library.md`, `docs/testing.md`, `README.md`, and `.env.example` document the commands, the bucket layout, the credentials, and the fact that this library is superseded rather than extended by `CNT-002`.
 
+This task shipped before the pack model existed, so its library is one flat collection. `CNT-000b` moves it onto packs; the acceptance criteria above are not reopened by that change.
+
+### CNT-000b - Deliver the starter library as packs
+
+`Dependencies: CNT-000, FND-002b`<br>
+`PRD: LIB-04; LIB-00; sample-library sections 5.1, 6.5, 9, 12, 15.7`
+
+Move the shipped starter library from one flat collection onto the pack model: pack membership in the catalogue, one manifest per pack plus a pack index, pack rules in the validator, and a delivery layout with a pack dimension.
+
+Scheduled in Phase 0 alongside `FND-002b` and for the same reason — the manifest, the delivery layout, and every saved asset reference change shape, and doing it before Phase 1 means no project exists yet to migrate. It touches `scripts/` and the Storage layout only.
+
+Splitting the catalogue does not promote it: these assets stay testing content at the `metadata-review` intake state, `CNT-002` still supersedes them, and the section 6.1 milestone counts are still not satisfied by them.
+
+- [ ] Every catalogue entry declares exactly one pack. The synthesized 200 split along the families and genre tags they already carry, into a small number of packs that each meet their own coverage claim; a pack that would ship thin is merged rather than published.
+- [ ] The build emits one manifest per pack plus a pack index, in the `docs/sample-library.md` section 15.7 delivery layout. Audio storage keys are unchanged — identity is still the SHA-256 of the bytes — so identical audio in two packs is one object and a repack re-uploads no audio.
+- [ ] Asset IDs stay stable across the repack, or the change is called out explicitly with what it breaks. Group numbering remains append-only and `catalog.test.mjs` still pins it.
+- [ ] The validator gains the section 9 pack rules: exactly one pack per asset, no asset licence exceeding its pack's rights position, no undefined pack referenced, and every pack delivering the roles and genres its coverage claim advertises. Each new rule fails CI on a fixture that violates it.
+- [ ] Determinism is preserved: identical audio bytes, identical manifests, identical pack index across runs and machines, so a no-op rebuild uploads nothing and produces no diff.
+- [ ] Acquired CC0 content records its destination pack in the lockfile at pin time, and ingest checks each asset against its pack's rights position.
+- [ ] Cache headers match the mutability of each object: immutable for content-addressed audio and versioned pack manifests, short-lived for the pack index and per-pack `latest` pointers.
+- [ ] The upload path is exercised end to end against the Firebase Storage emulator, with evidence that a second run is idempotent and that a single changed pack re-uploads only that pack's manifest.
+- [ ] `docs/sample-library.md`, `docs/testing.md`, and `README.md` describe the pack layout and the commands as they actually behave afterwards.
+
 ### FND-009 - Foundation vertical slice gate
 
-`Dependencies: FND-001c, FND-003, FND-004, FND-005, FND-007, FND-008`<br>
+`Dependencies: FND-001c, FND-002b, FND-003, FND-004, FND-005, FND-007, FND-008`<br>
 `PRD: Phase 0 exit criteria; section 13 dependency order`
 
 Integrate the new boundaries through the smallest end-to-end musical path: open a schema-v1 project, add one note, play it, undo it, save it, reload it, and reproduce playback.
@@ -349,6 +402,7 @@ Integrate the new boundaries through the smallest end-to-end musical path: open 
 The slice's surface is a **16-step grid on a sampler track** — the cheapest UI that still exercises the real UI-to-command-to-audio-to-persistence path, and closest to what the prototype already has. The full step editor is `LOOP-010` and the piano roll is `LOOP-011`; neither is built here, and this grid is expected to be replaced by `LOOP-010` rather than grown into it.
 
 - [ ] UI and keyboard actions dispatch the same command; no component mutates domain or Firestore data directly.
+- [ ] The slice's sampler asset resolves through its pack, and the reopened project reports the same pack dependency it saved. The slice proves the pack-qualified reference path end to end; browsing by pack is `LOOP-013`.
 - [ ] Audible playback uses the stable graph and one shared context.
 - [ ] Save state and revision behavior are visible and stale echoes cannot restore the undone note.
 - [ ] Unit, repository, component, browser, and audio lifecycle tests cover the slice.
@@ -514,35 +568,39 @@ Implement transpose, velocity scale, quantize, duplicate, clear, and seeded rhyt
 
 ### CNT-001 - Asset manifest and ingestion pipeline
 
-`Status: todo | Owner: unassigned | Dependencies: FND-002, CNT-000`<br>
-`PRD: LIB-01; sample-library sections 4, 8, 10 | Evidence: pending`
+`Status: todo | Owner: unassigned | Dependencies: FND-002b, CNT-000b`<br>
+`PRD: LIB-01, LIB-04; sample-library sections 4, 5.1, 8, 10 | Evidence: pending`
 
 Implement stable asset manifests, validation, generated indexes, waveform/metadata hooks, provenance, export policy, and missing/corrupt isolation.
 
-`CNT-000` already ships a manifest schema, validator, content-addressed delivery, and provenance for the synthesized starter library. This task generalizes that pipeline to acquired content — per-asset licence evidence, quarantine and intake states, loops with verified BPM/bar/seam metadata, presets, and multisample instruments — rather than starting a second one beside it.
+`CNT-000` already ships a manifest schema, validator, content-addressed delivery, and provenance for the synthesized starter library, and `CNT-000b` puts both on the pack model. This task generalizes that pipeline to acquired content — per-asset licence evidence, quarantine and intake states, loops with verified BPM/bar/seam metadata, presets, and multisample instruments — rather than starting a second one beside it.
 
-- [ ] One-shots, loops, presets, and derived files have stable IDs and required searchable metadata.
-- [ ] CI rejects duplicate IDs, absent licences, invalid audio metadata, broken paths, loop seams, and unapproved redistribution policy.
+- [ ] One-shots, loops, presets, and derived files have stable IDs, an owning pack, and required searchable metadata.
+- [ ] CI rejects duplicate IDs, absent licences, invalid audio metadata, broken paths, loop seams, unapproved redistribution policy, and an asset whose licence exceeds its pack's rights position.
+- [ ] Pack records, per-pack manifests, and the pack index are produced by the same pipeline for acquired content as for synthesized content, and a pack that misses its coverage claim fails validation.
 - [ ] Runtime and tests consume generated manifests rather than hand-maintained duplicate lists.
 
 ### LOOP-013 - Searchable, sync-audition library browser
 
 `Status: todo | Owner: unassigned | Dependencies: CNT-001, LOOP-003`<br>
-`PRD: LIB-01, LIB-02 | Evidence: pending`
+`PRD: LIB-01, LIB-02, LIB-04 | Evidence: pending`
 
-Implement search, filters, keyboard navigation, sync-aware audition, insertion, loading/error states, and clean preview teardown.
+Implement pack-organized browsing, search, filters, keyboard navigation, sync-aware audition, insertion, loading/error states, and clean preview teardown.
 
+- [ ] Packs are a first-class way in: a user can browse one pack's contents as a coherent set, see what it is for, and start from it without knowing the taxonomy.
+- [ ] Search, genre, role, and character filters work across every available pack as well as within one, and clearing a pack filter never hides an asset the user could otherwise reach.
+- [ ] Pack manifests load lazily — opening the browser fetches the pack index, not every pack's metadata — and the sample-plan section 12 metadata budgets are asserted.
 - [ ] Audition routes through the shared runtime, never enters export, and stops on selection change, close, navigation, or project teardown.
 - [ ] Search/filter behavior remains responsive at the planned library size and exposes all content when genre filters clear.
-- [ ] Missing/corrupt assets report locally without blocking other results or project playback.
-- [ ] Emits `library_audition` with `asset_type` and `had_genre_filter`, `asset_load_failed` with `asset_type` and `error_code`, and the `library_browser` `feature_first_use` key. Search terms are never logged.
+- [ ] Missing/corrupt assets report locally without blocking other results or project playback; an entire unavailable pack degrades the same way and names the affected tracks and clips.
+- [ ] Emits `library_audition` with `asset_type`, `had_genre_filter`, and a stable `pack_id`, `asset_load_failed` with `asset_type` and `error_code`, and the `library_browser` `feature_first_use` key. Search terms and pack display names are never logged.
 
 ### CNT-002 - Rounded alpha factory library
 
-`Status: todo | Owner: unassigned | Dependencies: CNT-001, DEC-003`<br>
-`PRD: LIB-01, LIB-02 | Evidence: pending`
+`Status: todo | Owner: unassigned | Dependencies: CNT-001, DEC-003, DEC-010`<br>
+`PRD: LIB-01, LIB-02, LIB-04 | Evidence: pending`
 
-Acquire, commission, normalize, tag, review, and ingest the initial distributable library according to `docs/sample-library.md`.
+Acquire, commission, normalize, tag, review, and ingest the initial distributable library according to `docs/sample-library.md`, delivered as the factory packs `DEC-010` approves.
 
 This **supersedes** the `CNT-000` starter library rather than extending it. Starter assets are testing content at the `metadata-review` intake state; they are promoted only by passing the same section 11 musical review as everything else, and the ones that do not pass are retired. Replacing them must not change how the app resolves, caches, or exports an asset.
 
@@ -551,6 +609,8 @@ This **supersedes** the `CNT-000` starter library rather than extending it. Star
 - [ ] Library counts and coverage meet the approved sample plan without superficial genre relabelling.
 - [ ] The section 6.4 organic and recorded-source floor is met with real recorded or commissioned material — the gap `CNT-000` reports and cannot close by synthesis.
 - [ ] Every starter asset is either promoted through musical review or deprecated, and deprecating one does not break a project that already references it.
+- [ ] Every shipped pack meets its approved coverage claim, states what it does not contain, and can build a usable idea for its stated purpose on its own. A pack that would ship thin is merged or dropped rather than published.
+- [ ] Each pack's rights position covers every asset in it, and no genre in `LIB-02` is left unservable by the approved pack set.
 
 ### LOOP-014 - Shortcut registry and mapping guide
 
@@ -571,6 +631,7 @@ Implement one typed, context-aware shortcut registry powering handlers, menus, t
 Build Blank plus approved featured starters from normal editable tracks, clips, devices, and licensed assets.
 
 - [ ] Each starter opens audibly with no missing assets, independent IDs, hidden state, or inaccessible backing track.
+- [ ] Each starter names the packs it draws from, ships with them, and records them as the new project's pack dependencies.
 - [ ] AI-generated variation may diversify instances, but a deterministic validated fallback always exists.
 - [ ] Bundled demo projects cover every required genre and pass save, reopen, playback, and asset-policy audits.
 - [ ] Every starter reports a stable `template_id` and `genre` through `project_created`, so template choice is comparable across the cohort.
@@ -807,6 +868,7 @@ Run final provenance, duplicate, loudness, tuning, loop, missing-file, decode, s
 
 - [ ] Every required genre demo opens, plays, saves, renders, and exports without missing/unlicensed assets.
 - [ ] Removing an asset from discovery cannot corrupt existing fixture projects; manifest/export policies remain traceable.
+- [ ] Every shipped pack is audited against its coverage claim and its rights position, and withdrawing a whole pack degrades an existing project to a reported missing-pack state rather than breaking playback or export.
 
 ### HARD-005 - Target-user validation and fixes
 
@@ -867,7 +929,7 @@ Add collaborator invitations, permissions, attribution, conflict behavior, and r
 `Status: parked | Owner: unassigned | Dependencies: REL-003`<br>
 `PRD: LIB-03 | Evidence: pending`
 
-Add browser-decodable upload with drag-and-drop into a persistent per-user library, validation, quotas, progress, Storage security, metadata analysis, project references, and deletion semantics. Drag-and-drop-to-library and the persistent per-user library are fixed requirements; anonymous import limits, whether imports can back a sampler/drum pad or only audio-loop tracks first, and storage tiers are settled when unparked. Imported assets become first-class library entries reusing the CNT-001 manifest/audition path and are never redistributed through shares, links, or others' projects.
+Add browser-decodable upload with drag-and-drop into a persistent per-user library, validation, quotas, progress, Storage security, metadata analysis, project references, and deletion semantics. Drag-and-drop-to-library and the persistent per-user library are fixed requirements; anonymous import limits, whether imports can back a sampler/drum pad or only audio-loop tracks first, and storage tiers are settled when unparked. Imported audio lands in the user's own `user`-kind pack (`LIB-04`) so one browser, resolver, cache, and audition path serve factory and user content alike; whether a user may hold more than one personal pack is settled when unparked. Imported assets become first-class library entries reusing the CNT-001 manifest/audition path and are never redistributed through shares, links, or others' projects.
 
 ### P1-006 - Preview, learning cues, and shortcut customization
 
@@ -896,6 +958,17 @@ Research presence, simultaneous command ordering, conflict resolution, audio ass
 `PRD: AI-08, LRN-03 | Evidence: pending`
 
 Add curated, trusted-creator tutorial video recommendations that the assistant can surface inline (idle, inline-play, and fullscreen states per design mocks `07-*`), with no autoplay and no interruption of audio or edits. Video embeds through the provider's supported surface and is never given project-state access; optional follow-ups (summarize a video, translate a technique into a previewable proposal) reuse the existing AI command and explanation layers. Load/play failures are isolated. Depends on the DEC-008 curation, trust, embedding, and data-sharing decision.
+
+### P2-003 - Pack marketplace
+
+`Status: parked | Owner: unassigned | Dependencies: P1-005, DEC-010`<br>
+`PRD: LIB-05; sample-library section 16 | Evidence: pending`
+
+Let users build and publish their own packs, acquire packs from other creators, and sell premium packs.
+
+Deliberately the last thing on this backlog. It depends on user sample imports (`P1-005`) for user-owned content, and on `DEC-010` for whether Solid Groove wants this business at all and on what rights, revenue-sharing, and moderation terms. It is a commercial and operational commitment — creator agreements, payments, moderation, takedown, support — far more than it is a feature.
+
+Scope when unparked, at minimum: pack authoring and versioning from a user's own library; publication review, reporting, and a takedown that disables a pack for new use without breaking projects already referencing it; entitlement and per-user pack visibility with defined behaviour when access ends; purchase, refund, and payout handling; and discovery that does not turn the library into the undifferentiated catalogue the sample plan rejects. Nothing here may introduce a second content model beside `LIB-04` packs.
 
 ## 10. Completion log
 
