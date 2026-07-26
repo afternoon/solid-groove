@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Analytics } from "./analytics";
+import { hostileStorage, memoryStorage } from "../testing/storage";
+import { Analytics, type AnalyticsOptions } from "./analytics";
 import { ConsentStore } from "./consent";
 import {
 	type AnalyticsTransport,
@@ -8,43 +9,7 @@ import {
 	type RecordingTransport,
 } from "./transport";
 
-/** An in-memory `Storage`, so tests never share jsdom's localStorage. */
-function memoryStorage(): Storage {
-	const map = new Map<string, string>();
-	return {
-		get length() {
-			return map.size;
-		},
-		clear: () => map.clear(),
-		getItem: (key) => map.get(key) ?? null,
-		key: (index) => [...map.keys()][index] ?? null,
-		removeItem: (key) => {
-			map.delete(key);
-		},
-		setItem: (key, value) => {
-			map.set(key, value);
-		},
-	} as Storage;
-}
-
-/** A storage whose every operation throws, like a locked-down private window. */
-function hostileStorage(): Storage {
-	const boom = () => {
-		throw new Error("storage disabled");
-	};
-	return {
-		get length(): number {
-			return boom();
-		},
-		clear: boom,
-		getItem: boom,
-		key: boom,
-		removeItem: boom,
-		setItem: boom,
-	} as unknown as Storage;
-}
-
-function setup(overrides: Partial<Parameters<typeof Analytics>[0]> = {}) {
+function setup(overrides: AnalyticsOptions = {}) {
 	const transport = createRecordingTransport();
 	const consent = new ConsentStore(memoryStorage());
 	const analytics = new Analytics({
@@ -270,14 +235,21 @@ describe("type safety (PRD OPS-02: logging an unregistered event is a type error
 		// @ts-expect-error - "project_name" is not a declared parameter.
 		analytics.log("app_opened", { project_name: "Midnight Drive" });
 
+		// A `@ts-expect-error` is attributed to the line the error is *reported*
+		// on, which for a multi-line object literal is the offending property
+		// rather than the call. Binding each payload first keeps the reported
+		// error on the line directly after its directive, whatever the formatter
+		// does to line lengths.
+		const typo = { editor: "steps", event_count_bucket: "1_4" } as const;
 		// @ts-expect-error - "steps" is not a declared value of `editor`.
-		analytics.log("clip_edited", { editor: "steps", event_count_bucket: "1_4" });
+		analytics.log("clip_edited", typo);
 
-		// @ts-expect-error - free text can never satisfy an enum parameter.
-		analytics.log("clip_edited", {
+		const freeText = {
 			editor: "user typed this" as string,
 			event_count_bucket: "1_4",
-		});
+		} as const;
+		// @ts-expect-error - free text can never satisfy an enum parameter.
+		analytics.log("clip_edited", freeText);
 
 		// @ts-expect-error - `event_count_bucket` is required.
 		analytics.log("clip_edited", { editor: "step" });

@@ -7,6 +7,7 @@ import {
 	type ScrubbableEvent,
 	scrubBreadcrumb,
 	scrubFramePath,
+	scrubRoute,
 	scrubSelector,
 	scrubSentryEvent,
 } from "./scrub";
@@ -50,9 +51,9 @@ describe("redactText", () => {
 		expect(redactText(`failed to load ${FORBIDDEN.assetUrl}`)).not.toContain(
 			"storage.googleapis.com",
 		);
-		expect(redactText("decode failed for blob:https://app/abc-123")).not.toContain(
-			"blob:",
-		);
+		expect(
+			redactText("decode failed for blob:https://app/abc-123"),
+		).not.toContain("blob:");
 		expect(redactText("data:audio/wav;base64,UklGRiQ")).not.toContain("base64");
 	});
 
@@ -104,7 +105,9 @@ describe("redactText", () => {
 describe("scrubSelector", () => {
 	it("keeps only tag names, dropping accessible names", () => {
 		expect(
-			scrubSelector(`button.delete[aria-label="Delete ${FORBIDDEN.trackName}"]`),
+			scrubSelector(
+				`button.delete[aria-label="Delete ${FORBIDDEN.trackName}"]`,
+			),
 		).toBe("button");
 	});
 
@@ -130,6 +133,38 @@ describe("pathOnly and scrubFramePath", () => {
 		expect(
 			scrubFramePath("https://app.example.com/assets/editor-a1b2.js?t=123"),
 		).toBe("https://app.example.com/assets/editor-a1b2.js");
+	});
+});
+
+describe("scrubRoute", () => {
+	it("keeps route words we ship and reduces a prefixed ID to :id", () => {
+		expect(scrubRoute("/projects/prj_abc123")).toBe("/projects/:id");
+		expect(scrubRoute("/dashboard")).toBe("/dashboard");
+		expect(scrubRoute("/")).toBe("/");
+	});
+
+	it("replaces a segment a user could have named", () => {
+		// The rule that keeps a project name out of the transaction: no text
+		// redaction can see a bare path segment, so the shape is rebuilt instead.
+		expect(scrubRoute(`/projects/${FORBIDDEN.projectName}`)).toBe(
+			"/projects/:param",
+		);
+		expect(scrubRoute(`/projects/${FORBIDDEN.projectName}`)).not.toContain(
+			"Midnight",
+		);
+	});
+
+	it("survives percent-encoding rather than being fooled by it", () => {
+		expect(scrubRoute("/projects/Midnight%20Drive")).toBe("/projects/:param");
+	});
+
+	it("drops a query string and a transaction that is not a route", () => {
+		expect(scrubRoute(`/dashboard?q=${FORBIDDEN.searchTerm}`)).toBe(
+			"/dashboard",
+		);
+		expect(scrubRoute(FORBIDDEN.assistantText)).not.toContain("euphoric");
+		expect(scrubRoute(undefined)).toBeUndefined();
+		expect(scrubRoute("")).toBeUndefined();
 	});
 });
 
@@ -307,7 +342,9 @@ describe("scrubSentryEvent", () => {
 		expect(scrubSentryEvent(hostileEvent()).exception?.values?.[0]?.type).toBe(
 			"TypeError",
 		);
-		expect(frame?.filename).toBe("https://app.example.com/assets/editor-a1b2.js");
+		expect(frame?.filename).toBe(
+			"https://app.example.com/assets/editor-a1b2.js",
+		);
 		expect(frame?.function).toBe("saveClip");
 		expect(frame?.lineno).toBe(42);
 	});

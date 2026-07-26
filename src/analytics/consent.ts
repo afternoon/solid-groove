@@ -109,14 +109,23 @@ export class ConsentStore {
 		this.state = next;
 		this.persist(next);
 		for (const listener of [...this.listeners]) {
-			try {
-				listener(next);
-			} catch {
-				// A consumer that throws while reacting to a preference change must
-				// not prevent the other consumers from being told to stop collecting.
-			}
+			this.deliver(listener, next);
 		}
 		return next;
+	}
+
+	/**
+	 * A consumer that throws must not prevent the other consumers from being
+	 * told to stop collecting, and must not break the caller — `subscribe` runs
+	 * during app startup (`initTelemetry`), where an escaping exception would
+	 * take the whole app down over a telemetry preference.
+	 */
+	private deliver(listener: Listener, state: ConsentState): void {
+		try {
+			listener(state);
+		} catch {
+			// Intentionally silent, for the reasons above.
+		}
 	}
 
 	/** Turns both processors off in one action — the user-facing opt-out. */
@@ -130,7 +139,7 @@ export class ConsentStore {
 
 	subscribe(listener: Listener): () => void {
 		this.listeners.add(listener);
-		listener(this.state);
+		this.deliver(listener, this.state);
 		return () => {
 			this.listeners.delete(listener);
 		};

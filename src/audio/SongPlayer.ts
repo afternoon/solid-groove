@@ -6,9 +6,9 @@ import {
 } from "solid-js";
 import * as Tone from "tone";
 import { analytics } from "../analytics/analytics";
-import { codeFor, reportError } from "../monitoring/errorReporting";
 import type { ProjectStore } from "../model/project";
 import type { Sequence, Track } from "../model/types";
+import { codeFor, reportError } from "../monitoring/errorReporting";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
 import type { ResourceHandle } from "./resourceRegistry";
 import { createToneInstrument, type ToneInstrument } from "./ToneInstrument";

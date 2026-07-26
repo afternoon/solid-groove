@@ -61,6 +61,7 @@
 		"check": "tsc --noEmit && biome check --write",
 		"check:ci": "tsc --noEmit && biome check",
 		"verify:bundle": "node scripts/verify-no-secrets-in-bundle.mjs",
+		"verify:budget": "node scripts/verify-bundle-budget.mjs",
 		"predeploy": "bun run build && bun run verify:bundle",
 		"deploy": "firebase deploy --only hosting,firestore,storage --non-interactive --project \"$FIREBASE_PROJECT_ID\"",
 		"smoke:hosted": "playwright test --config=playwright.smoke.config.ts"

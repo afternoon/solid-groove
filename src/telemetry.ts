@@ -22,10 +22,10 @@
 
 import { analytics } from "./analytics/analytics";
 import type { Surface } from "./analytics/catalog";
-import { consentStore, type ConsentStore } from "./analytics/consent";
+import { type ConsentStore, consentStore } from "./analytics/consent";
 import { createFirebaseAnalyticsTransport } from "./analytics/firebaseTransport";
 import type { AnalyticsTransport } from "./analytics/transport";
-import { errorReporter, type ErrorReporter } from "./monitoring/errorReporting";
+import { type ErrorReporter, errorReporter } from "./monitoring/errorReporting";
 import { installGlobalErrorHandlers } from "./monitoring/globalHandlers";
 import { RELEASE_SHA } from "./release";
 

@@ -25,12 +25,12 @@
 
 import type { Analytics } from "../analytics/analytics";
 import { analytics as defaultAnalytics } from "../analytics/analytics";
+import { type ConsentStore, consentStore } from "../analytics/consent";
 import {
 	type ErrorArea,
 	type ErrorCode,
 	toErrorCode,
 } from "../analytics/errorCodes";
-import { consentStore, type ConsentStore } from "../analytics/consent";
 import { RELEASE_SHA } from "../release";
 import {
 	type BrowserInfo,

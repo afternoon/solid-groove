@@ -132,7 +132,9 @@ export class SentrySink implements ErrorSink {
 			// removes fields or replaces strings with shorter strings, so the
 			// shape it returns is still a valid event.
 			beforeSend: (event) =>
-				scrubSentryEvent(event as unknown as ScrubbableEvent) as unknown as typeof event,
+				scrubSentryEvent(
+					event as unknown as ScrubbableEvent,
+				) as unknown as typeof event,
 			beforeBreadcrumb: (breadcrumb) =>
 				scrubBreadcrumb(breadcrumb as ScrubbableBreadcrumb) as
 					| typeof breadcrumb

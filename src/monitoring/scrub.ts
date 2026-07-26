@@ -39,7 +39,10 @@ const REDACTIONS: readonly { pattern: RegExp; replacement: string }[] = [
 		replacement: "[url]",
 	},
 	// Protocol-relative and bare host/path references.
-	{ pattern: /\/\/[\w.-]+\.[a-z]{2,}(?:\/[^\s"'`)<>\]]*)?/gi, replacement: "[url]" },
+	{
+		pattern: /\/\/[\w.-]+\.[a-z]{2,}(?:\/[^\s"'`)<>\]]*)?/gi,
+		replacement: "[url]",
+	},
 	{ pattern: /\b[\w.-]+@[\w.-]+\.[a-z]{2,}\b/gi, replacement: "[email]" },
 	// JWTs.
 	{
@@ -49,7 +52,10 @@ const REDACTIONS: readonly { pattern: RegExp; replacement: string }[] = [
 	// Long opaque secrets: API keys, bearer tokens, session identifiers.
 	{ pattern: /\b[A-Za-z0-9_-]{32,}\b/g, replacement: "[token]" },
 	// Absolute filesystem paths (a dropped file's name lives here).
-	{ pattern: /(?:[A-Za-z]:)?[\\/](?:[\w .-]+[\\/]){2,}[\w .-]+/g, replacement: "[path]" },
+	{
+		pattern: /(?:[A-Za-z]:)?[\\/](?:[\w .-]+[\\/]){2,}[\w .-]+/g,
+		replacement: "[path]",
+	},
 	// Quoted text. Error messages embed user-supplied values in quotes far more
 	// often than not, and nothing can distinguish `"My Demo Track"` from
 	// `"tracks"` at this layer, so quoted content always goes. This costs some
@@ -102,6 +108,60 @@ export function scrubFramePath(value: unknown): string | undefined {
 	if (typeof value !== "string" || value.length === 0) return undefined;
 	const cut = value.search(/[?#]/);
 	return cut === -1 ? value : value.slice(0, cut);
+}
+
+/**
+ * Static path segments that appear in Solid Groove's own routes.
+ *
+ * Kept in step with `src/routes`. A segment missing from here is not a leak,
+ * only a less specific transaction name, which is the correct direction to
+ * fail in.
+ */
+export const ALLOWED_ROUTE_SEGMENTS = [
+	"dashboard",
+	"projects",
+	"spike",
+	"arrangement",
+] as const;
+
+/** A PRD section 9.4 prefixed ID (`prj_…`, `trk_…`), which carries no content. */
+const PREFIXED_ID = /^[a-z]{2,5}_[A-Za-z0-9_-]{4,}$/;
+
+/**
+ * Reduces a transaction name to its route *shape*.
+ *
+ * `transaction` is derived from the URL, so it is a route identifier rather
+ * than free text, and `redactText` is the wrong tool for it: a bare path
+ * segment like `/projects/Midnight Drive Demo` contains no quotes, scheme, or
+ * separator for a text rule to key on, so it would travel intact.
+ *
+ * Treated structurally instead, matching this file's allowlist stance: a
+ * segment is kept only if it is a route word we ship or a prefixed domain ID.
+ * Anything else — which is to say anything a user could have named — becomes
+ * `:param`.
+ */
+export function scrubRoute(value: unknown): string | undefined {
+	if (typeof value !== "string" || value.length === 0) return undefined;
+	const path = pathOnly(value);
+	if (path === "") return undefined;
+	const segments = path.split("/").filter((segment) => segment.length > 0);
+	return segments.length === 0
+		? "/"
+		: `/${segments.map(routeSegment).join("/")}`;
+}
+
+function routeSegment(segment: string): string {
+	let decoded = segment;
+	try {
+		decoded = decodeURIComponent(segment);
+	} catch {
+		// A malformed escape sequence stays as-is; it matches neither branch below
+		// and therefore becomes `:param`, which is the safe outcome anyway.
+	}
+	if ((ALLOWED_ROUTE_SEGMENTS as readonly string[]).includes(decoded)) {
+		return decoded;
+	}
+	return PREFIXED_ID.test(decoded) ? ":id" : ":param";
 }
 
 /**
@@ -286,7 +346,7 @@ export function scrubSentryEvent(event: ScrubbableEvent): ScrubbableEvent {
 		scrubbed.message = redactText(event.message);
 	}
 	if (event.transaction !== undefined) {
-		scrubbed.transaction = redactText(event.transaction);
+		scrubbed.transaction = scrubRoute(event.transaction);
 	}
 
 	scrubbed.contexts = allowlist(event.contexts, ALLOWED_CONTEXTS);

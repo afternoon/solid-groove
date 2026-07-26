@@ -51,7 +51,10 @@ const BROWSER_RULES: readonly {
 	{ name: "opera", pattern: /\bOPR\/(\d+)/ },
 	{ name: "firefox", pattern: /\bFirefox\/(\d+)/ },
 	{ name: "chrome", pattern: /\b(?:Chrome|CriOS)\/(\d+)/ },
-	{ name: "safari", pattern: /\bVersion\/(\d+)[.\d]*\s+(?:Mobile\/\S+\s+)?Safari/ },
+	{
+		name: "safari",
+		pattern: /\bVersion\/(\d+)[.\d]*\s+(?:Mobile\/\S+\s+)?Safari/,
+	},
 ];
 
 function majorVersion(match: RegExpExecArray | null): string {

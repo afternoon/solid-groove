@@ -624,10 +624,9 @@ type HasNoParams<N extends AnalyticsEventName> = keyof ParamsOf<N> extends never
 	: false;
 
 /** Argument tuple for `log`, making the payload optional for empty events. */
-export type LogArgs<N extends AnalyticsEventName> =
-	HasNoParams<N> extends true
-		? [payload?: Record<string, never>]
-		: [payload: AnalyticsEventPayload<N>];
+export type LogArgs<N extends AnalyticsEventName> = HasNoParams<N> extends true
+	? [payload?: Record<string, never>]
+	: [payload: AnalyticsEventPayload<N>];
 
 // ---------------------------------------------------------------------------
 // Runtime validation
@@ -681,7 +680,9 @@ export function validateEventPayload(
 			// Deliberately does not include `value` — an issue string can end up in
 			// a log or an error report, and the whole point of this file is that a
 			// rejected value may be exactly the project content that must not travel.
-			issues.push(`"${event}.${name}" received a value outside its declared set`);
+			issues.push(
+				`"${event}.${name}" received a value outside its declared set`,
+			);
 			continue;
 		}
 		params[name] = coerced;
@@ -713,7 +714,8 @@ function coerceParam(
 		case "boolean":
 			return typeof value === "boolean" ? value : undefined;
 		case "count":
-			if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+			if (typeof value !== "number" || !Number.isFinite(value))
+				return undefined;
 			return Math.min(Math.max(Math.round(value), 0), spec.max);
 	}
 }

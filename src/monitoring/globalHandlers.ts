@@ -17,7 +17,7 @@
 // from is reported non-fatally through `reportError` at its own call site.
 
 import type { ErrorArea } from "../analytics/errorCodes";
-import { errorReporter, type ErrorReporter } from "./errorReporting";
+import { type ErrorReporter, errorReporter } from "./errorReporting";
 
 export interface GlobalHandlerOptions {
 	reporter?: ErrorReporter;

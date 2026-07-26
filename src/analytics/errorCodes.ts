@@ -58,7 +58,7 @@ export const ERROR_CODES = [
 
 	// --- Persistence -------------------------------------------------------
 	// These mirror `SaveFailureReason` in src/persistence/projectRepository.ts
-	// one-for-one; `errorCodes.test.ts` fails if the two drift apart.
+	// one-for-one; `catalog.test.ts` fails if the two drift apart.
 	"revision_conflict",
 	"not_found",
 	"already_exists",

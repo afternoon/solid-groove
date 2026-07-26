@@ -1,7 +1,13 @@
 import { MetaProvider, Title } from "@solidjs/meta";
 import { Router, useLocation } from "@solidjs/router";
 import { FileRoutes } from "@solidjs/start/router";
-import { createEffect, ErrorBoundary, onCleanup, onMount, Suspense } from "solid-js";
+import {
+	createEffect,
+	ErrorBoundary,
+	onCleanup,
+	onMount,
+	Suspense,
+} from "solid-js";
 import { analytics } from "./analytics/analytics";
 import AppErrorFallback from "./components/AppErrorFallback";
 import ReleaseBadge from "./components/ReleaseBadge";

@@ -31,7 +31,7 @@ import {
 	USER_PROPERTIES,
 	validateEventPayload,
 } from "./catalog";
-import { ConsentStore, consentStore } from "./consent";
+import { type ConsentStore, consentStore } from "./consent";
 import { type AnalyticsTransport, noopTransport } from "./transport";
 
 /** Storage key prefix for once-only event bookkeeping. */
@@ -71,7 +71,8 @@ export class Analytics {
 		this.consent = options.consent ?? consentStore;
 		this.releaseSha = options.releaseSha ?? RELEASE_SHA;
 		this.surface = options.surface ?? "dashboard";
-		this.storage = options.storage === undefined ? safeStorage() : options.storage;
+		this.storage =
+			options.storage === undefined ? safeStorage() : options.storage;
 		this.onIssue = options.onIssue ?? (() => {});
 	}
 

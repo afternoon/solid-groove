@@ -34,12 +34,20 @@ const AppErrorFallback: Component<AppErrorFallbackProps> = (props) => {
 		props.error instanceof Error ? props.error.message : String(props.error);
 
 	onMount(() => {
-		// Fatal: this boundary firing means a surface was replaced by a recovery
-		// screen, which is what the section 11 crash-free session rate counts.
-		(props.report ?? reportError)(props.error, {
-			area: props.area ?? "shell",
-			fatal: true,
-		});
+		try {
+			// Fatal: this boundary firing means a surface was replaced by a recovery
+			// screen, which is what the section 11 crash-free session rate counts.
+			(props.report ?? reportError)(props.error, {
+				area: props.area ?? "shell",
+				fatal: true,
+			});
+		} catch {
+			// `reportError` already guarantees it cannot throw, so this only catches
+			// an injected reporter or a future regression. It is kept because this
+			// is the last screen before a blank page: an exception escaping here
+			// would be thrown *from inside the error boundary's own fallback*,
+			// which no boundary above can recover from.
+		}
 	});
 
 	return (

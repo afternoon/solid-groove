@@ -94,7 +94,7 @@ bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gat
 1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this.
 2. **`browser`** — the Playwright suite, matrixed over `chromium`, `firefox`, `webkit`. Chromium/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
 3. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator.
-4. **`build`** — `bun run build` then `bun run verify:bundle` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
+4. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
 5. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops.
 
 None of `checks`, `browser`, or `emulator` touch the production Firebase project: `browser` drives the in-memory mock backend (`VITE_MOCK_BACKEND=true`, see "Browser E2E suite" above) and `emulator` drives a local, disposable Firestore instance. That separation is structural, not a convention to remember — neither job is ever given the production project's credentials, so there is nothing for them to write to even by mistake (PRD `OPS-01`: "Local development and every automated suite continue to run against the Firebase Emulator suite ... the test suites must not write to it").
@@ -124,7 +124,7 @@ This needs `FIREBASE_PROJECT_ID` and Google Application Default Credentials (`GO
 
 ### CI: the `build` and `deploy` jobs
 
-`.github/workflows/ci.yml`'s `build` job runs `bun run build` and `bun run verify:bundle` unconditionally, on every push and PR, with no credentials at all — proving the production build succeeds and ships no secret on every change, long before a real deploy is possible.
+`.github/workflows/ci.yml`'s `build` job runs `bun run build`, `bun run verify:bundle`, and `bun run verify:budget` unconditionally, on every push and PR, with no credentials at all — proving the production build succeeds, ships no secret, and keeps the error-monitoring SDK off the interactive path on every change, long before a real deploy is possible.
 
 The `deploy` job runs only when `github.ref == 'refs/heads/main'` on a `push` event **and** the `FIREBASE_PROJECT_ID` repository variable is set. That gate is deliberate: this task ("FND-001b") provisions no Firebase project, CI service account, or any other credential — it builds the pipeline and leaves it inert until a real project exists. Until then, `deploy` reports as skipped and every other job keeps gating merges normally.
 
@@ -132,9 +132,8 @@ Once the project and its secrets exist, `deploy`:
 
 1. Writes the `FIREBASE_DEPLOY_SERVICE_ACCOUNT` secret to a runner-local temp file and points `GOOGLE_APPLICATION_CREDENTIALS` at it (never committed, never logged).
 2. Runs `bun run deploy` with `VITE_RELEASE_SHA` pinned to `github.sha` — the exact commit being deployed. `predeploy` builds and re-runs `verify:bundle` against that build before `firebase deploy --only hosting,firestore,storage` ships it.
-3. Installs Chromium and runs `bun run smoke:hosted` against `https://$FIREBASE_PROJECT_ID.web.app`. A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01).
-
-The job is commented at the points `FND-001c` needs: a release-registration step and a source-map upload step both slot in around the build/deploy steps without restructuring the job.
+3. Marks the release deployed in Sentry (`sentry-cli releases deploys … new --env alpha`), after the deploy succeeded so a release that never shipped is never recorded as live. Skipped when the Sentry variables are unset. See "Source maps and release registration" below.
+4. Installs Chromium and runs `bun run smoke:hosted` against `https://$FIREBASE_PROJECT_ID.web.app`. A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01).
 
 Required GitHub Actions configuration (`afternoon/solid-groove` → Settings → Secrets and variables → Actions), named but never set by this task:
 
@@ -142,6 +141,10 @@ Required GitHub Actions configuration (`afternoon/solid-groove` → Settings →
 | --- | --- | --- |
 | `FIREBASE_PROJECT_ID` | Repository **variable** | The production project ID. Not sensitive — used in the `deploy` job's `if:` condition, which only `vars` (not `secrets`) can safely appear in. |
 | `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Repository **secret** | Inline service-account JSON with Hosting, Firestore rules/indexes, and Storage rules deploy permissions. Distinct from any credential `library:upload`/CNT-000 uses, so the deploy pipeline's IAM scope doesn't have to match a different task's. |
+| `VITE_SENTRY_DSN` | Repository **variable** | The client DSN (`FND-001c`). **Public by design**: it ships in the client bundle, because a browser SDK cannot submit an event without it. It identifies an ingest endpoint and grants nothing else — the same standing as the Firebase Web API key. Stored as a variable, not a secret, so nothing pretends otherwise. |
+| `SENTRY_ORG` | Repository **variable** | Sentry organization slug. Not sensitive. |
+| `SENTRY_PROJECT` | Repository **variable** | Sentry project slug. Not sensitive. |
+| `SENTRY_AUTH_TOKEN` | Repository **secret** | Creates releases and uploads source maps (`project:releases`, `org:read`). This is the one genuinely secret Sentry value — it can rewrite what your error data says. **CI only**: it never belongs in a developer `.env`, and `verify:bundle` fails the build if it ever appears in the output. |
 
 ### Release SHA
 
@@ -169,6 +172,101 @@ Rollback is a practiced, documented operation, not an improvisation (PRD OPS-01)
 
 Because Hosting release history and Firestore rules revisions are both associated with the commit SHA `ReleaseBadge` and the analytics/error catalog carry, an incident report can name exactly which release is live before and after the rollback.
 
+## Analytics and error monitoring
+
+| Field | Value |
+| --- | --- |
+| Status | Implemented (`FND-001c`) |
+| Scope | The typed analytics catalog, the logging boundary, the error-reporting boundary and its Sentry sink, consent/opt-out, source-map upload, and release registration |
+
+Related: [PRD `OPS-02`/`OPS-03`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 11](./prd.md#11-success-metrics), [ADR 0001](./adr/0001-sentry-for-error-monitoring.md), [backlog `FND-001c`](./backlog.md#fnd-001c---analytics-and-error-monitoring-foundation)
+
+### What is checked without a deployed build
+
+Most of this layer is verified in the ordinary `bun run test` suite, deliberately — a criterion that can only be checked by looking at a vendor dashboard is a criterion that quietly stops being checked.
+
+| Suite | What it proves |
+| --- | --- |
+| `src/analytics/catalog.test.ts` | Every PRD `OPS-02` event is declared with its parameters and allowed values, and the persistence failure reasons stay in step with `ERROR_CODES`. |
+| `src/analytics/analytics.test.ts` | Enrichment (release SHA, surface, account-type user property), runtime validation, once-only events, and fail-open behavior. Includes `@ts-expect-error` cases: logging an unregistered event, parameter, or value is a **compile** error. |
+| `src/analytics/consent.test.ts` | The opt-out persists, applies to both processors independently, and survives hostile or absent storage. |
+| `src/monitoring/scrub.test.ts` | The no-PII criterion, run over the scrubbing functions directly against a deliberately hostile payload — so it also covers events and breadcrumbs added by later tasks. |
+| `src/monitoring/errorReporting.test.ts` | One report per error, duplicates collapsed, fatal/non-fatal carried, and no recursion or caller impact when a sink throws. |
+| `src/monitoring/globalHandlers.test.ts` | `error` and `unhandledrejection` each report once, as fatal, and dispose cleanly. |
+| `src/monitoring/sentrySink.test.ts` | The ADR 0001 configuration as facts: `sendDefaultPii` off, console breadcrumbs disabled, **Session Replay not enabled**, minimal integration set, Release Health on. Injects a fake SDK module, so no test loads Sentry. |
+| `src/monitoring/boundaries.test.ts` | `@sentry/*` is imported by `sentrySink.ts` and nothing else, it is absent from the barrel, and `telemetry.ts` reaches it only through a dynamic `import()`. |
+| `src/telemetry.test.ts` | The SDK loads only after first paint and never on the landing page, and the **core journey (edit → save → undo) is identical** with both transports throwing and the user opted out. |
+| `bun run verify:budget` | The SDK contributes **zero bytes** before first paint, measured against the built output rather than assumed (see below). |
+
+### Bundle cost
+
+```sh
+bun run build && bun run verify:budget
+```
+
+`scripts/verify-bundle-budget.mjs` walks the entry script and every module `index.html` preloads, follows their *static* imports transitively, and fails if the Sentry SDK appears anywhere in that closure — which is what the PRD section 10 "interactive within 3 seconds" budget actually requires of monitoring. It then measures the lazy chunk's brotli size against a declared ceiling, so an SDK upgrade that doubles it is a decision rather than a surprise. The `build` CI job runs it on every push and PR.
+
+### Source maps and release registration
+
+Three separate mechanisms, one per clause of the acceptance criterion:
+
+1. **Produced** — `app.config.ts` sets `build.sourcemap: "hidden"`, so a map is emitted for every chunk with no `//# sourceMappingURL=` comment pointing at it.
+2. **Uploaded over an authenticated channel** — `@sentry/vite-plugin` runs during the `deploy` job's `predeploy` build (the only moment the deployed artifacts and their maps both exist), authenticating with the CI-only `SENTRY_AUTH_TOKEN`. It also registers the release under the deployed commit SHA and injects **debug IDs** into both chunk and map, so Sentry matches them by ID rather than by URL.
+3. **Never served publicly from Hosting** — the plugin deletes the maps after upload, and `firebase.json`'s `hosting.ignore` refuses to upload `**/*.map` regardless. The second is the guarantee that does not depend on the first having run: a local build, or a build with no Sentry credentials, still cannot publish a map.
+
+After the deploy succeeds, a separate step marks the release deployed (`sentry-cli releases deploys … new --env alpha`), so Sentry's "first seen in" and regression detection line up with real deploys rather than with build times.
+
+### Verifying analytics and errors against a deployed build
+
+Neither GA4 nor Sentry can be verified from the unit suite — the last mile is a real browser talking to a real project. This is the procedure; it needs the hosted environment and the credentials in the table above to exist.
+
+**Before you start.** Open the site and confirm `ReleaseBadge` shows the SHA you expect; every check below is scoped to that release. Then open the Privacy disclosure in the footer and make sure collection is **on** — an opted-out browser correctly sends nothing, which looks identical to a broken pipeline. Disable any ad or tracker blocker: both `google-analytics.com` and `sentry.io` are commonly blocked, and a blocked endpoint is invisible by design (PRD `OPS-02`).
+
+**1. Phase 0 events.** In GA4, open *Reports → Realtime* (events appear within seconds; the standard reports lag by up to 24 hours) or *Admin → DebugView* if you appended `?debug_mode=1`. Then, on the deployed site:
+
+| Event | How to trigger it | Check |
+| --- | --- | --- |
+| `app_opened` | Load `/dashboard` or a project. Not the landing page — that surface measures `landing_cta_click` instead. | Fires once per app load, with `surface` and `release_sha`. |
+| `first_edit` | Make the first edit in a project. | Fires once for that project, never again — reload and edit again to confirm. |
+| `feature_first_use` | Use a feature for the first time in that browser. | Fires once per `feature`, carrying the feature key. |
+| `save_failed` | Go offline (DevTools → Network → Offline) and make an edit. | Fires with a stable `error_code` and a `retry_count`. |
+| `audio_start_failed` | Load a project and press play *without* interacting first, so autoplay is blocked. | Fires with `error_code: autoplay_blocked` and `was_browser_blocked: true`. |
+| `exception` | Trigger the test error in step 2. | Fires with `fatal`, `area`, and `error_code` — and **no message**. |
+
+Confirm the `account_type` and `internal` user properties are set under *Admin → Custom definitions*. Mark your own session first with `?internal=1` (see "Marking internal/team traffic") so your verification traffic can be excluded from the section 11 measures.
+
+**2. A deliberately triggered error.** From the deployed site's console, throw an error that no application code catches, so it takes the real path — global handler → reporting boundary → Sentry *and* the GA4 `exception` counter:
+
+```js
+setTimeout(() => { throw new Error("solid-groove deploy verification"); });
+```
+
+Use `Promise.reject(new Error("solid-groove deploy verification"))` to exercise the `unhandledrejection` handler instead. This needs no application code: adding a "throw a test error" control to the product would be a permanent user-facing surface in exchange for a one-off check.
+
+In Sentry, the issue should show:
+
+- the **release** equal to the deployed commit SHA, and *Deploys* listing the `alpha` deploy for it;
+- a **symbolicated stack trace** naming `src/` files and real line numbers — if frames are minified, the source-map upload did not run (check `SENTRY_AUTH_TOKEN` in the deploy log) or the debug IDs did not match;
+- `area`, `error_code`, `fatal`, and `browser_*` tags, and a **redacted** message;
+- **no** `request`, `user`, `extra`, or `server_name`, no console breadcrumbs, and no Session Replay.
+
+Then confirm the same error produced exactly **one** issue (not two — Sentry's own global handlers are switched off so ours is the only capture point) and that *Releases → Health* shows a crash-free session rate for that release.
+
+**3. The opt-out.** Turn collection off in the Privacy disclosure, repeat steps 1 and 2, and confirm nothing new arrives at either processor while every feature still works. Turn it back on and confirm collection resumes.
+
+**4. No source map is public.** Fetch a bundle and its would-be map directly:
+
+```sh
+curl -sI "https://<project-id>.web.app/_build/assets/<chunk>.js"      # 200
+curl -sI "https://<project-id>.web.app/_build/assets/<chunk>.js.map"  # not 200
+```
+
+The first must succeed and the second must not. A 200 with map contents means the `hosting.ignore` rule is not doing its job and the deploy should be treated as a leak.
+
+### What has not been verified
+
+The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason. Whoever provisions the accounts runs this procedure once and records the outcome.
+
 ## Test helpers
 
 | Helper | Location | Purpose |
@@ -179,6 +277,8 @@ Because Hosting release history and Firestore rules revisions are both associate
 | `timeoutScheduler`, `createManualScheduler` | `src/shared/scheduler.ts` | A `Scheduler` abstraction for deferred work (autosave coalescing, backoff), so a test drives the delay explicitly instead of sleeping. Same rationale as `clock.ts`: production code is a consumer too. |
 | `loadStoredProjectFixture` | `src/testing/fixtures.ts` | Loads a stored schema-vN project from `public/fixtures/persistence/v{version}-{name}.json`. The fixture convention the persistence migration harness follows — see [`docs/persistence.md`](./persistence.md). |
 | `describeProjectRepositoryContract` | `src/persistence/projectRepositoryContract.ts` | The shared `ProjectRepository` contract suite. Any new repository implementation runs it; behavior specific to one implementation stays in that implementation's own test file. |
+| `memoryStorage`, `hostileStorage` | `src/testing/storage.ts` | `Storage` doubles for anything that persists a preference or a marker (telemetry consent, once-only analytics events, the internal-traffic flag). `memoryStorage` isolates a test from jsdom's real `localStorage`, so a leaked opt-out cannot make suites pass or fail by order; `hostileStorage` throws on every operation, standing in for Safari private browsing and a full quota. |
+| `createRecordingTransport`, `createFailingTransport` | `src/analytics/transport.ts` | Analytics transports for tests: one records events and user properties for assertions, the other throws on every call so a test can prove the PRD `OPS-02` fail-open requirement rather than assume it. |
 | `loadFixtureJson`, `loadSampleProjectFixture` | `src/testing/fixtures.ts` | Browser-safe fixture loading: reads `public/fixtures/*.json` from disk under Node (unit/component/emulator suites) or fetches it as a static asset under a real browser, picking the strategy at call time. |
 | `buildProject`, `buildTrack`, `buildSong`, `buildInstrument` | `src/testing/fixtures.ts` | Override-friendly builders for the current prototype domain types (`src/model/types.ts`), so a test constructs one valid object and overrides only what it cares about. `FND-002` replaces the prototype types with the schema-v1 domain model and supersedes these. |
 

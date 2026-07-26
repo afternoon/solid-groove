@@ -1,7 +1,7 @@
 import { type Component, createSignal, onCleanup } from "solid-js";
 import {
 	type ConsentState,
-	ConsentStore,
+	type ConsentStore,
 	consentStore,
 } from "../analytics/consent";
 import "./TelemetryDisclosure.css";
@@ -13,8 +13,9 @@ import "./TelemetryDisclosure.css";
  * "The user is told what is collected and can decline product analytics
  * without losing any DAW or assistant capability." Turning this off stops
  * collection and changes nothing else — there is no capability behind it,
- * which `telemetryOptOut.test.tsx` asserts by running the core journey with
- * collection disabled.
+ * which `src/telemetry.test.ts` asserts by running the core journey (edit,
+ * save, undo) with collection disabled and both transports throwing, and
+ * comparing the result against the same journey with telemetry working.
  *
  * ## What this task does and does not decide
  *
@@ -48,14 +49,13 @@ const TelemetryDisclosure: Component<{ store?: ConsentStore }> = (props) => {
 			<summary class="telemetry-disclosure-summary">Privacy</summary>
 			<div class="telemetry-disclosure-body">
 				<p>
-					Solid Groove records which features are used and reports errors, so
-					we can tell what works and fix what breaks. Two processors receive
-					this: Google Analytics for product events and Sentry for error
-					reports.
+					Solid Groove records which features are used and reports errors, so we
+					can tell what works and fix what breaks. Two processors receive this:
+					Google Analytics for product events and Sentry for error reports.
 				</p>
 				<p>
-					Your music never leaves your project. Event and error reports carry
-					no project, track, clip, or section names, no notes or audio, no
+					Your music never leaves your project. Event and error reports carry no
+					project, track, clip, or section names, no notes or audio, no
 					assistant messages, and no text you type.
 				</p>
 				<label class="telemetry-disclosure-toggle">

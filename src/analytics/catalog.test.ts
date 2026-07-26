@@ -21,7 +21,11 @@ const definitions = Object.entries(ANALYTICS_EVENTS) as [
 	AnalyticsEventDefinition,
 ][];
 
-function everyParam(): { event: string; param: string; spec: AnalyticsParam }[] {
+function everyParam(): {
+	event: string;
+	param: string;
+	spec: AnalyticsParam;
+}[] {
 	return definitions.flatMap(([event, definition]) =>
 		Object.entries(definition.params).map(([param, spec]) => ({
 			event,
@@ -163,7 +167,8 @@ describe("no project content (PRD OPS-02 / section 10)", () => {
 		// A name-level check as well as a kind-level one: it catches a parameter
 		// that is *shaped* correctly but conceptually wrong, e.g. an enum of
 		// project names.
-		const FORBIDDEN_NAME = /(^|_)(name|title|label|text|message|query|search|prompt|reply|url|uri|path|file|filename|email|token|secret)($|_)/;
+		const FORBIDDEN_NAME =
+			/(^|_)(name|title|label|text|message|query|search|prompt|reply|url|uri|path|file|filename|email|token|secret)($|_)/;
 		for (const { event, param } of everyParam()) {
 			expect(
 				FORBIDDEN_NAME.test(param),
@@ -332,7 +337,9 @@ describe("buckets", () => {
 	});
 
 	it("produces only labels the scale declares", () => {
-		for (const scale of Object.keys(BUCKET_SCALES) as (keyof typeof BUCKET_SCALES)[]) {
+		for (const scale of Object.keys(
+			BUCKET_SCALES,
+		) as (keyof typeof BUCKET_SCALES)[]) {
 			const labels = bucketLabels(scale) as readonly string[];
 			for (const value of [-1, 0, 1, 7, 100, 10_000, 1e9]) {
 				expect(labels).toContain(bucketOf(scale, value) as string);
@@ -341,7 +348,9 @@ describe("buckets", () => {
 	});
 
 	it("has unique labels within a scale", () => {
-		for (const scale of Object.keys(BUCKET_SCALES) as (keyof typeof BUCKET_SCALES)[]) {
+		for (const scale of Object.keys(
+			BUCKET_SCALES,
+		) as (keyof typeof BUCKET_SCALES)[]) {
 			const labels = bucketLabels(scale) as readonly string[];
 			expect(new Set(labels).size).toBe(labels.length);
 		}

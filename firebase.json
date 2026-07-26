@@ -1,7 +1,14 @@
 {
 	"hosting": {
 		"public": ".output/public",
-		"ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+		"ignore": [
+			"firebase.json",
+			"**/.*",
+			"**/node_modules/**",
+			"**/*.map",
+			"**/*.map.br",
+			"**/*.map.gz"
+		],
 		"rewrites": [
 			{
 				"source": "**",

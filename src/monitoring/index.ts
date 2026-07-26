@@ -6,6 +6,7 @@
 // makes that a structural fact rather than a review convention.
 // `src/telemetry.ts` imports it dynamically as the composition root.
 
+export type { BrowserInfo, BrowserName, EngineName } from "./browserInfo";
 export {
 	BROWSER_NAMES,
 	currentBrowserInfo,
@@ -13,7 +14,12 @@ export {
 	parseBrowserInfo,
 	UNKNOWN_BROWSER,
 } from "./browserInfo";
-export type { BrowserInfo, BrowserName, EngineName } from "./browserInfo";
+export type {
+	ErrorReport,
+	ErrorReporterOptions,
+	ErrorSink,
+	ReportOptions,
+} from "./errorReporting";
 export {
 	CodedError,
 	codeFor,
@@ -21,28 +27,24 @@ export {
 	errorReporter,
 	reportError,
 } from "./errorReporting";
-export type {
-	ErrorReport,
-	ErrorReporterOptions,
-	ErrorSink,
-	ReportOptions,
-} from "./errorReporting";
-export { installGlobalErrorHandlers } from "./globalHandlers";
 export type { GlobalHandlerOptions } from "./globalHandlers";
+export { installGlobalErrorHandlers } from "./globalHandlers";
+export type {
+	ScrubbableBreadcrumb,
+	ScrubbableEvent,
+	ScrubbableException,
+	ScrubbableFrame,
+} from "./scrub";
 export {
 	ALLOWED_CONTEXTS,
+	ALLOWED_ROUTE_SEGMENTS,
 	ALLOWED_TAGS,
 	MAX_MESSAGE_LENGTH,
 	pathOnly,
 	redactText,
 	scrubBreadcrumb,
 	scrubFramePath,
+	scrubRoute,
 	scrubSelector,
 	scrubSentryEvent,
-} from "./scrub";
-export type {
-	ScrubbableBreadcrumb,
-	ScrubbableEvent,
-	ScrubbableException,
-	ScrubbableFrame,
 } from "./scrub";
