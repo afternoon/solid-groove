@@ -315,6 +315,8 @@ the validator proves an asset is well-formed, not that it sounds right.
 
 `library:build` merges whatever `library:acquire` last ingested, so with nothing acquired it is the 200 synthesized assets and needs no network at all — which is why CI can gate on it unconditionally.
 
+The library is currently one flat collection. `CNT-000b` moves it onto the pack model (`docs/sample-library.md` sections 5.1 and 15.7), after which the build emits one manifest per pack plus a pack index and the validator gains the pack rules; the commands themselves do not change.
+
 ### Acquisition tests
 
 `scripts/starter-library/acquire.test.mjs` exercises the whole acquisition path offline, against fixtures the test builds itself and serves over `file://`: a generated 44.1 kHz WAV is zipped, "downloaded", checksum-verified, extracted by pinned member name, decoded and resampled through `node-web-audio-api`, prepared to the section 10 standard, turned into a manifest entry, and run through the shared validator. Every stage downstream of the URL is the real implementation, so this proves the pipeline works rather than proving a mock matches a mock.

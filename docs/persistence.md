@@ -16,6 +16,7 @@ Code: [`src/persistence/`](../src/persistence). The canonical domain model it st
 | Path | Contents | Written when |
 | --- | --- | --- |
 | `projects/{projectId}` | Name, owner, collaborators, created/modified time, schema version, current revision, template/genre | Metadata edits. The dashboard reads only this tier. |
+| `projects/{projectId}` (planned, `FND-002b`) | …plus the pack dependency list: one pack ID and version per pack the project's assets resolve from | Whenever a transaction adds the first or removes the last reference to a pack |
 | `projects/{projectId}/song/current` | Tempo, time signature, sections, tracks with instrument state, device chains, sends, mixer state, return buses, master, assets, and — while it fits — arrangement placements and automation | Structural and arrangement edits |
 | `projects/{projectId}/clips/{clipId}` | One clip and its note or audio-loop content | Note and clip-content edits |
 | `projects/{projectId}/arrangement/{trackId}` | One track's placements and its track-owned automation lanes | Only when the song document exceeds its budget |
@@ -28,6 +29,7 @@ Conventions that hold on every tier:
 - **Timestamps** are integer epoch milliseconds (`createdAt`/`modifiedAt` on metadata, `updatedAt` on children), never Firestore `Timestamp`s — a Firebase type must never reach the domain model, and an integer field still sorts and queries.
 - **`projectId`** is repeated on every child document, so a document copied between projects is rejected by both the rules and the decoder.
 - The project ID is **not** duplicated as a metadata field: the document path already carries it, and a second copy could disagree.
+- **Pack dependencies** (`FND-002b`, not yet implemented) belong on the metadata tier for the same reason ownership does: the dashboard, export, and a missing-pack warning need to know what a project requires without loading song state or clip content. The list is derived from project state rather than maintained by hand, so it cannot drift from the assets actually referenced.
 
 `encodeProject` produces these documents from a `Project`; `decodeProject` reassembles one and runs it through the domain's `parseProject`, so persistence has no second, weaker definition of a valid project.
 

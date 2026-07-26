@@ -192,6 +192,68 @@ export function validateLockfile(lockfile) {
 	return errors;
 }
 
+/**
+ * Fields a selection carries before it is pinned. The management tool writes a
+ * *draft*: everything a reviewer confirmed by looking at the page, but not the
+ * `sha256`/`bytes`, which only exist once the file is actually downloaded by
+ * `--pin`. A draft is therefore intentionally not yet shippable — it fails
+ * `validateLockfile` on the missing checksum until `--pin` fills it in and a
+ * reviewer commits. `validateDraft` is the weaker check the tool can run at
+ * write time: everything except the checksum a download has not produced yet.
+ */
+export function validateDraft(selection) {
+	const errors = [];
+	const where = selection?.id ?? "<selection with no id>";
+	if (!selection?.id || !SELECTION_ID.test(selection.id)) {
+		errors.push(`${where}: selection id must be kebab-case`);
+	}
+	if (!findSource(selection?.sourceId)) {
+		errors.push(`${where}: unknown source "${selection?.sourceId}"`);
+	}
+	for (const field of [
+		"downloadUrl",
+		"sourcePageUrl",
+		"creator",
+		"originalFilename",
+		"reviewer",
+	]) {
+		if (!selection?.[field]) errors.push(`${where}: ${field} is required`);
+	}
+	if (selection?.reviewer === "unreviewed") {
+		errors.push(`${where}: a real reviewer name is required`);
+	}
+	const asset = selection?.asset;
+	if (!asset) {
+		errors.push(`${where}: asset mapping is required`);
+	} else {
+		for (const field of ["family", "role", "name", "intensity", "sourceType"]) {
+			if (!asset[field]) errors.push(`${where}: asset.${field} is required`);
+		}
+		if (!asset.genres?.length) errors.push(`${where}: a genre tag is required`);
+		if (!asset.characters?.length)
+			errors.push(`${where}: a character tag is required`);
+	}
+	return errors;
+}
+
+/**
+ * Append a draft selection to the lockfile, or replace one with the same ID
+ * (so re-verifying the same candidate updates rather than duplicates it). The
+ * draft carries no checksum; `--pin` records that later. Returns the new
+ * lockfile — the caller writes it with `writeLockfile`.
+ */
+export function appendSelection(lockfile, selection) {
+	const errors = validateDraft(selection);
+	if (errors.length > 0) {
+		throw new Error(
+			`selection is not a valid draft:\n${errors.map((e) => `  - ${e}`).join("\n")}`,
+		);
+	}
+	const selections = lockfile.selections.filter((s) => s.id !== selection.id);
+	selections.push(selection);
+	return { ...lockfile, selections };
+}
+
 export function selectionsBySource(lockfile) {
 	const grouped = {};
 	for (const selection of lockfile.selections) {

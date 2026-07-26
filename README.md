@@ -41,6 +41,8 @@ The private alpha has exactly one hosted environment — the **production** Fire
 
 The app ships a starter library of 200 one-shots — drums, bass, tonal material, textures, and transitions — synthesized from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute. Alongside it there is an acquisition path for CC0 content from vetted sources, where each file is individually selected, checksum-pinned, and reviewed.
 
+Content is organized into **packs** — named, versioned collections such as "Techno Drums" or "Orchestral Sounds" that a user browses and a project depends on. The shipped library predates that model and is still one flat collection; [`docs/sample-library.md`](./docs/sample-library.md) section 5.1 defines the model and section 15.7 covers the move.
+
 ```sh
 bun run library                     # print the whole workflow and what's on disk
 bun run library:build               # render + merge the library and its manifest

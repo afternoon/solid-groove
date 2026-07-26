@@ -4,6 +4,7 @@
 //   bun run library:acquire -- --plan     # what is declared and pinned; no network
 //   bun run library:acquire -- --pin      # download, hash, and write pins back
 //   bun run library:acquire               # download, verify, prepare, ingest
+//   bun run library:acquire -- --vcsl     # clone VCSL, bulk-ingest a CC0 subset, delete the clone
 //
 // The synthesized library needs no network and always works. This adds recorded
 // and field-recorded material from the docs/sample-library.md section 4 sources,
@@ -15,11 +16,14 @@
 // it writes the result for a person to review and commit rather than ingesting
 // it. There is no crawl mode and no search mode, by design (section 4.2).
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchToQuarantine } from "./acquire/fetch.mjs";
-import { captureAllEvidence, ingestAll } from "./acquire/ingest.mjs";
+import {
+	captureAllEvidence,
+	ingestAll,
+	writeAcquiredBundle,
+} from "./acquire/ingest.mjs";
 import {
 	LOCKFILE_PATH,
 	readLockfile,
@@ -52,12 +56,13 @@ export const ACQUIRED_DIR = join(
 export const EVIDENCE_DIR = join(REPO_ROOT, "docs", "licenses", "sources");
 
 export function parseArgs(argv) {
-	const args = { plan: false, pin: false, only: null };
+	const args = { plan: false, pin: false, only: null, vcsl: false };
 	for (let i = 0; i < argv.length; i++) {
 		const flag = argv[i];
 		if (flag === "--plan") args.plan = true;
 		else if (flag === "--pin") args.pin = true;
 		else if (flag === "--only") args.only = argv[++i] ?? null;
+		else if (flag === "--vcsl") args.vcsl = true;
 		else throw new Error(`unknown flag: ${flag}`);
 	}
 	return args;
@@ -84,10 +89,30 @@ function reportPlan(lockfile, log) {
 		);
 		return;
 	}
-	log(`${lockfile.selections.length} selections pinned:`);
-	for (const selection of lockfile.selections) {
+	// A selection written by `library:manage` (Verify) is a *draft*: reviewed,
+	// but with no checksum until `--pin` downloads it. Show the two apart so it
+	// is obvious what still needs pinning before it can be ingested.
+	const drafts = lockfile.selections.filter((s) => !s.sha256);
+	const pinned = lockfile.selections.filter((s) => s.sha256);
+	if (pinned.length > 0) {
+		log(`${pinned.length} selections pinned:`);
+		for (const selection of pinned) {
+			log(
+				`  ${selection.id.padEnd(28)} ${selection.asset.family}/${selection.asset.role}  ${selection.asset.name}`,
+			);
+		}
+	}
+	if (drafts.length > 0) {
+		log("");
+		log(`${drafts.length} verified drafts awaiting --pin (no checksum yet):`);
+		for (const selection of drafts) {
+			log(
+				`  ${selection.id.padEnd(28)} ${selection.asset.family}/${selection.asset.role}  ${selection.asset.name}`,
+			);
+		}
+		log("");
 		log(
-			`  ${selection.id.padEnd(28)} ${selection.asset.family}/${selection.asset.role}  ${selection.asset.name}`,
+			"Run `bun run library:acquire -- --pin` to download and record their checksums.",
 		);
 	}
 }
@@ -132,10 +157,34 @@ export async function acquire({
 	plan = false,
 	pin = false,
 	only = null,
+	vcsl = false,
 	log = console.log,
 	now,
 } = {}) {
 	const timestamp = now ?? new Date().toISOString();
+
+	if (vcsl) {
+		// VCSL is a trusted bulk CC0 source, not a lockfile source: it does not
+		// pin per file, it clones the repo, ingests a curated subset, and deletes
+		// the clone. See acquire/vcsl.mjs.
+		const { acquireVcsl } = await import("./acquire/vcsl.mjs");
+		const result = await acquireVcsl({
+			acquiredDir: ACQUIRED_DIR,
+			evidenceDir: EVIDENCE_DIR,
+			now: timestamp,
+			log,
+		});
+		log("");
+		log(
+			`ingested ${result.ingested} VCSL assets at commit ${result.commit.slice(0, 12)}`,
+		);
+		log(`evidence:  ${join(EVIDENCE_DIR, "vcsl.md")}`);
+		log(`assets:    ${result.bundleDir}`);
+		log("");
+		log("Run `bun run library:build` to merge them into the manifest.");
+		return { ingested: result.ingested, sources: 1 };
+	}
+
 	let lockfile = readLockfile();
 	if (only) {
 		lockfile = {
@@ -194,22 +243,9 @@ export async function acquire({
 		evidencePathFor: (source) => evidence[source.id].evidencePath,
 	});
 
-	rmSync(ACQUIRED_DIR, { recursive: true, force: true });
-	for (const { asset, bytes } of ingested) {
-		const path = join(ACQUIRED_DIR, "audio", asset.files.master.storageKey);
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, bytes);
-	}
-	const entriesPath = join(ACQUIRED_DIR, "entries.json");
-	mkdirSync(dirname(entriesPath), { recursive: true });
-	writeFileSync(
-		entriesPath,
-		`${JSON.stringify(
-			ingested.map((r) => r.asset),
-			null,
-			"\t",
-		)}\n`,
-	);
+	// The lockfile ingest owns its own bundle directory so the VCSL bulk ingest
+	// (a separate source) does not overwrite it — both are merged at build time.
+	writeAcquiredBundle(join(ACQUIRED_DIR, "lockfile"), ingested);
 
 	log("");
 	log(
