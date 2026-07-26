@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for implementation |
-| Scope | Private-alpha factory library and genre starters |
+| Scope | Private-alpha factory packs and genre starters |
 | Licensing posture | CC0-first; explicit raw-redistribution rights required |
 | Primary outcome | A coherent, editable electronic-music palette that supports fast loop creation and complete tracks |
 
@@ -15,11 +15,13 @@ Solid Groove needs a sample library that is useful immediately, broad enough to 
 
 The library is not a large undifferentiated download catalogue. It is an opinionated factory collection whose assets work together, cover the roles needed to build complete electronic tracks, and give the assistant reliable material for creating editable ideas.
 
+It is delivered as **packs** (PRD `LIB-04`): named, versioned, independently deliverable collections such as "Techno Drums" or "Orchestral Sounds". A pack is the unit a user browses, a project depends on, and this plan curates. Everything below — rights, intake, taxonomy, targets, and delivery — applies within and across packs; section 5.1 defines the model and section 6.5 lists the starter packs.
+
 This plan defines:
 
 - Which rights are required to bundle an asset.
 - Initial sources and how they must be audited.
-- The library taxonomy, metadata, and technical standards.
+- The pack model, and the library taxonomy, metadata, and technical standards.
 - Content targets for featured and supporting genres.
 - The relationship among raw samples, kits, presets, clips, and generative genre starters.
 - The intake, curation, quality, delivery, and expansion process.
@@ -38,6 +40,7 @@ This is a content-acquisition and implementation plan, not legal advice. Any amb
 8. **Consistent technical quality, varied sonic quality.** Files should be cleanly prepared without making every sound polished, loud, bright, or conventional.
 9. **Provenance is product data.** Source, authorship, licence evidence, transformations, and checksums travel with every asset.
 10. **No URL identity.** Stable asset IDs survive CDN, storage, format, and source-location changes.
+11. **Packs organize; tags discover.** A pack is a curated set with one rights position, one publisher, and a stated purpose — never a folder that exists to hold leftovers. Genre, role, and character tags cut across packs and stay many-to-many, so a pack theme never becomes a restriction (principle 3).
 
 ## 3. Licensing policy
 
@@ -133,6 +136,36 @@ These sources have musically relevant catalogues but their standard licences do 
 Any outreach should request a written quote for a perpetual, worldwide, non-exclusive OEM licence covering browser delivery, individual audition, sampler use, user projects, collaboration, stems, project export, CDN caching, and continued use in existing projects after the agreement ends.
 
 ## 5. Logical library structure
+
+### 5.1 Packs
+
+The library is divided into packs. A pack is a named, versioned collection of assets that belong together — by genre ("Techno Drums", "Dubstep Bass"), by instrument family ("Orchestral Sounds"), or by role ("Core Electronic Drums") — and it is what a user chooses when they sit down to work: a producer starting a dubstep track picks a dubstep pack instead of filtering an undifferentiated catalogue.
+
+A pack record carries:
+
+| Field | Meaning |
+| --- | --- |
+| ID | Stable, opaque, and permanent. Never derived from the name. |
+| Name and description | User-facing. The description states what the pack is for and what it does not contain. |
+| Version | Immutable once published. Changed audio or changed metadata is a new version. |
+| Publisher | Solid Groove for factory packs; later a user or a third party. |
+| Kind | `factory`, `user`, or `third-party`. |
+| Rights position | One licence and redistribution posture covering every asset in the pack (section 3). |
+| Coverage claim | The roles, genres, and tempo range the pack claims to serve, and the intensity range it covers. |
+| Asset list | The assets it contains, each with its section 9 metadata record. |
+
+Rules that follow from the model:
+
+- **One pack per asset.** An asset belongs to exactly one pack. Reuse across genres is a tagging question, not a membership question, so an asset is never duplicated into a second pack merely to make it findable there.
+- **Pack-qualified identity.** An asset is identified by its ID together with its owning pack, so two packs can each hold a "Rounded Kick 01" without a collision and without either being renamed.
+- **One rights position per pack.** Every asset in a pack shares its licence and redistribution terms. An asset whose rights differ belongs in a different pack — this is what makes a takedown, an export policy, or a licence question answerable at pack level rather than per file.
+- **A pack is self-contained.** It must be usable on its own for its stated purpose. A genre pack that cannot build a basic loop in its own genre is not finished.
+- **Packs never restrict.** Membership is organization. Any asset from any available pack loads onto any track, instrument, or pad, and clearing a pack filter reveals everything (PRD `LIB-02`).
+- **Versions are pinned by projects.** A project records the packs and versions it uses, so republishing a pack cannot change music someone has already made (section 12).
+
+The taxonomy below describes the structure **within** a pack. A pack does not have to cover the whole tree — most will not — but every role it claims in its coverage claim must be genuinely present.
+
+### 5.2 Taxonomy
 
 The user-facing library is metadata-driven. Storage paths may be optimized independently and must not define taxonomy or identity.
 
@@ -254,6 +287,29 @@ Loops should not dominate the library. The assistant should normally combine edi
 - At least half of drum loops must have separable or complementary top/percussion content.
 - Every featured genre must have usable options at low, medium, and high intensity.
 
+### 6.5 Starter packs
+
+The alpha ships a set of factory packs. All are bundled, free, and present for every user; there is no installation, entitlement, or purchase model until `LIB-05`.
+
+The list below is a **proposal, not a commitment**. What can actually be cleared determines it: a pack exists when there is enough approved material to make it useful on its own, and a pack that cannot meet its own coverage claim is merged into another or dropped rather than shipped thin. Names are working titles.
+
+| Proposed pack | Purpose | Draws mainly on |
+| --- | --- | --- |
+| Core Electronic Drums | The role-complete, lightly processed drum foundation every other pack can lean on. Genre-neutral by design. | Internally synthesized (section 4.1) |
+| Techno Drums | Driven kicks, metallic hats, industrial percussion, and rumble-ready tails at 125-150 BPM. | Synthesized plus CC0 percussion |
+| House Foundations | Rounded kicks, claps, offbeat hats, shakers, organ/piano stabs, and warm plucks at 118-132 BPM. | Producer Space, synthesized |
+| Dubstep Bass | Clean subs, growl and reese source tones, halftime drums, impacts, and tension effects at 135-150 BPM. | Synthesized, FreePats synth bass |
+| Orchestral Sounds | Mallets, bells, strings, resonances, and organic one-shots for tonal and cinematic material across genres. | VCSL, FreePats |
+| Ambient Textures | Drones, evolving pads, field recordings, room tones, and granular-ready snippets; tempo-free. | VCSL, Freesound CC0, synthesized |
+| Broken and Found | Metal, glass, wood, mechanical, glitch, and processed foley — the section 6.4 experimental floor as a browsable set. | Freesound CC0, Signature Sounds, synthesized |
+
+Pack-level rules:
+
+- Every genre in PRD `LIB-02` must be servable by some combination of available packs, whether or not it has a pack of its own. A genre without a dedicated pack is covered by the shared foundation packs plus tags, exactly as section 7.7 already describes for supporting genres.
+- The section 6.1 milestone counts and the section 6.4 character balances are measured across the whole approved library, not per pack. A pack is not required to hit 20% organic content on its own; the library is.
+- A featured dashboard starter (`DEC-002`) names the packs its template draws from, and those packs ship with it.
+- Every pack states what it does not contain, so a user picking "Techno Drums" is not surprised by the absence of tonal material.
+
 ## 7. Genre coverage
 
 The assumed six featured dashboard starters are House, Techno, Hip Hop/Trap, Drum & Bass/Jungle, Dubstep/Bass, and Ambient. This selection remains subject to product-owner approval. Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop remain required library/demo coverage even if they are not featured starter buttons.
@@ -359,6 +415,7 @@ A genre starter is a versioned recipe used by the assistant and a deterministic 
 
 Each recipe defines:
 
+- The packs it draws from, and it selects only from packs the user has.
 - Tempo and optional key/scale ranges.
 - Required, optional, and mutually exclusive track roles.
 - Weighted asset queries by role, genre, character, intensity, and compatibility.
@@ -373,7 +430,7 @@ Each recipe defines:
 Generation requirements:
 
 - Two generations from the same genre should not normally produce identical projects.
-- The generated project records recipe version, random seed, selected asset IDs, assistant proposal ID, and all resulting normal domain commands.
+- The generated project records recipe version, random seed, selected pack-qualified asset IDs and the pack versions they resolved from, assistant proposal ID, and all resulting normal domain commands.
 - Reopening a generated project reproduces its saved state; it does not regenerate implicitly.
 - `Generate another` creates a new proposal or project and never overwrites current work.
 - A `Make it weird` modifier increases cross-genre, experimental-source, unusual processing, and rhythmic-variation weights without bypassing safety or licence validation.
@@ -382,11 +439,38 @@ Generation requirements:
 
 ## 9. Asset metadata
 
-The canonical manifest should support a shape equivalent to:
+A manifest describes one pack. Its header is the pack record from section 5.1, and its entries are that pack's assets:
+
+```json
+{
+  "pack": {
+    "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp",
+    "slug": "techno-drums",
+    "name": "Techno Drums",
+    "version": 3,
+    "publisher": "Solid Groove",
+    "kind": "factory",
+    "description": "Driven kicks, metallic hats, and industrial percussion for 125-150 BPM techno. Drums and percussion only; no tonal material.",
+    "coverage": {
+      "roles": ["kick", "clap", "closed-hat", "open-hat", "cymbal", "tom", "percussion"],
+      "genres": ["techno"],
+      "bpmRange": [125, 150],
+      "intensity": ["low", "medium", "high", "extreme"]
+    },
+    "license": { "id": "CC0-1.0", "rawRedistributionAllowed": true },
+    "releasedAt": "2026-07-25",
+    "assetCount": 84
+  },
+  "assets": [ /* the records below */ ]
+}
+```
+
+Each asset record should support a shape equivalent to:
 
 ```json
 {
   "id": "sg-one-shot-kick-0001",
+  "pack": { "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp", "version": 3 },
   "version": 1,
   "name": "Rounded Analog Kick 01",
   "type": "one-shot",
@@ -436,17 +520,20 @@ The canonical manifest should support a shape equivalent to:
 }
 ```
 
+A pack's `license` is the position every asset in it shares; an asset's own `license` block stays because provenance is per file — a CC0 pack still records which creator and which source page each file came from. The two must agree, and validation fails when an asset claims terms its pack does not cover.
+
 ### Controlled vocabulary
 
+- Pack IDs are stable, opaque, and permanent. The slug is a URL-friendly convenience and is never identity; renaming a pack does not change its ID.
 - Genre tags use stable IDs and may be many-to-many.
 - Role is functional: kick, bass, texture, transition, chord, and similar.
 - Character tags describe audible qualities such as dry, distorted, metallic, warm, noisy, short, dark, wide, or organic.
 - Mood is separate from genre and character.
 - Intensity uses a small ordered scale: low, medium, high, extreme.
 - Source type distinguishes recorded, synthesized, field recording, resampled, processed, and commissioned.
-- Instrument, kit, and recipe definitions reference asset IDs, never filenames or URLs.
+- Instrument, kit, and recipe definitions reference pack-qualified asset IDs, never filenames or URLs.
 
-Manifest validation fails CI when an asset is missing its checksum, rights evidence, creator/source, required audio metadata, or raw-redistribution approval.
+Manifest validation fails CI when an asset is missing its checksum, rights evidence, creator/source, required audio metadata, or raw-redistribution approval; when it belongs to no pack or to a pack the manifest set does not define; when its licence terms exceed its pack's; or when a pack does not deliver the roles and genres its coverage claim advertises.
 
 ## 10. Audio preparation standards
 
@@ -491,11 +578,13 @@ Manifest validation fails CI when an asset is missing its checksum, rights evide
 2. **Rights review:** Licence and provenance checked; ambiguous assets rejected or escalated.
 3. **Quarantine:** Original downloaded, hashed, scanned, and isolated from production manifests.
 4. **Audio preparation:** Format conversion, trimming, fades, analysis, and derived master generation.
-5. **Metadata review:** Role, genre, character, musical metadata, and user-facing name checked.
-6. **Musical review:** Auditioned alone and in at least two relevant project contexts.
+5. **Metadata review:** Owning pack, role, genre, character, musical metadata, and user-facing name checked. An asset whose rights differ from its pack's is reassigned, not relabelled.
+6. **Musical review:** Auditioned alone, in at least two relevant project contexts, and alongside the rest of its pack.
 7. **Approved:** Manifest entry reviewed and eligible for kits, recipes, demos, and production delivery.
 8. **Deprecated:** Hidden from new selection while existing project references remain resolvable.
 9. **Removed:** Delivery disabled for legal/security reasons with a documented project-recovery strategy.
+
+A pack has its own gate on top of the per-asset states: it ships only when it meets its coverage claim, its rights position covers every asset in it, and it can build a usable idea in its stated genre or role without help from another pack.
 
 ### Musical review rubric
 
@@ -506,6 +595,7 @@ Each approved asset must pass:
 - **Editability:** It leaves room for user processing unless its finished character is the point.
 - **Technical integrity:** It has no accidental clipping, clicks, corrupt data, or false metadata.
 - **Context fit:** It works in a real Solid Groove kit, instrument, loop, or starter.
+- **Pack fit:** It belongs in the pack that holds it — it serves that pack's stated purpose and shares its rights position.
 - **Naming:** The name describes the sound without unauthorized brands, artist imitation, or misleading genre claims.
 
 At least two reviewers should approve commissioned packs and high-volume source imports. Spot checking is not sufficient for bulk acceptance.
@@ -513,31 +603,33 @@ At least two reviewers should approve commissioned packs and high-volume source 
 ## 12. Delivery and performance
 
 - Keep only the bootstrap set and assets required by starter fallbacks in the initial application cache.
+- Deliver metadata per pack. A client fetches a small index of available packs, then the manifest of a pack it opens or a project needs — never one manifest containing every asset in the library. This is what keeps the metadata budget below flat as the number of packs grows.
+- A published pack version is immutable. A project resolves the pack versions it recorded, so republishing a pack cannot change an existing track, and a client can cache a pack manifest indefinitely by version.
 - Store the complete alpha library in Cloud Storage for Firebase behind stable asset records and cacheable versioned URLs.
 - Fetch masters lazily on selection, audition, project load, or explicit prefetch.
 - Prefetch all assets required by the open project and likely alternates for the current browser view without decoding the entire library.
 - Cache decoded buffers through the shared audio-runtime asset cache and release them according to the Web Audio lifecycle requirements.
 - Generate compact waveform peaks during ingestion; clients should not download a full long asset merely to display its browser waveform.
-- A missing or failed asset is isolated, produces an actionable state, and never blocks unrelated project playback.
+- A missing or failed asset is isolated, produces an actionable state, and never blocks unrelated project playback. A whole unavailable pack behaves the same way at pack scale: the affected tracks and clips are named, and everything else keeps playing, editing, and exporting.
 - Cross-origin headers must allow Web Audio decoding and offline export in every supported browser.
 - The library manifest can be searched locally after a compact metadata fetch; search must not enumerate Cloud Storage objects.
 - Export and collaboration resolve immutable asset versions so a later library update cannot silently change an existing track.
 
 Initial performance targets:
 
-- Library metadata payload below 1 MiB compressed for the private-alpha catalogue.
+- Pack index below 32 KiB compressed, and any single pack manifest below 1 MiB compressed. The whole private-alpha catalogue stays below 1 MiB compressed as well, but the per-pack budget is the one that has to keep holding as packs are added.
 - Search/filter response below 50 ms for 1,000 assets on the 2019 Intel MacBook Pro baseline after metadata load.
 - First audition begins within 500 ms for a cached one-shot and within 2 seconds for a typical uncached asset on broadband.
 - Starter fallback assets add no more than 40 MiB to the first-project download before normal browser caching.
 
 ## 13. Implementation phases
 
-Phase A is implemented and phase B's one-shot targets are met by the starter library in section 15. Phases C, D, and E are open.
+Phase A is implemented and phase B's one-shot targets are met by the starter library in section 15, though both predate the pack model and section 15.7 covers what that costs. Phases C, D, E, and F are open.
 
 ### Phase A: policy and tooling
 
 - Approve this licence policy and commissioned-content agreement requirements.
-- Define the manifest schema, controlled vocabulary, stable ID rules, and validation command.
+- Define the pack record, the manifest schema, controlled vocabulary, stable ID rules, and validation command.
 - Build source/evidence archiving, checksum, audio-analysis, waveform, and manifest-generation scripts.
 - Implement candidate, review, approval, deprecation, and takedown states.
 
@@ -563,6 +655,7 @@ Exit criteria: every featured genre can produce at least three materially differ
 
 ### Phase D: rounded private-alpha library
 
+- Settle the shipped pack list against what has actually been cleared, and finish each pack against its coverage claim.
 - Reach the private-alpha asset targets without relaxing review standards.
 - Commission missing core drums, breaks, bass sources, transitions, and genre-specific material.
 - Complete all featured starter and supporting genre demo gates.
@@ -572,16 +665,22 @@ Exit criteria: every required genre demo opens, plays, saves, renders, exports s
 
 ### Phase E: partnerships and user growth
 
-- Pursue OEM licences with selected sample labels.
-- Add user imports and separate user-owned asset storage from factory content.
+- Pursue OEM licences with selected sample labels, each delivered as its own pack with its own rights position.
+- Add user imports as user-kind packs, keeping user-owned storage separate from factory content while reusing one browser, resolver, and audition path.
 - Use search, audition, replacement, and project-use telemetry to identify gaps without recording creative content.
 - Retire weak assets and add curated packs through immutable versioned releases.
+
+### Phase F: marketplace (much later)
+
+Creator-published packs, acquisition, and premium packs (PRD `LIB-05`, section 16 below). Deliberately last: it needs Phase E's user-owned content, a rights and payout agreement, moderation, and a product people already finish tracks in. No Phase A-E work is shaped around it beyond keeping packs versioned, self-describing, and rights-carrying.
 
 ## 14. Immediate acquisition backlog
 
 Items 6 and 8 are done: the starter library in section 15 ships 200 original synthesized one-shots with their generation recipes retained, and the manifest validator gates CI.
 
-Items 1-5 are **unblocked but unstarted**. The acquisition pipeline in section 15.5 exists and is tested, the tier-1 and tier-2 sources are registered with their licence positions, and the curator tool in section 15.7 (`bun run library:manage`) now makes the file-by-file review fast; what remains is the human half — choosing individual files, pinning them, and reviewing them. `sources.lock.json` is empty, so no third-party audio is in the repository yet. `DEC-003` still owns the commissioning budget, attribution policy, and any export exclusions; it does not gate CC0 selections from the already-approved section 4.1 sources.
+Every selection in items 1-5 records the pack it is destined for at review time (section 5.1), so a file is never accepted into the library before someone has decided what set it belongs to.
+
+Items 1-5 are **unblocked but unstarted**. The acquisition pipeline in section 15.5 exists and is tested, and the tier-1 and tier-2 sources are registered with their licence positions; what remains is the human half — choosing individual files, pinning them, and reviewing them. `sources.lock.json` is empty, so no third-party audio is in the repository yet. `DEC-003` still owns the commissioning budget, attribution policy, and any export exclusions; it does not gate CC0 selections from the already-approved section 4.1 sources.
 
 1. Download and archive the Producer Space full pack and official licence; quarantine vocals and select the first 40 clearly sourced non-vocal assets.
 2. Import FreePats CC0 electronic percussion, Lately Bass, Synth Bass #1/#2, and a small pad set with original SFZ mappings.
@@ -780,12 +879,56 @@ Two things keep this honest rather than a back door around the section 3 policy:
 
 The acquired directory now holds one bundle per ingest path (`acquired-library/lockfile/`, `acquired-library/vcsl/`), each an `entries.json` beside its `audio/`. `manifest.loadAcquiredAssets` merges every bundle, so `library:build` combines lockfile-pinned CC0, bulk VCSL, and the synthesized catalogue into one manifest with one validator and one delivery layout. Both routes still close the section 6.4 organic-source floor that synthesis cannot reach.
 
-## 16. Alpha acceptance checklist
+### 15.8 Repacking the starter library
+
+The shipped library predates the pack model: its 200 assets sit in one flat collection, `sg-starter-library`, delivered as a single manifest. Section 5.1 is not yet implemented.
+
+Moving it onto packs is `CNT-000b`, and it is scheduled in Phase 0 for one reason: the change is cheap now and expensive later. Asset identity, the manifest header, the delivery layout, and the browser all change shape when content gains an owning pack, and every project saved before that change would otherwise need its asset references migrating.
+
+What changes:
+
+- The catalogue declares pack membership per entry, and the build emits one manifest per pack plus a pack index, instead of one manifest for everything.
+- Delivery gains a pack dimension:
+
+  ```text
+  library/
+    audio/sha256/<aa>/<bb>/<sha256>.wav            unchanged — content-addressed, immutable, shared across packs
+    packs/index.json                                mutable pointer list of available packs, max-age=60
+    packs/<pack-slug>/v<n>.json                     immutable pack manifest, max-age=1y
+    packs/<pack-slug>/latest.json                   mutable pointer, max-age=60
+  ```
+
+  Audio storage keys do not change. Identity is still the SHA-256 of the bytes, so two packs containing the same audio share one object, and a repack re-uploads nothing.
+- The validator gains the section 9 pack rules: every asset has exactly one pack, no asset's licence exceeds its pack's, and every pack delivers the roles and genres its coverage claim advertises.
+- The synthesized catalogue splits along the lines it already has — the section 15.2 families and their genre tags — into a small number of honest packs. It stays testing content at the `metadata-review` intake state either way; splitting it does not promote it, and `CNT-002` still supersedes it.
+
+Acquired CC0 content lands in packs from the start: a source's pinned selections belong to the pack the reviewer assigned them to, and a pack's rights position is checked against every asset in it at ingest.
+
+## 16. Pack marketplace
+
+Deliberately out of scope until everything else is done. Recorded here so the pack model stays honest about what it is preparing for, not because any of it is alpha work.
+
+The opportunity: users build their own packs from their own material and offer them to other users, third-party sound designers publish packs, and premium packs are sold. The pack model in section 5.1 is what makes that possible without a second content system — a pack is already versioned, self-describing, rights-carrying, and independently deliverable.
+
+What it needs that the alpha does not build:
+
+- **Authoring.** Tools for a user to assemble, name, tag, describe, preview, and version a pack from their own imported content (PRD `LIB-03`), with the same metadata and quality expectations this plan applies to factory content.
+- **Rights.** A creator agreement covering what a publisher warrants about their material, what licence a buyer receives, what happens on a rights dispute, and revenue sharing. Nothing may be published that the publisher cannot grant.
+- **Moderation and takedown.** A review path before publication, a reporting path after it, and a takedown that disables a pack for new use without breaking projects that already reference it — the section 11 `Removed` state, applied at pack scale.
+- **Entitlement.** Per-user pack visibility, purchase and refund handling, and behaviour when access ends: a project that used an acquired pack must keep opening and playing, with any restriction stated plainly rather than discovered as silence.
+- **Curation.** Discovery, ranking, and quality expectations for third-party packs, so the marketplace does not become the undifferentiated catalogue section 1 rejects.
+
+Open questions belong to the product owner and are listed in PRD section 16.
+
+## 17. Alpha acceptance checklist
 
 - Every delivered factory asset has approved raw-redistribution rights and archived evidence.
 - No standard consumer royalty-free pack is bundled without a separate OEM grant.
 - No asset depends on a third-party URL remaining live.
 - Every audio file resolves through a stable asset ID and immutable version.
+- Every asset belongs to exactly one pack, and no asset's licence terms exceed its pack's rights position.
+- Every shipped pack meets its coverage claim, can build a usable idea for its stated purpose on its own, and states what it does not contain.
+- A project records the packs and versions it depends on; republishing a pack does not change an existing project, and an unavailable pack is reported with its affected tracks and clips rather than breaking playback or export.
 - Bootstrap, production-seed, and alpha counts are measured from approved unique assets only.
 - Six featured genre recipes generate editable, non-identical projects and have static fallbacks.
 - Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop demos pass using the shared library.

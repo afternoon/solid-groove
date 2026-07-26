@@ -111,6 +111,7 @@ Typical behaviors:
 - Mobile-phone production parity. Phones may show a dashboard or playback view, but the editor is desktop-first.
 - Stem separation, sample generation, text-to-music, or other generated audio.
 - Advanced modulation systems, automation recording, complex automation curves, side-chain routing, or mastering suites. Focused breakpoint automation is included in P0.
+- A content marketplace: publishing, sharing, buying, or selling packs. Packs are how the alpha organizes its own bundled library (LIB-04); everything transactional about them is later work (LIB-05).
 - Music notation, score editing, video sync, surround sound, or unusual time signatures.
 - Round-trip compatibility with Ableton Live, Logic Pro, or other DAWs during the private alpha. A one-way Ableton Live handoff is a P1 requirement.
 
@@ -138,7 +139,7 @@ The current editor renders only the first pattern, uses track and sequence array
 The editor has five stable regions:
 
 - **Transport:** project name, play/stop, playback position, tempo, metronome, loop range, undo, and redo.
-- **Browser:** searchable sounds, instruments, processing devices, presets, and templates with audition controls where relevant.
+- **Browser:** sounds, instruments, processing devices, presets, and templates, organized into packs and searchable across them, with audition controls where relevant.
 - **Arrangement:** the main timeline containing tracks, clip placements, and section markers.
 - **Detail panel:** the selected clip's note editor or the selected track's device and mixer controls.
 - **Assistant:** contextual conversation, suggested actions, change previews, and concise explanations.
@@ -471,6 +472,8 @@ Recording knob movements, freehand curves, bezier editing, audio-rate modulation
 
 ### 7.6 Sound library
 
+Content is organized into **packs** (LIB-04). A pack is a named, versioned, independently deliverable collection of sounds and presets — "Techno Drums", "Orchestral Sounds" — and it is the unit a user browses, a project depends on, and the library is published in. Every asset belongs to exactly one pack, so the library has a pack-qualified namespace rather than a flat one. Read the requirements below with that in mind: packs organize and deliver content, while genre, role, and character tags cut across packs and remain the discovery mechanism.
+
 **LIB-00 - Starter library of sounds for testing (P0)**  
 A starting library of real, playable sounds exists early and is delivered from Cloud Storage, so that every feature built on top of the library — the browser, sampler, drum machine, audio loops, caching, export, and genre starters — is developed and tested against real audio and real metadata rather than against two prototype WAV files.
 
@@ -484,6 +487,7 @@ Acceptance criteria:
 - Every asset carries the full manifest record: stable prefixed ID, immutable content-addressed storage key and checksum, role, tags, audio metadata, waveform peaks, licence, and provenance. Validation fails CI when any of those is missing, as it does for the factory library.
 - Every asset has approved raw-redistribution rights with archived evidence. Content whose rights are unresolved does not ship, and an unapproved content source is not a way to satisfy this requirement faster.
 - Content may be generated or acquired. Acquired content comes only from sources whose licence permits redistributing the raw files, is selected file-by-file rather than by bulk import, is pinned to a checksum recorded at review time, and carries a captured copy of the licence statement as it stood when the file was taken. A checksum that no longer matches fails the ingest rather than being re-pinned automatically.
+- The library ships as one or more packs with pack records, per-pack manifests, and pack-qualified asset identity (LIB-04), so the pack model is exercised by real content from the start rather than retrofitted once projects already reference a flat namespace.
 - The manifest records that this is the testing library rather than approved factory content, so hardening and the content audit can tell the two apart and neither is mistaken for the other.
 - Assets are served with the cross-origin and cache headers Web Audio decoding, range requests, and offline export require, and the bucket denies client writes.
 - The starter library is superseded, not extended, by the reviewed factory library. Replacing it must not require changing how the app resolves, caches, or exports an asset.
@@ -495,8 +499,9 @@ The browser contains a licensed, quality-controlled library of one-shots, loops,
 
 Acceptance criteria:
 
-- Assets have stable IDs, type, name, tags, source BPM where relevant, duration, and licensing provenance.
+- Assets have stable IDs, an owning pack, type, name, tags, source BPM where relevant, duration, and licensing provenance.
 - The user can search, filter, and audition an asset in sync where appropriate.
+- Search and filtering work both within one pack and across every available pack; a user is never forced to guess which pack holds a sound.
 - Audition stops cleanly and does not become part of export.
 - A missing or corrupt asset is isolated and reported rather than blocking the project.
 
@@ -508,6 +513,7 @@ Acceptance criteria:
 - The library includes usable drums, basses, leads, chords/pads, textures, effects, and processing presets across the required genre set.
 - At least one audited demo project for each required genre can be created entirely with bundled instruments, devices, and licensed assets.
 - Content metadata may describe genre, mood, tempo, character, and role, but no asset or device is technically restricted to a genre.
+- A pack may be themed around a genre, but pack membership never restricts where an asset can be used: any asset from any available pack can be loaded onto any track, instrument, or pad.
 - Genre starter projects expose normal editable tracks, clips, instruments, and devices; they do not use inaccessible rendered backing tracks.
 - Users can combine content from different genres and remove genre filters without losing access to any asset.
 - Content review rejects a library that covers genres only through superficial renaming of the same narrow sound set.
@@ -521,6 +527,7 @@ Acceptance criteria:
 - Dropping audio onto the arrangement or a track both adds it to the user library and places it, so a drop is never lost as an untracked one-off; the UI makes clear where the sample landed.
 - Drag targets show a clear drop-affordance on drag-over, accept only supported types, and reject unsupported or oversized files with an actionable message rather than failing silently.
 - Imported assets become first-class library entries: stable IDs, type, user-editable name and tags, detected duration, and — where derivable — sample rate and source BPM, and they are searchable, filterable, and auditionable exactly like curated assets (LIB-01).
+- Imported audio lands in the user's own pack rather than in a parallel content model, so one browser, one resolver, and one audition path serve factory and user content alike. Whether a user can create more than one personal pack, and how those packs are named and organized, is settled when this ships.
 - The user library persists across sessions and projects for the same account, is scoped to that user, and is not shared with other users or exposed through another user's project.
 - Uploads show per-file progress and a clear success, failure, or cancel state. A failed or cancelled upload leaves no partial or unplayable asset in the library.
 - File type and size are validated on the client and enforced server-side; stored audio uses Cloud Storage with safe content headers, and per-user storage limits are explicit and surfaced before the limit blocks an import.
@@ -543,6 +550,29 @@ Acceptance criteria:
 - Confirming a candidate ("Verify") writes a *draft* selection to the acquisition lockfile: the reviewed download URL, source page, creator, filename, reviewer, and role/tag mapping — but not a checksum. A real reviewer name is required; the draft is not shippable until the existing pin step downloads the file and records the checksum of exactly what arrived, and a person commits it.
 - Re-verifying the same candidate updates its draft rather than duplicating it, and reopening the tool shows selections already committed to the lockfile rather than a blank form.
 - The download-and-checksum, rights re-check, licence-evidence capture, and ingest stages are unchanged: a verified draft flows through the same pin → review → ingest path as a hand-written selection, and a checksum that does not match still fails rather than being re-pinned automatically.
+
+**LIB-05 - Sound packs (P0)**  
+Library content is organized into packs rather than a single flat namespace. A pack is a named, versioned, independently deliverable collection of one-shots, loops, instruments, and presets with one rights position and one publisher. Packs are what makes the library legible as it grows — a user working on a dubstep track picks a dubstep pack and starts, instead of searching an undifferentiated catalogue — and they are the unit that curation, delivery, caching, provenance, takedown, and any later distribution all act on.
+
+This is a P0 structural requirement because the alternative is a migration. Asset identity, the manifest, the delivery layout, project references, and the browser all change shape when content acquires an owning pack; the alpha does that once, before there are projects and saved references to migrate.
+
+Acceptance criteria:
+
+- Every library asset belongs to exactly one pack. Asset identity is pack-qualified, so two packs may contain a sound of the same name or role without collision and neither is renamed to avoid the other.
+- A pack has a stable ID, a display name, a version, a publisher, a description, a kind (`factory`, `user`, or `third-party`), and one rights position covering every asset it contains. A pack's version is immutable content: republishing changed audio or changed metadata produces a new pack version.
+- The browser presents packs as a first-class way in — a user can browse a pack's contents as a coherent set — while search, genre, role, and character filters continue to work across every available pack. Removing a pack filter never hides an asset the user could otherwise reach.
+- A project records the packs and pack versions it depends on, so reopening, exporting, and collaborating resolve the same audio the project was built with. A later pack version cannot silently change an existing project.
+- A pack that is unavailable, withdrawn, or not yet loaded is reported as a missing pack with the affected tracks and clips named. Unrelated playback, editing, and export continue, matching the isolation LIB-01 requires of a single missing asset.
+- Genre starters, demo projects, and assistant asset choices state which packs they draw from and use only packs the user actually has.
+- Pack membership is organizational, never a capability boundary: no device, instrument, or feature is restricted to content from a particular pack, and content from different packs mixes freely in one project (LIB-02).
+- The starter library, the reviewed factory library, and later user content are all delivered as packs through one resolver, one cache, and one export path. Adding a pack is content work, not application work.
+
+The alpha ships a set of factory packs and nothing else: every pack is bundled, free, and present for every user. Installation, entitlement, purchase, and per-user pack visibility are LIB-05 concerns and are not modelled in the alpha beyond the project's record of which packs it depends on.
+
+**LIB-06 - Pack marketplace (P2)**  
+Packs become a two-sided marketplace: creators build and publish their own packs, users browse and acquire packs from other creators, and premium packs can be sold. This is the commercial opportunity the pack model opens, and it is deliberately the last thing built — it depends on a proven creation workflow, a persistent per-user library (LIB-03), a rights and payout model, and moderation, none of which the alpha has.
+
+Acceptance criteria are defined when this is scheduled. At minimum it will require: pack authoring and publishing tools, entitlement and per-user pack visibility, a rights and revenue-sharing agreement with pack creators, content moderation and takedown that does not break projects already using an acquired pack, and payment handling. The product-owner decisions in section 16 gate the work; no part of it is implied by the alpha's pack model beyond keeping that model honest — a pack is versioned, self-describing, rights-carrying, and independently deliverable precisely so a marketplace can later be built on it without a second content system.
 
 ### 7.7 AI producer
 
@@ -1033,8 +1063,11 @@ This section defines the required conceptual boundaries, not the exact TypeScrip
 - **Placement:** stable ID, clip ID, track ID, arrangement start, duration, offset, and loop behavior.
 - **Note event:** stable ID, pitch or trigger, start, duration, velocity, and optional probability reserved for later use.
 - **Section:** stable ID, name, color, start, and duration.
-- **Asset:** stable ID, URL/storage reference, type, metadata, and licensing provenance.
+- **Pack:** stable ID, name, version, publisher, kind (`factory`, `user`, or `third-party`), description, and one rights position covering its assets.
+- **Asset:** stable ID, owning pack ID and pack version, URL/storage reference, type, metadata, and licensing provenance.
 - **Revision:** stable ID, project revision number, author, timestamp, and optional name.
+
+An asset is identified by its own ID together with the pack it came from. A project therefore knows not just which sounds it uses but which packs and pack versions it depends on, which is what makes reopening, export, collaboration, and a missing-pack state well defined (LIB-04).
 
 #### Identifier format
 
@@ -1047,7 +1080,8 @@ Every persistent entity ID is a type-prefixed, URL-safe random string: a lowerca
 | Clip | `clp_` | Section | `sec_` |
 | Placement | `plc_` | Return bus | `ret_` |
 | Note event | `evt_` | Asset | `ast_` |
-| Device | `dev_` | Revision | `rev_` |
+| Device | `dev_` | Pack | `pak_` |
+| Revision | `rev_` | | |
 
 Tests use a deterministic ID factory that produces the same prefixed format with a seeded suffix, so fixtures and serialization round trips stay stable without a separate ID shape.
 
@@ -1064,6 +1098,7 @@ Tests use a deterministic ID factory that produces the same prefixed format with
 9. Insert chains are ordered and serial; send levels reference valid return buses, and deleting a device or return cannot leave dangling routing references.
 10. Broad creative parameter ranges are explicit schema data shared by the UI, command validator, live audio engine, offline renderer, and assistant tools.
 11. Automation targets stable parameter IDs, uses integer musical time, and cannot reference a missing track, send, device, or parameter.
+12. Every asset reference names its owning pack and the pack version it resolved from. Asset identity is pack-qualified, a project's pack dependencies are derivable from its own state without consulting the library, and an unavailable pack produces a reported missing-pack state rather than a dangling reference or a silent substitution.
 
 ### 9.6 Shared command layer
 
@@ -1116,13 +1151,14 @@ Schema v1 stores a project across three tiers. This layout is a committed alpha 
 
 | Path | Contents | Written when |
 | --- | --- | --- |
-| `projects/{projectId}` | Name, owner, collaborators, created/modified timestamps, schema version, current revision, template/genre label | Metadata changes; dashboard queries read only this tier |
+| `projects/{projectId}` | Name, owner, collaborators, created/modified timestamps, schema version, current revision, template/genre label, and the pack dependency list (pack ID and version per pack the project uses) | Metadata changes; dashboard queries read only this tier |
 | `projects/{projectId}/song/current` | Tempo, time signature, sections, ordered tracks with instrument state, device chains, sends and mixer state, return buses, master settings, arrangement placements, and automation lanes | Structural and arrangement edits |
 | `projects/{projectId}/clips/{clipId}` | Clip metadata and its note or audio-loop content | Note and clip-content edits |
 
 - The dashboard lists projects without loading song state or clip content.
 - Note editing — the highest-frequency write path — touches one small clip document rather than rewriting song structure.
 - The song document has a documented size budget, asserted in tests against the maximum reference project. If arrangement placements and automation exceed that budget, they split into per-track chunk documents under `projects/{projectId}/arrangement/{trackId}` sharing the same revision. `FND-004` owns the exact budget and chunk boundary and must prove both against the 50-track reference fixture; no document may grow unbounded.
+- The pack dependency list lives in the metadata tier so the dashboard, export, and a missing-pack warning can answer "what does this project need?" without loading song state or clip content. It is derived from project state rather than maintained by hand, and it is recomputed as part of the same transaction that adds or removes the last reference to a pack.
 - Every tier carries the project revision so a stale write or remote echo is detected rather than applied.
 - Prototype `latestSnapshot` documents are not part of this schema and are discarded rather than migrated.
 
@@ -1218,6 +1254,7 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 - Separate transport/audio runtime from Solid components and define incremental synchronization.
 - Build the hybrid DOM/Canvas 2D arrangement renderer vertical slice and automated performance fixture before expanding timeline features.
 - Add reference project fixtures and deterministic audio tests.
+- Establish the LIB-04 pack model before content and projects accumulate around a flat namespace: the `Pack` entity and pack-qualified asset identity in schema v1, the project's pack dependency list, and the starter library re-delivered as packs with per-pack manifests. This is the one structural content decision that is materially cheaper now than later, because after Phase 0 there are saved projects whose asset references would need migrating.
 - Build and publish the `LIB-00` starter library of sounds for testing, with its manifest, validator, and Cloud Storage delivery. This is not the curated factory library — it is the real audio every later slice is built and tested against, and it lands early for the same reason the deploy pipeline does: so the library browser, sampler, drum machine, caching, and export are exercised against real assets from their first commit rather than against two prototype WAV files.
 
 Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers; that vertical slice is reachable in a deployed build on Firebase Hosting, deployed by CI and identifiable by its release SHA; and the slice's Phase 0 analytics events and a deliberately triggered test error are observable end to end from that deployed build. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
@@ -1225,6 +1262,7 @@ Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-tri
 ### Phase 1 - Complete the loop workflow
 
 - Track management, sampler, drum machine, synth, audio loops, genre-spanning library browser, mixer, metering, core processing chains, transport, step editor, and piano roll.
+- Pack-organized browsing: the browser presents packs as a way in, search and filters work across every available pack, and a missing pack is reported without blocking unrelated work.
 - Starter templates and robust project management/autosave.
 - Public landing page as an honest front door into the anonymous-start flow.
 - Desktop editor layout with collapsible panels, a typed Ableton-familiar shortcut registry, shortcut tooltips, and the `?` keyboard mapping guide.
@@ -1265,6 +1303,10 @@ Exit criteria: all P0 acceptance criteria pass, release-gate reliability metrics
 - User sample imports with drag-and-drop into a persistent per-user library (LIB-03), including client and server-side type/size validation, Cloud Storage-backed audio, and per-user storage limits.
 
 Exit criteria: every Ableton reference project opens without missing assets in the declared target Live version, remains bar-aligned through the full arrangement, and accurately reports any non-editable or omitted state.
+
+### Later - Pack marketplace
+
+The LIB-05 marketplace — creator-authored packs, acquiring packs from other users, and premium packs — is deliberately unscheduled and sits after everything above, including user sample imports (LIB-03), which it builds on. It is a business surface with rights, payment, moderation, and support obligations, and it needs the product to have proven that people make and finish music here first. What the alpha owes it is only the LIB-04 pack model: versioned, self-describing, rights-carrying, independently deliverable packs, so that this can be built later without a second content system beside the first.
 
 ## 13. Parallel workstreams and ownership
 
@@ -1325,6 +1367,7 @@ Owns licensed sample/preset metadata, genre coverage, starter templates, test fi
 Produces:
 
 - Validated asset manifest with provenance.
+- The pack definitions the library ships as: pack records, per-pack manifests, pack versioning, and the coverage each starter pack claims.
 - The `LIB-00` starter library of sounds for testing, its generation and publishing pipeline, and the Cloud Storage bucket configuration that serves it.
 - Audited bundled-content demo projects for every required initial genre.
 - Reference projects covering empty, typical, maximum, migrated, and corrupt states.
@@ -1359,7 +1402,7 @@ Produces:
 - **Web Audio lifecycle tests:** one-context invariant, fifty HMR replacements, fifty project cycles, stale async-load cancellation, resource-counter baselines, and real-browser playback during parameter/topology edits.
 - **Component tests:** editor interactions, every registered shortcut in valid and invalid focus contexts, mapping-guide synchronization, dialogs, accessibility names, and error states.
 - **Rendering performance tests:** deterministic 50-track fixture, scripted scroll/zoom/selection traces, frame/long-task metrics, cache-memory checks, and physical baseline-device runs in the gating browsers from `ARR-005` onward.
-- **Contract tests:** persistence adapters, assistant tool payloads, stale revisions, and domain-to-audio projections.
+- **Contract tests:** persistence adapters, assistant tool payloads, stale revisions, domain-to-audio projections, and pack-qualified asset resolution including the missing-pack path.
 - **End-to-end tests:** anonymous start, create loop, arrange, assistant apply/undo, autosave/reopen, stereo export, and multitrack stem export.
 - **Manual tests:** audible glitches, metering, long playback, AudioContext policies, browser decoding, and output-device changes.
 
@@ -1397,6 +1440,8 @@ A feature is done only when:
 | AI context becomes too large or expensive | Slow, unreliable assistant | Compact musical summaries, scoped selection, deterministic analysis, token/usage budgets, and provider-independent gateway |
 | Concurrent agents create incompatible models | Rework and subtle corruption | Phase 0 contracts, one schema owner, contract tests, and thin vertical-slice integration before parallel expansion |
 | Sample licensing is unclear | Product cannot ship its content | Record provenance and permitted use in the asset manifest before an asset is merged |
+| The pack model adds a layer without earning it | Extra indirection in identity, delivery, and the browser for no user benefit, and packs become an empty folder level | Keep packs the unit of curation, rights, delivery, and browsing rather than a second tag system; require every starter pack to be usable on its own for its stated purpose; hold pack membership to organization only so no capability depends on it |
+| The marketplace opportunity pulls scope forward | Alpha spends effort on publishing, entitlement, and payments before anyone has finished a track in the product | Keep LIB-05 P2 and unscheduled, ship the alpha with bundled factory packs only and no entitlement model, and require the alpha's creation journey to be validated before any marketplace work is scheduled |
 | Ableton's project format or behavior changes | Exported sets fail or silently lose work | Target a declared Live version, isolate the serializer, test fixture exports in Live, report conversion loss, and always include portable stems/MIDI |
 | Autosave conflicts with rapid edits | Lost changes or controls jumping backward | Optimistic local authority, coalesced writes, revision checks, and explicit save state |
 | The interface becomes a smaller but still intimidating DAW | Target users remain stuck | Progressive disclosure, task-based user tests, opinionated templates, and arrangement-first assistant suggestions |
@@ -1425,6 +1470,8 @@ A feature is done only when:
 - Initial content and product testing cover techno, house, drum and bass, hip hop, dubstep, lofi, ambient, trance, UK garage, breakbeat, electronic pop, and other electronic or electronically produced popular styles without genre-locked modes.
 - Overdrive, saturation, compression, reverb, delay, insert chains, and send effects are P0 creation tools rather than post-alpha additions.
 - The core project model uses tracks, reusable clips, arrangement placements, and sections.
+- Library content is organized into packs from the alpha (LIB-04). Every asset belongs to exactly one pack, asset identity is pack-qualified, packs are versioned and immutable once published, and a project records the packs and pack versions it depends on. The alpha ships bundled factory packs only, with no installation, entitlement, or purchase model.
+- A pack marketplace (LIB-05) — creator-published packs, acquisition, and premium packs — is P2 and unscheduled, after the private alpha and after user sample imports. The alpha's pack model exists so it can be built later without a second content system, not because any part of it is alpha work.
 - Alpha time signature is fixed to 4/4.
 - AI produces structured project edits, not generated audio.
 - Exported stereo WAV is the first listening and sharing mechanism; aligned WAV stems are the P0 vendor-neutral DAW handoff.
@@ -1438,6 +1485,8 @@ A feature is done only when:
 ### Product-owner decisions required before Phase 3 or launch
 
 - Which two or more genres should provide the dashboard's featured starter templates first, while the full required genre set remains available through bundled content and demo projects?
+- Which factory packs does the alpha ship, and what is each one's name, scope, and stated purpose? The list follows from the assets that can actually be cleared, so it is settled with the content plan rather than ahead of it.
+- For the later pack marketplace (LIB-05): who may publish a pack, what rights and revenue-sharing terms apply to a creator, what moderation and takedown process governs published content, and what happens to a project that uses a pack after that pack is withdrawn or the user's access to it ends? (Post-alpha; unscheduled.)
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
 - Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha?
 - Will anonymous projects expire, and what exact upgrade path protects them across devices?
@@ -1475,12 +1524,16 @@ Read-only assistant tools should include project summary, selection detail, sect
 4. **Failure recovery:** Disconnect the network during edits, continue changing the arrangement, observe save state, reconnect, and confirm the newest valid project persists.
 5. **Malformed AI response:** Return unknown commands, invalid values, and stale IDs from a test provider; confirm the proposal cannot mutate the project and manual playback/editing continues.
 6. **Experimental processing:** Stack saturation, overdrive, filtering, and delay on a plain source; automate a filter sweep and delay throw; reach an intentionally extreme but stable result; then bypass and undo the chain without changing the source clip.
-7. **Genre breadth:** Open each required genre demo, inspect its editable instruments and processing, replace at least one cross-genre sound, and confirm playback/export uses no hidden backing track or missing asset.
+7. **Genre breadth:** Open each required genre demo, inspect its editable instruments and processing, replace at least one sound with one from a different pack, and confirm playback/export uses no hidden backing track or missing asset.
 8. **Keyboard workflow:** Open the mapping guide with `?`, find the duplicate shortcut, close it with `Escape`, then duplicate, quantize, draw, loop, play, undo, and redo without pointer input; confirm the same keys do not fire while typing into assistant chat.
 9. **Web Audio lifecycle:** While playback runs, repeatedly edit parameters, reorder effects, add/remove tracks, switch projects, and simulate fifty HMR replacements; confirm unchanged nodes retain identity, transport does not duplicate or glitch, only one real-time context exists, and every project-scoped resource counter returns to baseline.
+10. **Pack resolution:** Start a project from a genre pack and confirm the project records that pack and version; add a sound from a second pack and confirm both dependencies are recorded; make one pack unavailable and confirm the affected tracks and clips are named while unrelated playback, editing, and export continue; restore the pack and confirm the sounds return without the project itself having changed.
 
 ## Appendix C - Glossary
 
+- **Pack:** A named, versioned, independently deliverable collection of library content with one publisher and one rights position. Every asset belongs to exactly one pack, and a pack is what a user browses, a project depends on, and the library is published in.
+- **Pack version:** An immutable release of a pack's contents. Changing audio or metadata publishes a new version; an existing project keeps resolving the version it was built against.
+- **Pack dependency:** A pack and pack version a project uses, recorded in the project so reopening, export, and collaboration resolve the same audio and a missing pack can be reported precisely.
 - **Clip:** Reusable musical source material owned by one track. Editing a shared clip changes every placement that references it.
 - **Placement:** An instance of a clip at a position on the arrangement timeline. A placement may repeat or expose only part of its source clip.
 - **Independent variation:** A new clip copied from an existing clip so later edits do not affect the original.
