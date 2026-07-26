@@ -536,7 +536,22 @@ Acceptance criteria:
 
 Anonymous (pre-account) import limits, whether imported audio can back a sampler or drum pad versus only audio-loop tracks at first, and any per-account storage tier are settled when this ships; the drag-and-drop-to-library interaction and persistent per-user library are the fixed requirements.
 
-**LIB-04 - Sound packs (P0)**  
+**LIB-04 - Curator tooling for CC0 acquisition (P1)**  
+Selecting third-party CC0 content file-by-file is the human bottleneck between the approved sources (`LIB-00`) and a shipped organic library. A local curator tool makes that review fast without weakening it: it turns a hand-written list of candidate sample *pages* into a guided, one-at-a-time audition, and records only what a person confirmed.
+
+This requirement governs the *tooling*, not the rights policy. It does not add a source, relax the licence allowlist, or introduce a way to bulk-import; those remain governed by `LIB-00` and the sample plan's section 3.
+
+Acceptance criteria:
+
+- A committed config lists candidate sample pages, each naming an approved source, the page URL, a seed role/tag mapping, and a licence-confidence tier. A candidate on a non-approved host or source is rejected before any page is fetched. The list may be generated from enumerable CC0 collections rather than hand-written, provided the generator fabricates no URL and its output is committed and reproducible.
+- Each candidate carries a licence-confidence tier that is surfaced to the curator as a review-order hint, never a rights decision: a candidate can claim high confidence and still be rejected on the page, and the authoritative rights position remains the evidence captured at ingest. An unverified candidate is a lead to audition, not content that ships.
+- A single documented command serves a local review UI that steps through the candidates one at a time: the source page in an embedded frame for listening, and a best-effort guess of the direct file URL and metadata in an editable form. Every guessed value is a suggestion the curator confirms or corrects; nothing is auto-accepted.
+- The tool never discovers new URLs, follows catalogue or search links, or downloads audio for redistribution — it reads only the pages the config already names. There is no crawl mode and no search mode.
+- Confirming a candidate ("Verify") writes a *draft* selection to the acquisition lockfile: the reviewed download URL, source page, creator, filename, reviewer, and role/tag mapping — but not a checksum. A real reviewer name is required; the draft is not shippable until the existing pin step downloads the file and records the checksum of exactly what arrived, and a person commits it.
+- Re-verifying the same candidate updates its draft rather than duplicating it, and reopening the tool shows selections already committed to the lockfile rather than a blank form.
+- The download-and-checksum, rights re-check, licence-evidence capture, and ingest stages are unchanged: a verified draft flows through the same pin → review → ingest path as a hand-written selection, and a checksum that does not match still fails rather than being re-pinned automatically.
+
+**LIB-05 - Sound packs (P0)**  
 Library content is organized into packs rather than a single flat namespace. A pack is a named, versioned, independently deliverable collection of one-shots, loops, instruments, and presets with one rights position and one publisher. Packs are what makes the library legible as it grows — a user working on a dubstep track picks a dubstep pack and starts, instead of searching an undifferentiated catalogue — and they are the unit that curation, delivery, caching, provenance, takedown, and any later distribution all act on.
 
 This is a P0 structural requirement because the alternative is a migration. Asset identity, the manifest, the delivery layout, project references, and the browser all change shape when content acquires an owning pack; the alpha does that once, before there are projects and saved references to migrate.
@@ -554,7 +569,7 @@ Acceptance criteria:
 
 The alpha ships a set of factory packs and nothing else: every pack is bundled, free, and present for every user. Installation, entitlement, purchase, and per-user pack visibility are LIB-05 concerns and are not modelled in the alpha beyond the project's record of which packs it depends on.
 
-**LIB-05 - Pack marketplace (P2)**  
+**LIB-06 - Pack marketplace (P2)**  
 Packs become a two-sided marketplace: creators build and publish their own packs, users browse and acquire packs from other creators, and premium packs can be sold. This is the commercial opportunity the pack model opens, and it is deliberately the last thing built — it depends on a proven creation workflow, a persistent per-user library (LIB-03), a rights and payout model, and moderation, none of which the alpha has.
 
 Acceptance criteria are defined when this is scheduled. At minimum it will require: pack authoring and publishing tools, entitlement and per-user pack visibility, a rights and revenue-sharing agreement with pack creators, content moderation and takedown that does not break projects already using an acquired pack, and payment handling. The product-owner decisions in section 16 gate the work; no part of it is implied by the alpha's pack model beyond keeping that model honest — a pack is versioned, self-describing, rights-carrying, and independently deliverable precisely so a marketplace can later be built on it without a second content system.

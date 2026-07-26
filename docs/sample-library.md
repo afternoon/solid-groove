@@ -742,6 +742,8 @@ bun run library:validate            # build and validate without writing (the CI
 bun run library:upload              # publish to Cloud Storage; idempotent
 bun run library:test                # the library test suites only
 
+bun run library:manage              # review candidate pages, verify selections (section 15.7)
+bun run library:candidates          # regenerate candidates.json from the mined sources
 bun run library:acquire -- --plan   # what is approved and what is pinned; no network
 bun run library:acquire -- --pin    # download declared selections and record checksums
 bun run library:acquire             # download, verify, prepare, and ingest pinned CC0 content
@@ -790,7 +792,7 @@ Identity is the SHA-256 of the bytes, so a storage key cannot collide, a re-run 
 Acquisition is a review workflow with a script attached, not a download button. The steps are deliberately manual where section 4.2 requires judgement:
 
 1. **Choose a source** from `acquire/sources.mjs`. Adding a source is a rights decision: it needs a licence the section 3.2 allowlist accepts, a canonical licence URL, and a written note on what may and may not be taken. Tier-2 sources host mixed licences, so a site-wide CC0 claim is never evidence for an individual file.
-2. **Select individual files** and add them to `sources.lock.json` with their download URL, the source page a reviewer actually read, the creator, and the role/tag mapping. Vocals, recognizable media, and identifiable people stay out (section 3.3).
+2. **Select individual files** and add them to `sources.lock.json` with their download URL, the source page a reviewer actually read, the creator, and the role/tag mapping. Vocals, recognizable media, and identifiable people stay out (section 3.3). `bun run library:manage` (section 15.7) is the fast path for this step: it steps through the curated candidate pages and writes a reviewed draft selection on each Verify.
 3. **Pin them** with `library:acquire -- --pin`. This downloads into quarantine, records the SHA-256 of exactly what arrived, and writes it back for review. It never ingests.
 4. **Review and commit** the lockfile. A named reviewer is required — `"unreviewed"` fails validation, so a pin cannot be mistaken for a decision.
 5. **Ingest** with `library:acquire`. It re-checks rights, verifies every checksum, captures each source's licence statement into `docs/licenses/sources/`, extracts only the pinned archive member, decodes, prepares to the section 10 standard, and emits manifest entries in the same shape the synthesized library produces.
@@ -810,22 +812,74 @@ scripts/starter-library/
   catalog/          the 200 synthesized entries, as data, split by family
   acquire/
     sources.mjs     approved sources, licence allowlist, and what may be taken
-    lockfile.mjs    pinned selections and their validation
+    lockfile.mjs    pinned selections, drafts, and their validation
     fetch.mjs       download, quarantine, checksum, licence-evidence capture
     archive.mjs     zip member extraction
     audio.mjs       decode, resample, and the section 10 preparation chain
-    ingest.mjs      selection -> manifest entry
+    ingest.mjs      selection -> manifest entry; the acquired-bundle writer
+    vcsl.mjs        VCSL bulk CC0 ingest: clone, subset, delete (section 15.8)
+    candidates.mjs  candidate schema + best-effort page crawler (section 15.7)
+    candidates.json the committed candidate sample pages (generated, ~1000)
+    candidateEssentials.mjs  the hand-picked essential sounds
+    generateCandidates.mjs   regenerates candidates.json from mined sources
+    candidate-sources/       committed mined inputs (FSLD annotations)
   sources.lock.json the committed pins
-  manifest.mjs      section 9 manifest records; merges both halves
+  manifest.mjs      section 9 manifest records; merges every acquired bundle
   validate.mjs      per-asset and collection-level rules; the CI gate
   acquire.mjs       CLI: plan, pin, ingest
+  manage.mjs        CLI + local review UI server (section 15.7)
+  managePage.mjs    the review page served by library:manage
   build.mjs         render and merge to disk
   upload.mjs        publish to Cloud Storage
 ```
 
 Asset IDs are `sg-one-shot-<family>-<role>-NNNN`, numbered by position within a role group. Groups are **append-only**: reordering or removing an entry renumbers every later asset and breaks IDs that saved projects reference, so `catalog.test.mjs` pins the numbering.
 
-### 15.7 Repacking the starter library
+### 15.7 Curator tooling for CC0 acquisition
+
+The rights machinery in 15.5 is sound but slow to feed by hand: a curator has to open each source page, listen, find the actual download, and hand-write a lockfile entry. `bun run library:manage` (PRD `LIB-04`) is a local review tool that removes the typing without removing the judgement.
+
+It reads `acquire/candidates.json` — a committed list of candidate sample **pages**, each naming an approved source, a page URL, a licence-confidence tier, and a seed role/tag mapping — and serves a review UI at `http://127.0.0.1:4181`. It steps through the candidates one at a time: the source page in an embedded frame so the curator can listen, and a best-effort guess of the direct file URL, creator, licence hint, and metadata in an editable form beside it. Some sources (GitHub, Freesound) refuse to be embedded (`X-Frame-Options: DENY`); for those the frame shows an "open in a new tab" fallback instead of a blank panel, and the curator listens on the source page. The inline audio preview still plays a direct file URL either way.
+
+The tool is deliberately the opposite of a crawler. It fetches only the pages the config already names, one at a time and on demand as the curator reaches each one — never up front, never discovering or following a link, and never downloading audio for redistribution. Every scraped value is a suggestion; the curator confirms or corrects it. This keeps the section 4.2 prohibition on bulk-importing search results intact — there is still no crawl mode and no search mode, only a faster way to review a list a person wrote.
+
+Clicking **Verify** writes a *draft* selection to `sources.lock.json`: the reviewed download URL, source page, creator, filename, a real reviewer name, and the role/tag mapping — but **no checksum**. A draft is intentionally not yet shippable; `validateLockfile` still fails on the missing `sha256` until the existing `library:acquire --pin` step downloads the file and records the checksum of exactly what arrived. Nothing else in the pipeline changes: a verified draft flows through the same pin → review → commit → ingest path as a hand-written selection, and a checksum that later disagrees still fails rather than being re-pinned. `library:acquire --plan` lists verified drafts separately from fully pinned selections so it is obvious what still needs `--pin`.
+
+Re-verifying a candidate replaces its draft rather than duplicating it, and reopening the tool shows selections already committed to the lockfile instead of a blank form, so review is resumable across sessions.
+
+#### The candidate list is generated, not hand-written
+
+`candidates.json` holds ~1000 candidate pages and is **generated** by `bun run library:candidates` (`acquire/generateCandidates.mjs`) from mined, committed inputs under `acquire/candidate-sources/`. It is regenerated by hand when those inputs change, never hand-edited, and the management tool only ever reads the committed output. The generator fabricates nothing: every `pageUrl` is built from a real instrument folder or a real sound ID. Its inputs are:
+
+- **A hand-picked essentials set** (`candidateEssentials.mjs`) — a small number of specific pages on approved sources (a FreePats synth-percussion bank, a FreePats synth-bass bank) carrying nicer curated names and tags than the generator would produce. They share IDs with generated entries and win the de-dupe, so a regeneration keeps them. An earlier draft seeded placeholder Freesound essentials (a 909 kick, an 808, hat pairs, …); those were removed because their sound IDs could not be confirmed without the Freesound API, and the mined list already covers every role they targeted.
+- **FreePats** — the CC0-candidate bank pages. Licences vary per bank, so the curator confirms CC0 on each page.
+- **The Freesound Loop Dataset** (`candidate-sources/fsld-loops.json`, from Zenodo record 3967852) — real Freesound sound IDs from the annotation subset, with BPM/key/genre/instrumentation used to seed the form. The per-sound licence lives only inside the dataset's 8.8 GB archive, so these are `unconfirmed`: the curator confirms CC0 on each Freesound page. Vocal-flagged and annotator-discarded loops are filtered out at generation.
+
+VCSL is deliberately **not** a candidate source. Because its whole repository is CC0, reviewing it page-by-page would be busywork; it is bulk-ingested instead (section 15.8).
+
+Each candidate carries a `licenseConfidence` of `verified-cc0`, `likely-cc0`, or `unconfirmed`, surfaced in the review UI (today the generated list is entirely `unconfirmed`, since every candidate source hosts per-item licences). It is a review-order hint, **never** a rights decision — a candidate could say `verified-cc0` and still be rejected on the page, and the authoritative position is always the licence evidence captured at ingest. The tool treats the whole list as an inbox: an unverified candidate is a lead to audition, and only a Verify — a person confirming the file on the actual page — writes anything.
+
+Most Freesound candidates are loops rather than one-shots; the seed role is the closest one-shot role and the curator corrects it. A dedicated loop family in the taxonomy is future work.
+
+### 15.8 VCSL as a trusted bulk source
+
+The per-file review workflow (15.5, 15.7) exists because Tier-2 sources host mixed licences: a page is not evidence for a file. VCSL is different. The whole `sgossner/VCSL` repository is dedicated to the public domain under CC0 1.0, confirmed against [github.com/sgossner/VCSL](https://github.com/sgossner/VCSL). When the rights hold library-wide, auditioning each file to re-confirm the licence is busywork, so VCSL takes a separate path — a *trusted bulk source* rather than a lockfile source.
+
+```sh
+bun run library:vcsl                 # clone, ingest a curated subset, delete the clone
+# equivalently: bun run library:acquire -- --vcsl
+```
+
+`acquire/vcsl.mjs` shallow-clones the repo, records the commit SHA it resolved to, captures the repository's own `LICENSE` as the section 3.4 evidence (`docs/licenses/sources/vcsl.md`), ingests a curated subset, writes it as an acquired bundle for `library:build` to merge, and **deletes the clone** — the multi-gigabyte checkout is third-party bytes that are never committed, exactly like the quarantine directory.
+
+Two things keep this honest rather than a back door around the section 3 policy:
+
+- **It is a curated subset, not a bulk dump.** Section 4.1 is explicit: "select a small electronic-production subset rather than ingesting the full multi-gigabyte library." The ingest maps VCSL's Hornbostel–Sachs families to the taxonomy (idiophones → mallets/bells/percussion, membranophones → drums, plucked and bowed chordophones → tonal, electrophones → keys) and takes **one representative sample per instrument** — roughly 90 instruments, not the 4231 WAVs in the repo. Aerophones (winds, organs) are dropped as out of scope. Bowed strings are included as sustained tonal material.
+- **The provenance says what it is.** Acquired VCSL assets carry `sourceType: recorded`, `reviewState: bulk-cc0`, the pinned commit in their `downloadUrl`, and the per-file GitHub URL of the sample they came from. Their IDs sit in a `sg-one-shot-<family>-<role>-6NNN` range, disjoint from both the synthesized catalogue and the lockfile ingest (base 5000), so no two paths can collide.
+
+The acquired directory now holds one bundle per ingest path (`acquired-library/lockfile/`, `acquired-library/vcsl/`), each an `entries.json` beside its `audio/`. `manifest.loadAcquiredAssets` merges every bundle, so `library:build` combines lockfile-pinned CC0, bulk VCSL, and the synthesized catalogue into one manifest with one validator and one delivery layout. Both routes still close the section 6.4 organic-source floor that synthesis cannot reach.
+
+### 15.8 Repacking the starter library
 
 The shipped library predates the pack model: its 200 assets sit in one flat collection, `sg-starter-library`, delivered as a single manifest. Section 5.1 is not yet implemented.
 

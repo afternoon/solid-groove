@@ -7,6 +7,8 @@
 // acquired kick and a generated kick differ in their provenance block and
 // nowhere else.
 
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import {
 	analyze,
 	encodeWav,
@@ -209,6 +211,32 @@ export async function ingestAll(lockfile, context) {
 		}
 	}
 	return results;
+}
+
+/**
+ * Write one ingest bundle — its `entries.json` and `audio/` — into `dir`,
+ * replacing whatever was there before. Both ingest paths (the lockfile ingest
+ * and the VCSL bulk ingest) use this so the on-disk layout is identical and
+ * `manifest.loadAcquiredAssets` can merge them by directory.
+ */
+export function writeAcquiredBundle(dir, ingested) {
+	rmSync(dir, { recursive: true, force: true });
+	for (const { asset, bytes } of ingested) {
+		const path = join(dir, "audio", asset.files.master.storageKey);
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, bytes);
+	}
+	const entriesPath = join(dir, "entries.json");
+	mkdirSync(dirname(entriesPath), { recursive: true });
+	writeFileSync(
+		entriesPath,
+		`${JSON.stringify(
+			ingested.map((r) => r.asset),
+			null,
+			"\t",
+		)}\n`,
+	);
+	return entriesPath;
 }
 
 /** Capture licence evidence once per source that the lockfile actually uses. */

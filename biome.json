@@ -8,7 +8,9 @@
 			"!.vinxi",
 			"!docs/design",
 			"!playwright-report",
-			"!test-results"
+			"!test-results",
+			"!scripts/starter-library/acquire/candidate-sources",
+			"!scripts/starter-library/acquire/candidates.json"
 		]
 	}
 }
