@@ -139,6 +139,31 @@ describe("computePlacementSchedule", () => {
 		]);
 	});
 
+	it("keeps repeating a looped placement with a non-zero clip offset through the placement's full duration", () => {
+		// clip length 768 ticks, note events at clip ticks 0 and 384;
+		// placement { startTicks: 0, durationTicks: 1536, clipOffsetTicks: 384, looped: true }
+		// should produce absolute ticks 0, 384, 768, 1152 (the tail of the
+		// third wrap must not be dropped just because clipOffsetTicks shifted
+		// every repeat later).
+		const clip = notesClip(
+			[note(0, TICKS_PER_SIXTEENTH), note(384, TICKS_PER_SIXTEENTH)],
+			768,
+		);
+		const schedule = computePlacementSchedule(
+			placement({
+				looped: true,
+				durationTicks: toTicks(1536),
+				clipOffsetTicks: toTicks(384),
+			}),
+			clip,
+			120,
+		);
+
+		expect(schedule.notes.map((n) => n.absoluteTicks)).toEqual([
+			0, 384, 768, 1152,
+		]);
+	});
+
 	it("computes an audio loop's playback rate from tempo / source tempo", () => {
 		const clip = audioLoopClip(100);
 		const schedule = computePlacementSchedule(placement(), clip, 120);

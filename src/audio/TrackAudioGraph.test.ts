@@ -4,7 +4,7 @@ import { createSeededIdFactory } from "../domain/ids";
 import type { AudioTrackProjection } from "../projection/audioProjection";
 import type { DeviceNode, DeviceNodeFactory } from "./DeviceChain";
 import type { InstrumentNode, InstrumentNodeFactory } from "./InstrumentGraph";
-import { installWebAudioGlobals } from "./testAudioContext";
+import { installWebAudioGlobals, rms } from "./testAudioContext";
 
 installWebAudioGlobals();
 
@@ -405,5 +405,45 @@ describe("TrackAudioGraph", () => {
 
 		returnInput.dispose();
 		await runtime.close();
+	});
+
+	it("the channel strip preserves a hard-left stereo signal instead of downmixing it to mono", async () => {
+		const rendered = await Tone.Offline(
+			({ destination }) => {
+				const runtime = new AudioRuntimeModule.AudioRuntime();
+				const scope = runtime.openProjectScope("p");
+				const track = new TrackAudioGraphModule.TrackAudioGraph(
+					ids("track"),
+					{
+						scope,
+						assetsById: new Map(),
+						bufferCache: {} as never,
+						getReturnInput: () => undefined,
+					},
+					destination,
+				);
+				track.reconcile(
+					trackProjection({ type: "audio", instrument: null }),
+					false,
+				);
+
+				// Feed a stereo signal with energy only in the left channel into the
+				// track's channel strip; the right channel of `merge`'s input 1 is
+				// left unconnected (silence).
+				const merge = new Tone.Merge();
+				merge.connect(track.audioInput);
+				const noise = new Tone.Noise("white");
+				noise.connect(merge, 0, 0);
+				noise.start(0).stop(0.05);
+			},
+			0.05,
+			2,
+		);
+
+		const left = rms(Float32Array.from(rendered.getChannelData(0)));
+		const right = rms(Float32Array.from(rendered.getChannelData(1)));
+
+		expect(left).toBeGreaterThan(0.01);
+		expect(right).toBeLessThan(0.001);
 	});
 });

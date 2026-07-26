@@ -52,12 +52,19 @@ export function computePlacementSchedule(
 	const clipLength = clip.lengthTicks;
 	const repeatCount =
 		placement.looped && clipLength > 0
-			? Math.max(1, Math.ceil(placement.durationTicks / clipLength))
+			? Math.max(
+					1,
+					Math.ceil(
+						(placement.durationTicks + placement.clipOffsetTicks) / clipLength,
+					),
+				)
 			: 1;
 
 	for (let repeat = 0; repeat < repeatCount; repeat += 1) {
 		const repeatOffset = repeat * clipLength;
-		if (repeatOffset >= placement.durationTicks) break;
+		if (repeatOffset - placement.clipOffsetTicks >= placement.durationTicks) {
+			break;
+		}
 
 		if (clip.content.kind === "notes") {
 			for (const event of clip.content.events) {

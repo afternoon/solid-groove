@@ -125,6 +125,9 @@ describe("AudioBufferCache", () => {
 		cache.refresh(asset("ast_a", "f2"));
 		expect(pending).toHaveLength(2);
 		expect(first.disposed).toBe(true);
+		// Subscribers must be told the buffer is gone (null) before the
+		// replacement decode settles, so nobody holds a disposed buffer.
+		expect(onBuffer).toHaveBeenNthCalledWith(2, null);
 
 		const second = new FakeBuffer("a@f2");
 		pending[1].resolve(second);
@@ -132,6 +135,25 @@ describe("AudioBufferCache", () => {
 		await Promise.resolve();
 
 		expect(onBuffer).toHaveBeenLastCalledWith(second);
+	});
+
+	it("notifies subscribers with null before disposing the superseded buffer, not after", async () => {
+		const { loader, pending } = createManualLoader();
+		const cache = new AudioBufferCache(loader);
+		const disposedAtNotifyTime: boolean[] = [];
+
+		const first = new FakeBuffer("a@f1");
+		cache.subscribe(asset("ast_a", "f1"), (buffer) => {
+			if (buffer === null) disposedAtNotifyTime.push(first.disposed);
+		});
+		pending[0].resolve(first);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		cache.refresh(asset("ast_a", "f2"));
+
+		expect(disposedAtNotifyTime).toEqual([false]);
+		expect(first.disposed).toBe(true);
 	});
 
 	it("never installs or reports a stale-generation load, however late it resolves", async () => {

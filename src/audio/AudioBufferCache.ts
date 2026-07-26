@@ -125,11 +125,22 @@ export class AudioBufferCache<B extends CachedBuffer = CachedBuffer> {
 	): void {
 		if (tracker.fingerprint === asset.fingerprint) return;
 
-		tracker.buffer?.dispose();
+		const previousBuffer = tracker.buffer;
 		tracker.buffer = null;
 		tracker.fingerprint = asset.fingerprint;
 		tracker.generation += 1;
 		const generation = tracker.generation;
+
+		if (previousBuffer) {
+			// Tell every subscriber the buffer is gone *before* disposing it, so
+			// a consumer never holds a reference to a disposed buffer while the
+			// replacement decode is in flight (PRD AUD-09: no use-after-dispose).
+			// Skipped when there was no buffer yet (e.g. a refresh() that lands
+			// while the first decode is still in flight) — there is nothing to
+			// invalidate and no spurious null notification to send.
+			for (const listener of tracker.listeners) listener(null);
+			previousBuffer.dispose();
+		}
 
 		this.pendingLoads += 1;
 		this.loader.load(asset).then(

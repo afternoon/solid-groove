@@ -26,7 +26,10 @@ export class ReturnAudioGraph {
 	) {
 		this.id = id;
 		this.deviceChain = new DeviceChain(scope, createDeviceNode);
-		this.panVol = new Tone.PanVol(0, 0);
+		// Explicit channelCount: 2 — Tone.PanVol's Panner otherwise inherits
+		// Web Audio's channelCount: 1 / channelCountMode: "explicit" default and
+		// downmixes every stereo signal to mono before panning.
+		this.panVol = new Tone.PanVol({ pan: 0, volume: 0, channelCount: 2 });
 		this.panVolHandle = scope.register("node", () => {
 			this.panVol.dispose();
 		});
