@@ -5,7 +5,7 @@ export const meta = {
   whenToUse:
     'Run to execute Phase 0 of docs/backlog.md. Name tasks to run a subset, either positionally (solid-groove-phase-0 FND-003 FND-004) or as args: ["FND-003","FND-004"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
   phases: [
-    { title: 'Tooling', detail: 'FND-001 — test, CI and emulator foundation' },
+    { title: 'Tooling', detail: 'FND-001 test and CI foundation, then FND-001b deploy pipeline and FND-001c analytics catalog' },
     { title: 'Contracts', detail: 'FND-002 domain schema, then command kernel, repository and projections', model: 'opus' },
     { title: 'Runtime', detail: 'FND-006 AudioRuntime and FND-008 renderer harness' },
     { title: 'Graph', detail: 'FND-007 stable ID-keyed audio graph' },
@@ -17,7 +17,9 @@ export const meta = {
 // contract-owning tasks run on Opus because an error there propagates into every
 // dependent task and surfaces late; everything else runs on Sonnet. Review is
 // always Opus, at high effort, and runs before any PR is opened.
-const CONTRACT_TASKS = ['FND-002', 'FND-003', 'FND-004']
+// FND-001c is included because its own backlog block declares it contract-owning:
+// it publishes the analytics catalog every Phase 1-4 feature task extends.
+const CONTRACT_TASKS = ['FND-001c', 'FND-002', 'FND-003', 'FND-004']
 const BASE_BRANCH = 'main'
 const MAX_REVIEW_ROUNDS = 2
 
@@ -49,8 +51,21 @@ You are in a git worktree, not the main checkout. Two things follow:
 
 `
 
+// FND-001b and FND-001c are the only Phase 0 tasks that depend on things outside
+// this repository — a Firebase project, a GA4 property, a Sentry org, and the CI
+// secrets for all three. An agent cannot provision those, and the failure mode is
+// not "it stops": it is inventing a plausible project id or DSN, committing it,
+// and reporting a deploy that never happened. Say so in the task brief.
+const NO_CREDENTIALS = `
+
+This task provisions no accounts and holds no secrets. Assume the Firebase project, CI service account, GA4 property, and Sentry org/DSN/auth token are NOT available to you. Never invent a project id, DSN, token, or key; never commit a placeholder shaped like a real one; and never report a deploy, smoke test, rollback, or delivered event as having happened when it did not.
+
+Implement everything that does not need them: the pipeline, configuration, catalog, boundaries, tests, and documentation, referring to every credential by name through CI secrets and \`.env.example\`. Then list each acceptance checkbox that needs a real credential or a real deployed build in \`unmet\`, with that as the stated reason. An honest \`unmet\` entry is a correct outcome here, not a failure.`
+
 const TASKS = [
   { id: 'FND-001', phase: 'Tooling', title: 'Test and development foundation' },
+  { id: 'FND-001b', phase: 'Tooling', title: 'Firebase deployment and hosted alpha environment', note: NO_CREDENTIALS },
+  { id: 'FND-001c', phase: 'Tooling', title: 'Analytics and error-monitoring foundation', note: NO_CREDENTIALS },
   { id: 'FND-002', phase: 'Contracts', title: 'Canonical schema-v1 domain model' },
   { id: 'FND-003', phase: 'Contracts', title: 'Command, transaction, and history kernel' },
   { id: 'FND-004', phase: 'Contracts', title: 'Firebase schema-v1 repository' },
@@ -58,7 +73,7 @@ const TASKS = [
   { id: 'FND-006', phase: 'Runtime', title: 'Single-context AudioRuntime and diagnostics' },
   { id: 'FND-007', phase: 'Graph', title: 'Stable ID-keyed audio graph' },
   { id: 'FND-008', phase: 'Runtime', title: 'Arrangement renderer spike and measurement harness' },
-  { id: 'FND-009', phase: 'Slice', title: 'Foundation vertical slice gate' },
+  { id: 'FND-009', phase: 'Slice', title: 'Foundation vertical slice gate', note: NO_CREDENTIALS },
 ]
 
 // Normalise the subset request, and fail loud on anything malformed.
@@ -127,19 +142,22 @@ const parseTaskIds = (raw) => {
   return ids
 }
 
+// Compare on the normalised form on BOTH sides. Ids are not uniformly upper-case
+// any more — FND-001b and FND-001c carry a lower-case suffix — so matching a
+// normalised filter against a raw task id would reject every filter naming them.
 const taskIds = parseTaskIds(args)
-const known = new Set(TASKS.map((t) => t.id))
+const known = new Set(TASKS.map((t) => normaliseId(t.id)))
 const unknown = (taskIds ?? []).filter((id) => !known.has(id))
 if (unknown.length) {
   throw new Error(
-    `args contains unknown task id(s): ${unknown.join(', ')}. Known ids: ${[...known].join(', ')}.`,
+    `args contains unknown task id(s): ${unknown.join(', ')}. Known ids: ${TASKS.map((t) => t.id).join(', ')}.`,
   )
 }
 
 // parseTaskIds returns null or a non-empty list, so this needs no length check.
 const only = taskIds ? new Set(taskIds) : null
 const task = (id) => TASKS.find((t) => t.id === id)
-const wanted = (id) => !only || only.has(id)
+const wanted = (id) => !only || only.has(normaliseId(id))
 
 const IMPL_SCHEMA = {
   type: 'object',
@@ -198,7 +216,7 @@ const REVIEW_SCHEMA = {
 
 const implPrompt = (t, base) => `${brief(IMPLEMENTER)}Implement backlog task ${t.id} - ${t.title}.
 
-Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.
+Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.${t.note ?? ''}
 
 ${WORKTREE}Name your branch claude/${t.id.toLowerCase()} and create it from origin/${base} as described above. Commit and push it with \`git push -u origin claude/${t.id.toLowerCase()}\`. Do not open a pull request — a reviewer runs before the PR is opened.
 
@@ -298,6 +316,19 @@ if (wanted('FND-001')) {
   }
 }
 
+// FND-001b then FND-001c, strictly in that order and never alongside each other:
+// the deploy pipeline has to exist before analytics can stamp a release against
+// it or upload source maps through it. Each gate fires only when the task
+// actually ran, so a subset filter that omits one does not halt the run.
+for (const id of ['FND-001b', 'FND-001c']) {
+  if (!wanted(id)) continue
+  record(await runTask(task(id)))
+  if (!landed(id)) {
+    log(`${id} did not land — stopping before the work that depends on it.`)
+    return { results, stoppedAt: id }
+  }
+}
+
 // FND-002 owns the domain contract and must land before its dependents start.
 // FND-006 and FND-008 own separate boundaries and run alongside it.
 phase('Contracts')
@@ -325,8 +356,21 @@ phase('Graph')
 if (wanted('FND-007')) record(await runTask(task('FND-007')))
 
 // Gate G2. The slice proves the boundaries together, so it runs last and alone.
+// It integrates six other tasks, so running it against one that just failed to
+// land wastes both review rounds on findings the branch cannot fix. Gate only on
+// tasks this invocation actually attempted — anything already merged on the base
+// branch is not in `results` and must not be treated as missing.
 phase('Slice')
-if (wanted('FND-009')) record(await runTask(task('FND-009')))
+if (wanted('FND-009')) {
+  const unlanded = ['FND-001c', 'FND-003', 'FND-004', 'FND-005', 'FND-007', 'FND-008'].filter(
+    (id) => wanted(id) && !landed(id),
+  )
+  if (unlanded.length) {
+    log(`FND-009 skipped — ${unlanded.join(', ')} ran in this invocation without landing.`)
+  } else {
+    record(await runTask(task('FND-009')))
+  }
+}
 
 const approved = results.filter((r) => r.status === 'approved')
 log(`Phase 0: ${approved.length}/${results.length} tasks approved and raised as PRs`)
