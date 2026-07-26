@@ -226,7 +226,7 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 
 | Event | How to trigger it | Check |
 | --- | --- | --- |
-| `app_opened` | Load `/dashboard` or a project. Not the landing page — that surface measures `landing_cta_click` instead. | Fires once per app load, with `surface` and `release_sha`. |
+| `app_opened` | Load `/dashboard` or a project. Then, in a fresh session, load `/` and click through to the dashboard — that navigation is client-side, so it must be checked separately. Staying on the landing page fires nothing; that surface measures `landing_cta_click` instead. | Fires once per app load on reaching the dashboard or editor, whichever way the session got there, with `surface` and `release_sha`. |
 | `first_edit` | Make the first edit in a project. | Fires once for that project, never again — reload and edit again to confirm. |
 | `feature_first_use` | Use a feature for the first time in that browser. | Fires once per `feature`, carrying the feature key. |
 | `save_failed` | Go offline (DevTools → Network → Offline) and make an edit. | Fires with a stable `error_code` and a `retry_count`. |
@@ -252,7 +252,9 @@ In Sentry, the issue should show:
 
 Then confirm the same error produced exactly **one** issue (not two — Sentry's own global handlers are switched off so ours is the only capture point) and that *Releases → Health* shows a crash-free session rate for that release.
 
-**3. The opt-out.** Turn collection off in the Privacy disclosure, repeat steps 1 and 2, and confirm nothing new arrives at either processor while every feature still works. Turn it back on and confirm collection resumes.
+**3. The opt-out.** Turn collection off in the Privacy disclosure, repeat steps 1 and 2, and confirm nothing new arrives at either processor while every feature still works. Turn it back on and confirm collection resumes — the toggle is symmetric, and a grant that does not resume collection is as much a bug as a withdrawal that does not stop it.
+
+Check GA4's *automatic* collection too, not just the custom events: it is a separate channel that no transport controls (`setAnalyticsCollectionEnabled`, `src/firebaseConfig.ts`). With collection off, *Realtime* must show no new `page_view`, `session_start`, or `user_engagement` for the session. Then reload with collection still off, navigate around, and confirm the same — a session that declines before the SDK is initialized never initializes it, so no `_ga` cookie should be written at all (DevTools → Application → Cookies).
 
 **4. No source map is public.** Fetch a bundle and its would-be map directly:
 

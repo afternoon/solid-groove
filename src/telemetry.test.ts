@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Analytics, analytics } from "./analytics/analytics";
+import type { Surface } from "./analytics/catalog";
 import { ConsentStore } from "./analytics/consent";
 import {
 	createFailingTransport,
 	createRecordingTransport,
 	noopTransport,
+	type RecordingTransport,
 } from "./analytics/transport";
 import { updateTrack } from "./commands";
 import { createCommandHistory } from "./commands/history";
@@ -13,7 +15,12 @@ import { ErrorReporter, type ErrorSink } from "./monitoring/errorReporting";
 import { ProjectAutosave } from "./persistence/autosave";
 import { InMemoryProjectRepository } from "./persistence/inMemoryProjectRepository";
 import { createManualScheduler } from "./shared/scheduler";
-import { afterFirstPaint, initTelemetry, surfaceForPath } from "./telemetry";
+import {
+	afterFirstPaint,
+	initTelemetry,
+	type StartErrorSink,
+	surfaceForPath,
+} from "./telemetry";
 import { memoryStorage } from "./testing/storage";
 
 /** A target with no real `window` behind it. */
@@ -48,6 +55,11 @@ function deferredPaint() {
 	};
 }
 
+/** Drains the microtask chain a deferred sink start resolves through. */
+function tick() {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 beforeEach(() => {
 	// The analytics boundary is an app-wide singleton; reset the transport so
 	// one test's events cannot be observed by the next.
@@ -76,6 +88,7 @@ describe("lazy initialization (PRD OPS-03, section 10 budgets)", () => {
 			afterPaint: paint.schedule,
 			startErrorSink,
 			createAnalyticsTransport: () => transport,
+			setVendorAnalyticsCollection: () => {},
 		});
 		return { consent, paint, startErrorSink, transport, telemetry };
 	}
@@ -106,10 +119,9 @@ describe("lazy initialization (PRD OPS-03, section 10 budgets)", () => {
 	});
 
 	it("attaches the analytics transport synchronously, so early events are not lost", () => {
+		// No paint flush: `app_opened` fires during init, before the deferred
+		// monitoring load runs, and must already have a real transport to land on.
 		const { transport } = setup("editor");
-		// No paint flush: `app_opened` fires during onMount, before the deferred
-		// monitoring load runs.
-		analytics.log("app_opened");
 		expect(transport.named("app_opened")).toHaveLength(1);
 	});
 });
@@ -128,6 +140,7 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 			afterPaint: paint.schedule,
 			startErrorSink,
 			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 		paint.flush();
 
@@ -145,6 +158,7 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 			target: fakeTarget(),
 			afterPaint: () => {},
 			createAnalyticsTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 
 		expect(createAnalyticsTransport).not.toHaveBeenCalled();
@@ -166,6 +180,7 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 			afterPaint: paint.schedule,
 			startErrorSink,
 			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 		consent.optOut();
 		paint.flush();
@@ -197,6 +212,7 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 			afterPaint: paint.schedule,
 			startErrorSink,
 			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 		paint.flush();
 		expect(startErrorSink).toHaveBeenCalledTimes(1);
@@ -218,6 +234,7 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 			afterPaint: paint.schedule,
 			startErrorSink: async () => stop,
 			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 		paint.flush();
 		// A macrotask tick drains the start promise's microtask chain.
@@ -239,13 +256,195 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 			afterPaint: () => {},
 			startErrorSink: async () => {},
 			createAnalyticsTransport: () => transport,
+			setVendorAnalyticsCollection: () => {},
 		});
 
-		analytics.log("app_opened");
+		// Init logged `app_opened` on reaching the editor surface.
+		expect(transport.named("app_opened")).toHaveLength(1);
+
 		consent.optOut();
 		analytics.log("app_opened");
 
 		expect(transport.named("app_opened")).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Consent governs collection on every path, not just at the initial URL
+// ---------------------------------------------------------------------------
+
+/** One telemetry wiring with every vendor seam replaced by a spy. */
+function wire(
+	surface: Surface,
+	overrides: {
+		consent?: ConsentStore;
+		startErrorSink?: StartErrorSink;
+		createAnalyticsTransport?: () => RecordingTransport;
+	} = {},
+) {
+	const consent = overrides.consent ?? new ConsentStore(memoryStorage());
+	const paint = deferredPaint();
+	const startErrorSink = vi.fn<StartErrorSink>(
+		overrides.startErrorSink ?? (async () => {}),
+	);
+	const transports: RecordingTransport[] = [];
+	const createAnalyticsTransport = vi.fn(() => {
+		const transport = (
+			overrides.createAnalyticsTransport ?? createRecordingTransport
+		)();
+		transports.push(transport);
+		return transport;
+	});
+	const setVendorAnalyticsCollection = vi.fn();
+	const telemetry = initTelemetry({
+		surface,
+		consent,
+		target: fakeTarget(),
+		afterPaint: paint.schedule,
+		startErrorSink,
+		createAnalyticsTransport,
+		setVendorAnalyticsCollection,
+	});
+	return {
+		consent,
+		paint,
+		startErrorSink,
+		createAnalyticsTransport,
+		setVendorAnalyticsCollection,
+		telemetry,
+		transports,
+		/** The transport currently attached to the boundary. */
+		get transport() {
+			return transports[transports.length - 1];
+		},
+	};
+}
+
+describe("monitoring follows the surface reached, not the entry URL", () => {
+	// A landing session that clicks "Start creating" is client-navigated to the
+	// dashboard with no page load, so a decision taken once from
+	// `window.location.pathname` never gets revisited. Leaving monitoring off for
+	// that whole session drops it out of both halves of the PRD section 11
+	// crash-free session rate and out of the `app_opened` denominator.
+
+	it("starts the sink when a landing session navigates to the dashboard", () => {
+		const { paint, startErrorSink, telemetry } = wire("landing");
+		paint.flush();
+		expect(startErrorSink).not.toHaveBeenCalled();
+
+		telemetry.setSurface("dashboard");
+		paint.flush();
+
+		expect(startErrorSink).toHaveBeenCalledTimes(1);
+	});
+
+	it("logs app_opened on that first non-landing transition", () => {
+		const { telemetry, transport } = wire("landing");
+		expect(transport.named("app_opened")).toHaveLength(0);
+
+		telemetry.setSurface("dashboard");
+
+		expect(transport.named("app_opened")).toHaveLength(1);
+	});
+
+	it("starts the sink and logs app_opened exactly once across later navigations", async () => {
+		const { paint, startErrorSink, telemetry, transport } = wire("landing");
+
+		telemetry.setSurface("dashboard");
+		paint.flush();
+		await tick();
+		telemetry.setSurface("editor");
+		telemetry.setSurface("dashboard");
+		paint.flush();
+
+		expect(startErrorSink).toHaveBeenCalledTimes(1);
+		expect(transport.named("app_opened")).toHaveLength(1);
+	});
+
+	it("starts nothing while the session stays on the landing page", () => {
+		const { paint, startErrorSink, telemetry, transport } = wire("landing");
+
+		telemetry.setSurface("landing");
+		paint.flush();
+
+		expect(paint.pending).toBe(0);
+		expect(startErrorSink).not.toHaveBeenCalled();
+		expect(transport.named("app_opened")).toHaveLength(0);
+	});
+
+	it("still logs app_opened once for a session that deep-links into the editor", () => {
+		const { telemetry, transport } = wire("editor");
+		telemetry.setSurface("editor");
+		expect(transport.named("app_opened")).toHaveLength(1);
+	});
+});
+
+describe("re-granting consent resumes collection (PRD OPS-02)", () => {
+	// Withdrawal tears the transport and the sink down. A toggle that only works
+	// in one direction leaves a user who changes their mind uncollected for the
+	// rest of the page's life, with the checkbox showing "on".
+
+	it("re-creates the analytics transport when the user opts back in", () => {
+		const wiring = wire("editor");
+
+		wiring.consent.optOut();
+		wiring.consent.optIn();
+		analytics.log("app_opened");
+
+		expect(wiring.transports).toHaveLength(2);
+		expect(wiring.transports[1]?.named("app_opened")).toHaveLength(1);
+	});
+
+	it("restarts the error sink when the user opts back in", async () => {
+		const stop = vi.fn(async () => {});
+		const wiring = wire("editor", { startErrorSink: async () => stop });
+
+		wiring.paint.flush();
+		await tick();
+		expect(wiring.startErrorSink).toHaveBeenCalledTimes(1);
+
+		wiring.consent.optOut();
+		await tick();
+		expect(stop).toHaveBeenCalledTimes(1);
+
+		wiring.consent.optIn();
+		wiring.paint.flush();
+
+		expect(wiring.startErrorSink).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("the vendor analytics SDK follows consent (PRD OPS-02)", () => {
+	// Dropping the custom-event transport leaves GA4 automatic collection —
+	// page_view, session_start, first_visit, user_engagement and the _ga
+	// cookies — running. Consent has to reach the SDK itself, or the disclosure's
+	// "turning this off stops collection" is untrue.
+
+	it("never enables collection for a user who has already opted out", () => {
+		const consent = new ConsentStore(memoryStorage());
+		consent.optOut();
+		const { setVendorAnalyticsCollection } = wire("editor", { consent });
+
+		expect(setVendorAnalyticsCollection).toHaveBeenCalledWith(false);
+		expect(setVendorAnalyticsCollection).not.toHaveBeenCalledWith(true);
+	});
+
+	it("disables collection when consent is withdrawn mid-session", () => {
+		const { consent, setVendorAnalyticsCollection } = wire("editor");
+		expect(setVendorAnalyticsCollection).toHaveBeenLastCalledWith(true);
+
+		consent.optOut();
+
+		expect(setVendorAnalyticsCollection).toHaveBeenLastCalledWith(false);
+	});
+
+	it("re-enables collection when the user opts back in", () => {
+		const { consent, setVendorAnalyticsCollection } = wire("editor");
+
+		consent.optOut();
+		consent.optIn();
+
+		expect(setVendorAnalyticsCollection).toHaveBeenLastCalledWith(true);
 	});
 });
 
@@ -260,6 +459,7 @@ describe("fail-open wiring (PRD OPS-02/OPS-03)", () => {
 				createAnalyticsTransport: () => {
 					throw new Error("firebase/analytics blocked");
 				},
+				setVendorAnalyticsCollection: () => {},
 			}),
 		).not.toThrow();
 	});
@@ -275,6 +475,7 @@ describe("fail-open wiring (PRD OPS-02/OPS-03)", () => {
 				throw new Error("blocked by an ad blocker");
 			},
 			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 
 		expect(() => paint.flush()).not.toThrow();
@@ -282,6 +483,41 @@ describe("fail-open wiring (PRD OPS-02/OPS-03)", () => {
 });
 
 describe("dispose", () => {
+	it("stops a sink that resolves after dispose", async () => {
+		// Same shape as the consent-withdrawal race: `stopSink` is still null
+		// while the sink is loading, so the disposer has nothing to await and a
+		// sink resolving afterwards would stay attached for the rest of the page.
+		const stop = vi.fn(async () => {});
+		let finishLoading: () => void = () => {};
+		const loaded = new Promise<void>((resolve) => {
+			finishLoading = resolve;
+		});
+		const wiring = wire("editor", {
+			startErrorSink: async () => {
+				await loaded;
+				return stop;
+			},
+		});
+		wiring.paint.flush();
+		expect(wiring.startErrorSink).toHaveBeenCalledTimes(1);
+
+		await wiring.telemetry.dispose();
+		finishLoading();
+
+		await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
+	});
+
+	it("ignores a surface change that arrives after dispose", async () => {
+		const wiring = wire("landing");
+
+		await wiring.telemetry.dispose();
+		wiring.telemetry.setSurface("dashboard");
+		wiring.paint.flush();
+
+		expect(wiring.startErrorSink).not.toHaveBeenCalled();
+		expect(wiring.transport.named("app_opened")).toHaveLength(0);
+	});
+
 	it("removes the global handlers it installed", async () => {
 		const target = fakeTarget();
 		const telemetry = initTelemetry({
@@ -290,6 +526,7 @@ describe("dispose", () => {
 			target,
 			afterPaint: () => {},
 			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
 		});
 		expect(target.total()).toBe(2);
 

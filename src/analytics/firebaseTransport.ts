@@ -47,8 +47,8 @@ export function createFirebaseAnalyticsTransport(
 	const load =
 		options.load ??
 		(async () => {
-			const { analytics } = await import("../firebaseConfig");
-			return analytics;
+			const { loadAnalytics } = await import("../firebaseConfig");
+			return await loadAnalytics();
 		});
 
 	const ready = load()
@@ -109,4 +109,26 @@ export function createFirebaseAnalyticsTransport(
 			});
 		},
 	};
+}
+
+/**
+ * Turns Google Analytics' own collection on or off (PRD `OPS-02` opt-out).
+ *
+ * The transport above is only half of what the vendor does. GA4 automatic
+ * collection — `page_view`, `session_start`, `first_visit`, `user_engagement`,
+ * and the `_ga` cookies — comes from gtag itself and does not care which
+ * transport the analytics boundary is holding, so dropping the transport does
+ * not stop collection. This is what does.
+ *
+ * Fire-and-forget: consent must apply immediately from the caller's point of
+ * view, and a blocked or unsupported SDK is never worth surfacing. The dynamic
+ * import is also what keeps the SDK bootstrap off the path of a session that
+ * never grants consent.
+ */
+export function setFirebaseAnalyticsCollectionEnabled(enabled: boolean): void {
+	void import("../firebaseConfig")
+		.then((config) => config.setAnalyticsCollection(enabled))
+		.catch(() => {
+			// Nothing loaded means nothing is collecting.
+		});
 }

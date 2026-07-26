@@ -19,20 +19,48 @@
 // - Analytics *is* wired on every surface including the landing page, because
 //   `landing_cta_click` is measured there. Its transport is Firebase's, which
 //   the app already loads.
+//
+// ## Consent governs collection, on every path
+//
+// Consent is not a single check at startup. It is re-consulted wherever
+// collection could begin or resume, because all three of these happen after
+// `initTelemetry` returns:
+//
+// - **The vendor SDK.** Google Analytics collects `page_view`, `session_start`,
+//   `first_visit`, and `user_engagement` automatically the moment gtag is
+//   bootstrapped, regardless of which transport this module holds. So the
+//   opt-out reaches the SDK itself (`setVendorAnalyticsCollection`), and a
+//   declined session never initializes it at all — see `src/firebaseConfig.ts`.
+// - **The surface.** Navigation off the landing page is client-side, so
+//   `surfaceForPath(window.location.pathname)` at mount is not the surface the
+//   session ends up on. Monitoring and `app_opened` are driven by `setSurface`,
+//   which the router calls on every navigation.
+// - **The direction of the toggle.** Withdrawal tears collection down and a
+//   later grant rebuilds it. A one-way switch leaves a user who changes their
+//   mind uncollected with the checkbox showing "on".
 
 import { analytics } from "./analytics/analytics";
 import type { Surface } from "./analytics/catalog";
 import { type ConsentStore, consentStore } from "./analytics/consent";
-import { createFirebaseAnalyticsTransport } from "./analytics/firebaseTransport";
-import type { AnalyticsTransport } from "./analytics/transport";
+import {
+	createFirebaseAnalyticsTransport,
+	setFirebaseAnalyticsCollectionEnabled,
+} from "./analytics/firebaseTransport";
+import { type AnalyticsTransport, noopTransport } from "./analytics/transport";
 import { type ErrorReporter, errorReporter } from "./monitoring/errorReporting";
 import { installGlobalErrorHandlers } from "./monitoring/globalHandlers";
 import { RELEASE_SHA } from "./release";
 
 export interface InitTelemetryOptions {
+	/** The surface the app load entered on. */
 	surface: Surface;
 	/** Overridden in tests so no test loads a vendor SDK. */
 	createAnalyticsTransport?: () => AnalyticsTransport;
+	/**
+	 * Switches the vendor analytics SDK's own automatic collection on and off.
+	 * Overridden in tests so no test bootstraps gtag.
+	 */
+	setVendorAnalyticsCollection?: (enabled: boolean) => void;
 	/**
 	 * Starts the error sink in place of the real dynamic import. May resolve to
 	 * a stopper, which lets a test observe that a sink started during a consent
@@ -47,15 +75,27 @@ export interface InitTelemetryOptions {
 }
 
 export interface Telemetry {
+	/**
+	 * Records the surface the app is showing now, including after a client-side
+	 * navigation. Reaching a non-landing surface is what starts monitoring and
+	 * fires `app_opened`.
+	 */
+	setSurface: (surface: Surface) => void;
+	/**
+	 * Starts error monitoring if consent allows, a monitored surface has been
+	 * reached, and it is not already running or starting. Idempotent, so the
+	 * router and the consent subscription can both call it freely.
+	 */
+	startMonitoringIfAllowed: () => void;
 	/** Removes global handlers and stops vendor transports. */
 	dispose: () => Promise<void>;
 }
 
 /** Detaches a started error sink and shuts its vendor transport down. */
-type StopErrorSink = () => Promise<void>;
+export type StopErrorSink = () => Promise<void>;
 
 /** A test's stand-in for the real dynamic import, optionally returning a stopper. */
-type StartErrorSink = (
+export type StartErrorSink = (
 	release: string,
 ) => Promise<void> | Promise<StopErrorSink>;
 
@@ -69,8 +109,12 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 	const consent = options.consent ?? consentStore;
 	const reporter = options.reporter ?? errorReporter;
 	const afterPaint = options.afterPaint ?? afterFirstPaint;
+	const createTransport =
+		options.createAnalyticsTransport ?? createFirebaseAnalyticsTransport;
+	const setVendorCollection =
+		options.setVendorAnalyticsCollection ??
+		setFirebaseAnalyticsCollectionEnabled;
 
-	analytics.setSurface(options.surface);
 	analytics.refreshInternalTraffic();
 
 	const uninstallHandlers = installGlobalErrorHandlers({
@@ -78,59 +122,117 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 		target: options.target,
 	});
 
-	// The transport is swapped in immediately; it buffers internally until the
-	// vendor SDK resolves, so `app_opened` is not lost to lazy loading.
-	if (consent.analyticsAllowed) {
-		const createTransport =
-			options.createAnalyticsTransport ?? createFirebaseAnalyticsTransport;
-		try {
-			analytics.setTransport(createTransport());
-		} catch {
-			// Leaves the no-op transport in place. Analytics fails open.
-		}
-	}
-
+	/** Whether a monitored (non-landing) surface has been reached this load. */
+	let monitoredSurfaceReached = false;
+	let appOpenedLogged = false;
+	/** The running sink's stopper, or `null` when nothing is attached. */
 	let stopSink: StopErrorSink | null = null;
+	/** A start is scheduled or in flight, so `stopSink` is not yet meaningful. */
+	let sinkStarting = false;
+	let disposed = false;
 
-	// The surface is fixed for this app load, but consent is not: the deferred
-	// start below lands two animation frames plus an idle callback later, and
-	// `TelemetryDisclosure` is reachable from first paint. So consent is checked
-	// *inside* the deferred task and again once the sink has resolved, rather
-	// than once here. Missing either re-check lets `sentry.init()` run — and
-	// with it a Release Health session envelope — for a user who has already
-	// declined; the consent subscription below cannot catch that, because
-	// `stopSink` is still null throughout the window.
-	if (options.surface !== "landing") {
+	/**
+	 * Attaches the sink, re-checking consent and disposal once it has resolved.
+	 *
+	 * The start lands two animation frames plus an idle callback after it was
+	 * scheduled, and `TelemetryDisclosure` is reachable throughout. Neither the
+	 * consent subscription nor `dispose` can see a sink during that window —
+	 * `stopSink` is still null — so this is the only place that can stop one
+	 * that arrives too late. Without it, `sentry.init()` and its Release Health
+	 * session envelope stay attached for a user who has already declined or for
+	 * a page that has already torn telemetry down.
+	 */
+	const attachSink = async (): Promise<void> => {
+		try {
+			const stop = await startMonitoring(reporter, options.startErrorSink);
+			if (disposed || !consent.errorMonitoringAllowed) {
+				void stop();
+				return;
+			}
+			stopSink = stop;
+		} finally {
+			sinkStarting = false;
+		}
+	};
+
+	const startMonitoringIfAllowed = (): void => {
+		if (disposed || !monitoredSurfaceReached) return;
+		if (stopSink !== null || sinkStarting) return;
+		if (!consent.errorMonitoringAllowed) return;
+		sinkStarting = true;
 		afterPaint(() => {
-			if (!consent.errorMonitoringAllowed) return;
-			void startMonitoring(reporter, options.startErrorSink).then((stop) => {
-				if (!consent.errorMonitoringAllowed) {
-					void stop();
-					return;
-				}
-				stopSink = stop;
-			});
+			if (disposed || !consent.errorMonitoringAllowed) {
+				sinkStarting = false;
+				return;
+			}
+			void attachSink();
 		});
-	}
+	};
 
+	const setSurface = (surface: Surface): void => {
+		// After `dispose` the wiring is gone; a late navigation must not resurrect
+		// `app_opened` or a monitoring start the disposer has no handle on.
+		if (disposed) return;
+		analytics.setSurface(surface);
+		// ADR 0001: the marketing landing page loads no monitoring SDK, and
+		// `app_opened` is not its event — `landing_cta_click` is.
+		if (surface === "landing") return;
+		monitoredSurfaceReached = true;
+		if (!appOpenedLogged) {
+			// PRD `OPS-02`: `app_opened` fires when "the editor or dashboard shell
+			// becomes interactive". That is reaching a non-landing surface, whether
+			// the session deep-linked into it or was client-navigated there. Once
+			// per app load rather than per navigation: GA4 automatic collection
+			// already counts sessions and page views.
+			appOpenedLogged = true;
+			analytics.log("app_opened");
+		}
+		startMonitoringIfAllowed();
+	};
+
+	// Delivered synchronously on subscribe, which is what wires the initial
+	// state, and again on every change. Symmetric in both directions: a grant
+	// rebuilds exactly what a withdrawal tore down.
 	const unsubscribeConsent = consent.subscribe((state) => {
-		if (!state.errorMonitoring && stopSink) {
+		if (state.errorMonitoring) {
+			startMonitoringIfAllowed();
+		} else if (stopSink) {
 			const stop = stopSink;
 			stopSink = null;
 			void stop();
 		}
-		if (!state.productAnalytics) {
+
+		if (state.productAnalytics) {
+			setVendorCollection(true);
+			// The transport is swapped in synchronously; it buffers internally until
+			// the vendor SDK resolves, so `app_opened` is not lost to lazy loading.
+			try {
+				analytics.setTransport(createTransport());
+			} catch {
+				// Leaves the previous transport in place. Analytics fails open.
+			}
+		} else {
 			// The boundary already refuses to send while consent is withdrawn;
-			// dropping the transport as well means nothing is buffered either.
-			analytics.setTransport({ logEvent() {}, setUserProperties() {} });
+			// dropping the transport as well means nothing is buffered either, and
+			// disabling the SDK stops the automatic collection no transport controls.
+			analytics.setTransport(noopTransport);
+			setVendorCollection(false);
 		}
 	});
 
+	// Last, so the transport above is already attached when `app_opened` fires.
+	setSurface(options.surface);
+
 	return {
+		setSurface,
+		startMonitoringIfAllowed,
 		dispose: async () => {
+			disposed = true;
 			unsubscribeConsent();
 			uninstallHandlers();
-			if (stopSink) await stopSink();
+			const stop = stopSink;
+			stopSink = null;
+			if (stop) await stop();
 		},
 	};
 }
