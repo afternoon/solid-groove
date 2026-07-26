@@ -14,10 +14,15 @@ on:
   pull_request:
 
 # Cancel superseded runs on the same ref so pushes to an open PR don't queue
-# up stale checks.
+# up stale checks. `main` is excluded: the `deploy` job below must never be
+# cancelled mid-flight (see that job's own `concurrency` block), and a
+# workflow-level cancellation would kill `firebase deploy` between its
+# rules/indexes release and its Hosting release, leaving production with
+# mismatched rules and Hosting code and no failure signal (the run reports
+# "cancelled", not "failed").
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Fast, no-external-service gate: typecheck, lint/format check, and the
@@ -161,6 +166,14 @@ jobs:
     needs: [checks, browser, emulator, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FIREBASE_PROJECT_ID != ''
     runs-on: ubuntu-latest
+    # A second deploy landing while one is mid-flight must queue behind it,
+    # never run concurrently or cancel it: `firebase deploy --only
+    # hosting,firestore,storage` is not atomic across tiers, and two
+    # overlapping deploys could interleave a Hosting release from one commit
+    # with Firestore rules from another.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
