@@ -16,8 +16,9 @@ This document is the map of "which suite do I run, and how." It does not restate
 | Unit + component | `bun run test` | Vitest (`vitest.config.ts`) | jsdom | None — Firebase and audio are mocked/faked |
 | Firebase Emulator | `bun run test:emulator` | Vitest (`vitest.emulator.config.ts`), wrapped by `firebase emulators:exec` | Node | Local Firestore emulator only, started and torn down automatically |
 | Browser E2E | `bun run test:browser` | Playwright (`playwright.config.ts`) | Real browsers (Chromium, Firefox, WebKit) | A local dev server (`bun run dev`) against the in-memory mock backend |
+| Post-deploy smoke test | `bun run smoke:hosted` | Playwright (`playwright.smoke.config.ts`) | Real browser (Chromium) | The real deployed Hosting URL (`SMOKE_URL`), real Firebase Auth/Firestore — see "Deploy" below |
 
-Each suite is isolated on purpose: `bun run test` never needs a browser or an emulator running, so it stays fast enough to run on every save. `test:emulator` and `test:browser` are heavier and are meant for CI and pre-push checks.
+Each suite is isolated on purpose: `bun run test` never needs a browser or an emulator running, so it stays fast enough to run on every save. `test:emulator` and `test:browser` are heavier and are meant for CI and pre-push checks. `smoke:hosted` is the odd one out — it is the only suite that touches the production project, and it only ever runs post-deploy (see "Deploy").
 
 ## Unit and component tests
 
@@ -93,6 +94,80 @@ bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gat
 1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this.
 2. **`browser`** — the Playwright suite, matrixed over `chromium`, `firefox`, `webkit`. Chromium/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
 3. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator.
+4. **`build`** — `bun run build` then `bun run verify:bundle` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
+5. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops.
+
+None of `checks`, `browser`, or `emulator` touch the production Firebase project: `browser` drives the in-memory mock backend (`VITE_MOCK_BACKEND=true`, see "Browser E2E suite" above) and `emulator` drives a local, disposable Firestore instance. That separation is structural, not a convention to remember — neither job is ever given the production project's credentials, so there is nothing for them to write to even by mistake (PRD `OPS-01`: "Local development and every automated suite continue to run against the Firebase Emulator suite ... the test suites must not write to it").
+
+## Deploy
+
+| Field | Value |
+| --- | --- |
+| Status | Implemented (`FND-001b`) |
+| Scope | Firebase Hosting deploy pipeline, `firebase.json` hosting config, the release-SHA stamp, and the hosted post-deploy smoke test |
+
+Related: [PRD `OPS-01`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 9.1](./prd.md#91-committed-alpha-stack), [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements), [backlog `FND-001b`](./backlog.md#fnd-001b---firebase-deployment-and-hosted-alpha-environment)
+
+### The single hosted environment
+
+The alpha has exactly one hosted environment: the **production** Firebase project. This is a deliberate PRD decision (section 16), not a gap — there is no separate staging/preview project, so every merge to `main` that reaches the `deploy` job ships straight to the environment the invited cohort uses. That is also why the deploy pipeline runs entirely from CI credentials rather than ever being something a developer machine can trigger (PRD OPS-01: "Deployment does not depend on a developer's local machine state").
+
+### One documented command
+
+```sh
+bun run deploy
+```
+
+`predeploy` (`bun run build && bun run verify:bundle`) runs first automatically — the same pattern `predev`/`prebuild` already use for sample generation — so `bun run deploy` alone is the whole pipeline: build, scan the output for secrets, then `firebase deploy --only hosting,firestore,storage --project "$FIREBASE_PROJECT_ID"`. Firestore rules/indexes and Storage rules deploy in that same command as the application; if either fails, the whole command exits non-zero and nothing ships out of step with what shipped before it.
+
+This needs `FIREBASE_PROJECT_ID` and Google Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS` pointing at a service-account key, exactly like `library:upload`) in the environment. `.env.example` documents both, and neither belongs in a real developer's `.env` — they exist only as CI secrets/variables (see below). A local run of `bun run deploy` is possible in principle (e.g. a break-glass rollback), but is not the normal path and is never exercised by a developer in the ordinary course of work.
+
+### CI: the `build` and `deploy` jobs
+
+`.github/workflows/ci.yml`'s `build` job runs `bun run build` and `bun run verify:bundle` unconditionally, on every push and PR, with no credentials at all — proving the production build succeeds and ships no secret on every change, long before a real deploy is possible.
+
+The `deploy` job runs only when `github.ref == 'refs/heads/main'` on a `push` event **and** the `FIREBASE_PROJECT_ID` repository variable is set. That gate is deliberate: this task ("FND-001b") provisions no Firebase project, CI service account, or any other credential — it builds the pipeline and leaves it inert until a real project exists. Until then, `deploy` reports as skipped and every other job keeps gating merges normally.
+
+Once the project and its secrets exist, `deploy`:
+
+1. Writes the `FIREBASE_DEPLOY_SERVICE_ACCOUNT` secret to a runner-local temp file and points `GOOGLE_APPLICATION_CREDENTIALS` at it (never committed, never logged).
+2. Runs `bun run deploy` with `VITE_RELEASE_SHA` pinned to `github.sha` — the exact commit being deployed. `predeploy` builds and re-runs `verify:bundle` against that build before `firebase deploy --only hosting,firestore,storage` ships it.
+3. Installs Chromium and runs `bun run smoke:hosted` against `https://$FIREBASE_PROJECT_ID.web.app`. A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01).
+
+The job is commented at the points `FND-001c` needs: a release-registration step and a source-map upload step both slot in around the build/deploy steps without restructuring the job.
+
+Required GitHub Actions configuration (`afternoon/solid-groove` → Settings → Secrets and variables → Actions), named but never set by this task:
+
+| Name | Kind | Purpose |
+| --- | --- | --- |
+| `FIREBASE_PROJECT_ID` | Repository **variable** | The production project ID. Not sensitive — used in the `deploy` job's `if:` condition, which only `vars` (not `secrets`) can safely appear in. |
+| `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Repository **secret** | Inline service-account JSON with Hosting, Firestore rules/indexes, and Storage rules deploy permissions. Distinct from any credential `library:upload`/CNT-000 uses, so the deploy pipeline's IAM scope doesn't have to match a different task's. |
+
+### Release SHA
+
+`app.config.ts` stamps the deployed git commit SHA into `import.meta.env.VITE_RELEASE_SHA` at build time (`src/release.ts` reads it, `src/components/ReleaseBadge.tsx` renders it). Resolution order: an explicit `VITE_RELEASE_SHA` (what the `deploy` job sets), then `GITHUB_SHA` (set automatically in every Actions run, including the unconditional `build` job), then `git rev-parse HEAD` for a local build, then the `"unknown"` sentinel if even `git` fails — stamping must never be able to block a build. `FND-001c` reads `RELEASE_SHA` to attach the release to every analytics and error event.
+
+### No secret reaches the client bundle
+
+`scripts/verify-no-secrets-in-bundle.mjs` scans a built Hosting output directory for the *shape* of server-only credentials — PEM private keys, embedded service-account JSON, AWS/GitHub token patterns, and raw `NAME=value` assignments of the server-only secret names this project uses. It deliberately does not flag Firebase's own client config values (API key, app ID, and — once `FND-001c` lands — the Sentry DSN): those are public-by-design, protected by security rules and project scoping rather than secrecy, and are meant to ship to the browser. `scripts/verify-no-secrets-in-bundle.test.mjs` proves both halves: real secret shapes are caught, and a realistic Firebase client config is not a false positive.
+
+### Marking internal/team traffic
+
+Visiting the hosted alpha with `?internal=1` (e.g. `https://<project-id>.web.app/?internal=1`) persists a flag in that browser's `localStorage` (`src/shared/internalTraffic.ts`), so team members can mark their own sessions once rather than on every visit; `?internal=0` clears it. `FND-001c` reads `isInternalTraffic()` to set the GA4 `internal` user property so team traffic can be excluded from the PRD section 11 measures — this task only owns detection and persistence of the flag, not the analytics wiring.
+
+### Post-deploy smoke test
+
+`e2e-hosted/smoke.spec.ts` (config: `playwright.smoke.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded starter project yet; that is Phase 1 work) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
+
+### Rollback
+
+Rollback is a practiced, documented operation, not an improvisation (PRD OPS-01) — but it needs the same real production project as the rest of this section, and this task does not have one to practice against. The procedure:
+
+1. **Hosting**: `firebase-tools` 15 has no `hosting:versions:list` command (`firebase hosting --help` lists only `hosting:clone`, `hosting:disable`, `hosting:channel`, and `hosting:sites`) — find `<PREVIOUS_VERSION_ID>` in the Firebase console's Hosting release history instead (Hosting → your site → Release history), which also offers a one-click Rollback button as an alternative to the CLI step below. With the version ID in hand, `firebase hosting:clone <site-id>@<PREVIOUS_VERSION_ID> <site-id>:live --project "$FIREBASE_PROJECT_ID"` republishes it as the live release immediately, without rebuilding. The separator differs on purpose and the command is silent about getting it wrong: `hosting:clone` splits the source on `:` first and only falls back to `@` if that yields fewer than two parts, so a `<site-id>:<PREVIOUS_VERSION_ID>` source is read as a *channel* named after the version and fails with `Could not find the channel <PREVIOUS_VERSION_ID> for site <site-id>`. The target keeps `:live`, which really is a channel. For the default site, `<site-id>` is the project ID.
+2. **Firestore rules**: every past `firestore.rules` revision is already in git history against the commit SHA its `deploy` job run stamped. `firebase.json`'s `firestore.rules` path always points at the working tree's `./firestore.rules`, so the rollback must overwrite that file, not a copy elsewhere: `git checkout <previous-commit> -- firestore.rules && firebase deploy --only firestore:rules --project "$FIREBASE_PROJECT_ID"`. Immediately commit that reverted `firestore.rules` (or restore it with `git checkout HEAD -- firestore.rules` once the incident is resolved) so the working tree and the deployed rules do not silently diverge.
+3. Confirm with the smoke test (`bun run smoke:hosted`) before considering the rollback complete.
+
+Because Hosting release history and Firestore rules revisions are both associated with the commit SHA `ReleaseBadge` and the analytics/error catalog carry, an incident report can name exactly which release is live before and after the rollback.
 
 ## Test helpers
 

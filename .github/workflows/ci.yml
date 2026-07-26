@@ -14,10 +14,15 @@ on:
   pull_request:
 
 # Cancel superseded runs on the same ref so pushes to an open PR don't queue
-# up stale checks.
+# up stale checks. `main` is excluded: the `deploy` job below must never be
+# cancelled mid-flight (see that job's own `concurrency` block), and a
+# workflow-level cancellation would kill `firebase deploy` between its
+# rules/indexes release and its Hosting release, leaving production with
+# mismatched rules and Hosting code and no failure signal (the run reports
+# "cancelled", not "failed").
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Fast, no-external-service gate: typecheck, lint/format check, and the
@@ -117,3 +122,106 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run Firebase Emulator suite
         run: bun run test:emulator
+
+  # FND-001b (PRD OPS-01): proves the production build itself, and the "no
+  # secret reaches the client bundle" check, on every push and PR -- not only
+  # when a deploy actually happens. This needs no Firebase project or
+  # credentials: `bun run build` and the scanner both run entirely offline, so
+  # this job runs unconditionally and gates merges like every other job here.
+  # The `deploy` job below runs the same two steps (via `bun run deploy`'s
+  # `predeploy` hook) against the real release SHA before shipping anything.
+  build:
+    name: production build + no-secrets-in-bundle check
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Build
+        run: bun run build
+      - name: Verify no secret reaches the client bundle
+        run: bun run verify:bundle
+
+  # FND-001b (PRD OPS-01): deploys to the alpha's one hosted environment --
+  # the production Firebase project -- from CI on every merge to `main`, never
+  # from a developer machine. Rules and indexes deploy from this same pipeline
+  # in the same command, so a failing rules/index step fails the deploy
+  # instead of shipping application code its deployed rules don't match.
+  #
+  # Gated on `vars.FIREBASE_PROJECT_ID` (a GitHub Actions repository
+  # *variable*, not a secret -- a Firebase project ID is not sensitive, and
+  # `vars` is safe to read from an `if:` condition, unlike `secrets`) so this
+  # job silently no-ops until the production project and its CI credentials
+  # actually exist, rather than failing every merge to `main` in the
+  # meantime. Provisioning the project and setting these is tracked outside
+  # this repository (this task "provisions no accounts and holds no
+  # secrets" -- see docs/testing.md "Deploy" for the full secret/variable
+  # list and how to add them).
+  deploy:
+    name: deploy to Firebase Hosting
+    needs: [checks, browser, emulator, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FIREBASE_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    # A second deploy landing while one is mid-flight must queue behind it,
+    # never run concurrently or cancel it: `firebase deploy --only
+    # hosting,firestore,storage` is not atomic across tiers, and two
+    # overlapping deploys could interleave a Hosting release from one commit
+    # with Firestore rules from another.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # A service account JSON is CI-only credential material; it exists only
+      # for the lifetime of this job's runner and is never checked in (see
+      # .gitignore's "secrets" section and .env.example). firebase-tools reads
+      # Application Default Credentials from GOOGLE_APPLICATION_CREDENTIALS,
+      # which is how it authenticates non-interactively in CI.
+      - name: Write the deploy service account credential
+        run: printf '%s' "$FIREBASE_DEPLOY_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-deploy-service-account.json"
+        env:
+          FIREBASE_DEPLOY_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_DEPLOY_SERVICE_ACCOUNT }}
+
+      # `bun run deploy` is the one documented command (see README/docs/testing.md):
+      # its `predeploy` hook builds and re-verifies the bundle, then this
+      # deploys Hosting, Firestore rules/indexes, and Storage rules together,
+      # so a failing rules/index step fails the deploy instead of shipping
+      # application code its deployed rules don't match. `VITE_RELEASE_SHA`
+      # stamps this exact commit into the client build (PRD OPS-01), which is
+      # available to every analytics and error event once FND-001c lands --
+      # its release registration and source-map upload belong as their own
+      # step(s) here, right around this one, without reshaping the job.
+      - name: Build, verify, and deploy
+        run: bun run deploy
+        env:
+          VITE_RELEASE_SHA: ${{ github.sha }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-deploy-service-account.json
+
+      - name: Install Playwright browser (chromium) for the post-deploy smoke test
+        run: bunx playwright install --with-deps chromium
+      # PRD OPS-01: "a deployed build is smoke-tested against the hosted
+      # environment ... and a failed smoke test is treated as a failed
+      # deploy." This step runs after `firebase deploy` succeeds and before
+      # the job is considered successful, so a failure here fails the
+      # workflow -- there is no separate "mark the deploy failed" step needed.
+      - name: Post-deploy smoke test against the hosted URL
+        run: bun run smoke:hosted
+        env:
+          SMOKE_URL: https://${{ vars.FIREBASE_PROJECT_ID }}.web.app
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: hosted-smoke-test-report
+          path: playwright-report/
+          retention-days: 7
