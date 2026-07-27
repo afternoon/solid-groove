@@ -32,6 +32,12 @@ const authEmulatorHost =
 // third full cross-browser matrix.
 export default defineConfig({
 	testDir: "./e2e-emulator",
+	// Loads the app once in a real browser before any test, so Vite's cold-start
+	// dependency optimization does its force-reload here rather than mid-test.
+	// See the comment in that file — without it, the first test on a cold dev
+	// server loses whatever interaction the reload interrupts, which reads as a
+	// broken create-project flow. Runs after `webServer` is up.
+	globalSetup: "./e2e-emulator/warmDevServer.ts",
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,

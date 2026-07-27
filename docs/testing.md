@@ -81,6 +81,19 @@ Config: `playwright.emulator.config.ts`. Unlike the suite above, this points the
 
 Suite location: `e2e-emulator/`. `e2e-emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `playwright.emulator.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
 
+### Why this suite warms the dev server first
+
+Vite does not pre-bundle a dependency until something imports it, and each discovery force-reloads the open page (`[vite] ✨ optimized dependencies changed. reloading`). A reload landing mid-test discards whatever interaction was in flight. Measured on a cold server, this suite took **four** such rounds to settle — analytics, then the Firebase SDK and Sentry, then the small utilities, then `tone` when the first project editor mounted — and the reload ate `slice.spec.ts`'s `New Project` click, so the URL never left `/dashboard` and the test failed on `toHaveURL(/\/projects\/prj_/)`. That reads exactly like a broken create-project flow and is not one: the same suite passed in 17s against an already-warm server.
+
+CI is always the cold case — a fresh checkout has no `node_modules/.vinxi`. `retries: 2` would usually have hidden this (the dev server survives between retries, so retry #1 sees a warm cache), which is worse than failing: the suite goes green and the real cause stays invisible.
+
+Two mechanisms, deliberately belt-and-braces:
+
+- **`app.config.ts`'s `optimizeDeps.include`** pre-bundles those dependencies at dev-server start, collapsing all four rounds into one startup cost. This also removes the stutter from plain `bun run dev`. It is an optimization, not a contract — a dependency added later and left off the list still works, it just reintroduces one reload for itself. `tone` is the easy one to miss, because nothing on the dashboard imports it, so it is only discovered when a project page first mounts.
+- **`e2e-emulator/warmDevServer.ts`** (Playwright `globalSetup`, runs after `webServer` is up) walks dashboard → new project → editor once in a real browser, so any remaining optimize-and-reload happens before the first test. It must reach the *editor*, not just the dashboard, for the `tone` reason above. It never fails the run, and it logs precisely whether it confirmed a warm editor rather than claiming success it did not achieve.
+
+Note for anyone extending this suite: do not wait on `networkidle`. The app holds an open Firestore listener, so the network never goes idle and the wait can only time out. Wait for real elements — those locators re-resolve across a reload, which is the behaviour you want.
+
 Three projects run: `chromium`, `firefox`, `webkit`. Per the PRD section 10 supported-environment policy, Chromium and Firefox are P0-gating; WebKit runs alongside them as a signal only (`.github/workflows/ci.yml` marks the WebKit job `continue-on-error`) — WebKit passing is evidence, not proof, about real Safari.
 
 `bun run test:browser:install` (`playwright install --with-deps chromium firefox webkit`) downloads browser binaries from Playwright's CDN. That download needs outbound access to `cdn.playwright.dev`; a locked-down sandbox that blocks that host cannot run this suite even though the config and tests are otherwise valid (verify with `bunx playwright test --list`, which does not need the binaries).

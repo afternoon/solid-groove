@@ -130,7 +130,13 @@ jobs:
       - name: Install Playwright browser (${{ matrix.browser }})
         run: bunx playwright install --with-deps ${{ matrix.browser }}
       - name: Run browser suite against the Firebase Emulator
-        run: firebase emulators:exec --only firestore,auth --project demo-solid-groove "bunx playwright test --config=playwright.emulator.config.ts --project=${{ matrix.browser }}"
+        # `firebase` is a devDependency, and a GitHub Actions `run:` step does not
+        # put node_modules/.bin on PATH, so a bare `firebase` here exits 127
+        # ("command not found") before the emulator ever starts — which silently
+        # skipped this whole job, and with it the only automated proof of the
+        # FND-009 slice. Prefix it like every other node_modules binary in this
+        # workflow (`bunx playwright`, `bun run test:emulator`).
+        run: bunx firebase emulators:exec --only firestore,auth --project demo-solid-groove "bunx playwright test --config=playwright.emulator.config.ts --project=${{ matrix.browser }}"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
