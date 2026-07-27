@@ -6,14 +6,14 @@ import { installWebAudioGlobals } from "./testAudioContext";
 installWebAudioGlobals();
 
 // Imported lazily, after the globals are installed, to keep import order
-// correct — see ToneInstrument.test.ts for the same pattern.
+// correct — see InstrumentGraph.test.ts for the same pattern.
 //
 // These tests exercise `ensureContext()`/`close()` against a *real* Tone
 // context (construction and closing are reliable in this environment), but
 // deliberately never call `resume()`/`Tone.start()` on a live context — in
 // this sandbox that hangs waiting on an audio callback that never fires,
 // which is exactly why the rest of the codebase's Tone tests
-// (ToneInstrument.test.ts) render exclusively through `Tone.Offline()`
+// (InstrumentGraph.test.ts) render exclusively through `Tone.Offline()`
 // rather than a live context. `resume()`'s own call sequence is covered
 // separately in AudioRuntime.resume.test.ts against a mocked Tone module.
 let AudioRuntimeModule: typeof import("./AudioRuntime");

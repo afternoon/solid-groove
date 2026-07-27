@@ -57,6 +57,8 @@
 		"test:emulator": "firebase emulators:exec --only firestore --project demo-solid-groove \"vitest run --config vitest.emulator.config.ts\"",
 		"pretest:browser": "node scripts/generate-samples.mjs",
 		"test:browser": "playwright test",
+		"pretest:browser:emulator": "node scripts/generate-samples.mjs",
+		"test:browser:emulator": "firebase emulators:exec --only firestore,auth --project demo-solid-groove \"playwright test --config=playwright.emulator.config.ts\"",
 		"test:browser:install": "playwright install --with-deps chromium firefox webkit",
 		"prebench:arrangement": "node scripts/generate-samples.mjs",
 		"bench:arrangement": "playwright test --config=playwright.bench.config.ts",

@@ -91,6 +91,46 @@ export default defineConfig({
 		define: {
 			"import.meta.env.VITE_RELEASE_SHA": JSON.stringify(releaseSha),
 		},
+		// Pre-bundle the heavy runtime dependencies at dev-server start instead of
+		// discovering them one page load at a time.
+		//
+		// Vite does not optimize a dependency until something imports it, and each
+		// discovery force-reloads the open page:
+		//
+		//     [vite] ✨ new dependencies optimized: firebase/app, firebase/auth, ...
+		//     [vite] ✨ optimized dependencies changed. reloading
+		//
+		// A cold server took four such rounds to settle — analytics, then the
+		// Firebase SDK and Sentry, then the small utilities, then `tone` when the
+		// first project editor mounted. In local dev that is a visible stutter; in
+		// the emulator-backed E2E suite it was a real failure, because a reload
+		// landing mid-test discards whatever interaction was in flight (it ate
+		// `slice.spec.ts`'s "New Project" click, which then read as a broken
+		// create-project flow). Declaring them here collapses all four rounds into
+		// one startup cost.
+		//
+		// `tone` is the one that is easy to miss: nothing on the dashboard imports
+		// it, so it is only discovered when a project page first mounts — i.e.
+		// always mid-session.
+		//
+		// This is an optimization, not a contract: a dependency added later and
+		// left out of this list still works, it just reintroduces one reload for
+		// that dependency. `e2e-emulator/warmDevServer.setup.ts` stays as the
+		// backstop for whatever is left off, and is the load-bearing list's
+		// safety net rather than its equal.
+		optimizeDeps: {
+			include: [
+				"firebase/app",
+				"firebase/analytics",
+				"firebase/auth",
+				"firebase/firestore",
+				"@sentry/solidstart",
+				"tone",
+				"nanoid",
+				"zod",
+				"since-time-ago",
+			],
+		},
 		build: {
 			// "hidden": maps are emitted but not referenced from the bundle. See
 			// `sentryBuildPlugins` above for why they are still usable in Sentry.

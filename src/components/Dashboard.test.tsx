@@ -7,8 +7,8 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-// Dashboard reaches out to useAuth() and the dataService singleton. Both are
-// mocked here so we can drive the error/retry/create-failure UI directly
+// Dashboard reaches out to useAuth() and the project repository client. Both
+// are mocked here so we can drive the error/retry/create-failure UI directly
 // without a real Firebase/auth setup.
 vi.mock("../auth/AuthProvider", () => ({
 	useAuth: () => ({
@@ -25,17 +25,17 @@ vi.mock("@solidjs/router", () => ({
 	),
 }));
 
-const { subscribeToUserProjects, createProject } = vi.hoisted(() => ({
-	subscribeToUserProjects: vi.fn(),
+const { listProjects, createProject } = vi.hoisted(() => ({
+	listProjects: vi.fn(),
 	createProject: vi.fn(),
 }));
 
-vi.mock("../model/dataService", () => ({
-	dataService: {
-		subscribeToUserProjects: (...args: unknown[]) =>
-			subscribeToUserProjects(...args),
-		createProject: (...args: unknown[]) => createProject(...args),
-	},
+vi.mock("../projectRepositoryClient", () => ({
+	getProjectRepository: () =>
+		Promise.resolve({
+			listProjects: (...args: unknown[]) => listProjects(...args),
+			createProject: (...args: unknown[]) => createProject(...args),
+		}),
 }));
 
 function renderDashboard() {
@@ -43,17 +43,8 @@ function renderDashboard() {
 }
 
 describe("Dashboard", () => {
-	it("shows a retry affordance when the project subscription errors", async () => {
-		subscribeToUserProjects.mockImplementation(
-			(
-				_userId: string,
-				_onProjects: (projects: unknown[]) => void,
-				onError?: (error: unknown) => void,
-			) => {
-				onError?.(new Error("boom"));
-				return () => {};
-			},
-		);
+	it("shows a retry affordance when the project listing errors", async () => {
+		listProjects.mockRejectedValue(new Error("boom"));
 
 		renderDashboard();
 
@@ -67,23 +58,14 @@ describe("Dashboard", () => {
 		).toBeInTheDocument();
 	});
 
-	it("retries the subscription when 'Try again' is clicked", async () => {
+	it("retries the listing when 'Try again' is clicked", async () => {
 		let calls = 0;
-		subscribeToUserProjects.mockImplementation(
-			(
-				_userId: string,
-				onProjects: (projects: unknown[]) => void,
-				onError?: (error: unknown) => void,
-			) => {
-				calls += 1;
-				if (calls === 1) {
-					onError?.(new Error("boom"));
-				} else {
-					onProjects([]);
-				}
-				return () => {};
-			},
-		);
+		listProjects.mockImplementation(() => {
+			calls += 1;
+			return calls === 1
+				? Promise.reject(new Error("boom"))
+				: Promise.resolve([]);
+		});
 
 		renderDashboard();
 
@@ -96,28 +78,36 @@ describe("Dashboard", () => {
 		expect(calls).toBe(2);
 	});
 
-	it("still renders a working subscription without an error callback", async () => {
-		// Simulates dataService before the third onError argument existed.
-		subscribeToUserProjects.mockImplementation(
-			(_userId: string, onProjects: (projects: unknown[]) => void) => {
-				onProjects([]);
-				return () => {};
+	it("renders the listed projects", async () => {
+		listProjects.mockResolvedValue([
+			{
+				id: "prj_abc",
+				name: "My Groove",
+				schemaVersion: 1,
+				revision: 0,
+				ownerId: "user-1",
+				collaboratorIds: [],
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				template: null,
+				genre: null,
+				packDependencies: [],
 			},
-		);
+		]);
 
 		renderDashboard();
 
-		expect(await screen.findByText("No projects yet")).toBeInTheDocument();
+		expect(await screen.findByText("My Groove")).toBeInTheDocument();
 	});
 
 	it("surfaces a message near New Project when project creation fails", async () => {
-		subscribeToUserProjects.mockImplementation(
-			(_userId: string, onProjects: (projects: unknown[]) => void) => {
-				onProjects([]);
-				return () => {};
-			},
-		);
-		createProject.mockRejectedValue(new Error("nope"));
+		listProjects.mockResolvedValue([]);
+		createProject.mockResolvedValue({
+			ok: false,
+			reason: "unavailable",
+			message: "nope",
+			retryable: true,
+		});
 
 		renderDashboard();
 

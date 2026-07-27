@@ -103,6 +103,89 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # FND-009's browser E2E suite against a real (local, emulated) backend:
+  # proves the foundation vertical slice's "save it, reload it, reproduce
+  # playback" step, which the in-memory-backed `browser` job above cannot —
+  # that repository is a fresh, empty store on every page load. Only the two
+  # PRD section 10 P0-gating browsers run here (see playwright.emulator.config.ts).
+  browser-emulator:
+    name: browser e2e against the emulator (${{ matrix.browser }})
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser (${{ matrix.browser }})
+        run: bunx playwright install --with-deps ${{ matrix.browser }}
+      - name: Configure a null ALSA output device
+        # This suite is the only one that actually starts playback, and Firefox
+        # is the only gating browser that needs a real audio device to do it.
+        # `ubuntu-latest` has no /dev/snd: headless Chromium falls back to its
+        # own dummy audio backend and starts fine, but Firefox's cubeb finds no
+        # ALSA device, so `AudioContext.resume()` rejects. `useProjectAudio`'s
+        # `play()` then correctly logs `audio_start_failed` and leaves
+        # `isPlaying` false — so the transport button never becomes "Stop
+        # playback" and `slice.spec.ts` fails at that assertion. The product
+        # behaviour is right; the runner simply has no sound card.
+        #
+        # Same fix, and the same reasoning, as the `checks` job above (which
+        # needs it for node-web-audio-api): install the ALSA runtime library and
+        # point the default PCM at ALSA's built-in `null` device, which discards
+        # every sample and touches no hardware. No kernel module needed.
+        #
+        # Not added to the `browser` job: that suite runs against the mock
+        # backend and never starts the transport, so it passes without one.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64
+          cat > ~/.asoundrc <<'EOF'
+          pcm.!default {
+              type null
+          }
+          ctl.!default {
+              type null
+          }
+          EOF
+      - name: Report the runner's audio state
+        # Diagnostic, not a gate. The null ALSA device above was not by itself
+        # enough to make Firefox's AudioContext start, and Firefox cannot be
+        # installed in the dev sandbox to reproduce it, so this prints what the
+        # runner actually offers. Remove once the firefox job is reliably green.
+        if: ${{ matrix.browser == 'firefox' }}
+        continue-on-error: true
+        run: |
+          echo "--- /dev/snd ---";      ls -la /dev/snd 2>&1 || true
+          echo "--- aplay -l ---";      aplay -l 2>&1 || true
+          echo "--- ~/.asoundrc ---";   cat ~/.asoundrc 2>&1 || true
+          echo "--- pulseaudio ---";    which pulseaudio 2>&1 || true; pactl info 2>&1 || true
+          echo "--- libasound ---";     ldconfig -p 2>/dev/null | grep -i asound || true
+      - name: Run browser suite against the Firebase Emulator
+        # `firebase` is a devDependency, and a GitHub Actions `run:` step does not
+        # put node_modules/.bin on PATH, so a bare `firebase` here exits 127
+        # ("command not found") before the emulator ever starts — which silently
+        # skipped this whole job, and with it the only automated proof of the
+        # FND-009 slice. Prefix it like every other node_modules binary in this
+        # workflow (`bunx playwright`, `bun run test:emulator`).
+        run: bunx firebase emulators:exec --only firestore,auth --project demo-solid-groove "bunx playwright test --config=playwright.emulator.config.ts --project=${{ matrix.browser }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-emulator-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7
+
   # Firebase Emulator suite: contract tests for firestore.rules against a
   # real local Firestore instance (PRD 9.9).
   emulator:
@@ -170,7 +253,7 @@ jobs:
   # list and how to add them).
   deploy:
     name: deploy to Firebase Hosting
-    needs: [checks, browser, emulator, build]
+    needs: [checks, browser, browser-emulator, emulator, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FIREBASE_PROJECT_ID != ''
     runs-on: ubuntu-latest
     # A second deploy landing while one is mid-flight must queue behind it,

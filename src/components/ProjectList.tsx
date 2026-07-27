@@ -1,10 +1,10 @@
 import { A } from "@solidjs/router";
 import since from "since-time-ago";
 import { For, type JSX, Show } from "solid-js";
-import type { Project } from "../model/types";
+import type { ProjectMetadata } from "../domain/entities";
 
 type ProjectListProps = {
-	projects: Project[];
+	projects: ProjectMetadata[];
 };
 
 export default function ProjectList(props: ProjectListProps): JSX.Element {
@@ -25,24 +25,10 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 					{(project) => (
 						<div class="project-card">
 							<p class="project-title">
-								<A href={`/projects/${project.id}`}>
-									<Show when={project.name} fallback="Untitled Project">
-										{project.name}
-									</Show>
-								</A>
+								<A href={`/projects/${project.id}`}>{project.name}</A>
 							</p>
 							<p class="project-meta">
-								<Show when={project.isPublic !== undefined}>
-									<span
-										class="project-badge"
-										classList={{ "is-public": project.isPublic }}
-									>
-										{project.isPublic ? "Public" : "Private"}
-									</span>
-								</Show>
-								<Show when={project.createdAt}>
-									<span>Created {since(project.createdAt.toDate())}</span>
-								</Show>
+								<span>Created {since(new Date(project.createdAt))}</span>
 							</p>
 						</div>
 					)}

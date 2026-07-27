@@ -5,8 +5,8 @@ import {
 	setAnalyticsCollectionEnabled,
 } from "firebase/analytics";
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 
 // In mock mode the app talks to the in-memory mock services rather than real
 // Firebase, so we don't need real credentials. Fall back to harmless
@@ -36,6 +36,26 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Local Firebase Emulator wiring (`FND-009`'s emulator-backed browser E2E
+// suite; see `playwright.emulator.config.ts`). Distinct from
+// `VITE_MOCK_BACKEND`: the mock backend swaps in an in-memory fake and never
+// touches the Firebase SDK at all, while this points the *real* SDK at a
+// local emulator so a genuine page reload proves persistence rather than a
+// fake that resets on every navigation. Both env vars are dev/test-only —
+// never set in a real deployment, and connecting is a no-op unless a caller
+// opts in.
+const firestoreEmulatorHost = import.meta.env.VITE_FIRESTORE_EMULATOR_HOST;
+const authEmulatorHost = import.meta.env.VITE_AUTH_EMULATOR_HOST;
+if (firestoreEmulatorHost) {
+	const [host, port] = firestoreEmulatorHost.split(":");
+	connectFirestoreEmulator(db, host, Number(port));
+}
+if (authEmulatorHost) {
+	connectAuthEmulator(auth, `http://${authEmulatorHost}`, {
+		disableWarnings: true,
+	});
+}
 
 // Google Analytics (PRD `OPS-02`).
 //

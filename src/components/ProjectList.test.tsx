@@ -1,25 +1,28 @@
 import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, render, screen } from "@solidjs/testing-library";
-import { Timestamp } from "firebase/firestore";
 import { afterEach, describe, expect, it } from "vitest";
-import { newProject } from "../model/newProject";
-import type { Project } from "../model/types";
+import type { ProjectMetadata } from "../domain/entities";
+import {
+	createFactoryContext,
+	createProjectMetadata,
+} from "../domain/factories";
 import ProjectList from "./ProjectList";
 
 afterEach(() => cleanup());
 
-function makeProject(overrides: Partial<Project> = {}): Project {
+function makeProjectMetadata(
+	overrides: Partial<ProjectMetadata> = {},
+): ProjectMetadata {
+	const context = createFactoryContext();
 	return {
-		id: "project-1",
-		createdAt: Timestamp.now(),
-		...newProject("user-1"),
+		...createProjectMetadata(context, { ownerId: "user-1" }),
 		...overrides,
 	};
 }
 
 // ProjectList links to project routes with <A>, which needs a matched Route
 // context to resolve against — a bare MemoryRouter isn't enough.
-function renderWithRouter(projects: Project[]) {
+function renderWithRouter(projects: ProjectMetadata[]) {
 	return render(() => (
 		<MemoryRouter>
 			<Route path="/" component={() => <ProjectList projects={projects} />} />
@@ -38,7 +41,7 @@ describe("ProjectList", () => {
 	});
 
 	it("renders a card per project when projects are present", () => {
-		renderWithRouter([makeProject({ name: "My Groove" })]);
+		renderWithRouter([makeProjectMetadata({ name: "My Groove" })]);
 
 		expect(screen.getByText("My Groove")).toBeInTheDocument();
 		expect(screen.queryByText("No projects yet")).not.toBeInTheDocument();

@@ -1,5 +1,8 @@
 import { onCleanup, onMount } from "solid-js";
-import type SongPlayer from "./SongPlayer";
+
+export interface Toggleable {
+	toggle(): void;
+}
 
 /**
  * Text entry is the one place space has to keep its normal meaning, so typing
@@ -30,7 +33,7 @@ function isTextEntry(target: EventTarget | null): boolean {
  * be. Space would otherwise re-activate a focused button (replaying the last
  * transport click) or scroll the page, so the default is suppressed.
  */
-export function usePlaybackHotkey(audio: SongPlayer) {
+export function usePlaybackHotkey(audio: Toggleable) {
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code !== "Space" && event.key !== " ") return;
 		if (event.repeat) return;
