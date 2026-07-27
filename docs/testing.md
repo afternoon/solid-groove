@@ -319,7 +319,7 @@ the validator proves an asset is well-formed, not that it sounds right.
 
 `library:build` merges whatever `library:acquire` last ingested, so with nothing acquired it is the 200 synthesized assets and needs no network at all — which is why CI can gate on it unconditionally.
 
-The library is currently one flat collection. `CNT-000b` moves it onto the pack model (`docs/sample-library.md` sections 5.1 and 15.7), after which the build emits one manifest per pack plus a pack index and the validator gains the pack rules; the commands themselves do not change.
+The library ships on the pack model (`docs/sample-library.md` sections 5.1 and 15.8, `CNT-000b`): the build emits one manifest per pack plus a pack index at `library/packs/...`, and the validator carries the section 9 pack rules alongside the section 6.4 rules, which are still measured across the whole library rather than per pack. The commands above are unchanged — `library:build`, `library:validate`, and `library:upload` all operate on every pack in one call.
 
 ### Acquisition tests
 
@@ -342,6 +342,8 @@ firebase emulators:start --only storage --project demo-solid-groove
 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
   bun run library:upload -- --bucket demo-solid-groove.firebasestorage.app
 ```
+
+A second run against the same emulator uploads nothing but the mutable pointers (each pack's `latest.json` and `packs/index.json`, always rewritten) and skips every immutable object — audio and versioned pack manifests alike. Bumping one pack's `version` in `packs.mjs` and re-running uploads exactly that pack's new manifest; every other pack's manifest and all audio stay skipped, which is what "a repack re-uploads no audio" and "a single changed pack re-uploads only that pack's manifest" (section 15.8) mean in practice, not just in the log line.
 
 Two caveats, both emulator limitations rather than bugs:
 

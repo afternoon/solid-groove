@@ -40,7 +40,8 @@ import {
 	licenseRejectionReason,
 	SOURCES,
 } from "./acquire/sources.mjs";
-import { validateManifest } from "./validate.mjs";
+import { packBySlug, RESERVED_CC0_PACK_SLUG } from "./packs.mjs";
+import { validatePackManifest } from "./validate.mjs";
 import { encodeWav } from "./wav.mjs";
 
 // The acquisition path is exercised end to end against fixtures we build here
@@ -133,6 +134,7 @@ describe("lockfile validation", () => {
 		asset: {
 			family: "drums",
 			role: "percussion",
+			pack: RESERVED_CC0_PACK_SLUG,
 			name: "Scraped Metal Hit",
 			genres: ["techno"],
 			characters: ["metallic"],
@@ -218,6 +220,34 @@ describe("lockfile validation", () => {
 		expect(
 			validateLockfile({ version: 1, selections: [one] }).join("\n"),
 		).toMatch(/cannot claim sourceType "synthesized"/);
+	});
+
+	// CNT-000b: acquired content records its destination pack in the lockfile at
+	// pin time, and its rights position has to actually match the source.
+	it("rejects a selection with no destination pack", () => {
+		const one = selection();
+		one.asset = { ...one.asset, pack: undefined };
+		expect(
+			validateLockfile({ version: 1, selections: [one] }).join("\n"),
+		).toMatch(/asset.pack is required/);
+	});
+
+	it("rejects a selection naming a pack packs.mjs never registered", () => {
+		const one = selection();
+		one.asset = { ...one.asset, pack: "not-a-real-pack" };
+		expect(
+			validateLockfile({ version: 1, selections: [one] }).join("\n"),
+		).toMatch(/"not-a-real-pack" is not a registered pack/);
+	});
+
+	it("rejects a selection whose pack's rights position the source cannot satisfy", () => {
+		const one = selection();
+		// The synthesized-only packs are `solid-groove-owned`; a CC0 Freesound
+		// selection cannot land in one of those without exceeding its rights.
+		one.asset = { ...one.asset, pack: "core-electronic-drums" };
+		expect(
+			validateLockfile({ version: 1, selections: [one] }).join("\n"),
+		).toMatch(/exceeds pack "core-electronic-drums"'s rights position/);
 	});
 
 	it("rejects duplicate ids and byte-identical selections", () => {
@@ -493,6 +523,7 @@ describe("end-to-end ingest", () => {
 			asset: {
 				family: "drums",
 				role: "percussion",
+				pack: RESERVED_CC0_PACK_SLUG,
 				name: "Recorded Metal Hit",
 				genres: ["techno", "dubstep", "drum-and-bass"],
 				characters: ["metallic", "organic"],
@@ -541,19 +572,42 @@ describe("end-to-end ingest", () => {
 		expect(asset.provenance.modifications).toContain("peak-normalize");
 	});
 
+	it("qualifies the asset with its lockfile-declared destination pack", async () => {
+		const { asset } = await ingestFixture();
+		const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+		expect(asset.pack).toEqual({ id: pack.id, version: pack.version });
+	});
+
 	it("produces an asset the shared manifest validator accepts", async () => {
 		const { asset } = await ingestFixture();
+		const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
 		// Validate the single acquired asset against the per-asset rules by
-		// embedding it in an otherwise-valid manifest shape.
-		const { errors } = validateManifest({
+		// embedding it in an otherwise-valid pack manifest shape.
+		const { errors } = validatePackManifest({
 			schemaVersion: 1,
-			libraryId: "sg-starter-library",
-			libraryVersion: 1,
-			assetCount: 1,
+			pack: {
+				id: pack.id,
+				slug: pack.slug,
+				name: pack.name,
+				version: pack.version,
+				publisher: pack.publisher,
+				kind: pack.kind,
+				description: pack.description,
+				coverage: { roles: ["percussion"], genres: ["techno"] },
+				license: pack.license,
+				releasedAt: "2026-07-25",
+				assetCount: 1,
+			},
 			assets: [asset],
 		});
 		const perAsset = errors.filter((error) => error.startsWith(asset.id));
 		expect(perAsset).toEqual([]);
+	});
+
+	it("rejects a selection whose pack was never registered", async () => {
+		await expect(
+			ingestFixture({ asset: { pack: "not-a-real-pack" } }),
+		).rejects.toThrow(/not a registered pack/);
 	});
 
 	it("fails on an archive member whose bytes changed", async () => {

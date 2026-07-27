@@ -16,6 +16,7 @@
  * @param {string[]} options.characters
  * @param {string[]} options.intensities
  * @param {string[]} options.sourceTypes
+ * @param {object[]} options.packs      [{ slug, name }] destination packs (CNT-000b)
  */
 export function renderManagePage({
 	taxonomy,
@@ -23,6 +24,7 @@ export function renderManagePage({
 	characters,
 	intensities,
 	sourceTypes,
+	packs,
 }) {
 	const config = JSON.stringify({
 		taxonomy,
@@ -30,6 +32,7 @@ export function renderManagePage({
 		characters,
 		intensities,
 		sourceTypes,
+		packs,
 	}).replace(/</g, "\\u003c");
 
 	return `<!doctype html>
@@ -144,6 +147,12 @@ a { color: var(--accent); }
 		</div>
 
 		<div class="field">
+			<label for="pack">Destination pack</label>
+			<select id="pack"></select>
+			<div class="hint muted">Every asset belongs to exactly one pack (docs/sample-library.md section 5.1). Its rights position must match this source's licence.</div>
+		</div>
+
+		<div class="field">
 			<label for="name">User-facing name (no brand names)</label>
 			<input id="name" placeholder="Rounded Analog Kick 01">
 		</div>
@@ -222,6 +231,16 @@ function refreshRoles() {
 fillSelect(el("family"), CONFIG.taxonomy.map((entry) => entry.family));
 fillSelect(el("intensity"), CONFIG.intensities, "medium");
 fillSelect(el("sourceType"), CONFIG.sourceTypes, "recorded");
+fillSelect(
+	el("pack"),
+	CONFIG.packs.map((p) => p.slug),
+	CONFIG.packs[0] && CONFIG.packs[0].slug,
+);
+// Slugs are not self-explanatory, so show the pack name instead.
+for (const option of el("pack").options) {
+	const pack = CONFIG.packs.find((p) => p.slug === option.value);
+	if (pack) option.textContent = pack.name;
+}
 refreshRoles();
 el("family").onchange = refreshRoles;
 
@@ -325,6 +344,7 @@ function fillForm(candidate) {
 	el("family").value = (draft.asset && draft.asset.family) || seed.family || CONFIG.taxonomy[0].family;
 	refreshRoles();
 	el("role").value = (draft.asset && draft.asset.role) || seed.role || roleOptions(el("family").value)[0];
+	el("pack").value = (draft.asset && draft.asset.pack) || (CONFIG.packs[0] && CONFIG.packs[0].slug) || "";
 	el("genres").value = ((draft.asset && draft.asset.genres) || seed.genres || []).join(", ");
 	el("characters").value = ((draft.asset && draft.asset.characters) || seed.characters || []).join(", ");
 	el("intensity").value = (draft.asset && draft.asset.intensity) || seed.intensity || "medium";
@@ -367,6 +387,7 @@ async function verify() {
 		asset: {
 			family: el("family").value,
 			role: el("role").value,
+			pack: el("pack").value,
 			name: el("name").value.trim(),
 			genres: splitTags(el("genres").value),
 			characters: splitTags(el("characters").value),

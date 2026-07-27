@@ -88,7 +88,7 @@ const uniq = (values) => [...new Set(values)].sort();
 el("count").textContent = "— " + assets.length + " assets";
 const acquired = assets.filter((a) => a.provenance.sourceType !== "synthesized").length;
 el("summary").textContent =
-	MANIFEST.libraryId + " v" + MANIFEST.libraryVersion + " · " + MANIFEST.deliveryTier +
+	MANIFEST.packs.length + " packs · " + MANIFEST.deliveryTier +
 	" · " + (assets.length - acquired) + " synthesized" +
 	(acquired ? " · " + acquired + " acquired" : "");
 
@@ -103,23 +103,24 @@ for (const [id, values] of [
 	}
 }
 
-const families = uniq(assets.map((a) => a.family));
+const packNames = new Map(MANIFEST.packs.map((p) => [p.slug, p.name]));
+const packs = uniq(assets.map((a) => a.packSlug));
 const active = new Set();
-for (const family of families) {
+for (const slug of packs) {
 	const chip = document.createElement("button");
 	chip.className = "chip";
-	chip.textContent = family;
+	chip.textContent = packNames.get(slug) || slug;
 	chip.setAttribute("aria-pressed", "false");
 	chip.onclick = () => {
-		active.has(family) ? active.delete(family) : active.add(family);
-		chip.setAttribute("aria-pressed", String(active.has(family)));
+		active.has(slug) ? active.delete(slug) : active.add(slug);
+		chip.setAttribute("aria-pressed", String(active.has(slug)));
 		apply();
 	};
 	el("families").append(chip);
 }
 
 function matches(asset, query) {
-	if (active.size && !active.has(asset.family)) return false;
+	if (active.size && !active.has(asset.packSlug)) return false;
 	const genre = el("genre").value;
 	if (genre && !asset.tags.genres.includes(genre)) return false;
 	const character = el("character").value;

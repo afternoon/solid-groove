@@ -2,12 +2,18 @@
 //
 // docs/sample-library.md section 9: "Manifest validation fails CI when an asset
 // is missing its checksum, rights evidence, creator/source, required audio
-// metadata, or raw-redistribution approval." Section 6.4 adds collection-level
-// balance rules, and section 12 adds a payload budget. All of it is checked
-// here so the same rules run in the build, in the unit suite, and in CI.
+// metadata, or raw-redistribution approval." Section 5.1 and 9 add the pack
+// rules `CNT-000b` introduces: exactly one pack per asset, no asset licence
+// exceeding its pack's rights position, no undefined pack referenced, and every
+// pack delivering the roles and genres its coverage claim advertises. Section
+// 6.4 adds collection-level balance rules (measured across the whole library,
+// not per pack — section 6.5), and section 12 adds payload budgets for a pack
+// manifest and for the pack index. All of it is checked here so the same rules
+// run in the build, in the unit suite, and in CI.
 
 import { gzipSync } from "node:zlib";
 import { licenseRejectionReason } from "./acquire/sources.mjs";
+import { packBySlug } from "./packs.mjs";
 import {
 	CHARACTERS,
 	DRY_CHARACTERS,
@@ -20,8 +26,11 @@ import {
 } from "./taxonomy.mjs";
 import { storageKeyFor } from "./wav.mjs";
 
-/** Section 12: "Library metadata payload below 1 MiB compressed". */
+/** Section 12: "any single pack manifest below 1 MiB compressed". */
 export const MAX_MANIFEST_GZIP_BYTES = 1024 * 1024;
+
+/** Section 12: "Pack index below 32 KiB compressed". */
+export const MAX_PACK_INDEX_GZIP_BYTES = 32 * 1024;
 
 /** Section 6.4 collection-level floors and ceilings. */
 export const BALANCE = {
@@ -59,31 +68,36 @@ const BRAND_TOKENS = [
 
 const HEX_64 = /^[0-9a-f]{64}$/;
 const ASSET_ID = /^sg-one-shot-[a-z]+-[a-z-]+-\d{4}$/;
+const PACK_ID = /^pak_[A-Za-z0-9_-]{21}$/;
 
 /**
+ * Validate one pack's manifest: its header, every asset in it (the section 9
+ * per-asset rules plus the section 5.1/9 pack rules), and its section 12
+ * payload budget.
+ *
  * @returns {{ errors: string[], warnings: string[], stats: object }}
  */
-export function validateManifest(manifest, { serialized } = {}) {
+export function validatePackManifest(packManifest, { serialized } = {}) {
 	const errors = [];
 	const warnings = [];
 
-	if (manifest?.schemaVersion !== 1)
+	if (packManifest?.schemaVersion !== 1)
 		errors.push("manifest.schemaVersion must be 1");
-	if (!manifest?.libraryId) errors.push("manifest.libraryId is required");
-	if (!Number.isInteger(manifest?.libraryVersion)) {
-		errors.push("manifest.libraryVersion must be an integer");
-	}
-	const assets = Array.isArray(manifest?.assets) ? manifest.assets : [];
+
+	const pack = packManifest?.pack;
+	validatePackHeader(pack, errors);
+
+	const assets = Array.isArray(packManifest?.assets) ? packManifest.assets : [];
 	if (assets.length === 0) {
 		return {
-			errors: [...errors, "manifest.assets is empty"],
+			errors: [...errors, "pack.assets is empty"],
 			warnings,
 			stats: emptyStats(),
 		};
 	}
-	if (manifest.assetCount !== assets.length) {
+	if (pack?.assetCount !== assets.length) {
 		errors.push(
-			`manifest.assetCount (${manifest.assetCount}) does not match assets.length (${assets.length})`,
+			`pack.assetCount (${pack?.assetCount}) does not match assets.length (${assets.length})`,
 		);
 	}
 
@@ -91,19 +105,19 @@ export function validateManifest(manifest, { serialized } = {}) {
 	const seenNames = new Set();
 	const seenHashes = new Map();
 	for (const asset of assets) {
-		validateAsset(asset, { errors, seenIds, seenNames, seenHashes });
+		validateAsset(asset, { errors, seenIds, seenNames, seenHashes, pack });
 	}
 
+	if (pack?.coverage) checkPackCoverage(pack, assets, errors);
+
 	const stats = computeStats(assets);
-	checkBalance(stats, assets.length, { errors, warnings });
-	checkCoverage(stats, { errors });
 
 	if (serialized !== undefined) {
 		const compressed = gzipSync(Buffer.from(serialized)).length;
 		stats.manifestGzipBytes = compressed;
 		if (compressed > MAX_MANIFEST_GZIP_BYTES) {
 			errors.push(
-				`manifest is ${compressed} bytes gzipped, over the ${MAX_MANIFEST_GZIP_BYTES}-byte budget`,
+				`pack manifest is ${compressed} bytes gzipped, over the ${MAX_MANIFEST_GZIP_BYTES}-byte budget`,
 			);
 		}
 	}
@@ -111,13 +125,114 @@ export function validateManifest(manifest, { serialized } = {}) {
 	return { errors, warnings, stats };
 }
 
-function validateAsset(asset, { errors, seenIds, seenNames, seenHashes }) {
+/**
+ * The pack header itself has to name a pack this build actually registered
+ * (`packs.mjs`) — "no undefined pack referenced" applies to the manifest's own
+ * header, not only to the assets inside it, so a manifest cannot claim to be a
+ * pack that was never declared.
+ */
+function validatePackHeader(pack, errors) {
+	if (!pack) {
+		errors.push("manifest.pack is required");
+		return;
+	}
+	if (!pack.slug) errors.push("pack.slug is required");
+	const registered = pack.slug ? packBySlug(pack.slug) : null;
+	if (pack.slug && !registered) {
+		errors.push(`pack "${pack.slug}" is not a registered pack (packs.mjs)`);
+	} else if (registered && pack.id !== registered.id) {
+		errors.push(`pack.id does not match the registered id for "${pack.slug}"`);
+	}
+	if (!pack.id || !PACK_ID.test(pack.id)) errors.push("pack.id is malformed");
+	if (!pack.name) errors.push("pack.name is required");
+	if (!Number.isInteger(pack.version) || pack.version < 1) {
+		errors.push("pack.version must be a positive integer");
+	}
+	if (!["factory", "user", "third-party"].includes(pack.kind)) {
+		errors.push(
+			`pack.kind must be factory, user, or third-party, not "${pack.kind}"`,
+		);
+	}
+	if (!pack.publisher) errors.push("pack.publisher is required");
+	if (!pack.description) errors.push("pack.description is required");
+
+	const license = pack.license;
+	if (!license?.id) {
+		errors.push("pack.license.id is required");
+	} else {
+		const rejection = licenseRejectionReason(license.id);
+		if (rejection) errors.push(`pack license: ${rejection}`);
+	}
+	if (license && license.rawRedistributionAllowed !== true) {
+		errors.push("pack license: raw redistribution is not approved");
+	}
+
+	if (pack.coverage) {
+		if (!pack.coverage.roles?.length)
+			errors.push("pack.coverage.roles must name at least one role");
+		if (!pack.coverage.genres?.length)
+			errors.push("pack.coverage.genres must name at least one genre");
+		for (const genre of pack.coverage.genres ?? []) {
+			if (!GENRES.includes(genre))
+				errors.push(`pack.coverage.genres names unknown genre "${genre}"`);
+		}
+	}
+}
+
+/**
+ * Section 5.1: "every role it claims in its coverage claim must be genuinely
+ * present" and the CNT-000b rule that a pack must deliver the roles and
+ * genres its coverage claim advertises. One direction only — a pack is free to
+ * contain less-common tags it does not claim; it must not claim ones it lacks.
+ */
+function checkPackCoverage(pack, assets, errors) {
+	for (const role of pack.coverage.roles) {
+		if (!assets.some((asset) => asset.role === role)) {
+			errors.push(
+				`pack "${pack.slug}" claims role "${role}" but no asset in it delivers that role`,
+			);
+		}
+	}
+	for (const genre of pack.coverage.genres) {
+		if (!assets.some((asset) => asset.tags?.genres?.includes(genre))) {
+			errors.push(
+				`pack "${pack.slug}" claims genre "${genre}" but no asset in it is tagged with it`,
+			);
+		}
+	}
+}
+
+function validateAsset(
+	asset,
+	{ errors, seenIds, seenNames, seenHashes, pack },
+) {
 	const where = asset?.id ?? "<asset with no id>";
 
 	if (!asset?.id || !ASSET_ID.test(asset.id))
 		errors.push(`${where}: malformed asset id`);
 	if (seenIds.has(asset?.id)) errors.push(`${where}: duplicate asset id`);
 	seenIds.add(asset?.id);
+
+	// --- pack qualification (section 5.1, 9) ---------------------------------
+	if (!asset?.pack?.id) {
+		errors.push(`${where}: pack is required (exactly one pack per asset)`);
+	} else if (pack) {
+		if (asset.pack.id !== pack.id) {
+			errors.push(
+				`${where}: pack.id ${asset.pack.id} does not match the manifest it appears in (${pack.id})`,
+			);
+		}
+		if (asset.pack.version !== pack.version) {
+			errors.push(
+				`${where}: pack.version ${asset.pack.version} does not match the manifest's pack version (${pack.version})`,
+			);
+		}
+		if (asset.license && pack.license && asset.license.id !== pack.license.id) {
+			errors.push(
+				`${where}: license "${asset.license.id}" exceeds pack "${pack.slug}"'s rights position ("${pack.license.id}")`,
+			);
+		}
+	}
 
 	if (!asset?.name) {
 		errors.push(`${where}: name is required`);
@@ -343,6 +458,29 @@ function bump(counter, key) {
 	counter[key] = (counter[key] ?? 0) + 1;
 }
 
+/**
+ * Section 6.5: "The section 6.1 milestone counts and the section 6.4 character
+ * balances are measured across the whole approved library, not per pack." This
+ * runs once, over every pack's assets concatenated, rather than per pack.
+ *
+ * @returns {{ errors: string[], warnings: string[], stats: object }}
+ */
+export function validateLibraryBalance(assets) {
+	const errors = [];
+	const warnings = [];
+	if (assets.length === 0) {
+		return {
+			errors: ["the library has no assets"],
+			warnings,
+			stats: emptyStats(),
+		};
+	}
+	const stats = computeStats(assets);
+	checkBalance(stats, assets.length, { errors, warnings });
+	checkCoverage(stats, { errors });
+	return { errors, warnings, stats };
+}
+
 function checkBalance(stats, total, { errors, warnings }) {
 	if (stats.experimentalShare < BALANCE.minExperimentalShare) {
 		errors.push(
@@ -396,6 +534,67 @@ function checkCoverage(stats, { errors }) {
 	}
 }
 
+/**
+ * Section 15.8: the pack index must name exactly the packs this build actually
+ * produced — nothing dangling, nothing missing — and stay inside its own
+ * section 12 payload budget.
+ *
+ * @returns {{ errors: string[], warnings: string[] }}
+ */
+export function validatePackIndex(index, packManifests, { serialized } = {}) {
+	const errors = [];
+	const warnings = [];
+	if (index?.schemaVersion !== 1) errors.push("index.schemaVersion must be 1");
+
+	const entries = Array.isArray(index?.packs) ? index.packs : [];
+	const known = new Map(packManifests.map((pm) => [pm.pack.id, pm.pack]));
+
+	const seenIds = new Set();
+	for (const entry of entries) {
+		if (seenIds.has(entry.id)) {
+			errors.push(`pack index lists ${entry.id} more than once`);
+		}
+		seenIds.add(entry.id);
+		const pack = known.get(entry.id);
+		if (!pack) {
+			errors.push(
+				`pack index references ${entry.id} (${entry.slug}), which no built pack manifest matches`,
+			);
+			continue;
+		}
+		if (entry.version !== pack.version) {
+			errors.push(
+				`pack index version for ${entry.slug} (${entry.version}) does not match its manifest (${pack.version})`,
+			);
+		}
+		if (entry.manifestPath !== packManifestStorageKeyOf(pack)) {
+			errors.push(`pack index manifestPath for ${entry.slug} is wrong`);
+		}
+	}
+	for (const pack of known.values()) {
+		if (!seenIds.has(pack.id)) {
+			errors.push(
+				`pack "${pack.slug}" was built but is missing from the pack index`,
+			);
+		}
+	}
+
+	if (serialized !== undefined) {
+		const compressed = gzipSync(Buffer.from(serialized)).length;
+		if (compressed > MAX_PACK_INDEX_GZIP_BYTES) {
+			errors.push(
+				`pack index is ${compressed} bytes gzipped, over the ${MAX_PACK_INDEX_GZIP_BYTES}-byte budget`,
+			);
+		}
+	}
+
+	return { errors, warnings };
+}
+
+function packManifestStorageKeyOf(pack) {
+	return `packs/${pack.slug}/v${pack.version}.json`;
+}
+
 function percent(share) {
 	return `${(share * 100).toFixed(1)}%`;
 }
@@ -427,4 +626,15 @@ export function formatReport(stats, warnings) {
 	);
 	for (const warning of warnings ?? []) lines.push("", `warning: ${warning}`);
 	return lines.join("\n");
+}
+
+/** One line per pack: what `library:build`/`library:upload` report before the detail. */
+export function formatPackSummary(packManifests) {
+	return [
+		"packs:",
+		...packManifests.map(
+			({ pack }) =>
+				`  ${pack.slug.padEnd(24)} v${pack.version}  ${String(pack.assetCount).padStart(4)} assets  ${pack.license.id}`,
+		),
+	].join("\n");
 }

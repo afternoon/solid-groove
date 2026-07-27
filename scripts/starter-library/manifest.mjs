@@ -10,6 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CATALOG } from "./catalog/index.mjs";
 import { createRng, seedFromString } from "./dsp.mjs";
+import { PACKS, packForFamily, packRef } from "./packs.mjs";
 import { renderVoice } from "./voices.mjs";
 import {
 	analyze,
@@ -20,19 +21,11 @@ import {
 } from "./wav.mjs";
 
 export const SCHEMA_VERSION = 1;
-export const LIBRARY_ID = "sg-starter-library";
-
-/**
- * Bumped whenever the catalogue changes. Delivery paths include it, so an
- * older project keeps resolving the manifest it was built against
- * (section 12: "export and collaboration resolve immutable asset versions").
- */
-export const LIBRARY_VERSION = 1;
 
 /**
  * Pinned rather than read from the clock, because the manifest has to be
  * reproducible: a build on a different day must not produce a different file.
- * Bump it with `LIBRARY_VERSION`.
+ * Bump it when a pack's own `version` in `packs.mjs` bumps.
  */
 export const RELEASED_AT = "2026-07-25";
 
@@ -95,6 +88,7 @@ export function buildAsset(entry) {
 		asset: {
 			id: entry.id,
 			version: 1,
+			pack: packRef(packForFamily(entry.family)),
 			name: entry.name,
 			type: "one-shot",
 			family: entry.family,
@@ -209,39 +203,103 @@ export function loadAcquiredAssets(dir = ACQUIRED_DIR) {
 	return merged;
 }
 
-/** Render and describe the whole catalogue, plus anything acquired. */
-export function buildLibrary(catalog = CATALOG, { acquired } = {}) {
+/**
+ * Render the whole catalogue, merge anything acquired, and split the result
+ * into one manifest per pack (docs/sample-library.md section 15.8) — every
+ * asset already carries the `pack` it belongs to, from `buildAsset` or from
+ * the ingest path that produced it, so this is a group-by, not a decision.
+ *
+ * A pack with zero assets — the reserved acquired-content pack today — is
+ * simply absent from `packManifests`: the thinnest possible pack is one
+ * nobody has put anything in yet, and section 5.1 says a pack that would ship
+ * thin is not published.
+ *
+ * `files` is deduplicated by storage key across every pack: identity is the
+ * SHA-256 of the bytes (section 15.4), so identical audio reachable from two
+ * packs is one object and a repack re-uploads no audio.
+ */
+export function buildAllPacks(catalog = CATALOG, { acquired } = {}) {
 	const built = [
 		...catalog.map(buildAsset),
 		...(acquired ?? loadAcquiredAssets()),
 	];
-	return {
-		files: built.map(({ asset, bytes }) => ({
-			storageKey: asset.files.master.storageKey,
-			bytes,
-		})),
-		manifest: {
-			schemaVersion: SCHEMA_VERSION,
-			libraryId: LIBRARY_ID,
-			libraryVersion: LIBRARY_VERSION,
-			releasedAt: RELEASED_AT,
-			generator: GENERATOR,
-			// Distinguishes this from the reviewed factory library `CNT-002`
-			// delivers, so the browser can label it and hardening can find it.
-			deliveryTier: "starter-test",
-			assetCount: built.length,
-			assets: built.map(({ asset }) => asset),
+
+	const files = new Map();
+	for (const { asset, bytes } of built) {
+		files.set(asset.files.master.storageKey, bytes);
+	}
+
+	const byPackId = new Map();
+	for (const { asset } of built) {
+		const group = byPackId.get(asset.pack.id) ?? [];
+		group.push(asset);
+		byPackId.set(asset.pack.id, group);
+	}
+
+	const packManifests = PACKS.filter((pack) => byPackId.has(pack.id)).map(
+		(pack) => {
+			const assets = byPackId.get(pack.id);
+			return {
+				schemaVersion: SCHEMA_VERSION,
+				pack: {
+					id: pack.id,
+					slug: pack.slug,
+					name: pack.name,
+					version: pack.version,
+					publisher: pack.publisher,
+					kind: pack.kind,
+					description: pack.description,
+					coverage: pack.coverage,
+					license: pack.license,
+					releasedAt: RELEASED_AT,
+					assetCount: assets.length,
+				},
+				assets,
+			};
 		},
+	);
+
+	return {
+		files: [...files].map(([storageKey, bytes]) => ({ storageKey, bytes })),
+		packManifests,
 	};
 }
 
-/** Delivery path for a manifest version. Immutable once published. */
-export function manifestStorageKey(version = LIBRARY_VERSION) {
-	return `manifests/${LIBRARY_ID}/v${version}.json`;
+/** Delivery path for one pack manifest version. Immutable once published. */
+export function packManifestStorageKey(slug, version) {
+	return `packs/${slug}/v${version}.json`;
 }
 
-/** Mutable pointer at the current manifest version, fetched first by clients. */
-export const MANIFEST_POINTER_KEY = `manifests/${LIBRARY_ID}/latest.json`;
+/** Mutable pointer at a pack's current manifest version. */
+export function packPointerKey(slug) {
+	return `packs/${slug}/latest.json`;
+}
+
+/** Mutable pointer list of every published pack (section 15.8 delivery layout). */
+export const PACK_INDEX_KEY = "packs/index.json";
+
+/**
+ * The compact index a client fetches before any pack manifest — section 12:
+ * "A client fetches a small index of available packs, then the manifest of a
+ * pack it opens or a project needs."
+ */
+export function buildPackIndex(packManifests) {
+	return {
+		schemaVersion: SCHEMA_VERSION,
+		generatedAt: RELEASED_AT,
+		packs: packManifests.map(({ pack }) => ({
+			id: pack.id,
+			slug: pack.slug,
+			name: pack.name,
+			version: pack.version,
+			publisher: pack.publisher,
+			kind: pack.kind,
+			description: pack.description,
+			assetCount: pack.assetCount,
+			manifestPath: packManifestStorageKey(pack.slug, pack.version),
+		})),
+	};
+}
 
 /**
  * Deterministic JSON: object keys sorted, no incidental whitespace. Two

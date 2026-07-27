@@ -27,6 +27,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { packBySlug, packRef, RESERVED_CC0_PACK_SLUG } from "../packs.mjs";
 import {
 	analyze,
 	encodeWav,
@@ -327,11 +328,19 @@ export async function ingestInstrument(selection, { repoDir, commit, index }) {
 	const master = encodeWav(prepared);
 	const hash = sha256(master);
 
+	const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+	if (!pack) {
+		throw new Error(
+			`VCSL's destination pack "${RESERVED_CC0_PACK_SLUG}" is not registered`,
+		);
+	}
+
 	return {
 		bytes: master,
 		asset: {
 			id: vcslAssetId(selection.family, selection.role, index),
 			version: 1,
+			pack: packRef(pack),
 			name: selection.name,
 			type: "one-shot",
 			family: selection.family,

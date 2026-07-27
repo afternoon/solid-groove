@@ -13,8 +13,20 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLockfile, validateLockfile } from "./acquire/lockfile.mjs";
-import { buildLibrary, manifestStorageKey, serialize } from "./manifest.mjs";
-import { formatReport, validateManifest } from "./validate.mjs";
+import {
+	buildAllPacks,
+	buildPackIndex,
+	PACK_INDEX_KEY,
+	packManifestStorageKey,
+	serialize,
+} from "./manifest.mjs";
+import {
+	formatPackSummary,
+	formatReport,
+	validateLibraryBalance,
+	validatePackIndex,
+	validatePackManifest,
+} from "./validate.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -64,11 +76,37 @@ export function buildToDisk({
 		throw new Error(`sources.lock.json is not shippable:\n${detail}`);
 	}
 
-	const { files, manifest } = buildLibrary();
-	const serialized = serialize(manifest);
-	const { errors, warnings, stats } = validateManifest(manifest, {
-		serialized,
+	const { files, packManifests } = buildAllPacks();
+
+	const errors = [];
+	const warnings = [];
+	const serializedByPack = new Map();
+	for (const packManifest of packManifests) {
+		const serialized = serialize(packManifest);
+		serializedByPack.set(packManifest.pack.slug, serialized);
+		const result = validatePackManifest(packManifest, { serialized });
+		errors.push(
+			...result.errors.map((error) => `[${packManifest.pack.slug}] ${error}`),
+		);
+		warnings.push(
+			...result.warnings.map(
+				(warning) => `[${packManifest.pack.slug}] ${warning}`,
+			),
+		);
+	}
+
+	const allAssets = packManifests.flatMap((pm) => pm.assets);
+	const balance = validateLibraryBalance(allAssets);
+	errors.push(...balance.errors);
+	warnings.push(...balance.warnings);
+
+	const index = buildPackIndex(packManifests);
+	const serializedIndex = serialize(index);
+	const indexResult = validatePackIndex(index, packManifests, {
+		serialized: serializedIndex,
 	});
+	errors.push(...indexResult.errors.map((error) => `[pack index] ${error}`));
+
 	if (errors.length > 0) {
 		const detail = errors.map((error) => `  - ${error}`).join("\n");
 		throw new Error(
@@ -77,10 +115,12 @@ export function buildToDisk({
 	}
 
 	if (dryRun) {
-		log(formatReport(stats, warnings));
+		log(formatPackSummary(packManifests));
+		log("");
+		log(formatReport(balance.stats, warnings));
 		log("");
 		log(`validated ${files.length} assets; --dry-run, nothing written`);
-		return { out: null, manifestPath: null, stats, warnings };
+		return { out: null, packManifests, stats: balance.stats, warnings };
 	}
 
 	if (force) rmSync(out, { recursive: true, force: true });
@@ -90,14 +130,27 @@ export function buildToDisk({
 		writeFileSync(path, file.bytes);
 	}
 
-	const manifestPath = join(out, manifestStorageKey());
-	mkdirSync(dirname(manifestPath), { recursive: true });
-	writeFileSync(manifestPath, serialized);
+	for (const packManifest of packManifests) {
+		const path = join(
+			out,
+			packManifestStorageKey(packManifest.pack.slug, packManifest.pack.version),
+		);
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, serializedByPack.get(packManifest.pack.slug));
+	}
 
-	log(formatReport(stats, warnings));
+	const indexPath = join(out, PACK_INDEX_KEY);
+	mkdirSync(dirname(indexPath), { recursive: true });
+	writeFileSync(indexPath, serializedIndex);
+
+	log(formatPackSummary(packManifests));
 	log("");
-	log(`wrote ${files.length} assets and 1 manifest to ${out}`);
-	return { out, manifestPath, stats, warnings };
+	log(formatReport(balance.stats, warnings));
+	log("");
+	log(
+		`wrote ${files.length} assets, ${packManifests.length} pack manifests, and 1 pack index to ${out}`,
+	);
+	return { out, packManifests, stats: balance.stats, warnings };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

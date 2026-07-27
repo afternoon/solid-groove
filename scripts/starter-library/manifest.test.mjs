@@ -1,12 +1,16 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CATALOG } from "./catalog/index.mjs";
-import { buildAsset, serialize } from "./manifest.mjs";
+import { buildAsset, buildPackIndex, serialize } from "./manifest.mjs";
+import { packBySlug, packForFamily, packRef } from "./packs.mjs";
 import { GENRES, TAXONOMY } from "./taxonomy.mjs";
 import {
 	BALANCE,
 	MAX_MANIFEST_GZIP_BYTES,
-	validateManifest,
+	MAX_PACK_INDEX_GZIP_BYTES,
+	validateLibraryBalance,
+	validatePackIndex,
+	validatePackManifest,
 } from "./validate.mjs";
 import { storageKeyFor } from "./wav.mjs";
 
@@ -62,6 +66,18 @@ describe("buildAsset", () => {
 		expect(asset.provenance.reviewState).toBe("metadata-review");
 	});
 
+	it("qualifies every asset with the pack its family belongs to (CNT-000b)", () => {
+		for (const entry of sampleEntries) {
+			const { asset } = buildAsset(entry);
+			expect(asset.pack).toEqual(packRef(packForFamily(entry.family)));
+		}
+		// Different families land in different packs — this is the whole point of
+		// pack-qualified identity (docs/sample-library.md section 5.1).
+		const drums = buildAsset(sampleEntries[0]).asset; // drums/kick
+		const bass = buildAsset(sampleEntries[2]).asset; // bass/sub
+		expect(drums.pack.id).not.toBe(bass.pack.id);
+	});
+
 	it("describes tonal and unpitched assets differently", () => {
 		const chord = buildAsset(sampleEntries[3]).asset;
 		expect(chord.audio.rootNote).toBe("C3");
@@ -98,15 +114,19 @@ describe("serialize", () => {
 
 // --- validation ------------------------------------------------------------
 
-function validAsset(overrides = {}, index = 0) {
+const DRUMS_PACK = packBySlug("core-electronic-drums");
+
+function validAsset(pack, overrides = {}, index = 0) {
 	const hash = String(index).padStart(64, "a");
+	const role = pack.coverage.roles[index % pack.coverage.roles.length];
 	return {
-		id: `sg-one-shot-drums-kick-${String(index + 1).padStart(4, "0")}`,
+		id: `sg-one-shot-${pack.family}-${role}-${String(index + 1).padStart(4, "0")}`,
 		version: 1,
+		pack: packRef(pack),
 		name: `Fixture Asset ${index}`,
 		type: "one-shot",
-		family: "drums",
-		role: "kick",
+		family: pack.family,
+		role,
 		files: {
 			master: {
 				storageKey: storageKeyFor(hash),
@@ -132,23 +152,26 @@ function validAsset(overrides = {}, index = 0) {
 		},
 		waveform: { buckets: 2, peaks: [-1, 1, -1, 1] },
 		tags: {
-			genres: [...GENRES],
+			// The first fixture asset alone satisfies the pack's whole genre
+			// coverage claim, so mutating any *other* field on it (or any field on
+			// a later asset) never incidentally breaks genre coverage.
+			genres:
+				index === 0 ? [...pack.coverage.genres] : [pack.coverage.genres[0]],
 			characters: ["dry", "experimental"],
 			intensity: "medium",
 			sourceTypes: ["synthesized"],
 		},
 		license: {
-			id: "solid-groove-owned",
+			...pack.license,
 			creator: "Solid Groove",
 			sourceUrl: null,
 			retrievedAt: "2026-07-25",
 			evidencePath: "docs/licenses/starter-library-v1.md",
-			rawRedistributionAllowed: true,
 			agreementId: null,
 		},
 		provenance: {
 			sourceType: "synthesized",
-			recipe: { voice: "kick", params: {}, seed: 1 },
+			recipe: { voice: role, params: {}, seed: 1 },
 			modifications: [],
 			reviewState: "metadata-review",
 			reviewer: null,
@@ -158,47 +181,60 @@ function validAsset(overrides = {}, index = 0) {
 	};
 }
 
-/** A fixture that satisfies the collection-level rules, so per-asset faults isolate cleanly. */
-function validManifest(assets) {
-	const generated =
-		assets ??
-		Object.entries(TAXONOMY).flatMap(([family, roles], familyIndex) =>
-			roles.map((role, roleIndex) => {
-				const index = familyIndex * 20 + roleIndex;
-				return validAsset(
-					{
-						id: `sg-one-shot-${family}-${role}-0001`,
-						name: `Fixture ${family} ${role}`,
-						family,
-						role,
-					},
-					index,
-				);
-			}),
-		);
+/** One asset per role the pack claims, so the pack's own coverage holds. */
+function packAssets(pack, count = pack.coverage.roles.length) {
+	return Array.from({ length: count }, (_unused, index) =>
+		validAsset(pack, {}, index),
+	);
+}
+
+function packHeader(pack, assetCount) {
+	return {
+		id: pack.id,
+		slug: pack.slug,
+		name: pack.name,
+		version: pack.version,
+		publisher: pack.publisher,
+		kind: pack.kind,
+		description: pack.description,
+		coverage: pack.coverage,
+		license: pack.license,
+		releasedAt: "2026-07-25",
+		assetCount,
+	};
+}
+
+/** A fixture pack manifest that satisfies its own rules, so per-asset faults isolate cleanly. */
+function validPackManifest(pack = DRUMS_PACK, assets) {
+	const generated = assets ?? packAssets(pack);
 	return {
 		schemaVersion: 1,
-		libraryId: "sg-starter-library",
-		libraryVersion: 1,
-		releasedAt: "2026-07-25",
-		deliveryTier: "starter-test",
-		assetCount: generated.length,
+		pack: packHeader(pack, generated.length),
 		assets: generated,
 	};
 }
 
-function errorsFor(mutate) {
-	const manifest = validManifest();
+function errorsFor(mutate, pack = DRUMS_PACK) {
+	const manifest = validPackManifest(pack);
 	mutate(manifest);
-	return validateManifest(manifest).errors;
+	return validatePackManifest(manifest).errors;
 }
 
-describe("validateManifest", () => {
-	it("accepts a well-formed manifest", () => {
-		const { errors, warnings } = validateManifest(validManifest());
+describe("validatePackManifest", () => {
+	it("accepts a well-formed pack manifest", () => {
+		const { errors } = validatePackManifest(validPackManifest());
 		expect(errors).toEqual([]);
-		// The synthesized-library gap is always reported, never silently passed.
-		expect(warnings.join(" ")).toMatch(/recorded or field-recorded/);
+	});
+
+	it("accepts every real registered pack's own coverage claim", () => {
+		// Proves packs.mjs's hand-authored coverage.genres/roles are not just
+		// plausible-looking — every pack built here actually delivers what it
+		// claims, checked against the *real* fixture generator, not a mock.
+		for (const family of ["drums", "bass", "tonal", "texture", "fx"]) {
+			const pack = packForFamily(family);
+			const { errors } = validatePackManifest(validPackManifest(pack));
+			expect(errors).toEqual([]);
+		}
 	});
 
 	// docs/sample-library.md section 9 names each of these as a CI failure.
@@ -340,7 +376,7 @@ describe("validateManifest", () => {
 		[
 			"a wrong asset count",
 			(m) => {
-				m.assetCount = 3;
+				m.pack.assetCount = 3;
 			},
 			/does not match assets.length/,
 		],
@@ -361,83 +397,198 @@ describe("validateManifest", () => {
 		},
 	);
 
-	it("rejects an empty manifest rather than reporting a healthy library", () => {
-		const { errors } = validateManifest({
+	it("rejects an empty pack rather than reporting a healthy one", () => {
+		const { errors } = validatePackManifest({
 			schemaVersion: 1,
-			libraryId: "x",
-			libraryVersion: 1,
+			pack: packHeader(DRUMS_PACK, 0),
 			assets: [],
 		});
-		expect(errors.join("\n")).toMatch(/assets is empty/);
+		expect(errors.join("\n")).toMatch(/pack.assets is empty/);
+	});
+
+	// --- the CNT-000b pack rules (docs/sample-library.md section 5.1, 9) -----
+
+	it.each([
+		[
+			"no pack referenced at all",
+			(m) => {
+				m.assets[0].pack = undefined;
+			},
+			/pack is required \(exactly one pack per asset\)/,
+		],
+		[
+			"an asset naming a different pack than the manifest it appears in",
+			(m) => {
+				m.assets[0].pack = { id: "pak_doesNotExist000000_", version: 1 };
+			},
+			/does not match the manifest it appears in/,
+		],
+		[
+			"an asset whose pack version disagrees with the manifest's",
+			(m) => {
+				m.assets[0].pack = { ...m.assets[0].pack, version: 99 };
+			},
+			/pack.version 99 does not match/,
+		],
+		[
+			"an asset licence that exceeds its pack's rights position",
+			(m) => {
+				m.assets[0].license.id = "CC0-1.0";
+			},
+			/exceeds pack "core-electronic-drums"'s rights position/,
+		],
+		[
+			"a manifest naming a pack that packs.mjs never registered",
+			(m) => {
+				m.pack.slug = "not-a-real-pack";
+			},
+			/"not-a-real-pack" is not a registered pack/,
+		],
+		[
+			"a manifest whose pack.id does not match the registered pack's",
+			(m) => {
+				m.pack.id = "pak_wrongIdWrongIdWrongIdW";
+			},
+			/pack.id does not match the registered id/,
+		],
+		[
+			"an unknown pack kind",
+			(m) => {
+				m.pack.kind = "premium";
+			},
+			/pack.kind must be factory, user, or third-party/,
+		],
+		[
+			"a pack claiming a role no asset in it delivers",
+			(m) => {
+				m.assets = m.assets.filter((asset) => asset.role !== "tom");
+				m.pack.assetCount = m.assets.length;
+			},
+			/claims role "tom" but no asset in it delivers that role/,
+		],
+	])("rejects %s", (_label, mutate, expected) => {
+		expect(errorsFor(mutate).join("\n")).toMatch(expected);
+	});
+
+	it("rejects a pack claiming a genre no asset in it delivers", () => {
+		// The drums pack already claims every genre in the vocabulary, so this
+		// needs a pack with room to claim one it does not deliver.
+		const texturePack = packForFamily("texture");
+		expect(texturePack.coverage.genres).not.toContain("trance");
+		const errors = errorsFor((m) => {
+			m.pack.coverage = {
+				...m.pack.coverage,
+				genres: [...m.pack.coverage.genres, "trance"],
+			};
+		}, texturePack).join("\n");
+		expect(errors).toMatch(
+			/claims genre "trance" but no asset in it is tagged with it/,
+		);
 	});
 });
 
-describe("collection balance (section 6.4)", () => {
+describe("collection balance (section 6.4, measured library-wide — section 6.5)", () => {
+	/**
+	 * One asset per taxonomy role across every family, pack-qualified correctly,
+	 * and every asset tagged with every genre — so the section 6.4 per-genre
+	 * floor (measured library-wide, not per pack) is met by construction and
+	 * each test below isolates the one thing it mutates.
+	 */
+	function balanceAssets() {
+		return Object.entries(TAXONOMY).flatMap(([family, roles]) => {
+			const pack = packForFamily(family);
+			return roles.map((role, roleIndex) =>
+				validAsset(
+					pack,
+					{
+						id: `sg-one-shot-${family}-${role}-0001`,
+						name: `Fixture ${family} ${role}`,
+						family,
+						role,
+						tags: {
+							genres: [...GENRES],
+							characters: ["dry", "experimental"],
+							intensity: "medium",
+							sourceTypes: ["synthesized"],
+						},
+					},
+					roleIndex,
+				),
+			);
+		});
+	}
+
+	it("accepts a library that meets every collection-level floor", () => {
+		const { errors, warnings } = validateLibraryBalance(balanceAssets());
+		expect(errors).toEqual([]);
+		// The synthesized-library gap is always reported, never silently passed.
+		expect(warnings.join(" ")).toMatch(/recorded or field-recorded/);
+	});
+
 	it("rejects a library with too little experimental material", () => {
-		const manifest = validManifest();
-		for (const asset of manifest.assets) asset.tags.characters = ["dry"];
-		expect(validateManifest(manifest).errors.join("\n")).toMatch(
+		const assets = balanceAssets();
+		for (const asset of assets) asset.tags.characters = ["dry"];
+		expect(validateLibraryBalance(assets).errors.join("\n")).toMatch(
 			/experimental or abrasive/,
 		);
 	});
 
 	it("rejects a library with too little dry, shapeable material", () => {
-		const manifest = validManifest();
-		for (const asset of manifest.assets)
-			asset.tags.characters = ["experimental"];
-		expect(validateManifest(manifest).errors.join("\n")).toMatch(
+		const assets = balanceAssets();
+		for (const asset of assets) asset.tags.characters = ["experimental"];
+		expect(validateLibraryBalance(assets).errors.join("\n")).toMatch(
 			/dry or lightly processed/,
 		);
 	});
 
 	it("rejects a library dominated by one source family", () => {
-		const manifest = validManifest();
+		const assets = balanceAssets();
 		const padding = Array.from({ length: 40 }, (_unused, index) =>
 			validAsset(
+				DRUMS_PACK,
 				{
 					id: `sg-one-shot-drums-kick-${String(index + 100).padStart(4, "0")}`,
 					name: `Pad ${index}`,
+					role: "kick",
 				},
 				index + 100,
 			),
 		);
-		manifest.assets.push(...padding);
-		manifest.assetCount = manifest.assets.length;
-		expect(validateManifest(manifest).errors.join("\n")).toMatch(
+		assets.push(...padding);
+		expect(validateLibraryBalance(assets).errors.join("\n")).toMatch(
 			/single-family ceiling/,
 		);
 	});
 
 	it("rejects a library that leaves a required genre unusable", () => {
-		const manifest = validManifest();
-		for (const asset of manifest.assets) {
+		const assets = balanceAssets();
+		for (const asset of assets) {
 			asset.tags.genres = asset.tags.genres.filter(
 				(genre) => genre !== "uk-garage",
 			);
 		}
-		expect(validateManifest(manifest).errors.join("\n")).toMatch(
+		expect(validateLibraryBalance(assets).errors.join("\n")).toMatch(
 			/genre "uk-garage"/,
 		);
 	});
 
 	it("rejects a library that leaves a taxonomy role empty", () => {
-		const manifest = validManifest();
-		manifest.assets = manifest.assets.filter((asset) => asset.role !== "riser");
-		manifest.assetCount = manifest.assets.length;
-		expect(validateManifest(manifest).errors.join("\n")).toMatch(
+		const assets = balanceAssets().filter((asset) => asset.role !== "riser");
+		expect(validateLibraryBalance(assets).errors.join("\n")).toMatch(
 			/no assets cover fx\/riser/,
 		);
 	});
 
-	// Section 12: the browser fetches this before it can search anything.
-	it("rejects a metadata payload over the section 12 budget", () => {
-		const manifest = validManifest();
+	// Section 12: the browser fetches a pack manifest before it can search
+	// anything inside that pack.
+	it("rejects a pack manifest over the section 12 per-pack budget", () => {
+		const manifest = validPackManifest();
 		// Incompressible, so the assertion is about the *gzipped* size the
 		// budget is written in. A repeated character would compress to nothing.
 		const serialized = randomBytes(MAX_MANIFEST_GZIP_BYTES + 65536).toString(
 			"base64",
 		);
-		const { errors, stats } = validateManifest(manifest, { serialized });
+		const { errors, stats } = validatePackManifest(manifest, { serialized });
 		expect(stats.manifestGzipBytes).toBeGreaterThan(MAX_MANIFEST_GZIP_BYTES);
 		expect(errors.join("\n")).toMatch(/over the .* budget/);
 	});
@@ -448,5 +599,50 @@ describe("collection balance (section 6.4)", () => {
 			minDryShare: 0.3,
 			maxSingleRoleShare: 0.2,
 		});
+	});
+});
+
+describe("validatePackIndex", () => {
+	// Cheap fixture manifests (no audio rendering) rather than `buildAllPacks()`
+	// — the full 200-asset render is reserved for `bun run library:validate`
+	// (see the note at the top of this file).
+	const FIXTURE_PACKS = ["drums", "bass", "tonal"].map((family) =>
+		validPackManifest(packForFamily(family)),
+	);
+
+	it("accepts an index that lists exactly the built packs", () => {
+		const index = buildPackIndex(FIXTURE_PACKS);
+		const { errors } = validatePackIndex(index, FIXTURE_PACKS, {
+			serialized: serialize(index),
+		});
+		expect(errors).toEqual([]);
+	});
+
+	it("rejects a pack index entry with no matching built manifest", () => {
+		const index = buildPackIndex(FIXTURE_PACKS);
+		index.packs.push({
+			id: "pak_ghostPackGhostPackGhost",
+			slug: "ghost-pack",
+			version: 1,
+			manifestPath: "packs/ghost-pack/v1.json",
+		});
+		const { errors } = validatePackIndex(index, FIXTURE_PACKS);
+		expect(errors.join("\n")).toMatch(/no built pack manifest matches/);
+	});
+
+	it("rejects an index that is missing a pack the build actually produced", () => {
+		const index = buildPackIndex(FIXTURE_PACKS);
+		index.packs.pop();
+		const { errors } = validatePackIndex(index, FIXTURE_PACKS);
+		expect(errors.join("\n")).toMatch(/missing from the pack index/);
+	});
+
+	it("rejects a pack index over its section 12 budget", () => {
+		const index = buildPackIndex(FIXTURE_PACKS);
+		const serialized = randomBytes(MAX_PACK_INDEX_GZIP_BYTES + 8192).toString(
+			"base64",
+		);
+		const { errors } = validatePackIndex(index, FIXTURE_PACKS, { serialized });
+		expect(errors.join("\n")).toMatch(/over the .* budget/);
 	});
 });

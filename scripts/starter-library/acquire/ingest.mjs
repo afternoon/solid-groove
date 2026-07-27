@@ -9,6 +9,7 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { packBySlug, packRef } from "../packs.mjs";
 import {
 	analyze,
 	encodeWav,
@@ -84,6 +85,18 @@ export async function ingestSelection(selection, context) {
 	const rejection = licenseRejectionReason(source.licenseId);
 	if (rejection) throw new Error(`${selection.id}: ${rejection}`);
 
+	const pack = packBySlug(selection.asset.pack);
+	if (!pack) {
+		throw new Error(
+			`${selection.id}: asset.pack "${selection.asset.pack}" is not a registered pack`,
+		);
+	}
+	if (pack.license.id !== source.licenseId) {
+		throw new Error(
+			`${selection.id}: source ${source.id} is licensed ${source.licenseId}, which exceeds pack "${pack.slug}"'s rights position ("${pack.license.id}")`,
+		);
+	}
+
 	const downloaded = await fetchToQuarantine(selection, context);
 	const audioBytes = resolveSelectedBytes(selection, downloaded.bytes);
 
@@ -99,6 +112,7 @@ export async function ingestSelection(selection, context) {
 		asset: {
 			id: selection.assetId,
 			version: 1,
+			pack: packRef(pack),
 			name: selection.asset.name,
 			type: "one-shot",
 			family: selection.asset.family,

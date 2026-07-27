@@ -11,8 +11,18 @@
 
 import { createServer } from "node:http";
 import { renderAuditionPage } from "./auditionPage.mjs";
-import { buildLibrary, serialize } from "./manifest.mjs";
-import { formatReport, validateManifest } from "./validate.mjs";
+import {
+	buildAllPacks,
+	RELEASED_AT,
+	SCHEMA_VERSION,
+	serialize,
+} from "./manifest.mjs";
+import {
+	formatPackSummary,
+	formatReport,
+	validateLibraryBalance,
+	validatePackManifest,
+} from "./validate.mjs";
 
 export const DEFAULT_PORT = 4180;
 
@@ -38,12 +48,62 @@ export function parseArgs(argv) {
  * dev tool that guarantees you audition the real thing.
  */
 export function prepareAudition() {
-	const { files, manifest } = buildLibrary();
-	const { errors, warnings, stats } = validateManifest(manifest, {
-		serialized: serialize(manifest),
-	});
+	const { files, packManifests } = buildAllPacks();
+
+	const errors = [];
+	const warnings = [];
+	for (const packManifest of packManifests) {
+		const result = validatePackManifest(packManifest, {
+			serialized: serialize(packManifest),
+		});
+		errors.push(
+			...result.errors.map((error) => `[${packManifest.pack.slug}] ${error}`),
+		);
+		warnings.push(
+			...result.warnings.map(
+				(warning) => `[${packManifest.pack.slug}] ${warning}`,
+			),
+		);
+	}
+
+	const allAssets = packManifests.flatMap((pm) =>
+		pm.assets.map((asset) => ({
+			...asset,
+			packSlug: pm.pack.slug,
+			packName: pm.pack.name,
+		})),
+	);
+	const balance = validateLibraryBalance(allAssets);
+	errors.push(...balance.errors);
+	warnings.push(...balance.warnings);
+
+	// A merged, browsable view across every pack — never uploaded itself, just
+	// what the local audition page reads. Real clients fetch the pack index and
+	// per-pack manifests separately (docs/sample-library.md section 12).
+	const manifest = {
+		schemaVersion: SCHEMA_VERSION,
+		deliveryTier: "starter-test",
+		releasedAt: RELEASED_AT,
+		packs: packManifests.map(({ pack }) => ({
+			id: pack.id,
+			slug: pack.slug,
+			name: pack.name,
+			version: pack.version,
+			assetCount: pack.assetCount,
+		})),
+		assetCount: allAssets.length,
+		assets: allAssets,
+	};
+
 	const audio = new Map(files.map((file) => [file.storageKey, file.bytes]));
-	return { manifest, audio, errors, warnings, stats };
+	return {
+		manifest,
+		audio,
+		errors,
+		warnings,
+		stats: balance.stats,
+		packManifests,
+	};
 }
 
 export function createAuditionServer({ manifest, audio }) {
@@ -87,12 +147,15 @@ export async function audition({
 	log = console.log,
 } = {}) {
 	log("building the library in memory (this takes ~20s for 200 assets) …");
-	const { manifest, audio, errors, warnings, stats } = prepareAudition();
+	const { manifest, audio, errors, warnings, stats, packManifests } =
+		prepareAudition();
 	if (errors.length > 0) {
 		const detail = errors.map((error) => `  - ${error}`).join("\n");
 		throw new Error(`manifest validation failed:\n${detail}`);
 	}
 
+	log("");
+	log(formatPackSummary(packManifests));
 	log("");
 	log(formatReport(stats, warnings));
 

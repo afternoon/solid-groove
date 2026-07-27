@@ -32,6 +32,7 @@ import {
 	writeLockfile,
 } from "./acquire/lockfile.mjs";
 import { renderManagePage } from "./managePage.mjs";
+import { acquirablePacks } from "./packs.mjs";
 import {
 	CHARACTERS,
 	GENRES,
@@ -125,6 +126,7 @@ export function createManageServer({ candidates, onVerify, crawl }) {
 			characters: CHARACTERS,
 			intensities: INTENSITIES,
 			sourceTypes: SOURCE_TYPES,
+			packs: acquirablePacks().map(({ slug, name }) => ({ slug, name })),
 		}),
 	);
 
