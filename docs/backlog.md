@@ -453,7 +453,8 @@ Tasks in this phase may proceed in parallel after `FND-009`, subject to their ad
 Implement anonymous entry plus create, open, rename, duplicate, and confirmed-delete flows against the v1 repository.
 
 - [ ] Blank and starter creation, independent deep duplication, empty/loading/error states, and last-modified metadata are tested.
-- [ ] Anonymous retention and upgrade messaging match `DEC-001`; refresh preserves the session.
+- [ ] Anonymous retention (180 days from last access, reset on access) matches `DEC-001`; refresh preserves the session.
+- [ ] Each device locally records which anonymous projects were created or edited there; authenticating on that device offers to pair those local records to the account, and a paired project's local record is deleted. A device shared by multiple people is not reconciled — the authenticating user is offered whatever anonymous projects were edited on that device (`DEC-001`).
 - [ ] Dashboard browser tests cover access control and destructive confirmation.
 - [ ] Emits `anon_session_created`, `account_upgraded`, `project_created` (with `source`, `template_id`, `genre`), `project_opened` (with `project_age_bucket`, `track_count_bucket`, `is_first_open`), and `project_deleted`. `project_opened` is what makes the 1- and 7-day reopen measure computable, so its parameters are not optional.
 
@@ -910,7 +911,7 @@ Complete rule audits, validation, quotas, deletion/retention, CSP/secrets review
 
 - [ ] Security emulator tests and abuse cases cover all public backend surfaces and asset access.
 - [ ] Crash, save failure, audio start failure, export result, AI failure, and leak signals are actionable without recording project content.
-- [ ] Anonymous retention/deletion, analytics consent/retention (`DEC-009`), and AI data handling match product decisions and user-facing disclosures.
+- [ ] Anonymous retention/deletion (180-day last-access window), the device-local pairing record's lifecycle (created on anonymous edit, deleted once paired to an account), analytics consent/retention (`DEC-009`), and AI data handling match product decisions and user-facing disclosures.
 - [ ] Every event in the PRD OPS-02 catalog is confirmed firing from the deployed production build with the expected parameters, and any gap is filed against its owning task rather than patched here.
 - [ ] Release dashboards compute the PRD section 11 primary, supporting, and guardrail measures — including crash-free session rate — from real cohort data with internal traffic excluded.
 
@@ -1021,9 +1022,16 @@ Add curated, trusted-creator tutorial video recommendations that the assistant c
 
 Let users build and publish their own packs, acquire packs from other creators, and sell premium packs.
 
-Deliberately the last thing on this backlog. It depends on user sample imports (`P1-005`) for user-owned content, and on `DEC-010` for whether Solid Groove wants this business at all and on what rights, revenue-sharing, and moderation terms. It is a commercial and operational commitment — creator agreements, payments, moderation, takedown, support — far more than it is a feature.
+Deliberately the last thing on this backlog by feature scope. It depends on user sample imports (`P1-005`) for user-owned content, and on `DEC-010` for whether Solid Groove wants this business at all and on what rights, revenue-sharing, and moderation terms. It is a commercial and operational commitment — creator agreements, payments, moderation, takedown, support — far more than it is a feature. `P2-004` follows it below as an operational chore rather than a feature.
 
 Scope when unparked, at minimum: pack authoring and versioning from a user's own library; publication review, reporting, and a takedown that disables a pack for new use without breaking projects already referencing it; entitlement and per-user pack visibility with defined behaviour when access ends; purchase, refund, and payout handling; and discovery that does not turn the library into the undifferentiated catalogue the sample plan rejects. Nothing here may introduce a second content model beside `LIB-04` packs.
+
+### P2-004 - Anonymous project expiry cleanup
+
+`Status: parked | Owner: unassigned | Dependencies: REL-003, DEC-001`<br>
+`PRD: 16 | Evidence: pending`
+
+Build the scheduled job that deletes anonymous projects 180 days after their last access, per `DEC-001`. The job must resolve last-access per project (reset by any open/access, not just edits), only ever delete anonymous-owned projects, and be safe to retry and idempotent against partial prior runs. It must also account for the `LOOP-001` device-local pairing flow: a project paired to an authenticated account before expiry is no longer anonymous and is never a deletion candidate, and the job itself does not touch the device-local pairing records, which are owned and cleaned up client-side by `LOOP-001`.
 
 ## 10. Completion log
 
