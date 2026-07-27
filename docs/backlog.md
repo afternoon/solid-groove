@@ -15,7 +15,9 @@ This file is **not** the live status board. Task blocks below are not edited to 
 
 ### Tracking: one GitHub issue per task
 
-Each task in this backlog has one GitHub issue in `afternoon/solid-groove`, titled with the task ID (for example `FND-002 - Canonical schema-v1 domain model`). The issue is the live record.
+Every task from Phase 1 onwards, plus every section 3 product decision, has one GitHub issue in `afternoon/solid-groove`, titled with the task ID (for example `LOOP-003 - Transport, tempo, loop, and metronome`). The issue is the live record. The index below is the mapping.
+
+**Phase 0's completed tasks predate this convention and have no issues.** `FND-001` through `FND-008` and `CNT-000` were built and landed against the task blocks in this file and its PR history, which is why those blocks carry no `Status`/`Owner`/`Evidence`. Do not create issues for them retroactively — git history is their completion record. The three Phase 0 tasks still in flight when the convention was adopted — `FND-002b`, `CNT-000b`, and `FND-009` — do have issues, as does `OPS-001`, which carries Phase 0's four deferred hosted-verification criteria.
 
 - **Status** is the issue's state and labels: open/closed, plus `blocked`, `needs-review`, or `parked` where they apply. `parked` tasks in section 9 get an issue only when the product owner unparks them.
 - **Ownership** is the issue assignee. An agent picking up a task assigns itself before changing product code.
@@ -23,9 +25,37 @@ Each task in this backlog has one GitHub issue in `afternoon/solid-groove`, titl
 - **Evidence** — the test commands that were run and the paths to durable artifacts — goes in the closing comment and in the PR description.
 - The task's acceptance checkboxes are copied into the issue body when it is created, and are ticked there rather than in this file.
 
-Phase 0 task blocks have had their `Status`, `Owner`, and `Evidence` fields removed accordingly. The section 3 decision blocks, later-phase blocks, and parked blocks still carry them; those fields are historical, and once a phase is prepared for implementation its issues govern. `Dependencies` and `PRD` stay on every block — they are the work graph and the requirement trace, not status.
+Phase 0 task blocks have had their `Status`, `Owner`, and `Evidence` fields removed accordingly. The section 3 decision blocks, later-phase blocks, and parked blocks still carry them; **those in-file fields are now historical and the issue governs.** Where a block says `Status: todo | Owner: unassigned | Evidence: pending`, read the issue instead. `Dependencies` and `PRD` stay on every block — they are the work graph and the requirement trace, not status.
 
 This removes the write contention that made the old in-file claim protocol unworkable: parallel agents never edit a shared Markdown file to announce themselves, and the record survives a bad merge.
+
+#### Issue index
+
+| Task | Issue | Task | Issue | Task | Issue |
+| --- | --- | --- | --- | --- | --- |
+| `FND-002b` | [#81](https://github.com/afternoon/solid-groove/issues/81) | `CNT-000b` | [#82](https://github.com/afternoon/solid-groove/issues/82) | `FND-009` | [#83](https://github.com/afternoon/solid-groove/issues/83) |
+| `DEC-001` | [#30](https://github.com/afternoon/solid-groove/issues/30) | `LOOP-005` | [#45](https://github.com/afternoon/solid-groove/issues/45) | `ARR-005` | [#63](https://github.com/afternoon/solid-groove/issues/63) |
+| `DEC-002` | [#31](https://github.com/afternoon/solid-groove/issues/31) | `LOOP-006` | [#46](https://github.com/afternoon/solid-groove/issues/46) | `EXP-001` | [#64](https://github.com/afternoon/solid-groove/issues/64) |
+| `DEC-003` | [#32](https://github.com/afternoon/solid-groove/issues/32) | `LOOP-007` | [#47](https://github.com/afternoon/solid-groove/issues/47) | `EXP-002` | [#65](https://github.com/afternoon/solid-groove/issues/65) |
+| `DEC-004` | [#33](https://github.com/afternoon/solid-groove/issues/33) | `LOOP-008` | [#48](https://github.com/afternoon/solid-groove/issues/48) | `EXP-003` | [#66](https://github.com/afternoon/solid-groove/issues/66) |
+| `DEC-005` | [#34](https://github.com/afternoon/solid-groove/issues/34) | `LOOP-009` | [#49](https://github.com/afternoon/solid-groove/issues/49) | `REL-001` | [#67](https://github.com/afternoon/solid-groove/issues/67) |
+| `DEC-006` | [#35](https://github.com/afternoon/solid-groove/issues/35) | `LOOP-010` | [#50](https://github.com/afternoon/solid-groove/issues/50) | `OPS-001` | [#68](https://github.com/afternoon/solid-groove/issues/68) |
+| `DEC-007` | [#36](https://github.com/afternoon/solid-groove/issues/36) | `LOOP-011` | [#51](https://github.com/afternoon/solid-groove/issues/51) | `AI-001` | [#69](https://github.com/afternoon/solid-groove/issues/69) |
+| `DEC-008` | [#37](https://github.com/afternoon/solid-groove/issues/37) | `LOOP-012` | [#52](https://github.com/afternoon/solid-groove/issues/52) | `AI-002` | [#70](https://github.com/afternoon/solid-groove/issues/70) |
+| `DEC-009` | [#38](https://github.com/afternoon/solid-groove/issues/38) | `CNT-001` | [#53](https://github.com/afternoon/solid-groove/issues/53) | `AI-003` | [#71](https://github.com/afternoon/solid-groove/issues/71) |
+| `DEC-010` | [#39](https://github.com/afternoon/solid-groove/issues/39) | `LOOP-013` | [#54](https://github.com/afternoon/solid-groove/issues/54) | `AI-004` | [#72](https://github.com/afternoon/solid-groove/issues/72) |
+| `LOOP-001` | [#40](https://github.com/afternoon/solid-groove/issues/40) | `CNT-002` | [#55](https://github.com/afternoon/solid-groove/issues/55) | `AI-005` | [#73](https://github.com/afternoon/solid-groove/issues/73) |
+| `LOOP-001b` | [#41](https://github.com/afternoon/solid-groove/issues/41) | `LOOP-014` | [#56](https://github.com/afternoon/solid-groove/issues/56) | `REL-002` | [#74](https://github.com/afternoon/solid-groove/issues/74) |
+| `LOOP-002` | [#42](https://github.com/afternoon/solid-groove/issues/42) | `LOOP-015` | [#57](https://github.com/afternoon/solid-groove/issues/57) | `HARD-001` | [#75](https://github.com/afternoon/solid-groove/issues/75) |
+| `LOOP-003` | [#43](https://github.com/afternoon/solid-groove/issues/43) | `LOOP-016` | [#58](https://github.com/afternoon/solid-groove/issues/58) | `HARD-002` | [#76](https://github.com/afternoon/solid-groove/issues/76) |
+| `LOOP-004` | [#44](https://github.com/afternoon/solid-groove/issues/44) | `ARR-001` | [#59](https://github.com/afternoon/solid-groove/issues/59) | `HARD-003` | [#77](https://github.com/afternoon/solid-groove/issues/77) |
+| | | `ARR-002` | [#60](https://github.com/afternoon/solid-groove/issues/60) | `HARD-004` | [#78](https://github.com/afternoon/solid-groove/issues/78) |
+| | | `ARR-003` | [#61](https://github.com/afternoon/solid-groove/issues/61) | `HARD-005` | [#79](https://github.com/afternoon/solid-groove/issues/79) |
+| | | `ARR-004` | [#62](https://github.com/afternoon/solid-groove/issues/62) | `REL-003` | [#80](https://github.com/afternoon/solid-groove/issues/80) |
+
+Labels in use: `phase-0`…`phase-4` for scheduling, `decision` for section 3, `blocked` where an undecided `DEC-*` gates the task, `contract` for a task that owns or changes a published contract, `gate` for the `FND-009`/`LOOP-016`/`REL-001`/`REL-002`/`REL-003` release gates, and `operator` for `OPS-001`, which needs real credentials and must never be claimed by an implementation agent.
+
+Six issues carry `blocked` because a product decision is genuinely unmade, not because the work is hard: `LOOP-001` (`DEC-001`), `CNT-002` (`DEC-003`, `DEC-010`), `LOOP-015` (`DEC-002`), `EXP-002`/`EXP-003` (`DEC-004`), `AI-001` (`DEC-005`), `HARD-003` (`DEC-001`, `DEC-005`, `DEC-009`), and `HARD-005` (`DEC-006`). An agent on one of these implements what does not depend on the decision and reports the rest — it never guesses the decision.
 
 ### Landing work
 
