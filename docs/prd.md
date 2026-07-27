@@ -157,7 +157,7 @@ An unauthenticated visitor is assigned a persistent anonymous account and can cr
 
 Acceptance criteria:
 
-- The dashboard offers Blank and at least two starter templates.
+- The dashboard offers Blank and the six approved featured starter templates: House, Techno, Hip Hop/Trap, Drum & Bass/Jungle, Dubstep/Bass, and Ambient (`DEC-002`).
 - A starter template opens with audible musical content and no missing assets.
 - Refreshing or reopening the browser retains projects for the same anonymous session.
 - The UI explains that an anonymous user should upgrade their account to keep access across devices.
@@ -1487,7 +1487,6 @@ A feature is done only when:
 
 ### Product-owner decisions required before Phase 3 or launch
 
-- Which two or more genres should provide the dashboard's featured starter templates first, while the full required genre set remains available through bundled content and demo projects?
 - Which factory packs does the alpha ship, and what is each one's name, scope, and stated purpose? The list follows from the assets that can actually be cleared, so it is settled with the content plan rather than ahead of it.
 - For the later pack marketplace (LIB-05): who may publish a pack, what rights and revenue-sharing terms apply to a creator, what moderation and takedown process governs published content, and what happens to a project that uses a pack after that pack is withdrawn or the user's access to it ends? (Post-alpha; unscheduled.)
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
