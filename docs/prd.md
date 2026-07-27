@@ -249,6 +249,7 @@ Acceptance criteria:
 - The 40-track, 10-minute reference project renders successfully without truncation or event drift.
 - Export progress and failure states are shown.
 - The file name is derived safely from the project name.
+- Stereo export preserves project gain exactly: no peak or loudness normalization is applied, whether by application code or an implementation library's default behavior (`DEC-004`). The AUD-04 safety limiter still applies, since it protects against dangerous or clipped output rather than adjusting creative gain.
 
 **AUD-06 - Multitrack stem export (P0)**  
 The user can export one WAV stem per track as a simple, vendor-neutral path into Ableton Live, Logic Pro, FL Studio, and other production tools.
@@ -260,6 +261,7 @@ Acceptance criteria:
 - Send/return buses are exported as separate stems so shared delay and reverb tails can be reconstructed without being duplicated into every track.
 - The package includes all non-empty tracks regardless of current mute or solo state by default; the export dialog lets the user explicitly exclude tracks and explains this behavior.
 - Release and effect tails are preserved. Shorter stems are padded with silence to match the longest exported tail and prevent truncation or alignment differences.
+- Every stem and the reference mix preserve project gain exactly: no peak or loudness normalization is applied, whether by application code or an implementation library's default behavior (`DEC-004`).
 - A ZIP package contains safely named, deterministically ordered WAV files, a stereo reference mix with master processing, and a human-readable manifest containing project tempo, time signature, track IDs/names, processing policy, sample rate, and bit depth.
 - The user can choose at least 16-bit or 24-bit PCM WAV and a supported sample rate before rendering.
 - The 40-track, 10-minute processed reference project exports successfully without drift, missing tracks, clipped tails, or browser memory failure on supported hardware.
@@ -1475,6 +1477,7 @@ A feature is done only when:
 - Alpha time signature is fixed to 4/4.
 - AI produces structured project edits, not generated audio.
 - Exported stereo WAV is the first listening and sharing mechanism; aligned WAV stems are the P0 vendor-neutral DAW handoff.
+- Stereo and stem exports preserve project gain exactly rather than applying a peak/loudness normalization policy. Final output level stays under the producer's control; no export library may change it implicitly (`DEC-004`).
 - A self-contained Ableton Live Set is the first native project-format handoff target after the private alpha.
 - Ableton export targets the oldest Live version that can correctly support the implemented handoff; an exporter compatibility spike establishes and documents that minimum version.
 - Real-time collaboration follows validation of the single-user creation workflow.
@@ -1490,7 +1493,6 @@ A feature is done only when:
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
 - Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha?
 - Will anonymous projects expire, and what exact upgrade path protects them across devices?
-- What volume normalization or loudness target should WAV export use, if any?
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
 - What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)
