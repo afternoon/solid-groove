@@ -23,6 +23,26 @@ class FirebaseAuthService implements AuthService {
 			this.auth = config.auth;
 			return config.auth;
 		});
+
+		// `authService` is constructed at module scope (bottom of this file), so
+		// merely *importing* this module starts that dynamic import — with no
+		// caller yet to await it. `src/firebaseConfig.ts` calls `getAuth(app)` in
+		// its module body, which throws `auth/invalid-api-key` when no Firebase
+		// config is present, so in that situation `this.ready` is a rejected
+		// promise nobody is holding: an unhandled rejection.
+		//
+		// That is a real, observed CI flake rather than a theoretical one. Any unit
+		// or component test whose import graph reaches this module (Dashboard.test.tsx
+		// does) would report `Test Files 85 passed / Tests 1114 passed / Errors 1
+		// error` and exit 1 — every assertion green, the run red. Whether the
+		// rejection settles before Vitest tears the process down is a race, so the
+		// same commit passed one CI run and failed the next.
+		//
+		// Attaching a handler marks the promise handled without changing what
+		// callers see: every method still `await`s `this.ready` and still gets this
+		// exact rejection. Do not "simplify" this away — it fails intermittently and
+		// at a distance, which is the expensive kind.
+		this.ready.catch(() => {});
 	}
 
 	async signInWithGoogle(): Promise<void> {

@@ -16,6 +16,16 @@ playwright/.cache/
 *-debug.log
 .firebase/
 
+# Throwaway Playwright configs. A sandbox whose pre-installed browser build
+# differs from the one @playwright/test pins cannot run the committed configs
+# directly, so verifying a browser suite there means writing a short config that
+# extends the real one and overrides `executablePath` (see docs/testing.md's
+# Browser E2E section). Those are scaffolding for one run and must never be
+# committed — ignoring them by pattern is more reliable than remembering to
+# delete them, which has already left stray files behind twice.
+*.local.config.ts
+*.tmp.ts
+
 # editor directories and files
 .DS_Store
 
