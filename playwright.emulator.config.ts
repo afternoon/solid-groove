@@ -32,12 +32,6 @@ const authEmulatorHost =
 // third full cross-browser matrix.
 export default defineConfig({
 	testDir: "./e2e-emulator",
-	// Loads the app once in a real browser before any test, so Vite's cold-start
-	// dependency optimization does its force-reload here rather than mid-test.
-	// See the comment in that file — without it, the first test on a cold dev
-	// server loses whatever interaction the reload interrupts, which reads as a
-	// broken create-project flow. Runs after `webServer` is up.
-	globalSetup: "./e2e-emulator/warmDevServer.ts",
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
@@ -73,8 +67,40 @@ export default defineConfig({
 			VITE_FIREBASE_APP_ID: "demo-app-id",
 		},
 	},
+	// Each gating browser gets a warm-up project plus the real suite that depends
+	// on it. The warm-up walks the app once so Vite's cold-start dependency
+	// optimization does its force-reload before any assertion — see
+	// `e2e-emulator/warmDevServer.setup.ts` for what that reload broke and why
+	// this is a setup project rather than a `globalSetup` (short version:
+	// `globalSetup` cannot tell which browser `--project` selected, and CI
+	// installs only the matrix browser, so a hardcoded chromium launch silently
+	// no-opped in the firefox job).
+	//
+	// `--project=firefox` pulls in `warmup:firefox` automatically, so CI needs no
+	// extra step. The real projects ignore the setup spec so they do not run it a
+	// second time as an ordinary test.
 	projects: [
-		{ name: "chromium", use: { ...devices["Desktop Chrome"] } },
-		{ name: "firefox", use: { ...devices["Desktop Firefox"] } },
+		{
+			name: "warmup:chromium",
+			testMatch: /warmDevServer\.setup\.ts/,
+			use: { ...devices["Desktop Chrome"] },
+		},
+		{
+			name: "chromium",
+			testIgnore: /warmDevServer\.setup\.ts/,
+			use: { ...devices["Desktop Chrome"] },
+			dependencies: ["warmup:chromium"],
+		},
+		{
+			name: "warmup:firefox",
+			testMatch: /warmDevServer\.setup\.ts/,
+			use: { ...devices["Desktop Firefox"] },
+		},
+		{
+			name: "firefox",
+			testIgnore: /warmDevServer\.setup\.ts/,
+			use: { ...devices["Desktop Firefox"] },
+			dependencies: ["warmup:firefox"],
+		},
 	],
 });
