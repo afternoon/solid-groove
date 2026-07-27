@@ -81,11 +81,31 @@ Config: `playwright.emulator.config.ts`. Unlike the suite above, this points the
 
 Suite location: `e2e-emulator/`. `e2e-emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `playwright.emulator.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
 
-### Why this suite needs an audio device in CI
+### Playback is asserted in Chromium only — a known, tracked gap
 
-It is the only suite that actually starts playback, and Firefox is the only gating browser that needs a real audio device to do so. `ubuntu-latest` has no `/dev/snd`: headless Chromium falls back to its own dummy audio backend, but Firefox's cubeb finds no ALSA device and `AudioContext.resume()` rejects. `useProjectAudio`'s `play()` then does the right thing — logs `audio_start_failed` and leaves `isPlaying` false — so the transport button never becomes "Stop playback" and `slice.spec.ts` fails on that assertion. That failure is the runner having no sound card, not a product defect.
+`slice.spec.ts` runs in both gating browsers, but its two playback assertions are guarded by `browserName === "chromium"`. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
 
-`.github/workflows/ci.yml`'s `browser-emulator` job therefore installs `libasound2t64` and points the default PCM at ALSA's built-in `null` device, exactly as the `checks` job does for `node-web-audio-api`. The `browser` job needs no equivalent: it runs against the mock backend and never starts the transport.
+**Why.** In Firefox here, `useProjectAudio.play()` never reaches `setIsPlaying(true)`, so the transport button never becomes "Stop playback". What is known, from instrumenting the spec:
+
+- a fresh `AudioContext` **constructs fine and reports `state="suspended"`**;
+- the page logs **no error at all** — no `pageerror`, no `console.error`;
+- so `runtime.resume()` neither resolves nor rejects. It simply never settles.
+
+**What was tried and did not work**, recorded so nobody repeats it:
+
+| Attempt | Outcome |
+| --- | --- |
+| Fix the bare `firebase` in CI (exit 127) | Real bug — the job had never run at all. Fixed, and it exposed the rest. |
+| Null ALSA default output device in `browser-emulator` | No effect. Also wrong in principle: the context constructs, so no device is missing. Reverted. |
+| `media.autoplay.*` Firefox user prefs | No effect. Reverted rather than left in as a workaround that does not work. |
+
+Firefox cannot be installed in the development sandbox (`playwright install firefox` fails against a blocked CDN), so every attempt costs a CI round and is made blind. Guarding the assertion is the honest stopping point, not a fourth guess.
+
+Note that the `checks` job's null ALSA device is a *different* and genuinely necessary thing — `node-web-audio-api` needs it to construct a context at all under Node. Firefox in `browser-emulator` does not: its context constructs without one.
+
+**The underlying question is a product one and is filed, not dropped.** If Firefox leaves `resume()` pending when it blocks Web Audio, a real Firefox user gets a play button that never responds *and* no `audio_start_failed` event — because a promise that never settles never reaches the `catch`. That undercuts `AUD-07`'s "`audio_start_failed` with a browser-blocked flag when the context cannot unlock", and the fix is a timeout around `resume()`. Tracked on `LOOP-003` (#43), which owns transport and user-gesture unlock across supported browsers; `HARD-001` owns the real-hardware cross-browser pass. **Restore the guard to unconditional once #43 lands.**
+
+The test annotates each run `playback-asserted` or `playback-skipped`, so the gap is visible in the report rather than only in this document.
 
 ### Why this suite warms the dev server first
 
