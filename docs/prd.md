@@ -1484,6 +1484,8 @@ A feature is done only when:
 - SolidStart/SolidJS/TypeScript, Tone.js over Web Audio, and Firebase Auth/Firestore/Storage/Functions are committed alpha technologies.
 - One long-lived real-time Tone/Web Audio context per document and stable, incrementally reconciled audio graphs are hard alpha architecture decisions.
 - The alpha arrangement is a hybrid virtualized DOM plus layered Canvas 2D renderer; WebGL/WebGPU and WASM require measured failure plus an approved ADR.
+- An anonymous project is retained until 180 days after its last access; opening or otherwise accessing it resets the timer. Deletion is scoped to anonymous projects only, and authenticating as an account owner before expiry keeps the project indefinitely (`DEC-001`).
+- Upgrading from anonymous to an authenticated account never loses an anonymous project. Each device records, in local browser storage, which anonymous projects were created or edited there. When that device is used to authenticate, the user is offered a pairing flow that attaches its locally-recorded anonymous projects to the authenticated account; once a project is paired, its local record is deleted. Multiple people sharing one device is explicitly out of scope: whichever anonymous projects were edited on a device are assumed to belong to whoever next authenticates on it (`DEC-001`).
 
 ### Product-owner decisions required before Phase 3 or launch
 
@@ -1492,7 +1494,6 @@ A feature is done only when:
 - For the later pack marketplace (LIB-05): who may publish a pack, what rights and revenue-sharing terms apply to a creator, what moderation and takedown process governs published content, and what happens to a project that uses a pack after that pack is withdrawn or the user's access to it ends? (Post-alpha; unscheduled.)
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
 - Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha?
-- Will anonymous projects expire, and what exact upgrade path protects them across devices?
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
 - What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)
