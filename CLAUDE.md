@@ -299,6 +299,8 @@ EOF
 
 Use `/etc/asound.conf` (same contents) instead when the suite runs as a different user than the one whose `$HOME` you wrote to. A machine with real audio hardware needs none of this. `.github/workflows/ci.yml`'s `checks` job runs exactly these steps before `bun run test`; see [`docs/testing.md`](./docs/testing.md#unit-and-component-tests) for the full background.
 
+**This applies to `bun run test` only — not to the browser suites.** The problem it solves is specific to `node-web-audio-api` under Node, whose `cpal` backend refuses to *construct* a context without a default output device. A real browser constructs one regardless: in the emulator browser suite, Firefox reports a fresh `AudioContext` at `state="suspended"` on a runner with no `/dev/snd` at all. So if a *browser* test fails around audio, a null ALSA device will not help and its absence is not the cause — this exact wrong turn has already cost a CI round. See [`docs/testing.md`](./docs/testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap) for what is actually known about that failure, and `LOOP-003` (#43) for the product-side gap behind it.
+
 ## Important Configuration Notes
 
 1. **SSR is disabled** - The app runs client-side only (app.config.ts:4)
