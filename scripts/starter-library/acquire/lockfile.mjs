@@ -264,9 +264,9 @@ function validatePackAssignment(asset, source, where, errors) {
 		);
 		return;
 	}
-	if (source && pack.license.id !== source.licenseId) {
+	if (source && pack.rights.licence !== source.licenseId) {
 		errors.push(
-			`${where}: source ${source.id} is licensed ${source.licenseId}, which exceeds pack "${pack.slug}"'s rights position ("${pack.license.id}")`,
+			`${where}: source ${source.id} is licensed ${source.licenseId}, which exceeds pack "${pack.slug}"'s rights position ("${pack.rights.licence}")`,
 		);
 	}
 }

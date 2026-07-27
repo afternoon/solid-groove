@@ -162,7 +162,8 @@ function validAsset(pack, overrides = {}, index = 0) {
 			sourceTypes: ["synthesized"],
 		},
 		license: {
-			...pack.license,
+			id: pack.rights.licence,
+			rawRedistributionAllowed: pack.rights.rawRedistribution,
 			creator: "Solid Groove",
 			sourceUrl: null,
 			retrievedAt: "2026-07-25",
@@ -198,7 +199,7 @@ function packHeader(pack, assetCount) {
 		kind: pack.kind,
 		description: pack.description,
 		coverage: pack.coverage,
-		license: pack.license,
+		rights: pack.rights,
 		releasedAt: "2026-07-25",
 		assetCount,
 	};

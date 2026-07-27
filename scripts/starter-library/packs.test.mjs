@@ -11,14 +11,26 @@ import {
 import { GENRES, TAXONOMY } from "./taxonomy.mjs";
 
 const PACK_ID = /^pak_[A-Za-z0-9_-]{21}$/;
+const PACK_VERSION = /^\d+\.\d+\.\d+$/;
+
+/**
+ * Every pack's id, frozen and pasted into `packs.mjs`. Section 5.1/9's
+ * controlled vocabulary requires a pack id to be "stable, opaque, and
+ * permanent" and "never derived from the name" — so this test pins each
+ * literal id rather than re-deriving it from the slug, which would let a
+ * future rename or slug change silently mint a new id without failing
+ * anything (the failure mode `packId` used to invert).
+ */
+const EXPECTED_IDS = {
+	"core-electronic-drums": "pak_SdlN_OazweXrwury0j27Y",
+	"foundation-bass": "pak_FH8gyASzYiWGCrtpKZ-Ho",
+	"tonal-elements": "pak_RznkYK7KIIo7BOZQZ_i0O",
+	"ambient-textures": "pak_gUou3hBgXF47EwgR-9gZ1",
+	"transitions-fx": "pak_PrUvdIGkCE3uRGYeKOGRg",
+	"cc0-community": "pak_5o6qI8YY27cYVyqstlJyG",
+};
 
 describe("packId", () => {
-	it("is deterministic — the same slug always yields the same id", () => {
-		expect(packId("core-electronic-drums")).toBe(
-			packId("core-electronic-drums"),
-		);
-	});
-
 	it("matches the PRD section 9.4 `pak_`-prefixed shape", () => {
 		expect(packId("anything")).toMatch(PACK_ID);
 	});
@@ -41,17 +53,24 @@ describe("PACKS", () => {
 		}
 	});
 
+	it("pins each pack's id — a rename or slug change must not alter it", () => {
+		for (const pack of PACKS) {
+			expect(pack.id).toBe(EXPECTED_IDS[pack.slug]);
+		}
+	});
+
 	it("carries the section 5.1 pack record fields", () => {
 		for (const pack of PACKS) {
 			expect(pack.name).toBeTruthy();
-			expect(pack.version).toBeGreaterThanOrEqual(1);
+			expect(pack.version).toMatch(PACK_VERSION);
 			expect(pack.publisher).toBe("Solid Groove");
 			expect(["factory", "user", "third-party"]).toContain(pack.kind);
 			expect(pack.description).toBeTruthy();
 			// Every pack states what it does not contain (section 6.5).
 			expect(pack.description).toMatch(/contains no|reserved/i);
-			expect(pack.license.id).toBeTruthy();
-			expect(pack.license.rawRedistributionAllowed).toBe(true);
+			expect(pack.rights.licence).toBeTruthy();
+			expect(pack.rights.rawRedistribution).toBe(true);
+			expect(typeof pack.rights.attributionRequired).toBe("boolean");
 		}
 	});
 
@@ -79,7 +98,7 @@ describe("PACKS", () => {
 		const reserved = packBySlug(RESERVED_CC0_PACK_SLUG);
 		expect(reserved).not.toBeNull();
 		expect(reserved.family).toBeNull();
-		expect(reserved.license.id).toBe("CC0-1.0");
+		expect(reserved.rights.licence).toBe("CC0-1.0");
 		expect(reserved.coverage).toBeNull();
 	});
 });
@@ -106,7 +125,7 @@ describe("acquirablePacks", () => {
 	it("only offers packs whose rights position is CC0", () => {
 		const packs = acquirablePacks();
 		expect(packs.length).toBeGreaterThan(0);
-		for (const pack of packs) expect(pack.license.id).toBe("CC0-1.0");
+		for (const pack of packs) expect(pack.rights.licence).toBe("CC0-1.0");
 		// The synthesized packs are `solid-groove-owned` and are never a valid
 		// destination for acquired third-party audio.
 		expect(packs.some((p) => p.slug === "core-electronic-drums")).toBe(false);

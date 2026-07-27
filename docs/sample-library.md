@@ -447,7 +447,7 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
     "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp",
     "slug": "techno-drums",
     "name": "Techno Drums",
-    "version": 3,
+    "version": "1.0.0",
     "publisher": "Solid Groove",
     "kind": "factory",
     "description": "Driven kicks, metallic hats, and industrial percussion for 125-150 BPM techno. Drums and percussion only; no tonal material.",
@@ -457,7 +457,7 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
       "bpmRange": [125, 150],
       "intensity": ["low", "medium", "high", "extreme"]
     },
-    "license": { "id": "CC0-1.0", "rawRedistributionAllowed": true },
+    "rights": { "licence": "CC0-1.0", "rawRedistribution": true, "attributionRequired": false },
     "releasedAt": "2026-07-25",
     "assetCount": 84
   },
@@ -465,12 +465,14 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
 }
 ```
 
+`pack.version` is a `major.minor.patch` string and `pack.rights` is `{ licence, rawRedistribution, attributionRequired }` — the exact shape `FND-002b`'s `packVersionSchema` and `packRightsSchema` require (`src/domain/entities.ts`), so a manifest's `pack` header parses directly as a domain `Pack` once the client strips this section's manifest-only fields (`slug`, `coverage`, `releasedAt`, `assetCount`).
+
 Each asset record should support a shape equivalent to:
 
 ```json
 {
   "id": "sg-one-shot-kick-0001",
-  "pack": { "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp", "version": 3 },
+  "pack": { "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp", "version": "1.0.0" },
   "version": 1,
   "name": "Rounded Analog Kick 01",
   "type": "one-shot",
@@ -520,7 +522,7 @@ Each asset record should support a shape equivalent to:
 }
 ```
 
-A pack's `license` is the position every asset in it shares; an asset's own `license` block stays because provenance is per file — a CC0 pack still records which creator and which source page each file came from. The two must agree, and validation fails when an asset claims terms its pack does not cover.
+A pack's `rights` is the position every asset in it shares; an asset's own `license` block stays because provenance is per file — a CC0 pack still records which creator and which source page each file came from. The two must agree (an asset's `license.id` must equal its pack's `rights.licence`), and validation fails when an asset claims terms its pack does not cover.
 
 ### Controlled vocabulary
 
@@ -896,7 +898,7 @@ A sixth, reserved pack — `cc0-community`, rights position `CC0-1.0` — exists
 library/
   audio/sha256/<aa>/<bb>/<sha256>.wav          unchanged — content-addressed, immutable, shared across packs
   packs/index.json                             mutable pointer list of available packs, max-age=60
-  packs/<pack-slug>/v<n>.json                  immutable pack manifest, max-age=1y
+  packs/<pack-slug>/v<major.minor.patch>.json  immutable pack manifest, max-age=1y
   packs/<pack-slug>/latest.json                mutable pointer, max-age=60
 ```
 
@@ -904,7 +906,7 @@ Audio storage keys did not change. Identity is still the SHA-256 of the bytes, s
 
 **Asset identity.** Synthesized asset IDs are unchanged (`sg-one-shot-<family>-<role>-NNNN`, still append-only and pinned by `catalog.test.mjs`) — only a `pack: { id, version }` field was added to each asset record. Nothing needed renumbering because packs align exactly with the families the IDs already encode.
 
-**Validation.** `validate.mjs` gained the section 9 pack rules, checked per pack manifest: exactly one pack per asset, no asset licence exceeding its pack's rights position (an asset's `license.id` must equal its pack's), no undefined pack referenced (both a manifest's own `pack.slug` and every lockfile selection's destination pack are checked against `packs.mjs`), and every pack delivering the roles and genres its coverage claim advertises. The section 6.4 collection balance and section 6.1 taxonomy-coverage rules still run once, across every pack's assets concatenated — section 6.5 is explicit that those are measured library-wide, not per pack.
+**Validation.** `validate.mjs` gained the section 9 pack rules, checked per pack manifest: exactly one pack per asset, no asset licence exceeding its pack's rights position (an asset's `license.id` must equal its pack's `rights.licence`), no undefined pack referenced (both a manifest's own `pack.slug` and every lockfile selection's destination pack are checked against `packs.mjs`), and every pack delivering the roles and genres its coverage claim advertises. The section 6.4 collection balance and section 6.1 taxonomy-coverage rules still run once, across every pack's assets concatenated — section 6.5 is explicit that those are measured library-wide, not per pack.
 
 **Acquisition.** A lockfile selection names its destination pack (`asset.pack`, a slug) at pin time; `validateLockfile`/`validateDraft` reject an unknown pack or one whose rights position the source's licence cannot satisfy, and `ingestSelection` re-checks both before writing a single byte. `library:manage`'s review form carries the same destination-pack field. The VCSL bulk path has no per-file lockfile entry, so it targets the reserved `cc0-community` pack directly in code.
 

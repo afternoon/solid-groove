@@ -69,6 +69,8 @@ const BRAND_TOKENS = [
 const HEX_64 = /^[0-9a-f]{64}$/;
 const ASSET_ID = /^sg-one-shot-[a-z]+-[a-z-]+-\d{4}$/;
 const PACK_ID = /^pak_[A-Za-z0-9_-]{21}$/;
+/** `FND-002b`'s `packVersionSchema`: a branded `major.minor.patch` string. */
+const PACK_VERSION = /^\d+\.\d+\.\d+$/;
 
 /**
  * Validate one pack's manifest: its header, every asset in it (the section 9
@@ -145,8 +147,8 @@ function validatePackHeader(pack, errors) {
 	}
 	if (!pack.id || !PACK_ID.test(pack.id)) errors.push("pack.id is malformed");
 	if (!pack.name) errors.push("pack.name is required");
-	if (!Number.isInteger(pack.version) || pack.version < 1) {
-		errors.push("pack.version must be a positive integer");
+	if (typeof pack.version !== "string" || !PACK_VERSION.test(pack.version)) {
+		errors.push("pack.version must be a major.minor.patch string");
 	}
 	if (!["factory", "user", "third-party"].includes(pack.kind)) {
 		errors.push(
@@ -156,15 +158,18 @@ function validatePackHeader(pack, errors) {
 	if (!pack.publisher) errors.push("pack.publisher is required");
 	if (!pack.description) errors.push("pack.description is required");
 
-	const license = pack.license;
-	if (!license?.id) {
-		errors.push("pack.license.id is required");
+	const rights = pack.rights;
+	if (!rights?.licence) {
+		errors.push("pack.rights.licence is required");
 	} else {
-		const rejection = licenseRejectionReason(license.id);
-		if (rejection) errors.push(`pack license: ${rejection}`);
+		const rejection = licenseRejectionReason(rights.licence);
+		if (rejection) errors.push(`pack rights: ${rejection}`);
 	}
-	if (license && license.rawRedistributionAllowed !== true) {
-		errors.push("pack license: raw redistribution is not approved");
+	if (rights && rights.rawRedistribution !== true) {
+		errors.push("pack rights: raw redistribution is not approved");
+	}
+	if (rights && typeof rights.attributionRequired !== "boolean") {
+		errors.push("pack.rights.attributionRequired must be a boolean");
 	}
 
 	if (pack.coverage) {
@@ -227,9 +232,13 @@ function validateAsset(
 				`${where}: pack.version ${asset.pack.version} does not match the manifest's pack version (${pack.version})`,
 			);
 		}
-		if (asset.license && pack.license && asset.license.id !== pack.license.id) {
+		if (
+			asset.license &&
+			pack.rights &&
+			asset.license.id !== pack.rights.licence
+		) {
 			errors.push(
-				`${where}: license "${asset.license.id}" exceeds pack "${pack.slug}"'s rights position ("${pack.license.id}")`,
+				`${where}: license "${asset.license.id}" exceeds pack "${pack.slug}"'s rights position ("${pack.rights.licence}")`,
 			);
 		}
 	}
@@ -634,7 +643,7 @@ export function formatPackSummary(packManifests) {
 		"packs:",
 		...packManifests.map(
 			({ pack }) =>
-				`  ${pack.slug.padEnd(24)} v${pack.version}  ${String(pack.assetCount).padStart(4)} assets  ${pack.license.id}`,
+				`  ${pack.slug.padEnd(24)} v${pack.version}  ${String(pack.assetCount).padStart(4)} assets  ${pack.rights.licence}`,
 		),
 	].join("\n");
 }

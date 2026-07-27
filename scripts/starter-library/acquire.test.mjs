@@ -594,7 +594,7 @@ describe("end-to-end ingest", () => {
 				kind: pack.kind,
 				description: pack.description,
 				coverage: { roles: ["percussion"], genres: ["techno"] },
-				license: pack.license,
+				rights: pack.rights,
 				releasedAt: "2026-07-25",
 				assetCount: 1,
 			},

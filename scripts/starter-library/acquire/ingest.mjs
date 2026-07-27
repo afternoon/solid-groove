@@ -91,9 +91,9 @@ export async function ingestSelection(selection, context) {
 			`${selection.id}: asset.pack "${selection.asset.pack}" is not a registered pack`,
 		);
 	}
-	if (pack.license.id !== source.licenseId) {
+	if (pack.rights.licence !== source.licenseId) {
 		throw new Error(
-			`${selection.id}: source ${source.id} is licensed ${source.licenseId}, which exceeds pack "${pack.slug}"'s rights position ("${pack.license.id}")`,
+			`${selection.id}: source ${source.id} is licensed ${source.licenseId}, which exceeds pack "${pack.slug}"'s rights position ("${pack.rights.licence}")`,
 		);
 	}
 

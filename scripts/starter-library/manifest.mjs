@@ -250,7 +250,7 @@ export function buildAllPacks(catalog = CATALOG, { acquired } = {}) {
 					kind: pack.kind,
 					description: pack.description,
 					coverage: pack.coverage,
-					license: pack.license,
+					rights: pack.rights,
 					releasedAt: RELEASED_AT,
 					assetCount: assets.length,
 				},
