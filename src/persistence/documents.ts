@@ -32,7 +32,7 @@ import {
  *
  * | Path                                     | Contents                          |
  * | ---------------------------------------- | --------------------------------- |
- * | `projects/{projectId}`                   | Metadata; the only tier the dashboard reads |
+ * | `projects/{projectId}`                   | Metadata, including the derived pack dependency list; the only tier the dashboard reads |
  * | `projects/{projectId}/song/current`      | Song structure and arrangement    |
  * | `projects/{projectId}/clips/{clipId}`    | One clip and its content          |
  * | `projects/{projectId}/arrangement/{trackId}` | One track's arrangement chunk, only when the song document exceeds its budget |
@@ -53,6 +53,12 @@ import {
  *   integer field still sorts and queries.
  * - **`projectId`** is repeated on every child document so a document copied
  *   between projects is rejected by both the rules and the decoder.
+ * - **Pack dependencies** (`packDependencies`) live on the metadata document so
+ *   the dashboard, export, and a missing-pack warning can answer "what does this
+ *   project need?" without reading song state or clip content. The list is
+ *   derived from the song's assets, so `saveSong` rewrites it in the same
+ *   revision-checked step that writes the song — never a separate write that
+ *   could be lost.
  */
 
 export const PROJECTS_COLLECTION = "projects";

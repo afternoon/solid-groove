@@ -15,8 +15,7 @@ Code: [`src/persistence/`](../src/persistence). The canonical domain model it st
 
 | Path | Contents | Written when |
 | --- | --- | --- |
-| `projects/{projectId}` | Name, owner, collaborators, created/modified time, schema version, current revision, template/genre | Metadata edits. The dashboard reads only this tier. |
-| `projects/{projectId}` (planned, `FND-002b`) | …plus the pack dependency list: one pack ID and version per pack the project's assets resolve from | Whenever a transaction adds the first or removes the last reference to a pack |
+| `projects/{projectId}` | Name, owner, collaborators, created/modified time, schema version, current revision, template/genre, and the pack dependency list (`packDependencies`: one pack ID and version per pack the project's assets resolve from) | Metadata edits, and every `saveSong` — the dependency list is derived from the song's assets. The dashboard reads only this tier. |
 | `projects/{projectId}/song/current` | Tempo, time signature, sections, tracks with instrument state, device chains, sends, mixer state, return buses, master, assets, and — while it fits — arrangement placements and automation | Structural and arrangement edits |
 | `projects/{projectId}/clips/{clipId}` | One clip and its note or audio-loop content | Note and clip-content edits |
 | `projects/{projectId}/arrangement/{trackId}` | One track's placements and its track-owned automation lanes | Only when the song document exceeds its budget |
@@ -29,9 +28,31 @@ Conventions that hold on every tier:
 - **Timestamps** are integer epoch milliseconds (`createdAt`/`modifiedAt` on metadata, `updatedAt` on children), never Firestore `Timestamp`s — a Firebase type must never reach the domain model, and an integer field still sorts and queries.
 - **`projectId`** is repeated on every child document, so a document copied between projects is rejected by both the rules and the decoder.
 - The project ID is **not** duplicated as a metadata field: the document path already carries it, and a second copy could disagree.
-- **Pack dependencies** (`FND-002b`, not yet implemented) belong on the metadata tier for the same reason ownership does: the dashboard, export, and a missing-pack warning need to know what a project requires without loading song state or clip content. The list is derived from project state rather than maintained by hand, so it cannot drift from the assets actually referenced.
+- **Pack dependencies** belong on the metadata tier for the same reason ownership does: the dashboard, export, and a missing-pack warning need to know what a project requires without loading song state or clip content. See [Packs and pack-qualified assets](#packs-and-pack-qualified-assets) below.
 
 `encodeProject` produces these documents from a `Project`; `decodeProject` reassembles one and runs it through the domain's `parseProject`, so persistence has no second, weaker definition of a valid project.
+
+## Packs and pack-qualified assets
+
+Library content is organized into **packs** ([LIB-05](./prd.md#76-sound-library), invariant 12), and `FND-002b` put that in schema v1. The domain model owns the rules; this section records where the bytes live.
+
+The domain side, in [`src/domain/packs.ts`](../src/domain/packs.ts) and [`entities.ts`](../src/domain/entities.ts):
+
+- A **`Pack`** has a `pak_` ID, name, `major.minor.patch` version, publisher, kind (`factory`, `user`, `third-party`), description, and one rights position covering every asset in it. A pack version is immutable content: republished audio or metadata is a new version. Packs are *library* entities — a project never stores pack records, so nothing in a stored project has to be kept in step with a catalogue.
+- An **`Asset`** names its owning `packId` and the `packVersion` it resolved from. Asset identity is therefore pack-qualified: two packs may hold a sound of the same name without collision, and neither is renamed to avoid the other. The storage reference is still not identity (invariant 8).
+- A project's **pack dependency list** is `metadata.packDependencies`: one `{ packId, version }` per pack its assets resolve from, at most one version per pack. It is *derived*, by `derivePackDependencies(song)`, and `parseProject` enforces both directions — an asset whose pack is undeclared, a declared version that disagrees with the asset, and a declared pack no asset uses are all rejected. Drift is an invalid project, not a project that quietly over-reports.
+- An **unavailable pack** is a reported state, never a dangling reference or a substitution. `resolvePackAvailability(project, availablePacks)` returns the missing packs with the affected tracks and clips named, distinguishes "no version of this pack" from "not the version this project pinned", and never falls back to a version that happens to exist. Presenting that state is `LOOP-013`.
+
+Where a dependency is recomputed:
+
+| Layer | What happens |
+| --- | --- |
+| Commands | `executeTransaction` re-derives the list once per transaction, before the invariant check, so the recompute is atomic with the edit that changed which packs the project uses. Undo and redo replay through the same path. An unchanged list is passed through by object identity, so a note edit is not mistaken for a metadata change. |
+| Persistence | `saveSong` writes the derived list to the metadata document in the same revision-checked write as the song, so the two tiers can never disagree. `saveMetadata` cannot set it — `ProjectMetadataPatch` has no such field. |
+| Rules | `firestore.rules` accepts `packDependencies` as a list. It cannot check the list against the project's assets without reading the song document, so that check belongs to `decodeProject`/`parseProject`. |
+| Dashboard | `buildProjectSummaryProjection` exposes it, so a project row or an export can warn about a missing pack from metadata alone. |
+
+Delivering the shipped library as packs is `CNT-000b`; browsing by pack is `LOOP-013`. Nothing here models installation, entitlement, or purchase — the alpha's packs are all bundled factory packs.
 
 ## Size budget and the chunk boundary
 
@@ -53,11 +74,11 @@ Measured against the PRD reference project (50 tracks, ten minutes, 2,500 placem
 | Document | Bytes |
 | --- | --- |
 | Song document if the arrangement stayed inline | ~534,000 (over budget — chunking is exercised, not hypothetical) |
-| Song document after chunking | 13,450 |
+| Song document after chunking | 13,501 |
 | Largest of the 50 arrangement chunks | 10,718 |
 | Largest clip document | 1,408 |
-| Metadata document | 245 |
-| `FND-009` slice fixture's song document | 1,027 (no chunks) |
+| Metadata document | 309 (including its pack dependency list) |
+| `FND-009` slice fixture's song document | 1,078 (no chunks) |
 
 If a *single track* ever exceeds the chunk budget, the write fails with `document_too_large` rather than being silently truncated or split further. Sub-chunking one track's arrangement is deliberately not implemented: no fixture reaches it, and an unproven mechanism is worse than an explicit failure.
 
@@ -95,7 +116,7 @@ Schema v1 is the first production schema, so `PROJECT_MIGRATIONS` is empty and p
 
 ## Security rules and indexes
 
-`firestore.rules` enforces the layout: owner-or-collaborator access resolved from the metadata document, no ownership reassignment, no backwards revision, a `song` collection that only accepts `current`, clip and chunk documents whose ID matches their path, and a `projectId` that must match the path a document is written to. Structurally wrong writes — unknown schema version, missing revision, unexpected metadata field — are rejected by the rules as well as by the decoder. Each child write costs one document read for the parent lookup, which is the price of not duplicating ownership onto every tier.
+`firestore.rules` enforces the layout: owner-or-collaborator access resolved from the metadata document, no ownership reassignment, no backwards revision, a `song` collection that only accepts `current`, clip and chunk documents whose ID matches their path, and a `projectId` that must match the path a document is written to. Structurally wrong writes — unknown schema version, missing revision, missing pack dependency list, unexpected metadata field — are rejected by the rules as well as by the decoder. Each child write costs one document read for the parent lookup, which is the price of not duplicating ownership onto every tier.
 
 Anonymous Firebase identities are ordinary identities here (PRJ-01): they own projects exactly like registered users, and upgrading an account keeps the same uid, so no rule distinguishes them.
 

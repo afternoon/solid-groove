@@ -1,4 +1,10 @@
-import type { Clip, Project, ProjectMetadata, Song } from "../domain/entities";
+import type {
+	Clip,
+	PackDependency,
+	Project,
+	ProjectMetadata,
+	Song,
+} from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
 import type { PersistenceIssue } from "./documents";
 
@@ -75,12 +81,27 @@ export type LoadResult<T> =
 			readonly issues?: readonly PersistenceIssue[];
 	  };
 
-/** The metadata fields a user can edit without touching song or clip state. */
+/**
+ * The metadata fields a user can edit without touching song or clip state.
+ *
+ * `packDependencies` is deliberately absent: it is derived from song state, so
+ * `saveSong` recomputes it rather than a caller offering a value (invariant 12).
+ */
 export interface ProjectMetadataPatch {
 	readonly name?: string;
 	readonly template?: string | null;
 	readonly genre?: string | null;
 	readonly collaboratorIds?: readonly string[];
+}
+
+/**
+ * Metadata a repository derives for itself while writing another tier, rather
+ * than accepting from a caller. Today that is the pack dependency list, which
+ * `saveSong` recomputes from the song it is about to write so the metadata tier
+ * can never disagree with the assets stored under it.
+ */
+export interface DerivedMetadataFields {
+	readonly packDependencies?: readonly PackDependency[];
 }
 
 export type ProjectWatchEvent =
@@ -111,7 +132,11 @@ export interface ProjectRepository {
 		baseRevision: number,
 	): Promise<SaveResult>;
 
-	/** Structural and arrangement edits; chunks overflow automatically. */
+	/**
+	 * Structural and arrangement edits; chunks overflow automatically. It also
+	 * rewrites the metadata tier's derived pack dependency list, because the
+	 * song's assets are what that list is derived from.
+	 */
 	saveSong(
 		projectId: ProjectId,
 		song: Song,

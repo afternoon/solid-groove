@@ -5,10 +5,14 @@ import {
 	ARRANGEMENT_SPIKE_TRACK_COUNTS,
 	createArrangementSpikeFixtures,
 	createArrangementSpikeProject,
+	createDrumMachineFixtureProject,
 	createReferenceProject,
 	createSliceFixtureProject,
+	drumMachineFixturePacks,
+	sliceFixturePacks,
 } from "./fixtures";
 import { createSeededIdFactory, idPattern } from "./ids";
+import { derivePackDependencies } from "./packs";
 import { MASTER_VOLUME, SONG_TEMPO } from "./parameters";
 import { isProject, parseProject } from "./parse";
 import { minutesToTicks, TICKS_PER_BAR } from "./time";
@@ -68,6 +72,11 @@ describe("blank project factory", () => {
 		expect(
 			createBlankProject({ ownerId: "user_1", tempo: 5_000 }).song.tempo,
 		).toBe(SONG_TEMPO.max);
+	});
+
+	it("depends on no packs, because it references no assets", () => {
+		const project = createBlankProject({ ownerId: "user_1" });
+		expect(project.metadata.packDependencies).toEqual([]);
 	});
 });
 
@@ -170,6 +179,68 @@ describe("fixtures", () => {
 				true,
 			);
 		}
+	});
+
+	describe("packs", () => {
+		it("gives the slice fixture one pack its sampler asset resolves from", () => {
+			const project = createSliceFixtureProject();
+			const packs = sliceFixturePacks();
+
+			expect(project.metadata.packDependencies).toEqual([
+				{ packId: packs.drums.id, version: packs.drums.version },
+			]);
+			expect(project.song.assets[0].packId).toBe(packs.drums.id);
+		});
+
+		it("spans two packs at two versions in the drum-machine fixture", () => {
+			const project = createDrumMachineFixtureProject();
+			const packs = drumMachineFixturePacks();
+
+			expect(parseProject(project).ok).toBe(true);
+			expect(project.metadata.packDependencies).toHaveLength(2);
+			expect(project.metadata.packDependencies).toEqual(
+				derivePackDependencies(project.song),
+			);
+			expect(new Set(project.song.assets.map((asset) => asset.packId))).toEqual(
+				new Set([packs.drums.id, packs.loops.id]),
+			);
+			expect(packs.drums.version).not.toBe(packs.loops.version);
+		});
+
+		it("spans two packs in the reference arrangement once it has waveform tracks", () => {
+			const oneTrackType = createReferenceProject({ trackCount: 6 });
+			expect(oneTrackType.metadata.packDependencies).toHaveLength(1);
+
+			const withWaveforms = createReferenceProject({
+				trackCount: 6,
+				waveformTrackCount: 2,
+			});
+			expect(parseProject(withWaveforms).ok).toBe(true);
+			expect(withWaveforms.metadata.packDependencies).toHaveLength(2);
+		});
+
+		it("keeps every fixture's dependency list derived, not hand-written", () => {
+			for (const project of [
+				createSliceFixtureProject(),
+				createDrumMachineFixtureProject(),
+				createReferenceProject({ trackCount: 4, waveformTrackCount: 2 }),
+				...ARRANGEMENT_SPIKE_TRACK_COUNTS.map((count) =>
+					createArrangementSpikeProject(count),
+				),
+			]) {
+				expect(
+					project.metadata.packDependencies,
+					project.metadata.name,
+				).toEqual(derivePackDependencies(project.song));
+			}
+		});
+
+		it("replays the same pack ids for the same fixture seed", () => {
+			expect(drumMachineFixturePacks()).toEqual(drumMachineFixturePacks());
+			expect(drumMachineFixturePacks({ seed: "other" })).not.toEqual(
+				drumMachineFixturePacks(),
+			);
+		});
 	});
 });
 

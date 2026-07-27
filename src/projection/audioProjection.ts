@@ -6,6 +6,7 @@ import type {
 	Device,
 	Instrument,
 	MasterSettings,
+	PackVersion,
 	Placement,
 	Project,
 	ReturnBus,
@@ -17,6 +18,7 @@ import type {
 	AssetId,
 	AutomationId,
 	ClipId,
+	PackId,
 	PlacementId,
 	ReturnId,
 	TrackId,
@@ -114,6 +116,13 @@ export interface AudioAutomationProjection {
 
 export interface AudioAssetProjection {
 	readonly id: AssetId;
+	/**
+	 * The pack and version this asset resolved from (invariant 12). Asset
+	 * identity is pack-qualified, so the engine's asset entry carries it rather
+	 * than resolving a bare ID against whatever the library currently holds.
+	 */
+	readonly packId: PackId;
+	readonly packVersion: PackVersion;
 	readonly kind: string;
 	readonly storageRef: string;
 	readonly url: string | null;
@@ -397,6 +406,8 @@ function buildAudioAsset(
 	previous: AudioAssetProjection | undefined,
 ): AudioAssetProjection {
 	const shape = {
+		packId: asset.packId,
+		packVersion: asset.packVersion,
 		kind: asset.kind,
 		storageRef: asset.storageRef,
 		url: asset.url,
