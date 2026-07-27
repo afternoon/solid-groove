@@ -158,6 +158,19 @@ jobs:
               type null
           }
           EOF
+      - name: Report the runner's audio state
+        # Diagnostic, not a gate. The null ALSA device above was not by itself
+        # enough to make Firefox's AudioContext start, and Firefox cannot be
+        # installed in the dev sandbox to reproduce it, so this prints what the
+        # runner actually offers. Remove once the firefox job is reliably green.
+        if: ${{ matrix.browser == 'firefox' }}
+        continue-on-error: true
+        run: |
+          echo "--- /dev/snd ---";      ls -la /dev/snd 2>&1 || true
+          echo "--- aplay -l ---";      aplay -l 2>&1 || true
+          echo "--- ~/.asoundrc ---";   cat ~/.asoundrc 2>&1 || true
+          echo "--- pulseaudio ---";    which pulseaudio 2>&1 || true; pactl info 2>&1 || true
+          echo "--- libasound ---";     ldconfig -p 2>/dev/null | grep -i asound || true
       - name: Run browser suite against the Firebase Emulator
         # `firebase` is a devDependency, and a GitHub Actions `run:` step does not
         # put node_modules/.bin on PATH, so a bare `firebase` here exits 127

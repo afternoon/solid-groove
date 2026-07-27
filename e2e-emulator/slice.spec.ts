@@ -14,6 +14,21 @@ test.describe("foundation vertical slice", () => {
 	test("add a note, play it, undo it, save it, and reload it", async ({
 		page,
 	}) => {
+		// Capture everything the page says, so a failure reports a cause rather
+		// than only a timeout. Starting playback is the step most likely to fail
+		// for environmental reasons — it needs a real AudioContext, and a headless
+		// CI browser may have no audio device — and `useProjectAudio.play()`
+		// deliberately swallows that into `audio_start_failed` with no UI surface,
+		// so without this the assertion below can only ever say "element not
+		// found" and leave the actual reason in the browser's console.
+		const pageLog: string[] = [];
+		page.on("console", (message) =>
+			pageLog.push(`console.${message.type()}: ${message.text()}`),
+		);
+		page.on("pageerror", (error) =>
+			pageLog.push(`pageerror: ${error.message}`),
+		);
+
 		await page.goto("/dashboard");
 		await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 		await expect(page.getByText("No projects yet")).toBeVisible();
@@ -60,9 +75,40 @@ test.describe("foundation vertical slice", () => {
 			name: "Start playback",
 		});
 		await transportToggle.click();
-		await expect(
-			page.getByRole("button", { name: "Stop playback" }),
-		).toBeVisible();
+		try {
+			await expect(
+				page.getByRole("button", { name: "Stop playback" }),
+			).toBeVisible();
+		} catch (error) {
+			// The button only flips once `runtime.resume()` resolves, so reaching
+			// here means the shared AudioContext did not start. Report what the page
+			// said, and the context's own state, instead of just the timeout.
+			const audioState = await page
+				.evaluate(() => {
+					const Ctor =
+						window.AudioContext ??
+						(window as unknown as { webkitAudioContext?: typeof AudioContext })
+							.webkitAudioContext;
+					if (!Ctor) return "no AudioContext constructor";
+					try {
+						const probe = new Ctor();
+						const state = probe.state;
+						void probe.close();
+						return `a fresh AudioContext reports state="${state}"`;
+					} catch (contextError) {
+						return `constructing an AudioContext threw: ${String(contextError)}`;
+					}
+				})
+				.catch((probeError) => `probe failed: ${String(probeError)}`);
+
+			throw new Error(
+				`Playback never started: the transport button stayed on "Start playback", ` +
+					`so useProjectAudio.play() did not reach setIsPlaying(true).\n` +
+					`AudioContext probe: ${audioState}\n` +
+					`Page log:\n${pageLog.length ? pageLog.join("\n") : "(nothing logged)"}\n\n` +
+					`Original assertion failure:\n${String(error)}`,
+			);
+		}
 		await page.getByRole("button", { name: "Stop playback" }).click();
 
 		// Undo it: the added note is removed through the same history.
