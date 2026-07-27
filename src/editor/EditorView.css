@@ -1,0 +1,117 @@
+.editor {
+	--size-divider: 5px;
+
+	width: 100vw;
+	min-height: 100vh;
+	margin: 0;
+	padding: var(--size-divider);
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-divider);
+}
+
+.editor .project-error {
+	place-self: center;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	text-align: center;
+	padding: var(--size-divider);
+}
+
+.editor .project-error-message {
+	color: var(--color-text-secondary);
+}
+
+.editor .project-error-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.editor .project-error-home {
+	color: var(--color-text-secondary);
+	text-decoration: underline;
+}
+
+.editor-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-divider);
+}
+
+.editor-header .project-name {
+	font-size: var(--font-size-base);
+	margin: 0;
+}
+
+.editor-header .transport-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.editor-header button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px;
+	height: auto;
+	background: none;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+}
+
+.editor-header button:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.editor-header button:not(:disabled):hover {
+	opacity: 0.75;
+}
+
+.editor-header .save-status {
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+	min-width: 80px;
+	text-align: right;
+}
+
+.editor-header .save-status[data-state="failed"] {
+	color: #e08a87;
+}
+
+.workspace {
+	background-color: var(--color-background-secondary);
+	box-sizing: border-box;
+	padding: var(--size-divider);
+}
+
+.track-editor {
+	background-color: var(--color-background-highlight);
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-divider);
+	padding: var(--size-divider);
+	max-width: 640px;
+}
+
+.track-info {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+}
+
+.track-info .track-name {
+	font-weight: bold;
+}
+
+.track-info .pack-dependency {
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+}

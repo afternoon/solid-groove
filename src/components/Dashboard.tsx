@@ -10,9 +10,9 @@ import {
 	Switch,
 } from "solid-js";
 import { useAuth } from "../auth/AuthProvider";
-import { dataService } from "../model/dataService";
-import { newProject } from "../model/newProject";
-import type { Project } from "../model/types";
+import type { ProjectMetadata } from "../domain/entities";
+import { createStarterProject } from "../editor/starterProject";
+import { getProjectRepository } from "../projectRepositoryClient";
 import ProjectList from "./ProjectList";
 import TapeLoader from "./TapeLoader";
 import UpgradeAccountPrompt from "./UpgradeAccountPrompt";
@@ -20,7 +20,7 @@ import UpgradeAccountPrompt from "./UpgradeAccountPrompt";
 interface ProjectsState {
 	loading: boolean;
 	error: string | null;
-	data: Project[];
+	data: ProjectMetadata[];
 }
 
 export default function Dashboard() {
@@ -34,7 +34,7 @@ export default function Dashboard() {
 		error: null,
 		data: [],
 	});
-	// Bumped to force the subscription effect below to re-run and retry.
+	// Bumped to force the effect below to re-run and retry.
 	const [retryCount, setRetryCount] = createSignal(0);
 
 	createEffect((isFirstRun: boolean) => {
@@ -45,7 +45,7 @@ export default function Dashboard() {
 			return false;
 		}
 
-		// Only show the full loading state on the very first subscribe. A retry
+		// Only show the full loading state on the very first fetch. A retry
 		// re-runs this same effect, but the dashboard chrome (button, error
 		// panel) is already on screen, so swapping back to the loader would
 		// just flash the tape deck in and out again for no benefit — the error
@@ -54,26 +54,26 @@ export default function Dashboard() {
 			setProjectsState({ loading: true, error: null, data: [] });
 		}
 
-		const unsubscribe = dataService.subscribeToUserProjects(
-			id,
-			(projects) => {
-				setProjectsState({
-					loading: false,
-					error: null,
-					data: projects,
-				});
-			},
-			(error) => {
+		let cancelled = false;
+		getProjectRepository()
+			.then((repository) => repository.listProjects(id))
+			.then((projects) => {
+				if (cancelled) return;
+				setProjectsState({ loading: false, error: null, data: projects });
+			})
+			.catch((error: unknown) => {
+				if (cancelled) return;
 				console.error("Error fetching projects:", error);
 				setProjectsState({
 					loading: false,
 					error: "Something went wrong while loading your projects.",
 					data: [],
 				});
-			},
-		);
+			});
 
-		onCleanup(() => unsubscribe());
+		onCleanup(() => {
+			cancelled = true;
+		});
 		return false;
 	}, true);
 
@@ -85,8 +85,13 @@ export default function Dashboard() {
 		setCreating(true);
 		setCreateError(null);
 		try {
-			const projectId = await dataService.createProject(newProject(id));
-			navigate(`/projects/${projectId}`);
+			const repository = await getProjectRepository();
+			const project = createStarterProject(id);
+			const result = await repository.createProject(project);
+			if (!result.ok) {
+				throw new Error(result.message);
+			}
+			navigate(`/projects/${project.metadata.id}`);
 		} catch (error) {
 			console.error("Error creating project:", error);
 			setCreateError("Couldn't create a new project. Please try again.");

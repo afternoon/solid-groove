@@ -103,6 +103,41 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # FND-009's browser E2E suite against a real (local, emulated) backend:
+  # proves the foundation vertical slice's "save it, reload it, reproduce
+  # playback" step, which the in-memory-backed `browser` job above cannot —
+  # that repository is a fresh, empty store on every page load. Only the two
+  # PRD section 10 P0-gating browsers run here (see playwright.emulator.config.ts).
+  browser-emulator:
+    name: browser e2e against the emulator (${{ matrix.browser }})
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser (${{ matrix.browser }})
+        run: bunx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run browser suite against the Firebase Emulator
+        run: firebase emulators:exec --only firestore,auth --project demo-solid-groove "bunx playwright test --config=playwright.emulator.config.ts --project=${{ matrix.browser }}"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-emulator-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7
+
   # Firebase Emulator suite: contract tests for firestore.rules against a
   # real local Firestore instance (PRD 9.9).
   emulator:
@@ -170,7 +205,7 @@ jobs:
   # list and how to add them).
   deploy:
     name: deploy to Firebase Hosting
-    needs: [checks, browser, emulator, build]
+    needs: [checks, browser, browser-emulator, emulator, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FIREBASE_PROJECT_ID != ''
     runs-on: ubuntu-latest
     # A second deploy landing while one is mid-flight must queue behind it,

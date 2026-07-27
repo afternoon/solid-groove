@@ -1,4 +1,4 @@
-// Browser-safe fixture loading and fixture builders.
+// Browser-safe fixture loading.
 //
 // Fixture files live under `public/fixtures/` so the same relative path is
 // reachable two ways:
@@ -15,7 +15,6 @@
 // real browser, which would send jsdom down the fetch path where there is no
 // server to answer it).
 
-import type { Project, SamplerInstrument, Song, Track } from "../model/types";
 import type { RawProjectDocuments } from "../persistence/documents";
 
 const isNodeRuntime =
@@ -48,27 +47,6 @@ export async function loadFixtureJson<T>(relativePath: string): Promise<T> {
 }
 
 /**
- * Shape of `sample-project.json` on disk: identical to {@link Project} except
- * `createdAt` is a plain ISO string, since JSON has no Timestamp type.
- */
-interface RawProjectFixture extends Omit<Project, "createdAt"> {
-	createdAt: string;
-}
-
-/**
- * A minimal object satisfying Firestore's `Timestamp` interface for fixture
- * data, matching the pattern already used by `src/model/mockProjectData.ts`.
- */
-function toFixtureTimestamp(iso: string): Project["createdAt"] {
-	const date = new Date(iso);
-	return {
-		toDate: () => date,
-		seconds: Math.floor(date.getTime() / 1000),
-		nanoseconds: 0,
-	} as Project["createdAt"];
-}
-
-/**
  * Loads a stored schema-vN project fixture from
  * `public/fixtures/persistence/v{version}-{name}.json`.
  *
@@ -82,76 +60,4 @@ export async function loadStoredProjectFixture(
 	fileName: string,
 ): Promise<RawProjectDocuments> {
 	return loadFixtureJson<RawProjectDocuments>(`persistence/${fileName}`);
-}
-
-/** Loads the canonical fixture project used across unit, component, and browser suites. */
-export async function loadSampleProjectFixture(): Promise<Project> {
-	const raw = await loadFixtureJson<RawProjectFixture>("sample-project.json");
-	return { ...raw, createdAt: toFixtureTimestamp(raw.createdAt) };
-}
-
-// --- Fixture builders -------------------------------------------------
-//
-// Small, override-friendly constructors for the prototype domain types in
-// `src/model/types.ts`, so tests build a valid object and change only what
-// they care about instead of repeating a full literal. FND-002 replaces the
-// prototype types with the schema-v1 domain model and will supersede these.
-
-let builderCounter = 0;
-
-/** Resets the builder naming counter. Call from `beforeEach` for stable snapshots. */
-export function resetFixtureBuilderCounter(): void {
-	builderCounter = 0;
-}
-
-/**
- * Builds a sampler instrument (the default and most common case in fixtures).
- * For a synth or clip instrument, construct that variant directly — the
- * discriminated union only shares a `type` field, so a generic partial-merge
- * builder can't usefully override the type-specific fields.
- */
-export function buildInstrument(
-	overrides: Partial<SamplerInstrument> = {},
-): SamplerInstrument {
-	return {
-		type: "sampler",
-		sampleUrl: "/samples/house/drums/bd/909-bd.wav",
-		envelope: { attack: 0, decay: 0.2, sustain: 0.8, release: 0.2 },
-		filter: { type: "lowpass", cutoff: 20000, resonance: 0 },
-		...overrides,
-	};
-}
-
-export function buildTrack(overrides: Partial<Track> = {}): Track {
-	builderCounter += 1;
-	return {
-		name: `Track ${builderCounter}`,
-		volume: 1,
-		isMuted: false,
-		isSolo: false,
-		instrument: buildInstrument(),
-		...overrides,
-	};
-}
-
-export function buildSong(overrides: Partial<Song> = {}): Song {
-	return {
-		tempo: 120,
-		tracks: [buildTrack()],
-		patterns: [{ sequences: [{ steps: Array(16).fill(null) }] }],
-		...overrides,
-	};
-}
-
-export function buildProject(overrides: Partial<Project> = {}): Project {
-	builderCounter += 1;
-	return {
-		id: `fixture-project-${builderCounter}`,
-		name: "Fixture Project",
-		ownerId: "fixture-owner",
-		createdAt: toFixtureTimestamp("2025-01-01T00:00:00.000Z"),
-		isPublic: false,
-		latestSnapshot: { song: buildSong() },
-		...overrides,
-	};
 }
