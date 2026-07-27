@@ -151,6 +151,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								<div
 									class="save-status"
 									data-state={session.state.saveStatus?.state}
+									data-revision={session.state.saveStatus?.revision}
+									title={`Revision ${session.state.saveStatus?.revision ?? 0}`}
 								>
 									{saveStatusLabel()}
 								</div>

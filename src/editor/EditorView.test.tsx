@@ -101,7 +101,31 @@ describe("EditorView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("autosaves an edit, and the save status settles to Saved", async () => {
+	it("autosaves an edit, and the save status settles to Saved with an advanced revision", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+		const startingRevision = project.metadata.revision;
+
+		renderEditor(project.metadata.id);
+		await screen.findByRole("group", { name: "16-step sequence" });
+
+		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+
+		const saveStatus = await screen.findByText("Saved", {}, { timeout: 3_000 });
+		expect(
+			Number(saveStatus.closest(".save-status")?.getAttribute("data-revision")),
+		).toBeGreaterThan(startingRevision);
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		const clip = loaded.value.clips[0];
+		if (clip.content.kind !== "notes") throw new Error("expected a note clip");
+		expect(clip.content.events).toHaveLength(5);
+	});
+
+	it("the save status revision keeps advancing across undo, so a stale echo cannot restore the undone note", async () => {
 		repository = inMemoryModule.createInMemoryProjectRepository();
 		const project = createSliceFixtureProject();
 		const created = await repository.createProject(project);
@@ -111,13 +135,28 @@ describe("EditorView", () => {
 		await screen.findByRole("group", { name: "16-step sequence" });
 
 		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
-
 		await screen.findByText("Saved", {}, { timeout: 3_000 });
+		const saveStatusEl = document.querySelector(".save-status");
+		const revisionAfterAdd = Number(
+			saveStatusEl?.getAttribute("data-revision"),
+		);
+
+		const undoButton = await screen.findByRole("button", { name: /^Undo/ });
+		fireEvent.click(undoButton);
+		await screen.findByRole("button", { name: "Step 2, off" });
+
+		await vi.waitFor(() => {
+			const revisionAfterUndo = Number(
+				saveStatusEl?.getAttribute("data-revision"),
+			);
+			expect(revisionAfterUndo).toBeGreaterThan(revisionAfterAdd);
+		});
 
 		const loaded = await repository.loadProject(project.metadata.id);
 		if (!loaded.ok) throw new Error("expected the project to load");
 		const clip = loaded.value.clips[0];
 		if (clip.content.kind !== "notes") throw new Error("expected a note clip");
-		expect(clip.content.events).toHaveLength(5);
+		// The undone note stayed undone in the persisted document too.
+		expect(clip.content.events).toHaveLength(4);
 	});
 });

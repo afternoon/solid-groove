@@ -45,6 +45,15 @@ test.describe("foundation vertical slice", () => {
 			page.getByRole("button", { name: "Step 3, on" }),
 		).toBeVisible();
 
+		// The revision-checked write actually advances the persisted revision,
+		// not just the visible save state.
+		await expect(page.locator(".save-status")).toHaveText("Saved", {
+			timeout: 10_000,
+		});
+		const revisionAfterAdd = Number(
+			await page.locator(".save-status").getAttribute("data-revision"),
+		);
+
 		// Play it: the allowed user gesture resumes the shared AudioRuntime and
 		// starts the transport.
 		const transportToggle = page.getByRole("button", {
@@ -67,6 +76,18 @@ test.describe("foundation vertical slice", () => {
 		await expect(page.locator(".save-status")).toHaveText("Saved", {
 			timeout: 10_000,
 		});
+		// The undo produced its own revision-checked write, strictly after the
+		// add's — the visible save state alone ("Saved" both times) cannot show
+		// that a real second write happened, only the revision can.
+		await expect
+			.poll(
+				async () =>
+					Number(
+						await page.locator(".save-status").getAttribute("data-revision"),
+					),
+				{ timeout: 10_000 },
+			)
+			.toBeGreaterThan(revisionAfterAdd);
 
 		// Reload it: a genuine browser reload, answered by the emulator rather
 		// than by in-memory state the reload just discarded.

@@ -1,7 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Analytics } from "../analytics/analytics";
+import { ConsentStore } from "../analytics/consent";
+import { createRecordingTransport } from "../analytics/transport";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import { createSliceFixtureProject } from "../domain/fixtures";
+import { memoryStorage } from "../testing/storage";
 import StepGrid from "./StepGrid";
 
 afterEach(() => cleanup());
@@ -15,8 +19,18 @@ function renderGrid() {
 				commands: RawCommandInput | readonly RawCommandInput[],
 			) => TransactionResult | undefined
 		>();
-	render(() => <StepGrid clip={clip} dispatch={dispatch} />);
-	return { clip, dispatch };
+	const transport = createRecordingTransport();
+	const consent = new ConsentStore(memoryStorage());
+	const analytics = new Analytics({
+		transport,
+		consent,
+		storage: memoryStorage(),
+	});
+	analytics.setAccountType("anonymous");
+	render(() => (
+		<StepGrid clip={clip} dispatch={dispatch} analytics={analytics} />
+	));
+	return { clip, dispatch, transport };
 }
 
 describe("StepGrid", () => {
@@ -64,5 +78,18 @@ describe("StepGrid", () => {
 		expect(command.type).toBe("note.remove");
 		expect(command.payload.clipId).toBe(clip.id);
 		expect(command.payload.eventIds).toHaveLength(1);
+	});
+
+	it("logs step_editor feature_first_use exactly once, through the catalog, across two toggles", () => {
+		const { transport } = renderGrid();
+
+		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		fireEvent.click(screen.getByRole("button", { name: "Step 3, off" }));
+
+		const featureFirstUseEvents = transport.events.filter(
+			(event) => event.name === "feature_first_use",
+		);
+		expect(featureFirstUseEvents).toHaveLength(1);
+		expect(featureFirstUseEvents[0]?.params.feature).toBe("step_editor");
 	});
 });

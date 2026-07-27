@@ -1,5 +1,8 @@
 import { For, type JSX } from "solid-js";
-import { analytics } from "../analytics/analytics";
+import {
+	type Analytics,
+	analytics as defaultAnalytics,
+} from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import { addNotes, removeNotes } from "../commands";
 import type { Clip, NoteEvent } from "../domain/entities";
@@ -19,6 +22,8 @@ export interface StepGridProps {
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
+	/** Defaults to the application's singleton; injectable for tests. */
+	readonly analytics?: Analytics;
 }
 
 function noteAtStep(clip: Clip, step: number): NoteEvent | undefined {
@@ -46,7 +51,7 @@ export default function StepGrid(props: StepGridProps): JSX.Element {
 			});
 			props.dispatch(addNotes(props.clip.id, [note]));
 		}
-		analytics.logFeatureFirstUse("step_editor");
+		(props.analytics ?? defaultAnalytics).logFeatureFirstUse("step_editor");
 	}
 
 	return (
