@@ -36,8 +36,19 @@ Solid Groove is a browser-based music production tool designed to make music cre
 ```
 src/
 ├── audio/              # Audio playback and synthesis
-│   ├── AudioProvider.tsx    # Context provider for SongPlayer
-│   └── SongPlayer.ts        # Tone.js integration and playback logic
+│   ├── AudioRuntime.ts      # Single application-scoped Tone/Web Audio context (PRD 9.7)
+│   ├── resourceRegistry.ts  # Owner/type tracked audio resource registry (PRD AUD-09)
+│   ├── ProjectAudioGraph.ts # Stable ID-keyed project graph reconciled from the audio projection (PRD AUD-08)
+│   ├── TrackAudioGraph.ts   # One track's instrument, device chain, sends, and channel strip
+│   ├── ReturnAudioGraph.ts  # One return bus's device chain and channel strip
+│   ├── MasterAudioGraph.ts  # The master bus's device chain and volume stage
+│   ├── DeviceChain.ts       # Ordered, ID-keyed insert-chain reconciliation shared by tracks/returns/master
+│   ├── InstrumentGraph.ts   # Sampler/synth/drum-machine instrument node factory and reconciliation
+│   ├── AudioBufferCache.ts  # Asset buffer cache keyed by ID/revision with stale-load cancellation
+│   ├── toneBufferLoader.ts  # The only Tone-touching asset decode path `AudioBufferCache` uses in production
+│   ├── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
+│   ├── AudioProvider.tsx    # Context provider for SongPlayer (prototype path; superseded by `ProjectAudioGraph`)
+│   └── SongPlayer.ts        # Prototype Tone.js integration and playback logic, replaced by `FND-009`
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
 │   └── authService.ts       # Firebase auth service wrapper
@@ -220,6 +231,16 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - Undo/redo is session-local, bounded, and replays inverse commands rather than project snapshots. Only an explicit `replaceProject` clears it — a save acknowledgement or remote echo must never touch it.
 - Like `src/domain`, this layer imports no Firebase, Tone, or Solid. Adding or changing a command is a contract change; see the registry test's pinned command list.
 
+### Audio engine (`src/audio`)
+- `AudioRuntime` is the single application-scoped owner of the real-time Tone/Web Audio context, transport, buffer cache, and resource registry (PRD AUD-07, AUD-09; section 9.7). It is the only place production code may create, install, resume, suspend, replace, or close that context — obtain it via `getAudioRuntime()`, never construct one directly.
+- `ProjectAudioGraph` reconciles a read-only `AudioSongProjection` (from `src/projection/audioProjection.ts`) into a stable graph keyed by track, instrument, device, return, and asset IDs (PRD AUD-03, AUD-08). Passing back the exact projection object the audio projection handed out previously is a complete no-op; an edit to one track, return, or placement only touches that entity's own subgraph.
+- `TrackAudioGraph`/`ReturnAudioGraph`/`MasterAudioGraph` each own one channel strip (`Tone.PanVol`/`Tone.Volume`) plus a `DeviceChain`. `DeviceChain` reconciles an ordered `Device[]` by id: only added/removed devices create or dispose a node, and reordering relinks connections without recreating anything. Schema v1 has no concrete processors yet (Phase 1 authors them); an unregistered `device.type` gets an inert passthrough node so topology is provable ahead of real DSP.
+- `InstrumentGraph.ts` builds the sampler/synth/drum-machine node for a track's `Instrument`. A track only replaces its instrument node when `kind` changes; an asset swap, a drum-pad added/removed, or a generic parameter edit calls the existing node's `update()` instead.
+- `AudioBufferCache` decodes and caches asset buffers keyed by asset ID and content fingerprint, with reference-counted eviction and generation-tracked cancellation so a stale decode can never reconnect or overwrite a newer one. It never imports Tone itself — `toneBufferLoader.ts` is the one production loader that does, which keeps the cache's generation/refcount bookkeeping testable without any Web Audio globals.
+- `scheduling.ts` expands a placement's clip content into absolute-tick events (looping and clip trimming included) as a pure function of the audio projection; `ProjectAudioGraph` schedules those against `Tone.Transport` (or an injected `AudioTransport` in tests) with an owner-tracked handle per event, never an anonymous global callback.
+- Every constructed Tone/Web Audio resource is registered with the owning `AudioProjectScope` (`AudioRuntime.openProjectScope`) so disposal is idempotent and instrumented (PRD AUD-09) — components and domain stores request graph operations but never receive mutable audio nodes.
+- `SongPlayer`/`ToneInstrument`/`AudioProvider.tsx` are the prototype playback path against `src/model/types`, superseded by `ProjectAudioGraph` once `FND-009` wires the domain-typed graph into the UI; do not extend the prototype path for new work.
+
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)
 - Services handle all direct Firebase API calls
@@ -229,11 +250,6 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - Use Firestore's `onSnapshot` for real-time updates
 - Subscriptions are set up in `createEffect` with proper cleanup
 - Store updates use `produce` for immutable updates
-
-### Audio Playback
-- SongPlayer class manages Tone.js instances
-- AudioProvider makes SongPlayer available via context
-- Audio state is separate from UI state
 
 ### File-based Routing
 - Routes are defined by files in `src/routes/`
