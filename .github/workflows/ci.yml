@@ -129,6 +129,35 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Install Playwright browser (${{ matrix.browser }})
         run: bunx playwright install --with-deps ${{ matrix.browser }}
+      - name: Configure a null ALSA output device
+        # This suite is the only one that actually starts playback, and Firefox
+        # is the only gating browser that needs a real audio device to do it.
+        # `ubuntu-latest` has no /dev/snd: headless Chromium falls back to its
+        # own dummy audio backend and starts fine, but Firefox's cubeb finds no
+        # ALSA device, so `AudioContext.resume()` rejects. `useProjectAudio`'s
+        # `play()` then correctly logs `audio_start_failed` and leaves
+        # `isPlaying` false — so the transport button never becomes "Stop
+        # playback" and `slice.spec.ts` fails at that assertion. The product
+        # behaviour is right; the runner simply has no sound card.
+        #
+        # Same fix, and the same reasoning, as the `checks` job above (which
+        # needs it for node-web-audio-api): install the ALSA runtime library and
+        # point the default PCM at ALSA's built-in `null` device, which discards
+        # every sample and touches no hardware. No kernel module needed.
+        #
+        # Not added to the `browser` job: that suite runs against the mock
+        # backend and never starts the transport, so it passes without one.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64
+          cat > ~/.asoundrc <<'EOF'
+          pcm.!default {
+              type null
+          }
+          ctl.!default {
+              type null
+          }
+          EOF
       - name: Run browser suite against the Firebase Emulator
         # `firebase` is a devDependency, and a GitHub Actions `run:` step does not
         # put node_modules/.bin on PATH, so a bare `firebase` here exits 127

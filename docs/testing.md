@@ -81,6 +81,12 @@ Config: `playwright.emulator.config.ts`. Unlike the suite above, this points the
 
 Suite location: `e2e-emulator/`. `e2e-emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `playwright.emulator.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
 
+### Why this suite needs an audio device in CI
+
+It is the only suite that actually starts playback, and Firefox is the only gating browser that needs a real audio device to do so. `ubuntu-latest` has no `/dev/snd`: headless Chromium falls back to its own dummy audio backend, but Firefox's cubeb finds no ALSA device and `AudioContext.resume()` rejects. `useProjectAudio`'s `play()` then does the right thing — logs `audio_start_failed` and leaves `isPlaying` false — so the transport button never becomes "Stop playback" and `slice.spec.ts` fails on that assertion. That failure is the runner having no sound card, not a product defect.
+
+`.github/workflows/ci.yml`'s `browser-emulator` job therefore installs `libasound2t64` and points the default PCM at ALSA's built-in `null` device, exactly as the `checks` job does for `node-web-audio-api`. The `browser` job needs no equivalent: it runs against the mock backend and never starts the transport.
+
 ### Why this suite warms the dev server first
 
 Vite does not pre-bundle a dependency until something imports it, and each discovery force-reloads the open page (`[vite] ✨ optimized dependencies changed. reloading`). A reload landing mid-test discards whatever interaction was in flight. Measured on a cold server, this suite took **four** such rounds to settle — analytics, then the Firebase SDK and Sentry, then the small utilities, then `tone` when the first project editor mounted — and the reload ate `slice.spec.ts`'s `New Project` click, so the URL never left `/dashboard` and the test failed on `toHaveURL(/\/projects\/prj_/)`. That reads exactly like a broken create-project flow and is not one: the same suite passed in 17s against an already-warm server.
