@@ -18,12 +18,20 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	buildLibrary,
-	MANIFEST_POINTER_KEY,
-	manifestStorageKey,
+	buildAllPacks,
+	buildPackIndex,
+	PACK_INDEX_KEY,
+	packManifestStorageKey,
+	packPointerKey,
 	serialize,
 } from "./manifest.mjs";
-import { formatReport, validateManifest } from "./validate.mjs";
+import {
+	formatPackSummary,
+	formatReport,
+	validateLibraryBalance,
+	validatePackIndex,
+	validatePackManifest,
+} from "./validate.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -99,11 +107,37 @@ export function corsConfigFor(
  * honest and lets the tests assert on paths and cache headers.
  */
 export function planUpload() {
-	const { files, manifest } = buildLibrary();
-	const serialized = serialize(manifest);
-	const { errors, warnings, stats } = validateManifest(manifest, {
-		serialized,
+	const { files, packManifests } = buildAllPacks();
+
+	const errors = [];
+	const warnings = [];
+	const serializedByPack = new Map();
+	for (const packManifest of packManifests) {
+		const serialized = serialize(packManifest);
+		serializedByPack.set(packManifest.pack.slug, serialized);
+		const result = validatePackManifest(packManifest, { serialized });
+		errors.push(
+			...result.errors.map((error) => `[${packManifest.pack.slug}] ${error}`),
+		);
+		warnings.push(
+			...result.warnings.map(
+				(warning) => `[${packManifest.pack.slug}] ${warning}`,
+			),
+		);
+	}
+
+	const allAssets = packManifests.flatMap((pm) => pm.assets);
+	const balance = validateLibraryBalance(allAssets);
+	errors.push(...balance.errors);
+	warnings.push(...balance.warnings);
+
+	const index = buildPackIndex(packManifests);
+	const serializedIndex = serialize(index);
+	const indexResult = validatePackIndex(index, packManifests, {
+		serialized: serializedIndex,
 	});
+	errors.push(...indexResult.errors.map((error) => `[pack index] ${error}`));
+
 	if (errors.length > 0) {
 		const detail = errors.map((error) => `  - ${error}`).join("\n");
 		throw new Error(
@@ -122,32 +156,49 @@ export function planUpload() {
 		immutable: true,
 	}));
 
-	const manifestBody = Buffer.from(serialized);
+	// Versioned pack manifests are content-addressed by version, not by bytes,
+	// so an unchanged pack keeps the same key and `uploadObject` skips it — this
+	// is what makes "a single changed pack re-uploads only that pack's manifest"
+	// true rather than aspirational.
+	for (const packManifest of packManifests) {
+		const { pack } = packManifest;
+		objects.push({
+			path: `${STORAGE_PREFIX}/${packManifestStorageKey(pack.slug, pack.version)}`,
+			body: Buffer.from(serializedByPack.get(pack.slug)),
+			contentType: "application/json",
+			cacheControl: CACHE_CONTROL.immutable,
+			immutable: true,
+		});
+		objects.push({
+			path: `${STORAGE_PREFIX}/${packPointerKey(pack.slug)}`,
+			body: Buffer.from(
+				serialize({
+					id: pack.id,
+					slug: pack.slug,
+					name: pack.name,
+					version: pack.version,
+					releasedAt: pack.releasedAt,
+					assetCount: pack.assetCount,
+					manifestPath: `${STORAGE_PREFIX}/${packManifestStorageKey(pack.slug, pack.version)}`,
+				}),
+			),
+			contentType: "application/json",
+			cacheControl: CACHE_CONTROL.pointer,
+			// Always rewritten: this is how a new pack version becomes visible.
+			immutable: false,
+		});
+	}
+
 	objects.push({
-		path: `${STORAGE_PREFIX}/${manifestStorageKey()}`,
-		body: manifestBody,
-		contentType: "application/json",
-		cacheControl: CACHE_CONTROL.immutable,
-		immutable: true,
-	});
-	objects.push({
-		path: `${STORAGE_PREFIX}/${MANIFEST_POINTER_KEY}`,
-		body: Buffer.from(
-			serialize({
-				libraryId: manifest.libraryId,
-				libraryVersion: manifest.libraryVersion,
-				releasedAt: manifest.releasedAt,
-				assetCount: manifest.assetCount,
-				manifestPath: `${STORAGE_PREFIX}/${manifestStorageKey()}`,
-			}),
-		),
+		path: `${STORAGE_PREFIX}/${PACK_INDEX_KEY}`,
+		body: Buffer.from(serializedIndex),
 		contentType: "application/json",
 		cacheControl: CACHE_CONTROL.pointer,
-		// Always rewritten: this is how a new version becomes visible.
+		// Always rewritten: a new or removed pack has to become visible here too.
 		immutable: false,
 	});
 
-	return { objects, manifest, stats, warnings };
+	return { objects, packManifests, stats: balance.stats, warnings };
 }
 
 /**
@@ -274,12 +325,14 @@ export async function upload({
 	force = false,
 	log = console.log,
 } = {}) {
-	const { objects, manifest, stats, warnings } = planUpload();
+	const { objects, packManifests, stats, warnings } = planUpload();
 	const totalBytes = objects.reduce(
 		(sum, object) => sum + object.body.length,
 		0,
 	);
 
+	log(formatPackSummary(packManifests));
+	log("");
 	log(formatReport(stats, warnings));
 	log("");
 	log(`bucket:   gs://${bucketName}`);
@@ -287,9 +340,7 @@ export async function upload({
 	log(
 		`objects:  ${objects.length} (${(totalBytes / 1024 / 1024).toFixed(1)} MiB)`,
 	);
-	log(
-		`manifest: ${STORAGE_PREFIX}/${manifestStorageKey(manifest.libraryVersion)}`,
-	);
+	log(`index:    ${STORAGE_PREFIX}/${PACK_INDEX_KEY}`);
 
 	if (dryRun) {
 		log("");

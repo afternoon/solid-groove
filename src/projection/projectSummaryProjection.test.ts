@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../domain/entities";
 import {
+	createDrumMachineFixtureProject,
 	createReferenceProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
@@ -81,6 +82,52 @@ describe("buildProjectSummaryProjection", () => {
 			expect(summary.clipCount).toBe(0);
 			expect(summary.placementCount).toBe(0);
 			expect(summary.sectionCount).toBe(0);
+		});
+	});
+
+	describe("pack dependencies", () => {
+		it("carries the two-pack fixture's dependencies from the metadata tier", () => {
+			const project = createDrumMachineFixtureProject();
+			const summary = buildProjectSummaryProjection(project);
+
+			expect(summary.packDependencies).toEqual(
+				[...project.metadata.packDependencies].sort((a, b) =>
+					a.packId < b.packId ? -1 : 1,
+				),
+			);
+			expect(summary.packDependencies).toHaveLength(2);
+		});
+
+		it("rebuilds when the dependency list changes", () => {
+			const project = createDrumMachineFixtureProject();
+			const before = buildProjectSummaryProjection(project);
+
+			const narrowed: Project = {
+				...project,
+				metadata: {
+					...project.metadata,
+					packDependencies: project.metadata.packDependencies.slice(0, 1),
+				},
+			};
+			const after = buildProjectSummaryProjection(narrowed, before);
+
+			expect(after).not.toBe(before);
+			expect(after.packDependencies).toHaveLength(1);
+		});
+
+		it("does not rebuild when the same list arrives in a different order", () => {
+			const project = createDrumMachineFixtureProject();
+			const before = buildProjectSummaryProjection(project);
+
+			const reordered: Project = {
+				...project,
+				metadata: {
+					...project.metadata,
+					packDependencies: [...project.metadata.packDependencies].reverse(),
+				},
+			};
+
+			expect(buildProjectSummaryProjection(reordered, before)).toBe(before);
 		});
 	});
 

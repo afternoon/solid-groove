@@ -1,4 +1,4 @@
-import type { Project } from "../domain/entities";
+import type { PackDependency, Project } from "../domain/entities";
 import { fingerprintOf } from "./fingerprint";
 
 /**
@@ -24,6 +24,12 @@ export interface ProjectSummaryProjection {
 	readonly template: string | null;
 	readonly genre: string | null;
 	readonly revision: number;
+	/**
+	 * The packs and versions the project depends on (LIB-05). It comes straight
+	 * off the metadata tier, so a dashboard row or an export can warn about a
+	 * missing pack without loading song state or clip content.
+	 */
+	readonly packDependencies: readonly PackDependency[];
 	readonly trackCount: number;
 	readonly clipCount: number;
 	readonly placementCount: number;
@@ -46,6 +52,11 @@ export function buildProjectSummaryProjection(
 		template: metadata.template,
 		genre: metadata.genre,
 		revision: metadata.revision,
+		packDependencies: [...metadata.packDependencies].sort(
+			(a, b) =>
+				compareStrings(a.packId, b.packId) ||
+				compareStrings(a.version, b.version),
+		),
 		trackCount: project.song.tracks.length,
 		clipCount: project.clips.length,
 		placementCount: project.song.placements.length,
@@ -60,4 +71,8 @@ export function buildProjectSummaryProjection(
 		return previous;
 	}
 	return { id: metadata.id, ...shape, fingerprint };
+}
+
+function compareStrings(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
 }

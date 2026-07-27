@@ -711,6 +711,10 @@ Presence, cursors, conflict-free simultaneous edits, and live shared transport a
 
 This section covers how Solid Groove reaches a real browser and how the team learns what happens there. Both start in Phase 0: a feature that has only ever run against a local dev server and an emulator is not known to work, and a feature that ships without its events cannot answer the section 11 success measures.
 
+**When the hosted environment is verified.** The pipeline, the catalog, the reporting boundary, and their automated tests are Phase 0 work and stay there. The criteria that cannot be met by writing code — driving a post-deploy smoke test against a real hosted URL, performing the rollback drill, and observing events and errors arriving from a deployed build — require an operator with the Firebase and Sentry accounts in hand. Those are verified once, together, in `OPS-001`, scheduled immediately after Phase 2. Each criterion below that depends on a real hosted environment is marked accordingly.
+
+This is a deliberate scheduling decision, not a lowering of the bar: none of these criteria are removed, none become optional, and the alpha cohort is not invited (`HARD-005`) until `OPS-001` has closed them from observed results. The cost is knowingly accepted — until `OPS-001` runs, Phase 1 and Phase 2 features are proven by unit, component, emulator, and browser E2E tests against the emulator suite, and a defect that only manifests against real Firebase services or real analytics transports will surface later than it otherwise would.
+
 **OPS-01 - Deployed environment from Phase 0 (P0)**  
 Solid Groove is deployed to Firebase Hosting from the first foundation milestone, so every later slice can be exercised in a real browser against real Firebase Authentication, Firestore, Storage, and Functions rather than only against a local dev server and the emulator suite.
 
@@ -721,12 +725,12 @@ Acceptance criteria:
 - The application builds and deploys to Firebase Hosting through one documented command and automatically from CI on merge to the default branch. Deployment does not depend on a developer's local machine state.
 - Firestore security rules and indexes deploy from the same repository and the same pipeline as the application. A deploy whose rules or index step fails, fails the whole pipeline rather than leaving shipped code and deployed rules out of step.
 - The deployed revision is identifiable: the build stamps the git commit SHA into the client, the app can display it, and every analytics and error event carries it (see OPS-02 and OPS-03).
-- Rollback is a documented, practiced operation, not an improvisation. Because production is the only hosted environment, the team can restore the previous Hosting release and the matching rules revision without rebuilding from scratch.
+- Rollback is a documented, practiced operation, not an improvisation. Because production is the only hosted environment, the team can restore the previous Hosting release and the matching rules revision without rebuilding from scratch. Documenting the procedure is Phase 0; *practising* it is the `OPS-001` rollback drill after Phase 2, because a drill needs a real Hosting release to roll back.
 - Deploying is not releasing. The deployed alpha is discoverable only to people given the URL and an account, and incomplete journeys stay behind the section 13 feature flags. Nothing in this requirement permits shipping a half-built journey to real users.
 - Secrets, provider credentials, and privileged configuration never enter the client bundle. Hosting configuration, security rules, indexes, and function configuration are checked in and reviewable.
 - Local development and every automated suite continue to run against the Firebase Emulator suite. Running the tests must not require access to the production project, and the test suites must not write to it.
 - Traffic from the team is distinguishable from cohort traffic, so internal sessions can be excluded from the section 11 measures.
-- A deployed build is smoke-tested against the hosted environment — the app loads, an anonymous session starts, a project opens, and audio starts after a user gesture — and a failed smoke test is treated as a failed deploy.
+- A deployed build is smoke-tested against the hosted environment — the app loads, an anonymous session starts, a project opens, and audio starts after a user gesture — and a failed smoke test is treated as a failed deploy. The test and its wiring into the deploy job are Phase 0; its first run against a real hosted URL is `OPS-001`, after Phase 2.
 
 **OPS-02 - Product analytics events (P0)**  
 Solid Groove logs a defined set of user actions to Google Analytics for Firebase so the team can answer two questions the alpha exists to answer: *when do people actually use the app*, and *which features do they reach for first*. Instrumentation is part of building a feature, not a later archaeology project (see the section 14 definition of done).
@@ -795,7 +799,7 @@ The `Owning task` column names the backlog task that must ship the event with th
 Acceptance criteria:
 
 - A shared typed analytics catalog declares every event name, its parameters, their allowed values or buckets, and the phase that introduces it. Logging an unregistered event or parameter is a type error, and the catalog is the only place event strings appear.
-- Every event in the table above is emitted by the task named in its `Owning task` column, at the moment described in `Fires when`, and is verifiable in the production project's Google Analytics debug view from a deployed build.
+- Every event in the table above is emitted by the task named in its `Owning task` column, at the moment described in `Fires when`, and that emission is proven by an automated test in the owning task. Confirming the events actually arrive in the production project's Google Analytics debug view from a deployed build is `OPS-001`, after Phase 2 — it needs a real GA4 property, so no earlier task can close it.
 - Automated tests assert, for each instrumented user action, that the expected event and parameters are logged exactly once, that repeated gestures do not multiply events, and that once-per-project or once-per-account events fire once.
 - A test asserts that no event parameter carries a project, track, clip, section, or asset name; assistant text; a user-entered string; a URL; or an authentication token. This test is part of the analytics catalog's own suite so it covers events added later.
 - Disabling or blocking analytics leaves every product behavior unchanged, proven by a test that runs the core journey with the analytics transport failing.
@@ -818,7 +822,7 @@ Acceptance criteria:
 - The reliability gates have dedicated events, not just generic exceptions: `save_failed` / `save_recovered`, `audio_start_failed`, `audio_underrun`, `asset_load_failed`, and `export_failed` each carry an actionable error code.
 - Error reporting is best-effort and non-blocking. A failing, blocked, or ad-blocker-suppressed reporter cannot stop the transport, block editing, lose unsaved state, or recurse into another report. Reports are not tunnelled through a first-party endpoint in the alpha; the resulting undercount is documented rather than engineered around.
 - Monitoring does not compromise the section 10 performance budgets: the SDK initializes lazily after first paint with a minimal integration set and is not loaded on the marketing landing page.
-- Monitoring is verified end to end from a deployed build: a deliberately triggered test error arrives with its release SHA and a symbolicated stack trace, and the check runs as part of accepting `FND-001c`.
+- Monitoring is verified end to end from a deployed build: a deliberately triggered test error arrives with its release SHA and a symbolicated stack trace. `FND-001c` builds and unit-tests the boundary, the scrubbing, and the source-map upload step; this end-to-end check needs a real Sentry organization and runs as part of accepting `OPS-001`, after Phase 2.
 - Firebase Performance Monitoring may be enabled for page-load and network traces (P1). Neither it nor the monitoring platform's own tracing substitutes for the section 9.3 lab measurements of arrangement frame budgets.
 
 ## 8. Interaction requirements
@@ -1245,7 +1249,7 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 
 ### Phase 0 - Foundations
 
-- **Deploy the application to Firebase Hosting first.** Before the domain model, the audio runtime, or the renderer spike, establish the deploy pipeline so every subsequent slice can be checked in a real browser against real Firebase services. Rules and indexes deploy with the app, the release SHA is stamped into the build, and rollback is documented. The alpha's only hosted environment is the production project (OPS-01).
+- **Establish the deploy pipeline first.** Before the domain model, the audio runtime, or the renderer spike, commit the deploy pipeline so that shipping to a real browser is a solved problem rather than an end-of-project scramble. Rules and indexes deploy with the app, the release SHA is stamped into the build, the smoke test is wired into the deploy job, and rollback is documented. The alpha's only hosted environment is the production project (OPS-01). Provisioning that project and driving the pipeline against it is `OPS-001`, after Phase 2 — so Phase 0 through Phase 2 slices are checked against the emulator suite and the gating browsers, not against real Firebase services.
 - Land the analytics and error-monitoring foundation immediately after: the typed OPS-02 event catalog, the logging boundary every later feature uses, and the OPS-03 error handlers, error boundaries, and Sentry integration with its scrubbing and source-map upload. Phase 0 emits the events it can honestly emit — `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception` — and publishes the catalog contract that every Phase 1-4 feature task extends with its own events. Instrumentation is never deferred to a cleanup task.
 - Implement the canonical schema-v1 domain model in TypeScript with runtime validation, prefixed stable IDs, integer musical time at 192 PPQ, explicit invariants, and deterministic serialization. Existing prototype state and documents require no migration or backwards compatibility.
 - Implement the shared parameter-definition mechanism — how a parameter declares its range, unit, default, clamping policy, and automation capability, and how UI, command validation, the audio engine, and assistant tools all read one definition. Phase 0 defines the mechanism and the few parameters the vertical slice needs. Per-device values for instruments and effects are authored with their devices in Phase 1, where they can be tuned by ear, and must not be invented into schema v1 ahead of them.
@@ -1259,7 +1263,9 @@ The agent-ready task sequence, ownership protocol, dependencies, and completion 
 - Establish the LIB-04 pack model before content and projects accumulate around a flat namespace: the `Pack` entity and pack-qualified asset identity in schema v1, the project's pack dependency list, and the starter library re-delivered as packs with per-pack manifests. This is the one structural content decision that is materially cheaper now than later, because after Phase 0 there are saved projects whose asset references would need migrating.
 - Build and publish the `LIB-00` starter library of sounds for testing, with its manifest, validator, and Cloud Storage delivery. This is not the curated factory library — it is the real audio every later slice is built and tested against, and it lands early for the same reason the deploy pipeline does: so the library browser, sampler, drum machine, caching, and export are exercised against real assets from their first commit rather than against two prototype WAV files.
 
-Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers; that vertical slice is reachable in a deployed build on Firebase Hosting, deployed by CI and identifiable by its release SHA; and the slice's Phase 0 analytics events and a deliberately triggered test error are observable end to end from that deployed build. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
+Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-trip, repository, and emulator tests; the thin vertical slice can add one note through the step grid of a sampler track, play it, undo it, save it, and reopen it through the new boundaries; no UI or assistant code directly mutates stored project data; the renderer spike ships its fixtures, scripted traces, and measurement harness with checked-in baseline numbers; and the deploy pipeline, release stamping, analytics catalog, reporting boundary, smoke test, and rollback procedure are all committed, wired into CI, and covered by their automated tests. Renderer frame budgets are enforced at `ARR-005` and `HARD-001`, not here, and no Phase 0 exit condition depends on access to the physical baseline device. Prototype projects are not an exit dependency.
+
+Phase 0 does **not** exit on anything that requires an operator to drive a live hosted environment. Running the smoke test against a real hosted URL, performing the rollback drill, and observing the slice's analytics events and a deliberately triggered error from a deployed build are batched into `OPS-001` after Phase 2. They remain required (see section 7.10); they are simply not gating conditions for Phase 0, Phase 1, or Phase 2.
 
 ### Phase 1 - Complete the loop workflow
 
@@ -1270,7 +1276,7 @@ Exit criteria: the schema-v1 code and Firebase layout pass their unit, round-tri
 - Desktop editor layout with collapsible panels, a typed Ableton-familiar shortcut registry, shortcut tooltips, and the `?` keyboard mapping guide.
 - The acquisition, activation, and creation events in the OPS-02 catalog, each shipped by the feature it measures: `landing_cta_click`, `anon_session_created`, `account_upgraded`, `project_created`, `project_opened`, `project_deleted`, `transport_play`, `track_added`, `instrument_changed`, `device_added`, `library_audition`, `clip_edited`, `shortcut_used`, `undo_used`, plus the `save_recovered`, `audio_underrun`, and `asset_load_failed` reliability events and each feature's `feature_first_use` key.
 
-Exit criteria: a user can create, process, save, reopen, and reliably play an original 1-8 bar multi-track electronic loop without assistant help, including a drum machine and multiple chained effects, and the loop-workflow events above are observable from the deployed build.
+Exit criteria: a user can create, process, save, reopen, and reliably play an original 1-8 bar multi-track electronic loop without assistant help, including a drum machine and multiple chained effects, and every loop-workflow event above has a call site proven by an automated test. Observing those events from a deployed build is part of `OPS-001` after Phase 2, not a Phase 1 exit condition.
 
 ### Phase 2 - Arrangement and export
 
@@ -1279,6 +1285,20 @@ Exit criteria: a user can create, process, save, reopen, and reliably play an or
 - The arrangement and export events in the OPS-02 catalog: `section_created`, `arrangement_outline_created`, `automation_lane_created`, `arrangement_milestone`, `export_started`, `export_completed`, and `export_failed`. `arrangement_milestone` is what makes the section 11 primary measure computable, so it ships with the sections work rather than at hardening.
 
 Exit criteria: a user can manually build arrangements from two through ten minutes, export a stereo mix, and import the exported stem package into another DAW with every track aligned.
+
+### After Phase 2 - Hosted environment verification
+
+One task, `OPS-001`, run once at the Phase 2 boundary by whoever holds the Firebase and Sentry accounts. It closes every OPS-01, OPS-02, and OPS-03 acceptance criterion that needs a live hosted environment rather than more code, following [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md):
+
+- Provision the Firebase project and the Sentry organization, set the CI variables and secrets, and take the first real deploy.
+- Run the post-deploy smoke test against the hosted URL — app load, anonymous session, project open, audio start after a gesture — and confirm a failing smoke test fails the deploy.
+- Perform the rollback drill: restore the previous Hosting release and the matching rules revision, confirm with the smoke test, and roll forward.
+- Observe the Phase 0, Phase 1, and Phase 2 OPS-02 events arriving from the deployed build, confirm the opt-out works in both directions, and confirm internal traffic is excluded.
+- Confirm a deliberately triggered error reaches Sentry with its release SHA and a symbolicated stack trace, and that no source map is publicly fetchable.
+
+It is placed here, rather than in Phase 0 where the code lands, because it is the earliest point at which one operator pass can verify the deploy, rollback, analytics, and monitoring paths against the whole feature set at once instead of re-verifying them after every phase. It is placed before Phase 3 because the assistant's own events, budgets, and failure paths depend on monitoring that is known to work, and because the alpha cohort (`HARD-005`) must not be invited on unverified instrumentation.
+
+Exit criteria: every OPS-01/OPS-02/OPS-03 criterion marked as needing a hosted environment is ticked from an observed result, with the date and release SHA recorded in [`docs/testing.md`](./testing.md); rollback has been performed, not just described; and no source map is served publicly.
 
 ### Phase 3 - AI producer
 
@@ -1422,7 +1442,7 @@ A feature is done only when:
 - **Analytics ships with the feature.** Every new or changed user action that the OPS-02 catalog covers emits its events through the shared typed catalog, with no ad-hoc event strings, and its principal failure path emits the relevant reliability event. A feature whose events are "to be added later" is not done. If a feature introduces a user action the catalog does not cover, the catalog is extended in the same change — with a `feature_first_use` key at minimum — rather than shipping unmeasured.
 - Instrumentation is tested at the same layer as the behavior: the event fires once per action, repeated or continuous gestures do not multiply it, and disabling analytics changes nothing about the feature.
 - Relevant telemetry contains no project content or secrets, verified by the OPS-02 parameter-content test rather than by inspection.
-- The feature has been exercised in a deployed build on the hosted environment, not only against a local dev server and the emulator suite.
+- The feature has been exercised against a production-like build in the gating browsers, through its browser E2E and emulator suites rather than only a local dev server. Exercising it in a deployed build on the hosted environment is required, but is batched into `OPS-001` after Phase 2 rather than repeated per feature — until `OPS-001` closes, a feature is not held open waiting for a hosted environment that does not yet exist.
 - Tests cover the happy path and the principal failure path.
 - Arrangement changes do not regress the committed reference performance budgets.
 - User-facing terminology matches this document.
@@ -1458,6 +1478,7 @@ A feature is done only when:
 
 - Desktop web is the alpha production surface.
 - The application deploys to Firebase Hosting from CI starting in Phase 0, and the private alpha runs on one hosted environment — the production Firebase project. Rules and indexes deploy with the app; the decision is revisited before public launch.
+- Verification that needs a live hosted environment — the post-deploy smoke test run, the rollback drill, and observing analytics events and errors from a deployed build — is batched into one operator task, `OPS-001`, scheduled immediately after Phase 2 rather than inside Phase 0. The implementation, wiring, and automated tests stay in `FND-001b`/`FND-001c`. The criteria are unchanged and still required before the cohort is invited (`HARD-005`); what moves is when they are executed. The accepted cost is that a defect only reproducible against real Firebase, GA4, or Sentry surfaces after Phase 2 instead of during Phase 0.
 - Product analytics use Google Analytics for Firebase through one typed event catalog (OPS-02), and shipping a feature's events is part of that feature's definition of done rather than a later instrumentation pass.
 - Crash and error monitoring use Sentry behind the application's own reporting boundary ([ADR 0001](./adr/0001-sentry-for-error-monitoring.md)). Firebase Crashlytics does not support the Web SDK, and Google Cloud Error Reporting cannot symbolicate browser stack traces without publicly serving our source maps — which `OPS-03` forbids. Session Replay stays off, and replacing Sentry requires a superseding ADR.
 - Approved architecture decision records live in [`docs/adr`](./adr); the section 9.1 stack table indexes them.

@@ -267,7 +267,11 @@ The first must succeed and the second must not. A 200 with map contents means th
 
 ### What has not been verified
 
-The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason. Whoever provisions the accounts runs this procedure once and records the outcome.
+The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason.
+
+**When this gets closed.** Executing it is backlog task `OPS-001`, scheduled immediately after Phase 2 (PRD section 12, "After Phase 2"), following [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md). It was originally expected during Phase 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Phase 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
+
+Until then, treat every statement in that section as untested, and do not cite it as evidence in a task's closing comment. Whoever provisions the accounts runs the procedure once and replaces this section with what they actually observed, including the date and the release SHA.
 
 ## Test helpers
 
@@ -279,6 +283,7 @@ The whole of "Verifying analytics and errors against a deployed build" above is 
 | `timeoutScheduler`, `createManualScheduler` | `src/shared/scheduler.ts` | A `Scheduler` abstraction for deferred work (autosave coalescing, backoff), so a test drives the delay explicitly instead of sleeping. Same rationale as `clock.ts`: production code is a consumer too. |
 | `loadStoredProjectFixture` | `src/testing/fixtures.ts` | Loads a stored schema-vN project from `public/fixtures/persistence/v{version}-{name}.json`. The fixture convention the persistence migration harness follows — see [`docs/persistence.md`](./persistence.md). |
 | `describeProjectRepositoryContract` | `src/persistence/projectRepositoryContract.ts` | The shared `ProjectRepository` contract suite. Any new repository implementation runs it; behavior specific to one implementation stays in that implementation's own test file. |
+| `createSliceFixtureProject`, `createDrumMachineFixtureProject`, `createReferenceProject`, `sliceFixturePacks`, `drumMachineFixturePacks` | `src/domain/fixtures.ts` | Deterministic schema-v1 reference projects, seeded so two runs produce identical IDs and identical JSON. `createDrumMachineFixtureProject` is the **two-pack** fixture — its assets resolve from two packs at two versions, which a single-pack fixture cannot do, so use it for anything touching pack-qualified asset identity (invariant 12). The `*FixturePacks` helpers rebuild a fixture's `Pack` records from the same seed, so a test can hand them to `resolvePackAvailability` as "the packs I have" or hold one back to exercise the missing-pack state. |
 | `memoryStorage`, `hostileStorage` | `src/testing/storage.ts` | `Storage` doubles for anything that persists a preference or a marker (telemetry consent, once-only analytics events, the internal-traffic flag). `memoryStorage` isolates a test from jsdom's real `localStorage`, so a leaked opt-out cannot make suites pass or fail by order; `hostileStorage` throws on every operation, standing in for Safari private browsing and a full quota. |
 | `createRecordingTransport`, `createFailingTransport` | `src/analytics/transport.ts` | Analytics transports for tests: one records events and user properties for assertions, the other throws on every call so a test can prove the PRD `OPS-02` fail-open requirement rather than assume it. |
 | `loadFixtureJson`, `loadSampleProjectFixture` | `src/testing/fixtures.ts` | Browser-safe fixture loading: reads `public/fixtures/*.json` from disk under Node (unit/component/emulator suites) or fetches it as a static asset under a real browser, picking the strategy at call time. |
@@ -315,7 +320,7 @@ the validator proves an asset is well-formed, not that it sounds right.
 
 `library:build` merges whatever `library:acquire` last ingested, so with nothing acquired it is the 200 synthesized assets and needs no network at all — which is why CI can gate on it unconditionally.
 
-The library is currently one flat collection. `CNT-000b` moves it onto the pack model (`docs/sample-library.md` sections 5.1 and 15.7), after which the build emits one manifest per pack plus a pack index and the validator gains the pack rules; the commands themselves do not change.
+The library ships on the pack model (`docs/sample-library.md` sections 5.1 and 15.8, `CNT-000b`): the build emits one manifest per pack plus a pack index at `library/packs/...`, and the validator carries the section 9 pack rules alongside the section 6.4 rules, which are still measured across the whole library rather than per pack. The commands above are unchanged — `library:build`, `library:validate`, and `library:upload` all operate on every pack in one call.
 
 ### Acquisition tests
 
@@ -338,6 +343,8 @@ firebase emulators:start --only storage --project demo-solid-groove
 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
   bun run library:upload -- --bucket demo-solid-groove.firebasestorage.app
 ```
+
+A second run against the same emulator uploads nothing but the mutable pointers (each pack's `latest.json` and `packs/index.json`, always rewritten) and skips every immutable object — audio and versioned pack manifests alike. Bumping one pack's `version` in `packs.mjs` and re-running uploads exactly that pack's new manifest; every other pack's manifest and all audio stay skipped, which is what "a repack re-uploads no audio" and "a single changed pack re-uploads only that pack's manifest" (section 15.8) mean in practice, not just in the log line.
 
 Two caveats, both emulator limitations rather than bugs:
 

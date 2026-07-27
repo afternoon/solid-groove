@@ -33,6 +33,7 @@ const PROJECT_A = "prj_aaaaaaaaaaaaaaaaaaaaa";
 const PROJECT_B = "prj_bbbbbbbbbbbbbbbbbbbbb";
 const CLIP_A = "clp_aaaaaaaaaaaaaaaaaaaaa";
 const TRACK_A = "trk_aaaaaaaaaaaaaaaaaaaaa";
+const PACK_A = "pak_aaaaaaaaaaaaaaaaaaaaa";
 
 function metadata(overrides: Record<string, unknown> = {}) {
 	return {
@@ -45,6 +46,7 @@ function metadata(overrides: Record<string, unknown> = {}) {
 		modifiedAt: 1_700_000_000_000,
 		template: null,
 		genre: null,
+		packDependencies: [],
 		...overrides,
 	};
 }
@@ -141,6 +143,26 @@ describe("firestore.rules: projects/{projectId} metadata", () => {
 			setDoc(
 				doc(db, "projects", PROJECT_A),
 				metadata({ latestSnapshot: { song: {} } }),
+			),
+		);
+	});
+
+	it("requires a pack dependency list, and takes one that is not empty", async () => {
+		const db = testEnv.authenticatedContext("owner-a").firestore();
+		const { packDependencies: _omitted, ...withoutList } = metadata();
+		await assertFails(setDoc(doc(db, "projects", PROJECT_A), withoutList));
+		await assertFails(
+			setDoc(
+				doc(db, "projects", PROJECT_A),
+				metadata({ packDependencies: "none" }),
+			),
+		);
+		await assertSucceeds(
+			setDoc(
+				doc(db, "projects", PROJECT_A),
+				metadata({
+					packDependencies: [{ packId: PACK_A, version: "1.0.0" }],
+				}),
 			),
 		);
 	});

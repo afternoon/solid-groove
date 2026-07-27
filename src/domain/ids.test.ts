@@ -27,6 +27,7 @@ describe("entity ids", () => {
 			section: "sec",
 			return: "ret",
 			asset: "ast",
+			pack: "pak",
 			revision: "rev",
 		});
 	});

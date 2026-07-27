@@ -1,9 +1,11 @@
 import type {
 	AutomationLane,
 	Clip,
+	Pack,
 	Placement,
 	Project,
 	Section,
+	Song,
 	Track,
 } from "./entities";
 import {
@@ -16,6 +18,7 @@ import {
 	createFactoryContext,
 	createNoteClip,
 	createNoteEvent,
+	createPack,
 	createPlacement,
 	createProjectMetadata,
 	createSamplerInstrument,
@@ -24,6 +27,7 @@ import {
 	type DomainFactoryContext,
 } from "./factories";
 import { createSeededIdFactory, type IdFactory } from "./ids";
+import { derivePackDependencies } from "./packs";
 import { TRACK_PAN, TRACK_VOLUME } from "./parameters";
 import { assertProject } from "./parse";
 import {
@@ -61,16 +65,46 @@ function fixtureContext(options: FixtureOptions, seed: string): FixtureContext {
 }
 
 /**
+ * Fixture packs, as bundled factory packs (LIB-05).
+ *
+ * Two of them, always, because a single-pack fixture cannot catch a
+ * pack-qualification bug: an implementation that ignores `packId` entirely still
+ * passes every assertion when every asset happens to share one pack. A fixture
+ * that wants only one pack takes `drums` and leaves `loops` unused.
+ */
+export interface FixturePacks {
+	readonly drums: Pack;
+	readonly loops: Pack;
+}
+
+function fixturePacks(context: FixtureContext): FixturePacks {
+	return {
+		drums: createPack(context, {
+			name: "House Drums",
+			description: "Bundled factory drum one-shots used by the fixtures.",
+		}),
+		loops: createPack(context, {
+			name: "Break Loops",
+			version: "2.1.0",
+			description: "Bundled factory audio loops used by the fixtures.",
+		}),
+	};
+}
+
+/**
  * The `FND-009` vertical slice fixture: one sampler track holding a one-bar
- * four-on-the-floor clip placed once in the arrangement.
+ * four-on-the-floor clip placed once in the arrangement, whose asset resolves
+ * from one pack.
  */
 export function createSliceFixtureProject(
 	options: FixtureOptions = {},
 ): Project {
 	const context = fixtureContext(options, "slice-fixture");
+	const packs = fixturePacks(context);
 	const song = createEmptySong(options.tempo ?? 120);
 
 	const asset = createAsset(context, {
+		pack: packs.drums,
 		name: "909 Bass Drum",
 		storageRef: "samples/house/drums/bd/909-bd.wav",
 		url: "/samples/house/drums/bd/909-bd.wav",
@@ -105,18 +139,21 @@ export function createSliceFixtureProject(
 		durationTicks: TICKS_PER_BAR,
 	});
 
+	const fixtureSong: Song = {
+		...song,
+		assets: [asset],
+		tracks: [track],
+		placements: [placement],
+	};
+
 	return assertProject({
 		metadata: createProjectMetadata(context, {
 			ownerId: options.ownerId ?? "user_fixture",
 			name: "Slice fixture",
 			template: "blank",
+			packDependencies: derivePackDependencies(fixtureSong),
 		}),
-		song: {
-			...song,
-			assets: [asset],
-			tracks: [track],
-			placements: [placement],
-		},
+		song: fixtureSong,
 		clips: [clip],
 	});
 }
@@ -126,15 +163,23 @@ export function createSliceFixtureProject(
  * and whose clip triggers those pads, plus an audio track holding an
  * `audioLoop` clip. It covers the clip-content and instrument variants the
  * slice fixture deliberately leaves out.
+ *
+ * It is also the **two-pack** fixture: its drum one-shots resolve from one pack
+ * and its loop from another, at a different pack version. That combination is
+ * what catches a pack-qualification bug — a project that mixes packs, a
+ * dependency list with two entries, and a missing-pack report that must name
+ * only the tracks and clips of the pack that is actually missing.
  */
 export function createDrumMachineFixtureProject(
 	options: FixtureOptions = {},
 ): Project {
 	const context = fixtureContext(options, "drum-machine-fixture");
+	const packs = fixturePacks(context);
 	const tempo = options.tempo ?? 120;
 	const song = createEmptySong(tempo);
 
 	const kickAsset = createAsset(context, {
+		pack: packs.drums,
 		name: "909 Bass Drum",
 		storageRef: "samples/house/drums/bd/909-bd.wav",
 		url: "/samples/house/drums/bd/909-bd.wav",
@@ -143,6 +188,7 @@ export function createDrumMachineFixtureProject(
 		channelCount: 1,
 	});
 	const clapAsset = createAsset(context, {
+		pack: packs.drums,
 		name: "909 Clap",
 		storageRef: "samples/house/drums/cp/909-cp.wav",
 		url: "/samples/house/drums/cp/909-cp.wav",
@@ -151,6 +197,7 @@ export function createDrumMachineFixtureProject(
 		channelCount: 1,
 	});
 	const loopAsset = createAsset(context, {
+		pack: packs.loops,
 		name: "Break loop",
 		kind: "loop",
 		storageRef: "samples/house/loops/break-120.wav",
@@ -211,33 +258,52 @@ export function createDrumMachineFixtureProject(
 		sourceTempo: tempo,
 	});
 
+	const fixtureSong: Song = {
+		...song,
+		assets: [kickAsset, clapAsset, loopAsset],
+		tracks: [drumTrack, audioTrack],
+		placements: [
+			createPlacement(context, {
+				clipId: drumClip.id,
+				trackId: drumTrack.id,
+				startTicks: 0,
+				durationTicks: TICKS_PER_BAR,
+			}),
+			createPlacement(context, {
+				clipId: loopClip.id,
+				trackId: audioTrack.id,
+				startTicks: 0,
+				durationTicks: TICKS_PER_BAR * 2,
+			}),
+		],
+	};
+
 	return assertProject({
 		metadata: createProjectMetadata(context, {
 			ownerId: options.ownerId ?? "user_fixture",
 			name: "Drum machine fixture",
 			template: "blank",
+			packDependencies: derivePackDependencies(fixtureSong),
 		}),
-		song: {
-			...song,
-			assets: [kickAsset, clapAsset, loopAsset],
-			tracks: [drumTrack, audioTrack],
-			placements: [
-				createPlacement(context, {
-					clipId: drumClip.id,
-					trackId: drumTrack.id,
-					startTicks: 0,
-					durationTicks: TICKS_PER_BAR,
-				}),
-				createPlacement(context, {
-					clipId: loopClip.id,
-					trackId: audioTrack.id,
-					startTicks: 0,
-					durationTicks: TICKS_PER_BAR * 2,
-				}),
-			],
-		},
+		song: fixtureSong,
 		clips: [drumClip, loopClip],
 	});
+}
+
+/**
+ * The packs {@link createDrumMachineFixtureProject} draws from, rebuilt from the
+ * same seed so a test can hand them to `resolvePackAvailability` as "the packs I
+ * have" — or hold one back to exercise the missing-pack state.
+ */
+export function drumMachineFixturePacks(
+	options: FixtureOptions = {},
+): FixturePacks {
+	return fixturePacks(fixtureContext(options, "drum-machine-fixture"));
+}
+
+/** The pack {@link createSliceFixtureProject}'s sampler asset resolves from. */
+export function sliceFixturePacks(options: FixtureOptions = {}): FixturePacks {
+	return fixturePacks(fixtureContext(options, "slice-fixture"));
 }
 
 export interface ReferenceProjectOptions extends FixtureOptions {
@@ -269,6 +335,7 @@ export function createReferenceProject(
 	options: ReferenceProjectOptions = {},
 ): Project {
 	const context = fixtureContext(options, "reference-fixture");
+	const packs = fixturePacks(context);
 	const tempo = options.tempo ?? 120;
 	const trackCount = options.trackCount ?? 50;
 	const minutes = options.minutes ?? 10;
@@ -292,6 +359,7 @@ export function createReferenceProject(
 	const automation: AutomationLane[] = [];
 
 	const asset = createAsset(context, {
+		pack: packs.drums,
 		name: "Reference loop",
 		storageRef: "samples/reference/loop.wav",
 		url: "/samples/reference/loop.wav",
@@ -299,9 +367,12 @@ export function createReferenceProject(
 		sampleRate: 44_100,
 		channelCount: 2,
 	});
+	// The waveform loop comes from the second pack, so a reference project with
+	// waveform tracks spans two packs at two versions.
 	const loopAsset =
 		waveformTrackCount > 0
 			? createAsset(context, {
+					pack: packs.loops,
 					name: "Reference waveform loop",
 					kind: "loop",
 					storageRef: "samples/reference/waveform-loop.wav",
@@ -401,20 +472,23 @@ export function createReferenceProject(
 			}),
 	);
 
+	const fixtureSong: Song = {
+		...createEmptySong(tempo),
+		assets: loopAsset ? [asset, loopAsset] : [asset],
+		tracks,
+		placements,
+		automation,
+		sections,
+	};
+
 	return assertProject({
 		metadata: createProjectMetadata(context, {
 			ownerId: options.ownerId ?? "user_fixture",
 			name: "Reference arrangement",
 			genre: "house",
+			packDependencies: derivePackDependencies(fixtureSong),
 		}),
-		song: {
-			...createEmptySong(tempo),
-			assets: loopAsset ? [asset, loopAsset] : [asset],
-			tracks,
-			placements,
-			automation,
-			sections,
-		},
+		song: fixtureSong,
 		clips,
 	});
 }

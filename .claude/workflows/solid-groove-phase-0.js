@@ -7,6 +7,7 @@ export const meta = {
   phases: [
     { title: 'Tooling', detail: 'FND-001 test and CI foundation, then FND-001b deploy pipeline and FND-001c analytics catalog' },
     { title: 'Contracts', detail: 'FND-002 domain schema, then command kernel, repository and projections', model: 'opus' },
+    { title: 'Packs', detail: 'FND-002b pack-qualified asset identity, then CNT-000b repacking the starter library' },
     { title: 'Runtime', detail: 'FND-006 AudioRuntime and FND-008 renderer harness' },
     { title: 'Graph', detail: 'FND-007 stable ID-keyed audio graph' },
     { title: 'Slice', detail: 'FND-009 vertical slice gate' },
@@ -19,8 +20,18 @@ export const meta = {
 // always Opus, at high effort, and runs before any PR is opened.
 // FND-001c is included because its own backlog block declares it contract-owning:
 // it publishes the analytics catalog every Phase 1-4 feature task extends.
-const CONTRACT_TASKS = ['FND-001c', 'FND-002', 'FND-003', 'FND-004']
-const BASE_BRANCH = 'main'
+// FND-002b is contract-owning for the same reason FND-002 is: it changes the
+// landed schema-v1 asset identity, and every saved project and every later
+// content task reads that shape.
+const CONTRACT_TASKS = ['FND-001c', 'FND-002', 'FND-002b', 'FND-003', 'FND-004']
+
+// The active feature branch, not `main`. The Phase 0 remainder and Phase 1 are
+// being run against the docs commit that moved hosted-environment verification
+// to OPS-001 (after Phase 2). That commit is what tells an agent its
+// deployed-build checkboxes are out of scope rather than unmet, so branching
+// these tasks from `main` would hand them acceptance criteria nobody can meet.
+// Task PRs therefore target this branch and land on `main` with it.
+const BASE_BRANCH = 'claude/phase-0-phase-1-workflow-7j8mp9'
 const MAX_REVIEW_ROUNDS = 2
 
 // The agent registry is read once at session start, so `agentType` cannot resolve
@@ -49,6 +60,17 @@ You are in a git worktree, not the main checkout. Two things follow:
   \`\`\`
   Confirm before you start work: \`git merge-base --is-ancestor origin/${BASE_BRANCH} HEAD\` must succeed. Never pipe a git command through \`tail\` or \`head\` in an \`&&\` chain — it hides the exit code and a failed checkout looks like a success.
 
+## Environment setup, before your first test run
+
+Both of these have already cost a run. Do them once, up front:
+
+- **\`bun install\` in your worktree.** A fresh worktree has no \`node_modules\`, and the failure does not look like a missing install: \`bun run typecheck\` reports \`TS2688: Cannot find type definition file for '@testing-library/jest-dom'\` (and \`vinxi/types/client\`, \`vitest/globals\`), which reads like a broken tsconfig. It is not. Run \`bun install\` and it goes away. Never "fix" it by editing \`tsconfig.json\`'s \`types\` array.
+- **Audio tests need a default ALSA device.** This container has no \`/dev/snd\`, so importing \`tone\` throws \`InvalidStateError: cpal backend error during default_output_config: DeviceUnavailable\` and fails ~8 suites under \`src/audio/\` at load time, before any assertion. A \`~/.asoundrc\` declaring a \`null\` default PCM should already exist (CI does the same thing — see the "Configure a null ALSA output device" step in \`.github/workflows/ci.yml\`). If those suites fail that way, recreate it:
+  \`\`\`sh
+  printf 'pcm.!default {\\n    type null\\n}\\nctl.!default {\\n    type null\\n}\\n' > ~/.asoundrc
+  \`\`\`
+  This is an environment gap, never a defect in the code under test. Do not skip, delete, or weaken an audio suite to get a green run, and do not report these as failures you fixed.
+
 `
 
 // FND-001b and FND-001c are the only Phase 0 tasks that depend on things outside
@@ -60,21 +82,41 @@ const NO_CREDENTIALS = `
 
 This task provisions no accounts and holds no secrets. Assume the Firebase project, CI service account, GA4 property, and Sentry org/DSN/auth token are NOT available to you. Never invent a project id, DSN, token, or key; never commit a placeholder shaped like a real one; and never report a deploy, smoke test, rollback, or delivered event as having happened when it did not.
 
-Implement everything that does not need them: the pipeline, configuration, catalog, boundaries, tests, and documentation, referring to every credential by name through CI secrets and \`.env.example\`. Then list each acceptance checkbox that needs a real credential or a real deployed build in \`unmet\`, with that as the stated reason. An honest \`unmet\` entry is a correct outcome here, not a failure.`
+Implement everything that does not need them: the pipeline, configuration, catalog, boundaries, tests, and documentation, referring to every credential by name through CI secrets and \`.env.example\`.
 
+Hosted-environment verification has been **moved out of Phase 0** to task \`OPS-001\`, after Phase 2 (PRD section 12, "After Phase 2"). Your task block marks the affected checkboxes in bold. Those are **out of scope for you, not unmet by you**: put them in \`outOfScope\`, not \`unmet\`, and satisfy the automated-test half of each one that remains yours. Reserve \`unmet\` for something you were genuinely supposed to deliver and could not.`
+
+// `issue` is the GitHub issue number that is the task's live record. Only the
+// three tasks that were still in flight when the issue convention was adopted
+// have one; FND-001..008 and CNT-000 landed before it and are recorded in git
+// history instead (see docs/backlog.md section 1). A task with no issue number
+// simply gets no issue instructions in its brief.
 const TASKS = [
   { id: 'FND-001', phase: 'Tooling', title: 'Test and development foundation' },
   { id: 'FND-001b', phase: 'Tooling', title: 'Firebase deployment and hosted alpha environment', note: NO_CREDENTIALS },
   { id: 'FND-001c', phase: 'Tooling', title: 'Analytics and error-monitoring foundation', note: NO_CREDENTIALS },
   { id: 'FND-002', phase: 'Contracts', title: 'Canonical schema-v1 domain model' },
+  { id: 'FND-002b', phase: 'Packs', title: 'Packs and pack-qualified asset identity', issue: 81 },
+  // CNT-000b depends on CNT-000, which is not in this workflow: the starter
+  // library was built outside it and is already on the base branch. CNT-000b
+  // only repacks what is there, so it needs no run-order gate beyond FND-002b.
+  { id: 'CNT-000b', phase: 'Packs', title: 'Deliver the starter library as packs', issue: 82 },
   { id: 'FND-003', phase: 'Contracts', title: 'Command, transaction, and history kernel' },
   { id: 'FND-004', phase: 'Contracts', title: 'Firebase schema-v1 repository' },
   { id: 'FND-005', phase: 'Contracts', title: 'Selection and consumer projections' },
   { id: 'FND-006', phase: 'Runtime', title: 'Single-context AudioRuntime and diagnostics' },
   { id: 'FND-007', phase: 'Graph', title: 'Stable ID-keyed audio graph' },
   { id: 'FND-008', phase: 'Runtime', title: 'Arrangement renderer spike and measurement harness' },
-  { id: 'FND-009', phase: 'Slice', title: 'Foundation vertical slice gate', note: NO_CREDENTIALS },
+  { id: 'FND-009', phase: 'Slice', title: 'Foundation vertical slice gate', note: NO_CREDENTIALS, issue: 83 },
 ]
+
+// The issue is the task's live record (docs/backlog.md section 1). Spelled out
+// in the brief because an agent that has to infer the protocol either skips it
+// or invents its own; both leave the board lying about what happened.
+const issueBrief = (t) =>
+  t.issue
+    ? `\n\n## Your GitHub issue\n\nTask ${t.id} is tracked in \`afternoon/solid-groove\` issue **#${t.issue}** — that issue, not \`docs/backlog.md\`, is the live record. Use the \`mcp__github__*\` tools; there is no \`gh\` CLI.\n\n- Assign #${t.issue} to \`afternoon\` and comment that you have started, naming the branch you will push to, **before** you change product code.\n- Tick the acceptance checkboxes on #${t.issue} as you genuinely satisfy them. Never tick one you have not. A reviewer treats a ticked box as a claim to verify, and a box ticked without supporting code is itself a blocking finding.\n- Comment when something is worth knowing — a blocker, a decision you had to make, a discovery belonging to another task — not once per commit.\n- Do **not** close the issue. A reviewer runs after you and the PR closes it on merge.\n- End every comment with a blank line, a \`---\` rule, then \`_Generated by [Claude Code](https://claude.ai/code)_\`.`
+    : ''
 
 // Normalise the subset request, and fail loud on anything malformed.
 //
@@ -216,7 +258,7 @@ const REVIEW_SCHEMA = {
 
 const implPrompt = (t, base) => `${brief(IMPLEMENTER)}Implement backlog task ${t.id} - ${t.title}.
 
-Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.${t.note ?? ''}
+Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.${t.note ?? ''}${issueBrief(t)}
 
 ${WORKTREE}Name your branch claude/${t.id.toLowerCase()} and create it from origin/${base} as described above. Commit and push it with \`git push -u origin claude/${t.id.toLowerCase()}\`. Do not open a pull request — a reviewer runs before the PR is opened.
 
@@ -224,6 +266,10 @@ Report the branch name, what you did, the commands you ran with their real resul
 
 const reviewPrompt = (t, impl, round) => `${brief(REVIEWER)}Review branch ${impl.branch} against backlog task ${t.id} - ${t.title}.${
   round > 1 ? `\n\nThis is review round ${round}; a previous round returned blocking findings that the implementer has since addressed. Verify the fixes rather than assuming them.` : ''
+}${
+  t.issue
+    ? `\n\nThe task's live record is issue #${t.issue}. Read it with \`mcp__github__issue_read\` — including its comments — and treat every ticked acceptance checkbox as a claim to verify against the diff, exactly like a line in the implementer's summary. A box ticked without the code to support it is a blocking finding. Do not tick, untick, or close anything yourself.`
+    : ''
 }
 
 ${WORKTREE}Fetch and check out the branch under review with \`git fetch origin ${impl.branch} && git checkout -b review-${t.id.toLowerCase()} origin/${impl.branch}\`, then read the actual diff against origin/${BASE_BRANCH}. Run the test suite yourself.
@@ -248,7 +294,11 @@ Report the same structured result as the original implementation, describing the
 
 const prPrompt = (t, impl) => `Open a pull request for branch ${impl.branch} into ${BASE_BRANCH}.
 
-Check the repository for a PR template and mirror its structure if one exists. Title it "${t.id} - ${t.title}". In the body, describe the change, link the task's PRD requirements, list the acceptance checkboxes met, and state that the branch passed an Opus review round in the implementation workflow.
+Check the repository for a PR template and mirror its structure if one exists. Title it "${t.id} - ${t.title}". In the body, describe the change, link the task's PRD requirements, list the acceptance checkboxes met, and state that the branch passed an Opus review round in the implementation workflow.${
+  t.issue ? `\n\nInclude \`Closes #${t.issue}\` in the body so merging closes the task's issue.` : ''
+}
+
+End the PR body with a blank line, a \`---\` rule, then \`_Generated by [Claude Code](https://claude.ai/code)_\`.
 
 Return the pull request URL.`
 
@@ -352,6 +402,21 @@ const dependents = await parallel([
 ])
 for (const r of dependents) record(r)
 
+// FND-002b is a contract change to the landed FND-002 schema: it makes asset
+// identity pack-qualified. It runs alone, and CNT-000b runs strictly after it
+// rather than alongside, because CNT-000b's manifests have to emit the exact
+// pack shape FND-002b's parser accepts — run them concurrently and the two
+// agents each invent half of an incompatible format.
+phase('Packs')
+if (wanted('FND-002b')) {
+  record(await runTask(task('FND-002b')))
+  if (!landed('FND-002b')) {
+    log('FND-002b did not land — stopping before CNT-000b and FND-009, which both consume the pack contract.')
+    return { results, stoppedAt: 'FND-002b' }
+  }
+}
+if (wanted('CNT-000b')) record(await runTask(task('CNT-000b')))
+
 phase('Graph')
 if (wanted('FND-007')) record(await runTask(task('FND-007')))
 
@@ -362,7 +427,7 @@ if (wanted('FND-007')) record(await runTask(task('FND-007')))
 // branch is not in `results` and must not be treated as missing.
 phase('Slice')
 if (wanted('FND-009')) {
-  const unlanded = ['FND-001c', 'FND-003', 'FND-004', 'FND-005', 'FND-007', 'FND-008'].filter(
+  const unlanded = ['FND-001c', 'FND-002b', 'FND-003', 'FND-004', 'FND-005', 'FND-007', 'FND-008'].filter(
     (id) => wanted(id) && !landed(id),
   )
   if (unlanded.length) {

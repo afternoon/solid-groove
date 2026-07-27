@@ -22,6 +22,7 @@ import {
 	createFactoryContext,
 	createNoteClip,
 	createNoteEvent,
+	createPack,
 	createPlacement,
 	createProjectMetadata,
 	createReturnBus,
@@ -31,11 +32,14 @@ import {
 	createTrack,
 	type Device,
 	type DeviceId,
+	derivePackDependencies,
 	type EventId,
+	type Pack,
 	type PadId,
 	type PlacementId,
 	type Project,
 	type ReturnId,
+	type Song,
 	serializeProject,
 	TICKS_PER_BAR,
 	TICKS_PER_SIXTEENTH,
@@ -60,6 +64,8 @@ export interface CommandTestProject {
 	returnId: ReturnId;
 	placementAId: PlacementId;
 	padIds: PadId[];
+	/** The two packs the fixture's assets resolve from, in dependency order. */
+	packs: [Pack, Pack];
 	/** Event IDs of `clipA`, in the order the fixture created them. */
 	eventIds: EventId[];
 }
@@ -72,9 +78,24 @@ export function createCommandTestProject(
 		now: 1_700_000_000_000,
 	});
 
+	// Two packs, and the drum pads resolve from the second one, so a command,
+	// undo, or redo that changes which assets a project holds has two dependencies
+	// to keep straight rather than one.
+	const drumsPack = createPack(context, { name: "Command Drums" });
+	const bassPack = createPack(context, {
+		name: "Command Bass",
+		version: "3.2.1",
+	});
+
 	const asset = createAsset(context, {
+		pack: bassPack,
 		name: "909 Bass Drum",
 		storageRef: "samples/house/drums/bd/909-bd.wav",
+	});
+	const padAsset = createAsset(context, {
+		pack: drumsPack,
+		name: "909 Clap",
+		storageRef: "samples/house/drums/cp/909-cp.wav",
 	});
 
 	const device: Device = {
@@ -96,7 +117,7 @@ export function createCommandTestProject(
 		sendConfig: [createSend(returnBus.id, 0.25)],
 	});
 
-	const kick = createDrumPad(context, { name: "BD" });
+	const kick = createDrumPad(context, { name: "BD", assetId: padAsset.id });
 	const clap = createDrumPad(context, { name: "CP" });
 	const trackB = createTrack(context, {
 		name: "Drums",
@@ -144,33 +165,36 @@ export function createCommandTestProject(
 		durationTicks: bars(1),
 	});
 
+	const song: Song = {
+		...createEmptySong(120),
+		assets: [asset, padAsset],
+		tracks: [trackA, trackB],
+		returns: [returnBus],
+		placements: [placementA, placementB],
+		automation: [
+			{
+				id: context.ids("automation"),
+				target: {
+					scope: "track",
+					trackId: trackA.id,
+					parameterId: TRACK_VOLUME.id,
+				},
+				interpolation: "linear",
+				points: [
+					{ tick: toTicks(0), value: 0 },
+					{ tick: toTicks(TICKS_PER_BAR), value: -6 },
+				],
+			},
+		],
+	};
+
 	const project = assertProject({
 		metadata: createProjectMetadata(context, {
 			ownerId: "user_commands",
 			name: "Command fixture",
+			packDependencies: derivePackDependencies(song),
 		}),
-		song: {
-			...createEmptySong(120),
-			assets: [asset],
-			tracks: [trackA, trackB],
-			returns: [returnBus],
-			placements: [placementA, placementB],
-			automation: [
-				{
-					id: context.ids("automation"),
-					target: {
-						scope: "track",
-						trackId: trackA.id,
-						parameterId: TRACK_VOLUME.id,
-					},
-					interpolation: "linear",
-					points: [
-						{ tick: toTicks(0), value: 0 },
-						{ tick: toTicks(TICKS_PER_BAR), value: -6 },
-					],
-				},
-			],
-		},
+		song,
 		clips: [clipA, clipB],
 	});
 
@@ -184,6 +208,7 @@ export function createCommandTestProject(
 		returnId: returnBus.id,
 		placementAId: placementA.id,
 		padIds: [kick.id, clap.id],
+		packs: [drumsPack, bassPack],
 		eventIds:
 			clipA.content.kind === "notes"
 				? clipA.content.events.map((event) => event.id)

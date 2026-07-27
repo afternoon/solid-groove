@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { MANIFEST_POINTER_KEY, manifestStorageKey } from "./manifest.mjs";
+import {
+	PACK_INDEX_KEY,
+	packManifestStorageKey,
+	packPointerKey,
+} from "./manifest.mjs";
 import {
 	CACHE_CONTROL,
 	corsConfigFor,
@@ -183,12 +187,15 @@ describe("withRetry", () => {
 });
 
 describe("delivery layout", () => {
-	it("publishes everything under one prefix", () => {
+	it("publishes everything under one prefix, with a pack dimension (section 15.8)", () => {
 		expect(STORAGE_PREFIX).toBe("library");
-		expect(manifestStorageKey(1)).toBe("manifests/sg-starter-library/v1.json");
-		expect(MANIFEST_POINTER_KEY).toBe(
-			"manifests/sg-starter-library/latest.json",
+		expect(packManifestStorageKey("techno-drums", 3)).toBe(
+			"packs/techno-drums/v3.json",
 		);
+		expect(packPointerKey("techno-drums")).toBe(
+			"packs/techno-drums/latest.json",
+		);
+		expect(PACK_INDEX_KEY).toBe("packs/index.json");
 	});
 
 	// Content-addressed and versioned objects can be cached forever; the pointer

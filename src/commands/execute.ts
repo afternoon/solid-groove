@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import type { Project } from "../domain/entities";
+import { withDerivedPackDependencies } from "../domain/packs";
 import { checkProjectIntegrity } from "../domain/parse";
 import { type Clock, systemClock } from "../shared/clock";
 import { findCommand } from "./registry";
@@ -240,18 +241,25 @@ export function executeTransaction(
 	const clock = options.clock ?? systemClock;
 	const timestamp = clock.now();
 	const commitRevision = options.commitRevision !== false;
+	// Invariant 12: the pack dependency list is derived, so it is recomputed here
+	// rather than by each command. Doing it inside the transaction is what makes
+	// "adds or removes the last reference to a pack" atomic with the edit that
+	// caused it, and makes undo and redo — which replay through this same path —
+	// consistent without a per-command rule. A transaction that did not change
+	// which packs the project uses gets the identical project object back.
+	const normalized = withDerivedPackDependencies(working);
 	const committed = commitRevision
 		? {
-				...working,
+				...normalized,
 				metadata: {
-					...working.metadata,
+					...normalized.metadata,
 					revision: baseRevision + 1,
 					// A clock set behind the project's creation time must not
 					// produce metadata that fails its own invariant.
-					modifiedAt: Math.max(timestamp, working.metadata.createdAt),
+					modifiedAt: Math.max(timestamp, normalized.metadata.createdAt),
 				},
 			}
-		: working;
+		: normalized;
 
 	const domainIssues = checkProjectIntegrity(committed);
 	if (domainIssues.length > 0) {

@@ -91,6 +91,43 @@ describe("schema-v1 Firestore layout", () => {
 		).not.toHaveProperty("id");
 	});
 
+	it("puts the pack dependency list on the metadata document alone", () => {
+		const project = createDrumMachineFixtureProject();
+		const encoded = encodeProject(project);
+
+		expect(encoded.metadata.data.packDependencies).toEqual(
+			project.metadata.packDependencies,
+		);
+		expect(encoded.metadata.data.packDependencies).toHaveLength(2);
+		// The song tier carries pack-qualified assets, not a second copy of the
+		// derived list.
+		expect(encoded.song.data).not.toHaveProperty("packDependencies");
+		expect(encoded.clips[0].data).not.toHaveProperty("packDependencies");
+		for (const asset of encoded.song.data.assets as Record<string, unknown>[]) {
+			expect(typeof asset.packId).toBe("string");
+			expect(typeof asset.packVersion).toBe("string");
+		}
+	});
+
+	it("rejects a metadata document whose list disagrees with the song's assets", () => {
+		const project = createDrumMachineFixtureProject();
+		const documents = documentsOf(project);
+
+		const decoded = decodeProject({
+			...documents,
+			metadata: {
+				...(documents.metadata as Record<string, unknown>),
+				packDependencies: [],
+			},
+		});
+
+		expect(decoded.ok).toBe(false);
+		if (decoded.ok) return;
+		expect(decoded.issues.map((issue) => issue.code)).toContain(
+			"invalid_pack_reference",
+		);
+	});
+
 	it("encodes the same project into byte-identical documents every time", () => {
 		const first = encodeProject(createSliceFixtureProject());
 		const second = encodeProject(createSliceFixtureProject());

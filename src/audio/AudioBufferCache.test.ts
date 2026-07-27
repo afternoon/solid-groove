@@ -50,6 +50,8 @@ function asset(
 ): AudioAssetProjection {
 	return {
 		id: id as AssetId,
+		packId: "pak_AudioBufferCacheTest1" as AudioAssetProjection["packId"],
+		packVersion: "1.0.0" as AudioAssetProjection["packVersion"],
 		kind: "sample",
 		storageRef: `samples/${id}.wav`,
 		url: `/samples/${id}.wav`,

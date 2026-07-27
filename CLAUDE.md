@@ -62,6 +62,7 @@ src/
 │   ├── ids.ts               # Prefixed stable IDs and ID factories
 │   ├── time.ts              # Integer musical time at 192 PPQ
 │   ├── parameters.ts        # Shared parameter definitions
+│   ├── packs.ts             # Pack dependency derivation and missing-pack state (LIB-05)
 │   ├── parse.ts             # Validation and domain invariants
 │   ├── serialize.ts         # Deterministic JSON serialization
 │   ├── factories.ts         # Blank/entity factories
@@ -213,6 +214,7 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - Persistent relationships use prefixed IDs from `createIdFactory()` (`createSeededIdFactory()` in tests), never array positions.
 - Musical time is integer ticks at 192 PPQ. Seconds, bars/beats/16ths, and pixels are derived through `src/domain/time.ts`.
 - A user-controlled numeric value declares its range, unit, default, clamping policy, and automation capability once in `src/domain/parameters.ts`; UI, validation, audio, and assistant tools read that definition instead of repeating literals.
+- **Asset identity is pack-qualified** (PRD LIB-05, invariant 12). A `Pack` (`pak_` ID, name, `major.minor.patch` version, publisher, kind, description, one rights position) describes *library* content and is never stored inside a project; an `Asset` names the `packId` and `packVersion` it resolved from. A project's `metadata.packDependencies` is the derived list of those packs — `derivePackDependencies(song)` computes it, `executeTransaction` recomputes it once per transaction, `saveSong` writes it to the metadata tier, and `parseProject` rejects a list that has drifted from the song's assets in either direction. An unavailable pack is a reported state from `resolvePackAvailability`, naming the affected tracks and clips, never a dangling reference or a substituted version. See [`docs/persistence.md`](./docs/persistence.md#packs-and-pack-qualified-assets).
 - `parseProject` is the only way to obtain a `Project`. It either returns a fully valid project or a list of issues, and never partially repairs input.
 - Changing this contract is its own backlog task, not incidental work inside a feature.
 

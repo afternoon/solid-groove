@@ -28,6 +28,7 @@ export const ID_PREFIXES = {
 	section: "sec",
 	return: "ret",
 	asset: "ast",
+	pack: "pak",
 	revision: "rev",
 } as const;
 
@@ -61,6 +62,7 @@ export const automationIdSchema = brandedIdSchema("automation");
 export const sectionIdSchema = brandedIdSchema("section");
 export const returnIdSchema = brandedIdSchema("return");
 export const assetIdSchema = brandedIdSchema("asset");
+export const packIdSchema = brandedIdSchema("pack");
 export const revisionIdSchema = brandedIdSchema("revision");
 
 export type ProjectId = z.infer<typeof projectIdSchema>;
@@ -74,6 +76,7 @@ export type AutomationId = z.infer<typeof automationIdSchema>;
 export type SectionId = z.infer<typeof sectionIdSchema>;
 export type ReturnId = z.infer<typeof returnIdSchema>;
 export type AssetId = z.infer<typeof assetIdSchema>;
+export type PackId = z.infer<typeof packIdSchema>;
 export type RevisionId = z.infer<typeof revisionIdSchema>;
 
 export interface EntityIdMap {
@@ -88,6 +91,7 @@ export interface EntityIdMap {
 	section: SectionId;
 	return: ReturnId;
 	asset: AssetId;
+	pack: PackId;
 	revision: RevisionId;
 }
 
@@ -106,6 +110,7 @@ const ID_SCHEMAS = {
 	section: sectionIdSchema,
 	return: returnIdSchema,
 	asset: assetIdSchema,
+	pack: packIdSchema,
 	revision: revisionIdSchema,
 } as const;
 

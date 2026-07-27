@@ -59,6 +59,7 @@ const draft = () => ({
 	asset: {
 		family: "drums",
 		role: "kick",
+		pack: "cc0-community",
 		name: "Analog Four-Four Kick 01",
 		genres: ["house"],
 		characters: ["punchy"],
@@ -256,6 +257,22 @@ describe("draft selections", () => {
 		const errors = validateDraft(bad).join("\n");
 		expect(errors).toMatch(/asset.family is required/);
 		expect(errors).toMatch(/a genre tag is required/);
+	});
+
+	// CNT-000b: the curator names the destination pack when verifying a
+	// candidate, and it has to be a real, rights-compatible pack.
+	it("requires a destination pack the curator actually named", () => {
+		const bad = draft();
+		bad.asset = { ...bad.asset, pack: undefined };
+		expect(validateDraft(bad).join("\n")).toMatch(/asset.pack is required/);
+	});
+
+	it("rejects a destination pack packs.mjs never registered", () => {
+		const bad = draft();
+		bad.asset = { ...bad.asset, pack: "not-a-real-pack" };
+		expect(validateDraft(bad).join("\n")).toMatch(
+			/"not-a-real-pack" is not a registered pack/,
+		);
 	});
 
 	it("appends a draft and replaces one with the same id rather than duplicating", () => {

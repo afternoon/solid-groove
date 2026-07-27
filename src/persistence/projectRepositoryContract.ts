@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Clip, Project } from "../domain/entities";
+import type { Clip, Pack, Project, Song } from "../domain/entities";
 import { createFactoryContext, createNoteEvent } from "../domain/factories";
 import {
+	createDrumMachineFixtureProject,
 	createReferenceProject,
 	createSliceFixtureProject,
+	drumMachineFixturePacks,
 } from "../domain/fixtures";
+import type { ClipId } from "../domain/ids";
 import { createSeededIdFactory } from "../domain/ids";
+import { derivePackDependencies } from "../domain/packs";
 import { serializeClip, stringifyProject } from "../domain/serialize";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
 import type { ProjectRepository } from "./projectRepository";
@@ -270,6 +274,127 @@ export function describeProjectRepositoryContract(
 			expect(result.reason).toBe("not_found");
 		});
 
+		it("exposes the pack dependency list on the metadata tier alone", async () => {
+			const project = await store(createDrumMachineFixtureProject());
+
+			// The dashboard read: metadata only, and it already answers "which packs
+			// does this project need?" without touching song or clip documents.
+			const listed = await repository.listProjects(CONTRACT_OWNER);
+			expect(listed).toHaveLength(1);
+			expect(listed[0].packDependencies).toEqual(
+				project.metadata.packDependencies,
+			);
+			expect(listed[0].packDependencies).toHaveLength(2);
+
+			const metadata = await repository.loadProjectMetadata(
+				project.metadata.id,
+			);
+			expect(metadata.ok).toBe(true);
+			if (!metadata.ok) return;
+			expect(metadata.value.packDependencies).toEqual(
+				project.metadata.packDependencies,
+			);
+		});
+
+		it("recomputes the dependency list from the song it is saving", async () => {
+			const project = await store(createDrumMachineFixtureProject());
+			const loopPackId = loopPack(project).id;
+			const { song, clipId } = songWithoutLoopPack(project);
+
+			// Removing a pack's last asset is three independent tier writes, in the
+			// order the invariants allow: unplace it, drop its clip, then drop the
+			// asset. Only the last one changes which packs the project needs.
+			const unplaced = await repository.saveSong(
+				project.metadata.id,
+				{ ...project.song, placements: song.placements },
+				project.metadata.revision,
+			);
+			expect(unplaced.ok).toBe(true);
+			if (!unplaced.ok) return;
+			const declaredMidway = await repository.loadProjectMetadata(
+				project.metadata.id,
+			);
+			expect(declaredMidway.ok).toBe(true);
+			if (!declaredMidway.ok) return;
+			// The asset is still there, so the pack is still a dependency.
+			expect(declaredMidway.value.packDependencies).toHaveLength(2);
+
+			const removedClip = await repository.deleteClip(
+				project.metadata.id,
+				clipId,
+				unplaced.revision,
+			);
+			expect(removedClip.ok).toBe(true);
+			if (!removedClip.ok) return;
+
+			const saved = await repository.saveSong(
+				project.metadata.id,
+				song,
+				removedClip.revision,
+			);
+			expect(saved.ok).toBe(true);
+			if (!saved.ok) return;
+
+			// One revision-checked write: the song tier and the derived list on the
+			// metadata tier moved together, so no reader sees them disagree.
+			const metadata = await repository.loadProjectMetadata(
+				project.metadata.id,
+			);
+			expect(metadata.ok).toBe(true);
+			if (!metadata.ok) return;
+			expect(metadata.value.revision).toBe(saved.revision);
+			expect(
+				metadata.value.packDependencies.map((entry) => entry.packId),
+			).not.toContain(loopPackId);
+			expect(metadata.value.packDependencies).toHaveLength(1);
+
+			const loaded = await repository.loadProject(project.metadata.id);
+			expect(loaded.ok, `issues: ${JSON.stringify(loaded)}`).toBe(true);
+			if (!loaded.ok) return;
+			expect(loaded.value.metadata.packDependencies).toEqual(
+				derivePackDependencies(loaded.value.song),
+			);
+		});
+
+		it("leaves the dependency list alone when only metadata changes", async () => {
+			const project = await store(createDrumMachineFixtureProject());
+
+			const renamed = await repository.saveMetadata(
+				project.metadata.id,
+				{ name: "Renamed", collaboratorIds: ["user_second"] },
+				project.metadata.revision,
+			);
+			expect(renamed.ok).toBe(true);
+
+			const metadata = await repository.loadProjectMetadata(
+				project.metadata.id,
+			);
+			expect(metadata.ok).toBe(true);
+			if (!metadata.ok) return;
+			expect(metadata.value.packDependencies).toEqual(
+				project.metadata.packDependencies,
+			);
+		});
+
+		it("round trips a two-pack project's asset pack qualification", async () => {
+			const project = await store(createDrumMachineFixtureProject());
+
+			const loaded = await repository.loadProject(project.metadata.id);
+			expect(loaded.ok).toBe(true);
+			if (!loaded.ok) return;
+			expect(
+				loaded.value.song.assets.map((asset) => [
+					asset.packId,
+					asset.packVersion,
+				]),
+			).toEqual(
+				project.song.assets.map((asset) => [asset.packId, asset.packVersion]),
+			);
+			expect(
+				new Set(loaded.value.song.assets.map((asset) => asset.packId)).size,
+			).toBe(2);
+		});
+
 		it("notifies a watcher of metadata changes and stops after unsubscribe", async () => {
 			const project = await store(createSliceFixtureProject());
 			const seen: number[] = [];
@@ -316,6 +441,48 @@ export function chunkedProject(): Project {
 		placementCount: 1_800,
 		automationLaneCount: 12,
 	});
+}
+
+/** The drum-machine fixture's loop pack — the second of its two packs. */
+function loopPack(project: Project): Pack {
+	const pack = drumMachineFixturePacks().loops;
+	if (!project.song.assets.some((asset) => asset.packId === pack.id)) {
+		throw new Error("fixture no longer draws from the loop pack");
+	}
+	return pack;
+}
+
+/**
+ * The fixture's song with the loop pack's asset, and the placement of the clip
+ * that used it, removed — the state a "remove this loop" command would produce,
+ * and the state that drops the project's second pack dependency. Also returns
+ * the clip that has to be deleted from the clip tier.
+ */
+function songWithoutLoopPack(project: Project): { song: Song; clipId: ClipId } {
+	const packId = loopPack(project).id;
+	const droppedAssetIds = new Set(
+		project.song.assets
+			.filter((asset) => asset.packId === packId)
+			.map((asset) => asset.id),
+	);
+	const clip = project.clips.find(
+		(candidate) =>
+			candidate.content.kind === "audioLoop" &&
+			droppedAssetIds.has(candidate.content.assetId),
+	);
+	if (!clip) {
+		throw new Error("fixture has no clip using the loop pack");
+	}
+	return {
+		clipId: clip.id,
+		song: {
+			...project.song,
+			assets: project.song.assets.filter((asset) => asset.packId !== packId),
+			placements: project.song.placements.filter(
+				(placement) => placement.clipId !== clip.id,
+			),
+		},
+	};
 }
 
 function withExtraNote(clip: Clip): Clip {
