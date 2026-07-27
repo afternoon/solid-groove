@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import type { Clip, Project, ProjectMetadata, Song } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
+import { derivePackDependencies } from "../domain/packs";
 import type { JsonObject } from "../domain/serialize";
 import { type Clock, systemClock } from "../shared/clock";
 import {
@@ -41,11 +42,13 @@ import {
 	songDocumentPath,
 } from "./documents";
 import {
+	nextMetadata,
 	revisionConflict,
 	toMetadataResult,
 	tooLarge,
 } from "./inMemoryProjectRepository";
 import {
+	type DerivedMetadataFields,
 	type LoadResult,
 	loadFailure,
 	type ProjectMetadataPatch,
@@ -277,6 +280,10 @@ export class FirestoreProjectRepository implements ProjectRepository {
 					this.write(tx, chunk);
 				}
 			},
+			{},
+			// The song's assets are what the metadata tier's dependency list is
+			// derived from, so both commit in the same Firestore transaction.
+			{ packDependencies: derivePackDependencies(song) },
 		);
 	}
 
@@ -379,6 +386,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
 			next: WriteStamp,
 		) => Promise<void>,
 		patch: ProjectMetadataPatch = {},
+		derived: DerivedMetadataFields = {},
 	): Promise<SaveResult> {
 		try {
 			const outcome = await runTransaction<WriteStamp>(this.db, async (tx) => {
@@ -417,15 +425,15 @@ export class FirestoreProjectRepository implements ProjectRepository {
 				await mutate(tx, metadata, next);
 				this.write(
 					tx,
-					encodeProjectMetadata({
-						...metadata,
-						...definedFields(patch),
-						collaboratorIds: patch.collaboratorIds
-							? [...patch.collaboratorIds]
-							: metadata.collaboratorIds,
-						revision: next.revision,
-						modifiedAt: next.modifiedAt,
-					}),
+					encodeProjectMetadata(
+						nextMetadata(
+							metadata,
+							patch,
+							derived,
+							next.revision,
+							next.modifiedAt,
+						),
+					),
 				);
 				return next;
 			});
@@ -511,14 +519,6 @@ function firestoreErrorCode(error: unknown): string | undefined {
 
 function messageOf(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
-}
-
-function definedFields(patch: ProjectMetadataPatch): Partial<ProjectMetadata> {
-	const fields: Partial<ProjectMetadata> = {};
-	if (patch.name !== undefined) fields.name = patch.name;
-	if (patch.template !== undefined) fields.template = patch.template;
-	if (patch.genre !== undefined) fields.genre = patch.genre;
-	return fields;
 }
 
 export function createFirestoreProjectRepository(

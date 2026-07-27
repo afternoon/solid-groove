@@ -5,9 +5,15 @@ import {
 	type DrumPad,
 	type Instrument,
 	type NoteEvent,
+	type Pack,
+	type PackDependency,
+	type PackKind,
+	type PackRights,
+	type PackVersion,
 	type Placement,
 	type Project,
 	type ProjectMetadata,
+	packVersion,
 	type ReturnBus,
 	SCHEMA_VERSION,
 	type Section,
@@ -352,7 +358,64 @@ export function createSection(
 	};
 }
 
+/**
+ * Rights position of a bundled factory pack: content Solid Groove owns
+ * outright, so raw redistribution is unrestricted and no attribution is owed
+ * (see `docs/licenses/starter-library-v1.md`).
+ */
+export const FACTORY_PACK_RIGHTS: PackRights = {
+	licence: "solid-groove-owned",
+	rawRedistribution: true,
+	attributionRequired: false,
+};
+
+/** The first published version of any pack this repository builds. */
+export const INITIAL_PACK_VERSION: PackVersion = packVersion("1.0.0");
+
+export interface CreatePackOptions {
+	name: string;
+	version?: string;
+	publisher?: string;
+	kind?: PackKind;
+	description?: string;
+	rights?: PackRights;
+}
+
+/**
+ * A pack record. Packs describe library content rather than project state — a
+ * project stores only the dependency list `derivePackDependencies` computes —
+ * so this is what a catalogue, a fixture, or an availability check builds.
+ */
+export function createPack(
+	context: DomainFactoryContext,
+	options: CreatePackOptions,
+): Pack {
+	return {
+		id: context.ids("pack"),
+		name: options.name,
+		version:
+			options.version === undefined
+				? INITIAL_PACK_VERSION
+				: packVersion(options.version),
+		publisher: options.publisher ?? "Solid Groove",
+		kind: options.kind ?? "factory",
+		description: options.description ?? "",
+		rights: options.rights ?? FACTORY_PACK_RIGHTS,
+	};
+}
+
+/** The dependency entry that resolving an asset from `pack` produces. */
+export function packDependencyOf(pack: Pack): PackDependency {
+	return { packId: pack.id, version: pack.version };
+}
+
 export interface CreateAssetOptions {
+	/**
+	 * The pack this asset resolves from. Required: an asset with no pack is not
+	 * representable (invariant 12), so a factory that defaulted it would be a way
+	 * to create one by accident.
+	 */
+	pack: Pack;
 	name: string;
 	storageRef: string;
 	kind?: Asset["kind"];
@@ -371,6 +434,8 @@ export function createAsset(
 ): Asset {
 	return {
 		id: context.ids("asset"),
+		packId: options.pack.id,
+		packVersion: options.pack.version,
 		kind: options.kind ?? "sample",
 		name: options.name,
 		storageRef: options.storageRef,
@@ -407,6 +472,12 @@ export interface CreateProjectMetadataOptions {
 	template?: string | null;
 	genre?: string | null;
 	revision?: number;
+	/**
+	 * The project's pack dependencies. Pass `derivePackDependencies(song)` — the
+	 * list is derived from the song's assets, and `assertProject` rejects one that
+	 * does not match.
+	 */
+	packDependencies?: readonly PackDependency[];
 }
 
 export function createProjectMetadata(
@@ -425,6 +496,7 @@ export function createProjectMetadata(
 		modifiedAt: timestamp,
 		template: options.template ?? null,
 		genre: options.genre ?? null,
+		packDependencies: [...(options.packDependencies ?? [])],
 	};
 }
 

@@ -31,6 +31,7 @@ interface MutableProject {
 		createdAt: number;
 		modifiedAt: number;
 		collaboratorIds: string[];
+		packDependencies: { packId: string; version: string }[];
 	};
 	song: {
 		tempo: number;
@@ -457,6 +458,107 @@ describe("audio loop clips and drum pads", () => {
 		const input = drumMachineProject();
 		drumPads(input)[0].assetId = ids("asset");
 		expectIssue(parseProject(input), "dangling_reference");
+	});
+});
+
+/**
+ * Invariant 12. Every case mutates one field of a valid fixture, and the
+ * two-pack drum-machine fixture is used wherever a single-pack project could
+ * pass by accident.
+ */
+describe("pack-qualified asset identity", () => {
+	it("accepts a fixture whose assets span two packs at two versions", () => {
+		const input = drumMachineProject();
+		const result = parseProject(input);
+
+		expect(result.ok, `issues: ${JSON.stringify(result)}`).toBe(true);
+		expect(input.metadata.packDependencies).toHaveLength(2);
+		expect(
+			new Set(input.metadata.packDependencies.map((entry) => entry.version))
+				.size,
+		).toBe(2);
+	});
+
+	it("rejects an asset with no pack at all", () => {
+		const noPackId = baseProject();
+		delete noPackId.song.assets[0].packId;
+		expectIssue(parseProject(noPackId), "invalid_shape");
+
+		const noPackVersion = baseProject();
+		delete noPackVersion.song.assets[0].packVersion;
+		expectIssue(parseProject(noPackVersion), "invalid_shape");
+
+		const nullPack = baseProject();
+		nullPack.song.assets[0].packId = null;
+		expectIssue(parseProject(nullPack), "invalid_shape");
+	});
+
+	it("rejects an asset resolving from a pack the project does not declare", () => {
+		const input = drumMachineProject();
+		input.song.assets[0].packId = ids("pack");
+		expectIssue(parseProject(input), "invalid_pack_reference");
+	});
+
+	it("rejects an asset resolving from a version the project does not declare", () => {
+		const input = drumMachineProject();
+		input.song.assets[0].packVersion = "9.9.9";
+		expectIssue(parseProject(input), "invalid_pack_reference");
+	});
+
+	it("rejects a malformed pack id or version", () => {
+		const badId = baseProject();
+		badId.song.assets[0].packId = "trk_notapack000000000000";
+		expectIssue(parseProject(badId), "invalid_shape");
+
+		const badVersion = baseProject();
+		badVersion.song.assets[0].packVersion = "latest";
+		expectIssue(parseProject(badVersion), "invalid_shape");
+	});
+
+	it("rejects a dependency list holding a pack no asset resolves from", () => {
+		const input = baseProject();
+		input.metadata.packDependencies = [
+			...input.metadata.packDependencies,
+			{ packId: ids("pack"), version: "1.0.0" },
+		];
+		// The list is derived from project state; over-reporting is drift, not
+		// harmless caution.
+		expectIssue(parseProject(input), "invalid_metadata");
+	});
+
+	it("rejects a project that depends on two versions of one pack", () => {
+		const input = baseProject();
+		const [first] = input.metadata.packDependencies;
+		input.metadata.packDependencies = [
+			first,
+			{ packId: first.packId, version: "2.0.0" },
+		];
+		expectIssue(parseProject(input), "invalid_pack_reference");
+	});
+
+	it("rejects the same dependency listed twice", () => {
+		const input = baseProject();
+		const [first] = input.metadata.packDependencies;
+		input.metadata.packDependencies = [first, { ...first }];
+		expectIssue(parseProject(input), "duplicate_id");
+	});
+
+	it("applies the one-version-per-pack rule to a standalone metadata document", () => {
+		const input = baseProject();
+		const [first] = input.metadata.packDependencies;
+		input.metadata.packDependencies = [
+			first,
+			{ packId: first.packId, version: "2.0.0" },
+		];
+		expectIssue(parseProjectMetadata(input.metadata), "invalid_pack_reference");
+	});
+
+	it("accepts an empty dependency list on a project with no assets", () => {
+		const input = baseProject();
+		input.song.assets = [];
+		input.song.tracks[0].instrument = { kind: "synth", parameters: {} };
+		input.metadata.packDependencies = [];
+		expect(parseProject(input).ok).toBe(true);
 	});
 });
 

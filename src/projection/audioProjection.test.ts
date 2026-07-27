@@ -384,6 +384,62 @@ describe("buildAudioProjection", () => {
 		});
 	});
 
+	describe("pack-qualified assets", () => {
+		it("carries each asset's owning pack and resolved version", () => {
+			const project = createDrumMachineFixtureProject();
+			const projection = buildAudioProjection(project);
+
+			expect(
+				projection.assets.map((asset) => [asset.packId, asset.packVersion]),
+			).toEqual(
+				[...project.song.assets]
+					.sort((a, b) => (a.id < b.id ? -1 : 1))
+					.map((asset) => [asset.packId, asset.packVersion]),
+			);
+			expect(new Set(projection.assets.map((asset) => asset.packId)).size).toBe(
+				2,
+			);
+		});
+
+		it("treats a pack-version change as an asset change", () => {
+			const project = createDrumMachineFixtureProject();
+			const before = buildAudioProjection(project);
+			const repacked: Project = {
+				...project,
+				song: {
+					...project.song,
+					assets: project.song.assets.map((asset, index) =>
+						index === 0
+							? {
+									...asset,
+									packVersion: "9.9.9" as (typeof asset)["packVersion"],
+								}
+							: asset,
+					),
+				},
+			};
+
+			const after = buildAudioProjection(repacked, before);
+			const assetIn = (
+				projection: typeof before,
+				id: (typeof project.song.assets)[number]["id"],
+			) =>
+				requireDefined(
+					projection.assets.find((asset) => asset.id === id),
+					`asset ${id} missing from projection`,
+				);
+
+			const changed = assetIn(after, project.song.assets[0].id);
+			expect(changed).not.toBe(assetIn(before, project.song.assets[0].id));
+			expect(changed.packVersion).toBe("9.9.9");
+			// Other assets keep their identity: a repack of one asset is not a
+			// project-wide asset change.
+			expect(assetIn(after, project.song.assets[1].id)).toBe(
+				assetIn(before, project.song.assets[1].id),
+			);
+		});
+	});
+
 	describe("large fixtures", () => {
 		it("builds the full 50-track reference project", () => {
 			const project = createReferenceProject();

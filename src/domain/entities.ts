@@ -5,6 +5,7 @@ import {
 	clipIdSchema,
 	deviceIdSchema,
 	eventIdSchema,
+	packIdSchema,
 	padIdSchema,
 	placementIdSchema,
 	projectIdSchema,
@@ -52,9 +53,90 @@ const parameterValues = z.record(z.string().min(1), z.number());
 
 export const assetKindSchema = z.enum(["sample", "loop", "recording"]);
 
-/** Asset identity is the ID; the storage reference is never identity. */
+/**
+ * A pack version (LIB-05). `major.minor.patch`, and immutable content: changed
+ * audio or changed metadata is republished as a *new* version rather than
+ * edited in place, which is what lets a project pin one and be sure the audio
+ * it reopens is the audio it was built with.
+ *
+ * Nothing orders or compares versions: a project resolves the exact version it
+ * recorded, so a later version can never silently substitute itself.
+ */
+export const packVersionSchema = z
+	.string()
+	.regex(/^\d+\.\d+\.\d+$/, "Expected a major.minor.patch pack version")
+	.brand<"packVersion">();
+export type PackVersion = z.infer<typeof packVersionSchema>;
+
+/** Parses a pack version string, throwing when it is not `major.minor.patch`. */
+export function packVersion(value: string): PackVersion {
+	return packVersionSchema.parse(value);
+}
+
+export const packKindSchema = z.enum(["factory", "user", "third-party"]);
+export type PackKind = z.infer<typeof packKindSchema>;
+
+/**
+ * One pack's rights position — a single answer, per pack, to "what may we do
+ * with these bytes?" (PRD LIB-05, sample-library section 5.1). It covers every
+ * asset in the pack, which is what makes a takedown, an export policy, or a
+ * licence question answerable at pack level instead of per file. An asset whose
+ * terms differ belongs in a different pack.
+ */
+export const packRightsSchema = z.strictObject({
+	/** Licence identifier the whole pack ships under, e.g. `CC0-1.0`. */
+	licence: nonEmptyString,
+	/** Whether the individual raw files may be redistributed, not just mixes. */
+	rawRedistribution: z.boolean(),
+	attributionRequired: z.boolean(),
+});
+export type PackRights = z.infer<typeof packRightsSchema>;
+
+/**
+ * A named, versioned, independently deliverable collection of content
+ * (PRD section 9.4, LIB-05).
+ *
+ * A pack is a *library* entity, not project state: a project never embeds pack
+ * records, it records which packs and versions it depends on (see
+ * `packDependencySchema`) and resolves the records from the library. The alpha
+ * ships bundled factory packs only — nothing here models installation,
+ * entitlement, or purchase.
+ */
+export const packSchema = z.strictObject({
+	id: packIdSchema,
+	name: displayName,
+	version: packVersionSchema,
+	publisher: displayName,
+	kind: packKindSchema,
+	description: z.string().max(2_000),
+	rights: packRightsSchema,
+});
+export type Pack = z.infer<typeof packSchema>;
+
+/**
+ * One entry of a project's pack dependency list: a pack, and the version of it
+ * the project's assets resolved from. Deliberately just the two fields — the
+ * list has to be *derivable* from project state, and a display name or rights
+ * position could not be derived from an asset reference.
+ */
+export const packDependencySchema = z.strictObject({
+	packId: packIdSchema,
+	version: packVersionSchema,
+});
+export type PackDependency = z.infer<typeof packDependencySchema>;
+
+/**
+ * Asset identity is the ID *together with the pack it came from* (invariant 12):
+ * two packs may hold a sound of the same name or role without collision, and
+ * neither is renamed to avoid the other. The storage reference is never
+ * identity (invariant 8).
+ */
 export const assetSchema = z.strictObject({
 	id: assetIdSchema,
+	/** The pack that owns this asset. Exactly one, and never absent. */
+	packId: packIdSchema,
+	/** The pack version this reference resolved from. */
+	packVersion: packVersionSchema,
 	kind: assetKindSchema,
 	name: displayName,
 	storageRef: nonEmptyString,
@@ -318,6 +400,17 @@ export const projectMetadataSchema = z.strictObject({
 	modifiedAt: epochMillis,
 	template: z.string().nullable(),
 	genre: z.string().nullable(),
+	/**
+	 * The packs and pack versions this project depends on (PRD 9.9, LIB-05).
+	 *
+	 * It lives on the metadata tier so the dashboard, export, and a missing-pack
+	 * warning can answer "what does this project need?" without loading song
+	 * state or clip content. It is *derived* from `song.assets` rather than
+	 * maintained by hand — `derivePackDependencies` computes it and
+	 * `checkProjectIntegrity` rejects a project whose list has drifted — and it
+	 * carries at most one version per pack.
+	 */
+	packDependencies: z.array(packDependencySchema),
 });
 export type ProjectMetadata = z.infer<typeof projectMetadataSchema>;
 

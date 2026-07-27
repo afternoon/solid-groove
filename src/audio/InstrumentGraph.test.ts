@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DrumPad, Instrument } from "../domain/entities";
+import { packVersion } from "../domain/entities";
 import type { AssetId, PadId } from "../domain/ids";
 import { createSeededIdFactory } from "../domain/ids";
 import type { AudioAssetProjection } from "../projection/audioProjection";
@@ -31,6 +32,8 @@ const ids = createSeededIdFactory("instrument-graph-test");
 function asset(id: AssetId, fingerprint = "f1"): AudioAssetProjection {
 	return {
 		id,
+		packId: ids("pack"),
+		packVersion: packVersion("1.0.0"),
 		kind: "sample",
 		storageRef: `samples/${id}.wav`,
 		url: `/samples/${id}.wav`,

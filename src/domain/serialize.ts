@@ -62,6 +62,13 @@ export function serializeProjectMetadata(
 		modifiedAt: metadata.modifiedAt,
 		template: metadata.template,
 		genre: metadata.genre,
+		packDependencies: sortBy(metadata.packDependencies, (dependency) => [
+			dependency.packId,
+			dependency.version,
+		]).map((dependency) => ({
+			packId: dependency.packId,
+			version: dependency.version,
+		})),
 	};
 }
 
@@ -328,6 +335,8 @@ function automationSortKey(lane: AutomationLane): string {
 function serializeAsset(asset: Asset): JsonObject {
 	return {
 		id: asset.id,
+		packId: asset.packId,
+		packVersion: asset.packVersion,
 		kind: asset.kind,
 		name: asset.name,
 		storageRef: asset.storageRef,

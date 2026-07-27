@@ -36,9 +36,13 @@ service cloud.firestore {
         && isMember(get(/databases/$(database)/documents/projects/$(projectId)).data);
     }
 
+    // `packDependencies` is the derived pack dependency list (LIB-05): one
+    // `{ packId, version }` entry per pack the project's assets resolve from.
+    // The rules check it is a list; the decoder checks it against those assets,
+    // which the rules cannot see without reading the song document.
     function metadataFields() {
       return ['schemaVersion', 'revision', 'name', 'ownerId', 'collaboratorIds',
-              'createdAt', 'modifiedAt', 'template', 'genre'];
+              'createdAt', 'modifiedAt', 'template', 'genre', 'packDependencies'];
     }
 
     function validMetadata(data) {
@@ -49,6 +53,7 @@ service cloud.firestore {
         && data.name is string && data.name.size() > 0 && data.name.size() <= 120
         && data.ownerId is string && data.ownerId.size() > 0
         && data.collaboratorIds is list
+        && data.packDependencies is list
         && data.createdAt is int && data.createdAt >= 0
         && data.modifiedAt is int && data.modifiedAt >= data.createdAt;
     }

@@ -33,7 +33,9 @@ export type DomainIssueCode =
 	| "invalid_parameter"
 	| "invalid_automation"
 	| "invalid_musical_time"
-	| "invalid_metadata";
+	| "invalid_metadata"
+	/** An asset names a pack the project does not declare, or a wrong version. */
+	| "invalid_pack_reference";
 
 export interface DomainIssue {
 	readonly code: DomainIssueCode;
@@ -88,7 +90,14 @@ function parseWith<T>(
 		: { ok: false, issues: fromZod(result.error) };
 }
 
-/** Parses one `projects/{projectId}` metadata document. */
+/**
+ * Parses one `projects/{projectId}` metadata document.
+ *
+ * Like `parseClip`, this applies every invariant the document can be judged on
+ * alone — timestamps, collaborators, and the shape of the pack dependency list.
+ * Whether that list matches the project's assets is only decidable in the
+ * aggregate path, which holds the song.
+ */
 export function parseProjectMetadata(
 	input: unknown,
 ): ParseResult<ProjectMetadata> {
@@ -96,7 +105,12 @@ export function parseProjectMetadata(
 	if (versionIssues.length > 0) {
 		return { ok: false, issues: versionIssues };
 	}
-	return parseWith(projectMetadataSchema, input);
+	const result = parseWith(projectMetadataSchema, input);
+	if (!result.ok) {
+		return result;
+	}
+	const issues = checkMetadata(result.value);
+	return issues.length > 0 ? { ok: false, issues } : result;
 }
 
 /** Parses one `projects/{projectId}/song/current` document. */
@@ -199,6 +213,7 @@ export function checkProjectIntegrity(project: Project): DomainIssue[] {
 
 	issues.push(...checkMetadata(project.metadata));
 	issues.push(...checkSongIntegrity(project.song, ["song"], seenIds));
+	issues.push(...checkPackQualification(project));
 
 	const trackIds = new Map(
 		project.song.tracks.map((track) => [track.id, track]),
@@ -389,6 +404,104 @@ function checkMetadata(metadata: ProjectMetadata): DomainIssue[] {
 		}
 		seen.add(collaboratorId);
 	});
+	issues.push(...checkPackDependencyList(metadata));
+	return issues;
+}
+
+/**
+ * The pack dependency list on its own (invariant 12), which is all a metadata
+ * document can be judged on without the song's assets.
+ *
+ * At most one version per pack: two versions of the same pack in one project
+ * would make "which audio does this project resolve?" ambiguous and is exactly
+ * the silent substitution LIB-05 rules out.
+ */
+function checkPackDependencyList(metadata: ProjectMetadata): DomainIssue[] {
+	const issues: DomainIssue[] = [];
+	const versions = new Map<string, string>();
+	metadata.packDependencies.forEach((dependency, index) => {
+		const path = ["metadata", "packDependencies", index] as const;
+		const existing = versions.get(dependency.packId);
+		if (existing === dependency.version) {
+			issues.push(
+				issue(
+					"duplicate_id",
+					path,
+					`Pack ${dependency.packId} is listed more than once at version ${dependency.version}`,
+				),
+			);
+		} else if (existing !== undefined) {
+			issues.push(
+				issue(
+					"invalid_pack_reference",
+					path,
+					`Project depends on two versions of pack ${dependency.packId} (${existing} and ${dependency.version}); a project resolves one version per pack`,
+				),
+			);
+		}
+		versions.set(dependency.packId, dependency.version);
+	});
+	return issues;
+}
+
+/**
+ * Invariant 12, across metadata and song: every asset resolves from a pack the
+ * project declares at the version it declares, and the declared list holds
+ * nothing the project's assets do not actually use.
+ *
+ * The second half is what makes the list *derived* rather than hand-maintained.
+ * A list that has drifted is a rejected project, not a project that quietly
+ * over-reports what it needs, so `derivePackDependencies` stays the only way to
+ * produce a valid one.
+ */
+function checkPackQualification(project: Project): DomainIssue[] {
+	const issues: DomainIssue[] = [];
+	const declared = new Map(
+		project.metadata.packDependencies.map((dependency) => [
+			dependency.packId as string,
+			dependency.version as string,
+		]),
+	);
+	const used = new Set<string>();
+
+	project.song.assets.forEach((asset, index) => {
+		const path = ["song", "assets", index] as const;
+		const declaredVersion = declared.get(asset.packId);
+		if (declaredVersion === undefined) {
+			issues.push(
+				issue(
+					"invalid_pack_reference",
+					[...path, "packId"],
+					`Asset ${asset.id} resolves from pack ${asset.packId}, which the project does not declare as a dependency`,
+				),
+			);
+			return;
+		}
+		if (declaredVersion !== asset.packVersion) {
+			issues.push(
+				issue(
+					"invalid_pack_reference",
+					[...path, "packVersion"],
+					`Asset ${asset.id} resolved from pack ${asset.packId} version ${asset.packVersion}, but the project declares version ${declaredVersion}`,
+				),
+			);
+			return;
+		}
+		used.add(asset.packId);
+	});
+
+	project.metadata.packDependencies.forEach((dependency, index) => {
+		if (!used.has(dependency.packId)) {
+			issues.push(
+				issue(
+					"invalid_metadata",
+					["metadata", "packDependencies", index],
+					`Pack ${dependency.packId} is declared as a dependency but no asset resolves from it; the dependency list is derived from project state, not maintained by hand`,
+				),
+			);
+		}
+	});
+
 	return issues;
 }
 

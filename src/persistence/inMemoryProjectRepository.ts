@@ -1,5 +1,6 @@
 import type { Clip, Project, ProjectMetadata, Song } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
+import { derivePackDependencies } from "../domain/packs";
 import type { JsonObject } from "../domain/serialize";
 import { type Clock, systemClock } from "../shared/clock";
 import {
@@ -23,6 +24,7 @@ import {
 	songDocumentPath,
 } from "./documents";
 import {
+	type DerivedMetadataFields,
 	type LoadResult,
 	loadFailure,
 	type ProjectMetadataPatch,
@@ -224,6 +226,10 @@ export class InMemoryProjectRepository implements ProjectRepository {
 				}
 				return null;
 			},
+			{},
+			// The song's assets are what the metadata tier's dependency list is
+			// derived from, so the two are written in the same revision-checked step.
+			{ packDependencies: derivePackDependencies(song) },
 		);
 	}
 
@@ -310,6 +316,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
 			next: { revision: number; modifiedAt: number },
 		) => SaveResult | null,
 		patch: ProjectMetadataPatch = {},
+		derived: DerivedMetadataFields = {},
 	): Promise<SaveResult> {
 		const raw = this.documents.get(projectDocumentPath(projectId));
 		if (!raw) {
@@ -341,15 +348,9 @@ export class InMemoryProjectRepository implements ProjectRepository {
 			return failure;
 		}
 		this.set(
-			encodeProjectMetadata({
-				...metadata,
-				...definedFields(patch),
-				collaboratorIds: patch.collaboratorIds
-					? [...patch.collaboratorIds]
-					: metadata.collaboratorIds,
-				revision: next.revision,
-				modifiedAt: next.modifiedAt,
-			}),
+			encodeProjectMetadata(
+				nextMetadata(metadata, patch, derived, next.revision, next.modifiedAt),
+			),
 		);
 		this.emitMetadata(projectId);
 		return { ok: true, ...next };
@@ -450,6 +451,32 @@ export function toMetadataResult(
 		`Stored metadata for ${projectId} is not valid schema-v1 state`,
 		decoded.issues,
 	);
+}
+
+/**
+ * The metadata document one revision-checked write produces. Shared with the
+ * Firestore repository so the two stores cannot disagree about which fields a
+ * patch may change, which fields the store derives, and which it carries over.
+ */
+export function nextMetadata(
+	metadata: ProjectMetadata,
+	patch: ProjectMetadataPatch,
+	derived: DerivedMetadataFields,
+	revision: number,
+	modifiedAt: number,
+): ProjectMetadata {
+	return {
+		...metadata,
+		...definedFields(patch),
+		collaboratorIds: patch.collaboratorIds
+			? [...patch.collaboratorIds]
+			: metadata.collaboratorIds,
+		packDependencies: derived.packDependencies
+			? [...derived.packDependencies]
+			: metadata.packDependencies,
+		revision,
+		modifiedAt,
+	};
 }
 
 function definedFields(patch: ProjectMetadataPatch): Partial<ProjectMetadata> {
