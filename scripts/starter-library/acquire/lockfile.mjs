@@ -14,6 +14,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { packBySlug } from "../packs.mjs";
 import { findSource, licenseRejectionReason } from "./sources.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -35,7 +36,7 @@ export const LOCKFILE_VERSION = 1;
  * @property {string} [memberSha256]  Of the extracted member.
  * @property {string} retrievedAt    ISO date the pin was recorded.
  * @property {string} reviewer       Who reviewed provenance.
- * @property {object} asset          family, role, name, genres, characters, intensity, sourceType, rootNote.
+ * @property {object} asset          family, role, name, genres, characters, intensity, sourceType, rootNote, pack.
  */
 
 export function emptyLockfile() {
@@ -177,6 +178,7 @@ export function validateLockfile(lockfile) {
 					`${where}: acquired audio cannot claim sourceType "synthesized"`,
 				);
 			}
+			validatePackAssignment(asset, source, where, errors);
 		}
 	}
 
@@ -232,8 +234,41 @@ export function validateDraft(selection) {
 		if (!asset.genres?.length) errors.push(`${where}: a genre tag is required`);
 		if (!asset.characters?.length)
 			errors.push(`${where}: a character tag is required`);
+		validatePackAssignment(
+			asset,
+			findSource(selection?.sourceId),
+			where,
+			errors,
+		);
 	}
 	return errors;
+}
+
+/**
+ * "Acquired CC0 content records its destination pack in the lockfile at pin
+ * time" (CNT-000b): every selection names the pack slug it is destined for,
+ * and that pack has to be a real, registered pack (`packs.mjs`) whose rights
+ * position the source's licence actually satisfies — section 5.1's "no asset
+ * licence exceeding its pack's rights position", checked here before a single
+ * byte is fetched and re-checked at ingest.
+ */
+function validatePackAssignment(asset, source, where, errors) {
+	if (!asset.pack) {
+		errors.push(`${where}: asset.pack is required (its destination pack)`);
+		return;
+	}
+	const pack = packBySlug(asset.pack);
+	if (!pack) {
+		errors.push(
+			`${where}: asset.pack "${asset.pack}" is not a registered pack`,
+		);
+		return;
+	}
+	if (source && pack.rights.licence !== source.licenseId) {
+		errors.push(
+			`${where}: source ${source.id} is licensed ${source.licenseId}, which exceeds pack "${pack.slug}"'s rights position ("${pack.rights.licence}")`,
+		);
+	}
 }
 
 /**

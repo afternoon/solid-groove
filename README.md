@@ -43,7 +43,7 @@ The pipeline is committed but has never run against a real project: no Firebase 
 
 The app ships a starter library of 200 one-shots — drums, bass, tonal material, textures, and transitions — synthesized from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute. Alongside it there is an acquisition path for CC0 content from vetted sources, where each file is individually selected, checksum-pinned, and reviewed.
 
-Content is organized into **packs** — named, versioned collections such as "Techno Drums" or "Orchestral Sounds" that a user browses and a project depends on. The shipped library predates that model and is still one flat collection; [`docs/sample-library.md`](./docs/sample-library.md) section 5.1 defines the model and section 15.7 covers the move.
+Content is organized into **packs** — named, versioned collections such as "Core Electronic Drums" or "Foundation Bass" that a user browses and a project depends on. The synthesized 200 ship as five packs, one per family; [`docs/sample-library.md`](./docs/sample-library.md) section 5.1 defines the model and section 15.8 covers the pack list and delivery layout.
 
 ```sh
 bun run library                     # print the whole workflow and what's on disk

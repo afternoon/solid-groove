@@ -447,7 +447,7 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
     "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp",
     "slug": "techno-drums",
     "name": "Techno Drums",
-    "version": 3,
+    "version": "1.0.0",
     "publisher": "Solid Groove",
     "kind": "factory",
     "description": "Driven kicks, metallic hats, and industrial percussion for 125-150 BPM techno. Drums and percussion only; no tonal material.",
@@ -457,7 +457,7 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
       "bpmRange": [125, 150],
       "intensity": ["low", "medium", "high", "extreme"]
     },
-    "license": { "id": "CC0-1.0", "rawRedistributionAllowed": true },
+    "rights": { "licence": "CC0-1.0", "rawRedistribution": true, "attributionRequired": false },
     "releasedAt": "2026-07-25",
     "assetCount": 84
   },
@@ -465,12 +465,14 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
 }
 ```
 
+`pack.version` is a `major.minor.patch` string and `pack.rights` is `{ licence, rawRedistribution, attributionRequired }` — the exact shape `FND-002b`'s `packVersionSchema` and `packRightsSchema` require (`src/domain/entities.ts`), so a manifest's `pack` header parses directly as a domain `Pack` once the client strips this section's manifest-only fields (`slug`, `coverage`, `releasedAt`, `assetCount`).
+
 Each asset record should support a shape equivalent to:
 
 ```json
 {
   "id": "sg-one-shot-kick-0001",
-  "pack": { "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp", "version": 3 },
+  "pack": { "id": "pak_gTt3xQ9mZ1s7Kd0bWv2Lp", "version": "1.0.0" },
   "version": 1,
   "name": "Rounded Analog Kick 01",
   "type": "one-shot",
@@ -520,7 +522,7 @@ Each asset record should support a shape equivalent to:
 }
 ```
 
-A pack's `license` is the position every asset in it shares; an asset's own `license` block stays because provenance is per file — a CC0 pack still records which creator and which source page each file came from. The two must agree, and validation fails when an asset claims terms its pack does not cover.
+A pack's `rights` is the position every asset in it shares; an asset's own `license` block stays because provenance is per file — a CC0 pack still records which creator and which source page each file came from. The two must agree (an asset's `license.id` must equal its pack's `rights.licence`), and validation fails when an asset claims terms its pack does not cover.
 
 ### Controlled vocabulary
 
@@ -624,7 +626,7 @@ Initial performance targets:
 
 ## 13. Implementation phases
 
-Phase A is implemented and phase B's one-shot targets are met by the starter library in section 15, though both predate the pack model and section 15.7 covers what that costs. Phases C, D, E, and F are open.
+Phase A is implemented and phase B's one-shot targets are met by the starter library in section 15, now delivered on the pack model (section 15.8). Phases C, D, E, and F are open.
 
 ### Phase A: policy and tooling
 
@@ -778,14 +780,7 @@ Bucket CORS is the one thing the emulator cannot exercise — it answers `setCor
 
 ### 15.4 Delivery layout
 
-```text
-library/
-  audio/sha256/<aa>/<bb>/<sha256>.wav          immutable, public, max-age=1y
-  manifests/sg-starter-library/v1.json         immutable, public, max-age=1y
-  manifests/sg-starter-library/latest.json     mutable pointer, max-age=60
-```
-
-Identity is the SHA-256 of the bytes, so a storage key cannot collide, a re-run uploads only what changed, and a project can pin an exact asset version. Clients read `latest.json` first, then the versioned manifest it names, then audio lazily on selection. `storage.rules` denies every client write and every path outside `library/`.
+The library ships on the pack model — see section 15.8 for the current layout. Identity is still the SHA-256 of the bytes, so a storage key cannot collide, a re-run uploads only what changed, and a project can pin an exact asset version. `storage.rules` denies every client write and every path outside `library/`.
 
 ### 15.5 Adding CC0 content
 
@@ -877,32 +872,43 @@ Two things keep this honest rather than a back door around the section 3 policy:
 - **It is a curated subset, not a bulk dump.** Section 4.1 is explicit: "select a small electronic-production subset rather than ingesting the full multi-gigabyte library." The ingest maps VCSL's Hornbostel–Sachs families to the taxonomy (idiophones → mallets/bells/percussion, membranophones → drums, plucked and bowed chordophones → tonal, electrophones → keys) and takes **one representative sample per instrument** — roughly 90 instruments, not the 4231 WAVs in the repo. Aerophones (winds, organs) are dropped as out of scope. Bowed strings are included as sustained tonal material.
 - **The provenance says what it is.** Acquired VCSL assets carry `sourceType: recorded`, `reviewState: bulk-cc0`, the pinned commit in their `downloadUrl`, and the per-file GitHub URL of the sample they came from. Their IDs sit in a `sg-one-shot-<family>-<role>-6NNN` range, disjoint from both the synthesized catalogue and the lockfile ingest (base 5000), so no two paths can collide.
 
-The acquired directory now holds one bundle per ingest path (`acquired-library/lockfile/`, `acquired-library/vcsl/`), each an `entries.json` beside its `audio/`. `manifest.loadAcquiredAssets` merges every bundle, so `library:build` combines lockfile-pinned CC0, bulk VCSL, and the synthesized catalogue into one manifest with one validator and one delivery layout. Both routes still close the section 6.4 organic-source floor that synthesis cannot reach.
+The acquired directory now holds one bundle per ingest path (`acquired-library/lockfile/`, `acquired-library/vcsl/`), each an `entries.json` beside its `audio/`. `manifest.loadAcquiredAssets` merges every bundle, so `library:build` combines lockfile-pinned CC0, bulk VCSL, and the synthesized catalogue, groups the result by pack, and emits one manifest per pack (section 15.8). Both acquisition routes still close the section 6.4 organic-source floor that synthesis cannot reach.
 
 ### 15.8 Repacking the starter library
 
-The shipped library predates the pack model: its 200 assets sit in one flat collection, `sg-starter-library`, delivered as a single manifest. Section 5.1 is not yet implemented.
+`CNT-000b` moved the library onto the pack model (section 5.1): every asset belongs to exactly one pack, the build emits one manifest per pack plus a pack index, and asset identity, the delivery layout, and the acquisition lockfile all carry a pack. It was scheduled in Phase 0 for one reason: the change was cheap while it was still nearly free — before Phase 0 there are no saved projects whose asset references would need migrating.
 
-Moving it onto packs is `CNT-000b`, and it is scheduled in Phase 0 for one reason: the change is cheap now and expensive later. Asset identity, the manifest header, the delivery layout, and the browser all change shape when content gains an owning pack, and every project saved before that change would otherwise need its asset references migrating.
+**The pack list.** `scripts/starter-library/packs.mjs` is the one place pack membership is decided. The synthesized 200 split along the lines they already have — the section 15.2 families and their genre tags — into five packs, none thin enough to merge:
 
-What changes:
+| Pack | Family | Assets | Rights position |
+| --- | --- | ---: | --- |
+| Core Electronic Drums | `drums` | 111 | `solid-groove-owned` |
+| Foundation Bass | `bass` | 21 | `solid-groove-owned` |
+| Tonal Elements | `tonal` | 25 | `solid-groove-owned` |
+| Ambient Textures | `texture` | 19 | `solid-groove-owned` |
+| Transitions & FX | `fx` | 24 | `solid-groove-owned` |
 
-- The catalogue declares pack membership per entry, and the build emits one manifest per pack plus a pack index, instead of one manifest for everything.
-- Delivery gains a pack dimension:
+Every pack's `coverage` claim (its declared roles, genres, and intensities) is checked at build time against what it actually delivers — a pack cannot claim a role or genre none of its assets carry — and every pack's description states what it does not contain (section 6.5). These packs stay testing content at the `metadata-review` intake state, exactly as before; splitting the catalogue does not promote it, and `CNT-002` still supersedes it.
 
-  ```text
-  library/
-    audio/sha256/<aa>/<bb>/<sha256>.wav            unchanged — content-addressed, immutable, shared across packs
-    packs/index.json                                mutable pointer list of available packs, max-age=60
-    packs/<pack-slug>/v<n>.json                     immutable pack manifest, max-age=1y
-    packs/<pack-slug>/latest.json                   mutable pointer, max-age=60
-  ```
+A sixth, reserved pack — `cc0-community`, rights position `CC0-1.0` — exists for acquired content (`library:acquire`, `library:vcsl`). Nothing is pinned in `sources.lock.json` yet, so it carries no coverage claim and the build never emits a manifest for it: an empty pack is the thinnest possible pack, and section 5.1 says a pack that would ship thin is not published. Once real CC0 content is reviewed, it starts here and splits into focused packs (the section 6.5 proposal — "Techno Drums", "Orchestral Sounds", and the rest) once there is enough of it to meet a coverage claim on its own.
 
-  Audio storage keys do not change. Identity is still the SHA-256 of the bytes, so two packs containing the same audio share one object, and a repack re-uploads nothing.
-- The validator gains the section 9 pack rules: every asset has exactly one pack, no asset's licence exceeds its pack's, and every pack delivers the roles and genres its coverage claim advertises.
-- The synthesized catalogue splits along the lines it already has — the section 15.2 families and their genre tags — into a small number of honest packs. It stays testing content at the `metadata-review` intake state either way; splitting it does not promote it, and `CNT-002` still supersedes it.
+**Delivery layout:**
 
-Acquired CC0 content lands in packs from the start: a source's pinned selections belong to the pack the reviewer assigned them to, and a pack's rights position is checked against every asset in it at ingest.
+```text
+library/
+  audio/sha256/<aa>/<bb>/<sha256>.wav          unchanged — content-addressed, immutable, shared across packs
+  packs/index.json                             mutable pointer list of available packs, max-age=60
+  packs/<pack-slug>/v<major.minor.patch>.json  immutable pack manifest, max-age=1y
+  packs/<pack-slug>/latest.json                mutable pointer, max-age=60
+```
+
+Audio storage keys did not change. Identity is still the SHA-256 of the bytes, so two packs containing the same audio would share one object, and a repack re-uploads no audio — verified by running `library:build` twice into separate output directories and diffing them byte-for-byte, and by uploading twice against the Storage emulator: the second run uploads only the mutable pointers, and bumping one pack's `version` and re-running uploads exactly that pack's new manifest, nothing else (see `docs/testing.md`).
+
+**Asset identity.** Synthesized asset IDs are unchanged (`sg-one-shot-<family>-<role>-NNNN`, still append-only and pinned by `catalog.test.mjs`) — only a `pack: { id, version }` field was added to each asset record. Nothing needed renumbering because packs align exactly with the families the IDs already encode.
+
+**Validation.** `validate.mjs` gained the section 9 pack rules, checked per pack manifest: exactly one pack per asset, no asset licence exceeding its pack's rights position (an asset's `license.id` must equal its pack's `rights.licence`), no undefined pack referenced (both a manifest's own `pack.slug` and every lockfile selection's destination pack are checked against `packs.mjs`), and every pack delivering the roles and genres its coverage claim advertises. The section 6.4 collection balance and section 6.1 taxonomy-coverage rules still run once, across every pack's assets concatenated — section 6.5 is explicit that those are measured library-wide, not per pack.
+
+**Acquisition.** A lockfile selection names its destination pack (`asset.pack`, a slug) at pin time; `validateLockfile`/`validateDraft` reject an unknown pack or one whose rights position the source's licence cannot satisfy, and `ingestSelection` re-checks both before writing a single byte. `library:manage`'s review form carries the same destination-pack field. The VCSL bulk path has no per-file lockfile entry, so it targets the reserved `cc0-community` pack directly in code.
 
 ## 16. Pack marketplace
 
