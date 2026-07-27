@@ -312,7 +312,7 @@ Pack-level rules:
 
 ## 7. Genre coverage
 
-The assumed six featured dashboard starters are House, Techno, Hip Hop/Trap, Drum & Bass/Jungle, Dubstep/Bass, and Ambient. This selection remains subject to product-owner approval. Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop remain required library/demo coverage even if they are not featured starter buttons.
+The six featured dashboard starters are House, Techno, Hip Hop/Trap, Drum & Bass/Jungle, Dubstep/Bass, and Ambient, approved by the product owner (`DEC-002`). Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop remain required library/demo coverage even if they are not featured starter buttons.
 
 Assets can count toward multiple genres when the tags are honest. Dedicated counts below measure discoverable coverage, not necessarily unique files.
 

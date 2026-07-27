@@ -157,7 +157,7 @@ An unauthenticated visitor is assigned a persistent anonymous account and can cr
 
 Acceptance criteria:
 
-- The dashboard offers Blank and at least two starter templates.
+- The dashboard offers Blank and the six approved featured starter templates: House, Techno, Hip Hop/Trap, Drum & Bass/Jungle, Dubstep/Bass, and Ambient (`DEC-002`).
 - A starter template opens with audible musical content and no missing assets.
 - Refreshing or reopening the browser retains projects for the same anonymous session.
 - The UI explains that an anonymous user should upgrade their account to keep access across devices.
@@ -249,6 +249,7 @@ Acceptance criteria:
 - The 40-track, 10-minute reference project renders successfully without truncation or event drift.
 - Export progress and failure states are shown.
 - The file name is derived safely from the project name.
+- Stereo export preserves project gain exactly: no peak or loudness normalization is applied, whether by application code or an implementation library's default behavior (`DEC-004`). The AUD-04 safety limiter still applies, since it protects against dangerous or clipped output rather than adjusting creative gain.
 
 **AUD-06 - Multitrack stem export (P0)**  
 The user can export one WAV stem per track as a simple, vendor-neutral path into Ableton Live, Logic Pro, FL Studio, and other production tools.
@@ -260,6 +261,7 @@ Acceptance criteria:
 - Send/return buses are exported as separate stems so shared delay and reverb tails can be reconstructed without being duplicated into every track.
 - The package includes all non-empty tracks regardless of current mute or solo state by default; the export dialog lets the user explicitly exclude tracks and explains this behavior.
 - Release and effect tails are preserved. Shorter stems are padded with silence to match the longest exported tail and prevent truncation or alignment differences.
+- Every stem and the reference mix preserve project gain exactly: no peak or loudness normalization is applied, whether by application code or an implementation library's default behavior (`DEC-004`).
 - A ZIP package contains safely named, deterministically ordered WAV files, a stereo reference mix with master processing, and a human-readable manifest containing project tempo, time signature, track IDs/names, processing policy, sample rate, and bit depth.
 - The user can choose at least 16-bit or 24-bit PCM WAV and a supported sample rate before rendering.
 - The 40-track, 10-minute processed reference project exports successfully without drift, missing tracks, clipped tails, or browser memory failure on supported hardware.
@@ -1496,22 +1498,22 @@ A feature is done only when:
 - Alpha time signature is fixed to 4/4.
 - AI produces structured project edits, not generated audio.
 - Exported stereo WAV is the first listening and sharing mechanism; aligned WAV stems are the P0 vendor-neutral DAW handoff.
+- Stereo and stem exports preserve project gain exactly rather than applying a peak/loudness normalization policy. Final output level stays under the producer's control; no export library may change it implicitly (`DEC-004`).
 - A self-contained Ableton Live Set is the first native project-format handoff target after the private alpha.
 - Ableton export targets the oldest Live version that can correctly support the implemented handoff; an exporter compatibility spike establishes and documents that minimum version.
 - Real-time collaboration follows validation of the single-user creation workflow.
 - SolidStart/SolidJS/TypeScript, Tone.js over Web Audio, and Firebase Auth/Firestore/Storage/Functions are committed alpha technologies.
 - One long-lived real-time Tone/Web Audio context per document and stable, incrementally reconciled audio graphs are hard alpha architecture decisions.
 - The alpha arrangement is a hybrid virtualized DOM plus layered Canvas 2D renderer; WebGL/WebGPU and WASM require measured failure plus an approved ADR.
+- An anonymous project is retained until 180 days after its last access; opening or otherwise accessing it resets the timer. Deletion is scoped to anonymous projects only, and authenticating as an account owner before expiry keeps the project indefinitely (`DEC-001`).
+- Upgrading from anonymous to an authenticated account never loses an anonymous project. Each device records, in local browser storage, which anonymous projects were created or edited there. When that device is used to authenticate, the user is offered a pairing flow that attaches its locally-recorded anonymous projects to the authenticated account; once a project is paired, its local record is deleted. Multiple people sharing one device is explicitly out of scope: whichever anonymous projects were edited on a device are assumed to belong to whoever next authenticates on it (`DEC-001`).
 
 ### Product-owner decisions required before Phase 3 or launch
 
-- Which two or more genres should provide the dashboard's featured starter templates first, while the full required genre set remains available through bundled content and demo projects?
 - Which factory packs does the alpha ship, and what is each one's name, scope, and stated purpose? The list follows from the assets that can actually be cleared, so it is settled with the content plan rather than ahead of it.
 - For the later pack marketplace (LIB-05): who may publish a pack, what rights and revenue-sharing terms apply to a creator, what moderation and takedown process governs published content, and what happens to a project that uses a pack after that pack is withdrawn or the user's access to it ends? (Post-alpha; unscheduled.)
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
 - Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha?
-- Will anonymous projects expire, and what exact upgrade path protects them across devices?
-- What volume normalization or loudness target should WAV export use, if any?
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
 - What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)

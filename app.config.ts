@@ -115,7 +115,9 @@ export default defineConfig({
 		//
 		// This is an optimization, not a contract: a dependency added later and
 		// left out of this list still works, it just reintroduces one reload for
-		// that dependency. `e2e-emulator/warmDevServer.ts` stays as the backstop.
+		// that dependency. `e2e-emulator/warmDevServer.setup.ts` stays as the
+		// backstop for whatever is left off, and is the load-bearing list's
+		// safety net rather than its equal.
 		optimizeDeps: {
 			include: [
 				"firebase/app",

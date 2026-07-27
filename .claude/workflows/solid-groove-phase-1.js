@@ -96,9 +96,14 @@ This task depends on ${decisions.map((d) => `\`${d.id}\` (#${d.issue}, ${d.what}
 
 Implement everything that does not depend on the decision — the structure, the commands, the tests, the states that hold under any answer — and design the boundary so the decision drops in as configuration rather than a rewrite. Then list every acceptance checkbox you could not close in \`unmet\`, naming the decision as the reason, and comment the same on your issue. An honest \`unmet\` entry is the correct outcome here, not a failure.`
 
+// Only decisions that are still OPEN belong here. `DEC-001` (anonymous
+// retention, #30), `DEC-002` (featured templates, #31) and `DEC-004` (export
+// gain, #33) were answered by the product owner and are recorded in the PRD and
+// in the LOOP-001/HARD-003/AUD-05/AUD-06 acceptance criteria, so LOOP-001 and
+// LOOP-015 are ordinary tasks now — their briefs must not tell an agent to hold
+// back on a decision that exists. The agent reads the decided criteria straight
+// from docs/backlog.md, which this run's base branch carries.
 const DEC = {
-  'DEC-001': { id: 'DEC-001', issue: 30, what: 'anonymous project retention and the cross-device upgrade promise' },
-  'DEC-002': { id: 'DEC-002', issue: 31, what: 'which featured genre templates the dashboard ships' },
   'DEC-003': { id: 'DEC-003', issue: 32, what: 'approved content sources, licences, and redistribution terms' },
   'DEC-010': { id: 'DEC-010', issue: 39, what: 'the shipped factory pack list and each pack’s coverage claim' },
 }
@@ -107,7 +112,7 @@ const DEC = {
 // dependencies (FND-009, FND-002b, CNT-000b) are already on the base branch, so
 // listing them would deadlock a scheduler that can only satisfy deps it runs.
 const TASKS = [
-  { id: 'LOOP-001', phase: 'Foundations', title: 'Anonymous start and project dashboard', issue: 40, deps: [], blocked: ['DEC-001'] },
+  { id: 'LOOP-001', phase: 'Foundations', title: 'Anonymous start and project dashboard', issue: 40, deps: [] },
   { id: 'LOOP-002', phase: 'Foundations', title: 'Autosave and recovery UX', issue: 42, deps: [] },
   { id: 'LOOP-003', phase: 'Foundations', title: 'Transport, tempo, loop, and metronome', issue: 43, deps: [] },
   { id: 'LOOP-014', phase: 'Foundations', title: 'Shortcut registry and mapping guide', issue: 56, deps: [] },
@@ -133,7 +138,6 @@ const TASKS = [
     title: 'Starter projects and genre templates',
     issue: 57,
     deps: ['LOOP-001', 'LOOP-002', 'LOOP-004', 'LOOP-005', 'LOOP-006', 'LOOP-007', 'LOOP-008', 'LOOP-009', 'LOOP-010', 'LOOP-011', 'LOOP-012', 'LOOP-013', 'LOOP-014', 'CNT-002'],
-    blocked: ['DEC-002'],
   },
   {
     id: 'LOOP-016',
