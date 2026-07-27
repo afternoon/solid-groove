@@ -49,7 +49,7 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 - Resource ownership, accessibility, supported-browser behavior, and persistence effects have been considered and tested where applicable.
 - **Analytics ships with the feature.** From `FND-001c` onward, any task that adds or changes a user action emits its PRD OPS-02 events through the shared typed analytics catalog, plus the reliability event for its principal failure path, with tests that the event fires once per action and that disabling analytics changes nothing. A task whose events are left for later is not done. A user action the catalog does not yet cover extends the catalog in the same PR — at minimum a `feature_first_use` key — rather than shipping unmeasured, and no task introduces an ad-hoc event string outside the catalog.
 - No event or error-report parameter carries a project, track, clip, section, or asset name, assistant text, a user-entered string, an asset URL, or a token.
-- From `FND-001b` onward, the slice has been exercised in a deployed build on the hosted environment, not only against a local dev server and the emulator suite.
+- The slice has been exercised against a production-like build in the gating browsers through its browser E2E and emulator suites, not only against a local dev server. Hosted-environment verification is **not** a per-task gate: it is batched into `OPS-001` after Phase 2 (PRD section 12, "After Phase 2"). A task does not stay open waiting for a hosted environment that does not exist yet, and equally does not claim a deploy, smoke test, rollback, or delivered event that never happened.
 - No unrelated formatting, dependency, generated-file, or refactor churn is included.
 
 ## 2. Release gates and parallelism
@@ -57,7 +57,8 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 | Gate | Opens when | Work unlocked |
 | --- | --- | --- |
 | G0: Tooling ready | `FND-001` done | Deployment, code-first contracts, and independent architecture spikes |
-| G0.5: Deployed and observable | `FND-001b` and `FND-001c` done | Every later task can verify itself in a real browser and instrument itself through the published analytics catalog |
+| G0.5: Deploy and analytics contracts published | `FND-001b` and `FND-001c` done | Every later task instruments itself through the published analytics catalog and ships through the committed deploy pipeline |
+| G4.5: Hosted environment verified | `OPS-001` done | Phase 3 assistant work, and the `HARD-005` cohort invitation, on instrumentation known to work |
 | G1: Contracts published | `FND-002` through `FND-005`, including `FND-002b`, done | Audio, renderer, content, and thin-slice integration |
 | G2: Foundation slice proven | `FND-009` done | Broad Phase 1 loop-workflow parallelism |
 | G3: Manual loop complete | `LOOP-016` done | Arrangement, automation, and export expansion |
@@ -65,7 +66,7 @@ The `Dependencies:` line on every task is the machine-readable work graph. An or
 | G5: AI complete | `REL-002` done | Private-alpha hardening and user validation |
 | G6: Private alpha ready | `REL-003` done | P1 work may be unparked by the product owner |
 
-Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `CNT-000` joins them once `FND-001b` closes: it produces the real audio every later slice is tested against, owns only `scripts/` and the Storage configuration, and touches no domain, command, or audio boundary, so it never blocks and is never blocked by the contract tasks. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally but makes everything after it verifiable in a real environment, and every later task's definition of done assumes it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. `FND-003` through `FND-005` depend on the canonical domain schema. `FND-002b` adds packs to that schema and is a contract change in its own right, so it lands inside G1 rather than as incidental work in a later content or browser task; `CNT-000b` follows it and `CNT-000` to put the shipped library on packs. Both are Phase 0 because the alternative is migrating saved asset references later. Broad feature parallelism begins only after `FND-009` proves the contracts together.
+Only `FND-001` starts immediately. After it lands, `FND-001b`, `FND-002`, `FND-006`, and `FND-008` may proceed in parallel because they own separate code boundaries. `CNT-000` joins them once `FND-001b` closes: it produces the real audio every later slice is tested against, owns only `scripts/` and the Storage configuration, and touches no domain, command, or audio boundary, so it never blocks and is never blocked by the contract tasks. `FND-001b` is claimed first among them: it is small, it unblocks nothing structurally, but it settles how the product ships before anything is built on top of it. `FND-001c` follows `FND-001b` and publishes the analytics catalog contract that every Phase 1-4 feature task extends. Neither provisions an account or holds a credential; the operator pass that verifies both against a live hosted environment is `OPS-001`, after Phase 2, so no Phase 0-2 task is gated on a hosted environment existing. `FND-003` through `FND-005` depend on the canonical domain schema. `FND-002b` adds packs to that schema and is a contract change in its own right, so it lands inside G1 rather than as incidental work in a later content or browser task; `CNT-000b` follows it and `CNT-000` to put the shipped library on packs. Both are Phase 0 because the alternative is migrating saved asset references later. Broad feature parallelism begins only after `FND-009` proves the contracts together.
 
 ## 3. Product decisions
 
@@ -195,8 +196,8 @@ This task claims the deploy pipeline. It extends the `FND-001` CI workflows rath
 - [ ] `bun run build` output deploys to Firebase Hosting through one documented command and automatically from CI on merge to the default branch, using credentials held in CI rather than on a developer machine.
 - [ ] Firestore rules and indexes deploy from the same pipeline as the application; a failing rules or index step fails the deploy instead of shipping code that its deployed rules do not match.
 - [ ] The build stamps the git commit SHA into the client, the app can display it, and it is available to the `FND-001c` analytics and error events. The pipeline has a place for `FND-001c` to add its release registration and source-map upload without restructuring the deploy job.
-- [ ] A post-deploy smoke test against the hosted URL covers app load, anonymous session start, project open, and audio start after a user gesture; a failed smoke test is a failed deploy.
-- [ ] Rollback to the previous Hosting release and its matching rules revision is documented and has been performed once as evidence, not just described.
+- [ ] A post-deploy smoke test against the hosted URL is written and wired into the deploy job so a failure fails the deploy, covering app load, anonymous session start, project open, and audio start after a user gesture. **Running it against a real hosted URL is `OPS-001`, after Phase 2.**
+- [ ] Rollback to the previous Hosting release and its matching rules revision is documented in a runbook precise enough to follow under incident conditions. **Performing the drill is `OPS-001`, after Phase 2.**
 - [ ] No secret, provider credential, or privileged configuration reaches the client bundle; a check fails the build if one does.
 - [ ] Unit, component, browser, and emulator suites still run without access to the production project and do not write to it.
 - [ ] Team traffic is marked so internal sessions can be excluded from the PRD section 11 measures.
@@ -215,7 +216,7 @@ This is a **contract-owning task**: it lands before Phase 1 fans out, and changi
 
 - [ ] One typed catalog module declares every PRD OPS-02 event, its parameters, and their allowed values or buckets. Event and parameter strings appear nowhere else, and logging an unregistered event or parameter is a type error.
 - [ ] The logging boundary attaches the release SHA, surface, and account-type user property automatically, and callers cannot pass free text where an enum or bucket is required.
-- [ ] Phase 0 events are emitted and verified from a deployed build: `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception`. Later-phase events exist in the catalog as declarations without call sites.
+- [ ] Phase 0 events are emitted and proven by automated tests: `app_opened`, `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`, and `exception`. Later-phase events exist in the catalog as declarations without call sites. **Verifying these arrive from a deployed build is `OPS-001`, after Phase 2.**
 - [ ] Global `error`/`unhandledrejection` handlers and Solid error boundaries report an error once, with release SHA, browser and engine version, area, stable error code, and redacted message, through one application-owned reporting boundary that fans out to the GA4 `exception` counter event and to Sentry. Application code cannot reach the Sentry SDK directly. Duplicate reports from one error collapse; a failing or blocked reporter cannot stop the transport, block editing, lose unsaved state, or recurse.
 - [ ] Fatal and non-fatal errors are distinguishable, and crash-free session rate comes from Sentry release-health session tracking rather than a hand-built derivation.
 - [ ] Sentry is configured for a product whose value is the user's private music: `sendDefaultPii` off, console breadcrumbs disabled rather than filtered, network and DOM breadcrumbs scrubbed in `beforeSend`/`beforeBreadcrumb`, and **Session Replay not enabled** — turning it on needs a superseding ADR.
@@ -223,7 +224,7 @@ This is a **contract-owning task**: it lands before Phase 1 fans out, and changi
 - [ ] The SDK initializes lazily after first paint with a minimal integration set, is not loaded on the marketing landing page, and its bundle cost is measured against the PRD section 10 interactive budget rather than assumed acceptable.
 - [ ] A test rejects any event or error parameter carrying a project, track, clip, section, or asset name, assistant text, a user-entered string, a URL, or a token. It runs over the whole catalog **and over the Sentry payload by exercising the scrubbing functions directly**, so it also covers events and breadcrumbs added by later tasks.
 - [ ] A test runs the core journey with both the analytics and error transports failing and asserts no behavioral difference; a user-facing opt-out disables collection without disabling any product capability. `DEC-009` sets the default state and disclosure wording and does not block this task.
-- [ ] A deliberately triggered test error is shown arriving in Sentry from the deployed build with its release SHA and a symbolicated stack trace, and `docs/testing.md` documents how to verify events and errors against that build.
+- [ ] `docs/testing.md` documents how to verify events and errors against a deployed build, precisely enough to be executed by someone who did not write it. **Showing a deliberately triggered error arriving in Sentry with its release SHA and a symbolicated stack trace is `OPS-001`, after Phase 2.**
 - [ ] The Sentry DSN, auth token, and org/project configuration are handled as deploy configuration: the auth token lives in CI only, and the client DSN is documented as a public-by-design value rather than a secret.
 
 ### FND-002 - Canonical schema-v1 domain model
@@ -406,8 +407,8 @@ The slice's surface is a **16-step grid on a sampler track** — the cheapest UI
 - [ ] Audible playback uses the stable graph and one shared context.
 - [ ] Save state and revision behavior are visible and stale echoes cannot restore the undone note.
 - [ ] Unit, repository, component, browser, and audio lifecycle tests cover the slice.
-- [ ] The slice emits `first_edit` and the `step_editor` `feature_first_use` key through the `FND-001c` catalog, and both are observed from the deployed build alongside its `app_opened`, `save_failed`, and `audio_start_failed` paths.
-- [ ] The whole slice — add a note, play it, undo it, save it, reload it — is exercised on the hosted environment, not only locally.
+- [ ] The slice emits `first_edit` and the `step_editor` `feature_first_use` key through the `FND-001c` catalog, alongside its `app_opened`, `save_failed`, and `audio_start_failed` paths, each proven by an automated test. **Observing them from the deployed build is `OPS-001`, after Phase 2.**
+- [ ] The whole slice — add a note, play it, undo it, save it, reload it — is exercised by a browser E2E test against the emulator suite in the gating browsers. **Exercising it on the hosted environment is `OPS-001`, after Phase 2.**
 - [ ] Obsolete prototype model/audio paths are removed or isolated so new work cannot import them accidentally.
 
 ## 5. Phase 1: complete the loop workflow
@@ -646,7 +647,7 @@ Validate that a user can create, edit, process, save, and reopen an original 1-8
 - [ ] The reference journey includes drum machine, synth or sampler, audio loop, device chain, send, mixer, step editor, piano roll, shortcuts, and library audition.
 - [ ] All supported-browser E2E tests pass with no leaked audio resources or direct state mutation.
 - [ ] Phase 1 PRD requirements have requirement-to-test traceability and no unresolved P0 defects.
-- [ ] Every Phase 1 event in the PRD OPS-02 catalog has a call site and is observed from the deployed build during the reference journey; no Phase 1 event is still declaration-only.
+- [ ] Every Phase 1 event in the PRD OPS-02 catalog has a call site exercised during the reference journey and proven by an automated test; no Phase 1 event is still declaration-only. **Observing them from the deployed build is `OPS-001`, after Phase 2.**
 
 ## 6. Phase 2: arrangement and export
 
@@ -752,7 +753,31 @@ Validate manual creation of a two-to-ten-minute arrangement and import of its st
 - [ ] Playback, save/reopen, stereo render, and stems agree on arrangement bounds and musical events.
 - [ ] Supported-browser reference runs show no skipped events, drift, missing tracks, clipped tails, leaks, or memory failure.
 - [ ] Every P0 arrangement/export requirement maps to an automated test or named physical-device test procedure.
-- [ ] Every Phase 2 event in the PRD OPS-02 catalog has a call site and is observed from the deployed build, and the primary track-progression measure computes end to end from `project_created`, `arrangement_milestone`, and `export_completed`.
+- [ ] Every Phase 2 event in the PRD OPS-02 catalog has a call site proven by an automated test, and the primary track-progression measure is shown to compute from `project_created`, `arrangement_milestone`, and `export_completed` against recorded events. **Observing them from the deployed build, and computing the measure from real cohort data, is `OPS-001`, which runs immediately after this gate.**
+
+### OPS-001 - Hosted environment verification and rollback drill
+
+`Status: todo | Owner: product-owner | Dependencies: REL-001`<br>
+`PRD: OPS-01, OPS-02, OPS-03; 12 "After Phase 2" | Evidence: pending`
+
+Provision the real hosted environment and close every OPS-01/OPS-02/OPS-03 acceptance criterion that cannot be met by writing code. This is the operator half of `FND-001b` and `FND-001c`: those tasks built the pipeline, the catalog, the reporting boundary, and their automated tests, and deliberately provisioned no accounts and held no credentials.
+
+Run [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md) end to end. It is written as a procedure and has never been executed; this task is its first run.
+
+**This task is not implementation work and must not be claimed by an implementation agent.** Every criterion below requires credentials an agent does not have and must never invent. If a step reveals a defect in the pipeline, the catalog, or the reporting boundary, that fix is a new issue against the owning task — not silent repair inside this one.
+
+Scheduled here rather than in Phase 0 because one operator pass at the Phase 2 boundary verifies the deploy, rollback, analytics, and monitoring paths against the whole Phase 0-2 feature set at once, instead of re-verifying them after every phase. It runs before Phase 3 because the assistant's events and failure paths depend on monitoring that is known to work, and before `HARD-005` because the cohort must not be invited on unverified instrumentation.
+
+- [ ] The Firebase project and Sentry organization exist, and all six CI variables and secrets from the runbook's part 3 are set. No credential reaches a developer machine or the repository.
+- [ ] CI has taken a real deploy to Firebase Hosting on merge to the default branch, shipping Hosting, Firestore rules and indexes, and Storage rules together. The site loads and displays the deployed commit SHA.
+- [ ] The post-deploy smoke test has run against the hosted URL and passed — app load, anonymous session start, project open, and audio start after a user gesture — and a deliberately failed smoke test has been shown to fail the deploy.
+- [ ] The rollback drill has been **performed**: the previous Hosting release and its matching rules revision were restored, confirmed with the smoke test, and rolled forward again. The Hosting version IDs and rules commits involved are recorded.
+- [ ] Every Phase 0, Phase 1, and Phase 2 OPS-02 event has been observed arriving from the deployed build with its expected parameters, and the section 11 primary measure computes from real events.
+- [ ] The analytics opt-out has been exercised in both directions from the deployed build, including GA4 automatic collection, and internal traffic is confirmed excluded from the section 11 measures.
+- [ ] A deliberately triggered error has been shown arriving in Sentry with its release SHA, a symbolicated stack trace naming `src/` files, the expected tags, a redacted message, and no PII — as exactly one issue.
+- [ ] No source map is publicly fetchable from Hosting, verified by request rather than by configuration review.
+- [ ] `docs/testing.md`'s "What has not been verified" section is replaced with what was actually observed, including the date and the release SHA. Every deferred checkbox in `FND-001b`, `FND-001c`, `FND-009`, `LOOP-016`, and `REL-001` is ticked from an observed result or reopened as a defect.
+- [ ] Gate **G4.5: Hosted environment verified** is marked open.
 
 ## 7. Phase 3: AI producer
 

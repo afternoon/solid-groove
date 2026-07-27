@@ -267,7 +267,11 @@ The first must succeed and the second must not. A 200 with map contents means th
 
 ### What has not been verified
 
-The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason. Whoever provisions the accounts runs this procedure once and records the outcome.
+The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason.
+
+**When this gets closed.** Executing it is backlog task `OPS-001`, scheduled immediately after Phase 2 (PRD section 12, "After Phase 2"), following [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md). It was originally expected during Phase 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Phase 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
+
+Until then, treat every statement in that section as untested, and do not cite it as evidence in a task's closing comment. Whoever provisions the accounts runs the procedure once and replaces this section with what they actually observed, including the date and the release SHA.
 
 ## Test helpers
 

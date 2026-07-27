@@ -8,11 +8,17 @@ observable alpha with the deferred acceptance criteria actually closed.
 
 Run it once. Record the outcome in [`docs/backlog.md`](../backlog.md) as you go.
 
+**When to run this.** This runbook is the body of backlog task `OPS-001`, scheduled immediately **after Phase 2** (PRD section 12, "After Phase 2"). It was originally expected to run during Phase 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Phase 0-2 feature set at once, rather than re-verifying after every phase. The file keeps its `phase-0` name because that is where the code it verifies was built.
+
+Nothing here is optional or downgraded by the move — the acceptance criteria are unchanged, and the `HARD-005` cohort cannot be invited until this runbook has been executed. What changed is only when.
+
 | Field | Value |
 | --- | --- |
 | Owner | Whoever holds the Firebase and Sentry accounts (not an implementation agent) |
 | Frequency | Once, then only for the rollback drill in part 6 |
-| Closes | Gate **G0.5: Deployed and observable** |
+| Backlog task | `OPS-001` — Hosted environment verification and rollback drill |
+| When | After Phase 2, at the `REL-001` gate |
+| Closes | Gate **G4.5: Hosted environment verified** |
 | Related | [PRD `OPS-01`/`OPS-02`/`OPS-03`](../prd.md#710-deployment-analytics-and-monitoring), [ADR 0001](../adr/0001-sentry-for-error-monitoring.md), [`docs/testing.md`](../testing.md#deploy) |
 
 ## Before you start
@@ -223,22 +229,30 @@ report can name exactly which release was live before and after.
 ## Part 7 — close the gate
 
 These acceptance criteria are the ones no amount of implementation work could
-close, because they each require a real environment. They are why `G0.5` is not
+close, because they each require a real environment. They are why `G4.5` is not
 yet open. Tick them in [`docs/backlog.md`](../backlog.md) only from observed
 results:
 
 | Task | Criterion | Closed by |
 | --- | --- | --- |
-| `FND-001b` | Post-deploy smoke test covers load, anonymous session, project open, audio start | Part 4 |
+| `FND-001b` | Post-deploy smoke test run against the hosted URL | Part 4 |
 | `FND-001b` | Rollback performed once as evidence | Part 6 |
-| `FND-001c` | Phase 0 events emitted and verified from a deployed build | Part 5 |
+| `FND-001c` | Phase 0 events observed from a deployed build | Part 5 |
 | `FND-001c` | A deliberately triggered error arrives in Sentry with its SHA and a symbolicated trace | Part 5 |
+| `FND-009` | The vertical slice exercised on the hosted environment, and its events observed there | Parts 4 and 5 |
+| `LOOP-016` | Every Phase 1 OPS-02 event observed from the deployed build | Part 5 |
+| `REL-001` | Every Phase 2 OPS-02 event observed, and the primary measure computed from real events | Part 5 |
+
+Parts 4 and 5 now cover more than they did when this runbook was written for
+Phase 0: the deployed build contains the whole Phase 0-2 feature set, so the
+event list to confirm in part 5 is every Phase 0, 1, and 2 event in the OPS-02
+catalog, not only the six Phase 0 ones.
 
 - [ ] Update `docs/testing.md`'s "What has not been verified" section to record
       what you actually observed, with the date and the release SHA. That section
       exists because a procedure nobody has run is not evidence; leaving it
       standing after you have run it is the same failure in the other direction.
-- [ ] Mark **G0.5: Deployed and observable** open.
+- [ ] Mark **G4.5: Hosted environment verified** open.
 
 ## Out of scope
 
