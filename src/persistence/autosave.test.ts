@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { Analytics } from "../analytics/analytics";
+import { ConsentStore } from "../analytics/consent";
+import {
+	createRecordingTransport,
+	type RecordingTransport,
+} from "../analytics/transport";
 import type { Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createManualClock } from "../shared/clock";
@@ -6,10 +12,25 @@ import {
 	createManualScheduler,
 	type ManualScheduler,
 } from "../shared/scheduler";
+import { memoryStorage } from "../testing/storage";
 import { ProjectAutosave, type SaveStatus } from "./autosave";
 import { clipDocumentPath, songDocumentPath } from "./documents";
 import { InMemoryProjectRepository } from "./inMemoryProjectRepository";
 import type { ProjectRepository } from "./projectRepository";
+
+function createTestAnalytics(): {
+	analytics: Analytics;
+	transport: RecordingTransport;
+} {
+	const transport = createRecordingTransport();
+	const analytics = new Analytics({
+		transport,
+		consent: new ConsentStore(memoryStorage()),
+		storage: memoryStorage(),
+	});
+	analytics.setAccountType("anonymous");
+	return { analytics, transport };
+}
 
 /**
  * Wraps a repository so the first `saveSong` blocks until the test releases it.
@@ -372,5 +393,123 @@ describe("ProjectAutosave", () => {
 
 		expect(scheduler.pending).toBe(0);
 		expect(repository.writes).toHaveLength(0);
+	});
+
+	describe("analytics (PRD OPS-02)", () => {
+		it("logs save_failed once per failing write, with the error code and retry count", async () => {
+			const { analytics, transport } = createTestAnalytics();
+			const controller = new ProjectAutosave({
+				repository,
+				projectId: project.metadata.id,
+				revision: project.metadata.revision,
+				scheduler,
+				analytics,
+			});
+			repository.failNextWrites({ count: 1 });
+
+			controller.queueSong(renamedSong(150));
+			await controller.flush();
+
+			expect(transport.named("save_failed")).toHaveLength(1);
+			expect(transport.named("save_failed")[0]?.params).toMatchObject({
+				error_code: "unavailable",
+				retry_count: 0,
+			});
+		});
+
+		it("does not log save_failed again for the same in-flight retry racing itself", async () => {
+			// Mirrors "does not report a conflict against a write it just made
+			// itself" above: several flushes park on one drain, so this asserts
+			// the coalescing guarantee — one event per failure episode, not one
+			// per attempt — holds for the analytics event too.
+			const { analytics, transport } = createTestAnalytics();
+			const controller = new ProjectAutosave({
+				repository,
+				projectId: project.metadata.id,
+				revision: project.metadata.revision,
+				scheduler,
+				analytics,
+			});
+			repository.failNextWrites({ count: 1 });
+			controller.queueSong(renamedSong(151));
+
+			await Promise.all([
+				controller.flush(),
+				controller.flush(),
+				controller.flush(),
+			]);
+
+			expect(transport.named("save_failed")).toHaveLength(1);
+		});
+
+		it("logs save_recovered exactly once when a retry after a failure succeeds", async () => {
+			const { analytics, transport } = createTestAnalytics();
+			const controller = new ProjectAutosave({
+				repository,
+				projectId: project.metadata.id,
+				revision: project.metadata.revision,
+				scheduler,
+				analytics,
+			});
+			repository.failNextWrites({ count: 1 });
+			controller.queueSong(renamedSong(152));
+
+			await controller.flush();
+			expect(controller.status.state).toBe("failed");
+			expect(transport.named("save_recovered")).toHaveLength(0);
+
+			await controller.retry();
+
+			expect(controller.status.state).toBe("saved");
+			expect(transport.named("save_recovered")).toHaveLength(1);
+			expect(transport.named("save_recovered")[0]?.params).toMatchObject({
+				retry_count: 1,
+			});
+		});
+
+		it("does not log save_recovered for an ordinary save with no prior failure", async () => {
+			const { analytics, transport } = createTestAnalytics();
+			const controller = new ProjectAutosave({
+				repository,
+				projectId: project.metadata.id,
+				revision: project.metadata.revision,
+				scheduler,
+				analytics,
+			});
+
+			controller.queueSong(renamedSong(153));
+			await controller.flush();
+
+			expect(controller.status.state).toBe("saved");
+			expect(transport.named("save_recovered")).toHaveLength(0);
+		});
+
+		it("counts every failed attempt in the episode's retry_count, and reports exactly one recovery", async () => {
+			const { analytics, transport } = createTestAnalytics();
+			const controller = new ProjectAutosave({
+				repository,
+				projectId: project.metadata.id,
+				revision: project.metadata.revision,
+				scheduler,
+				analytics,
+			});
+			repository.failNextWrites({ count: 2 });
+			controller.queueSong(renamedSong(154));
+
+			await controller.flush();
+			await controller.retry();
+			expect(controller.status.state).toBe("failed");
+			await controller.retry();
+
+			expect(controller.status.state).toBe("saved");
+			expect(transport.named("save_failed")).toHaveLength(2);
+			expect(
+				transport.named("save_failed").map((e) => e.params.retry_count),
+			).toEqual([0, 1]);
+			expect(transport.named("save_recovered")).toHaveLength(1);
+			expect(transport.named("save_recovered")[0]?.params).toMatchObject({
+				retry_count: 2,
+			});
+		});
 	});
 });

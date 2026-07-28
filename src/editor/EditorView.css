@@ -75,6 +75,12 @@
 	opacity: 0.75;
 }
 
+.editor-header .save-status-group {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
 .editor-header .save-status {
 	font-size: var(--font-size-small);
 	color: var(--color-text-secondary);
@@ -84,6 +90,28 @@
 
 .editor-header .save-status[data-state="failed"] {
 	color: #e08a87;
+}
+
+.editor-header .save-recovery {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: var(--font-size-small);
+	color: #e08a87;
+}
+
+.editor-header .save-retry-button {
+	font-size: var(--font-size-small);
+	color: inherit;
+	background: none;
+	border: 1px solid currentColor;
+	border-radius: 3px;
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.editor-header .save-retry-button:hover {
+	opacity: 0.75;
 }
 
 .workspace {

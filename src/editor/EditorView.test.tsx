@@ -8,11 +8,13 @@ installWebAudioGlobals();
 
 let AudioRuntimeModule: typeof import("../audio/AudioRuntime");
 let inMemoryModule: typeof import("../persistence/inMemoryProjectRepository");
+let documentsModule: typeof import("../persistence/documents");
 let EditorViewModule: typeof import("./EditorView");
 
 beforeAll(async () => {
 	AudioRuntimeModule = await import("../audio/AudioRuntime");
 	inMemoryModule = await import("../persistence/inMemoryProjectRepository");
+	documentsModule = await import("../persistence/documents");
 	EditorViewModule = await import("./EditorView");
 });
 
@@ -158,5 +160,70 @@ describe("EditorView", () => {
 		if (clip.content.kind !== "notes") throw new Error("expected a note clip");
 		// The undone note stayed undone in the persisted document too.
 		expect(clip.content.events).toHaveLength(4);
+	});
+
+	it("shows an actionable Save failed state with an explicit retry, and recovers", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		repository.failNextWrites({ count: 1 });
+		renderEditor(project.metadata.id);
+		await screen.findByRole("group", { name: "16-step sequence" });
+
+		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+
+		await screen.findByText("Save failed", {}, { timeout: 3_000 });
+		expect(screen.getByText("Check your connection.")).toBeInTheDocument();
+		const retryButton = await screen.findByRole("button", { name: "Retry" });
+
+		fireEvent.click(retryButton);
+
+		await screen.findByText("Saved", {}, { timeout: 3_000 });
+		expect(screen.queryByText("Save failed")).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Retry" }),
+		).not.toBeInTheDocument();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		const clip = loaded.value.clips[0];
+		if (clip.content.kind !== "notes") throw new Error("expected a note clip");
+		expect(clip.content.events).toHaveLength(5);
+	});
+
+	it("does not offer a retry button for a non-retryable failure", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+		await screen.findByRole("group", { name: "16-step sequence" });
+
+		// Another client's write lands in the store directly, without going
+		// through `saveMetadata` (which would notify this session's own
+		// `watchProject` listener and let it adopt the newer revision before the
+		// edit below ever conflicts). That models the real race the revision
+		// check exists for: the remote write reaches the server before this
+		// tab's watcher has delivered word of it.
+		const path = documentsModule.projectDocumentPath(project.metadata.id);
+		const stored = repository.readDocument(path);
+		if (!stored) throw new Error("expected the metadata document to exist");
+		repository.writeDocument(path, {
+			...stored,
+			revision: (stored.revision as number) + 1,
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+
+		await screen.findByText("Save failed", {}, { timeout: 3_000 });
+		expect(
+			screen.getByText("This project changed in another tab or session."),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Retry" }),
+		).not.toBeInTheDocument();
 	});
 });

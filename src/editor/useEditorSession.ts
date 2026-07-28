@@ -11,6 +11,47 @@ import type { SaveStatus } from "../persistence/autosave";
 import type { ProjectRepository } from "../persistence/projectRepository";
 import { EditorSession } from "./EditorSession";
 
+/**
+ * Attaches the PRD `PRJ-03` navigation-flush behavior for one session: a
+ * queued-but-not-yet-written edit is flushed as soon as the browser signals
+ * the page might not get another chance to run, not only when this Solid
+ * effect tears down (in-app route changes already get that from `onCleanup`
+ * below).
+ *
+ * `visibilitychange` to `"hidden"` is the reliable signal across desktop and
+ * mobile browsers (a background tab, an app switch, a real close all fire
+ * it); `pagehide` covers the same-tab navigation/close cases some browsers
+ * fire without a visibility change first. Neither can guarantee the write
+ * completes before the page actually goes away — that is what "where the
+ * browser permits a flush" in the PRD acknowledges — but both start it as
+ * early as this code can detect the moment.
+ */
+function watchNavigationFlush(getSession: () => EditorSession | null): void {
+	if (typeof window === "undefined") return;
+
+	function flush(): void {
+		getSession()
+			?.autosave.flush()
+			.catch(() => {
+				// `flush()` only rejects if the repository call itself throws
+				// synchronously into the promise chain; a failed write already
+				// surfaces through `SaveStatus.state === "failed"`, so there is
+				// nothing further to do with the rejection here.
+			});
+	}
+
+	function handleVisibilityChange(): void {
+		if (document.visibilityState === "hidden") flush();
+	}
+
+	document.addEventListener("visibilitychange", handleVisibilityChange);
+	window.addEventListener("pagehide", flush);
+	onCleanup(() => {
+		document.removeEventListener("visibilitychange", handleVisibilityChange);
+		window.removeEventListener("pagehide", flush);
+	});
+}
+
 export interface EditorSessionState {
 	readonly loading: boolean;
 	readonly notFound: boolean;
@@ -30,6 +71,8 @@ export interface UseEditorSessionResult {
 	): TransactionResult | undefined;
 	undo(): TransactionResult | null | undefined;
 	redo(): TransactionResult | null | undefined;
+	/** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
+	retry(): Promise<SaveStatus> | undefined;
 }
 
 const INITIAL_STATE: EditorSessionState = {
@@ -62,6 +105,7 @@ export function useEditorSession(
 		...INITIAL_STATE,
 	});
 	let session: EditorSession | null = null;
+	watchNavigationFlush(() => session);
 
 	createEffect(() => {
 		const id = projectId();
@@ -134,5 +178,6 @@ export function useEditorSession(
 		dispatch: (commands) => session?.dispatch(commands),
 		undo: () => session?.undo(),
 		redo: () => session?.redo(),
+		retry: () => session?.autosave.retry(),
 	};
 }
