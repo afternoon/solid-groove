@@ -25,13 +25,13 @@ export const meta = {
 // content task reads that shape.
 const CONTRACT_TASKS = ['FND-001c', 'FND-002', 'FND-002b', 'FND-003', 'FND-004']
 
-// The active feature branch, not `main`. The Phase 0 remainder and Phase 1 are
-// being run against the docs commit that moved hosted-environment verification
-// to OPS-001 (after Phase 2). That commit is what tells an agent its
-// deployed-build checkboxes are out of scope rather than unmet, so branching
-// these tasks from `main` would hand them acceptance criteria nobody can meet.
-// Task PRs therefore target this branch and land on `main` with it.
-const BASE_BRANCH = 'claude/phase-0-phase-1-workflow-7j8mp9'
+// Phase 0 is complete and on `main`, including the docs commit that moved
+// hosted-environment verification to `OPS-001` (after Phase 2) — the commit that
+// tells an agent its deployed-build checkboxes are out of scope rather than
+// unmet. This was pinned to the staging feature branch while that was unmerged;
+// it points at `main` now, so a re-run of any single task branches from the real
+// tip rather than from a snapshot that predates `FND-009`.
+const BASE_BRANCH = 'main'
 const MAX_REVIEW_ROUNDS = 2
 
 // The agent registry is read once at session start, so `agentType` cannot resolve
