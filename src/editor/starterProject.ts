@@ -81,7 +81,7 @@ export function createStarterProject(ownerId: string): Project {
 		metadata: createProjectMetadata(context, {
 			ownerId,
 			name: "Untitled Project",
-			template: "blank",
+			template: "starter",
 			packDependencies: derivePackDependencies(song),
 		}),
 		song,
