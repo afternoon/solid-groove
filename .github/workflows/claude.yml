@@ -5,8 +5,14 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  # `assigned` is deliberately absent. The gate below can only match `@claude`
+  # in the issue body or title, and assigning an issue changes neither, so
+  # listening for it produced a trigger that could never fire — you assign the
+  # issue and wait on silence. Tag `@claude` in a comment instead. Reinstating
+  # assignment-to-run means gating on `github.event.assignee.login`, which is a
+  # deliberate change, not a missing `types` entry.
   issues:
-    types: [opened, assigned]
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
@@ -28,7 +34,52 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 1
+          # Full history, not a depth-1 clone. An implementation run has to
+          # branch from `main`, and a task whose dependency landed on another
+          # branch needs a real merge base to rebase or merge against. A
+          # shallow clone has no merge base to find, and the failure surfaces
+          # as a confusing git error partway through the run rather than at
+          # checkout.
+          fetch-depth: 0
+
+      # The steps below mirror `ci.yml`'s `checks` job. Without them a run that
+      # is asked to implement a backlog task lands on a runner with no bun and
+      # no audio device, and has to rediscover both before it can run a single
+      # test.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure a null ALSA output device
+        # ubuntu-latest has no /dev/snd, so Tone.js's real (non-offline) global
+        # AudioContext — created as a side effect of importing "tone" — cannot
+        # initialize: node-web-audio-api's cpal backend fails with
+        # "DeviceUnavailable" when it queries a default output device and finds
+        # none. Installing the ALSA runtime library plus a `null` PCM as the
+        # default output device (discards every sample, never touches hardware)
+        # gives cpal a device to find, without needing a kernel module
+        # (snd-dummy) or real audio hardware.
+        #
+        # This is not optional convenience. CLAUDE.md tells an agent that this
+        # failure is an environment problem and forbids the workarounds it
+        # would otherwise reach for (mocking Tone, skipping the file, editing
+        # src/audio/testAudioContext.ts). Without this step a run is left with
+        # a suite it cannot execute and no sanctioned way to fix it, so it
+        # reports the unit tests as unverified.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2t64
+          cat > ~/.asoundrc <<'EOF'
+          pcm.!default {
+              type null
+          }
+          ctl.!default {
+              type null
+          }
+          EOF
 
       - name: Run Claude Code
         id: claude

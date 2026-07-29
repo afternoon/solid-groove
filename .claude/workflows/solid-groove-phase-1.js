@@ -23,12 +23,13 @@ export const meta = {
 // Review is always Opus at high effort, and runs before any PR is opened.
 const CONTRACT_TASKS = ['LOOP-003', 'LOOP-008', 'LOOP-012', 'LOOP-014', 'CNT-001', 'LOOP-016']
 
-// The active feature branch, not `main`. Phase 1 is being run against the docs
-// commits that moved hosted-environment verification to OPS-001 and published
-// the GitHub issue index — both of which change what an agent owes. Branching
-// from `main` would hand every task acceptance criteria nobody can meet and no
-// issue to record itself in. Task PRs therefore target this branch.
-const BASE_BRANCH = 'claude/phase-0-phase-1-workflow-7j8mp9'
+// `main` carries all of Phase 0 now, including the docs commits that moved
+// hosted-environment verification to `OPS-001` and published the GitHub issue
+// index — both of which change what an agent owes, and both of which this
+// workflow's briefs assume. It was pinned to the staging feature branch while
+// those were unmerged; keeping that pin after they landed would have branched
+// every task from a snapshot that is already missing `FND-009`.
+const BASE_BRANCH = 'main'
 const MAX_REVIEW_ROUNDS = 2
 
 // The agent registry is read once at session start, so `agentType` cannot resolve
@@ -51,7 +52,7 @@ const WORKTREE = `## Your worktree
 You are in a git worktree, not the main checkout. Two things follow:
 
 - \`cd "$(git rev-parse --show-toplevel)"\` first, and use paths relative to that root. An absolute \`/home/user/solid-groove/...\` path points at a different checkout and will silently mislead you.
-- Your worktree starts at an older commit, and \`${BASE_BRANCH}\` cannot be checked out here because the main worktree holds it. Always branch from the remote ref:
+- Your worktree starts at an older commit than \`${BASE_BRANCH}\`, and a branch already checked out in the main worktree cannot be checked out here at all. Always branch from the remote ref, never from local \`${BASE_BRANCH}\` and never from wherever your worktree happens to start:
   \`\`\`
   git fetch origin ${BASE_BRANCH}
   git checkout -b <branch> origin/${BASE_BRANCH}
