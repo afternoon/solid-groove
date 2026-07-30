@@ -148,7 +148,11 @@ Decide whether stereo and stem exports preserve project gain exactly or apply a 
 
 Choose the provider/model, per-user budget and usage limits, request retention policy, and acceptable project context sent off-platform.
 
-Separately, set the two values `AI-09` deliberately leaves to the product owner: how long an assistant transcript is retained for product-improvement review (a short, fixed window, expressed in days), and the wording of the disclosure the user sees before their first assistant message. Also record whether the chosen provider may retain or train on requests, since the disclosure has to state that alongside our own retention. `AI-006` builds the disclosure surface, the account-scoped opt-out, and the deletion path regardless; this decision sets the window and the words. It blocks `AI-006` acceptance, not its implementation.
+Separately, set the two values `AI-09` leaves to the product owner: how long an assistant transcript is retained for product-improvement review, and the wording of the disclosure the user sees before their first assistant message.
+
+**Decided: transcripts are retained for 30 days from the message that produced them, then deleted.** Recorded in PRD section 16 and written into `AI-09`. `AI-006` implements it as configuration in one place; lengthening the window later is another product decision that updates the disclosure with it.
+
+**Still open:** the disclosure wording, and whether the chosen provider may retain or train on requests — the disclosure has to state the provider's posture alongside our own retention, so the two are settled together. `AI-006` builds the disclosure surface, the account-scoped opt-out, and the deletion path regardless; the remaining wording blocks `AI-006` acceptance, not its implementation.
 
 ### DEC-006 - Alpha test cohort
 
@@ -880,10 +884,10 @@ Build the transcript store the team reads to improve the assistant, together wit
 
 The store is its own collection behind the `AI-001` gateway, **not** an extension of the `FND-001c` analytics catalog. That catalog's parameter-content test forbids exactly what a transcript contains, and that test must keep passing unchanged — this task does not widen it, add an exemption to it, or route conversation text through the analytics or error-reporting boundaries.
 
-`DEC-005` supplies the retention window and the disclosure wording. Implement the mechanism with the window as configuration and the copy in one place; do not invent a duration and do not let a placeholder string reach the cohort.
+The retention window is decided: **30 days** from the message that produced the transcript (`DEC-005`, PRD section 16). Implement it as configuration in one place rather than a literal spread across the server, the deletion job, and the disclosure copy. `DEC-005` still owes the disclosure wording; keep that copy in one place too, and do not let a placeholder string reach the cohort.
 
 - [ ] A transcript record holds the user's messages, the assistant's replies, the proposals shown, and each proposal's apply/cancel/undo outcome, plus project ID, revision, and timestamps. A test rejects any record carrying song or clip content, audio, asset URLs, provider credentials, or tokens.
-- [ ] Retention expiry is enforced server-side from the message timestamp using the `DEC-005` window as configuration, and expired transcripts are deleted rather than archived, anonymized, or rolled up into a surviving summary. A test proves a record past the window is gone.
+- [ ] Retention expiry is enforced server-side from the message timestamp using the 30-day window as configuration, and expired transcripts are deleted rather than archived, anonymized, or rolled up into a surviving summary. A test proves a record past 30 days is gone, and the disclosure reads its window from the same configured value so the two can never disagree.
 - [ ] The disclosure is shown before the first assistant message of an account's first session, names the retention window and the human review purpose, sits with the `AI-06` explanation of what is sent to the provider, and gives accepting and declining equal weight. A test proves the assistant cannot be messaged before it has been shown.
 - [ ] A durable opt-out control lives in a discoverable settings surface, not only in the first-run dialog, and shows the current state without changing it. With retention off, every assistant capability still works — proven by running the `AI-005` evaluation set with retention disabled.
 - [ ] Opting out stops later retention and deletes that user's existing transcripts; emulator tests cover both, including a user who opts out mid-conversation.
