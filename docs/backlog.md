@@ -150,9 +150,13 @@ Choose the provider/model, per-user budget and usage limits, request retention p
 
 Separately, set the two values `AI-09` leaves to the product owner: how long an assistant transcript is retained for product-improvement review, and the wording of the disclosure the user sees before their first assistant message.
 
-**Decided: transcripts are retained for 30 days from the message that produced them, then deleted.** Recorded in PRD section 16 and written into `AI-09`. `AI-006` implements it as configuration in one place; lengthening the window later is another product decision that updates the disclosure with it.
+**Decided — retention window:** transcripts are retained for 30 days from the message that produced them, then deleted. `AI-006` implements it as configuration in one place; lengthening the window later is another product decision that updates the disclosure with it.
 
-**Still open:** the disclosure wording, and whether the chosen provider may retain or train on requests — the disclosure has to state the provider's posture alongside our own retention, so the two are settled together. `AI-006` builds the disclosure surface, the account-scoped opt-out, and the deletion path regardless; the remaining wording blocks `AI-006` acceptance, not its implementation.
+**Decided — provider posture:** the AI provider may retain the requests Solid Groove sends it and train its models on them. The alpha ships no provider-level opt-out; a user who does not want prompts reaching the provider declines the assistant, which `AI-06` already makes costless. This is a deliberate alpha trade-off, reopened if cohort feedback shows it matters to the target user — `HARD-005` probes for that signal and `P2-005` holds the work.
+
+Both are recorded in PRD section 16 and written into `AI-09`.
+
+**Still open:** the provider and model choice, per-user budget, usage limits, and the acceptable off-platform project context — the original scope of this decision. Plus final approval of the disclosure copy: `AI-006` drafts it against the decided terms rather than waiting, so wording review is an acceptance conversation on that task, not a blocker on starting it.
 
 ### DEC-006 - Alpha test cohort
 
@@ -884,11 +888,28 @@ Build the transcript store the team reads to improve the assistant, together wit
 
 The store is its own collection behind the `AI-001` gateway, **not** an extension of the `FND-001c` analytics catalog. That catalog's parameter-content test forbids exactly what a transcript contains, and that test must keep passing unchanged — this task does not widen it, add an exemption to it, or route conversation text through the analytics or error-reporting boundaries.
 
-The retention window is decided: **30 days** from the message that produced the transcript (`DEC-005`, PRD section 16). Implement it as configuration in one place rather than a literal spread across the server, the deletion job, and the disclosure copy. `DEC-005` still owes the disclosure wording; keep that copy in one place too, and do not let a placeholder string reach the cohort.
+Two terms are decided (`DEC-005`, PRD section 16): retention is **30 days** from the message that produced the transcript, and **the AI provider may retain and train on the requests we send it**. Implement the window as configuration in one place rather than a literal spread across the server, the deletion job, and the disclosure copy.
+
+Write the disclosure copy in this task rather than waiting for it. The product owner has delegated the first draft and will tweak wording later, so the bar is honest and specific against the decided terms, not final. Keep it in one module so a copy change is one edit. The draft below is a starting point, not approved copy:
+
+> **About assistant conversations**
+>
+> Your conversations with the assistant — your messages, its replies, and the changes it suggests — are kept for 30 days and read by the Solid Groove team to make the assistant better. After 30 days they are deleted.
+>
+> Your music itself is not kept: no audio, no notes, and no clip or project contents beyond the ID of the project you were working in.
+>
+> To answer you at all, your messages are sent to *[provider]*, the AI service behind the assistant. *[Provider]* may keep them and use them to improve its own models, under its terms. Turning off the setting below stops Solid Groove keeping your conversations and deletes what we have kept — it does not take back what has already been sent to *[provider]*. If you would rather nothing was sent, you can leave the assistant alone entirely; every other part of Solid Groove works without it.
+>
+> ☑ Keep my assistant conversations for 30 days to help improve Solid Groove
+>
+> The assistant behaves exactly the same either way.
+
+The `[provider]` placeholder resolves when `DEC-005` names the provider. Shipping the literal string `[provider]` to the cohort is a defect.
 
 - [ ] A transcript record holds the user's messages, the assistant's replies, the proposals shown, and each proposal's apply/cancel/undo outcome, plus project ID, revision, and timestamps. A test rejects any record carrying song or clip content, audio, asset URLs, provider credentials, or tokens.
 - [ ] Retention expiry is enforced server-side from the message timestamp using the 30-day window as configuration, and expired transcripts are deleted rather than archived, anonymized, or rolled up into a surviving summary. A test proves a record past 30 days is gone, and the disclosure reads its window from the same configured value so the two can never disagree.
 - [ ] The disclosure is shown before the first assistant message of an account's first session, names the retention window and the human review purpose, sits with the `AI-06` explanation of what is sent to the provider, and gives accepting and declining equal weight. A test proves the assistant cannot be messaged before it has been shown.
+- [ ] The disclosure states that the provider may retain and train on requests, and states plainly that the opt-out governs Solid Groove's own retention only — it does not withdraw what has already been sent to the provider. The control's own label and any confirmation text carry the same scope, so the claim survives a user who skims the dialog and reads only the setting.
 - [ ] A durable opt-out control lives in a discoverable settings surface, not only in the first-run dialog, and shows the current state without changing it. With retention off, every assistant capability still works — proven by running the `AI-005` evaluation set with retention disabled.
 - [ ] Opting out stops later retention and deletes that user's existing transcripts; emulator tests cover both, including a user who opts out mid-conversation.
 - [ ] The preference is account-scoped and read server-side before any write. Absent, stale, or unreadable preference state results in no retention; a security-rules test proves a client cannot cause retention the preference does not permit, and cannot read another account's transcripts.
@@ -966,6 +987,7 @@ Run facilitated loop-to-track sessions with the target cohort, categorize blocke
 
 - [ ] At least five representative users complete the qualitative validation exercise; the broader cohort is scheduled or completed.
 - [ ] Findings distinguish product confusion, missing capability, reliability, performance, and taste/content issues.
+- [ ] The sessions ask directly how the cohort feels about the `AI-09` disclosure — both the 30-day transcript retention and the provider's freedom to retain and train on requests — and the answers are recorded even when nobody objects. `DEC-005` deferred a provider-level opt-out pending exactly this signal, so an absent finding must mean it was asked and not raised, never that it was never asked. A finding that it matters unparks `P2-005`.
 - [ ] Release-blocking findings have regression tests or explicit product-owner disposition.
 
 ### REL-003 - Private-alpha release gate
@@ -1063,6 +1085,17 @@ Scope when unparked, at minimum: pack authoring and versioning from a user's own
 `PRD: 16 | Evidence: pending`
 
 Build the scheduled job that deletes anonymous projects 180 days after their last access, per `DEC-001`. The job must resolve last-access per project (reset by any open/access, not just edits), only ever delete anonymous-owned projects, and be safe to retry and idempotent against partial prior runs. It must also account for the `LOOP-001` device-local pairing flow: a project paired to an authenticated account before expiry is no longer anonymous and is never a deletion candidate, and the job itself does not touch the device-local pairing records, which are owned and cleaned up client-side by `LOOP-001`.
+
+### P2-005 - Provider retention and training opt-out
+
+`Status: parked | Owner: unassigned | Dependencies: REL-003, HARD-005`<br>
+`PRD: AI-09, AI-06; 10 Security and privacy | Evidence: pending`
+
+Give the user a way to use the assistant without their prompts being retained or trained on by the AI provider. `DEC-005` decided the alpha ships without this: the provider may retain and train, and the only way to opt out is to not use the assistant. `AI-09` requires the disclosure to say so honestly rather than let the transcript opt-out imply otherwise.
+
+**Parked on evidence, not on effort.** `HARD-005` asks the cohort about it directly and records the answer either way. This task unparks when that feedback says it matters to the target user — or earlier if a provider term, a regional constraint, or a prospective user makes it a condition of use.
+
+Scope when unparked, at minimum: whether the chosen provider offers a zero-retention or no-training tier and what it costs in latency, capability, or money; whether the setting is per-account or per-project; what the assistant does for a user who has it on if the provider has no such tier — degrade, refuse, or route elsewhere; and a disclosure that no longer needs the "does not take back what was already sent" caveat for those users. Do not build a second assistant path: this is a request-level flag through the existing `AI-001` gateway, not a parallel gateway.
 
 ## 10. Completion log
 
