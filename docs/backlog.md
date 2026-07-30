@@ -52,6 +52,7 @@ This removes the write contention that made the old in-file claim protocol unwor
 | | | `ARR-002` | [#60](https://github.com/afternoon/solid-groove/issues/60) | `HARD-004` | [#78](https://github.com/afternoon/solid-groove/issues/78) |
 | | | `ARR-003` | [#61](https://github.com/afternoon/solid-groove/issues/61) | `HARD-005` | [#79](https://github.com/afternoon/solid-groove/issues/79) |
 | | | `ARR-004` | [#62](https://github.com/afternoon/solid-groove/issues/62) | `REL-003` | [#80](https://github.com/afternoon/solid-groove/issues/80) |
+| | | | | `AI-006` | [#95](https://github.com/afternoon/solid-groove/issues/95) |
 
 Labels in use: `phase-0`…`phase-4` for scheduling, `decision` for section 3, `blocked` where an undecided `DEC-*` gates the task, `contract` for a task that owns or changes a published contract, `gate` for the `FND-009`/`LOOP-016`/`REL-001`/`REL-002`/`REL-003` release gates, and `operator` for `OPS-001`, which needs real credentials and must never be claimed by an implementation agent.
 
@@ -142,10 +143,12 @@ Decide whether stereo and stem exports preserve project gain exactly or apply a 
 
 `Status: todo`<br>
 `Owner: product-owner`<br>
-`Needed by: AI-001`<br>
+`Needed by: AI-001, AI-006`<br>
 `Evidence: pending`
 
 Choose the provider/model, per-user budget and usage limits, request retention policy, and acceptable project context sent off-platform.
+
+Separately, set the two values `AI-09` deliberately leaves to the product owner: how long an assistant transcript is retained for product-improvement review (a short, fixed window, expressed in days), and the wording of the disclosure the user sees before their first assistant message. Also record whether the chosen provider may retain or train on requests, since the disclosure has to state that alongside our own retention. `AI-006` builds the disclosure surface, the account-scoped opt-out, and the deletion path regardless; this decision sets the window and the words. It blocks `AI-006` acceptance, not its implementation.
 
 ### DEC-006 - Alpha test cohort
 
@@ -868,9 +871,32 @@ Build prompts, deterministic analysis helpers, and evaluation fixtures for loop 
 - [ ] Evaluation checks validity, editability, scope, atomic undo, explanation grounding, and musical diversity rather than exact notes.
 - [ ] Conventional and extreme requests are distinguished without silently forcing genre conventions.
 
+### AI-006 - Assistant transcript retention, disclosure, and opt-out
+
+`Status: todo | Owner: unassigned | Dependencies: AI-004, DEC-005`<br>
+`PRD: AI-09; AI-06; 10 Security and privacy | Evidence: pending`
+
+Build the transcript store the team reads to improve the assistant, together with the disclosure and the opt-out that make retaining it honest. The three ship as one slice: no transcript is written before the disclosure and the opt-out exist.
+
+The store is its own collection behind the `AI-001` gateway, **not** an extension of the `FND-001c` analytics catalog. That catalog's parameter-content test forbids exactly what a transcript contains, and that test must keep passing unchanged — this task does not widen it, add an exemption to it, or route conversation text through the analytics or error-reporting boundaries.
+
+`DEC-005` supplies the retention window and the disclosure wording. Implement the mechanism with the window as configuration and the copy in one place; do not invent a duration and do not let a placeholder string reach the cohort.
+
+- [ ] A transcript record holds the user's messages, the assistant's replies, the proposals shown, and each proposal's apply/cancel/undo outcome, plus project ID, revision, and timestamps. A test rejects any record carrying song or clip content, audio, asset URLs, provider credentials, or tokens.
+- [ ] Retention expiry is enforced server-side from the message timestamp using the `DEC-005` window as configuration, and expired transcripts are deleted rather than archived, anonymized, or rolled up into a surviving summary. A test proves a record past the window is gone.
+- [ ] The disclosure is shown before the first assistant message of an account's first session, names the retention window and the human review purpose, sits with the `AI-06` explanation of what is sent to the provider, and gives accepting and declining equal weight. A test proves the assistant cannot be messaged before it has been shown.
+- [ ] A durable opt-out control lives in a discoverable settings surface, not only in the first-run dialog, and shows the current state without changing it. With retention off, every assistant capability still works — proven by running the `AI-005` evaluation set with retention disabled.
+- [ ] Opting out stops later retention and deletes that user's existing transcripts; emulator tests cover both, including a user who opts out mid-conversation.
+- [ ] The preference is account-scoped and read server-side before any write. Absent, stale, or unreadable preference state results in no retention; a security-rules test proves a client cannot cause retention the preference does not permit, and cannot read another account's transcripts.
+- [ ] The preference survives sign-out, sign-in, and anonymous-to-account upgrade, including a preference set anonymously before the account existed.
+- [ ] Project deletion and account deletion delete the associated transcripts, covered by emulator tests alongside the existing `LOOP-001`/`HARD-003` deletion paths.
+- [ ] Retained records carry the internal-session flag already defined for analytics user properties, so team traffic is excluded from review.
+- [ ] The opt-out emits its own catalog event through the `FND-001c` boundary with a state key only, and the transport-failure test confirms retention behavior does not depend on analytics working.
+- [ ] `docs/testing.md` documents how to verify, against a deployed build, that declining leaves no stored transcript and that an expired one is gone.
+
 ### REL-002 - AI producer gate
 
-`Status: todo | Owner: unassigned | Dependencies: AI-005`<br>
+`Status: todo | Owner: unassigned | Dependencies: AI-005, AI-006`<br>
 `PRD: Phase 3 exit criteria | Evidence: pending`
 
 Run the full AI evaluation and failure matrix against stable manual commands.
@@ -878,6 +904,7 @@ Run the full AI evaluation and failure matrix against stable manual commands.
 - [ ] Reference loops become valid editable outlines and one undo restores byte-equivalent canonical song state.
 - [ ] Malformed, stale, cancelled, timed-out, rate-limited, and provider-failed requests never mutate the project.
 - [ ] Context size, latency, usage, error categories, and proposal acceptance are observable within approved privacy rules.
+- [ ] The `AI-09` transcript disclosure precedes the first assistant message, the opt-out has been exercised in both directions with no transcript written while off, and the full evaluation set passes with retention disabled.
 - [ ] Every Phase 3 event in the PRD OPS-02 catalog has a call site and is observed from the deployed build; apply, cancel, undo, and follow-up-edit rates compute per capability.
 
 ## 8. Phase 4: private-alpha hardening
@@ -911,7 +938,7 @@ Complete rule audits, validation, quotas, deletion/retention, CSP/secrets review
 
 - [ ] Security emulator tests and abuse cases cover all public backend surfaces and asset access.
 - [ ] Crash, save failure, audio start failure, export result, AI failure, and leak signals are actionable without recording project content.
-- [ ] Anonymous retention/deletion (180-day last-access window), the device-local pairing record's lifecycle (created on anonymous edit, deleted once paired to an account), analytics consent/retention (`DEC-009`), and AI data handling match product decisions and user-facing disclosures.
+- [ ] Anonymous retention/deletion (180-day last-access window), the device-local pairing record's lifecycle (created on anonymous edit, deleted once paired to an account), analytics consent/retention (`DEC-009`), assistant transcript retention and its opt-out (`AI-09`, built in `AI-006`), and AI data handling match product decisions and user-facing disclosures.
 - [ ] Every event in the PRD OPS-02 catalog is confirmed firing from the deployed production build with the expected parameters, and any gap is filed against its owning task rather than patched here.
 - [ ] Release dashboards compute the PRD section 11 primary, supporting, and guardrail measures — including crash-free session rate — from real cohort data with internal traffic excluded.
 

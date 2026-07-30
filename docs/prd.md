@@ -657,6 +657,23 @@ Acceptance criteria:
 - Failure to load or play a video is isolated and reported; it cannot corrupt or block the project, playback, or the rest of the conversation.
 - The privacy and third-party-embed implications of loading external video are surfaced to the user, consistent with the Section 10 security and privacy requirements.
 
+**AI-09 - Transcript retention for product improvement (P0)**  
+Assistant conversations may be retained for a short, fixed period so the team can read them and improve the assistant. This is a deliberate, disclosed exception to the section 10 rule that keeps user content out of collected data, so it carries its own store, its own disclosure, and its own opt-out. Transcript retention never travels through the OPS-02 analytics or OPS-03 error-reporting paths, and this requirement does not relax the content ban on either of them.
+
+Acceptance criteria:
+
+- A retained transcript covers the conversation and its outcome only: the user's messages, the assistant's replies, the proposals shown, and whether each was applied, cancelled, or undone. It carries the project ID and revision for context, and never the project's song or clip content, audio, provider credentials, or authentication tokens.
+- Retention is a fixed window measured from when a message was sent, after which the transcript is deleted rather than archived or aggregated into something that outlives it. The window and the disclosure wording are product decisions (`DEC-005`); no implementation default becomes the policy by omission.
+- Retained transcripts are used only to review and improve Solid Groove. They are not sold, not shared beyond that purpose, and not submitted for provider model training — whether the provider may retain or train on requests is part of the same `DEC-005` decision and is disclosed with this one.
+- The user is told before their first assistant message that conversations are retained for that period and read by the team to improve the product. The disclosure states the retention window in plain language, sits alongside the AI-06 explanation of what project data is sent to the provider, and uses no pattern that makes declining harder than accepting.
+- The user can opt out at any time from a durable, discoverable control rather than only from a first-run dialog, and can see the current setting without changing it. The assistant remains fully usable when retention is off; opting out costs no assistant or DAW capability.
+- Opting out stops retention for later messages and deletes already-retained transcripts for that user, within the window the disclosure promises for a deletion request.
+- The retention decision is made and enforced server-side, where the transcript would be written. Absent or unreadable preference state means no retention, not retention by default.
+- The preference belongs to the account, not the browser: it survives sign-out, sign-in, and anonymous-to-account upgrade, and an anonymous session can set it before an account exists.
+- Deleting a project or an account deletes the transcripts retained for it.
+- Internal team sessions are distinguishable from cohort sessions, so review does not read the team's own traffic as user feedback.
+- Tests prove that with retention off the server writes no transcript, and that with it on the stored record contains none of the fields forbidden above.
+
 ### 7.8 Learning experience
 
 **LRN-01 - Contextual explanations (P0)**  
@@ -1205,6 +1222,7 @@ These are alpha targets and must be measured before being treated as launch guar
 - Rich text from users or models is rendered without executable HTML.
 - Asset uploads are type/size validated and served with safe content headers when P1 import ships.
 - Users are told what project data is sent to an AI provider and can decline assistant use without losing manual DAW features.
+- Assistant transcripts are retained only for the fixed, disclosed window AI-09 defines, only to review and improve the product, and only until the user opts out or the window expires. The opt-out is durable, account-scoped, enforced server-side, and costs no capability. Transcripts live in their own store: the analytics and error pipelines carry no conversation text whatever this setting says.
 - Users are told what product analytics and error reports are collected (OPS-02, OPS-03) and can decline product analytics without losing any DAW or assistant capability.
 - Analytics and error events never carry project content, user-entered text, asset URLs, or authentication tokens, and this is enforced by a test rather than by reviewer memory. The test covers the third-party monitoring payload as well as our own event catalog, because that SDK collects breadcrumbs by default that the rule forbids.
 - Error monitoring uses a third-party processor (Sentry, per ADR 0001). It is disclosed to the user alongside product analytics, its retention and regional storage are part of the same product decision, and no additional processor is added to the alpha without an ADR.
@@ -1305,8 +1323,9 @@ Exit criteria: every OPS-01/OPS-02/OPS-03 criterion marked as needing a hosted e
 - Compact project analysis, server model gateway, tool schema, proposal cards, atomic apply/undo, contextual explanations, and initial capability set.
 - Evaluation fixtures for arrangement, variation, transformation, and invalid/stale responses.
 - The assistant events in the OPS-02 catalog: `assistant_message_sent`, `assistant_suggestion_clicked`, `assistant_proposal_shown`, `assistant_proposal_applied`, `assistant_proposal_cancelled`, `assistant_proposal_undone`, and `assistant_result_edited`. These carry capability and scope keys only — never prompts, replies, or project content.
+- The AI-09 transcript disclosure, retention window, and opt-out, shipping with the assistant rather than after it: no transcript is retained before the disclosure and the opt-out both exist. Transcript storage is its own store behind the AI-001 gateway, not an extension of the analytics catalog.
 
-Exit criteria: the assistant can turn a reference loop into a valid editable outline, explain the edits, survive malformed responses, and leave the project identical after one undo.
+Exit criteria: the assistant can turn a reference loop into a valid editable outline, explain the edits, survive malformed responses, and leave the project identical after one undo — and the first assistant message in the deployed build is preceded by the transcript disclosure, with the opt-out working in both directions.
 
 Later-vision assistant capabilities shown in the design mocks — richer instrument depth (INS-01 note) and curated tutorial video recommendations (AI-08 / LRN-03) — are P2 and land after the alpha, in a phase to be scheduled with their curation, trust, and privacy models. They are not Phase 3 alpha work.
 
@@ -1380,6 +1399,7 @@ Produces:
 - Provider-independent assistant contract.
 - Allowlisted tool definitions that compile to domain commands.
 - Adversarial validation and stale-revision behavior.
+- The AI-09 transcript store, its disclosure surface, its account-scoped opt-out, and the server-side retention and deletion path — kept separate from workstream E's analytics catalog rather than folded into it.
 - A fixture-based evaluation set with expected invariants, not brittle exact musical output.
 
 ### Workstream E - Content, quality, and release
@@ -1470,6 +1490,7 @@ A feature is done only when:
 | Production is the alpha's only hosted environment | A bad deploy reaches the cohort, or a deploy damages real project data | Deploy rules/indexes with the app from one pipeline, stamp and smoke-test every release, keep rollback documented and practised, hold incomplete journeys behind feature flags, and revisit the single-environment decision before public launch or before data loss would be unrecoverable |
 | Instrumentation is deferred to a later "telemetry" task | The alpha ends with no baseline for its own success measures and cannot tell which features were tried first | Ship the event catalog in Phase 0, make analytics part of the definition of done for every feature task, and assign each catalogued event to the task that builds the feature it measures |
 | Analytics or error reports leak project content | A privacy failure in the product whose value is the user's own music | One typed catalog with enumerated parameters, prefixed IDs instead of names, a test that rejects content-bearing parameters and covers events added later, and a user-facing opt-out that costs no capability |
+| Assistant transcripts are retained without the user knowing, or beyond the window promised | The team reads conversations about someone's unreleased music on an implicit licence, and a privacy commitment becomes unverifiable | Keep transcripts in their own store rather than folded into analytics, disclose before the first message, make the opt-out durable and account-scoped, enforce the decision server-side so absent preference state means no retention, and delete on expiry, opt-out, project deletion, and account deletion |
 | A third-party monitoring SDK collects more than the product allows | Clip names, console output, or on-screen music reach an external processor by default rather than by decision | Keep the reporting boundary in application code, disable console breadcrumbs and `sendDefaultPii`, scrub before transmission, forbid Session Replay without a superseding ADR, and extend the content test to the SDK payload rather than only our own events |
 
 ## 16. Decisions and open questions
@@ -1513,7 +1534,7 @@ A feature is done only when:
 - Which factory packs does the alpha ship, and what is each one's name, scope, and stated purpose? The list follows from the assets that can actually be cleared, so it is settled with the content plan rather than ahead of it.
 - For the later pack marketplace (LIB-05): who may publish a pack, what rights and revenue-sharing terms apply to a creator, what moderation and takedown process governs published content, and what happens to a project that uses a pack after that pack is withdrawn or the user's access to it ends? (Post-alpha; unscheduled.)
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
-- Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha?
+- Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha — including how long an assistant transcript is retained for product-improvement review, what the user-facing disclosure says, and whether the provider may retain or train on requests? (`DEC-005`, AI-09.)
 - Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
 - What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)
