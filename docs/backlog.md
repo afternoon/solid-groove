@@ -55,7 +55,7 @@ This removes the write contention that made the old in-file claim protocol unwor
 
 Labels in use: `phase-0`…`phase-4` for scheduling, `decision` for section 3, `blocked` where an undecided `DEC-*` gates the task, `contract` for a task that owns or changes a published contract, `gate` for the `FND-009`/`LOOP-016`/`REL-001`/`REL-002`/`REL-003` release gates, and `operator` for `OPS-001`, which needs real credentials and must never be claimed by an implementation agent.
 
-Six issues carry `blocked` because a product decision is genuinely unmade, not because the work is hard: `LOOP-001` (`DEC-001`), `CNT-002` (`DEC-003`, `DEC-010`), `LOOP-015` (`DEC-002`), `EXP-002`/`EXP-003` (`DEC-004`), `AI-001` (`DEC-005`), `HARD-003` (`DEC-001`, `DEC-005`, `DEC-009`), and `HARD-005` (`DEC-006`). An agent on one of these implements what does not depend on the decision and reports the rest — it never guesses the decision.
+Some issues carry `blocked` because a product decision is genuinely unmade, not because the work is hard: `CNT-002` (`DEC-003`, `DEC-010`), `LOOP-015` (`DEC-002`), `EXP-002`/`EXP-003` (`DEC-004`), `AI-001` (`DEC-005`), `HARD-003` (`DEC-005`, `DEC-009`), and `HARD-005` (`DEC-006`). An agent on one of these implements what does not depend on the decision and reports the rest — it never guesses the decision. (`DEC-001` is now decided — recorded in PRD section 16 — which unblocked `LOOP-001` and removes it and that part of `HARD-003` from this list.)
 
 ### Landing work
 
@@ -104,10 +104,10 @@ Decision tasks are owned by the product owner, not guessed by implementation age
 
 ### DEC-001 - Anonymous project retention
 
-`Status: todo`<br>
+`Status: done`<br>
 `Owner: product-owner`<br>
 `Needed by: LOOP-001`<br>
-`Evidence: pending`
+`Evidence: PRD section 16 (180-day retention, cross-device pairing)`
 
 Decide whether anonymous projects expire and define the account-upgrade promise across devices. Record the decision in PRD section 16 and add any retention/deletion requirements to `LOOP-001` and `HARD-003`.
 
@@ -447,16 +447,16 @@ Tasks in this phase may proceed in parallel after `FND-009`, subject to their ad
 
 ### LOOP-001 - Anonymous start and project dashboard
 
-`Status: todo | Owner: unassigned | Dependencies: FND-009, DEC-001`<br>
-`PRD: PRJ-01, PRJ-02, OPS-02 | Evidence: pending`
+`Status: done | Owner: unassigned | Dependencies: FND-009, DEC-001`<br>
+`PRD: PRJ-01, PRJ-02, OPS-02 | Evidence: #96`
 
 Implement anonymous entry plus create, open, rename, duplicate, and confirmed-delete flows against the v1 repository.
 
-- [ ] Blank and starter creation, independent deep duplication, empty/loading/error states, and last-modified metadata are tested.
-- [ ] Anonymous retention (180 days from last access, reset on access) matches `DEC-001`; refresh preserves the session.
-- [ ] Each device locally records which anonymous projects were created or edited there; authenticating on that device offers to pair those local records to the account, and a paired project's local record is deleted. A device shared by multiple people is not reconciled — the authenticating user is offered whatever anonymous projects were edited on that device (`DEC-001`).
-- [ ] Dashboard browser tests cover access control and destructive confirmation.
-- [ ] Emits `anon_session_created`, `account_upgraded`, `project_created` (with `source`, `template_id`, `genre`), `project_opened` (with `project_age_bucket`, `track_count_bucket`, `is_first_open`), and `project_deleted`. `project_opened` is what makes the 1- and 7-day reopen measure computable, so its parameters are not optional.
+- [x] Blank and starter creation, independent deep duplication, empty/loading/error states, and last-modified metadata are tested.
+- [x] Anonymous retention (180 days from last access, reset on access) matches `DEC-001`; refresh preserves the session.
+- [x] Each device locally records which anonymous projects were created or edited there; authenticating on that device offers to pair those local records to the account, and a paired project's local record is deleted. A device shared by multiple people is not reconciled — the authenticating user is offered whatever anonymous projects were edited on that device (`DEC-001`).
+- [x] Dashboard browser tests cover access control and destructive confirmation.
+- [x] Emits `anon_session_created`, `account_upgraded`, `project_created` (with `source`, `template_id`, `genre`), `project_opened` (with `project_age_bucket`, `track_count_bucket`, `is_first_open`), and `project_deleted`. `project_opened` is what makes the 1- and 7-day reopen measure computable, so its parameters are not optional.
 
 ### LOOP-001b - Public landing page
 
@@ -472,15 +472,15 @@ Implement the public marketing landing page as an honest front door into the ano
 
 ### LOOP-002 - Autosave and recovery UX
 
-`Status: todo | Owner: unassigned | Dependencies: FND-009`<br>
-`PRD: PRJ-03 | Evidence: pending`
+`Status: done | Owner: unassigned | Dependencies: FND-009`<br>
+`PRD: PRJ-03 | Evidence: #97`
 
 Complete `Saving`, `Saved`, `Save failed`, retry, navigation flush, and optimistic-conflict behavior.
 
-- [ ] High-frequency gestures coalesce writes without losing final state or blocking playback.
-- [ ] Offline/transient failure retains edits and retry is explicit; stale acknowledgements never move controls backward.
-- [ ] Fake-timer, repository, and browser navigation tests cover success and failure paths.
-- [ ] Emits `save_failed` with an actionable `error_code` and `retry_count`, `save_recovered` on successful retry, and `undo_used` with `direction` and `actor`. Coalesced writes emit one event per failure episode, not one per attempt.
+- [x] High-frequency gestures coalesce writes without losing final state or blocking playback.
+- [x] Offline/transient failure retains edits and retry is explicit; stale acknowledgements never move controls backward.
+- [x] Fake-timer, repository, and browser navigation tests cover success and failure paths.
+- [x] Emits `save_failed` with an actionable `error_code` and `retry_count`, `save_recovered` on successful retry, and `undo_used` with `direction` and `actor`. Coalesced writes emit one event per failure episode, not one per attempt.
 
 ### LOOP-003 - Transport, tempo, loop, and metronome
 
