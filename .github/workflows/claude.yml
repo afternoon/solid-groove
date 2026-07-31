@@ -52,6 +52,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
+          # Allow @claude on bot-authored PRs/comments too (e.g. a Claude-opened
+          # PR), which the action otherwise blocks as a "non-human actor".
+          allowed_bots: "*"
           # Without an explicit --allowedTools, this action does NOT grant
           # arbitrary Bash: only base tools (read-only git, file ops) run, so
           # every `bun`/`tsc`/`node` command a task needs is blocked with "This

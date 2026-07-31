@@ -70,12 +70,23 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
+          # The review/fix jobs act on PRs the Claude bot authored, which the
+          # action blocks by default ("non-human actor"). Allow it here too so
+          # the whole loop is consistent.
+          allowed_bots: "*"
           claude_args: |
             --model opus
-            --max-turns 120
+            --max-turns 250
             --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(cp:*),Bash(mv:*),Bash(mkdir:*),Bash(rm:*),Bash(echo:*),Bash(grep:*),Bash(find:*),Bash(sed:*),Bash(chmod:*)"
           prompt: |
             You are implementing a Solid Groove backlog task end to end.
+
+            IMPORTANT: You have a turn budget. Work efficiently — do not
+            re-read files you have already read, and batch your edits. If you
+            are running low on turns, prioritize committing, pushing, and
+            opening the PR with whatever is complete and green over polishing,
+            so the work is never stranded with no PR. Note in the PR body
+            anything left unfinished.
 
             The GitHub issue to implement is #${{ github.event.issue.number }}:
             "${{ github.event.issue.title }}".
@@ -148,9 +159,12 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
+          # The PR under review was opened by the Claude bot; without this the
+          # action aborts with "Workflow initiated by non-human actor".
+          allowed_bots: "*"
           claude_args: |
             --model opus
-            --max-turns 60
+            --max-turns 80
             --allowedTools "Read,Glob,Grep,LS,TodoWrite,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)"
           prompt: |
             You are adversarially reviewing pull request
@@ -243,9 +257,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
+          # The review that triggered this fix was submitted by the Claude bot.
+          allowed_bots: "*"
           claude_args: |
             --model opus
-            --max-turns 120
+            --max-turns 250
             --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(cp:*),Bash(mv:*),Bash(mkdir:*),Bash(rm:*),Bash(echo:*),Bash(grep:*),Bash(find:*),Bash(sed:*),Bash(chmod:*)"
           prompt: |
             Address the requested changes on pull request
