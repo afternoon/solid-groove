@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { memoryStorage } from "../testing/storage";
 import {
 	INTERNAL_TRAFFIC_STORAGE_KEY,
 	isInternalTraffic,
@@ -25,30 +26,35 @@ describe("parseInternalTrafficParam", () => {
 });
 
 describe("isInternalTraffic / syncInternalTraffic", () => {
+	// Inject an isolated store rather than jsdom's ambient `localStorage`: it can
+	// leak between tests, and in some Node/vitest environments the ambient global
+	// lacks a working `clear()`. See `src/testing/storage.ts`.
+	let storage: Storage;
+
 	beforeEach(() => {
-		localStorage.clear();
+		storage = memoryStorage();
 	});
 
 	it("defaults to false with nothing persisted and no query claim", () => {
-		expect(isInternalTraffic()).toBe(false);
-		expect(syncInternalTraffic({ search: "" })).toBe(false);
+		expect(isInternalTraffic(storage)).toBe(false);
+		expect(syncInternalTraffic({ search: "" }, storage)).toBe(false);
 	});
 
 	it("persists internal=1 so it survives a later load with no param", () => {
-		expect(syncInternalTraffic({ search: "?internal=1" })).toBe(true);
-		expect(localStorage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBe("true");
+		expect(syncInternalTraffic({ search: "?internal=1" }, storage)).toBe(true);
+		expect(storage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBe("true");
 
 		// A later navigation with no query param at all still reads as internal.
-		expect(syncInternalTraffic({ search: "" })).toBe(true);
+		expect(syncInternalTraffic({ search: "" }, storage)).toBe(true);
 	});
 
 	it("internal=0 clears a previously persisted flag", () => {
-		syncInternalTraffic({ search: "?internal=1" });
-		expect(isInternalTraffic()).toBe(true);
+		syncInternalTraffic({ search: "?internal=1" }, storage);
+		expect(isInternalTraffic(storage)).toBe(true);
 
-		expect(syncInternalTraffic({ search: "?internal=0" })).toBe(false);
-		expect(localStorage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBeNull();
-		expect(isInternalTraffic()).toBe(false);
+		expect(syncInternalTraffic({ search: "?internal=0" }, storage)).toBe(false);
+		expect(storage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBeNull();
+		expect(isInternalTraffic(storage)).toBe(false);
 	});
 
 	it("fails closed if storage throws rather than surfacing an error", () => {
