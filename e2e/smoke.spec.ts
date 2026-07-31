@@ -160,7 +160,22 @@ test.describe("dashboard project management", () => {
 test.describe("keyboard shortcuts", () => {
 	test("plays from the keyboard and opens the mapping guide with ?", async ({
 		page,
+		browserName,
 	}) => {
+		// Playback is asserted in Chromium only — the same known, tracked gap
+		// `e2e-emulator/slice.spec.ts` documents: in Firefox here
+		// `AudioContext.resume()` never settles, so the transport button never
+		// flips. That is `LOOP-003` (#43), not a shortcut-dispatch problem; the
+		// `?` guide and text-entry coverage below run in every gating browser.
+		// See docs/testing.md, "Playback is asserted in Chromium only".
+		const canAssertPlayback = browserName === "chromium";
+		test.info().annotations.push({
+			type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+			description: canAssertPlayback
+				? `playback asserted in ${browserName}`
+				: `playback not asserted in ${browserName}: AudioContext.resume() never settles here — see LOOP-003 (#43)`,
+		});
+
 		await page.goto("/dashboard");
 		await page.getByRole("button", { name: "New Project" }).click();
 		await expect(
@@ -169,14 +184,16 @@ test.describe("keyboard shortcuts", () => {
 
 		// Space toggles playback from the registry, not from a component's own
 		// listener, and the transport button reflects it.
-		await page.keyboard.press("Space");
-		await expect(
-			page.getByRole("button", { name: "Stop playback" }),
-		).toBeVisible();
-		await page.keyboard.press("Space");
-		await expect(
-			page.getByRole("button", { name: "Start playback" }),
-		).toBeVisible();
+		if (canAssertPlayback) {
+			await page.keyboard.press("Space");
+			await expect(
+				page.getByRole("button", { name: "Stop playback" }),
+			).toBeVisible();
+			await page.keyboard.press("Space");
+			await expect(
+				page.getByRole("button", { name: "Start playback" }),
+			).toBeVisible();
+		}
 
 		// `?` opens the guide, generated from the registry.
 		await page.keyboard.press("?");
