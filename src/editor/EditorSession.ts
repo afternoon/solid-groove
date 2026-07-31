@@ -2,7 +2,7 @@ import {
 	type Analytics,
 	analytics as defaultAnalytics,
 } from "../analytics/analytics";
-import { bucketOf } from "../analytics/buckets";
+import { bucketOf, projectAgeBucket } from "../analytics/buckets";
 import { COMMAND_IDS, type CommandId } from "../analytics/catalog";
 import {
 	CommandHistory,
@@ -20,6 +20,7 @@ import {
 import type { ProjectRepository } from "../persistence/projectRepository";
 import { type Clock, systemClock } from "../shared/clock";
 import type { Scheduler } from "../shared/scheduler";
+import { markProjectOpened } from "./deviceProjectRecord";
 
 export interface EditorSessionOptions {
 	readonly repository: ProjectRepository;
@@ -30,6 +31,11 @@ export interface EditorSessionOptions {
 	/** Forwarded to `ProjectAutosave`; tests inject a manual scheduler. */
 	readonly scheduler?: Scheduler;
 	readonly coalesceMs?: number;
+	/**
+	 * Where the `project_opened` first-open marker is recorded (PRD `OPS-02`).
+	 * Tests inject an isolated store; defaults to `localStorage`.
+	 */
+	readonly deviceStorage?: Storage | null;
 }
 
 function isCommandId(value: string): value is CommandId {
@@ -89,6 +95,7 @@ export class EditorSession {
 		this.unwatch = options.repository.watchProject(this.projectId, (event) =>
 			this.autosave.applyRemote(event),
 		);
+		this.logProjectOpened(options.project, options.deviceStorage);
 	}
 
 	get project(): Project {
@@ -132,6 +139,24 @@ export class EditorSession {
 		this.unwatch();
 		this.autosave.dispose();
 		this.history.dispose();
+	}
+
+	/**
+	 * `project_opened` (PRD `OPS-02`), fired once per `EditorSession` — i.e.
+	 * once per actual open, not once per project like `first_edit`. Its
+	 * parameters are not optional: they are what makes the section 11 1- and
+	 * 7-day reopen measure computable.
+	 */
+	private logProjectOpened(
+		project: Project,
+		deviceStorage: Storage | null | undefined,
+	): void {
+		const ageMs = Math.max(0, this.clock.now() - project.metadata.createdAt);
+		this.analytics.log("project_opened", {
+			project_age_bucket: projectAgeBucket(ageMs),
+			track_count_bucket: bucketOf("track_count", project.song.tracks.length),
+			is_first_open: markProjectOpened(this.projectId, deviceStorage),
+		});
 	}
 
 	private logFirstEdit(result: TransactionSuccess): void {

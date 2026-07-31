@@ -33,7 +33,8 @@
 }
 
 .upgrade-prompt button,
-.dashboard-actions .new-project {
+.dashboard-actions .new-project,
+.dashboard-actions .blank-project {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
@@ -43,7 +44,8 @@
 }
 
 .upgrade-prompt button:disabled,
-.dashboard-actions .new-project:disabled {
+.dashboard-actions .new-project:disabled,
+.dashboard-actions .blank-project:disabled {
 	opacity: 0.6;
 	cursor: default;
 }
@@ -53,9 +55,14 @@
 	flex-direction: column;
 	align-items: flex-end;
 	gap: 8px;
-	/* Pull the button up so it aligns with the "Projects" header row. */
+	/* Pull the buttons up so they align with the "Projects" header row. */
 	margin-top: -68px;
 	margin-bottom: 28px;
+}
+
+.dashboard-actions .action-row {
+	display: flex;
+	gap: 8px;
 }
 
 .dashboard-actions .create-error {
@@ -182,4 +189,63 @@
 	padding: 10px 16px;
 	border-radius: 8px;
 	cursor: pointer;
+}
+
+/* The card title's stretched link (`.project-title a::after`) covers the
+   whole card, so the row actions below need their own stacking context to
+   stay clickable above it. */
+.project-card-actions,
+.project-rename-form {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.project-card-actions .project-action {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	font-size: var(--font-size-small);
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	color: var(--color-text);
+	cursor: pointer;
+}
+
+.project-card-actions .project-action:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.project-card-actions .project-action-destructive {
+	color: #ff9a9a;
+}
+
+.project-rename-form .project-rename-input {
+	flex: 1;
+	min-width: 0;
+	padding: 6px 8px;
+	border-radius: 6px;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	background: var(--color-background);
+	color: var(--color-text);
+}
+
+.project-rename-form button {
+	padding: 6px 10px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.project-row-error {
+	position: relative;
+	z-index: 1;
+	margin: 0;
+	font-size: var(--font-size-small);
+	color: #ff8a8a;
 }

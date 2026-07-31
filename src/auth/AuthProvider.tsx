@@ -7,7 +7,10 @@ import {
 	useContext,
 } from "solid-js";
 import { createStore } from "solid-js/store";
-import { analytics } from "../analytics/analytics";
+import {
+	type Analytics,
+	analytics as defaultAnalytics,
+} from "../analytics/analytics";
 import { authService } from "./authService";
 
 interface AuthState {
@@ -18,7 +21,13 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>();
 
-export function AuthProvider(props: ParentProps) {
+export interface AuthProviderProps extends ParentProps {
+	/** Overridden in tests; defaults to the app-wide analytics boundary. */
+	analytics?: Analytics;
+}
+
+export function AuthProvider(props: AuthProviderProps) {
+	const analytics = props.analytics ?? defaultAnalytics;
 	const [state, setState] = createStore<AuthState>({
 		user: null,
 		loading: true,
@@ -40,11 +49,19 @@ export function AuthProvider(props: ParentProps) {
 			if (!user) {
 				// No session yet: sign the visitor in anonymously so they can
 				// start working immediately. Firebase persists this session
-				// locally, so returning users keep their work and uid.
-				authService.signInAnonymously().catch((error) => {
-					console.error("Error signing in anonymously:", error);
-					setState({ user: null, loading: false, isAnonymous: false });
-				});
+				// locally, so returning users keep their work and uid, and this
+				// branch never runs for them — `onAuthStateChanged` reports their
+				// existing user directly instead. That is what makes it safe to
+				// log `anon_session_created` (PRD `OPS-02`) unconditionally here:
+				// reaching this branch at all means a genuinely new anonymous
+				// Firebase identity is about to be created, not a returning one.
+				authService
+					.signInAnonymously()
+					.then(() => analytics.log("anon_session_created"))
+					.catch((error) => {
+						console.error("Error signing in anonymously:", error);
+						setState({ user: null, loading: false, isAnonymous: false });
+					});
 				return;
 			}
 

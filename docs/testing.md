@@ -69,7 +69,7 @@ bun run test:browser
 
 Config: `playwright.config.ts`. `webServer` starts `bun run dev` with `VITE_MOCK_BACKEND=true` and waits for it before running tests, so the suite needs no real Firebase project — see `src/auth/authService.ts` for the mock auth implementation it exercises and `src/projectRepositoryClient.ts` for the in-memory `ProjectRepository` it exercises (a fresh, empty store per page load — this suite cannot prove persistence across a real reload, which is what `e2e-emulator/` is for; see below).
 
-Suite location: `e2e/`. `e2e/smoke.spec.ts` is PRD section 14's "anonymous start" required end-to-end layer: it loads the landing page, starts an anonymous session, and confirms the dashboard renders its empty state, then creates a project and confirms the `FND-009` slice's 16-step grid renders on it.
+Suite location: `e2e/`. `e2e/smoke.spec.ts` is PRD section 14's "anonymous start" required end-to-end layer: it loads the landing page, starts an anonymous session, and confirms the dashboard renders its empty state, then creates a project and confirms the `FND-009` slice's 16-step grid renders on it. The same file's `dashboard project management` block is `LOOP-001`'s dashboard coverage against the mock backend: a Blank Project's empty editor state, and rename/duplicate/confirmed-delete acting only on the row they were invoked on.
 
 ### Browser E2E suite against the Firebase Emulator
 
@@ -80,6 +80,8 @@ bun run test:browser:emulator
 Config: `playwright.emulator.config.ts`. Unlike the suite above, this points the *real* Firebase SDK at a local Firestore + Auth emulator (`VITE_FIRESTORE_EMULATOR_HOST`/`VITE_AUTH_EMULATOR_HOST`, wired in `src/firebaseConfig.ts`) instead of the in-memory mock — `bun run test:browser:emulator` runs `firebase emulators:exec --only firestore,auth` around the Playwright run, the same pattern `test:emulator` uses. This is what proves the `FND-009` slice's "save it, reload it, reproduce playback" step against a real backend: the in-memory repository above is a fresh, empty store on every page load, so it cannot prove anything survives an actual `page.reload()`.
 
 Suite location: `e2e-emulator/`. `e2e-emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `playwright.emulator.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
+
+`e2e-emulator/dashboard.spec.ts` is `LOOP-001`'s access-control and destructive-confirmation coverage — the reason it needs the real emulator rather than the mock backend: a second `browser.newContext()` gets its own anonymous Firebase identity, so it can prove a project created by one anonymous session neither appears in another session's listing nor opens by URL (Firestore's security rules deny the read; the repository maps that `permission-denied` onto the same "not found" state an unknown ID would produce). The same file confirms a cancelled delete leaves a project in place and a confirmed one is gone after a real `page.reload()`.
 
 ### Playback is asserted in Chromium only — a known, tracked gap
 

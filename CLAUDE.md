@@ -53,13 +53,15 @@ src/
 ├── components/         # Reusable UI components
 │   ├── Dashboard.tsx
 │   ├── LoginButton.tsx
-│   └── ProjectList.tsx
+│   ├── ProjectList.tsx
+│   └── ConfirmDialog.tsx   # Accessible confirmation modal for destructive actions (PRD PRJ-02)
 ├── editor/             # The FND-009 foundation vertical slice: editor state, audio wiring, and its 16-step UI
 │   ├── EditorSession.ts     # Framework-free CommandHistory + ProjectAutosave + repository-watch wiring for one open project
 │   ├── useEditorSession.ts  # Solid adapter: loads a project, exposes EditorSession as reactive state
 │   ├── useProjectAudio.ts   # Wires one project onto ProjectAudioGraph/AudioRuntime; play/stop and audio_start_failed
 │   ├── starterProject.ts    # Builds the "New Project" starter (one sampler track, pack-qualified asset, one note clip)
 │   ├── StepGrid.tsx         # The slice's 16-step grid; dispatches note.add/note.remove through the command layer
+│   ├── deviceProjectRecord.ts # Device-local "opened before" bookkeeping for project_opened's is_first_open (LOOP-001)
 │   └── EditorView.tsx       # The project route's top-level component
 ├── domain/             # Canonical schema-v1 domain model (authoritative)
 │   ├── entities.ts          # Entity shapes and their Zod schemas
@@ -70,6 +72,7 @@ src/
 │   ├── parse.ts             # Validation and domain invariants
 │   ├── serialize.ts         # Deterministic JSON serialization
 │   ├── factories.ts         # Blank/entity factories
+│   ├── duplicateProject.ts  # Independent deep duplication with fresh IDs for every mutable entity (PRJ-02)
 │   └── fixtures.ts          # Deterministic reference projects
 ├── persistence/        # Schema-v1 Firestore layout and repository boundary
 │   ├── documents.ts         # Collection paths, document shapes, chunk overflow
