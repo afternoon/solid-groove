@@ -1,3 +1,4 @@
+import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
@@ -35,9 +36,15 @@ vi.mock("../projectRepositoryClient", () => ({
 	getProjectRepository: () => Promise.resolve(repository),
 }));
 
+// EditorView links back to the dashboard with <A>, which needs a matched Route
+// context to resolve against — a bare MemoryRouter isn't enough.
 function renderEditor(projectId: string) {
 	const EditorView = EditorViewModule.default;
-	return render(() => <EditorView projectId={projectId} />);
+	return render(() => (
+		<MemoryRouter>
+			<Route path="/" component={() => <EditorView projectId={projectId} />} />
+		</MemoryRouter>
+	));
 }
 
 describe("EditorView", () => {
