@@ -52,3 +52,13 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
+          # Without an explicit --allowedTools, this action does NOT grant
+          # arbitrary Bash: only base tools (read-only git, file ops) run, so
+          # every `bun`/`tsc`/`node` command a task needs is blocked with "This
+          # command requires approval" and no way to approve it in a headless
+          # run (see issue #43's 2026-07-31 comment). Enumerate the command
+          # prefixes the repo's tasks actually use, keeping bare `Bash` too.
+          claude_args: |
+            --model opus
+            --max-turns 120
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(cp:*),Bash(mv:*),Bash(mkdir:*),Bash(rm:*),Bash(echo:*),Bash(grep:*),Bash(find:*),Bash(sed:*),Bash(chmod:*)"

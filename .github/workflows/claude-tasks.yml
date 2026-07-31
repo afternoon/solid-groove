@@ -73,7 +73,7 @@ jobs:
           claude_args: |
             --model opus
             --max-turns 120
-            --allowedTools Read,Write,Edit,MultiEdit,Glob,Grep,LS,Bash,TodoWrite,NotebookEdit,WebFetch,WebSearch
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(cp:*),Bash(mv:*),Bash(mkdir:*),Bash(rm:*),Bash(echo:*),Bash(grep:*),Bash(find:*),Bash(sed:*),Bash(chmod:*)"
           prompt: |
             You are implementing a Solid Groove backlog task end to end.
 
@@ -151,7 +151,7 @@ jobs:
           claude_args: |
             --model opus
             --max-turns 60
-            --allowedTools Read,Glob,Grep,LS,Bash,TodoWrite,WebFetch,WebSearch
+            --allowedTools "Read,Glob,Grep,LS,TodoWrite,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(grep:*),Bash(find:*)"
           prompt: |
             You are adversarially reviewing pull request
             #${{ steps.pr.outputs.number }} against its PRD acceptance criteria
@@ -246,7 +246,7 @@ jobs:
           claude_args: |
             --model opus
             --max-turns 120
-            --allowedTools Read,Write,Edit,MultiEdit,Glob,Grep,LS,Bash,TodoWrite,NotebookEdit,WebFetch,WebSearch
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(cp:*),Bash(mv:*),Bash(mkdir:*),Bash(rm:*),Bash(echo:*),Bash(grep:*),Bash(find:*),Bash(sed:*),Bash(chmod:*)"
           prompt: |
             Address the requested changes on pull request
             #${{ github.event.pull_request.number }}.
