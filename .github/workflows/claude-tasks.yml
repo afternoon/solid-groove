@@ -72,6 +72,7 @@ jobs:
           show_full_output: true
           claude_args: |
             --model opus
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash
           prompt: |
             You are implementing a Solid Groove backlog task end to end.
 
@@ -148,6 +149,7 @@ jobs:
           show_full_output: true
           claude_args: |
             --model opus
+            --allowedTools Read,Glob,Grep,Bash
           prompt: |
             You are adversarially reviewing pull request
             #${{ steps.pr.outputs.number }} against its PRD acceptance criteria
@@ -241,6 +243,7 @@ jobs:
           show_full_output: true
           claude_args: |
             --model opus
+            --allowedTools Read,Write,Edit,Glob,Grep,Bash
           prompt: |
             Address the requested changes on pull request
             #${{ github.event.pull_request.number }}.
