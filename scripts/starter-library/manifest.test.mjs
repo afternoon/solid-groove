@@ -18,6 +18,13 @@ import { storageKeyFor } from "./wav.mjs";
 // runs on every save. The full catalogue is rendered and validated by
 // `bun run library:validate` in CI; here we render a few representative assets
 // and drive the validation rules with fixtures.
+//
+// The handful of tests that actually render audio (each calls `buildAsset`)
+// take ~1-2s in isolation but can exceed vitest's 5s default when the runner
+// is saturated by other suites in parallel — real audio synthesis, not a hang.
+// They pass this generous timeout so a busy machine can't flake them.
+const RENDER_TIMEOUT_MS = 30_000;
+
 const SAMPLE_IDS = [
 	"sg-one-shot-drums-kick-0001",
 	"sg-one-shot-drums-closed-hat-0002",
@@ -33,68 +40,92 @@ const sampleEntries = SAMPLE_IDS.map((id) => {
 });
 
 describe("buildAsset", () => {
-	it("is deterministic: the same entry renders byte-identical audio", () => {
-		for (const entry of sampleEntries) {
-			const first = buildAsset(entry);
-			const second = buildAsset(entry);
-			expect(second.bytes.equals(first.bytes)).toBe(true);
-			expect(second.asset).toEqual(first.asset);
-		}
-	});
+	it(
+		"is deterministic: the same entry renders byte-identical audio",
+		() => {
+			for (const entry of sampleEntries) {
+				const first = buildAsset(entry);
+				const second = buildAsset(entry);
+				expect(second.bytes.equals(first.bytes)).toBe(true);
+				expect(second.asset).toEqual(first.asset);
+			}
+		},
+		RENDER_TIMEOUT_MS,
+	);
 
-	it("derives the storage key from the bytes it actually wrote", () => {
-		for (const entry of sampleEntries) {
-			const { asset, bytes } = buildAsset(entry);
-			expect(asset.files.master.bytes).toBe(bytes.length);
-			expect(asset.files.master.storageKey).toBe(
-				storageKeyFor(asset.files.master.sha256),
-			);
-		}
-	});
+	it(
+		"derives the storage key from the bytes it actually wrote",
+		() => {
+			for (const entry of sampleEntries) {
+				const { asset, bytes } = buildAsset(entry);
+				expect(asset.files.master.bytes).toBe(bytes.length);
+				expect(asset.files.master.storageKey).toBe(
+					storageKeyFor(asset.files.master.sha256),
+				);
+			}
+		},
+		RENDER_TIMEOUT_MS,
+	);
 
-	it("records rights, provenance, and a reproducible recipe", () => {
-		const { asset } = buildAsset(sampleEntries[0]);
-		expect(asset.license).toMatchObject({
-			creator: "Solid Groove",
-			rawRedistributionAllowed: true,
-			evidencePath: "docs/licenses/starter-library-v1.md",
-		});
-		expect(asset.provenance.sourceType).toBe("synthesized");
-		expect(asset.provenance.recipe.voice).toBe("kick");
-		expect(asset.provenance.recipe.seed).toBeTypeOf("number");
-		// Not `approved`: no human has run the section 11 musical review.
-		expect(asset.provenance.reviewState).toBe("metadata-review");
-	});
+	it(
+		"records rights, provenance, and a reproducible recipe",
+		() => {
+			const { asset } = buildAsset(sampleEntries[0]);
+			expect(asset.license).toMatchObject({
+				creator: "Solid Groove",
+				rawRedistributionAllowed: true,
+				evidencePath: "docs/licenses/starter-library-v1.md",
+			});
+			expect(asset.provenance.sourceType).toBe("synthesized");
+			expect(asset.provenance.recipe.voice).toBe("kick");
+			expect(asset.provenance.recipe.seed).toBeTypeOf("number");
+			// Not `approved`: no human has run the section 11 musical review.
+			expect(asset.provenance.reviewState).toBe("metadata-review");
+		},
+		RENDER_TIMEOUT_MS,
+	);
 
-	it("qualifies every asset with the pack its family belongs to (CNT-000b)", () => {
-		for (const entry of sampleEntries) {
-			const { asset } = buildAsset(entry);
-			expect(asset.pack).toEqual(packRef(packForFamily(entry.family)));
-		}
-		// Different families land in different packs — this is the whole point of
-		// pack-qualified identity (docs/sample-library.md section 5.1).
-		const drums = buildAsset(sampleEntries[0]).asset; // drums/kick
-		const bass = buildAsset(sampleEntries[2]).asset; // bass/sub
-		expect(drums.pack.id).not.toBe(bass.pack.id);
-	});
+	it(
+		"qualifies every asset with the pack its family belongs to (CNT-000b)",
+		() => {
+			for (const entry of sampleEntries) {
+				const { asset } = buildAsset(entry);
+				expect(asset.pack).toEqual(packRef(packForFamily(entry.family)));
+			}
+			// Different families land in different packs — this is the whole point of
+			// pack-qualified identity (docs/sample-library.md section 5.1).
+			const drums = buildAsset(sampleEntries[0]).asset; // drums/kick
+			const bass = buildAsset(sampleEntries[2]).asset; // bass/sub
+			expect(drums.pack.id).not.toBe(bass.pack.id);
+		},
+		RENDER_TIMEOUT_MS,
+	);
 
-	it("describes tonal and unpitched assets differently", () => {
-		const chord = buildAsset(sampleEntries[3]).asset;
-		expect(chord.audio.rootNote).toBe("C3");
-		expect(chord.audio.tuningCents).toBe(0);
-		const glitch = buildAsset(sampleEntries[4]).asset;
-		expect(glitch.audio.rootNote).toBeNull();
-		expect(glitch.audio.tuningCents).toBeNull();
-		// One-shots never claim a tempo.
-		expect(glitch.audio.loopable).toBe(false);
-		expect(glitch.audio.bpm).toBeNull();
-	});
+	it(
+		"describes tonal and unpitched assets differently",
+		() => {
+			const chord = buildAsset(sampleEntries[3]).asset;
+			expect(chord.audio.rootNote).toBe("C3");
+			expect(chord.audio.tuningCents).toBe(0);
+			const glitch = buildAsset(sampleEntries[4]).asset;
+			expect(glitch.audio.rootNote).toBeNull();
+			expect(glitch.audio.tuningCents).toBeNull();
+			// One-shots never claim a tempo.
+			expect(glitch.audio.loopable).toBe(false);
+			expect(glitch.audio.bpm).toBeNull();
+		},
+		RENDER_TIMEOUT_MS,
+	);
 
-	it("marks the choke group on hats", () => {
-		const hat = buildAsset(sampleEntries[1]).asset;
-		expect(hat.audio.chokeGroup).toBe("drums-hat");
-		expect(hat.audio.chokeRole).toBe("closed");
-	});
+	it(
+		"marks the choke group on hats",
+		() => {
+			const hat = buildAsset(sampleEntries[1]).asset;
+			expect(hat.audio.chokeGroup).toBe("drums-hat");
+			expect(hat.audio.chokeRole).toBe("closed");
+		},
+		RENDER_TIMEOUT_MS,
+	);
 });
 
 describe("serialize", () => {
