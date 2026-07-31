@@ -1,7 +1,9 @@
+import { A } from "@solidjs/router";
 import {
 	HiSolidArrowUturnLeft,
 	HiSolidArrowUturnRight,
 	HiSolidPlay,
+	HiSolidSquares2x2,
 	HiSolidStop,
 } from "solid-icons/hi";
 import {
@@ -123,6 +125,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 					{(currentProject) => (
 						<>
 							<header class="editor-header">
+								<A
+									class="back-to-projects"
+									href="/dashboard"
+									aria-label="Projects"
+									title="Projects"
+								>
+									<HiSolidSquares2x2 size={18} />
+								</A>
 								<h1 class="project-name">{currentProject().metadata.name}</h1>
 								<div class="transport-controls">
 									<button

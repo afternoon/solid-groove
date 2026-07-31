@@ -101,7 +101,12 @@ test.describe("dashboard project management", () => {
 		await page.getByRole("button", { name: "New Project" }).click();
 		await expect(page).toHaveURL(/\/projects\/prj_/);
 
-		await page.goto("/dashboard");
+		// Return to the dashboard via the editor's client-side "Projects" link,
+		// NOT page.goto("/dashboard"). A full page load would drop the in-memory
+		// mock store (see playwright.config.ts), losing the project just created;
+		// the router link keeps the same page alive so the new project is listed.
+		await page.getByRole("link", { name: /projects/i }).click();
+		await expect(page).toHaveURL(/\/dashboard$/);
 		await expect(page.getByText("Untitled Project")).toBeVisible();
 
 		// Rename.

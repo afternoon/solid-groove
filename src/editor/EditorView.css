@@ -43,9 +43,22 @@
 	gap: var(--size-divider);
 }
 
+.editor-header .back-to-projects {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--color-text-secondary);
+	text-decoration: none;
+}
+
+.editor-header .back-to-projects:hover {
+	color: var(--color-text-primary);
+}
+
 .editor-header .project-name {
 	font-size: var(--font-size-base);
 	margin: 0;
+	margin-right: auto;
 }
 
 .editor-header .transport-controls {
