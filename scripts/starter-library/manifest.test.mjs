@@ -374,7 +374,7 @@ describe("validatePackManifest", () => {
 			(m) => {
 				m.assets[0].role = "kazoo";
 			},
-			/unknown family\/role/,
+			/unknown one-shot family\/role/,
 		],
 		[
 			"an unknown genre",

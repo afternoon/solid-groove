@@ -41,7 +41,7 @@ The pipeline is committed but has never run against a real project: no Firebase 
 
 ## Sounds
 
-The app ships a starter library of 200 one-shots — drums, bass, tonal material, textures, and transitions — synthesized from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute. Alongside it there is an acquisition path for CC0 content from vetted sources, where each file is individually selected, checksum-pinned, and reviewed.
+The app ships a starter library of 200 one-shots — drums, bass, tonal material, textures, and transitions — synthesized from code rather than downloaded, so it is reproducible in CI and unambiguous to redistribute. Alongside them are bar-aligned loops with verified BPM and seams, drum-kit and multisample-instrument presets, and derived masters, all produced by the same pipeline. There is also an acquisition path for CC0 content from vetted sources, where each file is individually selected, checksum-pinned, and reviewed.
 
 Content is organized into **packs** — named, versioned collections such as "Core Electronic Drums" or "Foundation Bass" that a user browses and a project depends on. The synthesized 200 ship as five packs, one per family; [`docs/sample-library.md`](./docs/sample-library.md) section 5.1 defines the model and section 15.8 covers the pack list and delivery layout.
 
@@ -50,8 +50,14 @@ bun run library                     # print the whole workflow and what's on dis
 bun run library:build               # render + merge the library and its manifest
 bun run library:audition            # listen to it at http://127.0.0.1:4180
 bun run library:validate            # build and validate without writing (the CI gate)
+bun run library:emit-runtime        # refresh the manifest the app itself resolves against
 bun run library:upload              # publish to Cloud Storage
 ```
+
+The assets the application ships with — the sound a new project starts from —
+come from `src/library/factoryLibrary.generated.ts`, emitted by
+`library:emit-runtime` from the same pipeline. Nothing in `src/` states an
+asset's name, path, or audio metadata by hand.
 
 Start with `bun run library` — it prints the ordered steps and reports what has
 been built, pinned, and ingested so far. Always audition before uploading: the

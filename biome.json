@@ -10,7 +10,8 @@
 			"!playwright-report",
 			"!test-results",
 			"!scripts/starter-library/acquire/candidate-sources",
-			"!scripts/starter-library/acquire/candidates.json"
+			"!scripts/starter-library/acquire/candidates.json",
+			"!src/library/factoryLibrary.generated.ts"
 		]
 	}
 }

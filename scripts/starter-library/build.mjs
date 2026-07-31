@@ -13,6 +13,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLockfile, validateLockfile } from "./acquire/lockfile.mjs";
+import { formatWithheldReport } from "./intake.mjs";
 import {
 	buildAllPacks,
 	buildPackIndex,
@@ -24,6 +25,7 @@ import {
 	formatPackSummary,
 	formatReport,
 	validateLibraryBalance,
+	validateLibraryReferences,
 	validatePackIndex,
 	validatePackManifest,
 } from "./validate.mjs";
@@ -76,7 +78,7 @@ export function buildToDisk({
 		throw new Error(`sources.lock.json is not shippable:\n${detail}`);
 	}
 
-	const { files, packManifests } = buildAllPacks();
+	const { files, packManifests, withheld } = buildAllPacks();
 
 	const errors = [];
 	const warnings = [];
@@ -100,6 +102,12 @@ export function buildToDisk({
 	errors.push(...balance.errors);
 	warnings.push(...balance.warnings);
 
+	// Cross-pack rules: unique IDs library-wide, and every preset pad,
+	// instrument zone, and derived master resolving to an asset that ships.
+	const references = validateLibraryReferences(packManifests);
+	errors.push(...references.errors);
+	warnings.push(...references.warnings);
+
 	const index = buildPackIndex(packManifests);
 	const serializedIndex = serialize(index);
 	const indexResult = validatePackIndex(index, packManifests, {
@@ -119,8 +127,16 @@ export function buildToDisk({
 		log("");
 		log(formatReport(balance.stats, warnings));
 		log("");
+		log(formatWithheldReport(withheld));
+		log("");
 		log(`validated ${files.length} assets; --dry-run, nothing written`);
-		return { out: null, packManifests, stats: balance.stats, warnings };
+		return {
+			out: null,
+			packManifests,
+			stats: balance.stats,
+			warnings,
+			withheld,
+		};
 	}
 
 	if (force) rmSync(out, { recursive: true, force: true });
@@ -147,10 +163,12 @@ export function buildToDisk({
 	log("");
 	log(formatReport(balance.stats, warnings));
 	log("");
+	log(formatWithheldReport(withheld));
+	log("");
 	log(
 		`wrote ${files.length} assets, ${packManifests.length} pack manifests, and 1 pack index to ${out}`,
 	);
-	return { out, packManifests, stats: balance.stats, warnings };
+	return { out, packManifests, stats: balance.stats, warnings, withheld };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

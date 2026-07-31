@@ -910,6 +910,38 @@ Audio storage keys did not change. Identity is still the SHA-256 of the bytes, s
 
 **Acquisition.** A lockfile selection names its destination pack (`asset.pack`, a slug) at pin time; `validateLockfile`/`validateDraft` reject an unknown pack or one whose rights position the source's licence cannot satisfy, and `ingestSelection` re-checks both before writing a single byte. `library:manage`'s review form carries the same destination-pack field. The VCSL bulk path has no per-file lockfile entry, so it targets the reserved `cc0-community` pack directly in code.
 
+### 15.9 Generalized ingestion: loops, presets, derived masters, and intake states
+
+`CNT-000` built the pipeline for one asset type. `CNT-001` generalizes it to the rest of the section 5 "Asset types" list rather than starting a second pipeline beside it: one catalogue, one set of builders, one validator, one delivery layout, one uploader, and one pack index, with a `type` discriminator and a per-type block where the types genuinely differ.
+
+**Asset types.** `taxonomy.mjs` owns the vocabulary; the ID scheme is `sg-<type>-<family>-<role>-NNNN`, so the four ranges cannot collide however each grows and a stored reference states what it points at. Group numbering stays append-only in every range.
+
+| Type | Role vocabulary | Master | Type-specific block |
+| --- | --- | --- | --- |
+| `one-shot` | `TAXONOMY` (section 5.2) | `.wav` | `audio.rootNote`, `audio.chokeGroup` |
+| `loop` | `LOOP_TAXONOMY` — `full-loop`, `top-loop`, `percussion-loop`, `bassline`, `chord-loop`, `melodic-loop`, `atmosphere-loop` | `.wav` | `audio.grid`, `audio.seam`, `audio.timeSignature` |
+| `preset` | `PRESET_KINDS` — `drum-kit`, `instrument`, `device-chain` | `.json` | `preset` (pads, zones, or devices) |
+| `derived` | inherited from its source | `.wav` | `derivedFrom` |
+
+**Loops are measured, not claimed.** Section 10 requires a verified BPM, an exact bar count and time signature, integer sample boundaries, and at least 32 clean cycles. Each of those is a *measurement* the pipeline writes into the manifest and the validator then checks:
+
+- `audio.grid` compares the buffer that exists against the buffer the declared BPM, bars, and time signature require. A non-zero `errorSamples` is a wrong tempo, and `sampleAligned: false` is a bar length that is not a whole number of samples — 4/4 at 48 kHz needs `11,520,000 / BPM` to be an integer, which is why the catalogue's loops sit at 90, 96, 100, 120, 128, 150, and 180 BPM.
+- `audio.seam` concatenates the loop 32 times and compares the largest sample-to-sample step that appears *only* at a wrap point against the largest step inside the loop. A wrap step that is an outlier is a click, and the loop is rejected.
+
+Synthesized loops are seamless by construction — `loops.mjs` mixes each pattern hit with wrap-around, so a hat tail that runs past the last bar reappears at the top of the loop — but they are measured anyway, because the same rules have to reject an acquired loop whose filename lied.
+
+**Presets carry no audio.** A preset's master is the deterministic JSON of its definition, content-addressed and delivered through the same path as a WAV (`contentTypeForKey` picks the content type from the key's extension). Its body references pack-qualified asset IDs, never filenames or URLs (section 9), and the validator resolves every pad and zone library-wide: a reference to an asset that is not delivered — including one that was quarantined — is a broken path, and a reference into another pack breaks section 5.1's self-containment rule. Multisample instruments additionally have their zones checked for contiguity, overlap, and roots that lie inside their own range (section 10, "Sampled instruments").
+
+**Derived masters record their source.** Section 10 says to keep a checksum of the untouched source and treat processed masters as derived assets, so `derivedFrom` names the source asset ID, the transform, and the source's SHA-256, and the validator checks the checksum against the source's actual master and that `provenance.modifications` records the transform.
+
+**Intake states and quarantine.** `intake.mjs` implements the section 11 ladder. `metadata-review` is the delivery floor; `candidate`, `rights-review`, `quarantine`, `audio-preparation`, and `removed` are withheld, and an unknown state is withheld too — a typo must never be the reason something unreviewed reaches a bucket. `deprecated` still ships, because section 11 state 8 keeps existing project references resolvable; hiding it from new selection is a browser concern.
+
+Isolation is a build-time partition, not an error: `buildAllPacks` splits what it produced into what ships and what is held back, reports the withheld list in `library:build`/`library:validate`, and carries on. That is also the missing/corrupt path — a record whose bytes are empty or disagree with the size the manifest declares is quarantined with a reason rather than taking the build down. If an undeliverable asset does reach a published manifest, the validator fails: the partition and the rule check each other.
+
+**New validator rules.** On top of the section 9 and 5.1 rules `CNT-000b` added, `CNT-001` rejects: an ID whose type does not match the asset's `type`; the same asset ID in two packs (`validateLibraryReferences` — duplicate IDs were previously only checked within a pack); a licence evidence path that does not resolve to a file; an asset that requires attribution its pack's rights position does not carry, or claims raw redistribution its pack does not approve; a preset that claims audio metadata; a loop that clicks, is off its bar grid, is not sample-aligned, or was tested over fewer than 32 cycles; a derived master with no source, an unknown transform, an unrecorded transform, or a source checksum that does not match; and an undeliverable intake state inside a published manifest. Each rule is exercised by a fixture that violates it in `scripts/starter-library/ingestion.test.mjs`.
+
+**The application consumes the generated manifest.** `bun run library:emit-runtime` writes `src/library/factoryLibrary.generated.ts` — the handful of assets the app must have before any manifest fetch — and renders their audio into `public/samples/starter-library/audio/<storageKey>`, at the same content-addressed key the bucket serves. `src/library/factoryLibrary.ts` is the app's read side, and the "New Project" starter builds its sampler asset from it rather than from a hard-coded name, path, and duration. It runs from `predev`, `prebuild`, and the browser suites' pre-hooks (via `bun run samples`), writes audio only when missing, and its `--check` mode fails on a stale committed module; the same assertion runs in the unit suite. This is not a bundled library — section 12's model is still that a client fetches the pack index and then the pack manifest it needs, which is `LOOP-013`.
+
 ## 16. Pack marketplace
 
 Deliberately out of scope until everything else is done. Recorded here so the pack model stays honest about what it is preparing for, not because any of it is alpha work.

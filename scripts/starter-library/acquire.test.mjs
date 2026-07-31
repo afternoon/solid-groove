@@ -583,25 +583,61 @@ describe("end-to-end ingest", () => {
 		const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
 		// Validate the single acquired asset against the per-asset rules by
 		// embedding it in an otherwise-valid pack manifest shape.
-		const { errors } = validatePackManifest({
-			schemaVersion: 1,
-			pack: {
-				id: pack.id,
-				slug: pack.slug,
-				name: pack.name,
-				version: pack.version,
-				publisher: pack.publisher,
-				kind: pack.kind,
-				description: pack.description,
-				coverage: { roles: ["percussion"], genres: ["techno"] },
-				rights: pack.rights,
-				releasedAt: "2026-07-25",
-				assetCount: 1,
+		const { errors } = validatePackManifest(
+			{
+				schemaVersion: 1,
+				pack: {
+					id: pack.id,
+					slug: pack.slug,
+					name: pack.name,
+					version: pack.version,
+					publisher: pack.publisher,
+					kind: pack.kind,
+					description: pack.description,
+					coverage: { roles: ["percussion"], genres: ["techno"] },
+					rights: pack.rights,
+					releasedAt: "2026-07-25",
+					assetCount: 1,
+				},
+				assets: [asset],
 			},
-			assets: [asset],
-		});
+			// The fixture ingest never writes the captured licence evidence to
+			// disk, so the `CNT-001` evidence-path resolution is stubbed present
+			// here and asserted for real in the test below.
+			{ pathExists: () => true },
+		);
 		const perAsset = errors.filter((error) => error.startsWith(asset.id));
 		expect(perAsset).toEqual([]);
+	});
+
+	it("rejects an acquired asset whose captured licence evidence is missing", async () => {
+		// `CNT-001`: an evidence path that resolves to nothing reads as evidence in
+		// every report while the file it names is gone, so the validator resolves
+		// it. The fixture ingest above passes because its evidence capture is
+		// stubbed present; here the same asset is checked against an empty disk.
+		const { asset } = await ingestFixture();
+		const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+		const { errors } = validatePackManifest(
+			{
+				schemaVersion: 1,
+				pack: {
+					id: pack.id,
+					slug: pack.slug,
+					name: pack.name,
+					version: pack.version,
+					publisher: pack.publisher,
+					kind: pack.kind,
+					description: pack.description,
+					coverage: { roles: ["percussion"], genres: ["techno"] },
+					rights: pack.rights,
+					releasedAt: "2026-07-25",
+					assetCount: 1,
+				},
+				assets: [asset],
+			},
+			{ pathExists: () => false },
+		);
+		expect(errors.join("\n")).toMatch(/license.evidencePath .* does not exist/);
 	});
 
 	it("rejects a selection whose pack was never registered", async () => {

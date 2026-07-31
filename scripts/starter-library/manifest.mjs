@@ -8,8 +8,21 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CATALOG } from "./catalog/index.mjs";
-import { createRng, seedFromString } from "./dsp.mjs";
+import {
+	CATALOG,
+	DERIVED_CATALOG,
+	LOOP_CATALOG,
+	PRESET_CATALOG,
+} from "./catalog/index.mjs";
+import {
+	createRng,
+	normalizePeak,
+	reverse as reverseBuffer,
+	SAMPLE_RATE,
+	seedFromString,
+} from "./dsp.mjs";
+import { partitionByIntake } from "./intake.mjs";
+import { analyzeSeam, renderLoop, verifyGrid } from "./loops.mjs";
 import { PACKS, packForFamily, packRef } from "./packs.mjs";
 import { renderVoice } from "./voices.mjs";
 import {
@@ -145,6 +158,235 @@ export function buildAsset(entry) {
 }
 
 /**
+ * Render one catalogue one-shot's samples, memoized.
+ *
+ * Loops and derived masters are both built *from* one-shots, and several of
+ * them reuse the same source, so a render cache keeps a build that produces
+ * four asset types from costing four passes over the voice renderers. Keyed by
+ * catalogue ID, which is what makes it safe: the render is a pure function of
+ * the entry and its ID-derived seed.
+ */
+function createSourceRenderer(catalog) {
+	const byId = new Map(catalog.map((entry) => [entry.id, entry]));
+	const cache = new Map();
+	return (id) => {
+		const cached = cache.get(id);
+		if (cached) return cached;
+		const entry = byId.get(id);
+		if (!entry) throw new Error(`unknown source asset ${id}`);
+		const samples = renderVoice(entry, createRng(seedFromString(entry.id)));
+		cache.set(id, samples);
+		return samples;
+	};
+}
+
+/**
+ * The searchable metadata block every asset type shares, whatever its type.
+ *
+ * Factored out because `CNT-001`'s first acceptance criterion is that one-shots,
+ * loops, presets, and derived files all carry it — a per-type copy would be
+ * four places for a tag to go missing.
+ */
+function commonFields(entry, type, pack) {
+	return {
+		id: entry.id,
+		version: 1,
+		pack: packRef(pack),
+		name: entry.name,
+		type,
+		family: entry.family,
+		role: entry.role,
+		tags: {
+			genres: [...entry.genres].sort(),
+			characters: [...entry.characters].sort(),
+			intensity: entry.intensity,
+			sourceTypes: ["synthesized"],
+		},
+		license: { ...LICENSE },
+	};
+}
+
+/** The `files.master` block for a set of bytes, and its content-addressed key. */
+function masterFile(bytes, format) {
+	const hash = sha256(bytes);
+	return {
+		storageKey: storageKeyFor(hash, format),
+		sha256: hash,
+		bytes: bytes.length,
+		format,
+	};
+}
+
+/**
+ * Build one loop: render the pattern, then *measure* the tempo grid and the
+ * seam rather than repeating what the entry claimed (section 10, "Verify BPM by
+ * listening and bar-grid alignment; never trust filenames alone").
+ */
+export function buildLoop(entry, renderSource) {
+	const samples = normalizePeak(
+		renderLoop(entry, renderSource),
+		entry.peakDbfs,
+	);
+	const bytes = encodeWav(samples);
+	const pack = packForFamily(entry.family);
+
+	return {
+		bytes,
+		asset: {
+			...commonFields(entry, "loop", pack),
+			files: { master: masterFile(bytes, "wav") },
+			audio: {
+				...analyze(samples),
+				rootNote: entry.rootNote,
+				tuningCents: entry.rootNote ? 0 : null,
+				bpm: entry.bpm,
+				bars: entry.bars,
+				timeSignature: entry.timeSignature,
+				loopable: true,
+				chokeGroup: null,
+				chokeRole: null,
+				grid: verifyGrid(samples, entry, SAMPLE_RATE),
+				seam: analyzeSeam(samples),
+			},
+			waveform: { buckets: 64, peaks: waveformPeaks(samples, 64) },
+			provenance: {
+				sourceType: "synthesized",
+				recipe: {
+					voice: "loop-sequencer",
+					params: {
+						bpm: entry.bpm,
+						bars: entry.bars,
+						timeSignature: entry.timeSignature,
+						pattern: entry.pattern,
+					},
+					seed: seedFromString(entry.id),
+				},
+				generator: GENERATOR,
+				originalFilename: null,
+				originalSha256: null,
+				modifications: [...MODIFICATIONS, "bar-grid-render"],
+				reviewState: REVIEW_STATE,
+				reviewer: null,
+				reviewedAt: null,
+			},
+		},
+	};
+}
+
+/**
+ * Build one preset. Its master is the deterministic JSON of its definition, so
+ * it is content-addressed, deduplicated, cached, and uploaded by exactly the
+ * same code paths as a WAV.
+ */
+export function buildPreset(entry) {
+	const pack = packForFamily(entry.family);
+	const definition = { kind: entry.kind, ...entry.definition };
+	const bytes = Buffer.from(serialize(definition), "utf8");
+
+	return {
+		bytes,
+		asset: {
+			...commonFields(entry, "preset", pack),
+			files: { master: masterFile(bytes, "json") },
+			// A preset has no audio of its own — every sound it makes belongs to the
+			// assets it references — so it carries no audio or waveform block, and
+			// the validator checks that it does not pretend to.
+			audio: null,
+			waveform: null,
+			preset: definition,
+			provenance: {
+				sourceType: "synthesized",
+				recipe: { preset: entry.kind, seed: seedFromString(entry.id) },
+				generator: GENERATOR,
+				originalFilename: null,
+				originalSha256: null,
+				modifications: [],
+				reviewState: REVIEW_STATE,
+				reviewer: null,
+				reviewedAt: null,
+			},
+		},
+	};
+}
+
+const DERIVATION_TRANSFORMS = {
+	reverse: (samples) => reverseBuffer(samples),
+	"half-speed": (samples) => resample(samples, 2),
+	"octave-down": (samples) => resample(samples, 2),
+};
+
+/** Whole-number-factor resampling: deterministic, and no filter design needed. */
+function resample(samples, factor) {
+	const out = new Float32Array(samples.length * factor);
+	for (let index = 0; index < out.length; index++) {
+		const position = index / factor;
+		const low = Math.floor(position);
+		const high = Math.min(low + 1, samples.length - 1);
+		const fraction = position - low;
+		out[index] = samples[low] * (1 - fraction) + samples[high] * fraction;
+	}
+	return out;
+}
+
+/**
+ * Build one derived master. Section 10: "Keep a checksum of the untouched
+ * source and treat processed masters as derived assets." Both halves are
+ * recorded — the source asset ID and its checksum — so the derivation is
+ * auditable and reproducible without keeping the intermediate around.
+ */
+export function buildDerived(entry, renderSource, sourceHashes) {
+	const transform = DERIVATION_TRANSFORMS[entry.transform];
+	if (!transform) {
+		throw new Error(`${entry.id}: unknown transform "${entry.transform}"`);
+	}
+	const samples = normalizePeak(transform(renderSource(entry.sourceId)), -1.5);
+	const bytes = encodeWav(samples);
+	const pack = packForFamily(entry.family);
+
+	const common = commonFields(entry, "derived", pack);
+
+	return {
+		bytes,
+		asset: {
+			...common,
+			tags: { ...common.tags, sourceTypes: ["synthesized", "processed"] },
+			files: { master: masterFile(bytes, "wav") },
+			audio: {
+				...analyze(samples),
+				rootNote: entry.rootNote,
+				tuningCents: entry.rootNote ? 0 : null,
+				bpm: null,
+				bars: null,
+				loopable: false,
+				chokeGroup: null,
+				chokeRole: null,
+			},
+			waveform: { buckets: 64, peaks: waveformPeaks(samples, 64) },
+			derivedFrom: {
+				assetId: entry.sourceId,
+				transform: entry.transform,
+				sourceSha256: sourceHashes.get(entry.sourceId) ?? null,
+			},
+			provenance: {
+				sourceType: "processed",
+				recipe: {
+					voice: "derivation",
+					params: { from: entry.sourceId, transform: entry.transform },
+					seed: seedFromString(entry.id),
+				},
+				generator: GENERATOR,
+				originalFilename: null,
+				originalSha256: sourceHashes.get(entry.sourceId) ?? null,
+				modifications: [entry.transform, "peak-normalize"],
+				reviewState: REVIEW_STATE,
+				reviewer: null,
+				reviewedAt: null,
+			},
+		},
+	};
+}
+
+/**
  * Where `bun run library:acquire` leaves prepared CC0 masters. Gitignored:
  * third-party audio is fetched and verified, never committed.
  */
@@ -218,11 +460,35 @@ export function loadAcquiredAssets(dir = ACQUIRED_DIR) {
  * SHA-256 of the bytes (section 15.4), so identical audio reachable from two
  * packs is one object and a repack re-uploads no audio.
  */
-export function buildAllPacks(catalog = CATALOG, { acquired } = {}) {
-	const built = [
-		...catalog.map(buildAsset),
+export function buildAllPacks(
+	catalog = CATALOG,
+	{
+		acquired,
+		loops = LOOP_CATALOG,
+		presets = PRESET_CATALOG,
+		derived = DERIVED_CATALOG,
+	} = {},
+) {
+	const renderSource = createSourceRenderer(catalog);
+	const oneShots = catalog.map(buildAsset);
+	// Derived masters record the checksum of the untouched source, so the
+	// one-shots have to be hashed before anything is derived from them.
+	const sourceHashes = new Map(
+		oneShots.map(({ asset }) => [asset.id, asset.files.master.sha256]),
+	);
+
+	const produced = [
+		...oneShots,
+		...loops.map((entry) => buildLoop(entry, renderSource)),
+		...presets.map(buildPreset),
+		...derived.map((entry) => buildDerived(entry, renderSource, sourceHashes)),
 		...(acquired ?? loadAcquiredAssets()),
 	];
+
+	// Section 11 state 3: quarantined material is isolated from production
+	// manifests. Withheld assets are reported, not delivered, and never fail the
+	// build — the rest of the library still ships.
+	const { delivered: built, withheld } = partitionByIntake(produced);
 
 	const files = new Map();
 	for (const { asset, bytes } of built) {
@@ -262,6 +528,7 @@ export function buildAllPacks(catalog = CATALOG, { acquired } = {}) {
 	return {
 		files: [...files].map(([storageKey, bytes]) => ({ storageKey, bytes })),
 		packManifests,
+		withheld,
 	};
 }
 
