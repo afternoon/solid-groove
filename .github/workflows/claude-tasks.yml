@@ -1,0 +1,264 @@
+name: Claude Tasks
+
+# Autonomous Opus lifecycle for a backlog task:
+#
+#   1. Label an issue `claude-implement`  -> Opus implements it and opens a PR.
+#   2. A PR opens                         -> Opus reviews it and votes.
+#   3. Opus requested changes             -> Opus fixes them, then re-dispatches
+#                                            the review (step 2) for that PR.
+#
+# Steps 2 and 3 loop at most twice. A `review-cycle-N` label counts how many
+# times Opus has requested changes; on the third, the loop stops, `needs-human`
+# latches it off, @afternoon is requested as a reviewer, and a summary is
+# posted. All state that must survive between stateless runner invocations lives
+# in PR labels, never in the runner.
+#
+# Re-review is triggered explicitly (workflow_dispatch), not by the fix's push:
+# commits pushed with the default GITHUB_TOKEN do not trigger new workflow runs,
+# so the loop cannot rely on a `synchronize` event firing.
+#
+# This is separate from `claude.yml`, which keeps the interactive `@claude`
+# comment/mention path. This file is the non-interactive automation.
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [opened, reopened]
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to (re-)review
+        required: true
+
+concurrency:
+  # Serialize everything touching one PR/issue so a review and a fix can never
+  # race on the same labels or branch.
+  group: >-
+    claude-tasks-${{
+      github.event.inputs.pr ||
+      github.event.pull_request.number ||
+      github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: write # self-dispatch the review workflow
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. IMPLEMENT — triggered by adding the `claude-implement` label to an issue.
+  # ---------------------------------------------------------------------------
+  implement:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'claude-implement'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/claude-env
+      - name: Implement the task
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          claude_args: |
+            --model opus
+          prompt: |
+            You are implementing a Solid Groove backlog task end to end.
+
+            The GitHub issue to implement is #${{ github.event.issue.number }}:
+            "${{ github.event.issue.title }}".
+
+            Read the issue body (`gh issue view ${{ github.event.issue.number }}`)
+            and the matching task block in docs/backlog.md for the full
+            acceptance criteria. Follow CLAUDE.md exactly — it overrides any
+            default behavior. In particular:
+
+            - Branch from `main` with a `claude/<task-id>-<slug>` branch name
+              (CI builds `claude/**` branches, so this is what gets a green run).
+            - Implement product code, tests, fixtures, and docs to satisfy every
+              acceptance checkbox in the task block.
+            - Run `bun run check:ci`, `bun run test`, and any suite the task's
+              acceptance criteria name, and make them green. Do NOT mock Tone,
+              skip audio test files, or edit src/audio/testAudioContext.ts — the
+              null ALSA device is already configured on this runner.
+            - Do not change any published contract (src/domain, src/commands,
+              src/persistence layout) unless the task explicitly owns that
+              change.
+
+            When the work is complete and green, commit, push the branch, and
+            open a pull request whose body starts with
+            `Closes #${{ github.event.issue.number }}` and summarizes what you
+            did and how you verified it. End the commit and PR body with the
+            Co-Authored-By / Generated-with trailers from CLAUDE.md. Do not merge
+            the PR — review happens separately.
+
+            If you cannot complete the task (a dependency is unmet, an acceptance
+            criterion needs a product decision), do not open a PR: comment on the
+            issue explaining precisely what is blocking, and stop.
+
+  # ---------------------------------------------------------------------------
+  # 2. REVIEW — an opened PR, or an explicit re-review dispatched after a fix.
+  #    Every PR in this repo is Claude's, so all of them are reviewed. Opus
+  #    posts one review ending in a machine-readable VERDICT line; the verdict
+  #    drives the cycle label / escalation.
+  # ---------------------------------------------------------------------------
+  review:
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the PR number
+        id: pr
+        env:
+          NUM: ${{ github.event.inputs.pr || github.event.pull_request.number }}
+        run: echo "number=${NUM}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/claude-env
+      - name: Count prior review cycles
+        id: cycles
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.number }}
+        run: |
+          # A `review-cycle-N` label means Opus has requested changes N times.
+          # A `needs-human` label means the loop already escalated.
+          labels=$(gh pr view "$PR" --json labels --jq '.labels[].name')
+          count=$(printf '%s\n' "$labels" | grep -c '^review-cycle-' || true)
+          escalated=$(printf '%s\n' "$labels" | grep -qx 'needs-human' && echo true || echo false)
+          echo "count=${count:-0}" >> "$GITHUB_OUTPUT"
+          echo "escalated=${escalated}" >> "$GITHUB_OUTPUT"
+      - name: Review the pull request
+        if: steps.cycles.outputs.escalated == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          claude_args: |
+            --model opus
+          prompt: |
+            You are adversarially reviewing pull request
+            #${{ steps.pr.outputs.number }} against its PRD acceptance criteria
+            and the CLAUDE.md conventions.
+
+            Read the diff (`gh pr diff ${{ steps.pr.outputs.number }}`), the PR
+            body, the issue it closes, and the relevant task block in
+            docs/backlog.md. Verify: every acceptance checkbox is genuinely met;
+            no published contract changed without the task owning it; tests
+            actually exercise the behavior (not just typecheck); and the code
+            matches the surrounding style. You may run the suites to confirm.
+
+            This is review cycle ${{ steps.cycles.outputs.count }} of a maximum
+            of 2. Post exactly ONE pull request review via
+            `gh pr review ${{ steps.pr.outputs.number }}`. Your review body MUST
+            end with a final line that is exactly one of:
+
+                VERDICT: APPROVE
+                VERDICT: CHANGES-REQUESTED
+
+            Use APPROVE (with `gh pr review --approve`) only when you would merge
+            it as-is. Otherwise use CHANGES-REQUESTED (`gh pr review
+            --request-changes`) and list each required change as a specific,
+            actionable comment. Do not push code from this review — only comment.
+      - name: Record the cycle, or escalate when the loop is exhausted
+        if: steps.cycles.outputs.escalated == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.number }}
+          PRIOR: ${{ steps.cycles.outputs.count }}
+        run: |
+          # The most recent review carrying a VERDICT line is authoritative.
+          verdict=$(gh pr view "$PR" --json reviews \
+            --jq '[.reviews[] | select(.body | test("VERDICT: (APPROVE|CHANGES-REQUESTED)"))]
+                   | last | .body' \
+            | grep -oE 'VERDICT: (APPROVE|CHANGES-REQUESTED)' | tail -n1 || true)
+          echo "Latest verdict: ${verdict:-<none>}  prior cycles: ${PRIOR}"
+          # On APPROVE (or no verdict) there is nothing to record; the loop ends.
+          [ "$verdict" = "VERDICT: CHANGES-REQUESTED" ] || exit 0
+
+          if [ "${PRIOR:-0}" -ge 2 ]; then
+            # Third changes-requested: two fix cycles already ran without
+            # converging. Stop looping and hand it to a human. `needs-human`
+            # latches the loop off for every later event too.
+            gh pr edit "$PR" --add-label needs-human
+            gh pr edit "$PR" --add-reviewer afternoon || true
+            gh pr comment "$PR" --body $'⚠️ **Two Opus fix cycles did not converge — handing this to @afternoon.**\n\nThe automated review→fix loop has run its maximum of 2 cycles and Opus still requests changes. Requesting your review to intervene; the unresolved review comments above describe what remains. Remove the `needs-human` label to hand it back to the loop.'
+            echo "Escalated to @afternoon after ${PRIOR} cycles."
+          else
+            next=$(( ${PRIOR:-0} + 1 ))
+            gh pr edit "$PR" --add-label "review-cycle-${next}"
+            echo "Marked review-cycle-${next}; the changes-requested review will trigger a fix."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # 3. FIX — when a CHANGES-REQUESTED review lands, Opus addresses it, pushes to
+  #    the PR branch, then dispatches the review job for another cycle. The cap
+  #    is enforced by the review job (via `needs-human`), so this job only acts
+  #    while the loop is live.
+  # ---------------------------------------------------------------------------
+  fix:
+    if: >-
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'changes_requested'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: ./.github/actions/claude-env
+      - name: Should this fix run?
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # The review job is the single source of truth for the cap: on the
+          # third changes-requested it adds `needs-human` instead of a cycle
+          # label. So the fix runs iff the loop has not been escalated. Reading
+          # the label live also means removing `needs-human` by hand hands the
+          # PR back to the loop.
+          escalated=$(gh pr view "$PR" --json labels \
+            --jq 'any(.labels[].name; . == "needs-human")')
+          echo "escalated=${escalated}" >> "$GITHUB_OUTPUT"
+      - name: Address the review comments
+        if: steps.gate.outputs.escalated == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
+          claude_args: |
+            --model opus
+          prompt: |
+            Address the requested changes on pull request
+            #${{ github.event.pull_request.number }}.
+
+            Read the latest review and every unresolved review comment
+            (`gh pr view ${{ github.event.pull_request.number }} --json reviews,comments`).
+            Make the changes on the PR's existing head branch
+            (${{ github.event.pull_request.head.ref }}), following CLAUDE.md.
+            Re-run `bun run check:ci` and `bun run test` (plus any suite the task
+            requires) and make them green. Commit with the CLAUDE.md trailer and
+            push to the same branch — do NOT open a new PR. Briefly reply on the
+            PR summarizing what you changed.
+      - name: Dispatch the next review cycle
+        if: steps.gate.outputs.escalated == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # The fix's push used GITHUB_TOKEN and so will not trigger a workflow;
+          # kick the review explicitly for this PR.
+          gh workflow run claude-tasks.yml -f pr="$PR"

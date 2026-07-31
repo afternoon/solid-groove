@@ -1,0 +1,44 @@
+name: Claude runner environment
+description: >-
+  Bun toolchain plus a null ALSA output device — the shared prerequisites every
+  Claude automation job needs before it can run this repo's test suites. Mirrors
+  ci.yml's `checks` job. Assumes the repository is already checked out.
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    - name: Configure a null ALSA output device
+      # ubuntu-latest has no /dev/snd, so Tone.js's real (non-offline) global
+      # AudioContext — created as a side effect of importing "tone" — cannot
+      # initialize: node-web-audio-api's cpal backend fails with
+      # "DeviceUnavailable" when it queries a default output device and finds
+      # none. Installing the ALSA runtime library plus a `null` PCM as the
+      # default output device (discards every sample, never touches hardware)
+      # gives cpal a device to find, without needing a kernel module
+      # (snd-dummy) or real audio hardware.
+      #
+      # This is not optional convenience. CLAUDE.md tells an agent that this
+      # failure is an environment problem and forbids the workarounds it would
+      # otherwise reach for (mocking Tone, skipping the file, editing
+      # src/audio/testAudioContext.ts). Without this step a run is left with a
+      # suite it cannot execute and no sanctioned way to fix it.
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libasound2t64
+        cat > ~/.asoundrc <<'EOF'
+        pcm.!default {
+            type null
+        }
+        ctl.!default {
+            type null
+        }
+        EOF
