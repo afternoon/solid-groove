@@ -92,6 +92,14 @@ src/
 ├── selection/          # Selection/focus state (UI-only, never persisted)
 │   ├── types.ts             # SelectionScope union and SelectionState
 │   └── selection.ts         # Pure selection ops + project-driven reconciliation
+├── shortcuts/          # The one typed keyboard-shortcut registry (PRD KEY-01, KEY-02)
+│   ├── types.ts             # Contexts, guide groups, Ableton parity, browser conflicts
+│   ├── keys.ts              # Chord parsing, layout-aware matching, platform labels
+│   ├── registry.ts          # The mapping table itself, plus lookups and reserved chords
+│   ├── ShortcutController.ts # Framework-free dispatch: context, text entry, analytics
+│   ├── useShortcuts.ts      # Solid adapter that installs a controller on the window
+│   ├── ShortcutGuide.tsx    # The searchable `?` mapping guide, generated from the registry
+│   └── textEntry.ts         # What counts as a typing target
 ├── projection/         # Read-only consumer projections built from a Project
 │   ├── fingerprint.ts       # Deterministic content fingerprint for change detection
 │   ├── audioProjection.ts        # Audio engine's song projection (PRD 9.7)
@@ -250,6 +258,14 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - `scheduling.ts` expands a placement's clip content into absolute-tick events (looping and clip trimming included) as a pure function of the audio projection; `ProjectAudioGraph` schedules those against `Tone.Transport` (or an injected `AudioTransport` in tests) with an owner-tracked handle per event, never an anonymous global callback.
 - Every constructed Tone/Web Audio resource is registered with the owning `AudioProjectScope` (`AudioRuntime.openProjectScope`) so disposal is idempotent and instrumented (PRD AUD-09) — components and domain stores request graph operations but never receive mutable audio nodes.
 - `src/editor/useProjectAudio.ts` is the one place a component wires a `Project` onto `ProjectAudioGraph`: it rebuilds the `AudioSongProjection` (passing the previous one through, so an unrelated edit reuses unchanged entries) on every project change, and its `play()` is the allowed user gesture that resumes the shared `AudioRuntime` context. The prototype `SongPlayer`/`ToneInstrument`/`AudioProvider.tsx` playback path this superseded was removed by `FND-009`; do not reintroduce a component-owned Tone lifecycle.
+
+### Shortcut registry (`src/shortcuts`)
+- `src/shortcuts/registry.ts` is the only place a key combination is written down (PRD KEY-01). Event handling, tooltips, menu labels, the `?` guide, the `shortcut_used` analytics `action_id` set, and [`docs/shortcuts.md`](./docs/shortcuts.md) are all derived from it; a component never compares `event.key` itself.
+- An entry declares action ID, per-platform keys, valid contexts, guide group, and whether it follows or intentionally differs from Ableton Live. Enabled state is not in the registry — the surface that owns the action supplies a handler with an optional `isEnabled()`, and an action with no handler simply does not fire.
+- `ShortcutController` is framework-free and owns every dispatch rule: `global` is always active, `dialog` suppresses every other context, typing targets keep their keys (only `Escape` is marked `textEntry: "allowed"`), auto-repeat is ignored unless the mapping opts in, and a disabled or unhandled action leaves the browser default alone. `useShortcuts` is the thin Solid adapter that installs it on the window.
+- Matching reads `KeyboardEvent.key`, never `code`, and ignores the Shift modifier for punctuation, so `?` and `+` work on any keyboard layout.
+- `ShortcutController` logs `shortcut_used` with the matched entry's own `action_id`; handlers never log analytics. Adding a mapping means adding its ID to `SHORTCUT_ACTION_IDS` in both the registry and `src/analytics/catalog.ts`, or `catalog.test.ts` fails.
+- Adding a shortcut also means updating `docs/shortcuts.md` — `src/shortcuts/docs.test.ts` fails if the two drift.
 
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)

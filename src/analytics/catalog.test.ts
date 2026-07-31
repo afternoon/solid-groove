@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COMMAND_TYPES } from "../commands/registry";
 import type { SaveFailureReason } from "../persistence/projectRepository";
+import { SHORTCUT_ACTION_IDS as REGISTERED_SHORTCUT_IDS } from "../shortcuts/registry";
 import { BUCKET_SCALES, bucketLabels, bucketOf } from "./buckets";
 import {
 	ANALYTICS_EVENT_NAMES,
@@ -11,6 +12,7 @@ import {
 	declaredValues,
 	FEATURE_KEYS,
 	PARAM_KINDS,
+	SHORTCUT_ACTION_IDS,
 	sampleRateKey,
 	validateEventPayload,
 } from "./catalog";
@@ -214,6 +216,14 @@ describe("catalog cross-references", () => {
 		// Keeps "analytics ships with the feature" enforced: adding a command
 		// without deciding how it appears in analytics fails here.
 		expect([...COMMAND_IDS].sort()).toEqual([...COMMAND_TYPES].sort());
+	});
+
+	it("pins exactly the registered shortcut actions as shortcut_used's action_id", () => {
+		// Same rule for the KEY-01 registry: a mapping added without an
+		// analytics decision fails here rather than shipping unmeasured.
+		expect([...SHORTCUT_ACTION_IDS].sort()).toEqual(
+			[...REGISTERED_SHORTCUT_IDS].sort(),
+		);
 	});
 
 	it("covers every persistence failure reason with an error code", () => {

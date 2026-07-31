@@ -153,3 +153,69 @@ test.describe("dashboard project management", () => {
 		).toBeVisible();
 	});
 });
+
+// `LOOP-014`: the KEY-01 registry and the KEY-02 mapping guide, in a real
+// browser — where keyboard layout, focus, and the browser's own defaults are
+// real rather than simulated.
+test.describe("keyboard shortcuts", () => {
+	test("plays from the keyboard and opens the mapping guide with ?", async ({
+		page,
+	}) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(
+			page.getByRole("group", { name: "16-step sequence" }),
+		).toBeVisible();
+
+		// Space toggles playback from the registry, not from a component's own
+		// listener, and the transport button reflects it.
+		await page.keyboard.press("Space");
+		await expect(
+			page.getByRole("button", { name: "Stop playback" }),
+		).toBeVisible();
+		await page.keyboard.press("Space");
+		await expect(
+			page.getByRole("button", { name: "Start playback" }),
+		).toBeVisible();
+
+		// `?` opens the guide, generated from the registry.
+		await page.keyboard.press("?");
+		const guide = page.getByRole("dialog");
+		await expect(guide).toBeVisible();
+		await expect(
+			guide.getByRole("heading", { name: "Keyboard shortcuts" }),
+		).toBeVisible();
+		await expect(
+			guide.getByRole("heading", { name: "Transport" }),
+		).toBeVisible();
+
+		// Searching filters it, and the search field is where focus landed.
+		await page.keyboard.type("quantize");
+		await expect(guide.locator("[data-action]")).toHaveCount(1);
+		await expect(guide.locator('[data-action="clip.quantize"]')).toBeVisible();
+
+		// Escape closes it from inside its own search box, and playback is
+		// untouched.
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("dialog")).toBeHidden();
+		await expect(
+			page.getByRole("button", { name: "Start playback" }),
+		).toBeVisible();
+	});
+
+	test("does not fire a shortcut typed into a text field", async ({ page }) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(page).toHaveURL(/\/projects\/prj_/);
+		await page.getByRole("link", { name: /projects/i }).click();
+
+		await page.getByRole("button", { name: /rename/i }).click();
+		const nameField = page.getByRole("textbox", { name: /rename/i });
+		await nameField.fill("");
+		await nameField.type("space ? test");
+
+		// Every character reached the field: no shortcut leaked through it.
+		await expect(nameField).toHaveValue("space ? test");
+		await expect(page.getByRole("dialog")).toBeHidden();
+	});
+});
