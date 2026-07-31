@@ -261,6 +261,12 @@ export class ProjectAutosave {
 		this.failure = null;
 		this.publish();
 
+		// Captured before the loop can reset it: a drain that starts having
+		// already failed at least once is a retry of a failure episode, and
+		// `save_recovered` (below) reports how many attempts that episode cost —
+		// one event per episode, not one per attempt, matching `save_failed`.
+		const retryCountIfRecovered = this.consecutiveFailures;
+
 		while (this.queue.size > 0 && !this.disposed) {
 			const [key, entry] = [...this.queue.entries()][0];
 			const result = await this.write(entry);
@@ -293,9 +299,14 @@ export class ProjectAutosave {
 		}
 
 		if (!this.disposed) {
-			// A clean drain ends the failure streak. `save_recovered` — the event
-			// that pairs with this — belongs to `LOOP-002`, which owns the retry
-			// UX that makes recovery observable to the user.
+			// A clean drain ends the failure streak. `save_recovered` fires only
+			// when this drain actually recovered one — an ordinary drain with no
+			// prior failure is not a "recovery" and stays silent.
+			if (retryCountIfRecovered > 0) {
+				this.analytics.log("save_recovered", {
+					retry_count: retryCountIfRecovered,
+				});
+			}
 			this.consecutiveFailures = 0;
 			this.state = "saved";
 			this.publish();

@@ -118,17 +118,27 @@ export class EditorSession {
 		return result;
 	}
 
-	undo(): TransactionResult | null {
+	/**
+	 * `actor` is who invoked the undo, not who authored the entry being undone
+	 * (`history.undo()` already replays the entry's own actor for that). Only
+	 * `"user"` is reachable today — an assistant-invoked undo is `AI-003`'s
+	 * `assistant_proposal_undone`, a distinct catalog event, not this one.
+	 */
+	undo(actor: "user" | "assistant" = "user"): TransactionResult | null {
 		const result = this.history.undo();
-		if (result?.ok) this.queueAutosave(result);
+		if (result?.ok) {
+			this.queueAutosave(result);
+			this.analytics.log("undo_used", { direction: "undo", actor });
+		}
 		return result;
 	}
 
-	redo(): TransactionResult | null {
+	redo(actor: "user" | "assistant" = "user"): TransactionResult | null {
 		const result = this.history.redo();
 		if (result?.ok) {
 			this.logFirstEdit(result);
 			this.queueAutosave(result);
+			this.analytics.log("undo_used", { direction: "redo", actor });
 		}
 		return result;
 	}

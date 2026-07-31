@@ -15,6 +15,7 @@ import {
 import { usePlaybackHotkey } from "../audio/usePlaybackHotkey";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
+import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
@@ -31,6 +32,23 @@ const SAVE_STATUS_LABEL: Record<string, string> = {
 	saving: "Saving…",
 	saved: "Saved",
 	failed: "Save failed",
+};
+
+/**
+ * Actionable text for the PRD `PRJ-03` "actionable Save failed" state. Never
+ * the repository's raw `SaveFailure.message` — that can carry backend error
+ * text not meant for a user-facing surface — and never the reason string
+ * itself, which is an internal, unlocalized identifier.
+ */
+const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
+	unavailable: "Check your connection.",
+	revision_conflict: "This project changed in another tab or session.",
+	not_found: "This project no longer exists.",
+	already_exists: "A save conflict occurred.",
+	unsupported_schema_version:
+		"This project needs a newer version of Solid Groove.",
+	invalid_document: "Something about this save wasn't valid.",
+	document_too_large: "This project is too large to save further changes.",
 };
 
 /**
@@ -69,6 +87,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const saveStatusLabel = createMemo(
 		() => SAVE_STATUS_LABEL[session.state.saveStatus?.state ?? "idle"],
 	);
+	const saveFailure = createMemo(() => session.state.saveStatus?.failure);
+	const saveFailureMessage = createMemo(() => {
+		const failure = saveFailure();
+		return failure ? SAVE_FAILURE_REASON_LABEL[failure.reason] : null;
+	});
 
 	return (
 		<main class="editor">
@@ -148,13 +171,31 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										</Show>
 									</button>
 								</div>
-								<div
-									class="save-status"
-									data-state={session.state.saveStatus?.state}
-									data-revision={session.state.saveStatus?.revision}
-									title={`Revision ${session.state.saveStatus?.revision ?? 0}`}
-								>
-									{saveStatusLabel()}
+								<div class="save-status-group">
+									<div
+										class="save-status"
+										data-state={session.state.saveStatus?.state}
+										data-revision={session.state.saveStatus?.revision}
+										title={`Revision ${session.state.saveStatus?.revision ?? 0}`}
+									>
+										{saveStatusLabel()}
+									</div>
+									<Show when={saveFailure()}>
+										<div class="save-recovery" role="alert">
+											<span class="save-recovery-message">
+												{saveFailureMessage()}
+											</span>
+											<Show when={saveFailure()?.retryable}>
+												<button
+													type="button"
+													class="save-retry-button"
+													onClick={() => void session.retry()}
+												>
+													Retry
+												</button>
+											</Show>
+										</div>
+									</Show>
 								</div>
 							</header>
 							<div class="workspace">

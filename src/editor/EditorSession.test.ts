@@ -183,6 +183,40 @@ describe("EditorSession", () => {
 		expect(firstEditEvents[0]?.params.command_id).toBe("note.update");
 	});
 
+	it("logs undo_used with direction and actor on undo and redo, once per invocation", () => {
+		const { session, transport, clipId } = ctx;
+		const factoryContext = createFactoryContext();
+		const note = createNoteEvent(factoryContext, {
+			startTicks: 1 * TICKS_PER_SIXTEENTH,
+			durationTicks: TICKS_PER_SIXTEENTH,
+			pitch: 36,
+		});
+		session.dispatch(addNotes(clipId, [note]));
+
+		session.undo();
+		session.redo();
+
+		const undoUsedEvents = transport.named("undo_used");
+		expect(undoUsedEvents).toHaveLength(2);
+		expect(undoUsedEvents[0]?.params).toMatchObject({
+			direction: "undo",
+			actor: "user",
+		});
+		expect(undoUsedEvents[1]?.params).toMatchObject({
+			direction: "redo",
+			actor: "user",
+		});
+	});
+
+	it("does not log undo_used when there is nothing to undo or redo", () => {
+		const { session, transport } = ctx;
+
+		expect(session.undo()).toBeNull();
+		expect(session.redo()).toBeNull();
+
+		expect(transport.named("undo_used")).toHaveLength(0);
+	});
+
 	it("logs project_opened exactly once when the session is constructed", () => {
 		const { transport } = ctx;
 
