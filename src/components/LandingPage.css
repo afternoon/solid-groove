@@ -1,0 +1,288 @@
+/* The public landing page (PRD `PRJ-06`, backlog `LOOP-001b`).
+   Design reference: docs/design/mocks/04-landing-page.png, and the design DNA
+   in docs/design/README.md — dark, flat, square corners, one cyan accent
+   carrying every active state. It reuses the app-wide surface and text tokens
+   from src/app.css rather than introducing a second palette for one page. */
+
+.landing {
+	--landing-accent: #20c8e8;
+	--landing-gutter: clamp(20px, 5vw, 64px);
+
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+	box-sizing: border-box;
+}
+
+.landing-header,
+.landing-main,
+.landing-footer {
+	width: 100%;
+	max-width: 1100px;
+	margin: 0 auto;
+	padding-left: var(--landing-gutter);
+	padding-right: var(--landing-gutter);
+	box-sizing: border-box;
+}
+
+/* --- Header ------------------------------------------------------------- */
+
+.landing-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	padding-top: 20px;
+	padding-bottom: 20px;
+}
+
+.landing-brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--color-text);
+	font-weight: 700;
+	font-size: var(--font-size-lg);
+	text-decoration: none;
+}
+
+.landing-brand-mark {
+	width: 22px;
+	height: 22px;
+	background: linear-gradient(135deg, var(--landing-accent), #7b6cf6);
+}
+
+.landing-nav {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* --- Buttons ------------------------------------------------------------ */
+
+.landing-button {
+	border-radius: 0;
+	font-weight: 700;
+	padding: 10px 18px;
+}
+
+.landing-button-primary {
+	background-color: var(--landing-accent);
+	color: #06232b;
+}
+
+.landing-button-primary:hover {
+	background-color: #45d7f2;
+}
+
+.landing-button-quiet {
+	background-color: transparent;
+	color: var(--color-text-secondary);
+}
+
+.landing-button-quiet:hover {
+	background-color: var(--color-background-secondary);
+	color: var(--color-text);
+}
+
+.landing-button-large {
+	padding: 16px 28px;
+	font-size: var(--font-size-lg);
+}
+
+.landing-button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/* Visible focus on every interactive control (PRD section 10 accessibility).
+   Uses the same accent the rest of the product uses for focus. */
+.landing a:focus-visible,
+.landing button:focus-visible,
+.landing summary:focus-visible,
+.landing input:focus-visible {
+	outline: 2px solid var(--landing-accent);
+	outline-offset: 2px;
+}
+
+/* --- Hero --------------------------------------------------------------- */
+
+.landing-main {
+	flex: 1;
+	padding-bottom: 64px;
+}
+
+.landing-hero {
+	padding: clamp(32px, 7vw, 88px) 0 clamp(32px, 5vw, 64px);
+	max-width: 760px;
+}
+
+.landing-status {
+	display: inline-block;
+	margin: 0 0 24px;
+	padding: 6px 12px;
+	background-color: rgb(32 200 232 / 12%);
+	color: var(--landing-accent);
+	font-size: var(--font-size-small);
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.landing-hero h1 {
+	margin: 0 0 24px;
+	font-size: clamp(38px, 6vw, var(--font-size-xl));
+	line-height: 1.05;
+	letter-spacing: -0.02em;
+}
+
+.landing-lede {
+	margin: 0 0 32px;
+	max-width: 34em;
+	font-size: var(--font-size-lg);
+	line-height: 1.5;
+	color: var(--color-text-secondary);
+}
+
+.landing-hero-actions {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	flex-wrap: wrap;
+}
+
+.landing-hero-hint {
+	margin: 0;
+	max-width: 26em;
+	color: var(--color-foreground);
+}
+
+.landing-support {
+	margin: 28px 0 0;
+	color: var(--color-foreground);
+	font-size: var(--font-size-small);
+}
+
+.landing-error {
+	margin: 20px 0 0;
+	padding: 10px 14px;
+	background-color: rgb(255 107 107 / 12%);
+	color: var(--color-error);
+}
+
+/* --- What works today / what does not ----------------------------------- */
+
+.landing-state {
+	padding: clamp(32px, 5vw, 56px) 0;
+	border-top: 1px solid var(--color-background-secondary);
+}
+
+.landing-state h2,
+.landing-close h2 {
+	margin: 0 0 24px;
+}
+
+.landing-columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 20px;
+}
+
+.landing-column {
+	padding: 24px;
+	background-color: var(--color-background-secondary);
+}
+
+.landing-column-heading {
+	margin: 0 0 12px;
+	font-size: var(--font-size-base);
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--landing-accent);
+}
+
+.landing-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--color-text-secondary);
+}
+
+.landing-list li {
+	position: relative;
+	padding-left: 22px;
+	margin-bottom: 10px;
+	line-height: 1.5;
+}
+
+.landing-list li:last-child {
+	margin-bottom: 0;
+}
+
+/* Shape, not colour, distinguishes shipped from unshipped: a filled square for
+   what works, a hollow one for what does not (PRD section 10: "non-color state
+   indicators"). */
+.landing-list li::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 0.5em;
+	width: 8px;
+	height: 8px;
+	background-color: var(--landing-accent);
+}
+
+.landing-list-pending {
+	color: var(--color-foreground);
+}
+
+.landing-list-pending li::before {
+	background-color: transparent;
+	box-shadow: inset 0 0 0 1px var(--color-foreground);
+}
+
+.landing-note {
+	margin: 28px 0 0;
+	max-width: 60em;
+	color: var(--color-foreground);
+	font-size: var(--font-size-small);
+	line-height: 1.6;
+}
+
+/* --- Closing call to action --------------------------------------------- */
+
+.landing-close {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	flex-wrap: wrap;
+	padding: clamp(28px, 4vw, 48px);
+	background-color: var(--color-background-secondary);
+}
+
+.landing-close-copy {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+/* --- Footer ------------------------------------------------------------- */
+
+.landing-footer {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	padding-top: 24px;
+	padding-bottom: 32px;
+	border-top: 1px solid var(--color-background-secondary);
+	color: var(--color-foreground);
+	font-size: var(--font-size-small);
+}
+
+.landing-footer-brand {
+	margin: 0;
+}

@@ -69,7 +69,7 @@ bun run test:browser
 
 Config: `playwright.config.ts`. `webServer` starts `bun run dev` with `VITE_MOCK_BACKEND=true` and waits for it before running tests, so the suite needs no real Firebase project — see `src/auth/authService.ts` for the mock auth implementation it exercises and `src/projectRepositoryClient.ts` for the in-memory `ProjectRepository` it exercises (a fresh, empty store per page load — this suite cannot prove persistence across a real reload, which is what `e2e-emulator/` is for; see below).
 
-Suite location: `e2e/`. `e2e/smoke.spec.ts` is PRD section 14's "anonymous start" required end-to-end layer: it loads the landing page, starts an anonymous session, and confirms the dashboard renders its empty state, then creates a project and confirms the `FND-009` slice's 16-step grid renders on it. The same file's `dashboard project management` block is `LOOP-001`'s dashboard coverage against the mock backend: a Blank Project's empty editor state, and rename/duplicate/confirmed-delete acting only on the row they were invoked on.
+Suite location: `e2e/`. `e2e/smoke.spec.ts` is PRD section 14's "anonymous start" required end-to-end layer: it loads the landing page, starts an anonymous session, and confirms the dashboard renders its empty state, then creates a project and confirms the `FND-009` slice's 16-step grid renders on it. Its `landing page` block is `LOOP-001b`'s coverage of the PRD `PRJ-06` front door — the promise, the alpha status, the tested browsers, and that the page carries exactly one analytics disclosure and opt-out (the app-chrome copy stands down there; see `src/app.tsx`). The same file's `dashboard project management` block is `LOOP-001`'s dashboard coverage against the mock backend: a Blank Project's empty editor state, and rename/duplicate/confirmed-delete acting only on the row they were invoked on.
 
 ### Browser E2E suite against the Firebase Emulator
 
@@ -286,6 +286,7 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 | Event | How to trigger it | Check |
 | --- | --- | --- |
 | `app_opened` | Load `/dashboard` or a project. Then, in a fresh session, load `/` and click through to the dashboard — that navigation is client-side, so it must be checked separately. Staying on the landing page fires nothing; that surface measures `landing_cta_click` instead. | Fires once per app load on reaching the dashboard or editor, whichever way the session got there, with `surface` and `release_sha`. |
+| `landing_cta_click` | On `/`, click "Start in your browser" (or either "Start free"). Then, in a fresh session, click "Log in". | Fires once per click, with `cta_id: start_free` or `cta_id: log_in` and `surface: landing`. |
 | `first_edit` | Make the first edit in a project. | Fires once for that project, never again — reload and edit again to confirm. |
 | `feature_first_use` | Use a feature for the first time in that browser. | Fires once per `feature`, carrying the feature key. |
 | `save_failed` | Go offline (DevTools → Network → Offline) and make an edit. | Fires with a stable `error_code` and a `retry_count`. |

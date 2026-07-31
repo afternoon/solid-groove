@@ -25,11 +25,17 @@ import "./TelemetryDisclosure.css";
  * below is deliberately plain and factual so it is accurate as written, and it
  * is isolated here so settling `DEC-009` is a copy change in one file.
  *
- * `LOOP-001b` places this surface on the landing page per `DEC-009`; it is
- * mounted in the app footer meanwhile so the opt-out is reachable from every
- * surface rather than existing only in code.
+ * `LOOP-001b` gives this surface its designed home in the landing page footer
+ * (`placement="inline"`) per `DEC-009`. Everywhere else it floats as app chrome
+ * (`placement="floating"`, the default), so the opt-out stays reachable from
+ * the dashboard, the editor, and the error screen. `src/app.tsx` renders the
+ * floating one and skips it on the landing route, so a page never carries two —
+ * which would also duplicate this component's element ids.
  */
-const TelemetryDisclosure: Component<{ store?: ConsentStore }> = (props) => {
+const TelemetryDisclosure: Component<{
+	store?: ConsentStore;
+	placement?: "floating" | "inline";
+}> = (props) => {
 	const store = props.store ?? consentStore;
 	const [state, setState] = createSignal<ConsentState>(store.current);
 	onCleanup(store.subscribe(setState));
@@ -45,7 +51,13 @@ const TelemetryDisclosure: Component<{ store?: ConsentStore }> = (props) => {
 	};
 
 	return (
-		<details class="telemetry-disclosure">
+		<details
+			class="telemetry-disclosure"
+			classList={{
+				"telemetry-disclosure-inline":
+					(props.placement ?? "floating") === "inline",
+			}}
+		>
 			<summary class="telemetry-disclosure-summary">Privacy</summary>
 			<div class="telemetry-disclosure-body">
 				<p>

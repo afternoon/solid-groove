@@ -52,7 +52,7 @@ src/
 │   └── authService.ts       # Firebase auth service wrapper
 ├── components/         # Reusable UI components
 │   ├── Dashboard.tsx
-│   ├── LoginButton.tsx
+│   ├── LandingPage.tsx     # Public marketing landing page and the entry into anonymous start (PRD PRJ-06)
 │   ├── ProjectList.tsx
 │   └── ConfirmDialog.tsx   # Accessible confirmation modal for destructive actions (PRD PRJ-02)
 ├── editor/             # The FND-009 foundation vertical slice: editor state, audio wiring, and its 16-step UI
