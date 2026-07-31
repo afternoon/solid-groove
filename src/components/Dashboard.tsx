@@ -1,5 +1,9 @@
 import { useNavigate } from "@solidjs/router";
-import { HiSolidArrowPath, HiSolidPlus } from "solid-icons/hi";
+import {
+	HiSolidArrowPath,
+	HiSolidDocumentText,
+	HiSolidPlus,
+} from "solid-icons/hi";
 import {
 	createEffect,
 	createMemo,
@@ -9,10 +13,19 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import {
+	type Analytics,
+	analytics as defaultAnalytics,
+} from "../analytics/analytics";
+import { projectAgeBucket } from "../analytics/buckets";
 import { useAuth } from "../auth/AuthProvider";
+import { duplicateProject } from "../domain/duplicateProject";
 import type { ProjectMetadata } from "../domain/entities";
+import { createBlankProject } from "../domain/factories";
+import type { ProjectId } from "../domain/ids";
 import { createStarterProject } from "../editor/starterProject";
 import { getProjectRepository } from "../projectRepositoryClient";
+import type { ProjectActionResult } from "./ProjectList";
 import ProjectList from "./ProjectList";
 import TapeLoader from "./TapeLoader";
 import UpgradeAccountPrompt from "./UpgradeAccountPrompt";
@@ -23,7 +36,13 @@ interface ProjectsState {
 	data: ProjectMetadata[];
 }
 
-export default function Dashboard() {
+export interface DashboardProps {
+	/** Overridden in tests; defaults to the app-wide analytics boundary. */
+	analytics?: Analytics;
+}
+
+export default function Dashboard(props: DashboardProps = {}) {
+	const analytics = props.analytics ?? defaultAnalytics;
 	const auth = useAuth();
 	const navigate = useNavigate();
 	const userId = createMemo(() => auth?.user?.uid);
@@ -79,23 +98,128 @@ export default function Dashboard() {
 
 	const retryFetchProjects = () => setRetryCount((count) => count + 1);
 
-	const createProject = async () => {
+	/**
+	 * `source: "blank"` creates a genuinely empty project; `source: "template"`
+	 * uses the `FND-009` starter — audible content with no genre attached (the
+	 * `DEC-002` featured genre templates are `LOOP-015`'s scope, not this one's).
+	 * Both are the PRD `PRJ-01`/`PRJ-02` creation paths this task owns.
+	 */
+	const createProject = async (source: "blank" | "template") => {
 		const id = userId();
 		if (!id || creating()) return;
 		setCreating(true);
 		setCreateError(null);
 		try {
 			const repository = await getProjectRepository();
-			const project = createStarterProject(id);
+			const project =
+				source === "blank"
+					? createBlankProject({
+							ownerId: id,
+							name: "Untitled Project",
+							template: "blank",
+						})
+					: createStarterProject(id);
 			const result = await repository.createProject(project);
 			if (!result.ok) {
 				throw new Error(result.message);
 			}
+			analytics.log("project_created", { source });
 			navigate(`/projects/${project.metadata.id}`);
 		} catch (error) {
 			console.error("Error creating project:", error);
 			setCreateError("Couldn't create a new project. Please try again.");
 			setCreating(false);
+		}
+	};
+
+	const renameProject = async (
+		projectId: string,
+		name: string,
+	): Promise<ProjectActionResult> => {
+		const current = projectsState().data.find((p) => p.id === projectId);
+		if (!current)
+			return { ok: false, message: "That project is no longer here." };
+		try {
+			const repository = await getProjectRepository();
+			const result = await repository.saveMetadata(
+				projectId as ProjectId,
+				{ name },
+				current.revision,
+			);
+			if (!result.ok) {
+				return { ok: false, message: result.message };
+			}
+			setProjectsState((state) => ({
+				...state,
+				data: state.data.map((project) =>
+					project.id === projectId
+						? {
+								...project,
+								name,
+								revision: result.revision,
+								modifiedAt: result.modifiedAt,
+							}
+						: project,
+				),
+			}));
+			return { ok: true };
+		} catch (error) {
+			console.error("Error renaming project:", error);
+			return { ok: false, message: "Couldn't rename this project." };
+		}
+	};
+
+	const duplicateExistingProject = async (
+		projectId: string,
+	): Promise<ProjectActionResult> => {
+		const id = userId();
+		if (!id) return { ok: false, message: "Not signed in." };
+		try {
+			const repository = await getProjectRepository();
+			const loaded = await repository.loadProject(projectId as ProjectId);
+			if (!loaded.ok) {
+				return {
+					ok: false,
+					message: "Couldn't load this project to duplicate.",
+				};
+			}
+			const duplicate = duplicateProject(loaded.value, { ownerId: id });
+			const result = await repository.createProject(duplicate);
+			if (!result.ok) {
+				return { ok: false, message: result.message };
+			}
+			analytics.log("project_created", { source: "duplicate" });
+			setProjectsState((state) => ({
+				...state,
+				data: [...state.data, duplicate.metadata],
+			}));
+			return { ok: true };
+		} catch (error) {
+			console.error("Error duplicating project:", error);
+			return { ok: false, message: "Couldn't duplicate this project." };
+		}
+	};
+
+	const deleteProject = async (
+		projectId: string,
+	): Promise<ProjectActionResult> => {
+		const current = projectsState().data.find((p) => p.id === projectId);
+		try {
+			const repository = await getProjectRepository();
+			await repository.deleteProject(projectId as ProjectId);
+			analytics.log("project_deleted", {
+				project_age_bucket: projectAgeBucket(
+					Date.now() - (current?.createdAt ?? Date.now()),
+				),
+			});
+			setProjectsState((state) => ({
+				...state,
+				data: state.data.filter((project) => project.id !== projectId),
+			}));
+			return { ok: true };
+		} catch (error) {
+			console.error("Error deleting project:", error);
+			return { ok: false, message: "Couldn't delete this project." };
 		}
 	};
 
@@ -111,21 +235,32 @@ export default function Dashboard() {
 				    single reactive container to update correctly on retry. */}
 				<div>
 					<div class="dashboard-actions">
-						<button
-							type="button"
-							class="new-project"
-							disabled={creating()}
-							onClick={createProject}
-						>
-							<HiSolidPlus size={18} />
-							<span>New Project</span>
-						</button>
+						<div class="action-row">
+							<button
+								type="button"
+								class="new-project"
+								disabled={creating()}
+								onClick={() => void createProject("template")}
+							>
+								<HiSolidPlus size={18} />
+								<span>New Project</span>
+							</button>
+							<button
+								type="button"
+								class="blank-project"
+								disabled={creating()}
+								onClick={() => void createProject("blank")}
+							>
+								<HiSolidDocumentText size={18} />
+								<span>Blank Project</span>
+							</button>
+						</div>
 						<Show when={createError()}>
 							<p class="create-error">{createError()}</p>
 						</Show>
 					</div>
 					<Show when={auth?.isAnonymous}>
-						<UpgradeAccountPrompt />
+						<UpgradeAccountPrompt analytics={analytics} />
 					</Show>
 					<Switch>
 						<Match when={projectsState().error}>
@@ -142,7 +277,12 @@ export default function Dashboard() {
 							</div>
 						</Match>
 						<Match when={projectsState().data}>
-							<ProjectList projects={projectsState().data} />
+							<ProjectList
+								projects={projectsState().data}
+								onRename={renameProject}
+								onDuplicate={duplicateExistingProject}
+								onDelete={deleteProject}
+							/>
 						</Match>
 					</Switch>
 				</div>

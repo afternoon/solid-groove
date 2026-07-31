@@ -12,7 +12,7 @@ import { createManualClock } from "../shared/clock";
 import { memoryStorage } from "../testing/storage";
 import { EditorSession } from "./EditorSession";
 
-async function setUp() {
+async function setUp(options: { deviceStorage?: Storage } = {}) {
 	const repository = createInMemoryProjectRepository();
 	const project = createSliceFixtureProject();
 	const created = await repository.createProject(project);
@@ -28,9 +28,25 @@ async function setUp() {
 	analytics.setAccountType("anonymous");
 
 	const clock = createManualClock(1_000);
-	const session = new EditorSession({ repository, project, clock, analytics });
+	const deviceStorage = options.deviceStorage ?? memoryStorage();
+	const session = new EditorSession({
+		repository,
+		project,
+		clock,
+		analytics,
+		deviceStorage,
+	});
 	const clipId = project.clips[0].id as ClipId;
-	return { repository, project, session, analytics, transport, clock, clipId };
+	return {
+		repository,
+		project,
+		session,
+		analytics,
+		transport,
+		clock,
+		clipId,
+		deviceStorage,
+	};
 }
 
 describe("EditorSession", () => {
@@ -199,6 +215,67 @@ describe("EditorSession", () => {
 		expect(session.redo()).toBeNull();
 
 		expect(transport.named("undo_used")).toHaveLength(0);
+	});
+
+	it("logs project_opened exactly once when the session is constructed", () => {
+		const { transport } = ctx;
+
+		const opened = transport.named("project_opened");
+		expect(opened).toHaveLength(1);
+		expect(opened[0]?.params).toMatchObject({
+			project_age_bucket: "same_day",
+			track_count_bucket: "1_2",
+			is_first_open: true,
+		});
+	});
+
+	it("reports is_first_open: false on a second open of the same project on the same device", async () => {
+		const { repository, project, deviceStorage } = ctx;
+		const transport2 = createRecordingTransport();
+		const analytics2 = new Analytics({
+			transport: transport2,
+			consent: new ConsentStore(memoryStorage()),
+			storage: memoryStorage(),
+		});
+		analytics2.setAccountType("anonymous");
+
+		const secondSession = new EditorSession({
+			repository,
+			project,
+			clock: createManualClock(2_000),
+			analytics: analytics2,
+			deviceStorage,
+		});
+
+		const opened = transport2.named("project_opened");
+		expect(opened).toHaveLength(1);
+		expect(opened[0]?.params.is_first_open).toBe(false);
+
+		secondSession.dispose();
+	});
+
+	it("reports is_first_open: true again on a different device (isolated storage)", () => {
+		const { repository, project } = ctx;
+		const transport2 = createRecordingTransport();
+		const analytics2 = new Analytics({
+			transport: transport2,
+			consent: new ConsentStore(memoryStorage()),
+			storage: memoryStorage(),
+		});
+		analytics2.setAccountType("anonymous");
+
+		const otherDeviceSession = new EditorSession({
+			repository,
+			project,
+			clock: createManualClock(2_000),
+			analytics: analytics2,
+			deviceStorage: memoryStorage(),
+		});
+
+		const opened = transport2.named("project_opened");
+		expect(opened[0]?.params.is_first_open).toBe(true);
+
+		otherDeviceSession.dispose();
 	});
 
 	it("dispose stops the repository watch subscription", async () => {
