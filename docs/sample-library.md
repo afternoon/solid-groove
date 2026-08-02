@@ -67,6 +67,8 @@ An asset may be bundled only when one of these applies:
 
 The alpha factory library will not bundle CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL-licensed audio, or assets with custom attribution terms. Some may legally be usable, but they add user-facing attribution, share-alike, DRM, export, or interpretation obligations that are unnecessary while suitable CC0 material exists.
 
+**`DEC-003` is decided** (recorded in PRD section 16). The alpha bundles CC0 1.0 and Solid-Groove-owned content only, and commissions nothing — the commissioning budget is zero and premium or commissioned sources are deferred to a later milestone. Because CC0 carries no attribution obligation, there is no user-facing attribution and no per-asset export exclusion: every bundled asset is safe in stems and Ableton packages, and the export-exclusion machinery exists for future OEM content, not the alpha. Sourcing runs three routes in priority order — synthesis (section 15.1), trusted bulk CC0 archives (section 15.8: VCSL, Producer Space, FreePats CC0 banks), and the Freesound API filtered to CC0 against named coverage gaps (section 15.10) — and the alpha library is expected to be usable but not yet rounded, which is an accepted state for a prototype. This unblocks `CNT-002` on licensing; the specific shipped pack list remains `DEC-010`.
+
 ### 3.3 Additional rights checks
 
 CC0 or a permissive copyright licence does not automatically resolve every right. Intake must also consider:
@@ -873,6 +875,40 @@ Two things keep this honest rather than a back door around the section 3 policy:
 - **The provenance says what it is.** Acquired VCSL assets carry `sourceType: recorded`, `reviewState: bulk-cc0`, the pinned commit in their `downloadUrl`, and the per-file GitHub URL of the sample they came from. Their IDs sit in a `sg-one-shot-<family>-<role>-6NNN` range, disjoint from both the synthesized catalogue and the lockfile ingest (base 5000), so no two paths can collide.
 
 The acquired directory now holds one bundle per ingest path (`acquired-library/lockfile/`, `acquired-library/vcsl/`), each an `entries.json` beside its `audio/`. `manifest.loadAcquiredAssets` merges every bundle, so `library:build` combines lockfile-pinned CC0, bulk VCSL, and the synthesized catalogue, groups the result by pack, and emits one manifest per pack (section 15.8). Both acquisition routes still close the section 6.4 organic-source floor that synthesis cannot reach.
+
+### 15.9 Bulk CC0 archives beyond VCSL (Producer Space, FreePats banks)
+
+VCSL is not the only archive-wide CC0 source. `DEC-003` generalizes the trusted-bulk pattern to two more section 4.1 sources whose CC0 clearance is archive-wide rather than per file, so a curator confirms the licence once on the page and the whole archive is ingested as a unit:
+
+- **Producer Space** — its official [`/license`](https://producerspace.com/license) clearance places the *entire library* under CC0 with an express redistribution grant, so a downloaded pack `.zip` is a bulk CC0 unit; every member shares the one licence.
+- **FreePats CC0 banks** — FreePats states its licence *per bank*, so a bank whose page states CC0 is a bulk CC0 unit for that bank; the whole bank archive shares the one licence.
+
+```sh
+bun run library:producer-space -- <bulk-source-id>   # ingest a confirmed CC0 pack archive
+bun run library:freepats-bank  -- <bulk-source-id>   # ingest a confirmed CC0 bank archive
+bun run library:acquire -- --list-bulk               # the declared bulk sources and their licence pages
+```
+
+`acquire/bulkSources.mjs` declares each bulk source (its exact archive URL, licence-statement URL, one-sentence rights note, taxonomy mapping, and a disjoint asset-ID range), and `acquire/bulk.mjs` downloads the archive, decodes and prepares every audio member to the section 10 standard, captures the archive-wide licence as section 3.4 evidence, and writes an acquired bundle in the same shape as VCSL. The honesty boundary is narrow and load-bearing: a bulk source is valid **only where one archive carries exactly one CC0 licence**. A mixed-licence host (a Freesound search, a Signature Sounds pack with a stray CC-BY file) is never declared here — it stays on the per-file `library:manage` path where a person confirms each file. Section 4.2's rule that "a site-wide claim is not evidence for an individual file" is untouched; a bulk source is the opposite case — a genuinely archive-wide dedication — not a loophole around it.
+
+Two guardrails keep it honest:
+
+- **A placeholder archive URL refuses to ingest.** The declared `archiveUrl` starts as the source's landing or bank page; the ingest fails until a curator confirms CC0 on that page and sets `archiveUrl` to the exact `.zip` they reviewed. A real acquisition needs the specific archive, not the page it was found on.
+- **The provenance says what it is.** Bulk-archive assets carry `sourceType: recorded`, `reviewState: bulk-cc0`, the archive URL in `downloadUrl`, and the member path they came from. Producer Space IDs sit in a `7NNN` range and FreePats in an `8NNN` range, both disjoint from the synthesized catalogue (base <5000), the lockfile ingest (5000), and VCSL (6000), so no two paths can collide.
+
+### 15.10 Freesound via the API, filtered to CC0
+
+The mined Freesound Loop Dataset candidates (section 15.7) are all `unconfirmed` because the per-sound licence lives only inside the dataset's 8.8 GB archive, so a curator had to open each page to find the CC0 ones — the source of the "too noisy to review" problem `DEC-003` set out to fix. The Freesound API resolves this at the source: it returns each sound's `license` directly and supports `filter=license:"Creative Commons 0"` server-side.
+
+```sh
+FREESOUND_API_KEY=… bun run library:freesound        # query named gaps, write CC0 candidates
+FREESOUND_API_KEY=… bun run library:freesound -- --dry
+bun run library:candidates                            # fold them into candidates.json
+```
+
+`acquire/freesoundGaps.mjs` is a short, hand-written list of *named coverage gaps* — the classic drum-machine hits (909/808/707), a few organic kit pieces, and some texture/FX material — each a query plus the taxonomy and seed tags a match should land under. `library:freesound` (`freesound.mjs`, `acquire/freesoundApi.mjs`) runs each query filtered to CC0, defensively re-checks the `license` field on every result, and writes the CC0 sounds to `acquire/candidate-sources/freesound-cc0.json`. `library:candidates` folds that file into `candidates.json` as `verified-cc0` entries that sort to the top of the review queue, so the curator reviews musical quality and provenance (section 3.3), not the licence.
+
+This is still not a crawl and not a "download this tag" mode: a person writes each gap query, and every result is only a candidate *page* that flows through the unchanged pin → review → commit → ingest path (section 15.5). The API resolves the licence; a Freesound download still needs OAuth at `--pin` time exactly as before. Adding a gap is a content-coverage decision, not a rights one — the API filter and the section 3.2 allowlist still gate what is bundleable.
 
 ### 15.8 Repacking the starter library
 

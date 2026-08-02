@@ -5,6 +5,14 @@
 //   bun run library:acquire -- --pin      # download, hash, and write pins back
 //   bun run library:acquire               # download, verify, prepare, ingest
 //   bun run library:acquire -- --vcsl     # clone VCSL, bulk-ingest a CC0 subset, delete the clone
+//   bun run library:acquire -- --list-bulk         # list the declared trusted bulk CC0 archives
+//   bun run library:acquire -- --producer-space [id]  # bulk-ingest a confirmed Producer Space CC0 pack
+//   bun run library:acquire -- --freepats-bank  [id]  # bulk-ingest a confirmed FreePats CC0 bank
+//
+// The bulk paths (--vcsl, --producer-space, --freepats-bank) are for sources
+// whose whole archive shares one CC0 licence (section 15.9): the confirmation is
+// the archive-wide licence captured once as evidence, not a per-file pin. They do
+// not touch sources.lock.json. Everything else below is the per-file path.
 //
 // The synthesized library needs no network and always works. This adds recorded
 // and field-recorded material from the docs/sample-library.md section 4 sources,
@@ -56,13 +64,33 @@ export const ACQUIRED_DIR = join(
 export const EVIDENCE_DIR = join(REPO_ROOT, "docs", "licenses", "sources");
 
 export function parseArgs(argv) {
-	const args = { plan: false, pin: false, only: null, vcsl: false };
+	const args = {
+		plan: false,
+		pin: false,
+		only: null,
+		vcsl: false,
+		bulk: null,
+		listBulk: false,
+	};
 	for (let i = 0; i < argv.length; i++) {
 		const flag = argv[i];
 		if (flag === "--plan") args.plan = true;
 		else if (flag === "--pin") args.pin = true;
 		else if (flag === "--only") args.only = argv[++i] ?? null;
 		else if (flag === "--vcsl") args.vcsl = true;
+		else if (flag === "--list-bulk") args.listBulk = true;
+		// `--producer-space` / `--freepats-bank` take a bulk-source id; with no id
+		// they run the first bulk source of that parent (a sensible default so a
+		// bare `library:producer-space` does something useful).
+		else if (flag === "--producer-space")
+			args.bulk = argv[i + 1]?.startsWith("--")
+				? "producer-space"
+				: (argv[++i] ?? "producer-space");
+		else if (flag === "--freepats-bank")
+			args.bulk = argv[i + 1]?.startsWith("--")
+				? "freepats"
+				: (argv[++i] ?? "freepats");
+		else if (flag === "--bulk") args.bulk = argv[++i] ?? null;
 		else throw new Error(`unknown flag: ${flag}`);
 	}
 	return args;
@@ -153,15 +181,76 @@ async function pinSelections(lockfile, { log, now }) {
 	return { ...lockfile, selections: pinned };
 }
 
+/**
+ * Resolve a `--bulk`/`--producer-space`/`--freepats-bank` argument to the bulk
+ * sources to run: an exact bulk-source id, or a parent source id (run all of its
+ * bulk sources). Returns [] with a listed hint if nothing matches.
+ */
+function resolveBulkSources(arg, BULK_SOURCES) {
+	const exact = BULK_SOURCES.find((s) => s.id === arg);
+	if (exact) return [exact];
+	const byParent = BULK_SOURCES.filter((s) => s.sourceId === arg);
+	return byParent;
+}
+
 export async function acquire({
 	plan = false,
 	pin = false,
 	only = null,
 	vcsl = false,
+	bulk = null,
+	listBulk = false,
 	log = console.log,
 	now,
 } = {}) {
 	const timestamp = now ?? new Date().toISOString();
+
+	if (listBulk || bulk) {
+		const { BULK_SOURCES } = await import("./acquire/bulkSources.mjs");
+		if (listBulk) {
+			log("Trusted bulk CC0 archive sources (one archive = one CC0 licence):");
+			for (const s of BULK_SOURCES) {
+				log(`  ${s.id.padEnd(38)} ${s.sourceId}`);
+				log(`      archive: ${s.archiveUrl}`);
+				log(`      licence: ${s.licenseUrl}`);
+			}
+			log("");
+			log(
+				"Confirm the archive is CC0 on its page, set archiveUrl to the exact .zip,",
+			);
+			log(
+				"then run e.g. `bun run library:producer-space -- <bulk-source-id>`.",
+			);
+			return { ingested: 0, sources: 0 };
+		}
+
+		const { acquireBulkSource } = await import("./acquire/bulk.mjs");
+		const sources = resolveBulkSources(bulk, BULK_SOURCES);
+		if (sources.length === 0) {
+			throw new Error(
+				`no bulk source matches "${bulk}". Run --list-bulk to see the declared bulk sources.`,
+			);
+		}
+		let total = 0;
+		for (const source of sources) {
+			log(`\n== ${source.name} ==`);
+			const result = await acquireBulkSource(source, {
+				acquiredDir: ACQUIRED_DIR,
+				evidenceDir: EVIDENCE_DIR,
+				now: timestamp,
+				log,
+			});
+			total += result.ingested;
+			log(
+				`evidence:  ${join(EVIDENCE_DIR, result.evidencePath.split("/").pop())}`,
+			);
+			log(`assets:    ${result.bundleDir}`);
+		}
+		log("");
+		log(`ingested ${total} assets from ${sources.length} bulk source(s).`);
+		log("Run `bun run library:build` to merge them into the manifest.");
+		return { ingested: total, sources: sources.length };
+	}
 
 	if (vcsl) {
 		// VCSL is a trusted bulk CC0 source, not a lockfile source: it does not

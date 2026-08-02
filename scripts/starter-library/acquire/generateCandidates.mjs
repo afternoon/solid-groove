@@ -26,7 +26,7 @@
 // it is bulk-ingested by `acquire/vcsl.mjs` (library:acquire --vcsl) rather than
 // reviewed page-by-page here.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,13 +36,6 @@ const OUT_PATH = join(HERE, "candidates.json");
 
 /** Cap FSLD so mined loops do not swamp the curated one-shot material. */
 const FSLD_LIMIT = 984;
-
-const slug = (text) =>
-	text
-		.toLowerCase()
-		.normalize("NFKD")
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
 
 // --- FSLD (Freesound Loop Dataset) ---------------------------------------
 
@@ -125,6 +118,22 @@ function fsldCandidates() {
 		});
 	}
 	return out;
+}
+
+// --- Freesound API CC0 gaps ----------------------------------------------
+
+// The CC0 sounds `library:freesound` resolved from the Freesound API for the
+// named gaps in freesoundGaps.mjs. Unlike FSLD, the licence here is already
+// Creative Commons 0 (the API filtered on it), so these carry `verified-cc0`
+// and sort to the top of the review queue — the curator auditions quality and
+// provenance, not the licence. The file is optional: it only exists after
+// someone runs `library:freesound` with an API key, and a fresh checkout that
+// has not still generates a valid candidates.json without it.
+function freesoundGapCandidates() {
+	const path = join(SOURCES_DIR, "freesound-cc0.json");
+	if (!existsSync(path)) return [];
+	const { candidates } = JSON.parse(readFileSync(path, "utf8"));
+	return Array.isArray(candidates) ? candidates : [];
 }
 
 // --- FreePats banks -------------------------------------------------------
@@ -261,6 +270,9 @@ import { ESSENTIALS } from "./candidateEssentials.mjs";
 function generate() {
 	const groups = [
 		["essentials", ESSENTIALS],
+		// Freesound API CC0 gaps first: licence already resolved, so the curator
+		// works these verified-cc0 leads ahead of the unconfirmed mined ones.
+		["freesound-gaps", freesoundGapCandidates()],
 		["freepats", freepatsCandidates()],
 		["fsld", fsldCandidates()],
 	];
