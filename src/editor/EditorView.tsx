@@ -3,22 +3,26 @@ import {
 	HiSolidArrowUturnLeft,
 	HiSolidArrowUturnRight,
 	HiSolidPlay,
+	HiSolidQuestionMarkCircle,
 	HiSolidSquares2x2,
 	HiSolidStop,
 } from "solid-icons/hi";
 import {
 	createMemo,
 	createResource,
+	createSignal,
 	type JSX,
 	Match,
 	Show,
 	Switch,
 } from "solid-js";
-import { usePlaybackHotkey } from "../audio/usePlaybackHotkey";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
+import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
+import { shortcutLabel, useShortcuts } from "../shortcuts";
+import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
@@ -69,7 +73,44 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 
 	const project = createMemo(() => session.state.project);
 	const audio = useProjectAudio(project);
-	usePlaybackHotkey({ toggle: () => void audio.toggle() });
+	const [guideOpen, setGuideOpen] = createSignal(false);
+
+	// The KEY-01 registry owns every mapping; this component only says which
+	// actions exist here and what they do. An action the slice does not
+	// implement yet simply has no handler and never fires.
+	const handlers = (): ShortcutHandlers => ({
+		"transport.play_stop": { run: () => void audio.toggle() },
+		"edit.undo": {
+			run: () => session.undo(),
+			isEnabled: () => session.state.canUndo,
+		},
+		"edit.redo": {
+			run: () => session.redo(),
+			isEnabled: () => session.state.canRedo,
+		},
+		"help.shortcut_guide": { run: () => setGuideOpen(true) },
+		"view.close_surface": {
+			run: () => setGuideOpen(false),
+			isEnabled: () => guideOpen(),
+		},
+	});
+
+	// The surfaces this slice actually shows. The guide filters against these,
+	// so "shortcuts valid in the current context" means the editor underneath
+	// rather than the modal covering it.
+	const editorContexts = (): readonly ShortcutContext[] => [
+		"editor",
+		"step_editor",
+	];
+
+	// While the guide is open it is the only active context, so nothing behind
+	// it can fire — including playback and selection (PRD KEY-02).
+	const contexts = (): readonly ShortcutContext[] =>
+		guideOpen() ? ["dialog"] : editorContexts();
+
+	const shortcuts = useShortcuts({ handlers, contexts });
+	const keyHint = (action: Parameters<typeof shortcutLabel>[0]) =>
+		shortcutLabel(action, shortcuts.platform);
 
 	const track = createMemo(() => project()?.song.tracks[0] ?? null);
 	const clip = createMemo(() => {
@@ -144,7 +185,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 												? `Undo ${session.state.undoSummary}`
 												: "Undo"
 										}
-										title={session.state.undoSummary ?? "Undo"}
+										title={`${session.state.undoSummary ?? "Undo"} (${keyHint("edit.undo")})`}
 										onClick={() => session.undo()}
 									>
 										<HiSolidArrowUturnLeft size={18} />
@@ -158,7 +199,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 												? `Redo ${session.state.redoSummary}`
 												: "Redo"
 										}
-										title={session.state.redoSummary ?? "Redo"}
+										title={`${session.state.redoSummary ?? "Redo"} (${keyHint("edit.redo")})`}
 										onClick={() => session.redo()}
 									>
 										<HiSolidArrowUturnRight size={18} />
@@ -171,7 +212,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										aria-label={
 											audio.isPlaying() ? "Stop playback" : "Start playback"
 										}
-										title={audio.isPlaying() ? "Stop (space)" : "Play (space)"}
+										title={`${audio.isPlaying() ? "Stop" : "Play"} (${keyHint(
+											"transport.play_stop",
+										)})`}
 									>
 										<Show
 											when={audio.isPlaying()}
@@ -181,6 +224,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										</Show>
 									</button>
 								</div>
+								<button
+									type="button"
+									class="shortcut-guide-button"
+									aria-label="Keyboard shortcuts"
+									title={`Keyboard shortcuts (${keyHint("help.shortcut_guide")})`}
+									onClick={() => setGuideOpen(true)}
+								>
+									<HiSolidQuestionMarkCircle size={18} />
+								</button>
 								<div class="save-status-group">
 									<div
 										class="save-status"
@@ -235,6 +287,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									)}
 								</Show>
 							</div>
+							<Show when={guideOpen()}>
+								<ShortcutGuide
+									contexts={editorContexts()}
+									platform={shortcuts.platform}
+									isEnabled={(id) => shortcuts.isEnabled(id)}
+									onClose={() => setGuideOpen(false)}
+								/>
+							</Show>
 						</>
 					)}
 				</Match>

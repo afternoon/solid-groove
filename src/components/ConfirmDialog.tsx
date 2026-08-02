@@ -1,4 +1,6 @@
-import { createEffect, type JSX, onCleanup } from "solid-js";
+import type { JSX } from "solid-js";
+import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
+import { useShortcuts } from "../shortcuts";
 import "./ConfirmDialog.css";
 
 export interface ConfirmDialogProps {
@@ -12,6 +14,9 @@ export interface ConfirmDialogProps {
 	onCancel: () => void;
 }
 
+/** A modal suppresses every other context while it is open (PRD `KEY-01`). */
+const DIALOG_CONTEXTS: readonly ShortcutContext[] = ["dialog"];
+
 /**
  * A minimal, accessible confirmation modal for destructive actions (PRD
  * `PRJ-02`: "Destructive deletion requires confirmation").
@@ -20,14 +25,24 @@ export interface ConfirmDialogProps {
  * Dismissal is keyboard-first rather than click-outside: the `Escape` key and
  * the `Cancel` button both cancel, so nothing here needs a mouse-only handler
  * on a non-interactive backdrop element.
+ *
+ * `Escape` is not compared here: it is `view.close_surface` in the `KEY-01`
+ * registry, dispatched by the shared `ShortcutController` like every other
+ * mapping. That is what keeps the combination written down once, and it picks
+ * up the text-entry rule and the `shortcut_used` measurement for free.
  */
 export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
-	createEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Escape") props.onCancel();
-		};
-		document.addEventListener("keydown", onKeyDown);
-		onCleanup(() => document.removeEventListener("keydown", onKeyDown));
+	useShortcuts({
+		handlers: (): ShortcutHandlers => ({
+			"view.close_surface": {
+				run: () => props.onCancel(),
+				// Both buttons are disabled while the confirmed action is in flight.
+				// Escape is the same affordance as Cancel, so it follows them rather
+				// than dismissing a dialog whose action is still running.
+				isEnabled: () => props.busy !== true,
+			},
+		}),
+		contexts: () => DIALOG_CONTEXTS,
 	});
 
 	return (

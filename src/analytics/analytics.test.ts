@@ -260,11 +260,13 @@ describe("type safety (PRD OPS-02: logging an unregistered event is a type error
 
 	it("cannot log an event whose keys a later task still owns", () => {
 		const { analytics } = setup();
-		// `shortcut_used`'s `action_id` comes from the LOOP-014 shortcut
-		// registry. Until that lands the enum is empty, so the event is declared
-		// but un-loggable — no call site can ship ahead of its keys.
+		// `device_added`'s `device_type` keys are authored per device by
+		// LOOP-008/009. Until those land the enum is empty, so the event is
+		// declared but un-loggable — no call site can ship ahead of its keys.
+		// (`shortcut_used`'s `action_id` was the example here until LOOP-014
+		// claimed it from the shortcut registry.)
 		// @ts-expect-error - no value satisfies an empty enum.
-		analytics.log("shortcut_used", { action_id: "transport.play" });
+		analytics.log("device_added", { device_type: "reverb", chain: "insert" });
 	});
 });
 

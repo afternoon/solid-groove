@@ -85,7 +85,7 @@ Suite location: `e2e-emulator/`. `e2e-emulator/slice.spec.ts` exercises the whol
 
 ### Playback is asserted in Chromium only — a known, tracked gap
 
-`slice.spec.ts` runs in both gating browsers, but its two playback assertions are guarded by `browserName === "chromium"`. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
+`slice.spec.ts` runs in both gating browsers, but its two playback assertions are guarded by `browserName === "chromium"`. `LOOP-014` added the same guard to the keyboard-shortcut test in `e2e/smoke.spec.ts`, for the same reason and with the same annotation — pressing `Space` dispatches identically in Firefox, but the transport button it would flip depends on the same `resume()` that never settles there. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
 
 **Why.** In Firefox here, `useProjectAudio.play()` never reaches `setIsPlaying(true)`, so the transport button never becomes "Stop playback". What is known, from instrumenting the spec:
 

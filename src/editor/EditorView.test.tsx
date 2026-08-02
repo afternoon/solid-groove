@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
+import { detectPlatform, shortcutLabel } from "../shortcuts";
 
 installWebAudioGlobals();
 
@@ -232,5 +233,106 @@ describe("EditorView", () => {
 		expect(
 			screen.queryByRole("button", { name: "Retry" }),
 		).not.toBeInTheDocument();
+	});
+});
+
+/** The PRD KEY-01/KEY-02 wiring, end to end through the real registry. */
+describe("EditorView keyboard shortcuts", () => {
+	async function renderSlice() {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+		renderEditor(project.metadata.id);
+		await screen.findByRole("group", { name: "16-step sequence" });
+		return project;
+	}
+
+	it("undoes an edit from the keyboard, through the same command path as the button", async () => {
+		await renderSlice();
+
+		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		await screen.findByRole("button", { name: "Step 2, on" });
+
+		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+
+		expect(
+			await screen.findByRole("button", { name: "Step 2, off" }),
+		).toBeInTheDocument();
+	});
+
+	it("does nothing when the undo shortcut fires with nothing to undo", async () => {
+		await renderSlice();
+
+		// Undo is registered but disabled, so the mapping resolves and stops.
+		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+
+		expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+		expect(
+			screen.getByRole("button", { name: "Step 1, on" }),
+		).toBeInTheDocument();
+	});
+
+	it("does not fire a shortcut typed into a text field", async () => {
+		await renderSlice();
+		const input = document.createElement("input");
+		document.body.append(input);
+		input.focus();
+
+		fireEvent.keyDown(input, { key: "?" });
+
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		input.remove();
+	});
+
+	it("opens the mapping guide with ?, closes it with Escape, and restores focus", async () => {
+		await renderSlice();
+		const opener = screen.getByRole("button", { name: "Keyboard shortcuts" });
+		opener.focus();
+
+		fireEvent.keyDown(window, { key: "?", shiftKey: true });
+
+		const dialog = await screen.findByRole("dialog");
+		expect(dialog).toHaveAttribute("aria-modal", "true");
+		expect(document.activeElement).toBe(
+			screen.getByLabelText("Search shortcuts"),
+		);
+
+		fireEvent.keyDown(window, { key: "Escape" });
+
+		await vi.waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		expect(document.activeElement).toBe(opener);
+	});
+
+	it("does not toggle playback while the guide is open", async () => {
+		await renderSlice();
+
+		fireEvent.keyDown(window, { key: "?", shiftKey: true });
+		await screen.findByRole("dialog");
+
+		fireEvent.keyDown(window, { key: " " });
+
+		// The transport button still offers Play, so Space never reached it.
+		expect(
+			screen.getByRole("button", { name: "Start playback" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows each action's mapping in its tooltip, from the registry", async () => {
+		await renderSlice();
+
+		const platform = detectPlatform();
+		expect(screen.getByRole("button", { name: "Undo" })).toHaveAttribute(
+			"title",
+			`Undo (${shortcutLabel("edit.undo", platform)})`,
+		);
+		expect(
+			screen.getByRole("button", { name: "Start playback" }),
+		).toHaveAttribute("title", "Play (Space)");
+		expect(
+			screen.getByRole("button", { name: "Keyboard shortcuts" }),
+		).toHaveAttribute("title", "Keyboard shortcuts (?)");
 	});
 });

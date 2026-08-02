@@ -26,6 +26,7 @@ export type {
 	CommandId,
 	FeatureKey,
 	SampleRateKey,
+	ShortcutActionId,
 	Surface,
 } from "./catalog";
 export {
@@ -37,6 +38,7 @@ export {
 	FEATURE_KEYS,
 	PARAM_KINDS,
 	SAMPLE_RATE_KEYS,
+	SHORTCUT_ACTION_IDS,
 	SURFACES,
 	sampleRateKey,
 	validateEventPayload,

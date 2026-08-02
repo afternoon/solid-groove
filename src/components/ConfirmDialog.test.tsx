@@ -51,6 +51,9 @@ describe("ConfirmDialog", () => {
 		expect(onCancel).toHaveBeenCalledTimes(1);
 	});
 
+	// Escape reaches this dialog through the KEY-01 registry's
+	// `view.close_surface`, not a listener of its own, so these cases are as
+	// much a test of the migration as of the dialog.
 	it("calls onCancel when Escape is pressed", () => {
 		const onCancel = vi.fn();
 		render(() => (
@@ -64,6 +67,57 @@ describe("ConfirmDialog", () => {
 
 		fireEvent.keyDown(document, { key: "Escape" });
 		expect(onCancel).toHaveBeenCalledTimes(1);
+	});
+
+	it("ignores Escape while the confirmed action is in flight", () => {
+		const onCancel = vi.fn();
+		render(() => (
+			<ConfirmDialog
+				title="Delete?"
+				message="Sure?"
+				busy
+				onConfirm={() => {}}
+				onCancel={onCancel}
+			/>
+		));
+
+		fireEvent.keyDown(document, { key: "Escape" });
+		expect(onCancel).not.toHaveBeenCalled();
+	});
+
+	it("stops listening for Escape once it unmounts", () => {
+		const onCancel = vi.fn();
+		render(() => (
+			<ConfirmDialog
+				title="Delete?"
+				message="Sure?"
+				onConfirm={() => {}}
+				onCancel={onCancel}
+			/>
+		));
+
+		cleanup();
+		fireEvent.keyDown(document, { key: "Escape" });
+		expect(onCancel).not.toHaveBeenCalled();
+	});
+
+	it("does not fire an editor shortcut such as Space while it is open", () => {
+		const onConfirm = vi.fn();
+		const onCancel = vi.fn();
+		render(() => (
+			<ConfirmDialog
+				title="Delete?"
+				message="Sure?"
+				onConfirm={onConfirm}
+				onCancel={onCancel}
+			/>
+		));
+
+		// `dialog` suppresses every other context, so nothing behind the modal —
+		// playback included — can fire from the keyboard while it is up.
+		fireEvent.keyDown(document, { key: " " });
+		expect(onConfirm).not.toHaveBeenCalled();
+		expect(onCancel).not.toHaveBeenCalled();
 	});
 
 	it("disables both actions while busy", () => {

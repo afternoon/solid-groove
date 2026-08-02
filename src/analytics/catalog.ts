@@ -186,6 +186,40 @@ export const COMMAND_IDS = [
 export type CommandId = (typeof COMMAND_IDS)[number];
 
 /**
+ * Registered shortcut actions, as `shortcut_used`'s `action_id` (PRD `KEY-01`).
+ *
+ * Pinned here for the same reason as `COMMAND_IDS`: an analytics parameter's
+ * value set is a published contract, and pinning it means a mapping added to
+ * `src/shortcuts/registry.ts` has to be given an analytics decision in the same
+ * change. `catalog.test.ts` asserts this list equals the registry's exactly.
+ */
+export const SHORTCUT_ACTION_IDS = [
+	"transport.play_stop",
+	"transport.continue",
+	"transport.metronome",
+	"edit.undo",
+	"edit.redo",
+	"edit.cut",
+	"edit.copy",
+	"edit.paste",
+	"edit.select_all",
+	"edit.delete",
+	"edit.duplicate",
+	"arrangement.split_clip",
+	"arrangement.toggle_loop",
+	"arrangement.toggle_automation_view",
+	"clip.quantize",
+	"clip.toggle_draw_mode",
+	"view.zoom_to_selection",
+	"view.zoom_back",
+	"view.zoom_in",
+	"view.zoom_out",
+	"view.close_surface",
+	"help.shortcut_guide",
+] as const;
+export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
+
+/**
  * Audio sample rates, as an enumerated key rather than a raw number, so
  * `audio_underrun` cannot carry an unusual exact rate that helps identify a
  * machine. `sampleRateKey()` maps a measured rate onto this set.
@@ -398,8 +432,9 @@ export const ANALYTICS_EVENTS = {
 	shortcut_used: {
 		phase: 1,
 		owners: ["LOOP-014"],
-		// Action IDs come from the KEY-01 shortcut registry (LOOP-014).
-		params: { action_id: enumParam(UNCLAIMED) },
+		// Action IDs come from the KEY-01 shortcut registry (LOOP-014), and the
+		// registry — not the handler — is what logs them.
+		params: { action_id: enumParam(SHORTCUT_ACTION_IDS) },
 	},
 
 	undo_used: {
