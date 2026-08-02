@@ -87,6 +87,31 @@ describe("LandingPage (PRD PRJ-06)", () => {
 			).toBeInTheDocument();
 		});
 
+		// This page's "Log in" is `signInWithGoogle`, which swaps the uid rather
+		// than linking, so it does not make a guest's projects permanent — it
+		// makes them unreachable. `linkWithGoogle` is what keeps the promise, and
+		// it lives behind the dashboard's upgrade prompt ("Sign up with Google").
+		// A returning guest quietly losing their work is the failure this pins.
+		it("points the retention promise at the control that keeps it, not at Log in", () => {
+			setup();
+
+			const note = screen.getByText(
+				/kept for 180 days after you last open them/i,
+			);
+			expect(note).toHaveTextContent(/Sign up with Google/i);
+			expect(note).toHaveTextContent(/projects page/i);
+			expect(note.textContent ?? "").not.toMatch(
+				/log in[^.]*to keep them indefinitely/i,
+			);
+		});
+
+		it("says plainly that logging in does not carry guest projects across", () => {
+			setup();
+			expect(
+				screen.getByText(/does not move guest projects into it/i),
+			).toBeInTheDocument();
+		});
+
 		// PRD PRJ-06: the page "does not advertise capabilities beyond the current
 		// milestone". The unshipped capabilities are named only under the heading
 		// that says they are not here yet.

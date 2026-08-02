@@ -321,7 +321,7 @@ function wire(
 }
 
 describe("monitoring follows the surface reached, not the entry URL", () => {
-	// A landing session that clicks "Start creating" is client-navigated to the
+	// A landing session that clicks "Start in your browser" is client-navigated to the
 	// dashboard with no page load, so a decision taken once from
 	// `window.location.pathname` never gets revisited. Leaving monitoring off for
 	// that whole session drops it out of both halves of the PRD section 11

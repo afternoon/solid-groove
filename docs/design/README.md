@@ -66,6 +66,17 @@ milestone does not have:
   A task that ships one of them moves its line across.
 - **The editor screenshot.** It shows an arrangement that does not exist yet.
 
+The same rule decides where the `DEC-001` retention promise points. The page's
+`Log in` is `signInWithGoogle`, which starts a *different* session rather than
+upgrading the current one — Firebase does not auto-link, so a returning guest
+who used it would find the projects they made in this browser owned by an
+anonymous account they no longer hold. `linkWithGoogle` is the operation that
+keeps the promise, and it lives behind the dashboard's `UpgradeAccountPrompt`
+("Sign up with Google"). So the landing page states the promise against that
+control, and says what logging in here does instead. Teaching the header button
+to link belongs to the account-linking work, which has to decide what happens
+when the Google account already exists.
+
 ## Not yet mocked: the pack browser
 
 `01-editor-shell.png` shows the browser as a flat list of sounds. It predates

@@ -40,7 +40,7 @@ describe("MockAuthService.onAuthStateChanged", () => {
 		);
 
 		// Let the initial "current state" (null) delivery land first, exactly
-		// as a real subscriber (e.g. LoginButton's effect) would experience
+		// as a real subscriber (e.g. AuthProvider's effect) would experience
 		// on mount, before the user does anything.
 		await Promise.resolve();
 		await Promise.resolve();

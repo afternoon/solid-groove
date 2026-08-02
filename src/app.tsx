@@ -8,14 +8,13 @@ import {
 	ErrorBoundary,
 	onCleanup,
 	onMount,
-	Show,
 	Suspense,
 } from "solid-js";
 import { analytics } from "./analytics/analytics";
 import AppErrorFallback from "./components/AppErrorFallback";
+import FloatingTelemetryDisclosure from "./components/FloatingTelemetryDisclosure";
 import ReleaseBadge from "./components/ReleaseBadge";
 import TapeLoader from "./components/TapeLoader";
-import TelemetryDisclosure from "./components/TelemetryDisclosure";
 import { syncInternalTraffic } from "./shared/internalTraffic";
 import { initTelemetry, surfaceForPath, type Telemetry } from "./telemetry";
 import "./app.css";
@@ -47,22 +46,6 @@ function SurfaceTracker(props: { telemetry: Accessor<Telemetry | null> }) {
 		}
 	});
 	return null;
-}
-
-/**
- * The app-chrome copy of the PRD `OPS-02` disclosure and opt-out.
- *
- * Rendered on every surface except the landing page, which carries its own in
- * its footer (`LOOP-001b`). Two on one page would mean two controls for one
- * preference and duplicate element ids.
- */
-function FloatingTelemetryDisclosure() {
-	const location = useLocation();
-	return (
-		<Show when={surfaceForPath(location.pathname) !== "landing"}>
-			<TelemetryDisclosure />
-		</Show>
-	);
 }
 
 export default function App() {
@@ -110,9 +93,10 @@ export default function App() {
 					    hit an error -- exactly when knowing the build matters most. */}
 					<ReleaseBadge />
 					{/* Also outside the boundary: the PRD OPS-02 opt-out must stay
-					    reachable even on the error screen. The landing page renders its
-					    own inline copy in its footer (`LOOP-001b`, per DEC-009), so the
-					    floating one stands down there rather than duplicating it. */}
+					    reachable even on the error screen -- which is why this stands
+					    down for the landing page's own inline copy (`LOOP-001b`, per
+					    DEC-009) only while that copy is actually mounted, rather than
+					    for the whole route. */}
 					<FloatingTelemetryDisclosure />
 				</MetaProvider>
 			)}

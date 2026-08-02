@@ -31,19 +31,44 @@ test.describe("landing page", () => {
 	test("starts from the keyboard, with visible focus", async ({ page }) => {
 		await page.goto("/");
 
+		const cta = page.getByRole("button", { name: "Start in your browser" });
+		// The unfocused baseline, so the assertions below cannot be satisfied by
+		// a ring that was always there.
+		expect(
+			await cta.evaluate((element) => getComputedStyle(element).outlineStyle),
+		).toBe("none");
+
 		// Tabbed to rather than focused programmatically: `:focus-visible`, which
 		// is what draws the focus ring, only applies to keyboard focus.
-		const cta = page.getByRole("button", { name: "Start in your browser" });
 		for (let press = 0; press < 10; press++) {
 			await page.keyboard.press("Tab");
 			if (await cta.evaluate((element) => element === document.activeElement))
 				break;
 		}
 		await expect(cta).toBeFocused();
-		const outline = await cta.evaluate(
-			(element) => getComputedStyle(element).outlineStyle,
-		);
-		expect(outline).not.toBe("none");
+
+		// Pins `.landing button:focus-visible` specifically, not merely "some ring
+		// is drawn": a UA default ring, or an `outline: none` replaced by a
+		// `box-shadow`, does not match the page's own accent-coloured 2px rule.
+		// The accent is read from the custom property and normalised through a
+		// probe element so the expectation is not a second copy of the hex.
+		const ring = await cta.evaluate((element) => {
+			const styles = getComputedStyle(element);
+			const probe = document.createElement("span");
+			probe.style.color = styles.getPropertyValue("--landing-accent").trim();
+			document.body.append(probe);
+			const accent = getComputedStyle(probe).color;
+			probe.remove();
+			return {
+				style: styles.outlineStyle,
+				width: styles.outlineWidth,
+				color: styles.outlineColor,
+				accent,
+			};
+		});
+		expect(ring.style).toBe("solid");
+		expect(ring.width).toBe("2px");
+		expect(ring.color).toBe(ring.accent);
 
 		await page.keyboard.press("Enter");
 		await expect(page).toHaveURL(/\/dashboard$/);
@@ -53,11 +78,20 @@ test.describe("landing page", () => {
 		page,
 	}) => {
 		await page.goto("/");
+		// Settle on the rendered page first. The opt-out is reachable throughout
+		// (the app-chrome copy covers the window before this page's own footer
+		// copy exists, and the error screen if it never does), so counting mid
+		// hand-over would be counting the loading state, not the page.
+		await expect(
+			page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+		).toBeVisible();
 
-		// One control for one preference: the app-chrome copy stands down here
-		// (see src/app.tsx), so the page has only the footer's.
+		// One control for one preference: the app-chrome copy stands down while
+		// this page's footer copy is mounted (see FloatingTelemetryDisclosure), so
+		// the page has only the footer's.
 		const disclosure = page.getByText("Privacy", { exact: true });
 		await expect(disclosure).toHaveCount(1);
+		await expect(page.locator("#telemetry-disclosure-note")).toHaveCount(1);
 
 		await disclosure.click();
 		const optOut = page.getByRole("checkbox", {

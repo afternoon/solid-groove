@@ -96,6 +96,23 @@ export default function LandingPage(props: LandingPageProps) {
 		navigate("/dashboard");
 	};
 
+	/**
+	 * The path for someone who already has an account.
+	 *
+	 * It signs in, and signing in with Google is *not* the same as upgrading a
+	 * guest session: Firebase does not auto-link, so it swaps the uid and leaves
+	 * any projects made in this browser as a guest owned by the anonymous one.
+	 * `authService.linkWithGoogle` is the operation that keeps the `DEC-001`
+	 * retention promise, and it lives behind the dashboard's
+	 * `UpgradeAccountPrompt`, where there is a known signed-in guest to link.
+	 *
+	 * So this page states the promise against that control rather than this
+	 * button (see the note in the "Where the alpha is today" section), and says
+	 * plainly what logging in here does instead. Teaching this button to link —
+	 * which means resolving the current session first, and deciding what happens
+	 * when the Google account already exists — is the account-linking task's
+	 * call, not the landing page's.
+	 */
 	const logIn = async () => {
 		if (busy()) return;
 		analytics.log("landing_cta_click", { cta_id: "log_in" });
@@ -204,8 +221,10 @@ export default function LandingPage(props: LandingPageProps) {
 					<p class="landing-note">
 						This is an early build, shared privately. Features change, and
 						things break. Guest projects are kept for 180 days after you last
-						open them; log in with Google to keep them indefinitely and open
-						them on another device.
+						open them; to keep them indefinitely and open them on another
+						device, start free and then use "Sign up with Google" on your
+						projects page. Logging in here opens an existing account's own
+						projects, and does not move guest projects into it.
 					</p>
 				</section>
 

@@ -1,4 +1,9 @@
-import { type Component, createSignal, onCleanup } from "solid-js";
+import {
+	type Component,
+	createEffect,
+	createSignal,
+	onCleanup,
+} from "solid-js";
 import {
 	type ConsentState,
 	type ConsentStore,
@@ -28,10 +33,24 @@ import "./TelemetryDisclosure.css";
  * `LOOP-001b` gives this surface its designed home in the landing page footer
  * (`placement="inline"`) per `DEC-009`. Everywhere else it floats as app chrome
  * (`placement="floating"`, the default), so the opt-out stays reachable from
- * the dashboard, the editor, and the error screen. `src/app.tsx` renders the
- * floating one and skips it on the landing route, so a page never carries two —
- * which would also duplicate this component's element ids.
+ * the dashboard, the editor, and the error screen. `FloatingTelemetryDisclosure`
+ * stands the floating copy down while an inline one is mounted, so a page never
+ * carries two — which would also duplicate this component's element ids.
  */
+const [inlineCount, setInlineCount] = createSignal(0);
+
+/**
+ * Whether a page is currently rendering its own inline copy of the disclosure.
+ *
+ * `FloatingTelemetryDisclosure` reads this to decide whether the app-chrome
+ * copy is needed. Presence, not the route, is the thing that matters: the
+ * landing page hosts its own, but only once its chunk has mounted and only
+ * while it is rendering, so a route-based rule would leave `/` with no opt-out
+ * on the error screen and while the page is still loading — exactly the
+ * situations the floating copy exists for (PRD `OPS-02`).
+ */
+export const inlineDisclosureMounted = () => inlineCount() > 0;
+
 const TelemetryDisclosure: Component<{
 	store?: ConsentStore;
 	placement?: "floating" | "inline";
@@ -39,6 +58,12 @@ const TelemetryDisclosure: Component<{
 	const store = props.store ?? consentStore;
 	const [state, setState] = createSignal<ConsentState>(store.current);
 	onCleanup(store.subscribe(setState));
+
+	createEffect(() => {
+		if ((props.placement ?? "floating") !== "inline") return;
+		setInlineCount((count) => count + 1);
+		onCleanup(() => setInlineCount((count) => count - 1));
+	});
 
 	const enabled = () => state().productAnalytics || state().errorMonitoring;
 
