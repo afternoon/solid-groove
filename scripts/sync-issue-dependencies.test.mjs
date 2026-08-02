@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+	emitShellScript,
 	indexIssuesByTask,
 	parseBacklogGraph,
+	parseIssueIndex,
 	planEdges,
 } from "./sync-issue-dependencies.mjs";
 
@@ -106,5 +108,45 @@ describe("planEdges", () => {
 
 		expect(edges.some((e) => e.taskId === "FND-001")).toBe(false);
 		expect(missing.some((m) => m.taskId === "FND-001")).toBe(false);
+	});
+});
+
+describe("parseIssueIndex", () => {
+	it("reads the task -> issue number map out of the backlog index table", () => {
+		const index = parseIssueIndex(readFileSync("docs/backlog.md", "utf8"));
+
+		expect(index.get("LOOP-003")).toBe(43);
+		expect(index.get("REL-003")).toBe(80);
+		expect(index.size).toBeGreaterThan(50);
+	});
+});
+
+describe("the checked-in shell script", () => {
+	const backlog = readFileSync("docs/backlog.md", "utf8");
+	const generated = emitShellScript(
+		parseBacklogGraph(backlog),
+		parseIssueIndex(backlog),
+		{ skipped: [] },
+	);
+	const committed = readFileSync(
+		"scripts/create-issue-dependencies.sh",
+		"utf8",
+	);
+
+	const edgeLines = (text) =>
+		text.split("\n").filter((line) => line.startsWith("edge "));
+
+	it("declares exactly the edges the current backlog implies", () => {
+		expect(edgeLines(committed)).toEqual(edgeLines(generated));
+	});
+
+	it("emits a real edge with the blocked issue first", () => {
+		// LOOP-004 (#44) depends on LOOP-003 (#43): #44 is blocked by #43.
+		expect(edgeLines(committed)).toContain("edge 44 43 'LOOP-004 <- LOOP-003'");
+	});
+
+	it("passes issue_id as a number, since the API rejects a string", () => {
+		expect(committed).toContain('-F "issue_id=${blocker_id}"');
+		expect(committed).not.toContain('-f "issue_id=');
 	});
 });
