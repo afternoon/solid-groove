@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Implement Solid Groove Alpha Milestone 1 (LOOP-001..016, CNT-001..002) — Sonnet implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to execute Alpha Milestone 1 of docs/backlog.md, after FND-009 has landed. Name tasks to run a subset, either positionally (solid-groove-phase-1 LOOP-003 LOOP-007) or as args: ["LOOP-003","LOOP-007"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
+    'Run to execute Alpha Milestone 1 of docs/backlog.md, after FND-009 has landed. The scheduler is driven live by GitHub: each pass it reads the milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestone: 2, maxConcurrent: 2 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once; default 2 is laptop-safe, raise it in cloud.',
   phases: [
     { title: 'Foundations', detail: 'transport, autosave, shortcuts, dashboard, asset pipeline — everything that only needs FND-009' },
     { title: 'Instruments', detail: 'synth/sampler, drum machine, audio loops, tracks and mixer, library browser' },
@@ -13,15 +13,11 @@ export const meta = {
   ],
 }
 
-// Model policy, per the decision recorded in docs/prd.md section 16: a task
-// whose output every dependent task inherits runs on Opus, because an error
-// there propagates and surfaces late. In Alpha Milestone 1 that means the shared
-// registries and frameworks rather than the leaf features — the transport every
-// instrument schedules against, the device framework the processors plug into,
-// the shortcut registry every surface reads, the manifest pipeline the browser
-// consumes, and the transformation commands the Alpha Milestone 3 assistant reuses.
-// Review is always Opus at high effort, and runs before any PR is opened.
-const CONTRACT_TASKS = ['LOOP-003', 'LOOP-008', 'LOOP-012', 'LOOP-014', 'CNT-001', 'LOOP-016']
+// Model policy (docs/prd.md section 16): code-writing runs on Opus for every
+// task — implement and fix alike — not just the shared registries and frameworks
+// that once justified it while leaf features ran on Sonnet. Review is always Opus
+// at high effort, and runs before any PR is opened. The mechanical GitHub/git
+// agents (discovery, Status writes, PR-open) stay on Sonnet.
 
 // `main` carries all of Alpha Milestone 0 now, including the docs commits that moved
 // hosted-environment verification to `OPS-001` and published the GitHub issue
@@ -91,7 +87,7 @@ const decisionBlocked = (decisions) => `
 
 ## Blocked on a product decision
 
-This task depends on ${decisions.map((d) => `\`${d.id}\` (#${d.issue}, ${d.what})`).join(' and ')}, which ${decisions.length > 1 ? 'have' : 'has'} **not been decided**. ${decisions.length > 1 ? 'They are' : 'It is'} the product owner's call, not yours.
+This task depends on ${decisions.map((d) => `\`${d.id}\` (${d.issue ? `#${d.issue}, ` : ''}${d.what})`).join(' and ')}, which ${decisions.length > 1 ? 'have' : 'has'} **not been decided**. ${decisions.length > 1 ? 'They are' : 'It is'} the product owner's call, not yours.
 
 **Do not guess ${decisions.length > 1 ? 'them' : 'it'}.** Do not pick a plausible default, do not infer one from the design mocks, and do not let a library's default silently become product behavior. A confident implementation of an undecided policy is worse than an honest gap, because nothing later flags it as unreviewed.
 
@@ -109,114 +105,19 @@ const DEC = {
   'DEC-010': { id: 'DEC-010', issue: 39, what: 'the shipped factory pack list and each pack’s coverage claim' },
 }
 
-// `deps` lists only Alpha Milestone 1 dependencies — the scheduler waits on those. Alpha Milestone 0
-// dependencies (FND-009, FND-002b, CNT-000b) are already on the base branch, so
-// listing them would deadlock a scheduler that can only satisfy deps it runs.
-const TASKS = [
-  { id: 'LOOP-001', phase: 'Foundations', title: 'Anonymous start and project dashboard', issue: 40, deps: [] },
-  { id: 'LOOP-002', phase: 'Foundations', title: 'Autosave and recovery UX', issue: 42, deps: [] },
-  { id: 'LOOP-003', phase: 'Foundations', title: 'Transport, tempo, loop, and metronome', issue: 43, deps: [] },
-  { id: 'LOOP-014', phase: 'Foundations', title: 'Shortcut registry and mapping guide', issue: 56, deps: [] },
-  { id: 'CNT-001', phase: 'Foundations', title: 'Asset manifest and ingestion pipeline', issue: 53, deps: [] },
+// The scheduler passes `t.blocked` as DEC id strings read live from an issue's
+// open blockers (e.g. "DEC-003"). Resolve each to its rich DEC entry when known,
+// and fall back to a generic entry for any DEC id not catalogued above — so a
+// newly-added decision issue still gates the task instead of crashing the brief
+// on an `undefined` lookup.
+const resolveDecisions = (ids) =>
+  ids.map((id) => DEC[normaliseId(id)] ?? { id: normaliseId(id), issue: null, what: 'an undecided product decision' })
 
-  { id: 'LOOP-001b', phase: 'Instruments', title: 'Public landing page', issue: 41, deps: ['LOOP-001'] },
-  { id: 'LOOP-004', phase: 'Instruments', title: 'Synth and one-shot sampler', issue: 44, deps: ['LOOP-003', 'CNT-001'] },
-  { id: 'LOOP-005', phase: 'Instruments', title: 'Drum machine', issue: 45, deps: ['LOOP-003', 'CNT-001'] },
-  { id: 'LOOP-006', phase: 'Instruments', title: 'Tempo-aware audio loops', issue: 46, deps: ['LOOP-003', 'CNT-001'] },
-  { id: 'LOOP-007', phase: 'Instruments', title: 'Track management and mixer', issue: 47, deps: ['LOOP-003'] },
-  { id: 'LOOP-013', phase: 'Instruments', title: 'Searchable, sync-audition library browser', issue: 54, deps: ['CNT-001', 'LOOP-003'] },
-  { id: 'CNT-002', phase: 'Content', title: 'Rounded alpha factory library', issue: 55, deps: ['CNT-001'], blocked: ['DEC-003', 'DEC-010'] },
-
-  { id: 'LOOP-008', phase: 'Editing', title: 'Device-chain and routing framework', issue: 48, deps: ['LOOP-007'] },
-  { id: 'LOOP-010', phase: 'Editing', title: 'Step editor', issue: 50, deps: ['LOOP-005'] },
-  { id: 'LOOP-011', phase: 'Editing', title: 'Piano roll', issue: 51, deps: ['LOOP-004'] },
-  { id: 'LOOP-009', phase: 'Editing', title: 'Core processing devices', issue: 49, deps: ['LOOP-008'] },
-  { id: 'LOOP-012', phase: 'Editing', title: 'Shared musical transformations', issue: 52, deps: ['LOOP-010', 'LOOP-011'] },
-
-  {
-    id: 'LOOP-015',
-    phase: 'Content',
-    title: 'Starter projects and genre templates',
-    issue: 57,
-    deps: ['LOOP-001', 'LOOP-002', 'LOOP-004', 'LOOP-005', 'LOOP-006', 'LOOP-007', 'LOOP-008', 'LOOP-009', 'LOOP-010', 'LOOP-011', 'LOOP-012', 'LOOP-013', 'LOOP-014', 'CNT-002'],
-  },
-  {
-    id: 'LOOP-016',
-    phase: 'Gate',
-    title: 'Manual loop workflow gate',
-    issue: 58,
-    deps: ['LOOP-001', 'LOOP-001b', 'LOOP-002', 'LOOP-003', 'LOOP-004', 'LOOP-005', 'LOOP-006', 'LOOP-007', 'LOOP-008', 'LOOP-009', 'LOOP-010', 'LOOP-011', 'LOOP-012', 'LOOP-013', 'LOOP-014', 'LOOP-015', 'CNT-002'],
-  },
-]
-
-// Normalise the subset request, and fail loud on anything malformed.
-//
-// The rule that matters: a filter the script cannot understand must stop the
-// run, never degrade into "run every task". An early version of the Alpha Milestone 0
-// script used `Array.isArray(args) ? ... : null`, so a non-array `args` fell
-// through to null and ran the entire phase — that once opened PRs for six tasks
-// nobody asked for. Every branch below either yields a non-empty id list or
-// throws.
+// Task metadata is no longer hardcoded — it is read live from the milestone each
+// pass (see the discovery agent and scheduler at the bottom). `normaliseId` is
+// still used to key the model policy and phase lookup against a task id read from
+// a live issue title, which is not uniformly upper-case (e.g. LOOP-001b).
 const normaliseId = (id) => (typeof id === 'string' ? id.trim().toUpperCase() : id)
-
-const toIdList = (raw) => {
-  if (Array.isArray(raw)) return raw
-  if (typeof raw !== 'string') {
-    throw new Error(`args must be task ids, got ${typeof raw}: ${JSON.stringify(raw)}.`)
-  }
-
-  const trimmed = raw.trim()
-  if (!trimmed) return []
-
-  // A leading bracket or brace means the caller meant JSON. Honour that reading
-  // so a malformed JSON filter is reported as malformed JSON, rather than being
-  // split on whitespace into tokens that fail later as "unknown task id".
-  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-    let decoded
-    try {
-      decoded = JSON.parse(trimmed)
-    } catch {
-      throw new Error(`args looks like JSON but does not parse: ${raw}`)
-    }
-    if (!Array.isArray(decoded)) {
-      throw new Error(`args must be a list of task ids; it decoded to ${typeof decoded}: ${raw}`)
-    }
-    return decoded
-  }
-
-  return trimmed.split(/[\s,]+/)
-}
-
-// Only an *absent* filter means "run everything". A filter that is present but
-// empty — '', '   ', [], '[]' — is ambiguous: it reads equally as "run nothing"
-// and as "a list I meant to populate and did not", and the second is how the
-// six-unwanted-PRs run happened. Refuse it and make the caller say which.
-const parseTaskIds = (raw) => {
-  if (raw === undefined || raw === null) return null
-  const ids = toIdList(raw).map(normaliseId)
-  if (!ids.length) {
-    throw new Error(
-      'args was present but empty, which is ambiguous. Omit args entirely to run the ' +
-        'whole phase, or name the tasks to run, e.g. "LOOP-003 LOOP-007".',
-    )
-  }
-  return ids
-}
-
-// Compare on the normalised form on BOTH sides. Ids are not uniformly
-// upper-case — LOOP-001b carries a lower-case suffix — so matching a normalised
-// filter against a raw task id would reject every filter naming it.
-const taskIds = parseTaskIds(args)
-const known = new Set(TASKS.map((t) => normaliseId(t.id)))
-const unknown = (taskIds ?? []).filter((id) => !known.has(id))
-if (unknown.length) {
-  throw new Error(
-    `args contains unknown task id(s): ${unknown.join(', ')}. Known ids: ${TASKS.map((t) => t.id).join(', ')}.`,
-  )
-}
-
-const only = taskIds ? new Set(taskIds) : null
-const wanted = (id) => !only || only.has(normaliseId(id))
 
 const IMPL_SCHEMA = {
   type: 'object',
@@ -273,13 +174,111 @@ const REVIEW_SCHEMA = {
   },
 }
 
+// The GitHub milestone is the source of truth for what to do, and the GitHub
+// Projects **Status** field (Todo / In Progress / Done) plus the native
+// issue-dependency graph (`blocked_by`) decide what is ready. Nothing here is
+// hardcoded: no task list, no dependency map, no "what landed" set. Each pass a
+// discovery agent reads the milestone's open issues live and returns, per issue,
+// its Status, its `blocked_by` numbers, and whether each of those is closed. The
+// script body has no `gh` and no MCP; every GitHub read and write happens inside
+// an agent via `mcp__github__*`.
+//
+// Readiness is a pure function of that snapshot:
+//   ready  = Status is "Todo" AND every blocked_by issue is CLOSED
+//   skip   = Status is "In Progress" (someone/another run owns it) or "Done"/closed
+// A task's `blocked_by` may include the decision issues (DEC-*); while those stay
+// open the task is simply not ready, so undecided-decision gating falls out of the
+// same rule rather than needing a separate list.
+const MILESTONE_SCHEMA = {
+  type: 'object',
+  required: ['issues'],
+  properties: {
+    milestoneOpenCount: { type: 'number', description: 'Total open issues remaining in the milestone' },
+    issues: {
+      type: 'array',
+      description: 'One entry per OPEN issue in the milestone',
+      items: {
+        type: 'object',
+        required: ['issue', 'taskId', 'title', 'status', 'blockedBy', 'allDepsClosed'],
+        properties: {
+          issue: { type: 'number', description: 'GitHub issue number' },
+          taskId: { type: 'string', description: 'Task id parsed from the title, e.g. LOOP-004' },
+          title: { type: 'string', description: 'Task title without the id prefix, e.g. "Synth and one-shot sampler"' },
+          status: {
+            type: 'string',
+            enum: ['Todo', 'In Progress', 'Done', 'None'],
+            description: 'The Projects v2 "Status" single-select value; "None" if the issue has no Status set',
+          },
+          blockedBy: {
+            type: 'array',
+            description: 'Issue numbers this issue is blocked_by, from the native dependency graph',
+            items: { type: 'number' },
+          },
+          openBlockers: {
+            type: 'array',
+            description: 'The subset of blockedBy whose issues are still OPEN (not closed)',
+            items: { type: 'number' },
+          },
+          allDepsClosed: { type: 'boolean', description: 'True if every blockedBy issue is closed (openBlockers is empty)' },
+          hasOpenPr: { type: 'boolean', description: 'True if an open PR already references or closes this issue' },
+          openPrNumber: { type: 'number', description: 'The open PR number, if any' },
+          decisionBlockers: {
+            type: 'array',
+            description: 'Any open blocker that is itself a DEC-* decision issue, by DEC id, e.g. "DEC-003"',
+            items: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+}
+
+// Discover the milestone live. The agent reads the Projects Status via GraphQL
+// (needs the `read:project` scope) and the dependency graph via the issue
+// dependencies API. Read-only.
+const discoveryPrompt = (milestoneNumber) => `You are the scheduler's eyes for the Solid Groove Alpha Milestone workflow, repo \`afternoon/solid-groove\`. Use the \`mcp__github__*\` tools; there is no \`gh\` CLI. This is **read-only** — do not modify any issue, project, or PR.
+
+Report the live state of **GitHub milestone #${milestoneNumber}**. For every issue that is currently **open** in that milestone, return one entry with:
+
+- \`issue\`: the issue number.
+- \`taskId\` and \`title\`: parsed from the issue title, which is formatted \`TASK-ID - Title\` (e.g. "LOOP-004 - Synth and one-shot sampler" -> taskId "LOOP-004", title "Synth and one-shot sampler").
+- \`status\`: the issue's **Projects v2 "Status"** single-select value — one of "Todo", "In Progress", "Done". Use "None" only if the issue genuinely has no Status set. This field lives on the user-owned Project the issue is added to (project "Solid Grooooooove"), NOT on the issue itself, so read it via the GraphQL \`projectItems -> fieldValues -> ProjectV2ItemFieldSingleSelectValue\` where the field name is "Status". Do not infer it from labels or from whether a PR exists — read the actual field.
+- \`blockedBy\`: the issue numbers this issue is **blocked by**, from GitHub's native issue-dependency graph (the \`blocked_by\` relationship), not from any "Dependencies" text in the body.
+- \`openBlockers\`: the subset of \`blockedBy\` whose issues are still open; \`allDepsClosed\` is true exactly when this list is empty.
+- \`hasOpenPr\`/\`openPrNumber\`: if an open PR already closes or references this issue, report it.
+- \`decisionBlockers\`: for any open blocker whose title is a \`DEC-*\` decision issue, list its DEC id.
+
+Also report \`milestoneOpenCount\`: how many issues are open in the milestone in total.
+
+Read every value from GitHub. Do not guess, and do not fall back to the backlog file.`
+
+// Setting Status is a write, so it goes through an agent too. Kept deliberately
+// tolerant: if the project write scope is missing this must not abort the task —
+// the loop still won't re-pick the issue within a run because it is removed from
+// the pending set once started. Report success/failure honestly.
+const SET_STATUS_SCHEMA = {
+  type: 'object',
+  required: ['issue', 'set'],
+  properties: {
+    issue: { type: 'number' },
+    set: { type: 'boolean', description: 'True if the Status field was actually written' },
+    detail: { type: 'string', description: 'What happened, especially the error if set is false' },
+  },
+}
+
+const setStatusPrompt = (issue, value) => `Set the **Projects v2 "Status"** field of \`afternoon/solid-groove\` issue #${issue} to "${value}". Use the \`mcp__github__*\` tools; there is no \`gh\` CLI.
+
+The Status field is on the user-owned Project "Solid Grooooooove" (project number 2). Find the issue's project item and update its "Status" single-select field to the option named "${value}" via the appropriate GraphQL mutation.
+
+If you lack the permission or scope to write the project field, do **not** treat that as fatal and do **not** change anything else — just report \`set: false\` with the error in \`detail\`. Report \`set: true\` only if the field is now actually "${value}".`
+
 const issueBrief = (t) =>
   `\n\n## Your GitHub issue\n\nTask ${t.id} is tracked in \`afternoon/solid-groove\` issue **#${t.issue}** — that issue, not \`docs/backlog.md\`, is the live record. Use the \`mcp__github__*\` tools; there is no \`gh\` CLI.\n\n- Assign #${t.issue} to \`afternoon\` and comment that you have started, naming the branch you will push to, **before** you change product code.\n- Tick the acceptance checkboxes on #${t.issue} as you genuinely satisfy them. Never tick one you have not. A reviewer treats a ticked box as a claim to verify, and a box ticked without supporting code is itself a blocking finding.\n- Comment when something is worth knowing — a blocker, a decision you had to make, a discovery belonging to another task — not once per commit.\n- Do **not** close the issue. A reviewer runs after you and the PR closes it on merge.\n- End every comment with a blank line, a \`---\` rule, then \`_Generated by [Claude Code](https://claude.ai/code)_\`.`
 
 const implPrompt = (t) => `${brief(IMPLEMENTER)}Implement backlog task ${t.id} - ${t.title}.
 
 Read its task block in docs/backlog.md and every PRD requirement the block links, then implement it in full: product code, tests, fixtures and any documentation the task requires.${NO_HOSTED_ENV}${
-  t.blocked ? decisionBlocked(t.blocked.map((d) => DEC[d])) : ''
+  t.blocked ? decisionBlocked(resolveDecisions(t.blocked)) : ''
 }${issueBrief(t)}
 
 ${WORKTREE}Name your branch claude/${t.id.toLowerCase()} and create it from origin/${BASE_BRANCH} as described above. Commit and push it with \`git push -u origin claude/${t.id.toLowerCase()}\`. Do not open a pull request — a reviewer runs before the PR is opened.
@@ -332,12 +331,30 @@ End the PR body with a blank line, a \`---\` rule, then \`_Generated by [Claude 
 
 Return the pull request URL.`
 
-// One task: implement (Sonnet, or Opus for the shared registries and frameworks)
-// -> review (Opus) -> fix -> re-review, then open the PR. Each stage runs in its
-// own worktree; the branch is how state travels between them, which is why every
-// stage pushes.
+// One task: mark it In Progress, then implement (Sonnet, or Opus for the shared
+// registries and frameworks) -> review (Opus) -> fix -> re-review, then open the
+// PR. Each stage runs in its own worktree; the branch is how state travels
+// between them, which is why every stage pushes.
 async function runTask(t) {
-  const model = CONTRACT_TASKS.includes(t.id) ? 'opus' : 'sonnet'
+  // Every task implements and fixes on Opus. The shared registries/frameworks
+  // once justified Opus while leaf features ran on Sonnet, but code-writing is now
+  // Opus across the board (see docs/prd.md section 16). Review is Opus too, below.
+  const model = 'opus'
+
+  // Reserve the issue by flipping its Status to In Progress before any code is
+  // written, so a later pass (or a concurrent run) sees it as owned and does not
+  // re-pick it. A missing project-write scope is logged, not fatal: within this
+  // run the issue is already out of the pending set, so it will not be double-run
+  // here regardless — the write only guards against other passes/runs.
+  const marked = await agent(setStatusPrompt(t.issue, 'In Progress'), {
+    model: 'sonnet',
+    label: `status:${t.id}->wip`,
+    phase: t.phase,
+    schema: SET_STATUS_SCHEMA,
+  })
+  if (!marked?.set) {
+    log(`${t.id}: could not set Status to In Progress (${marked?.detail ?? 'no result'}) — proceeding; other passes rely on this, so check the project write scope.`)
+  }
 
   let impl = await agent(implPrompt(t), {
     model,
@@ -383,58 +400,144 @@ async function runTask(t) {
   return { id: t.id, status: 'approved', branch: impl.branch, pr, notes: review.notes ?? [], outOfScope: impl.outOfScope ?? [] }
 }
 
-// Alpha Milestone 1 is scheduled from the `deps` graph rather than from hard-coded waves.
-// The backlog calls its Dependencies lines "the machine-readable work graph", and
-// hand-maintained waves drift from it silently: a dependency added to the backlog
-// but not to the wave list produces a task that runs before what it needs, and
-// nothing detects it. This loop cannot drift — it derives the order every run.
-//
-// Each round takes every task whose Alpha Milestone 1 dependencies have all landed and runs
-// them concurrently. The concurrency cap queues the excess, so a wide round is
-// safe. Alpha Milestone 0 dependencies are deliberately absent from `deps`: they are already
-// on the base branch, and a scheduler can only satisfy dependencies it runs.
+// Which UI phase a task belongs to, for the progress display only. Derived from
+// the task-id prefix so a live-discovered task lands in a sensible group without
+// a hardcoded per-task map. Scheduling does not depend on this.
+const PHASE_BY_TASK = {
+  'LOOP-003': 'Foundations', 'LOOP-014': 'Foundations', 'CNT-001': 'Foundations',
+  'LOOP-001': 'Foundations', 'LOOP-002': 'Foundations',
+  'LOOP-004': 'Instruments', 'LOOP-005': 'Instruments', 'LOOP-006': 'Instruments',
+  'LOOP-007': 'Instruments', 'LOOP-013': 'Instruments', 'LOOP-001b': 'Instruments',
+  'LOOP-008': 'Editing', 'LOOP-009': 'Editing', 'LOOP-010': 'Editing',
+  'LOOP-011': 'Editing', 'LOOP-012': 'Editing',
+  'CNT-002': 'Content', 'LOOP-015': 'Content',
+  'LOOP-016': 'Gate',
+}
+const phaseFor = (taskId) => PHASE_BY_TASK[normaliseId(taskId)] ?? 'Foundations'
+
+// Run configuration comes from `args`, all optional:
+//   { milestone: <number>, maxConcurrent: <number> }
+// `maxConcurrent` is the real backstop against the resource contention that has
+// bitten this workflow before: each running task is its own git worktree doing
+// `bun install` plus the full test suite, so N of them at once is N parallel test
+// runs. The runtime's own agent cap (min(16, cores-2)) sits ABOVE this; on a
+// laptop this limit is what actually binds. Default 2 is laptop-safe; raise it
+// (e.g. {maxConcurrent: 6}) when running in cloud.
+const DEFAULT_MILESTONE = 2 // GitHub milestone "Alpha Milestone 1: Loop Workflow"
+const DEFAULT_MAX_CONCURRENT = 2
+
+const config = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
+const milestone = Number.isInteger(config.milestone) ? config.milestone : DEFAULT_MILESTONE
+const rawMax = Number(config.maxConcurrent)
+const maxConcurrent = Number.isFinite(rawMax) && rawMax >= 1 ? Math.floor(rawMax) : DEFAULT_MAX_CONCURRENT
+if (config.maxConcurrent !== undefined && !(Number.isFinite(rawMax) && rawMax >= 1)) {
+  throw new Error(`maxConcurrent must be an integer >= 1, got ${JSON.stringify(config.maxConcurrent)}.`)
+}
+
+// The scheduler is a poll-once-per-pass loop driven entirely by live GitHub
+// state — no hardcoded task list, dependency map, or "what landed" set. Each pass:
+//   1. discover: the milestone's open issues, each with its Projects Status,
+//      blocked_by graph, and whether every blocker is closed.
+//   2. ready = Status "Todo" AND all blockers closed. In Progress / Done are
+//      skipped (owned, or complete). A DEC-* blocker still open just keeps the
+//      task un-ready, so undecided-decision gating needs no special case.
+//   3. start up to `maxConcurrent` ready tasks (lowest issue number first for a
+//      stable, dependency-friendly order), each: set In Progress -> implement ->
+//      review -> fix -> open PR.
+//   4. exit-when-idle: a task the loop starts is In Progress by the next pass, so
+//      it won't be re-picked; the loop ends when a fresh pass finds nothing ready.
 const results = []
-const landed = new Set()
-const pending = TASKS.filter((t) => wanted(t.id))
+const startedThisRun = new Set() // issue numbers this run has already launched
+let pass = 0
 
-// A dependency the caller filtered out is treated as already satisfied — running
-// `LOOP-010` alone must not deadlock waiting for a `LOOP-005` this invocation was
-// never asked to run. That is only sound because anything not run here is either
-// already merged or knowingly excluded by the caller.
-const ready = (t) => t.deps.every((d) => !wanted(d) || landed.has(d))
+while (true) {
+  pass += 1
+  phase('Foundations')
+  log(`Pass ${pass}: reading milestone #${milestone} — open issues, Status, and dependency graph`)
 
-let round = 0
-while (pending.length) {
-  round += 1
-  const batch = pending.filter(ready)
+  const snapshot = await agent(discoveryPrompt(milestone), {
+    model: 'sonnet',
+    label: `discover#${pass}`,
+    phase: 'Foundations',
+    schema: MILESTONE_SCHEMA,
+  })
 
-  // Nothing ready and tasks still pending means a dependency failed to land, not
-  // a cycle: `ready` treats filtered-out deps as satisfied, so the only way to
-  // stall is an unlanded dependency of something still waiting. Report which.
-  if (!batch.length) {
-    const stalled = pending.map((t) => `${t.id} (needs ${t.deps.filter((d) => wanted(d) && !landed.has(d)).join(', ')})`)
-    log(`Stalled after round ${round - 1} — these never became runnable: ${stalled.join('; ')}`)
-    for (const t of pending) results.push({ id: t.id, status: 'skipped', reason: 'dependency did not land' })
+  // A failed discovery must stop the loop, never fall back to "run everything":
+  // scheduling blind is exactly how finished work gets re-implemented and
+  // in-progress work gets duplicated.
+  if (!snapshot || !Array.isArray(snapshot.issues)) {
+    throw new Error(`Pass ${pass}: could not read milestone #${milestone} from GitHub; refusing to schedule without the source of truth.`)
+  }
+
+  const open = snapshot.issues
+  if (!open.length) {
+    log(`Milestone #${milestone} has no open issues left — done.`)
     break
   }
 
-  phase(batch[0].phase)
-  log(`Round ${round}: ${batch.map((t) => t.id).join(', ')}`)
+  // Ready: available (Status "Todo", or unset/"None" — an issue not yet placed in
+  // a column still counts as available) and every blocker closed. Exclude anything
+  // this run already started (its In Progress write may not have propagated to this
+  // snapshot yet), so a slow Status update can't cause a double-launch.
+  const isAvailable = (i) => i.status === 'Todo' || i.status === 'None'
+  const ready = open
+    .filter((i) => isAvailable(i) && i.allDepsClosed && !startedThisRun.has(i.issue))
+    .sort((a, b) => a.issue - b.issue)
 
-  const outcomes = await parallel(batch.map((t) => () => runTask(t)))
-  for (const r of outcomes) {
-    if (!r) continue
-    results.push(r)
-    if (r.status === 'approved') landed.add(r.id)
+  if (!ready.length) {
+    // Nothing to start. Report why each remaining open issue is held, then exit
+    // (exit-when-idle). Re-invoke the workflow after landing a blocker to continue.
+    const inProgress = open.filter((i) => i.status === 'In Progress').map((i) => `${i.taskId} (#${i.issue})`)
+    const waiting = open
+      .filter((i) => i.status !== 'In Progress' && !i.allDepsClosed)
+      .map((i) => `${i.taskId} (#${i.issue}) waits on ${i.openBlockers?.join(', ') || 'open blockers'}${i.decisionBlockers?.length ? ` [decision: ${i.decisionBlockers.join(', ')}]` : ''}`)
+    log('Nothing ready to start this pass — exiting (idle).')
+    if (inProgress.length) log(`In progress (owned elsewhere): ${inProgress.join('; ')}`)
+    if (waiting.length) log(`Blocked by open dependencies: ${waiting.join('; ')}`)
+    return {
+      milestone,
+      maxConcurrent,
+      results,
+      approved: results.filter((r) => r.status === 'approved').map((r) => `${r.id} ${r.pr ?? r.branch}`),
+      notApproved: results.filter((r) => r.status !== 'approved').map((r) => `${r.id} (${r.status})`),
+      inProgress,
+      blocked: waiting,
+    }
   }
 
-  for (const t of batch) pending.splice(pending.indexOf(t), 1)
+  const batch = ready.slice(0, maxConcurrent)
+  if (ready.length > batch.length) {
+    log(`${ready.length} ready; starting ${batch.length} (maxConcurrent=${maxConcurrent}), the rest next pass: ${ready.slice(maxConcurrent).map((i) => i.taskId).join(', ')}`)
+  }
+  phase(phaseFor(batch[0].taskId))
+  log(`Pass ${pass}: starting ${batch.map((i) => `${i.taskId} (#${i.issue})`).join(', ')}`)
+
+  // Build the task objects runTask expects from the live snapshot. `blocked`
+  // carries any open DEC-* blockers so the implement/review briefs hold the agent
+  // back from inventing an undecided decision.
+  const tasks = batch.map((i) => ({
+    id: i.taskId,
+    title: i.title,
+    issue: i.issue,
+    phase: phaseFor(i.taskId),
+    blocked: i.decisionBlockers?.length ? i.decisionBlockers : undefined,
+  }))
+  for (const i of batch) startedThisRun.add(i.issue)
+
+  const outcomes = await parallel(tasks.map((t) => () => runTask(t)))
+  for (const r of outcomes) {
+    if (r) results.push(r)
+  }
+  // Loop back: the next pass re-reads GitHub, so a just-opened PR that closed its
+  // issue drops out and newly-unblocked tasks appear.
 }
 
 const approved = results.filter((r) => r.status === 'approved')
-log(`Alpha Milestone 1: ${approved.length}/${results.length} tasks approved and raised as PRs`)
+log(`Milestone #${milestone}: ${approved.length}/${results.length} started tasks approved and raised as PRs this run`)
 
 return {
+  milestone,
+  maxConcurrent,
   results,
   approved: approved.map((r) => `${r.id} ${r.pr ?? r.branch}`),
   notApproved: results.filter((r) => r.status !== 'approved').map((r) => `${r.id} (${r.status})`),
