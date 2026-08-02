@@ -159,6 +159,45 @@ describe("useProjectAudio", () => {
 		).toBeDefined();
 	});
 
+	it("treats a never-settling resume() as a browser-blocked unlock (issue #43)", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		// Firefox under a blocked autoplay policy resolves neither way — the
+		// resume promise never settles. Model that exactly.
+		const runtime = unreachableAudioHost(() => new Promise<void>(() => {}));
+
+		// A synchronous timer fires the timeout immediately, so the never-settling
+		// resume loses the race deterministically without waiting on wall clock.
+		let fired = 0;
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+					resumeTimeoutMs: 5_000,
+					setTimer: (callback) => {
+						fired += 1;
+						callback();
+						return 0;
+					},
+					clearTimer: () => {},
+				}),
+			{},
+		);
+
+		await expect(result.play()).resolves.toBeUndefined();
+
+		expect(fired).toBe(1);
+		// The play button does not silently hang: exactly one browser-blocked
+		// failure is surfaced, and playback never claims to have started.
+		expect(result.isPlaying()).toBe(false);
+		const failures = transport.named("audio_start_failed");
+		expect(failures).toHaveLength(1);
+		expect(failures[0]?.params.was_browser_blocked).toBe(true);
+		expect(failures[0]?.params.error_code).toBe("autoplay_blocked");
+		// A blocked unlock is never reported as a play.
+		expect(transport.named("transport_play")).toHaveLength(0);
+	});
+
 	it("builds a real audio graph for the loaded project and disposes it without leaking resources when the owner unmounts", async () => {
 		const runtime = AudioRuntimeModule.getAudioRuntime();
 		const project = createSliceFixtureProject();
