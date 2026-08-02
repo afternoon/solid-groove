@@ -26,7 +26,7 @@ export type DeviceNodeFactory = (device: Device) => DeviceNode;
 /**
  * Schema v1 defines the generic `Device` shape (id, type, order, bypass,
  * parameters) but no concrete processors — filter/EQ, overdrive, compression,
- * delay, and reverb are authored with their devices in Phase 1 (PRD section
+ * delay, and reverb are authored with their devices in Alpha Milestone 1 (PRD section
  * 7.3). Until a factory is registered for a `device.type`, the chain gives it
  * an inert passthrough node instead of refusing to build the graph, so
  * topology — insertion, removal, and reordering — is fully provable ahead of

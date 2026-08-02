@@ -8,7 +8,7 @@ observable alpha with the deferred acceptance criteria actually closed.
 
 Run it once. Record the outcome in [`docs/backlog.md`](../backlog.md) as you go.
 
-**When to run this.** This runbook is the body of backlog task `OPS-001`, scheduled immediately **after Phase 2** (PRD section 12, "After Phase 2"). It was originally expected to run during Phase 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Phase 0-2 feature set at once, rather than re-verifying after every phase. The file keeps its `phase-0` name because that is where the code it verifies was built.
+**When to run this.** This runbook is the body of backlog task `OPS-001`, scheduled immediately **after Alpha Milestone 2** (PRD section 12, "After Alpha Milestone 2"). It was originally expected to run during Alpha Milestone 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once, rather than re-verifying after every milestone. The file is named for Alpha Milestone 0 because that is where the code it verifies was built, not when it runs.
 
 Nothing here is optional or downgraded by the move — the acceptance criteria are unchanged, and the `HARD-005` cohort cannot be invited until this runbook has been executed. What changed is only when.
 
@@ -17,7 +17,7 @@ Nothing here is optional or downgraded by the move — the acceptance criteria a
 | Owner | Whoever holds the Firebase and Sentry accounts (not an implementation agent) |
 | Frequency | Once, then only for the rollback drill in part 6 |
 | Backlog task | `OPS-001` — Hosted environment verification and rollback drill |
-| When | After Phase 2, at the `REL-001` gate |
+| When | After Alpha Milestone 2, at the `REL-001` gate |
 | Closes | Gate **G4.5: Hosted environment verified** |
 | Related | [PRD `OPS-01`/`OPS-02`/`OPS-03`](../prd.md#710-deployment-analytics-and-monitoring), [ADR 0001](../adr/0001-sentry-for-error-monitoring.md), [`docs/testing.md`](../testing.md#deploy) |
 
@@ -167,7 +167,7 @@ In short:
       traffic is excluded from the PRD section 11 measures.
 - [ ] Confirm collection is on in the Privacy disclosure, and disable any
       tracker blocker — a blocked endpoint looks exactly like a broken pipeline.
-- [ ] Trigger and confirm each Phase 0 event in GA4 Realtime: `app_opened`,
+- [ ] Trigger and confirm each Alpha Milestone 0 event in GA4 Realtime: `app_opened`,
       `first_edit`, `feature_first_use`, `save_failed`, `audio_start_failed`,
       `exception`.
 - [ ] Throw a deliberate error from the console and confirm the Sentry issue
@@ -237,16 +237,16 @@ results:
 | --- | --- | --- |
 | `FND-001b` | Post-deploy smoke test run against the hosted URL | Part 4 |
 | `FND-001b` | Rollback performed once as evidence | Part 6 |
-| `FND-001c` | Phase 0 events observed from a deployed build | Part 5 |
+| `FND-001c` | Alpha Milestone 0 events observed from a deployed build | Part 5 |
 | `FND-001c` | A deliberately triggered error arrives in Sentry with its SHA and a symbolicated trace | Part 5 |
 | `FND-009` | The vertical slice exercised on the hosted environment, and its events observed there | Parts 4 and 5 |
-| `LOOP-016` | Every Phase 1 OPS-02 event observed from the deployed build | Part 5 |
-| `REL-001` | Every Phase 2 OPS-02 event observed, and the primary measure computed from real events | Part 5 |
+| `LOOP-016` | Every Alpha Milestone 1 OPS-02 event observed from the deployed build | Part 5 |
+| `REL-001` | Every Alpha Milestone 2 OPS-02 event observed, and the primary measure computed from real events | Part 5 |
 
 Parts 4 and 5 now cover more than they did when this runbook was written for
-Phase 0: the deployed build contains the whole Phase 0-2 feature set, so the
-event list to confirm in part 5 is every Phase 0, 1, and 2 event in the OPS-02
-catalog, not only the six Phase 0 ones.
+Alpha Milestone 0: the deployed build contains the whole Alpha Milestone 0-2
+feature set, so the event list to confirm in part 5 is every Alpha Milestone 0,
+1, and 2 event in the OPS-02 catalog, not only the six Alpha Milestone 0 ones.
 
 - [ ] Update `docs/testing.md`'s "What has not been verified" section to record
       what you actually observed, with the date and the release SHA. That section

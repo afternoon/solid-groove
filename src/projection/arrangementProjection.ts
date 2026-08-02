@@ -22,7 +22,7 @@ import { fingerprintOf } from "./fingerprint";
  * musical bounds, track order, colors, labels, compact clip/automation
  * preview data, and revision counters "so unrelated edits do not invalidate
  * all cached geometry." It does not do any of the *drawing* work section 9.3
- * assigns to the Phase 2 renderer (`ARR-005`) or its Phase 0 spike
+ * assigns to the Alpha Milestone 2 renderer (`ARR-005`) or its Alpha Milestone 0 spike
  * (`FND-008`): no canvas layers, no viewport/zoom transform, no waveform
  * peak pyramids, no LRU visual cache. What it gives that renderer is the data
  * to draw from, plus the two lookups 9.3 calls out by name — a track row at a

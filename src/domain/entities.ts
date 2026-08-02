@@ -48,7 +48,7 @@ const colorSchema = z
 	.regex(/^#[0-9a-fA-F]{6}$/, "Expected a #rrggbb color");
 const epochMillis = z.int().min(0);
 
-/** Free-form device/instrument parameter values, authored in Phase 1. */
+/** Free-form device/instrument parameter values, authored in Alpha Milestone 1. */
 const parameterValues = z.record(z.string().min(1), z.number());
 
 export const assetKindSchema = z.enum(["sample", "loop", "recording"]);
@@ -160,7 +160,7 @@ export const devicePresetSchema = z.strictObject({
 
 /**
  * A processor in an ordered insert chain. Typed processors and their parameter
- * definitions arrive with Phase 1 devices; v1 stores finite numeric values and
+ * definitions arrive with Alpha Milestone 1 devices; v1 stores finite numeric values and
  * validates them against a parameter definition once one is registered.
  */
 export const deviceSchema = z.strictObject({

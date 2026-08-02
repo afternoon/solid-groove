@@ -3,13 +3,13 @@
 | Field | Value |
 | --- | --- |
 | Status | Implemented (`FND-008`) |
-| Scope | Disposable hybrid virtualized-DOM/Canvas 2D spike, retained renderer-agnostic projection/geometry contracts, and the scripted-trace measurement harness Phase 2 (`ARR-005`) will enforce budgets with |
+| Scope | Disposable hybrid virtualized-DOM/Canvas 2D spike, retained renderer-agnostic projection/geometry contracts, and the scripted-trace measurement harness Alpha Milestone 2 (`ARR-005`) will enforce budgets with |
 
 Related documents: [Product requirements](./prd.md) ([7.5 ARR-01](./prd.md#75-arrangement), [9.3 Arrangement renderer decision](./prd.md#93-arrangement-renderer-decision), [Performance budgets](./prd.md#performance-budgets)), [backlog](./backlog.md#fnd-008---arrangement-renderer-spike-and-measurement-harness)
 
 **This task is not gated on hitting the PRD frame budgets, and not gated on
-the physical baseline device.** Budgets bind at `ARR-005` (Phase 2) and
-`HARD-001` (Phase 4). What this task owes — and what this document is the map
+the physical baseline device.** Budgets bind at `ARR-005` (Alpha Milestone 2) and
+`HARD-001` (Alpha Milestone 4). What this task owes — and what this document is the map
 of — is deterministic fixtures, a working spike, scripted traces, a
 single-command harness, and honestly recorded numbers from whatever hardware
 ran them.

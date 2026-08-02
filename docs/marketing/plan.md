@@ -6,7 +6,7 @@
 | Owner | Product owner (Stage 2 onwards is partly delegable — see §12) |
 | Budget | £1,000 total, of which **£80 is spent before Stage 2** |
 | Goal | 100 activated users (defined in §3), via a validated hypothesis and a 10–20 person alpha |
-| Sequencing | Gated on your own conviction and on product phases, never on the calendar |
+| Sequencing | Gated on your own conviction and on product milestones, never on the calendar |
 
 **Marketing does not start until Stage 2 (§6).** Stages 0 and 1 are research, and treating them as marketing is the main way this goes wrong. If you only read one section, read §2 — it is the section that decides whether the rest is worth doing.
 
@@ -14,7 +14,7 @@
 
 ## 1. The four stages
 
-Solid Groove is in **Phase 0** of four ([`docs/backlog.md`](../backlog.md)). The fundamental hypothesis is yours to test first:
+Solid Groove is in **Alpha Milestone 0** of four ([`docs/backlog.md`](../backlog.md)). The fundamental hypothesis is yours to test first:
 
 > **A DAW with an AI assistant can help me become a better producer.**
 
@@ -22,14 +22,14 @@ Until you believe that from your own experience, there is nothing worth marketin
 
 | Stage | Gate to enter | Goal | Marketing effort |
 | --- | --- | --- | --- |
-| **0. Self-validation** | Phase 2, then Phase 3 | You finish 3 tracks and write down a verdict on the hypothesis | **~zero** (§2) |
+| **0. Self-validation** | Alpha Milestone 2, then Alpha Milestone 3 | You finish 3 tracks and write down a verdict on the hypothesis | **~zero** (§2) |
 | **1. Alpha** | You believe the hypothesis | 10–20 hand-recruited testers, `DEC-006` satisfied | ~2 h/week for 4 weeks (§5) |
 | **2. First 100** | The alpha retains people | 100 activated users | 90 min/week + most of the money (§6–§7) |
 | **3. Educators** | 100 users and evidence in hand | Your producer friend, then teachers as a channel | (§8) |
 
 Two consequences worth being clear-eyed about:
 
-- **This puts real marketing after Phase 3.** The hypothesis names the AI assistant, so you cannot test it before the assistant exists. That is a long way out in the backlog, and it is the honest implication of validating properly first. Better to know that now than to discover it in month seven.
+- **This puts real marketing after Alpha Milestone 3.** The hypothesis names the AI assistant, so you cannot test it before the assistant exists. That is a long way out in the backlog, and it is the honest implication of validating properly first. Better to know that now than to discover it in month seven.
 - **A waitlist built now would be worthless later.** Email lists decay badly; a signup from nine months ago converts terribly. This is the strongest practical argument for doing nothing in Stage 0 — not discipline, just arithmetic.
 
 ---
@@ -62,14 +62,14 @@ Record three things:
 
 Splitting Stage 0 gives you an earlier, cheaper failure signal instead of one enormous bet at the end.
 
-**Checkpoint 0a — "Can I finish anything in this at all?" (needs Phase 2: arrangement and export.)**
+**Checkpoint 0a — "Can I finish anything in this at all?" (needs Alpha Milestone 2: arrangement and export.)**
 
 No assistant involved. Take a loop and get it to an exported stereo file. This tests the product's core promise independently of the AI, and it is the cheaper half to fix. If you cannot finish a track in your own DAW-in-a-browser with no assistant, adding an assistant will not save it.
 
 - **Bar:** one finished, exported track that you'd be willing to play to someone.
-- **If it fails:** the arrangement and export workflow is the problem. Fix that before Phase 3. Learning this at 0a instead of 0b saves you months.
+- **If it fails:** the arrangement and export workflow is the problem. Fix that before Alpha Milestone 3. Learning this at 0a instead of 0b saves you months.
 
-**Checkpoint 0b — "Did it make me better?" (needs Phase 3: the assistant.)**
+**Checkpoint 0b — "Did it make me better?" (needs Alpha Milestone 3: the assistant.)**
 
 This is the real hypothesis. Bar below.
 
@@ -133,7 +133,7 @@ Needed from Stage 1 onward. A bad definition will make you feel successful while
 
 > **An activated user is a person with an account who created their own project and pressed play on it.**
 
-In the PRD's `OPS-02` event catalogue that is `account_upgraded` **and** `project_created` **and** `transport_play` — all of which Phase 1 already ships, so this needs no new instrumentation.
+In the PRD's `OPS-02` event catalogue that is `account_upgraded` **and** `project_created` **and** `transport_play` — all of which Alpha Milestone 1 already ships, so this needs no new instrumentation.
 
 Track these four numbers and nothing else:
 
@@ -477,7 +477,7 @@ Ships as `LOOP-001b`. Not needed until Stage 2 — during Stage 1 you're sending
 Being willing to stop is what makes this plan cheap. Check each gate before entering the next stage.
 
 **Gate 0a** (before building the assistant on top of it):
-- ✅ One track finished and exported, that you'd play to someone. → Continue to Phase 3.
+- ✅ One track finished and exported, that you'd play to someone. → Continue to Alpha Milestone 3.
 - ❌ You can't get a loop to a finished file. → The arrangement/export workflow is the problem. Fix it now; an assistant won't rescue it.
 
 **Gate 0b → Stage 1** (the big one):

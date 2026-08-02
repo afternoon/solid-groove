@@ -94,7 +94,7 @@ test.afterAll(async ({ browserName }) => {
 		generatedAt: new Date().toISOString(),
 		task: "FND-008",
 		note:
-			"Phase 0 renderer-spike baseline. Not gated on the PRD 9.3 " +
+			"Alpha Milestone 0 renderer-spike baseline. Not gated on the PRD 9.3 " +
 			"performance budgets, which bind at ARR-005/HARD-001 on the physical " +
 			"baseline device — see docs/arrangement-renderer-spike.md. These " +
 			"numbers are whatever this run's hardware measured, recorded " +

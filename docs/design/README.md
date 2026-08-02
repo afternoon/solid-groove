@@ -9,7 +9,7 @@ source of truth.
 > show more than a milestone requires — fuller instrument panels
 > (`05a`, `05b`), a public marketing site (`04`), and the assistant
 > recommending tutorial videos (`07-*`). For *what ships when*, the
-> [PRD](../prd.md) priorities (P0/P1/P2) and delivery phases are authoritative;
+> [PRD](../prd.md) priorities (P0/P1/P2) and delivery milestones are authoritative;
 > the mocks are authoritative for *how it looks and feels* once built. See
 > "On the design mocks" in the PRD. In particular, the inline tutorial-video
 > assistant is a later-vision (P2) capability (PRD AI-08), and the richer

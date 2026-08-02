@@ -1,9 +1,9 @@
 export const meta = {
   name: 'solid-groove-phase-0',
   description:
-    'Implement Solid Groove Phase 0 (FND-001..009) — Sonnet implements, Opus reviews every branch before its PR opens',
+    'Implement Solid Groove Alpha Milestone 0 (FND-001..009) — Sonnet implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to execute Phase 0 of docs/backlog.md. Name tasks to run a subset, either positionally (solid-groove-phase-0 FND-003 FND-004) or as args: ["FND-003","FND-004"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
+    'Run to execute Alpha Milestone 0 of docs/backlog.md. Name tasks to run a subset, either positionally (solid-groove-phase-0 FND-003 FND-004) or as args: ["FND-003","FND-004"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
   phases: [
     { title: 'Tooling', detail: 'FND-001 test and CI foundation, then FND-001b deploy pipeline and FND-001c analytics catalog' },
     { title: 'Contracts', detail: 'FND-002 domain schema, then command kernel, repository and projections', model: 'opus' },
@@ -19,14 +19,14 @@ export const meta = {
 // dependent task and surfaces late; everything else runs on Sonnet. Review is
 // always Opus, at high effort, and runs before any PR is opened.
 // FND-001c is included because its own backlog block declares it contract-owning:
-// it publishes the analytics catalog every Phase 1-4 feature task extends.
+// it publishes the analytics catalog every Alpha Milestone 1-4 feature task extends.
 // FND-002b is contract-owning for the same reason FND-002 is: it changes the
 // landed schema-v1 asset identity, and every saved project and every later
 // content task reads that shape.
 const CONTRACT_TASKS = ['FND-001c', 'FND-002', 'FND-002b', 'FND-003', 'FND-004']
 
-// Phase 0 is complete and on `main`, including the docs commit that moved
-// hosted-environment verification to `OPS-001` (after Phase 2) — the commit that
+// Alpha Milestone 0 is complete and on `main`, including the docs commit that moved
+// hosted-environment verification to `OPS-001` (after Alpha Milestone 2) — the commit that
 // tells an agent its deployed-build checkboxes are out of scope rather than
 // unmet. This was pinned to the staging feature branch while that was unmerged;
 // it points at `main` now, so a re-run of any single task branches from the real
@@ -73,7 +73,7 @@ Both of these have already cost a run. Do them once, up front:
 
 `
 
-// FND-001b and FND-001c are the only Phase 0 tasks that depend on things outside
+// FND-001b and FND-001c are the only Alpha Milestone 0 tasks that depend on things outside
 // this repository — a Firebase project, a GA4 property, a Sentry org, and the CI
 // secrets for all three. An agent cannot provision those, and the failure mode is
 // not "it stops": it is inventing a plausible project id or DSN, committing it,
@@ -84,7 +84,7 @@ This task provisions no accounts and holds no secrets. Assume the Firebase proje
 
 Implement everything that does not need them: the pipeline, configuration, catalog, boundaries, tests, and documentation, referring to every credential by name through CI secrets and \`.env.example\`.
 
-Hosted-environment verification has been **moved out of Phase 0** to task \`OPS-001\`, after Phase 2 (PRD section 12, "After Phase 2"). Your task block marks the affected checkboxes in bold. Those are **out of scope for you, not unmet by you**: put them in \`outOfScope\`, not \`unmet\`, and satisfy the automated-test half of each one that remains yours. Reserve \`unmet\` for something you were genuinely supposed to deliver and could not.`
+Hosted-environment verification has been **moved out of Alpha Milestone 0** to task \`OPS-001\`, after Alpha Milestone 2 (PRD section 12, "After Alpha Milestone 2"). Your task block marks the affected checkboxes in bold. Those are **out of scope for you, not unmet by you**: put them in \`outOfScope\`, not \`unmet\`, and satisfy the automated-test half of each one that remains yours. Reserve \`unmet\` for something you were genuinely supposed to deliver and could not.`
 
 // `issue` is the GitHub issue number that is the task's live record. Only the
 // three tasks that were still in flight when the issue convention was adopted
@@ -361,7 +361,7 @@ phase('Tooling')
 if (wanted('FND-001')) {
   record(await runTask(task('FND-001')))
   if (!landed('FND-001')) {
-    log('FND-001 did not land — stopping. Every Phase 0 task depends on it.')
+    log('FND-001 did not land — stopping. Every Alpha Milestone 0 task depends on it.')
     return { results, stoppedAt: 'FND-001' }
   }
 }
@@ -438,7 +438,7 @@ if (wanted('FND-009')) {
 }
 
 const approved = results.filter((r) => r.status === 'approved')
-log(`Phase 0: ${approved.length}/${results.length} tasks approved and raised as PRs`)
+log(`Alpha Milestone 0: ${approved.length}/${results.length} tasks approved and raised as PRs`)
 
 return {
   results,

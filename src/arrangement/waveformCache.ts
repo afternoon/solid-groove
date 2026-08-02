@@ -8,7 +8,7 @@
  * paint. Visual caches have an LRU memory budget. Eviction affects only
  * drawing speed, never project or audio correctness."
  *
- * Phase 0 has no audio-decode pipeline behind this spike — there is no
+ * Alpha Milestone 0 has no audio-decode pipeline behind this spike — there is no
  * worker computing real peaks from a decoded `AudioBuffer` yet. What this
  * module keeps is the *cache contract*: keyed by `(assetId, revision)`,
  * multi-resolution, LRU-evicted against a byte budget. `generateSyntheticPeaks`
