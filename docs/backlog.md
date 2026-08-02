@@ -55,7 +55,7 @@ This removes the write contention that made the old in-file claim protocol unwor
 
 Labels in use: `alpha-milestone-0`…`alpha-milestone-4` for scheduling, `decision` for section 3, `blocked` where an undecided `DEC-*` gates the task, `contract` for a task that owns or changes a published contract, `gate` for the `FND-009`/`LOOP-016`/`REL-001`/`REL-002`/`REL-003` release gates, and `operator` for `OPS-001`, which needs real credentials and must never be claimed by an implementation agent.
 
-Some issues carry `blocked` because a product decision is genuinely unmade, not because the work is hard: `CNT-002` (`DEC-003`, `DEC-010`), `LOOP-015` (`DEC-002`), `EXP-002`/`EXP-003` (`DEC-004`), `AI-001` (`DEC-005`), `HARD-003` (`DEC-005`, `DEC-009`), and `HARD-005` (`DEC-006`). An agent on one of these implements what does not depend on the decision and reports the rest — it never guesses the decision. (`DEC-001` is now decided — recorded in PRD section 16 — which unblocked `LOOP-001` and removes it and that part of `HARD-003` from this list.)
+Some issues carry `blocked` because a product decision is genuinely unmade, not because the work is hard: `CNT-002` (`DEC-010`), `LOOP-015` (`DEC-002`), `EXP-002`/`EXP-003` (`DEC-004`), `AI-001` (`DEC-005`), `HARD-003` (`DEC-005`, `DEC-009`), and `HARD-005` (`DEC-006`). An agent on one of these implements what does not depend on the decision and reports the rest — it never guesses the decision. (`DEC-001` is now decided — recorded in PRD section 16 — which unblocked `LOOP-001` and removes it and that part of `HARD-003` from this list. `DEC-003` is now decided too — recorded in PRD section 16 — leaving `CNT-002` blocked only on `DEC-010`'s shipped-pack list.)
 
 ### Landing work
 
@@ -124,12 +124,14 @@ Approve the six featured dashboard genres or replace the proposal in the sample-
 
 ### DEC-003 - Alpha content sources and licences
 
-`Status: todo`<br>
+`Status: decided`<br>
 `Owner: product-owner`<br>
 `Needed by: CNT-002`<br>
-`Evidence: pending`
+`Evidence: PRD section 16`
 
 Approve content sources, commissioning budget, redistribution terms, attribution policy, and whether any source assets must be excluded from stems or Ableton packages.
+
+**Decided** (recorded in PRD section 16): the alpha bundles CC0 1.0 and Solid-Groove-owned content only, commissions nothing (zero budget; premium/commissioned sources deferred), carries no attribution obligation and no per-asset export exclusion because CC0 needs neither, and sources in priority order from (1) synthesis, (2) trusted bulk CC0 archives (VCSL, Producer Space, FreePats CC0 banks — `library:producer-space`, `library:freepats-bank`, `library:vcsl`), and (3) the Freesound API filtered to `Creative Commons 0` against named coverage gaps (`library:freesound`). The alpha library is expected to be usable but not yet rounded. This unblocks `CNT-002` on the licensing question; the specific shipped pack list is still `DEC-010`. See [`docs/sample-library.md`](./sample-library.md) sections 3.2 and 4.
 
 ### DEC-004 - WAV normalization policy
 
