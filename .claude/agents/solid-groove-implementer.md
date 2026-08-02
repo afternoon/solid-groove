@@ -32,6 +32,7 @@ Before you report success, all of these must hold:
 - `bun run typecheck`, `bun run test` and `bun run check` pass. Tasks touching browser, Firebase, audio, performance or export behavior also run their task-specific suites.
 - Audio resources and reactive subscriptions are disposed; accessibility and persistence effects are considered and tested where applicable.
 - No unrelated formatting, dependency, generated-file or refactor churn is in the diff.
+- **If your task changes anything a user sees** — a new or changed component, layout, styling, copy or interaction — you capture a screenshot of the result and include it in your report so it can go in the PR body. Run the app (see `docs/testing.md` / the `run` skill; the in-memory mock backend via `VITE_MOCK_BACKEND=true` avoids needing real Firebase), reach the affected route/view, and screenshot it — before/after where there was a previous state, a short GIF for an interaction. Name the route and the theme (light/dark) where it matters. A task with no user-visible change says so instead.
 
 ## Your GitHub issue
 
