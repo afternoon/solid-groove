@@ -184,11 +184,13 @@ const REVIEW_SCHEMA = {
 // an agent via `mcp__github__*`.
 //
 // Readiness is a pure function of that snapshot:
-//   ready  = Status is "Todo" AND every blocked_by issue is CLOSED
-//   skip   = Status is "In Progress" (someone/another run owns it) or "Done"/closed
-// A task's `blocked_by` may include the decision issues (DEC-*); while those stay
-// open the task is simply not ready, so undecided-decision gating falls out of the
-// same rule rather than needing a separate list.
+//   ready  = Status "Todo"/unset AND every blocked_by issue CLOSED AND not `human-input-required`
+//   skip   = Status "In Progress"/"Done", an open blocker, or the `human-input-required` label
+// Two ways a decision keeps work back, and both are needed. (1) A task's `blocked_by`
+// may include a decision issue (DEC-*); while that stays open the task is not ready.
+// (2) The decision issue *itself* sits in the milestone with no blockers, so it would
+// otherwise read as ready and an agent would "implement" it — the `human-input-required`
+// label excludes those from scheduling entirely. See `needsHuman` in the scheduler.
 const MILESTONE_SCHEMA = {
   type: 'object',
   required: ['issues'],
@@ -199,7 +201,7 @@ const MILESTONE_SCHEMA = {
       description: 'One entry per OPEN issue in the milestone',
       items: {
         type: 'object',
-        required: ['issue', 'taskId', 'title', 'status', 'blockedBy', 'allDepsClosed'],
+        required: ['issue', 'taskId', 'title', 'status', 'blockedBy', 'allDepsClosed', 'humanInputRequired'],
         properties: {
           issue: { type: 'number', description: 'GitHub issue number' },
           taskId: { type: 'string', description: 'Task id parsed from the title, e.g. LOOP-004' },
@@ -220,6 +222,10 @@ const MILESTONE_SCHEMA = {
             items: { type: 'number' },
           },
           allDepsClosed: { type: 'boolean', description: 'True if every blockedBy issue is closed (openBlockers is empty)' },
+          humanInputRequired: {
+            type: 'boolean',
+            description: 'True if the issue carries the "human-input-required" label — a decision/input task no automated agent may implement',
+          },
           hasOpenPr: { type: 'boolean', description: 'True if an open PR already references or closes this issue' },
           openPrNumber: { type: 'number', description: 'The open PR number, if any' },
           decisionBlockers: {
@@ -245,6 +251,7 @@ Report the live state of **GitHub milestone #${milestoneNumber}**. For every iss
 - \`status\`: the issue's **Projects v2 "Status"** single-select value — one of "Todo", "In Progress", "Done". Use "None" only if the issue genuinely has no Status set. This field lives on the user-owned Project the issue is added to (project "Solid Grooooooove"), NOT on the issue itself, so read it via the GraphQL \`projectItems -> fieldValues -> ProjectV2ItemFieldSingleSelectValue\` where the field name is "Status". Do not infer it from labels or from whether a PR exists — read the actual field.
 - \`blockedBy\`: the issue numbers this issue is **blocked by**, from GitHub's native issue-dependency graph (the \`blocked_by\` relationship), not from any "Dependencies" text in the body.
 - \`openBlockers\`: the subset of \`blockedBy\` whose issues are still open; \`allDepsClosed\` is true exactly when this list is empty.
+- \`humanInputRequired\`: true if the issue carries the label **\`human-input-required\`**. These are decision/input tasks (e.g. \`DEC-*\`) that a human must resolve; the scheduler never implements them. Read the label list; do not infer this from the title.
 - \`hasOpenPr\`/\`openPrNumber\`: if an open PR already closes or references this issue, report it.
 - \`decisionBlockers\`: for any open blocker whose title is a \`DEC-*\` decision issue, list its DEC id.
 
@@ -438,9 +445,10 @@ if (config.maxConcurrent !== undefined && !(Number.isFinite(rawMax) && rawMax >=
 // state — no hardcoded task list, dependency map, or "what landed" set. Each pass:
 //   1. discover: the milestone's open issues, each with its Projects Status,
 //      blocked_by graph, and whether every blocker is closed.
-//   2. ready = Status "Todo" AND all blockers closed. In Progress / Done are
-//      skipped (owned, or complete). A DEC-* blocker still open just keeps the
-//      task un-ready, so undecided-decision gating needs no special case.
+//   2. ready = Status "Todo"/unset AND all blockers closed AND not labelled
+//      `human-input-required`. In Progress / Done are skipped (owned, or complete);
+//      a still-open DEC-* blocker keeps a task un-ready; and a `human-input-required`
+//      issue (the decisions themselves) is never scheduled — a human resolves it.
 //   3. start up to `maxConcurrent` ready tasks (lowest issue number first for a
 //      stable, dependency-friendly order), each: set In Progress -> implement ->
 //      review -> fix -> open PR.
@@ -478,21 +486,29 @@ while (true) {
   // Ready: available (Status "Todo", or unset/"None" — an issue not yet placed in
   // a column still counts as available) and every blocker closed. Exclude anything
   // this run already started (its In Progress write may not have propagated to this
-  // snapshot yet), so a slow Status update can't cause a double-launch.
+  // snapshot yet), so a slow Status update can't cause a double-launch. Exclude
+  // `human-input-required` issues entirely: DEC-* decisions and other human-only
+  // tasks live in the milestone and can have no blockers, so without this guard the
+  // scheduler would "implement" a decision — exactly the failure this filter fixes.
   const isAvailable = (i) => i.status === 'Todo' || i.status === 'None'
+  const needsHuman = (i) => i.humanInputRequired === true
   const ready = open
-    .filter((i) => isAvailable(i) && i.allDepsClosed && !startedThisRun.has(i.issue))
+    .filter((i) => isAvailable(i) && i.allDepsClosed && !needsHuman(i) && !startedThisRun.has(i.issue))
     .sort((a, b) => a.issue - b.issue)
 
   if (!ready.length) {
     // Nothing to start. Report why each remaining open issue is held, then exit
     // (exit-when-idle). Re-invoke the workflow after landing a blocker to continue.
     const inProgress = open.filter((i) => i.status === 'In Progress').map((i) => `${i.taskId} (#${i.issue})`)
+    const humanInput = open
+      .filter((i) => i.status !== 'In Progress' && needsHuman(i))
+      .map((i) => `${i.taskId} (#${i.issue})`)
     const waiting = open
-      .filter((i) => i.status !== 'In Progress' && !i.allDepsClosed)
+      .filter((i) => i.status !== 'In Progress' && !needsHuman(i) && !i.allDepsClosed)
       .map((i) => `${i.taskId} (#${i.issue}) waits on ${i.openBlockers?.join(', ') || 'open blockers'}${i.decisionBlockers?.length ? ` [decision: ${i.decisionBlockers.join(', ')}]` : ''}`)
     log('Nothing ready to start this pass — exiting (idle).')
     if (inProgress.length) log(`In progress (owned elsewhere): ${inProgress.join('; ')}`)
+    if (humanInput.length) log(`Awaiting human input (skipped): ${humanInput.join('; ')}`)
     if (waiting.length) log(`Blocked by open dependencies: ${waiting.join('; ')}`)
     return {
       milestone,
@@ -501,6 +517,7 @@ while (true) {
       approved: results.filter((r) => r.status === 'approved').map((r) => `${r.id} ${r.pr ?? r.branch}`),
       notApproved: results.filter((r) => r.status !== 'approved').map((r) => `${r.id} (${r.status})`),
       inProgress,
+      awaitingHumanInput: humanInput,
       blocked: waiting,
     }
   }
