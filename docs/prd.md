@@ -1501,6 +1501,7 @@ A feature is done only when:
 - Stereo and stem exports preserve project gain exactly rather than applying a peak/loudness normalization policy. Final output level stays under the producer's control; no export library may change it implicitly (`DEC-004`).
 - A self-contained Ableton Live Set is the first native project-format handoff target after the private alpha.
 - Ableton export targets the oldest Live version that can correctly support the implemented handoff; an exporter compatibility spike establishes and documents that minimum version.
+- Native Live Set generation is built and maintained directly as our own `.als` serializer rather than through a supported partner/integration route: Ableton publishes no partner API or SDK that can produce a native Live Set on our behalf, so that route cannot meet `SHR-02`'s self-contained-file acceptance criteria and would in practice degrade to shipping MIDI and stems for manual reassembly. `P1-001` surveys existing open-source `.als` parsing/writing libraries across Live versions and builds on one where its schema coverage and licence are adequate, to minimize the maintenance burden of an unofficial, reverse-engineered file format (`DEC-007`).
 - Real-time collaboration follows validation of the single-user creation workflow.
 - SolidStart/SolidJS/TypeScript, Tone.js over Web Audio, and Firebase Auth/Firestore/Storage/Functions are committed alpha technologies.
 - One long-lived real-time Tone/Web Audio context per document and stable, incrementally reconciled audio graphs are hard alpha architecture decisions.
@@ -1514,7 +1515,6 @@ A feature is done only when:
 - For the later pack marketplace (LIB-05): who may publish a pack, what rights and revenue-sharing terms apply to a creator, what moderation and takedown process governs published content, and what happens to a project that uses a pack after that pack is withdrawn or the user's access to it ends? (Post-alpha; unscheduled.)
 - Which sample/preset sources have acceptable commercial licensing and attribution terms?
 - Which AI provider, model budget, usage limit, and data-retention policy are acceptable for the alpha?
-- Should native Live Set generation be maintained directly or delivered through a supported partner/integration route?
 - Who are the first 8-20 target testers, and what existing tools/genres should the cohort represent?
 - What consent, retention, and regional policy applies to product analytics and error reports — is analytics on by default with an opt-out, how long is event and error data retained, and does the Sentry data region satisfy any regional constraint, or does that constraint reopen self-hosting? (`DEC-009`.)
 - When does the alpha stop deploying only to production: what triggers adding a separate staging or preview environment, and does it happen before the cohort grows or before public launch?

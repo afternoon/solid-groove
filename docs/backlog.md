@@ -983,7 +983,7 @@ These tasks are intentionally brief until `REL-003` is `done`. Before claiming o
 `Status: parked | Owner: unassigned | Dependencies: REL-003, DEC-007`<br>
 `PRD: SHR-02 | Evidence: pending`
 
-Determine the oldest correctly supported Live version, serialization route, legal/technical constraints, supported editable mappings, fallback policy, and fixture test matrix.
+The exporter builds and maintains its own `.als` serializer rather than a partner/integration route (`DEC-007`). Survey existing open-source `.als` parsing/writing libraries and adopt one where its schema coverage and licence are adequate, to minimize the maintenance burden of an unofficial, reverse-engineered format; otherwise write the serializer from scratch. Determine the oldest correctly supported Live version, remaining legal/technical constraints, supported editable mappings, fallback policy, and fixture test matrix.
 
 ### P1-002 - Self-contained Ableton Live export
 
