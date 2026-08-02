@@ -29,9 +29,11 @@ import {
 	formatPackSummary,
 	formatReport,
 	validateLibraryBalance,
+	validateLibraryReferences,
 	validatePackIndex,
 	validatePackManifest,
 } from "./validate.mjs";
+import { contentTypeForKey } from "./wav.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -131,6 +133,12 @@ export function planUpload() {
 	errors.push(...balance.errors);
 	warnings.push(...balance.warnings);
 
+	// Nothing is published with a preset pad, an instrument zone, or a derived
+	// master pointing at an asset this build does not deliver.
+	const references = validateLibraryReferences(packManifests);
+	errors.push(...references.errors);
+	warnings.push(...references.warnings);
+
 	const index = buildPackIndex(packManifests);
 	const serializedIndex = serialize(index);
 	const indexResult = validatePackIndex(index, packManifests, {
@@ -148,11 +156,19 @@ export function planUpload() {
 	const objects = files.map((file) => ({
 		path: `${STORAGE_PREFIX}/audio/${file.storageKey}`,
 		body: file.bytes,
-		contentType: "audio/wav",
+		// `CNT-001` delivers presets as content-addressed JSON through this same
+		// path, so the content type follows the object's own extension rather
+		// than assuming every master is a WAV.
+		contentType: contentTypeForKey(file.storageKey),
 		cacheControl: CACHE_CONTROL.immutable,
 		// Lets a client verify a download against the manifest without
 		// re-reading the manifest, and survives any re-encoding of ETags.
-		metadata: { sha256: file.storageKey.split("/").pop()?.replace(".wav", "") },
+		metadata: {
+			sha256: file.storageKey
+				.split("/")
+				.pop()
+				?.replace(/\.[a-z]+$/, ""),
+		},
 		immutable: true,
 	}));
 

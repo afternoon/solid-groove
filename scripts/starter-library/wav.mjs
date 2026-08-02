@@ -146,6 +146,22 @@ export function analyze(samples, sampleRate = SAMPLE_RATE) {
  * source URL or a human filename, so re-running the build is idempotent and a
  * project can pin an exact asset version (sections 9 and 12).
  */
-export function storageKeyFor(hash) {
-	return `sha256/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}.wav`;
+export function storageKeyFor(hash, extension = "wav") {
+	return `sha256/${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}.${extension}`;
+}
+
+/**
+ * Content types for the delivery layout. A preset is delivered as a
+ * content-addressed object exactly like a WAV (`CNT-001`), so the uploader
+ * needs one place that maps a master's declared format onto what the bucket
+ * serves it as.
+ */
+export const CONTENT_TYPES = {
+	wav: "audio/wav",
+	json: "application/json",
+};
+
+export function contentTypeForKey(storageKey) {
+	const extension = storageKey.split(".").pop();
+	return CONTENT_TYPES[extension] ?? "application/octet-stream";
 }

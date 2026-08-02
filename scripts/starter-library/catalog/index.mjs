@@ -4,7 +4,7 @@
 // is tagged; `voices.mjs` says what it sounds like; `manifest.mjs` says how it
 // is described to the app. Nothing here touches the filesystem or the network.
 
-import { isKnownRole } from "../taxonomy.mjs";
+import { isKnownLoopRole, isKnownRole, PRESET_KINDS } from "../taxonomy.mjs";
 import { BASS_STABS, REESES, SUBS, SUSTAINED } from "./bass.mjs";
 import {
 	CLAPS,
@@ -18,6 +18,16 @@ import {
 	TOMS,
 } from "./drums.mjs";
 import { DOWNERS, GLITCHES, IMPACTS, REVERSES, RISERS, SWEEPS } from "./fx.mjs";
+import {
+	ATMOSPHERE_LOOPS,
+	BASSLINE_LOOPS,
+	CHORD_LOOPS,
+	DRUM_FULL_LOOPS,
+	DRUM_TOP_LOOPS,
+	MELODIC_LOOPS,
+	PERCUSSION_LOOPS,
+} from "./loops.mjs";
+import { DERIVED, DEVICE_CHAINS, DRUM_KITS, INSTRUMENTS } from "./presets.mjs";
 import { AMBIENCES, DRONES, MECHANICAL, NOISE, ORGANIC } from "./texture.mjs";
 import { BELLS, CHORDS, KEYS, MALLETS, PLUCKS, TONAL_STABS } from "./tonal.mjs";
 
@@ -129,6 +139,116 @@ function buildCatalog() {
 
 /** The full starter catalogue, in ID order. */
 export const CATALOG = buildCatalog();
+
+/**
+ * Loop groups, in ID-assignment order. Append-only, exactly like `GROUPS`.
+ */
+const LOOP_GROUPS = [
+	{ family: "drums", role: "full-loop", entries: DRUM_FULL_LOOPS },
+	{ family: "drums", role: "top-loop", entries: DRUM_TOP_LOOPS },
+	{ family: "drums", role: "percussion-loop", entries: PERCUSSION_LOOPS },
+	{ family: "bass", role: "bassline", entries: BASSLINE_LOOPS },
+	{ family: "tonal", role: "chord-loop", entries: CHORD_LOOPS },
+	{ family: "tonal", role: "melodic-loop", entries: MELODIC_LOOPS },
+	{ family: "texture", role: "atmosphere-loop", entries: ATMOSPHERE_LOOPS },
+];
+
+/** Preset groups, in ID-assignment order. Append-only. */
+const PRESET_GROUPS = [
+	{ kind: "drum-kit", entries: DRUM_KITS },
+	{ kind: "instrument", entries: INSTRUMENTS },
+	{ kind: "device-chain", entries: DEVICE_CHAINS },
+];
+
+/**
+ * Stable prefixed IDs for the non-one-shot types.
+ *
+ * Same `sg-<type>-<family>-<role>-NNNN` shape as the one-shots, with the type
+ * in the ID, so the four ranges can never collide however each one grows and a
+ * saved project reference states what it is pointing at.
+ */
+function typedId(type, family, role, index) {
+	return `sg-${type}-${family}-${role}-${String(index + 1).padStart(4, "0")}`;
+}
+
+function buildLoopCatalog() {
+	const loops = [];
+	for (const group of LOOP_GROUPS) {
+		if (!isKnownLoopRole(group.family, group.role)) {
+			throw new Error(
+				`loop group uses an unknown role: ${group.family}/${group.role}`,
+			);
+		}
+		group.entries.forEach((entry, index) => {
+			loops.push({
+				...entry,
+				id: typedId("loop", group.family, group.role, index),
+				family: group.family,
+				role: group.role,
+				rootNote: entry.rootNote ?? null,
+				peakDbfs: entry.peakDbfs ?? -1.5,
+			});
+		});
+	}
+	return loops;
+}
+
+function buildPresetCatalog() {
+	const presets = [];
+	for (const group of PRESET_GROUPS) {
+		if (!PRESET_KINDS.includes(group.kind)) {
+			throw new Error(`preset group uses an unknown kind: ${group.kind}`);
+		}
+		// Numbering is per (family, kind), so adding a tonal instrument never
+		// renumbers a drum kit.
+		const counts = {};
+		group.entries.forEach((entry) => {
+			const key = `${entry.family}/${group.kind}`;
+			const index = counts[key] ?? 0;
+			counts[key] = index + 1;
+			presets.push({
+				...entry,
+				id: typedId("preset", entry.family, group.kind, index),
+				// A preset's "role" in the manifest is its kind: that is what a user
+				// filters by, and it keeps one role field across every asset type.
+				role: group.kind,
+			});
+		});
+	}
+	return presets;
+}
+
+function buildDerivedCatalog() {
+	const byId = new Map(CATALOG.map((entry) => [entry.id, entry]));
+	const counts = {};
+	return DERIVED.map((entry) => {
+		const source = byId.get(entry.sourceId);
+		if (!source) {
+			throw new Error(
+				`derived entry "${entry.name}" names unknown source ${entry.sourceId}`,
+			);
+		}
+		const key = `${source.family}/${source.role}`;
+		const index = counts[key] ?? 0;
+		counts[key] = index + 1;
+		return {
+			...entry,
+			id: typedId("derived", source.family, source.role, index),
+			family: source.family,
+			role: source.role,
+			rootNote: entry.transform === "reverse" ? source.rootNote : null,
+		};
+	});
+}
+
+/** The loop catalogue, in ID order. */
+export const LOOP_CATALOG = buildLoopCatalog();
+
+/** The preset catalogue, in ID order. */
+export const PRESET_CATALOG = buildPresetCatalog();
+
+/** The derived-master catalogue, in ID order. */
+export const DERIVED_CATALOG = buildDerivedCatalog();
 
 /** Per-(family, role) counts, used by the coverage report and its tests. */
 export function catalogCounts() {

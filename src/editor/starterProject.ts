@@ -1,11 +1,9 @@
 import type { Project, Song } from "../domain/entities";
 import {
-	createAsset,
 	createEmptySong,
 	createFactoryContext,
 	createNoteClip,
 	createNoteEvent,
-	createPack,
 	createPlacement,
 	createProjectMetadata,
 	createSamplerInstrument,
@@ -14,10 +12,12 @@ import {
 import { derivePackDependencies } from "../domain/packs";
 import { assertProject } from "../domain/parse";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import { createFactoryAsset } from "../library/factoryLibrary";
 
 /**
  * Builds a fresh `FND-009` starter project: one sampler track ("BD") whose
- * asset resolves through a pack, and a one-bar four-on-the-floor note clip
+ * asset resolves through a real factory pack from the generated library
+ * manifest (`src/library/factoryLibrary.ts`), and a one-bar four-on-the-floor note clip
  * placed once — the same shape `src/domain/fixtures.ts`'s
  * `createSliceFixtureProject` pins for tests, but with real (non-seeded) IDs
  * and the current time, for "New Project" to hand to the repository.
@@ -29,20 +29,10 @@ import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 export function createStarterProject(ownerId: string): Project {
 	const context = createFactoryContext();
 
-	const pack = createPack(context, {
-		name: "House Drums",
-		description: "Bundled factory drum one-shots.",
-	});
-
-	const asset = createAsset(context, {
-		pack,
-		name: "909 Bass Drum",
-		storageRef: "samples/house/drums/bd/909-bd.wav",
-		url: "/samples/house/drums/bd/909-bd.wav",
-		durationSeconds: 0.6,
-		sampleRate: 44_100,
-		channelCount: 1,
-	});
+	// `CNT-001`: the sound, its pack, its delivery path, and its audio metadata
+	// all come from the generated manifest. Nothing here restates them, so the
+	// starter cannot drift from the library it resolves against.
+	const asset = createFactoryAsset(context, "starterKick");
 
 	const track = createTrack(context, {
 		name: "BD",

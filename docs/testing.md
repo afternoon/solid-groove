@@ -365,6 +365,7 @@ bun run library:test                # the library suites only, without the rest 
 bun run library:build               # render synthesized assets, merge acquired, write the manifest
 bun run library:audition            # listen to the merged library at http://127.0.0.1:4180
 bun run library:validate            # build and validate without writing anything
+bun run library:emit-runtime        # regenerate src/library/factoryLibrary.generated.ts
 bun run library:upload              # publish to Cloud Storage (see .env.example for credentials)
 ```
 
@@ -380,6 +381,10 @@ the validator proves an asset is well-formed, not that it sounds right.
 
 The library ships on the pack model (`docs/sample-library.md` sections 5.1 and 15.8, `CNT-000b`): the build emits one manifest per pack plus a pack index at `library/packs/...`, and the validator carries the section 9 pack rules alongside the section 6.4 rules, which are still measured across the whole library rather than per pack. The commands above are unchanged — `library:build`, `library:validate`, and `library:upload` all operate on every pack in one call.
 
+`CNT-001` generalized the same pipeline past one-shots (`docs/sample-library.md` section 15.9): it now also produces bar-aligned **loops** with a measured tempo grid and a 32-cycle seam check, **presets** (drum kits, multisample instruments, device chains) delivered as content-addressed JSON that references assets by ID, and **derived masters** that record their source's checksum. `scripts/starter-library/ingestion.test.mjs` drives every new validation rule from a fixture that violates it, and `scripts/starter-library/intake.mjs` implements the section 11 intake ladder — anything below `metadata-review`, plus anything whose bytes are missing or disagree with the manifest, is isolated from the published manifests and reported rather than failing the build.
+
+**The application consumes the generated manifest.** `bun run library:emit-runtime` writes the committed `src/library/factoryLibrary.generated.ts` and renders the audio it points at into `public/samples/starter-library/audio/`. It runs from `bun run samples`, which `predev`, `prebuild`, `pretest:browser`, `pretest:browser:emulator`, and `prebench:arrangement` all call, so the browser suites serve the same content-addressed objects the bucket does. `scripts/starter-library/runtime.test.mjs` fails if the committed module no longer matches a fresh emit, and `src/library/factoryLibrary.test.ts` covers the application side; the file is excluded from Biome in `biome.json`, because a formatter rewrapping a line would make the committed file differ from a fresh emit for no reason (`tsc` still checks it).
+
 ### Acquisition tests
 
 `scripts/starter-library/acquire.test.mjs` exercises the whole acquisition path offline, against fixtures the test builds itself and serves over `file://`: a generated 44.1 kHz WAV is zipped, "downloaded", checksum-verified, extracted by pinned member name, decoded and resampled through `node-web-audio-api`, prepared to the section 10 standard, turned into a manifest entry, and run through the shared validator. Every stage downstream of the URL is the real implementation, so this proves the pipeline works rather than proving a mock matches a mock.
@@ -388,7 +393,7 @@ The rights rules are tested as behaviour, not documentation: a lockfile entry wi
 
 One portability note, since it bit once already: `decodeAudioData` type-checks its argument against `globalThis.ArrayBuffer`, and under this suite's jsdom environment that is not the same constructor a Node `Buffer`'s `.buffer` came from. `acquire/audio.mjs` allocates through the ambient `ArrayBuffer` for that reason — reslicing the Buffer's own works under the CLI and fails under the test runner.
 
-Its unit tests (`scripts/starter-library/*.test.mjs`) run under the normal `bun run test`, and are written to stay fast: rendering all 200 assets takes about 20 seconds, so the suite renders a handful of representative assets and drives the validation rules with fixtures. **The full catalogue is validated by `bun run library:validate`**, which CI runs as its own step — that is what enforces the collection-level rules (role coverage, genre coverage, the section 6.4 balance floors, the metadata payload budget) against the real library rather than a fixture.
+Its unit tests (`scripts/starter-library/*.test.mjs`) run under the normal `bun run test`, and are written to stay fast: rendering all 200 assets takes about 20 seconds, so most of the suite renders a handful of representative assets and drives the validation rules with fixtures. Two files are the deliberate exception — `ingestion.test.mjs` and `runtime.test.mjs` build the whole library once, because "every type carries the metadata the criteria require" and "the committed runtime module matches a fresh emit" are claims about the real catalogue, not about a fixture. **The full catalogue is validated by `bun run library:validate`**, which CI runs as its own step — that is what enforces the collection-level rules (role coverage, genre coverage, the section 6.4 balance floors, the metadata payload budget) against the real library rather than a fixture.
 
 `library:validate` needs no credentials, no network, and no emulator: it renders in-process and throws on the first validation failure.
 
