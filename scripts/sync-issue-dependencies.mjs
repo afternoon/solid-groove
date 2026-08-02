@@ -135,11 +135,13 @@ command -v gh >/dev/null || { echo "gh is not installed: https://cli.github.com"
 gh auth status >/dev/null 2>&1 || { echo "gh is not authenticated: run 'gh auth login'" >&2; exit 1; }
 
 # The API takes a dependency's numeric id, so map issue number -> id up front.
-declare -A ID
-# Counted explicitly: \${#ID[@]} on an empty array trips 'set -u' on bash < 4.4.
+# macOS ships bash 3.2, which has no associative arrays (\`declare -A\`): keep the
+# number<TAB>id pairs in a temp file and look them up with an exact-field match.
+ID_MAP="$(mktemp)"
+trap 'rm -f "$ID_MAP"' EXIT
 known=0
 while IFS=$'\\t' read -r number id; do
-  ID[$number]=$id
+  printf '%s\\t%s\\n' "$number" "$id" >>"$ID_MAP"
   known=$((known + 1))
 done < <(gh api "/repos/$OWNER/$REPO/issues?state=all&per_page=100" --paginate \\
            --jq '.[] | select(.pull_request | not) | [.number, .id] | @tsv')
@@ -149,11 +151,19 @@ if [ "$known" -eq 0 ]; then
   exit 1
 fi
 
+# Exact-match lookup: issue number 4 must not match 40. awk compares the whole
+# first field, and a miss prints nothing (empty string) rather than failing,
+# so it is safe under 'set -euo pipefail'.
+lookup_id() {
+  awk -F'\\t' -v n="$1" '$1 == n { print $2; exit }' "$ID_MAP"
+}
+
 added=0; present=0; failed=0
 
 edge() {
   local blocked=$1 blocker=$2 label=$3
-  local blocker_id="\${ID[$blocker]:-}"
+  local blocker_id
+  blocker_id="$(lookup_id "$blocker")"
 
   if [ -z "$blocker_id" ]; then
     echo "  ?? #$blocked  $label -- issue #$blocker not found, skipping" >&2
