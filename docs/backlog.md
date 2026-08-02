@@ -70,7 +70,7 @@ Some issues carry `blocked` because a product decision is genuinely unmade, not 
 
 The `Dependencies:` line on every task is the machine-readable work graph. An orchestrator topologically sorts it, holds live in-flight state during a run, and opens or updates the GitHub issues; implementation agents receive a single task and never need to read another agent's state. The release gates in section 2 are the synchronization points — everything inside a gate may run concurrently, and nothing crosses a gate until it closes.
 
-That graph is mirrored onto GitHub as issue dependencies ("blocked by") by `bun run issues:deps`, so the board shows what is actionable without anyone recomputing it. This file stays the source of truth: edit the `Dependencies:` line, then re-run the script. It is idempotent and dry-run by default — `--apply` writes, `--prune` also removes edges the backlog no longer declares. Alpha Milestone 0 tasks that landed before the one-issue-per-task convention have no issue to point at, so edges touching them are reported as skipped rather than created.
+That graph is mirrored onto GitHub as issue dependencies ("blocked by") by `bun run issues:deps`, so the board shows what is actionable without anyone recomputing it. It goes through the GitHub CLI, so `gh auth login` is the only setup and no token is handled directly. This file stays the source of truth: edit the `Dependencies:` line, then re-run the script. It is idempotent and dry-run by default — `--apply` writes, `--prune` also removes edges the backlog no longer declares. Alpha Milestone 0 tasks that landed before the one-issue-per-task convention have no issue to point at, so edges touching them are reported as skipped rather than created.
 
 ### Definition of done for every task
 

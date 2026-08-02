@@ -10,11 +10,12 @@
  * it did not plan, unless you pass --prune.
  *
  * Usage:
- *   GITHUB_TOKEN=... node scripts/sync-issue-dependencies.mjs            # dry run
- *   GITHUB_TOKEN=... node scripts/sync-issue-dependencies.mjs --apply
- *   GITHUB_TOKEN=... node scripts/sync-issue-dependencies.mjs --apply --prune
+ *   bun run issues:deps                  # dry run, prints every edge it would add
+ *   bun run issues:deps -- --apply       # write them
+ *   bun run issues:deps -- --apply --prune
  *
- * The token needs `repo` scope (issues: read and write).
+ * Authentication is the GitHub CLI's: run `gh auth login` once. No token is
+ * read from the environment, so there is nothing to leak into a shell history.
  *
  * This targets GitHub's issue-dependencies REST endpoints
  * (`/issues/{n}/dependencies/blocked_by`, which take the dependency's numeric
@@ -24,12 +25,12 @@
  * printed, not as a silent no-op.
  */
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 const OWNER = "afternoon";
 const REPO = "solid-groove";
-const API = "https://api.github.com";
 
 /**
  * Pull every `### TASK-ID - Title` block out of the backlog and read its
@@ -113,31 +114,55 @@ export function planEdges(graph, byTask) {
 	return { edges, missing };
 }
 
-async function gh(path, { method = "GET", body, token } = {}) {
-	const response = await fetch(`${API}${path}`, {
+/**
+ * One GitHub call through `gh api`, so authentication is whatever `gh auth
+ * login` already established rather than a token this script has to be handed.
+ */
+function gh(path, { method = "GET", body } = {}) {
+	const args = [
+		"api",
+		"--method",
 		method,
-		headers: {
-			authorization: `Bearer ${token}`,
-			accept: "application/vnd.github+json",
-			"x-github-api-version": "2022-11-28",
-			...(body ? { "content-type": "application/json" } : {}),
-		},
-		...(body ? { body: JSON.stringify(body) } : {}),
-	});
+		path,
+		"-H",
+		"Accept: application/vnd.github+json",
+		"-H",
+		"X-GitHub-Api-Version: 2022-11-28",
+	];
+	if (body) args.push("--input", "-");
 
-	if (!response.ok) {
-		const detail = await response.text();
-		throw new Error(`${method} ${path} -> ${response.status}\n${detail}`);
+	let stdout;
+	try {
+		stdout = execFileSync("gh", args, {
+			input: body ? JSON.stringify(body) : undefined,
+			encoding: "utf8",
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+	} catch (error) {
+		// gh puts the API's own error body on stderr; it is the useful part.
+		const detail = error.stderr?.trim() || error.message;
+		throw new Error(`${method} ${path}\n${detail}`);
 	}
-	return response.status === 204 ? null : await response.json();
+	return stdout.trim() === "" ? null : JSON.parse(stdout);
 }
 
-async function fetchAllIssues(token) {
+function requireGh() {
+	try {
+		execFileSync("gh", ["auth", "status"], { stdio: "pipe" });
+	} catch (error) {
+		const detail = error.stderr?.toString().trim() ?? "";
+		throw new Error(
+			`\`gh\` is unavailable or not authenticated.\n${detail}\n\n` +
+				"Install it from https://cli.github.com, then run `gh auth login`.",
+		);
+	}
+}
+
+function fetchAllIssues() {
 	const issues = [];
 	for (let page = 1; ; page += 1) {
-		const batch = await gh(
+		const batch = gh(
 			`/repos/${OWNER}/${REPO}/issues?state=all&per_page=100&page=${page}`,
-			{ token },
 		);
 		// The issues endpoint returns pull requests too; they are not tasks.
 		issues.push(...batch.filter((i) => !i.pull_request));
@@ -146,7 +171,7 @@ async function fetchAllIssues(token) {
 	return issues;
 }
 
-async function main() {
+function main() {
 	const { values } = parseArgs({
 		options: {
 			apply: { type: "boolean", default: false },
@@ -154,14 +179,10 @@ async function main() {
 		},
 	});
 
-	const token = process.env.GITHUB_TOKEN;
-	if (!token) {
-		console.error("GITHUB_TOKEN is not set. It needs `repo` scope.");
-		process.exit(1);
-	}
+	requireGh();
 
 	const graph = parseBacklogGraph(readFileSync("docs/backlog.md", "utf8"));
-	const issues = await fetchAllIssues(token);
+	const issues = fetchAllIssues();
 	const byTask = indexIssuesByTask(issues);
 	const { edges, missing } = planEdges(graph, byTask);
 
@@ -183,13 +204,21 @@ async function main() {
 		byIssue.get(edge.issueNumber).push(edge);
 	}
 
+	// Pruning has to visit issues with no wanted edges too, or a task whose
+	// dependencies were all removed from the backlog would keep its stale ones.
+	if (values.prune) {
+		for (const issue of byTask.values()) {
+			if (!byIssue.has(issue.number)) byIssue.set(issue.number, []);
+		}
+	}
+
 	let added = 0;
 	let present = 0;
 	let removed = 0;
 
 	for (const [issueNumber, wanted] of byIssue) {
 		const path = `/repos/${OWNER}/${REPO}/issues/${issueNumber}/dependencies/blocked_by`;
-		const existing = await gh(path, { token });
+		const existing = gh(path);
 		const existingIds = new Set(existing.map((i) => i.id));
 		const wantedIds = new Set(wanted.map((e) => e.blockedById));
 
@@ -202,11 +231,7 @@ async function main() {
 			if (!values.apply) {
 				console.log(`  would add   ${label}`);
 			} else {
-				await gh(path, {
-					method: "POST",
-					token,
-					body: { issue_id: edge.blockedById },
-				});
+				gh(path, { method: "POST", body: { issue_id: edge.blockedById } });
 				console.log(`  added       ${label}`);
 			}
 			added += 1;
@@ -218,7 +243,7 @@ async function main() {
 				if (!values.apply) {
 					console.log(`  would prune ${label}`);
 				} else {
-					await gh(`${path}/${stale.id}`, { method: "DELETE", token });
+					gh(`${path}/${stale.id}`, { method: "DELETE" });
 					console.log(`  pruned      ${label}`);
 				}
 				removed += 1;
@@ -238,5 +263,10 @@ async function main() {
 
 // Only run when invoked directly, so the test can import the pure helpers.
 if (import.meta.url === `file://${process.argv[1]}`) {
-	await main();
+	try {
+		main();
+	} catch (error) {
+		console.error(`\n${error.message}`);
+		process.exit(1);
+	}
 }
