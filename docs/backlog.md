@@ -49,7 +49,7 @@ This removes the write contention that made the old in-file claim protocol unwor
 | `LOOP-002` | [#42](https://github.com/afternoon/solid-groove/issues/42) | `LOOP-015` | [#57](https://github.com/afternoon/solid-groove/issues/57) | `HARD-001` | [#75](https://github.com/afternoon/solid-groove/issues/75) |
 | `LOOP-003` | [#43](https://github.com/afternoon/solid-groove/issues/43) | `LOOP-016` | [#58](https://github.com/afternoon/solid-groove/issues/58) | `HARD-002` | [#76](https://github.com/afternoon/solid-groove/issues/76) |
 | `LOOP-004` | [#44](https://github.com/afternoon/solid-groove/issues/44) | `ARR-001` | [#59](https://github.com/afternoon/solid-groove/issues/59) | `HARD-003` | [#77](https://github.com/afternoon/solid-groove/issues/77) |
-| | | `ARR-002` | [#60](https://github.com/afternoon/solid-groove/issues/60) | `HARD-004` | [#78](https://github.com/afternoon/solid-groove/issues/78) |
+| `AI-006` | [#95](https://github.com/afternoon/solid-groove/issues/95) | `ARR-002` | [#60](https://github.com/afternoon/solid-groove/issues/60) | `HARD-004` | [#78](https://github.com/afternoon/solid-groove/issues/78) |
 | | | `ARR-003` | [#61](https://github.com/afternoon/solid-groove/issues/61) | `HARD-005` | [#79](https://github.com/afternoon/solid-groove/issues/79) |
 | | | `ARR-004` | [#62](https://github.com/afternoon/solid-groove/issues/62) | `REL-003` | [#80](https://github.com/afternoon/solid-groove/issues/80) |
 
@@ -869,6 +869,30 @@ Build prompts, deterministic analysis helpers, and evaluation fixtures for loop 
 - [ ] Drum, bass, chord, melody, and texture output uses editable events and bundled sources, never generated audio.
 - [ ] Evaluation checks validity, editability, scope, atomic undo, explanation grounding, and musical diversity rather than exact notes.
 - [ ] Conventional and extreme requests are distinguished without silently forcing genre conventions.
+
+### AI-006 - Assistant transcript retention, disclosure, and opt-out
+
+`Status: todo | Owner: unassigned | Dependencies: AI-004, DEC-005`<br>
+`PRD: AI-09; AI-06; 10 Security and privacy | Evidence: pending`
+
+Build the transcript store the team reads to improve the assistant, together with the disclosure and the opt-out that make retaining it honest. The three ship as one slice: no transcript is written before the disclosure and the opt-out exist.
+
+The store is its own collection behind the `AI-001` gateway, **not** an extension of the `FND-001c` analytics catalog. That catalog's parameter-content test forbids exactly what a transcript contains, and that test must keep passing unchanged — this task does not widen it, add an exemption to it, or route conversation text through the analytics or error-reporting boundaries.
+
+Two terms are decided (`DEC-005`, PRD section 16): retention is **30 days** from the message that produced the transcript, and **the AI provider may retain and train on the requests we send it**. Implement the window as configuration in one place rather than a literal spread across the server, the deletion job, and the disclosure copy. Draft disclosure copy is in [#95](https://github.com/afternoon/solid-groove/issues/95) — write it in this task rather than waiting for it, since the product owner has delegated the first draft. The `[provider]` placeholder resolves when `DEC-005` names the provider; shipping the literal string is a defect.
+
+- [ ] A transcript record holds the user's messages, the assistant's replies, the proposals shown, and each proposal's apply/cancel/undo outcome, plus project ID, revision, and timestamps. A test rejects any record carrying song or clip content, audio, asset URLs, provider credentials, or tokens.
+- [ ] Retention expiry is enforced server-side from the message timestamp using the 30-day window as configuration, and expired transcripts are deleted rather than archived, anonymized, or rolled up into a surviving summary. A test proves a record past 30 days is gone, and the disclosure reads its window from the same configured value so the two can never disagree.
+- [ ] The disclosure is shown before the first assistant message of an account's first session, names the retention window and the human review purpose, sits with the `AI-06` explanation of what is sent to the provider, and gives accepting and declining equal weight. A test proves the assistant cannot be messaged before it has been shown.
+- [ ] The disclosure states that the provider may retain and train on requests, and states plainly that the opt-out governs Solid Groove's own retention only — it does not withdraw what has already been sent to the provider. The control's own label and any confirmation text carry the same scope, so the claim survives a user who skims the dialog and reads only the setting.
+- [ ] A durable opt-out control lives in a discoverable settings surface, not only in the first-run dialog, and shows the current state without changing it. With retention off, every assistant capability still works — proven by running the `AI-005` evaluation set with retention disabled.
+- [ ] Opting out stops later retention and deletes that user's existing transcripts; emulator tests cover both, including a user who opts out mid-conversation.
+- [ ] The preference is account-scoped and read server-side before any write. Absent, stale, or unreadable preference state results in no retention; a security-rules test proves a client cannot cause retention the preference does not permit, and cannot read another account's transcripts.
+- [ ] The preference survives sign-out, sign-in, and anonymous-to-account upgrade, including a preference set anonymously before the account existed.
+- [ ] Project deletion and account deletion delete the associated transcripts, covered by emulator tests alongside the existing `LOOP-001`/`HARD-003` deletion paths.
+- [ ] Retained records carry the internal-session flag already defined for analytics user properties, so team traffic is excluded from review.
+- [ ] The opt-out emits its own catalog event through the `FND-001c` boundary with a state key only, and the transport-failure test confirms retention behavior does not depend on analytics working.
+- [ ] `docs/testing.md` documents how to verify, against a deployed build, that declining leaves no stored transcript and that an expired one is gone.
 
 ### REL-002 - AI producer gate
 
