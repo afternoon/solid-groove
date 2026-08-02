@@ -25,7 +25,7 @@ test.describe("hosted alpha smoke test", () => {
 		await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
 		// Project open. The hosted alpha has no seeded project for a fresh
-		// anonymous identity (that is Phase 1's starter-template work), so the
+		// anonymous identity (that is Alpha Milestone 1's starter-template work), so the
 		// smoke test creates one -- this also proves the Firestore write path
 		// and security rules work end to end, not just the read path.
 		await page.getByRole("button", { name: "New Project" }).click();

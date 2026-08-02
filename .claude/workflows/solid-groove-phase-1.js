@@ -1,9 +1,9 @@
 export const meta = {
   name: 'solid-groove-phase-1',
   description:
-    'Implement Solid Groove Phase 1 (LOOP-001..016, CNT-001..002) — Sonnet implements, Opus reviews every branch before its PR opens',
+    'Implement Solid Groove Alpha Milestone 1 (LOOP-001..016, CNT-001..002) — Sonnet implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to execute Phase 1 of docs/backlog.md, after FND-009 has landed. Name tasks to run a subset, either positionally (solid-groove-phase-1 LOOP-003 LOOP-007) or as args: ["LOOP-003","LOOP-007"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
+    'Run to execute Alpha Milestone 1 of docs/backlog.md, after FND-009 has landed. Name tasks to run a subset, either positionally (solid-groove-phase-1 LOOP-003 LOOP-007) or as args: ["LOOP-003","LOOP-007"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
   phases: [
     { title: 'Foundations', detail: 'transport, autosave, shortcuts, dashboard, asset pipeline — everything that only needs FND-009' },
     { title: 'Instruments', detail: 'synth/sampler, drum machine, audio loops, tracks and mixer, library browser' },
@@ -15,15 +15,15 @@ export const meta = {
 
 // Model policy, per the decision recorded in docs/prd.md section 16: a task
 // whose output every dependent task inherits runs on Opus, because an error
-// there propagates and surfaces late. In Phase 1 that means the shared
+// there propagates and surfaces late. In Alpha Milestone 1 that means the shared
 // registries and frameworks rather than the leaf features — the transport every
 // instrument schedules against, the device framework the processors plug into,
 // the shortcut registry every surface reads, the manifest pipeline the browser
-// consumes, and the transformation commands the Phase 3 assistant reuses.
+// consumes, and the transformation commands the Alpha Milestone 3 assistant reuses.
 // Review is always Opus at high effort, and runs before any PR is opened.
 const CONTRACT_TASKS = ['LOOP-003', 'LOOP-008', 'LOOP-012', 'LOOP-014', 'CNT-001', 'LOOP-016']
 
-// `main` carries all of Phase 0 now, including the docs commits that moved
+// `main` carries all of Alpha Milestone 0 now, including the docs commits that moved
 // hosted-environment verification to `OPS-001` and published the GitHub issue
 // index — both of which change what an agent owes, and both of which this
 // workflow's briefs assume. It was pinned to the staging feature branch while
@@ -72,8 +72,8 @@ Both of these have already cost a run. Do them once, up front:
 
 `
 
-// Hosted-environment verification left Phase 0 for OPS-001, after Phase 2. Every
-// Phase 1 task's definition of done used to require "exercised in a deployed
+// Hosted-environment verification left Alpha Milestone 0 for OPS-001, after Alpha Milestone 2. Every
+// Alpha Milestone 1 task's definition of done used to require "exercised in a deployed
 // build", which no agent can satisfy — no Firebase project is provisioned. Say so
 // explicitly, or an agent either reports a deploy that never happened or parks a
 // finished task waiting for an environment that does not exist.
@@ -81,7 +81,7 @@ const NO_HOSTED_ENV = `
 
 There is no hosted environment. The Firebase project, GA4 property, and Sentry organization are NOT provisioned, and the CI deploy job is gated off. Never invent a project id, DSN, token, or key; never commit a placeholder shaped like a real one; and never report a deploy, smoke test, or delivered event as having happened when it did not.
 
-Your analytics obligation is unchanged and is **not** deferred: emit your task's PRD OPS-02 events through the shared typed catalog in \`src/analytics\`, extend the catalog in this same change if your feature introduces an action it does not cover, and prove each event fires exactly once per action with an automated test. What moved to \`OPS-001\` (after Phase 2) is only *observing* those events arriving from a deployed build. Verify against the emulator suite and the gating browsers instead, and treat the hosted half as out of scope rather than unmet.`
+Your analytics obligation is unchanged and is **not** deferred: emit your task's PRD OPS-02 events through the shared typed catalog in \`src/analytics\`, extend the catalog in this same change if your feature introduces an action it does not cover, and prove each event fires exactly once per action with an automated test. What moved to \`OPS-001\` (after Alpha Milestone 2) is only *observing* those events arriving from a deployed build. Verify against the emulator suite and the gating browsers instead, and treat the hosted half as out of scope rather than unmet.`
 
 // A task blocked on an unmade product decision is the one place an agent is most
 // likely to do damage quietly: guessing a retention policy or a template list
@@ -109,7 +109,7 @@ const DEC = {
   'DEC-010': { id: 'DEC-010', issue: 39, what: 'the shipped factory pack list and each pack’s coverage claim' },
 }
 
-// `deps` lists only Phase 1 dependencies — the scheduler waits on those. Phase 0
+// `deps` lists only Alpha Milestone 1 dependencies — the scheduler waits on those. Alpha Milestone 0
 // dependencies (FND-009, FND-002b, CNT-000b) are already on the base branch, so
 // listing them would deadlock a scheduler that can only satisfy deps it runs.
 const TASKS = [
@@ -152,7 +152,7 @@ const TASKS = [
 // Normalise the subset request, and fail loud on anything malformed.
 //
 // The rule that matters: a filter the script cannot understand must stop the
-// run, never degrade into "run every task". An early version of the Phase 0
+// run, never degrade into "run every task". An early version of the Alpha Milestone 0
 // script used `Array.isArray(args) ? ... : null`, so a non-array `args` fell
 // through to null and ran the entire phase — that once opened PRs for six tasks
 // nobody asked for. Every branch below either yields a non-empty id list or
@@ -298,7 +298,7 @@ The task's live record is issue #${t.issue}. Read it with \`mcp__github__issue_r
     : ''
 }
 
-Hosted-environment verification moved to \`OPS-001\` after Phase 2, so no deployed-build claim is owed by this task — but the analytics obligation is: the task's OPS-02 events must have real call sites with tests proving each fires once per action. Events left for later are a blocking finding, not a deferral.
+Hosted-environment verification moved to \`OPS-001\` after Alpha Milestone 2, so no deployed-build claim is owed by this task — but the analytics obligation is: the task's OPS-02 events must have real call sites with tests proving each fires once per action. Events left for later are a blocking finding, not a deferral.
 
 ${WORKTREE}Fetch and check out the branch under review with \`git fetch origin ${impl.branch} && git checkout -b review-${t.id.toLowerCase()} origin/${impl.branch}\`, then read the actual diff against origin/${BASE_BRANCH}. Run the test suite yourself.
 
@@ -381,15 +381,15 @@ async function runTask(t) {
   return { id: t.id, status: 'approved', branch: impl.branch, pr, notes: review.notes ?? [], outOfScope: impl.outOfScope ?? [] }
 }
 
-// Phase 1 is scheduled from the `deps` graph rather than from hard-coded waves.
+// Alpha Milestone 1 is scheduled from the `deps` graph rather than from hard-coded waves.
 // The backlog calls its Dependencies lines "the machine-readable work graph", and
 // hand-maintained waves drift from it silently: a dependency added to the backlog
 // but not to the wave list produces a task that runs before what it needs, and
 // nothing detects it. This loop cannot drift — it derives the order every run.
 //
-// Each round takes every task whose Phase 1 dependencies have all landed and runs
+// Each round takes every task whose Alpha Milestone 1 dependencies have all landed and runs
 // them concurrently. The concurrency cap queues the excess, so a wide round is
-// safe. Phase 0 dependencies are deliberately absent from `deps`: they are already
+// safe. Alpha Milestone 0 dependencies are deliberately absent from `deps`: they are already
 // on the base branch, and a scheduler can only satisfy dependencies it runs.
 const results = []
 const landed = new Set()
@@ -430,7 +430,7 @@ while (pending.length) {
 }
 
 const approved = results.filter((r) => r.status === 'approved')
-log(`Phase 1: ${approved.length}/${results.length} tasks approved and raised as PRs`)
+log(`Alpha Milestone 1: ${approved.length}/${results.length} tasks approved and raised as PRs`)
 
 return {
   results,

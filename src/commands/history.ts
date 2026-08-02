@@ -18,7 +18,7 @@ import type { CommandActor, CommandEnvelope, RawCommandInput } from "./types";
  * Firestore acknowledgement or a remote echo must not push, drop, or rewrite
  * an entry, and only an explicit `replaceProject` (opening a different project
  * or reloading this one) clears it. Durable, named history is `PRJ-05` in
- * Phase 1 and does not change this contract.
+ * Alpha Milestone 1 and does not change this contract.
  *
  * One history entry always equals one revision: a single command, a
  * multi-command transaction, and a continuous gesture each produce exactly one

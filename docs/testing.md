@@ -219,7 +219,7 @@ Visiting the hosted alpha with `?internal=1` (e.g. `https://<project-id>.web.app
 
 ### Post-deploy smoke test
 
-`e2e-hosted/smoke.spec.ts` (config: `playwright.smoke.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded starter project yet; that is Phase 1 work) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
+`e2e-hosted/smoke.spec.ts` (config: `playwright.smoke.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded starter project yet; that is Alpha Milestone 1 work) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
 
 ### Rollback
 
@@ -281,7 +281,7 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 
 **Before you start.** Open the site and confirm `ReleaseBadge` shows the SHA you expect; every check below is scoped to that release. Then open the Privacy disclosure in the footer and make sure collection is **on** — an opted-out browser correctly sends nothing, which looks identical to a broken pipeline. Disable any ad or tracker blocker: both `google-analytics.com` and `sentry.io` are commonly blocked, and a blocked endpoint is invisible by design (PRD `OPS-02`).
 
-**1. Phase 0 events.** In GA4, open *Reports → Realtime* (events appear within seconds; the standard reports lag by up to 24 hours) or *Admin → DebugView* if you appended `?debug_mode=1`. Then, on the deployed site:
+**1. Alpha Milestone 0 events.** In GA4, open *Reports → Realtime* (events appear within seconds; the standard reports lag by up to 24 hours) or *Admin → DebugView* if you appended `?debug_mode=1`. Then, on the deployed site:
 
 | Event | How to trigger it | Check |
 | --- | --- | --- |
@@ -328,7 +328,7 @@ The first must succeed and the second must not. A 200 with map contents means th
 
 The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason.
 
-**When this gets closed.** Executing it is backlog task `OPS-001`, scheduled immediately after Phase 2 (PRD section 12, "After Phase 2"), following [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md). It was originally expected during Phase 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Phase 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
+**When this gets closed.** Executing it is backlog task `OPS-001`, scheduled immediately after Alpha Milestone 2 (PRD section 12, "After Alpha Milestone 2"), following [`docs/runbooks/alpha-milestone-0.md`](./runbooks/alpha-milestone-0.md). It was originally expected during Alpha Milestone 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
 
 Until then, treat every statement in that section as untested, and do not cite it as evidence in a task's closing comment. Whoever provisions the accounts runs the procedure once and replaces this section with what they actually observed, including the date and the release SHA.
 

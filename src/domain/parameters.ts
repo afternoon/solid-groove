@@ -10,7 +10,7 @@ import { z } from "zod";
  *
  * Schema v1 defines only the parameters the `FND-009` vertical slice needs.
  * Per-device instrument and effect parameters are authored with their devices
- * in Phase 1, where they can be tuned by ear, and are registered through
+ * in Alpha Milestone 1, where they can be tuned by ear, and are registered through
  * `defineParameter` at that point.
  */
 

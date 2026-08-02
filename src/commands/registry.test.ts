@@ -9,7 +9,7 @@ import {
 import { ABSENT_IDS } from "./testProjects";
 
 /**
- * The registry is a published contract: `FND-009`, Phase 1 features, and the
+ * The registry is a published contract: `FND-009`, Alpha Milestone 1 features, and the
  * assistant all dispatch through these types. Adding one is deliberate work,
  * so the expected set is pinned here rather than derived from the registry it
  * is meant to check.

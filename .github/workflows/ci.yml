@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    # `claude/**` covers the implementation branches the Phase 0 workflow
+    # `claude/**` covers the implementation branches the Alpha Milestone 0 workflow
     # pushes. The review stage runs against a pushed branch *before* a pull
     # request exists, so a `pull_request`-only trigger leaves reviewers with no
     # CI run to read at the moment they have to decide. That is not
