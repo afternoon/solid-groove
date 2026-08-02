@@ -9,6 +9,7 @@ import { createSeededIdFactory } from "../domain/ids";
 import { TICKS_PER_SIXTEENTH, ticksToSeconds } from "../domain/time";
 import { buildAudioProjection } from "../projection/audioProjection";
 import { installWebAudioGlobals } from "./testAudioContext";
+import { UnderrunMonitor } from "./underrun";
 
 installWebAudioGlobals();
 
@@ -202,6 +203,49 @@ describe("ProjectAudioGraph", () => {
 				.sort(),
 		);
 		expect(graph.diagnostics().scheduledPlacements).toBe(1);
+
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("reports a sampled audio_underrun when scheduled events fire late, and nothing when they are on time (PRD AUD-03/OPS-02)", async () => {
+		const project = createSliceFixtureProject();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+
+		const reports: { droppedEventBucket: string; sampleRate: string }[] = [];
+		// samplingRate 1 -> a report per detected drop, so the assertion is exact.
+		const monitor = new UnderrunMonitor({
+			contextSampleRate: 48_000,
+			samplingRate: 1,
+			toleranceSeconds: 0.02,
+			emit: (report) => reports.push(report),
+		});
+		// `now` is controllable so the callback's "actual" audio time is set by the
+		// test, independent of any real clock.
+		let now = 0;
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			underrunMonitor: monitor,
+			now: () => now,
+		});
+		graph.reconcile(buildAudioProjection(project));
+
+		const callbacks = [...transport.callbacks.values()];
+		expect(callbacks.length).toBeGreaterThan(0);
+
+		// The first scheduled callback fires with the audio clock already well past
+		// its intended time (intended 1.0s, actual 1.5s) — a late dispatch.
+		now = 1.5;
+		callbacks[0]?.(1.0);
+		expect(reports).toHaveLength(1);
+		expect(reports[0]?.sampleRate).toBe("48000");
+		expect(reports[0]?.droppedEventBucket).toBe("1_4");
+
+		// A callback that fires ahead of its intended time is not a drop.
+		now = 1.0;
+		callbacks[1]?.(2.0);
+		expect(reports).toHaveLength(1);
 
 		await graph.dispose();
 		await runtime.close();

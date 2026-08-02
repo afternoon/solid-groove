@@ -1,7 +1,9 @@
 import { A } from "@solidjs/router";
 import {
+	HiSolidArrowPathRoundedSquare,
 	HiSolidArrowUturnLeft,
 	HiSolidArrowUturnRight,
+	HiSolidMusicalNote,
 	HiSolidPlay,
 	HiSolidQuestionMarkCircle,
 	HiSolidSquares2x2,
@@ -16,8 +18,12 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
+import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
+import { SONG_TEMPO } from "../domain/parameters";
+import { formatBarsBeatsSixteenths } from "../domain/time";
 import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
@@ -72,14 +78,44 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	);
 
 	const project = createMemo(() => session.state.project);
-	const audio = useProjectAudio(project);
+	const audio = useProjectAudio(project, { surface: "editor" });
 	const [guideOpen, setGuideOpen] = createSignal(false);
+
+	// Tempo is written by a validated command (song.tempo), clamped to the
+	// AUD-02 40-240 BPM supported range at this surface, then mirrored onto the
+	// transport so a running song re-times without restarting.
+	const tempo = createMemo(
+		() => project()?.song.tempo ?? SONG_TEMPO.defaultValue,
+	);
+	const timeSignature = createMemo(() => project()?.song.timeSignature ?? null);
+	const applyTempo = (value: number) => {
+		if (!Number.isFinite(value)) return;
+		const clamped = clampTempo(value);
+		session.dispatch(
+			setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, clamped),
+		);
+		audio.setTempo(clamped);
+	};
+
+	const playheadLabel = createMemo(() => {
+		const bbs = formatBarsBeatsSixteenths(audio.positionTicks());
+		// Show a 1-based bar:beat for a musician, dropping the sixteenth fraction.
+		const [bars, beats] = bbs.split(":");
+		return `${Number(bars) + 1}.${Number(beats) + 1}`;
+	});
 
 	// The KEY-01 registry owns every mapping; this component only says which
 	// actions exist here and what they do. An action the slice does not
 	// implement yet simply has no handler and never fires.
 	const handlers = (): ShortcutHandlers => ({
 		"transport.play_stop": { run: () => void audio.toggle() },
+		"transport.continue": {
+			run: () => {
+				if (audio.isPlaying()) audio.pause();
+				else void audio.play();
+			},
+		},
+		"transport.metronome": { run: () => audio.toggleMetronome() },
 		"edit.undo": {
 			run: () => session.undo(),
 			isEnabled: () => session.state.canUndo,
@@ -223,6 +259,67 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 											<HiSolidStop size={22} />
 										</Show>
 									</button>
+									<button
+										type="button"
+										class="loop-toggle"
+										onClick={() => audio.toggleLoop()}
+										aria-pressed={audio.loopEnabled()}
+										aria-label={
+											audio.loopEnabled() ? "Disable loop" : "Enable loop"
+										}
+										title={audio.loopEnabled() ? "Disable loop" : "Enable loop"}
+									>
+										<HiSolidArrowPathRoundedSquare size={18} />
+									</button>
+									<button
+										type="button"
+										class="metronome-toggle"
+										onClick={() => audio.toggleMetronome()}
+										aria-pressed={audio.metronomeEnabled()}
+										aria-label={
+											audio.metronomeEnabled()
+												? "Disable metronome"
+												: "Enable metronome"
+										}
+										title={`Metronome (${keyHint("transport.metronome")})`}
+									>
+										<HiSolidMusicalNote size={18} />
+									</button>
+									<label class="tempo-control">
+										<span class="visually-hidden">Tempo (BPM)</span>
+										<input
+											type="number"
+											class="tempo-input"
+											min={MIN_TEMPO_BPM}
+											max={MAX_TEMPO_BPM}
+											step={1}
+											value={tempo()}
+											aria-label="Tempo (BPM)"
+											onChange={(event) =>
+												applyTempo(event.currentTarget.valueAsNumber)
+											}
+										/>
+										<span class="tempo-unit">BPM</span>
+									</label>
+									<Show when={timeSignature()}>
+										{(signature) => (
+											<span
+												class="time-signature"
+												role="img"
+												aria-label={`Time signature ${signature().numerator}/${signature().denominator}`}
+												title="Time signature (fixed at 4/4)"
+											>
+												{signature().numerator}/{signature().denominator}
+											</span>
+										)}
+									</Show>
+									<span
+										class="playhead-position"
+										role="img"
+										aria-label={`Playhead at bar ${playheadLabel()}`}
+									>
+										{playheadLabel()}
+									</span>
 								</div>
 								<button
 									type="button"

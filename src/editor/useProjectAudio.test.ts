@@ -20,6 +20,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
 	cleanup();
+	useProjectAudioModule.__resetFirstPlayInSessionForTests();
 	try {
 		await AudioRuntimeModule.getAudioRuntime().close();
 	} catch {
@@ -106,6 +107,56 @@ describe("useProjectAudio", () => {
 		expect(result.isPlaying()).toBe(false);
 		// stop() never calls resume() again.
 		expect(resumed).toBe(1);
+	});
+
+	it("emits transport_play exactly once per play, with is_first_play_in_session true only the first time", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		const runtime = unreachableAudioHost(() => Promise.resolve());
+
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		await result.play();
+		result.stop();
+		await result.play();
+
+		const events = transport.named("transport_play");
+		expect(events).toHaveLength(2);
+		expect(events[0]?.params.is_first_play_in_session).toBe(true);
+		expect(events[1]?.params.is_first_play_in_session).toBe(false);
+		// The surface is attached automatically (PRD OPS-02), not passed per event.
+		expect(events[0]?.params.surface).toBeDefined();
+	});
+
+	it("does not emit transport_play when the context cannot unlock", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		const runtime = unreachableAudioHost(() =>
+			Promise.reject(new Error("NotAllowedError: blocked")),
+		);
+
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		await result.play();
+
+		// A blocked unlock is reported as audio_start_failed, never transport_play.
+		expect(transport.named("transport_play")).toHaveLength(0);
+		expect(transport.named("audio_start_failed")).toHaveLength(1);
+		expect(
+			transport.named("audio_start_failed")[0]?.params.was_browser_blocked,
+		).toBeDefined();
 	});
 
 	it("builds a real audio graph for the loaded project and disposes it without leaking resources when the owner unmounts", async () => {
