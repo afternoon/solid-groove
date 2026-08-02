@@ -18,7 +18,7 @@
 //
 // ## Events that cannot be logged yet
 //
-// Several later-phase parameters are keys owned by a task that has not landed
+// Several later-milestone parameters are keys owned by a task that has not landed
 // (`template_id` by `LOOP-015`, `action_id` by `LOOP-014`, `suggestion_id` and
 // `capability` by the `AI-*` tasks). Those are declared here as *empty* enums.
 // An empty enum's value type is `never`, so the event is declared, reportable,
@@ -242,7 +242,12 @@ export const USER_PROPERTIES = {
 // ---------------------------------------------------------------------------
 
 export interface AnalyticsEventDefinition {
-	/** Delivery phase, matching the PRD `OPS-02` catalog table. */
+	/**
+	 * Delivery milestone, matching the PRD `OPS-02` catalog table's
+	 * `Alpha Milestone` column. The field keeps its `phase` name because
+	 * renaming it changes this published catalog contract, which is its own
+	 * task rather than part of a documentation rename.
+	 */
 	readonly phase: 0 | 1 | 2 | 3;
 	/** Backlog task(s) that must ship the event with the feature it measures. */
 	readonly owners: readonly string[];
@@ -366,7 +371,7 @@ export const ANALYTICS_EVENTS = {
 		phase: 1,
 		owners: ["LOOP-008", "LOOP-009"],
 		params: {
-			// Device keys are authored per-device in Phase 1 (LOOP-008/009).
+			// Device keys are authored per-device in Alpha Milestone 1 (LOOP-008/009).
 			device_type: enumParam(UNCLAIMED),
 			chain: enumParam(["insert", "return", "master"]),
 		},

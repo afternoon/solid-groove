@@ -132,7 +132,7 @@ function createSamplerInstrumentNode(
 		kind: "sampler",
 		output,
 		trigger(trigger, time, duration) {
-			// Per-pitch playback rate and round-robin are Phase 1 sampler-device
+			// Per-pitch playback rate and round-robin are Alpha Milestone 1 sampler-device
 			// concerns; the v1 scaffold plays the loaded one-shot at normal rate
 			// on any pitch trigger so the note-scheduling contract is provable
 			// ahead of that DSP.
@@ -172,7 +172,7 @@ function createSynthInstrumentNode(
 		},
 		update(next) {
 			if (next.kind !== "synth") return;
-			// Schema v1 defines no synth parameters yet — Phase 1 authors them
+			// Schema v1 defines no synth parameters yet — Alpha Milestone 1 authors them
 			// with the synth device (PRD section 9.5 invariant 10). `parameters`
 			// is carried through for forward compatibility only.
 		},

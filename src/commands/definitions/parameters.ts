@@ -33,7 +33,7 @@ import {
  *
  * The command never repeats a range, a default, or a clamping rule: it looks
  * the target's definition up in `src/domain/parameters.ts` and applies that
- * definition's policy. Adding a device parameter in Phase 1 therefore makes it
+ * definition's policy. Adding a device parameter in Alpha Milestone 1 therefore makes it
  * settable by the UI, the keyboard, and the assistant without a new command.
  */
 

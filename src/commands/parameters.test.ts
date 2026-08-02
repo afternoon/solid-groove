@@ -20,7 +20,7 @@ import {
 	TEST_DEVICE_TYPE,
 } from "./testProjects";
 
-// Phase 1 authors real device parameters; this stands in for one so the
+// Alpha Milestone 1 authors real device parameters; this stands in for one so the
 // generic command can be tested against a registered device definition.
 const DEVICE_TIME = registerParameter({
 	id: `${TEST_DEVICE_TYPE}.${TEST_DEVICE_PARAMETER}`,

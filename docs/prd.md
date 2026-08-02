@@ -1288,7 +1288,7 @@ Exit criteria: a user can manually build arrangements from two through ten minut
 
 ### After Alpha Milestone 2 - Hosted environment verification
 
-One task, `OPS-001`, run once at the Alpha Milestone 2 boundary by whoever holds the Firebase and Sentry accounts. It closes every OPS-01, OPS-02, and OPS-03 acceptance criterion that needs a live hosted environment rather than more code, following [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md):
+One task, `OPS-001`, run once at the Alpha Milestone 2 boundary by whoever holds the Firebase and Sentry accounts. It closes every OPS-01, OPS-02, and OPS-03 acceptance criterion that needs a live hosted environment rather than more code, following [`docs/runbooks/alpha-milestone-0.md`](./runbooks/alpha-milestone-0.md):
 
 - Provision the Firebase project and the Sentry organization, set the CI variables and secrets, and take the first real deploy.
 - Run the post-deploy smoke test against the hosted URL — app load, anonymous session, project open, audio start after a gesture — and confirm a failing smoke test fails the deploy.

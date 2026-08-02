@@ -53,7 +53,7 @@ This removes the write contention that made the old in-file claim protocol unwor
 | | | `ARR-003` | [#61](https://github.com/afternoon/solid-groove/issues/61) | `HARD-005` | [#79](https://github.com/afternoon/solid-groove/issues/79) |
 | | | `ARR-004` | [#62](https://github.com/afternoon/solid-groove/issues/62) | `REL-003` | [#80](https://github.com/afternoon/solid-groove/issues/80) |
 
-Labels in use: `phase-0`…`phase-4` for scheduling, `decision` for section 3, `blocked` where an undecided `DEC-*` gates the task, `contract` for a task that owns or changes a published contract, `gate` for the `FND-009`/`LOOP-016`/`REL-001`/`REL-002`/`REL-003` release gates, and `operator` for `OPS-001`, which needs real credentials and must never be claimed by an implementation agent.
+Labels in use: `alpha-milestone-0`…`alpha-milestone-4` for scheduling, `decision` for section 3, `blocked` where an undecided `DEC-*` gates the task, `contract` for a task that owns or changes a published contract, `gate` for the `FND-009`/`LOOP-016`/`REL-001`/`REL-002`/`REL-003` release gates, and `operator` for `OPS-001`, which needs real credentials and must never be claimed by an implementation agent.
 
 Some issues carry `blocked` because a product decision is genuinely unmade, not because the work is hard: `CNT-002` (`DEC-003`, `DEC-010`), `LOOP-015` (`DEC-002`), `EXP-002`/`EXP-003` (`DEC-004`), `AI-001` (`DEC-005`), `HARD-003` (`DEC-005`, `DEC-009`), and `HARD-005` (`DEC-006`). An agent on one of these implements what does not depend on the decision and reports the rest — it never guesses the decision. (`DEC-001` is now decided — recorded in PRD section 16 — which unblocked `LOOP-001` and removes it and that part of `HARD-003` from this list.)
 
@@ -793,7 +793,7 @@ Validate manual creation of a two-to-ten-minute arrangement and import of its st
 
 Provision the real hosted environment and close every OPS-01/OPS-02/OPS-03 acceptance criterion that cannot be met by writing code. This is the operator half of `FND-001b` and `FND-001c`: those tasks built the pipeline, the catalog, the reporting boundary, and their automated tests, and deliberately provisioned no accounts and held no credentials.
 
-Run [`docs/runbooks/phase-0.md`](./runbooks/phase-0.md) end to end. It is written as a procedure and has never been executed; this task is its first run.
+Run [`docs/runbooks/alpha-milestone-0.md`](./runbooks/alpha-milestone-0.md) end to end. It is written as a procedure and has never been executed; this task is its first run.
 
 **This task is not implementation work and must not be claimed by an implementation agent.** Every criterion below requires credentials an agent does not have and must never invent. If a step reveals a defect in the pipeline, the catalog, or the reporting boundary, that fix is a new issue against the owning task — not silent repair inside this one.
 

@@ -1,6 +1,6 @@
 /**
  * Measurement instrumentation for the FND-008 renderer spike (PRD 9.3
- * "Phase 0 ... is required to produce ... a harness that emits frame time,
+ * "Alpha Milestone 0 ... is required to produce ... a harness that emits frame time,
  * long-task, redraw-count and memory numbers on whatever hardware runs it").
  *
  * This module only counts and records; it never decides *whether* a redraw

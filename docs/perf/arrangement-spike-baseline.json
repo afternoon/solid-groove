@@ -1,7 +1,7 @@
 {
 	"generatedAt": "2026-07-25T18:21:48.916Z",
 	"task": "FND-008",
-	"note": "Phase 0 renderer-spike baseline. Not gated on the PRD 9.3 performance budgets, which bind at ARR-005/HARD-001 on the physical baseline device — see docs/arrangement-renderer-spike.md. These numbers are whatever this run's hardware measured, recorded honestly rather than compared against a target.",
+	"note": "Alpha Milestone 0 renderer-spike baseline. Not gated on the PRD 9.3 performance budgets, which bind at ARR-005/HARD-001 on the physical baseline device — see docs/arrangement-renderer-spike.md. These numbers are whatever this run's hardware measured, recorded honestly rather than compared against a target.",
 	"hardware": {
 		"platform": "linux",
 		"arch": "x64",
