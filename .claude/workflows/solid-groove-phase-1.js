@@ -324,7 +324,7 @@ const prPrompt = (t, impl) => `Open a pull request for branch ${impl.branch} int
 
 Check the repository for a PR template and mirror its structure if one exists. Title it "${t.id} - ${t.title}". In the body, describe the change, link the task's PRD requirements, list the acceptance checkboxes met, and state that the branch passed an Opus review round in the implementation workflow.
 
-If the task changed anything a user sees, the implementer captured a screenshot of the result — put it in the body's Screenshots section (before/after, or a short GIF for an interaction), naming the route/view and theme. If the implementer reported no screenshot for a UI-changing task, capture one before opening the PR: run the app with the in-memory mock backend (\`VITE_MOCK_BACKEND=true bun run dev\`), reach the affected view and screenshot it. A PR with no user-visible change says so in that section instead.
+If the task changed anything a user sees, the implementer captured a walkthrough of the result — put it in the body's Walkthrough section. Prefer a short video that starts from a common entrypoint (the public landing page, the project dashboard, or a project page) and navigates to the change; a GIF or before/after screenshots are an acceptable fallback for a small visual tweak. Name the entrypoint and theme. If the implementer reported no walkthrough for a UI-changing task, capture one before opening the PR: run the app with the in-memory mock backend (\`VITE_MOCK_BACKEND=true bun run dev\`), start from one of those entrypoints and record navigating to the affected view. A PR with no user-visible change says so in that section instead.
 
 Include \`Closes #${t.issue}\` in the body so merging closes the task's issue.
 

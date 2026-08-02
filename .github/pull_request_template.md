@@ -9,13 +9,19 @@
 
 Closes #<!-- issue number -->
 
-## Screenshots
+## Walkthrough
 
 <!--
   REQUIRED for any change that alters the UI (new/changed component, layout,
-  styling, copy, or interaction). Attach before/after images, or a short GIF for
-  interactions. Drag the file into this box on GitHub, or paste a Markdown image
-  link. State the route/view and light vs dark theme where it matters.
+  styling, copy, or interaction).
+
+  Prefer a short video walkthrough that starts from a common entrypoint — the
+  public landing page, the project dashboard, or a project page — and navigates
+  to the change, so a reviewer sees it in context rather than in isolation.
+  A GIF or before/after screenshots are an acceptable fallback for a small,
+  self-contained visual tweak. Drag the file into this box on GitHub, or paste a
+  Markdown image link. Name the entrypoint you started from and the theme
+  (light/dark) where it matters.
 
   If this PR changes nothing a user sees, write "No UI change" here instead.
 -->
