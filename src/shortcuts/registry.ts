@@ -26,7 +26,9 @@
 // P0 mappings are read-only (`KEY-02`). Entries are keyed by a stable action ID
 // and resolved through lookups rather than by array position, so a P1
 // user-remapping layer can override `keys` per action without this file or its
-// consumers changing shape.
+// consumers changing shape. The one piece of derived state here — the parsed
+// chord cache — is keyed by definition *identity* rather than by action ID, so
+// an overridden entry cannot pick up the base mapping's stale parse.
 
 import {
 	type ChordEvent,
@@ -421,20 +423,37 @@ export function keySpecsFor(
 	return platform === "mac" ? shortcut.keys.mac : shortcut.keys.other;
 }
 
-const chordCache = new Map<string, readonly KeyChord[]>();
+/**
+ * Parsed chords, memoized per *definition object* rather than per action ID.
+ *
+ * Keying on identity is what keeps the remapping note above honest: an override
+ * layer replaces an entry with a new frozen object, which is a cache miss by
+ * construction, so a stale parse can never outlive the keys it came from. (An
+ * entry's `keys` are readonly, so the only way to change a mapping is to
+ * replace the entry.) A `WeakMap` also means a discarded override is collected
+ * with its chords rather than pinned by the cache.
+ */
+const chordCache = new WeakMap<
+	ShortcutDefinition,
+	Map<ShortcutPlatform, readonly KeyChord[]>
+>();
 
 /** The parsed chords for one action on one platform. */
 export function chordsFor(
 	shortcut: ShortcutDefinition,
 	platform: ShortcutPlatform,
 ): readonly KeyChord[] {
-	const cacheKey = `${shortcut.id}:${platform}`;
-	const cached = chordCache.get(cacheKey);
+	let byPlatform = chordCache.get(shortcut);
+	if (!byPlatform) {
+		byPlatform = new Map();
+		chordCache.set(shortcut, byPlatform);
+	}
+	const cached = byPlatform.get(platform);
 	if (cached) return cached;
 	const chords = keySpecsFor(shortcut, platform).map((spec) =>
 		parseChord(spec, platform),
 	);
-	chordCache.set(cacheKey, chords);
+	byPlatform.set(platform, chords);
 	return chords;
 }
 

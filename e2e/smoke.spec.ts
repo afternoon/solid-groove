@@ -220,19 +220,83 @@ test.describe("keyboard shortcuts", () => {
 		).toBeVisible();
 	});
 
-	test("does not fire a shortcut typed into a text field", async ({ page }) => {
+	// The guide's search box is the only text input this slice renders while a
+	// controller is attached, so it is where text-entry suppression is provable
+	// in a real browser: the characters typed here are all live mappings.
+	test("types shortcut characters into a focused text field instead of firing them", async ({
+		page,
+	}) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(
+			page.getByRole("group", { name: "16-step sequence" }),
+		).toBeVisible();
+
+		await page.keyboard.press("?");
+		const guide = page.getByRole("dialog");
+		await expect(guide).toBeVisible();
+		const search = guide.getByRole("searchbox", { name: "Search shortcuts" });
+		await expect(search).toBeFocused();
+
+		// Space, ?, q, e and o are all registered combinations. Typed into a text
+		// input they are text: every character lands, the guide `?` would have
+		// re-opened stays open, and playback never starts.
+		await page.keyboard.type("space ? q e o");
+		await expect(search).toHaveValue("space ? q e o");
+		await expect(guide).toBeVisible();
+
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("dialog")).toBeHidden();
+		await expect(
+			page.getByRole("button", { name: "Start playback" }),
+		).toBeVisible();
+	});
+
+	// Not a text-entry test: `useShortcuts` attaches to the window for the
+	// lifetime of the editor, so this is what proves the listener is detached on
+	// unmount and editor mappings do not follow the user to the dashboard.
+	test("editor shortcuts stop working after leaving the editor", async ({
+		page,
+	}) => {
 		await page.goto("/dashboard");
 		await page.getByRole("button", { name: "New Project" }).click();
 		await expect(page).toHaveURL(/\/projects\/prj_/);
 		await page.getByRole("link", { name: /projects/i }).click();
+		await expect(page).toHaveURL(/\/dashboard$/);
 
+		// `?` opened the guide one route ago. With the editor unmounted there is
+		// no controller on the window at all, so it does nothing.
+		await page.keyboard.press("?");
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+
+		// And the dashboard's own text entry keeps every character.
 		await page.getByRole("button", { name: /rename/i }).click();
 		const nameField = page.getByRole("textbox", { name: /rename/i });
 		await nameField.fill("");
 		await nameField.type("space ? test");
-
-		// Every character reached the field: no shortcut leaked through it.
 		await expect(nameField).toHaveValue("space ? test");
-		await expect(page.getByRole("dialog")).toBeHidden();
+	});
+
+	// `ConfirmDialog` has no keyboard listener of its own: Escape reaches it as
+	// `view.close_surface` from the same registry the editor uses.
+	test("closes the delete confirmation with Escape through the registry", async ({
+		page,
+	}) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(page).toHaveURL(/\/projects\/prj_/);
+		await page.getByRole("link", { name: /projects/i }).click();
+		await expect(page.getByText("Untitled Project")).toBeVisible();
+
+		await page.getByRole("button", { name: /^delete$/i }).click();
+		const dialog = page.getByRole("alertdialog", {
+			name: /delete this project/i,
+		});
+		await expect(dialog).toBeVisible();
+
+		await page.keyboard.press("Escape");
+		await expect(dialog).toBeHidden();
+		// Cancelled, not deleted.
+		await expect(page.getByText("Untitled Project")).toBeVisible();
 	});
 });

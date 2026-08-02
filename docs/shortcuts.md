@@ -98,6 +98,25 @@ override recorded on the entry:
   handler cannot report an action other than the one pressed. The catalog pins
   the same ID list, so a new mapping without an analytics decision fails
   `catalog.test.ts`.
+- **No component owns a key listener.** Every surface that responds to a key —
+  the editor, the `?` guide, and `ConfirmDialog` — registers a handler with
+  `useShortcuts` instead of comparing `event.key`. `src/shortcuts/` is the only
+  place in `src/` that reads `KeyboardEvent.key` for a mapping (`ShortcutGuide`
+  reads it for its `Tab` focus trap, which is modal focus management, not a
+  mapping).
+
+## Recorded deviation: enabled state is not in the registry
+
+`KEY-01` lists "enabled state" among what an entry declares. Solid Groove keeps
+it on the *handler* instead: a surface passes `isEnabled()` alongside `run()`,
+and an action with no registered handler is simply unavailable. Whether Undo can
+run is a property of the open session, not of the mapping, and the registry is
+imported by tests, docs generation, and the guide, none of which should have to
+reach into session state to be built.
+
+The observable behaviour `KEY-01` asks for is unchanged: a disabled action does
+not run and does not suppress the browser default (`ShortcutController`), and
+the guide marks it "Not available here" from `controller.isEnabled()`.
 
 ## Adding or changing a mapping
 
@@ -105,9 +124,10 @@ override recorded on the entry:
    keys, group, contexts, and Ableton position.
 2. Add the ID to `SHORTCUT_ACTION_IDS` in both the registry and
    `src/analytics/catalog.ts`.
-3. Register a handler on the surface that owns the action (see
-   `src/editor/EditorView.tsx`). Nothing else changes: tooltips, the guide, and
-   analytics pick the entry up automatically.
+3. Register a handler on the surface that owns the action with `useShortcuts`
+   (see `src/editor/EditorView.tsx`, or `src/components/ConfirmDialog.tsx` for a
+   modal). Never add a `keydown` listener to a component. Nothing else changes:
+   tooltips, the guide, and analytics pick the entry up automatically.
 4. Update the table above. `src/shortcuts/docs.test.ts` checks it.
 
 P0 mappings are read-only for users. User remapping is P1: entries are keyed by

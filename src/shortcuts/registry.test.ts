@@ -141,23 +141,76 @@ describe("conflict rules", () => {
 		);
 	});
 
+	/** Every shortcut another one in the same active set would also match. */
+	function ambiguousIn(
+		active: readonly ShortcutContext[],
+		platform: ShortcutPlatform,
+	): string[] {
+		const eligible = shortcutsInContext(active);
+		const clashes: string[] = [];
+		for (const shortcut of eligible) {
+			for (const chord of chordsFor(shortcut, platform)) {
+				const matches = eligible.filter((other) =>
+					chordsFor(other, platform).some((otherChord) =>
+						matchesChord(otherChord, chordEvent(chord, platform), platform),
+					),
+				);
+				if (matches.length > 1) {
+					clashes.push(matches.map((match) => match.id).join(" vs "));
+				}
+			}
+		}
+		return clashes;
+	}
+
 	it("never lets two shortcuts match the same event in one context", () => {
 		for (const platform of PLATFORMS) {
 			for (const context of SHORTCUT_CONTEXTS) {
-				const eligible = shortcutsInContext([context]);
-				for (const shortcut of eligible) {
-					for (const chord of chordsFor(shortcut, platform)) {
-						const matches = eligible.filter((other) =>
-							chordsFor(other, platform).some((otherChord) =>
-								matchesChord(otherChord, chordEvent(chord, platform), platform),
-							),
-						);
-						expect(
-							matches.map((match) => match.id),
-							`ambiguous in ${context} on ${platform}`,
-						).toEqual([shortcut.id]);
-					}
+				expect(
+					ambiguousIn([context], platform),
+					`ambiguous in ${context} on ${platform}`,
+				).toEqual([]);
+			}
+		}
+	});
+
+	// A real surface activates a *set* of contexts, not one: `EditorView` runs
+	// `["editor", "step_editor"]`. Checking single contexts would let two
+	// mappings that are individually unambiguous collide once both their
+	// surfaces are on screen together, so every pair is checked too.
+	it("never lets two shortcuts match the same event in any pair of contexts", () => {
+		for (const platform of PLATFORMS) {
+			for (const first of SHORTCUT_CONTEXTS) {
+				for (const second of SHORTCUT_CONTEXTS) {
+					if (first === second) continue;
+					expect(
+						ambiguousIn([first, second], platform),
+						`ambiguous in ${first}+${second} on ${platform}`,
+					).toEqual([]);
 				}
+			}
+		}
+	});
+
+	// The context sets surfaces actually activate today. Pairs cover these, but
+	// naming them keeps the guarantee attached to real screens as sets grow past
+	// two contexts.
+	it("never lets two shortcuts match the same event in a live surface's context set", () => {
+		const LIVE_CONTEXT_SETS: readonly (readonly ShortcutContext[])[] = [
+			["editor", "step_editor"],
+			["editor", "step_editor", "selection"],
+			["editor", "arrangement", "timeline", "selection"],
+			["editor", "piano_roll", "timeline", "selection"],
+			["editor", "automation_lane", "timeline", "selection"],
+			["dialog"],
+			["editor", "gesture"],
+		];
+		for (const platform of PLATFORMS) {
+			for (const active of LIVE_CONTEXT_SETS) {
+				expect(
+					ambiguousIn(active, platform),
+					`ambiguous in ${active.join("+")} on ${platform}`,
+				).toEqual([]);
 			}
 		}
 	});

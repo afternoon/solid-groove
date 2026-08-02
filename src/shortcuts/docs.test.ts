@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SHORTCUTS, shortcutLabels } from "./registry";
 import { SHORTCUT_GROUP_LABELS } from "./types";
@@ -71,5 +71,40 @@ describe("docs/shortcuts.md", () => {
 			if (!shortcut.browserConflict) continue;
 			expect(doc).toContain(shortcut.browserConflict.note);
 		}
+	});
+});
+
+const SOURCE_ROOT = join(process.cwd(), "src");
+const SHORTCUTS_DIR = join(SOURCE_ROOT, "shortcuts");
+
+/** Every `.ts`/`.tsx` file under `src/`, tests included. */
+function sourceFiles(directory: string): string[] {
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) return sourceFiles(path);
+		return /\.tsx?$/.test(entry.name) ? [path] : [];
+	});
+}
+
+/**
+ * The `KEY-01` claim that key combinations "are not independently duplicated
+ * across components" is only true while `src/shortcuts/` is the one place a
+ * `KeyboardEvent` is inspected for a mapping. `LOOP-014` migrated the two
+ * component-owned listeners that predated the registry (`usePlaybackHotkey`,
+ * `ConfirmDialog`); this is what stops a third from appearing.
+ */
+describe("key handling lives only in src/shortcuts", () => {
+	const OWN_KEY_HANDLING = /addEventListener\(\s*["'`]keydown|\.key\s*===/;
+
+	it("has no component comparing a key or installing its own keydown listener", () => {
+		const offenders = sourceFiles(SOURCE_ROOT)
+			.filter((path) => !path.startsWith(SHORTCUTS_DIR))
+			.filter((path) => OWN_KEY_HANDLING.test(readFileSync(path, "utf8")))
+			.map((path) => relative(process.cwd(), path));
+
+		expect(
+			offenders,
+			"register a handler with useShortcuts instead of reading KeyboardEvent directly",
+		).toEqual([]);
 	});
 });
