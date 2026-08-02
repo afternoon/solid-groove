@@ -12,9 +12,9 @@ import {
 } from "solid-js";
 import { analytics } from "./analytics/analytics";
 import AppErrorFallback from "./components/AppErrorFallback";
+import FloatingTelemetryDisclosure from "./components/FloatingTelemetryDisclosure";
 import ReleaseBadge from "./components/ReleaseBadge";
 import TapeLoader from "./components/TapeLoader";
-import TelemetryDisclosure from "./components/TelemetryDisclosure";
 import { syncInternalTraffic } from "./shared/internalTraffic";
 import { initTelemetry, surfaceForPath, type Telemetry } from "./telemetry";
 import "./app.css";
@@ -93,8 +93,11 @@ export default function App() {
 					    hit an error -- exactly when knowing the build matters most. */}
 					<ReleaseBadge />
 					{/* Also outside the boundary: the PRD OPS-02 opt-out must stay
-					    reachable even on the error screen. */}
-					<TelemetryDisclosure />
+					    reachable even on the error screen -- which is why this stands
+					    down for the landing page's own inline copy (`LOOP-001b`, per
+					    DEC-009) only while that copy is actually mounted, rather than
+					    for the whole route. */}
+					<FloatingTelemetryDisclosure />
 				</MetaProvider>
 			)}
 		>

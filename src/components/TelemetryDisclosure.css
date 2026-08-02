@@ -57,3 +57,19 @@
 	font-size: var(--font-size-tiny);
 	opacity: 0.8;
 }
+
+/* LOOP-001b: on the landing page it sits in the page footer as ordinary
+   content rather than floating over it. Last in the file so these overrides
+   win without needing extra specificity. */
+.telemetry-disclosure.telemetry-disclosure-inline {
+	position: static;
+	right: auto;
+	bottom: auto;
+	max-width: 340px;
+}
+
+.telemetry-disclosure-inline .telemetry-disclosure-summary {
+	text-align: left;
+	opacity: 1;
+	text-decoration: underline;
+}

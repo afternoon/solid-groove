@@ -1,14 +1,13 @@
-import { clientOnly } from "@solidjs/start";
-import "./index.css";
+import LandingPage from "../components/LandingPage";
 
-const LoginButton = clientOnly(() => import("../components/LoginButton"));
-
+// The public marketing landing page (PRD `PRJ-06`, backlog `LOOP-001b`).
+//
+// A plain import: `app.config.ts` sets `ssr: false`, so there is no hydration
+// for `clientOnly` to avoid here, and wrapping the page in one would only add a
+// second lazy chunk fetch to the surface with the strictest first-paint budget.
+// Nothing in this page's static graph pulls Firebase onto that path either --
+// the auth service is reached through a dynamic `import()` on click, which
+// `src/components/landingBoundaries.test.ts` enforces.
 export default function IndexPage() {
-	return (
-		<main class="landing">
-			<h1>Groove</h1>
-			<p>Your collaborative, AI-assisted, browser-based music studio.</p>
-			<LoginButton />
-		</main>
-	);
+	return <LandingPage />;
 }

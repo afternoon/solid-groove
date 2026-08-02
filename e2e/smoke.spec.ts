@@ -3,36 +3,132 @@ import { expect, test } from "@playwright/test";
 // FND-001's isolated example for the browser E2E suite. It exercises the
 // "anonymous start" journey from PRD section 14's required end-to-end test
 // layer: landing page -> anonymous session -> dashboard, all against the
-// in-memory mock backend (see playwright.config.ts).
+// in-memory mock backend (see playwright.config.ts). `LOOP-001b` replaced the
+// placeholder landing page with the PRD PRJ-06 marketing front door, so these
+// assert that page's honest claims and both of its entry points.
 test.describe("landing page", () => {
-	test("shows the product pitch and entry actions", async ({ page }) => {
-		await page.goto("/");
-
-		await expect(page.getByRole("heading", { name: "Groove" })).toBeVisible();
-		await expect(
-			page.getByText(
-				"Your collaborative, AI-assisted, browser-based music studio.",
-			),
-		).toBeVisible();
-		await expect(
-			page.getByRole("button", { name: "Start creating" }),
-		).toBeVisible();
-	});
-});
-
-test.describe("anonymous start", () => {
-	test("starting creates an anonymous session and lands on the dashboard", async ({
+	test("states the promise, the alpha status, and the supported browsers", async ({
 		page,
 	}) => {
 		await page.goto("/");
 
-		await page.getByRole("button", { name: "Start creating" }).click();
+		await expect(
+			page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+		).toBeVisible();
+		await expect(
+			page.getByText(/music studio that runs in your browser/i),
+		).toBeVisible();
+		await expect(page.getByText("Private alpha · browser-based")).toBeVisible();
+		await expect(page.getByText(/Chrome, Edge and Firefox/)).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: "Start in your browser" }),
+		).toBeVisible();
+		await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+	});
 
+	// PRD section 10: "Interactive controls have accessible names, visible
+	// focus". The whole page is reachable and operable from the keyboard alone.
+	test("starts from the keyboard, with visible focus", async ({ page }) => {
+		await page.goto("/");
+
+		const cta = page.getByRole("button", { name: "Start in your browser" });
+		// The unfocused baseline, so the assertions below cannot be satisfied by
+		// a ring that was always there.
+		expect(
+			await cta.evaluate((element) => getComputedStyle(element).outlineStyle),
+		).toBe("none");
+
+		// Tabbed to rather than focused programmatically: `:focus-visible`, which
+		// is what draws the focus ring, only applies to keyboard focus.
+		for (let press = 0; press < 10; press++) {
+			await page.keyboard.press("Tab");
+			if (await cta.evaluate((element) => element === document.activeElement))
+				break;
+		}
+		await expect(cta).toBeFocused();
+
+		// Pins `.landing button:focus-visible` specifically, not merely "some ring
+		// is drawn": a UA default ring, or an `outline: none` replaced by a
+		// `box-shadow`, does not match the page's own accent-coloured 2px rule.
+		// The accent is read from the custom property and normalised through a
+		// probe element so the expectation is not a second copy of the hex.
+		const ring = await cta.evaluate((element) => {
+			const styles = getComputedStyle(element);
+			const probe = document.createElement("span");
+			probe.style.color = styles.getPropertyValue("--landing-accent").trim();
+			document.body.append(probe);
+			const accent = getComputedStyle(probe).color;
+			probe.remove();
+			return {
+				style: styles.outlineStyle,
+				width: styles.outlineWidth,
+				color: styles.outlineColor,
+				accent,
+			};
+		});
+		expect(ring.style).toBe("solid");
+		expect(ring.width).toBe("2px");
+		expect(ring.color).toBe(ring.accent);
+
+		await page.keyboard.press("Enter");
+		await expect(page).toHaveURL(/\/dashboard$/);
+	});
+
+	test("carries the analytics disclosure and opt-out, exactly once", async ({
+		page,
+	}) => {
+		await page.goto("/");
+		// Settle on the rendered page first. The opt-out is reachable throughout
+		// (the app-chrome copy covers the window before this page's own footer
+		// copy exists, and the error screen if it never does), so counting mid
+		// hand-over would be counting the loading state, not the page.
+		await expect(
+			page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+		).toBeVisible();
+
+		// One control for one preference: the app-chrome copy stands down while
+		// this page's footer copy is mounted (see FloatingTelemetryDisclosure), so
+		// the page has only the footer's.
+		const disclosure = page.getByText("Privacy", { exact: true });
+		await expect(disclosure).toHaveCount(1);
+		await expect(page.locator("#telemetry-disclosure-note")).toHaveCount(1);
+
+		await disclosure.click();
+		const optOut = page.getByRole("checkbox", {
+			name: "Share usage and error reports",
+		});
+		await expect(optOut).toBeChecked();
+		await optOut.uncheck();
+		await expect(optOut).not.toBeChecked();
+	});
+});
+
+test.describe("anonymous start", () => {
+	test("the landing CTA reaches a playable project with no account", async ({
+		page,
+	}) => {
+		await page.goto("/");
+
+		await page.getByRole("button", { name: "Start in your browser" }).click();
+
+		// PRJ-01's anonymous start: the dashboard signs the visitor in as a guest.
 		await expect(page).toHaveURL(/\/dashboard$/);
 		await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 		// The in-memory repository starts empty; a project only exists once
 		// created (see the "new project" test below).
 		await expect(page.getByText("No projects yet")).toBeVisible();
+		await expect(page.getByText(/You're working as a guest/)).toBeVisible();
+
+		// ...and the project it creates is playable, which is what makes the CTA's
+		// promise true end to end.
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(page).toHaveURL(/\/projects\/prj_/);
+		await expect(
+			page.getByRole("group", { name: "16-step sequence" }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: "Start playback" }),
+		).toBeVisible();
 	});
 });
 

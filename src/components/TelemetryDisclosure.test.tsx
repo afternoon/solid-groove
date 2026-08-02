@@ -77,6 +77,27 @@ describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", ()
 		).not.toBeChecked();
 	});
 
+	// `LOOP-001b`: the landing page gives it a designed home in its footer, so
+	// it stops floating there. Same control and copy either way.
+	it("floats as app chrome by default and sits inline when asked", () => {
+		const store = new ConsentStore(memoryStorage());
+		const { container } = render(() => (
+			<>
+				<TelemetryDisclosure store={store} />
+				<TelemetryDisclosure store={store} placement="inline" />
+			</>
+		));
+		const [floating, inline] = [
+			...container.querySelectorAll(".telemetry-disclosure"),
+		];
+		expect(floating?.classList.contains("telemetry-disclosure-inline")).toBe(
+			false,
+		);
+		expect(inline?.classList.contains("telemetry-disclosure-inline")).toBe(
+			true,
+		);
+	});
+
 	it("describes the control for assistive technology", () => {
 		setup();
 		const toggle = screen.getByRole("checkbox", {

@@ -1,4 +1,9 @@
-import { type Component, createSignal, onCleanup } from "solid-js";
+import {
+	type Component,
+	createEffect,
+	createSignal,
+	onCleanup,
+} from "solid-js";
 import {
 	type ConsentState,
 	type ConsentStore,
@@ -25,14 +30,40 @@ import "./TelemetryDisclosure.css";
  * below is deliberately plain and factual so it is accurate as written, and it
  * is isolated here so settling `DEC-009` is a copy change in one file.
  *
- * `LOOP-001b` places this surface on the landing page per `DEC-009`; it is
- * mounted in the app footer meanwhile so the opt-out is reachable from every
- * surface rather than existing only in code.
+ * `LOOP-001b` gives this surface its designed home in the landing page footer
+ * (`placement="inline"`) per `DEC-009`. Everywhere else it floats as app chrome
+ * (`placement="floating"`, the default), so the opt-out stays reachable from
+ * the dashboard, the editor, and the error screen. `FloatingTelemetryDisclosure`
+ * stands the floating copy down while an inline one is mounted, so a page never
+ * carries two — which would also duplicate this component's element ids.
  */
-const TelemetryDisclosure: Component<{ store?: ConsentStore }> = (props) => {
+const [inlineCount, setInlineCount] = createSignal(0);
+
+/**
+ * Whether a page is currently rendering its own inline copy of the disclosure.
+ *
+ * `FloatingTelemetryDisclosure` reads this to decide whether the app-chrome
+ * copy is needed. Presence, not the route, is the thing that matters: the
+ * landing page hosts its own, but only once its chunk has mounted and only
+ * while it is rendering, so a route-based rule would leave `/` with no opt-out
+ * on the error screen and while the page is still loading — exactly the
+ * situations the floating copy exists for (PRD `OPS-02`).
+ */
+export const inlineDisclosureMounted = () => inlineCount() > 0;
+
+const TelemetryDisclosure: Component<{
+	store?: ConsentStore;
+	placement?: "floating" | "inline";
+}> = (props) => {
 	const store = props.store ?? consentStore;
 	const [state, setState] = createSignal<ConsentState>(store.current);
 	onCleanup(store.subscribe(setState));
+
+	createEffect(() => {
+		if ((props.placement ?? "floating") !== "inline") return;
+		setInlineCount((count) => count + 1);
+		onCleanup(() => setInlineCount((count) => count - 1));
+	});
 
 	const enabled = () => state().productAnalytics || state().errorMonitoring;
 
@@ -45,7 +76,13 @@ const TelemetryDisclosure: Component<{ store?: ConsentStore }> = (props) => {
 	};
 
 	return (
-		<details class="telemetry-disclosure">
+		<details
+			class="telemetry-disclosure"
+			classList={{
+				"telemetry-disclosure-inline":
+					(props.placement ?? "floating") === "inline",
+			}}
+		>
 			<summary class="telemetry-disclosure-summary">Privacy</summary>
 			<div class="telemetry-disclosure-body">
 				<p>

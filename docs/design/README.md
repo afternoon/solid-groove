@@ -47,6 +47,36 @@ source of truth.
 | `07-assistant-video-playing.png` | Video player playing inline |
 | `07-assistant-video-fullscreen.png` | Video player fullscreen |
 
+## Landing page: what shipped, and where it departs from the mock
+
+`04-landing-page.png` is the fullest example of a directional mock. `LOOP-001b`
+implemented it as `src/components/LandingPage.tsx` and kept its structure —
+brand row with `Log in` / `Start free`, alpha badge, headline, primary call to
+action, supporting claims, a closing call to action, footer — its type scale,
+and its single cyan accent. Three things in the mock are deliberately absent,
+because PRD `PRJ-06` requires the page not to advertise capabilities the
+milestone does not have:
+
+- **The `Product` / `Sounds` / `Learn` / `Pricing` nav and the "2-min tour."**
+  Neither the pages nor the tour exist; the PRD stages them explicitly.
+- **The "Why Solid Groove" cards and the genre chips.** They describe the AI
+  producer, the library, and export as shipped features. The implementation
+  replaces them with a "Working now / Still being built" pair that names the
+  same capabilities honestly, in the two lists at the top of `LandingPage.tsx`.
+  A task that ships one of them moves its line across.
+- **The editor screenshot.** It shows an arrangement that does not exist yet.
+
+The same rule decides where the `DEC-001` retention promise points. The page's
+`Log in` is `signInWithGoogle`, which starts a *different* session rather than
+upgrading the current one — Firebase does not auto-link, so a returning guest
+who used it would find the projects they made in this browser owned by an
+anonymous account they no longer hold. `linkWithGoogle` is the operation that
+keeps the promise, and it lives behind the dashboard's `UpgradeAccountPrompt`
+("Sign up with Google"). So the landing page states the promise against that
+control, and says what logging in here does instead. Teaching the header button
+to link belongs to the account-linking work, which has to decide what happens
+when the Google account already exists.
+
 ## Not yet mocked: the pack browser
 
 `01-editor-shell.png` shows the browser as a flat list of sounds. It predates

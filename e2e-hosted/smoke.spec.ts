@@ -17,10 +17,13 @@ test.describe("hosted alpha smoke test", () => {
 		page,
 	}) => {
 		await page.goto("/");
-		await expect(page.getByRole("heading", { name: "Groove" })).toBeVisible();
+		await expect(
+			page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+		).toBeVisible();
 
-		// Anonymous session start (Firebase Authentication, not the mock).
-		await page.getByRole("button", { name: "Start creating" }).click();
+		// Anonymous session start (Firebase Authentication, not the mock), through
+		// the PRD PRJ-06 landing page's primary call to action.
+		await page.getByRole("button", { name: "Start in your browser" }).click();
 		await expect(page).toHaveURL(/\/dashboard$/);
 		await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
