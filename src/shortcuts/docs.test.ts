@@ -74,6 +74,13 @@ describe("docs/shortcuts.md", () => {
 	});
 });
 
+/**
+ * The scan is deliberately limited to `src/` — the shipped web app, which is
+ * the only code a user's keystrokes ever reach. Build tooling under `scripts/`
+ * and the Playwright suites drive or generate the app from outside it; a
+ * `keydown` there is a test pressing a key, not a second place a mapping is
+ * defined.
+ */
 const SOURCE_ROOT = join(process.cwd(), "src");
 const SHORTCUTS_DIR = join(SOURCE_ROOT, "shortcuts");
 
@@ -86,6 +93,32 @@ function sourceFiles(directory: string): string[] {
 	});
 }
 
+/** `keydown`/`keyup`/`keypress` installed anywhere but the controller. */
+const OWN_KEY_LISTENER = /addEventListener\(\s*["'`]key(?:down|up|press)/;
+
+/**
+ * A `KeyboardEvent`'s `key`/`code` read for a mapping. Matching on `.key ===`
+ * alone is too blunt — `key` and `code` are ordinary property names elsewhere
+ * in the app (`factoryLibrary`'s library key, a parse issue's `code`) — so a
+ * hit needs one of the two things that make a read a *keyboard* read:
+ * a receiver that is an event, or a comparison against a named key.
+ */
+const EVENT_KEY_READ =
+	/\b(?:e|ev|evt|event|keyboardEvent|keyEvent)\.(?:key|code)\s*[=!]==/;
+
+/** `key === "Escape"`, including via a destructured `key`, whatever it is read from. */
+const NAMED_KEY_COMPARISON =
+	/\b(?:key|code)\s*[=!]==\s*(["'`])(?:Escape|Enter|Tab|Backspace|Delete|Space|Shift|Control|Meta|Alt|CapsLock|Arrow(?:Up|Down|Left|Right)|Home|End|Page(?:Up|Down)|F\d{1,2}|Key[A-Z]|Digit\d|[A-Za-z?/ ])\1/;
+
+/** Every rule that says "this file reads keystrokes itself". */
+function readsKeystrokes(source: string): boolean {
+	return (
+		OWN_KEY_LISTENER.test(source) ||
+		EVENT_KEY_READ.test(source) ||
+		NAMED_KEY_COMPARISON.test(source)
+	);
+}
+
 /**
  * The `KEY-01` claim that key combinations "are not independently duplicated
  * across components" is only true while `src/shortcuts/` is the one place a
@@ -94,17 +127,40 @@ function sourceFiles(directory: string): string[] {
  * `ConfirmDialog`); this is what stops a third from appearing.
  */
 describe("key handling lives only in src/shortcuts", () => {
-	const OWN_KEY_HANDLING = /addEventListener\(\s*["'`]keydown|\.key\s*===/;
-
 	it("has no component comparing a key or installing its own keydown listener", () => {
 		const offenders = sourceFiles(SOURCE_ROOT)
 			.filter((path) => !path.startsWith(SHORTCUTS_DIR))
-			.filter((path) => OWN_KEY_HANDLING.test(readFileSync(path, "utf8")))
+			.filter((path) => readsKeystrokes(readFileSync(path, "utf8")))
 			.map((path) => relative(process.cwd(), path));
 
 		expect(
 			offenders,
 			"register a handler with useShortcuts instead of reading KeyboardEvent directly",
 		).toEqual([]);
+	});
+
+	it("catches the listeners LOOP-014 removed, and not an ordinary `key`/`code`", () => {
+		// Verbatim from the two handlers this task migrated, plus the shapes a
+		// third would most likely take.
+		for (const line of [
+			'window.addEventListener("keydown", handleKeyDown);',
+			'document.addEventListener("keyup", onKeyUp);',
+			'if (event.key === "Escape") props.onCancel();',
+			"if (e.key !== ' ') return;",
+			"if (evt.code === expected) return;",
+			'const { key } = event; if (key === "Escape") close();',
+		]) {
+			expect(readsKeystrokes(line), line).toBe(true);
+		}
+
+		// Properties that merely share a name. The first is the false positive
+		// that made this guard fail on `main`.
+		for (const line of [
+			"const entry = FACTORY_LIBRARY.find((candidate) => candidate.key === key);",
+			'issues.some((issue) => issue.code === "unsupported_schema_version")',
+			"return assets.filter((asset) => asset.key === selectedKey);",
+		]) {
+			expect(readsKeystrokes(line), line).toBe(false);
+		}
 	});
 });

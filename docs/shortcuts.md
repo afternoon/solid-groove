@@ -103,7 +103,13 @@ override recorded on the entry:
   `useShortcuts` instead of comparing `event.key`. `src/shortcuts/` is the only
   place in `src/` that reads `KeyboardEvent.key` for a mapping (`ShortcutGuide`
   reads it for its `Tab` focus trap, which is modal focus management, not a
-  mapping).
+  mapping). `src/shortcuts/docs.test.ts` enforces this over `src/` — the shipped
+  app, and so the only code a keystroke reaches. Build tooling (`scripts/`) and
+  the Playwright suites are out of its scope: a `keydown` there is a test
+  pressing a key, not a second definition of a mapping. It looks for a `keydown`
+  listener, a `key`/`code` read off an event, or a comparison against a named
+  key — not every `.key`, since `key` and `code` are ordinary property names
+  elsewhere in the app.
 
 ## Recorded deviation: enabled state is not in the registry
 
