@@ -876,7 +876,7 @@ The acquired directory now holds one bundle per ingest path (`acquired-library/l
 
 ### 15.8 Repacking the starter library
 
-`CNT-000b` moved the library onto the pack model (section 5.1): every asset belongs to exactly one pack, the build emits one manifest per pack plus a pack index, and asset identity, the delivery layout, and the acquisition lockfile all carry a pack. It was scheduled in Phase 0 for one reason: the change was cheap while it was still nearly free — before Phase 0 there are no saved projects whose asset references would need migrating.
+`CNT-000b` moved the library onto the pack model (section 5.1): every asset belongs to exactly one pack, the build emits one manifest per pack plus a pack index, and asset identity, the delivery layout, and the acquisition lockfile all carry a pack. It was scheduled in Alpha Milestone 0 for one reason: the change was cheap while it was still nearly free — before Phase 0 there are no saved projects whose asset references would need migrating.
 
 **The pack list.** `scripts/starter-library/packs.mjs` is the one place pack membership is decided. The synthesized 200 split along the lines they already have — the section 15.2 families and their genre tags — into five packs, none thin enough to merge:
 

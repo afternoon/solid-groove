@@ -35,7 +35,7 @@ Before you report success, all of these must hold:
 
 ## Your GitHub issue
 
-Every task from Phase 1 onwards has one issue in `afternoon/solid-groove`, titled with the task ID. `docs/backlog.md` section 1 has the index. Use the `mcp__github__*` tools — there is no `gh` CLI.
+Every task from Alpha Milestone 1 onwards has one issue in `afternoon/solid-groove`, titled with the task ID. `docs/backlog.md` section 1 has the index. Use the `mcp__github__*` tools — there is no `gh` CLI.
 
 1. **Before you change product code**, assign the issue to yourself and comment that you have started, naming the branch you will push to.
 2. **Comment when something is worth knowing**, not per commit: a blocker, a discovery that belongs to another task, or a decision you had to make. A blocker names the unmet dependency or decision, what you tried, and the smallest action that would unblock it.
