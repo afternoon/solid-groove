@@ -1,128 +1,201 @@
+/* The mixer, in the app's design language (docs/design/README.md): flat, square
+   corners everywhere, regions separated by tint and elevation rather than
+   borders, and a single accent carrying every active state. Track colour is
+   identity only — it names a track, it never colours a control. */
+
 .mixer {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 12px;
+	gap: 6px;
+	padding: 8px;
 	background-color: var(--color-background-secondary);
-	border-radius: 6px;
+}
+
+.mixer-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 22px;
+}
+
+.mixer-heading {
+	margin: 0;
+	font-size: var(--font-size-tiny);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--color-foreground);
+}
+
+.mixer-track-count {
+	font-size: var(--font-size-small);
+	color: var(--color-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Ghost: no fill until hover, for a low-stakes repeated action (mock 06b).
+   It sits with the count rather than across the panel, so it stays next to the
+   strips it adds to however wide the workspace gets. */
+.mixer-add-track {
+	display: inline-flex;
+	align-items: center;
+	margin-right: auto;
+	gap: 5px;
+	height: 22px;
+	padding: 0 8px;
+	border-radius: 0;
+	background-color: transparent;
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+}
+
+.mixer-add-track:hover {
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text);
 }
 
 .mixer-tracks {
 	display: flex;
-	gap: 10px;
+	align-items: flex-start;
+	gap: 2px;
 	overflow-x: auto;
-	padding-bottom: 4px;
 }
 
 .mixer-strip {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	gap: 8px;
-	min-width: 96px;
-	padding: 10px 8px;
-	background-color: var(--color-background);
-	border-radius: 6px;
-	border-top: 3px solid var(--strip-color, var(--color-foreground));
+	align-items: stretch;
+	gap: 6px;
+	/* Fixed: two 48px sliders and the meter, so no control can widen a strip. */
+	width: 116px;
+	flex: 0 0 auto;
+	padding: 6px;
+	box-sizing: border-box;
+	background-color: var(--color-background-highlight);
 }
 
-.mixer-strip-header {
-	width: 100%;
+.mixer-strip-head {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-width: 0;
+}
+
+/* Track identity, the way the mocks mark it: a small square colour chip beside
+   the name (mock 01's "INSTRUMENT ■ Clap"), not a tinted control. */
+.mixer-strip-chip {
+	flex: 0 0 auto;
+	width: 8px;
+	height: 8px;
 }
 
 .mixer-strip-name {
-	width: 100%;
-	text-align: center;
+	min-width: 0;
+	flex: 1 1 auto;
+	padding: 2px 4px;
+	background-color: transparent;
+	border-radius: 0;
 	font-size: var(--font-size-small);
 	font-weight: 600;
-	border-radius: 3px;
+	color: var(--color-text);
+	text-overflow: ellipsis;
 }
 
-.mixer-strip-reorder {
-	display: flex;
-	gap: 4px;
-}
-
-.mixer-strip-reorder button {
-	padding: 2px 10px;
-	font-size: var(--font-size-base);
-	line-height: 1;
+.mixer-strip-name:hover {
 	background-color: var(--color-background-tertiary);
 }
 
-.mixer-strip-reorder button:disabled {
-	opacity: 0.35;
+.mixer-strip-name:focus {
+	background-color: var(--color-background);
+	outline: 1px solid var(--color-accent, #20c8e8);
+}
+
+.mixer-strip-buttons {
+	display: flex;
+	gap: 2px;
+}
+
+.mixer-strip-button {
+	flex: 1 1 0;
+	height: 20px;
+	min-width: 0;
+	padding: 0;
+	border-radius: 0;
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-small);
+	font-weight: 700;
+	line-height: 1;
+}
+
+.mixer-strip-button:hover:not(:disabled) {
+	background-color: var(--color-background-hover);
+	color: var(--color-text);
+}
+
+.mixer-strip-button:disabled {
+	opacity: 0.3;
 	cursor: not-allowed;
 }
 
-.mixer-strip-flags {
-	display: flex;
-	gap: 6px;
-}
-
-.mixer-mute,
-.mixer-solo {
-	width: 26px;
-	height: 26px;
-	padding: 0;
-	font-size: var(--font-size-small);
-	font-weight: 700;
-	background-color: var(--color-background-tertiary);
+/* Active state is carried by fill weight, not hue: solo fills bright, mute is
+   the one place a warning colour is allowed to speak. */
+.mixer-solo.active {
+	background-color: var(--color-foreground-bright);
+	color: var(--color-background-secondary);
 }
 
 .mixer-mute.active {
 	background-color: var(--color-error);
-	color: white;
+	color: var(--color-background-secondary);
 }
 
-.mixer-solo.active {
-	background-color: #facc15;
-	color: #1a1c25;
+.mixer-strip-controls {
+	/* One travel length for the faders and the meter beside them. */
+	--mixer-travel: 104px;
+
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 2px;
 }
 
-.mixer-pan {
+/* The one continuous control (mock 06c), shared with the instrument panels;
+   the mixer only shortens its travel to keep a strip compact. */
+.mixer-strip-controls .fill-slider {
+	--fill-slider-track-height: var(--mixer-travel);
+
+	width: 48px;
+	gap: 4px;
+}
+
+/* A muted track recedes, the way a muted drum pad does — the M button itself
+   stays at full strength so the way back out is never dimmed. */
+.mixer-strip.muted .mixer-strip-head,
+.mixer-strip.muted .mixer-strip-controls {
+	opacity: 0.5;
+}
+
+.mixer-meter-column {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 2px;
-	width: 100%;
+	gap: 4px;
+	flex: 0 0 auto;
 }
 
-.mixer-pan-input {
-	width: 100%;
-	accent-color: var(--strip-color, var(--color-foreground-bright));
-}
-
-.mixer-pan-value {
+.mixer-meter-label {
 	font-size: var(--font-size-tiny);
-	color: var(--color-text-secondary);
-	font-variant-numeric: tabular-nums;
-}
-
-.mixer-strip-fader-row {
-	display: flex;
-	align-items: stretch;
-	gap: 8px;
-	height: 140px;
-}
-
-/* A vertical range input. `writing-mode: vertical-lr` with a bottom-up
-   direction gives a real vertical slider whose thumb is keyboard-draggable. */
-.mixer-fader {
-	writing-mode: vertical-lr;
-	direction: rtl;
-	width: 24px;
-	height: 100%;
-	accent-color: var(--strip-color, var(--color-foreground-bright));
-	cursor: ns-resize;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--color-foreground);
 }
 
 .mixer-meter {
 	position: relative;
-	width: 8px;
-	height: 100%;
-	background-color: var(--color-background-tertiary);
-	border-radius: 4px;
+	width: 5px;
+	height: var(--mixer-travel);
+	background-color: var(--color-background);
 	overflow: hidden;
 }
 
@@ -131,48 +204,33 @@
 	bottom: 0;
 	left: 0;
 	width: 100%;
-	background: linear-gradient(
-		to top,
-		#4ade80 0%,
-		#facc15 75%,
-		var(--color-error) 100%
-	);
+	background-color: var(--color-accent, #20c8e8);
 	transition: height 0.06s linear;
-}
-
-.mixer-strip-value {
-	font-size: var(--font-size-tiny);
-	color: var(--color-text-secondary);
-	font-variant-numeric: tabular-nums;
 }
 
 .mixer-strip-actions {
 	display: flex;
-	gap: 6px;
+	gap: 2px;
 }
 
-.mixer-duplicate,
-.mixer-delete {
+.mixer-strip-action {
 	display: flex;
+	flex: 1 1 0;
 	align-items: center;
 	justify-content: center;
-	width: 28px;
-	height: 26px;
+	height: 20px;
 	padding: 0;
+	border-radius: 0;
+	background-color: transparent;
+	color: var(--color-foreground);
+}
+
+.mixer-strip-action:hover {
 	background-color: var(--color-background-tertiary);
+	color: var(--color-text);
 }
 
 .mixer-delete:hover {
 	background-color: var(--color-error);
-}
-
-.mixer-add-track {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	align-self: flex-start;
-	padding: 8px 16px;
-	font-size: var(--font-size-small);
-	font-weight: 600;
+	color: var(--color-background-secondary);
 }

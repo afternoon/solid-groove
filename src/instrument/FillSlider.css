@@ -3,6 +3,11 @@
    sequence horizontally and never stack. */
 
 .fill-slider {
+	/* A surface may shorten the track (the mixer packs more into a strip); the
+	   width is fixed by the mock and the input geometry follows both. */
+	--fill-slider-track-height: 120px;
+	--fill-slider-track-width: 22px;
+
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -20,8 +25,8 @@
 
 .fill-slider-track {
 	position: relative;
-	width: 22px;
-	height: 120px;
+	width: var(--fill-slider-track-width);
+	height: var(--fill-slider-track-height);
 	background-color: var(--color-background);
 	overflow: hidden;
 }
@@ -51,12 +56,20 @@
 .fill-slider-input {
 	position: absolute;
 	inset: 0;
-	width: 120px;
-	height: 22px;
+	width: var(--fill-slider-track-height);
+	height: var(--fill-slider-track-width);
 	/* Rotate a horizontal range so up = more, keeping native arrow-key semantics
-	   (Up/Right increases). The track is 22x120; the rotated input fills it. */
+	   (Up/Right increases). Rotating -90deg about (h/2, h/2) — half the track's
+	   *height* on both axes — lands the rotated input exactly over the track, so
+	   the fill a user sees is the surface they can drag, at any track height.
+	   The border box has to be exactly the track's size for that to hold, which
+	   is what `box-sizing` and the zeroed padding are for: the app-wide `input`
+	   rule adds padding, and content-box would push the input off the track. */
+	box-sizing: border-box;
+	padding: 0;
 	transform: rotate(-90deg);
-	transform-origin: 60px 60px;
+	transform-origin: calc(var(--fill-slider-track-height) / 2)
+		calc(var(--fill-slider-track-height) / 2);
 	margin: 0;
 	background: transparent;
 	cursor: ns-resize;
@@ -72,14 +85,14 @@
 .fill-slider-input::-webkit-slider-thumb {
 	appearance: none;
 	-webkit-appearance: none;
-	width: 22px;
+	width: var(--fill-slider-track-width);
 	height: 6px;
 	background: transparent;
 	cursor: ns-resize;
 }
 
 .fill-slider-input::-moz-range-thumb {
-	width: 22px;
+	width: var(--fill-slider-track-width);
 	height: 6px;
 	border: none;
 	background: transparent;

@@ -220,12 +220,13 @@ describe("Mixer controls (TRK-02)", () => {
 			`Volume for ${history.project.song.tracks[0].name}`,
 		) as HTMLInputElement;
 
-		fireEvent.pointerDown(fader);
+		// A range input streams `input` while the pointer moves and fires one
+		// `change` on release — the gesture opens on the first and closes on it.
 		for (const position of [0.6, 0.55, 0.5, 0.45]) {
 			fader.value = String(position);
 			fireEvent.input(fader);
 		}
-		fireEvent.pointerUp(fader);
+		fireEvent.change(fader);
 
 		// One drag = one revision bump, regardless of how many input events fired.
 		expect(history.project.metadata.revision).toBe(startRevision + 1);
@@ -239,12 +240,11 @@ describe("Mixer controls (TRK-02)", () => {
 			`Pan for ${history.project.song.tracks[0].name}`,
 		) as HTMLInputElement;
 
-		fireEvent.pointerDown(pan);
 		for (const value of [0.2, 0.4, 0.6]) {
 			pan.value = String(value);
 			fireEvent.input(pan);
 		}
-		fireEvent.pointerUp(pan);
+		fireEvent.change(pan);
 
 		expect(history.project.metadata.revision).toBe(startRevision + 1);
 		expect(history.entries).toHaveLength(1);
@@ -259,6 +259,41 @@ describe("Mixer controls (TRK-02)", () => {
 		// The fader carries the readable value for assistive tech.
 		const fader = screen.getByLabelText(`Volume for ${track.name}`);
 		expect(fader).toHaveAttribute("aria-valuetext", "0.0 dB");
+	});
+
+	it("builds volume and pan from the shared fill slider, one id per control", () => {
+		const { history } = renderMixer(createDrumMachineFixtureProject());
+		const trackCount = history.project.song.tracks.length;
+
+		// The design language has exactly one continuous control (mock 06c), so a
+		// mixer strip must not grow a second, differently-behaving slider.
+		const sliders = Array.from(
+			document.querySelectorAll<HTMLInputElement>(".fill-slider-input"),
+		);
+		expect(sliders).toHaveLength(trackCount * 2);
+		// Volume and pan appear once per track, so their ids have to be per-track:
+		// a duplicated id would point every strip's <label> at the same input.
+		const ids = sliders.map((input) => input.id);
+		expect(new Set(ids).size).toBe(ids.length);
+
+		// The fader travels in perceptual fader positions, not raw decibels.
+		const fader = screen.getByLabelText(
+			`Volume for ${history.project.song.tracks[0].name}`,
+		) as HTMLInputElement;
+		expect(fader.min).toBe("0");
+		expect(fader.max).toBe("1");
+	});
+
+	it("lands a value from a change that had no preceding input", () => {
+		const { history } = renderMixer();
+		const pan = screen.getByLabelText(
+			`Pan for ${history.project.song.tracks[0].name}`,
+		) as HTMLInputElement;
+
+		pan.value = "-0.5";
+		fireEvent.change(pan);
+
+		expect(history.project.song.tracks[0].mixer.pan).toBeCloseTo(-0.5);
 	});
 
 	it("renders a level meter per track", () => {

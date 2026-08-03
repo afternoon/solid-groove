@@ -46,7 +46,22 @@ import {
 } from "../domain/faders";
 import type { TrackId } from "../domain/ids";
 import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
+import FillSlider from "../instrument/FillSlider";
 import "./Mixer.css";
+
+/**
+ * The volume fader's own coordinate space: a normalized fader position, not the
+ * decibels it writes. `src/domain/faders.ts` maps between the two so the travel
+ * is perceptual rather than linear in dB.
+ */
+const FADER_RANGE = { min: 0, max: 1, step: 0.001 } as const;
+
+/** Pan travels in the parameter's own bipolar range, in 1% steps. */
+const PAN_RANGE = {
+	min: TRACK_PAN.min,
+	max: TRACK_PAN.max,
+	step: 0.01,
+} as const;
 
 /** Mints IDs for tracks this mixer creates. A module singleton, not per-render. */
 const factoryContext = createFactoryContext();
@@ -141,6 +156,16 @@ export default function Mixer(props: MixerProps): JSX.Element {
 
 	return (
 		<section class="mixer" aria-label="Mixer">
+			<header class="mixer-header">
+				<h3 class="mixer-heading">Mixer</h3>
+				<span class="mixer-track-count">
+					{trackIds().length} {trackIds().length === 1 ? "track" : "tracks"}
+				</span>
+				<button type="button" class="mixer-add-track" onClick={handleAddTrack}>
+					<HiSolidPlus size={13} />
+					<span>Add track</span>
+				</button>
+			</header>
 			<div class="mixer-tracks">
 				<For each={trackIds()}>
 					{(id, index) => {
@@ -168,10 +193,6 @@ export default function Mixer(props: MixerProps): JSX.Element {
 					}}
 				</For>
 			</div>
-			<button type="button" class="mixer-add-track" onClick={handleAddTrack}>
-				<HiSolidPlus size={18} />
-				<span>Add track</span>
-			</button>
 			<Show when={pendingDelete()}>
 				{(track) => (
 					<ConfirmDialog
@@ -209,8 +230,13 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 	const panValue = () => props.track.mixer.pan;
 
 	return (
-		<div class="mixer-strip" style={{ "--strip-color": props.track.color }}>
-			<div class="mixer-strip-header">
+		<div class="mixer-strip" classList={{ muted: props.track.mixer.muted }}>
+			<div class="mixer-strip-head">
+				<span
+					class="mixer-strip-chip"
+					style={{ "background-color": props.track.color }}
+					aria-hidden="true"
+				/>
 				<label class="visually-hidden" for={`track-name-${props.track.id}`}>
 					Track name
 				</label>
@@ -230,10 +256,10 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				/>
 			</div>
 
-			<div class="mixer-strip-reorder">
+			<div class="mixer-strip-buttons">
 				<button
 					type="button"
-					class="mixer-reorder-up"
+					class="mixer-strip-button mixer-reorder-up"
 					aria-label={`Move ${props.track.name} left`}
 					disabled={props.index === 0}
 					onClick={() =>
@@ -244,7 +270,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				</button>
 				<button
 					type="button"
-					class="mixer-reorder-down"
+					class="mixer-strip-button mixer-reorder-down"
 					aria-label={`Move ${props.track.name} right`}
 					disabled={props.index >= props.trackCount - 1}
 					onClick={() =>
@@ -253,12 +279,9 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				>
 					›
 				</button>
-			</div>
-
-			<div class="mixer-strip-flags">
 				<button
 					type="button"
-					class="mixer-mute"
+					class="mixer-strip-button mixer-mute"
 					classList={{ active: props.track.mixer.muted }}
 					aria-pressed={props.track.mixer.muted}
 					aria-label={`Mute ${props.track.name}`}
@@ -272,7 +295,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				</button>
 				<button
 					type="button"
-					class="mixer-solo"
+					class="mixer-strip-button mixer-solo"
 					classList={{ active: props.track.mixer.soloed }}
 					aria-pressed={props.track.mixer.soloed}
 					aria-label={`Solo ${props.track.name}`}
@@ -286,48 +309,49 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				</button>
 			</div>
 
-			<PanControl
-				track={props.track}
-				value={panValue()}
-				dispatch={props.dispatch}
-				beginGesture={props.beginGesture}
-			/>
-
-			<div class="mixer-strip-fader-row">
+			<div class="mixer-strip-controls">
+				<PanControl
+					track={props.track}
+					value={panValue()}
+					dispatch={props.dispatch}
+					beginGesture={props.beginGesture}
+				/>
 				<VolumeFader
 					track={props.track}
 					value={volumeDb()}
 					dispatch={props.dispatch}
 					beginGesture={props.beginGesture}
 				/>
-				<LevelMeter
-					trackId={props.track.id}
-					trackLevelDb={props.trackLevelDb}
-					isPlaying={props.isPlaying}
-					requestFrame={props.requestFrame}
-					cancelFrame={props.cancelFrame}
-				/>
+				<div class="mixer-meter-column">
+					<span class="mixer-meter-label" aria-hidden="true">
+						Lvl
+					</span>
+					<LevelMeter
+						trackId={props.track.id}
+						trackLevelDb={props.trackLevelDb}
+						isPlaying={props.isPlaying}
+						requestFrame={props.requestFrame}
+						cancelFrame={props.cancelFrame}
+					/>
+				</div>
 			</div>
-			<span class="mixer-strip-value" aria-hidden="true">
-				{formatDb(TRACK_VOLUME, volumeDb())}
-			</span>
 
 			<div class="mixer-strip-actions">
 				<button
 					type="button"
-					class="mixer-duplicate"
+					class="mixer-strip-action mixer-duplicate"
 					aria-label={`Duplicate ${props.track.name}`}
 					onClick={() => props.onDuplicate()}
 				>
-					<HiSolidDocumentDuplicate size={14} />
+					<HiSolidDocumentDuplicate size={13} />
 				</button>
 				<button
 					type="button"
-					class="mixer-delete"
+					class="mixer-strip-action mixer-delete"
 					aria-label={`Delete ${props.track.name}`}
 					onClick={() => props.onDelete()}
 				>
-					<HiSolidTrash size={14} />
+					<HiSolidTrash size={13} />
 				</button>
 			</div>
 		</div>
@@ -343,102 +367,107 @@ interface FaderProps {
 	beginGesture(options?: GestureOptions): Gesture | undefined;
 }
 
-function VolumeFader(props: FaderProps): JSX.Element {
-	const position = () => dbToFaderPosition(TRACK_VOLUME, props.value);
+/**
+ * Drives one continuous mixer control through the command layer.
+ *
+ * A drag is one gesture: the first `input` opens it, every later `input`
+ * applies live inside it, and the `change` the browser fires on release closes
+ * it — so the whole drag is one history entry, one revision, one save, and at
+ * most one analytics event, however many pointer moves it took. A keyboard
+ * arrow fires `input` then `change`, so it is one gesture per press.
+ */
+function createControlGesture(props: {
+	beginGesture(options?: GestureOptions): Gesture | undefined;
+	dispatch(
+		commands: RawCommandInput | readonly RawCommandInput[],
+	): TransactionResult | undefined;
+	summary(): string;
+	command(value: number): RawCommandInput;
+}) {
 	let gesture: Gesture | undefined;
 
-	function target() {
-		return {
-			scope: "track" as const,
-			trackId: props.track.id,
-			parameterId: TRACK_VOLUME.id,
-		};
-	}
+	return {
+		input(value: number): void {
+			if (!gesture?.active) {
+				gesture = props.beginGesture({ summary: props.summary() });
+			}
+			const command = props.command(value);
+			if (gesture?.active) {
+				gesture.apply(command);
+			} else {
+				props.dispatch(command);
+			}
+		},
+		commit(value: number): void {
+			// The final `input` already applied this exact value inside the gesture;
+			// closing it is all that is left. With no gesture open (a `change` with
+			// no preceding `input`) the value still has to land.
+			if (gesture?.active) {
+				gesture.commit();
+			} else {
+				props.dispatch(props.command(value));
+			}
+			gesture = undefined;
+		},
+	};
+}
+
+function VolumeFader(props: FaderProps): JSX.Element {
+	const position = () => dbToFaderPosition(TRACK_VOLUME, props.value);
+	const control = createControlGesture({
+		beginGesture: (options) => props.beginGesture(options),
+		dispatch: (commands) => props.dispatch(commands),
+		summary: () => `Set volume for ${props.track.name}`,
+		command: (value) =>
+			setParameter(
+				{
+					scope: "track",
+					trackId: props.track.id,
+					parameterId: TRACK_VOLUME.id,
+				},
+				faderPositionToDb(TRACK_VOLUME, value),
+			),
+	});
 
 	return (
-		<input
-			class="mixer-fader"
-			type="range"
-			min={0}
-			max={1}
-			step={0.001}
+		<FillSlider
+			definition={TRACK_VOLUME}
+			inputId={`mixer-volume-${props.track.id}`}
+			label="Vol"
+			ariaLabel={`Volume for ${props.track.name}`}
+			range={FADER_RANGE}
 			value={position()}
-			aria-label={`Volume for ${props.track.name}`}
-			aria-valuetext={formatDb(TRACK_VOLUME, props.value)}
-			onPointerDown={() => {
-				// One gesture per drag: every input event applies live but the whole
-				// drag commits as one history entry, one revision, and one save.
-				gesture = props.beginGesture({
-					summary: `Set volume for ${props.track.name}`,
-				});
-			}}
-			onInput={(event) => {
-				const db = faderPositionToDb(
-					TRACK_VOLUME,
-					event.currentTarget.valueAsNumber,
-				);
-				const command = setParameter(target(), db);
-				if (gesture?.active) {
-					gesture.apply(command);
-				} else {
-					props.dispatch(command);
-				}
-			}}
-			onPointerUp={() => {
-				gesture?.commit();
-				gesture = undefined;
-			}}
+			displayValue={formatDb(TRACK_VOLUME, props.value)}
+			onInput={(value) => control.input(value)}
+			onCommit={(value) => control.commit(value)}
 		/>
 	);
 }
 
 function PanControl(props: FaderProps): JSX.Element {
-	let gesture: Gesture | undefined;
-
-	function target() {
-		return {
-			scope: "track" as const,
-			trackId: props.track.id,
-			parameterId: TRACK_PAN.id,
-		};
-	}
+	const control = createControlGesture({
+		beginGesture: (options) => props.beginGesture(options),
+		dispatch: (commands) => props.dispatch(commands),
+		summary: () => `Set pan for ${props.track.name}`,
+		command: (value) =>
+			setParameter(
+				{ scope: "track", trackId: props.track.id, parameterId: TRACK_PAN.id },
+				value,
+			),
+	});
 
 	return (
-		<div class="mixer-pan">
-			<input
-				class="mixer-pan-input"
-				type="range"
-				min={TRACK_PAN.min}
-				max={TRACK_PAN.max}
-				step={0.01}
-				value={props.value}
-				aria-label={`Pan for ${props.track.name}`}
-				aria-valuetext={formatPan(props.value)}
-				onPointerDown={() => {
-					gesture = props.beginGesture({
-						summary: `Set pan for ${props.track.name}`,
-					});
-				}}
-				onInput={(event) => {
-					const command = setParameter(
-						target(),
-						event.currentTarget.valueAsNumber,
-					);
-					if (gesture?.active) {
-						gesture.apply(command);
-					} else {
-						props.dispatch(command);
-					}
-				}}
-				onPointerUp={() => {
-					gesture?.commit();
-					gesture = undefined;
-				}}
-			/>
-			<span class="mixer-pan-value" aria-hidden="true">
-				{formatPan(props.value)}
-			</span>
-		</div>
+		<FillSlider
+			definition={TRACK_PAN}
+			inputId={`mixer-pan-${props.track.id}`}
+			label="Pan"
+			ariaLabel={`Pan for ${props.track.name}`}
+			range={PAN_RANGE}
+			value={props.value}
+			displayValue={formatPan(props.value)}
+			onInput={(value) => control.input(value)}
+			onCommit={(value) => control.commit(value)}
+		/>
 	);
 }
 
