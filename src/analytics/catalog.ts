@@ -182,6 +182,13 @@ export const COMMAND_IDS = [
 	"placement.delete",
 	"placement.update",
 	"parameter.set",
+	"drum.setPadAsset",
+	"drum.setPadFlag",
+	"drum.setPadChoke",
+	"drum.setPadParameter",
+	"drum.addPad",
+	"drum.removePad",
+	"drum.reorderPad",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 

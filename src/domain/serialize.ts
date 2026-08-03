@@ -199,6 +199,7 @@ function serializeDrumPad(pad: DrumPad): JsonObject {
 			volume: pad.mixer.volume,
 			pan: pad.mixer.pan,
 			muted: pad.mixer.muted,
+			soloed: pad.mixer.soloed,
 		},
 	};
 }

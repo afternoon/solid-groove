@@ -1,5 +1,12 @@
 import * as Tone from "tone";
-import type { AssetId, PlacementId, ReturnId, TrackId } from "../domain/ids";
+import type {
+	AssetId,
+	PadId,
+	PlacementId,
+	ReturnId,
+	TrackId,
+} from "../domain/ids";
+import { TICKS_PER_QUARTER } from "../domain/time";
 import type {
 	AudioAssetProjection,
 	AudioClipProjection,
@@ -228,6 +235,27 @@ export class ProjectAudioGraph {
 		this.syncSchedule(next);
 
 		this.lastProjection = next;
+	}
+
+	/**
+	 * Plays one pad on a track right now, off the transport — the audition a
+	 * drum-machine panel fires when the user clicks a pad (PRD INS-01). It reuses
+	 * the same instrument node the arrangement drives, so choke groups,
+	 * mute/solo, pitch, pan, and envelope behave exactly as they will in
+	 * playback. A no-op if the track has no instrument or the pad's sample has
+	 * not decoded yet.
+	 */
+	auditionPad(trackId: TrackId, padId: PadId, velocity = 0.9): void {
+		if (this.disposed) return;
+		const track = this.tracks.get(trackId);
+		if (!track) return;
+		const now = this.now();
+		track.trigger(
+			{ kind: "pad", padId },
+			now,
+			ticksToToneTime(TICKS_PER_QUARTER),
+			velocity,
+		);
 	}
 
 	private syncReturns(next: AudioSongProjection): void {

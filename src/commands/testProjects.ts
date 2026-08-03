@@ -12,6 +12,7 @@
 // lane, and two tracks so reorder and delete cascades have something to move.
 
 import {
+	type AssetId,
 	assertProject,
 	bars,
 	type ClipId,
@@ -64,6 +65,8 @@ export interface CommandTestProject {
 	returnId: ReturnId;
 	placementAId: PlacementId;
 	padIds: PadId[];
+	/** The sampler asset on track A, and the clap asset the kick pad uses. */
+	assetIds: { sampler: AssetId; pad: AssetId };
 	/** The two packs the fixture's assets resolve from, in dependency order. */
 	packs: [Pack, Pack];
 	/** Event IDs of `clipA`, in the order the fixture created them. */
@@ -208,6 +211,7 @@ export function createCommandTestProject(
 		returnId: returnBus.id,
 		placementAId: placementA.id,
 		padIds: [kick.id, clap.id],
+		assetIds: { sampler: asset.id, pad: padAsset.id },
 		packs: [drumsPack, bassPack],
 		eventIds:
 			clipA.content.kind === "notes"
@@ -229,6 +233,7 @@ export const ABSENT_IDS = {
 	placement: `plc_${ABSENT_SUFFIX}` as PlacementId,
 	device: `dev_${ABSENT_SUFFIX}` as DeviceId,
 	return: `ret_${ABSENT_SUFFIX}` as ReturnId,
+	pad: `pad_${ABSENT_SUFFIX}` as PadId,
 } as const;
 
 /** A seeded factory context for building entities inside a test. */

@@ -540,6 +540,18 @@ function checkInstrument(
 					),
 				);
 			}
+			for (const [parameterId, value] of Object.entries(pad.parameters)) {
+				const definition = getParameterDefinition(`pad.${parameterId}`);
+				if (definition && !isParameterValueInRange(definition, value)) {
+					issues.push(
+						issue(
+							"invalid_parameter",
+							[...padPath, "parameters", parameterId],
+							`Value ${value} is outside the declared range ${definition.min}..${definition.max}`,
+						),
+					);
+				}
+			}
 		});
 	}
 	return issues;
