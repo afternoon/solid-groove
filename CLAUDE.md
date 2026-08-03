@@ -139,9 +139,10 @@ public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 
 Implementation work is tracked entirely in **GitHub issues** in `afternoon/solid-groove` — there is no separate backlog document. Each task is one issue, titled with its task ID (for example `LOOP-003 - Transport, tempo, loop, and metronome`):
 
+- **The GitHub issue is the single source of truth.** Its state, labels, assignee, comments, milestone, native `blocked_by` graph, and Projects v2 **Status** are authoritative for scope, ownership, status, and readiness. Agents read these fields directly from GitHub; they do not rely on any other record.
 - **The issue body is the specification** — scope, the PRD requirements it satisfies, and the acceptance checkboxes. `docs/prd.md` remains authoritative for product behavior; an issue links back to and never weakens it.
 - **The issue is the live record** — its state and labels are status, its assignee is ownership, and its comments carry progress, blockers, and discoveries. Alpha Milestone 0 tasks `FND-001`–`FND-008` and `CNT-000` predate this convention and are recorded in git history instead; they have no issue.
-- **Dependencies are the issue's native `blocked_by` graph**, edited directly on GitHub (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`). The `blocked` label marks a task gated on an undecided `DEC-*` product decision. Milestones group tasks by Alpha Milestone; Projects v2 **Status** (Todo / In Progress / Done) drives the orchestrator.
+- **Readiness is the issue's native `blocked_by` graph — nothing else.** A task is ready to start when every issue in its `blocked_by` graph is closed (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`, edited directly on GitHub). **Ignore any "Dependencies" field or dependency prose written into an issue body**: that text is descriptive only, is not kept in sync, and never gates readiness — the `blocked_by` graph is the authority. Keep the graph correct so the body never has to be consulted. The `blocked` label marks a task gated on an undecided `DEC-*` product decision. Milestones group tasks by Alpha Milestone; Projects v2 **Status** (Todo / In Progress / Done) drives the orchestrator.
 
 ### Landing work
 

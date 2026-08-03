@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Implement Solid Groove Alpha Milestone 1 (LOOP-001..016, CNT-001..002) — Sonnet implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to execute Alpha Milestone 1, after FND-009 has landed. The scheduler is driven live by GitHub: each pass it reads the milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestone: 2, maxConcurrent: 2 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once; default 2 is laptop-safe, raise it in cloud.',
+    'Run to execute Alpha Milestone 1, after FND-009 has landed. The scheduler is driven live by GitHub: each pass it reads the milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestone: 2, maxConcurrent: 3 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once; default 3 balances throughput against contention, raise it in cloud.',
   phases: [
     { title: 'Foundations', detail: 'transport, autosave, shortcuts, dashboard, asset pipeline — everything that only needs FND-009' },
     { title: 'Instruments', detail: 'synth/sampler, drum machine, audio loops, tracks and mixer, library browser' },
@@ -455,10 +455,10 @@ const phaseFor = (taskId) => PHASE_BY_TASK[normaliseId(taskId)] ?? 'Foundations'
 // bitten this workflow before: each running task is its own git worktree doing
 // `bun install` plus the full test suite, so N of them at once is N parallel test
 // runs. The runtime's own agent cap (min(16, cores-2)) sits ABOVE this; on a
-// laptop this limit is what actually binds. Default 2 is laptop-safe; raise it
-// (e.g. {maxConcurrent: 6}) when running in cloud.
+// laptop this limit is what actually binds. Default 3 balances throughput against
+// that contention; raise it (e.g. {maxConcurrent: 6}) when running in cloud.
 const DEFAULT_MILESTONE = 2 // GitHub milestone "Alpha Milestone 1: Loop Workflow"
-const DEFAULT_MAX_CONCURRENT = 2
+const DEFAULT_MAX_CONCURRENT = 3
 
 const config = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
 const milestone = Number.isInteger(config.milestone) ? config.milestone : DEFAULT_MILESTONE
