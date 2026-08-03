@@ -63,6 +63,7 @@ src/
 │   ├── useProjectAudio.ts   # Wires one project onto ProjectAudioGraph/AudioRuntime; play/stop and audio_start_failed
 │   ├── starterProject.ts    # Builds the "New Project" starter (one sampler track, pack-qualified asset, one note clip)
 │   ├── StepGrid.tsx         # The slice's 16-step grid; dispatches note.add/note.remove through the command layer
+│   ├── LoopInfo.tsx         # Tempo-labelled audio-loop panel: distinguishes a loop from a pitched one-shot and documents the alpha's resampling stretch honestly (LOOP-006/INS-02)
 │   ├── deviceProjectRecord.ts # Device-local "opened before" bookkeeping for project_opened's is_first_open (LOOP-001)
 │   └── EditorView.tsx       # The project route's top-level component
 ├── domain/             # Canonical schema-v1 domain model (authoritative)

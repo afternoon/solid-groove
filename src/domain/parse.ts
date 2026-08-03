@@ -13,6 +13,7 @@ import {
 	type Track,
 } from "./entities";
 import { getParameterDefinition, isParameterValueInRange } from "./parameters";
+import { TICKS_PER_BAR } from "./time";
 
 /**
  * Parsing and cross-entity integrity (PRD section 9.5).
@@ -596,6 +597,35 @@ function checkClipOwnership(
 					"dangling_reference",
 					[...path, "content", "assetId"],
 					`Clip ${clip.id} references missing asset ${clip.content.assetId}`,
+				),
+			);
+		}
+		// INS-02: "Every loop declares source BPM and bar length." The source BPM
+		// is range-checked by the clip content schema (SONG_TEMPO); the bar length
+		// is checked here because a tempo-labelled loop is authored to a whole
+		// number of bars — that is what lets its boundaries stay aligned when the
+		// song tempo moves. A length that is not a multiple of one bar could never
+		// tile the arrangement grid cleanly, so it is malformed input, not content
+		// to repair.
+		if (clip.lengthTicks % TICKS_PER_BAR !== 0) {
+			issues.push(
+				issue(
+					"invalid_musical_time",
+					[...path, "lengthTicks"],
+					`Audio loop clip ${clip.id} has length ${clip.lengthTicks} ticks, which is not a whole number of bars (${TICKS_PER_BAR} ticks)`,
+				),
+			);
+		}
+		// The authored start offset selects where inside the loop its first repeat
+		// begins; an offset at or past the loop's own length would skip the entire
+		// clip and leave nothing to play, so it is rejected rather than silently
+		// wrapping.
+		if (clip.content.startOffsetTicks >= clip.lengthTicks) {
+			issues.push(
+				issue(
+					"invalid_musical_time",
+					[...path, "content", "startOffsetTicks"],
+					`Audio loop clip ${clip.id} start offset ${clip.content.startOffsetTicks} is not before its length ${clip.lengthTicks}`,
 				),
 			);
 		}

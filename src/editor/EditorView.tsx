@@ -13,6 +13,7 @@ import {
 	createMemo,
 	createResource,
 	createSignal,
+	For,
 	type JSX,
 	Match,
 	Show,
@@ -29,6 +30,7 @@ import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import LoopInfo from "./LoopInfo";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
@@ -156,6 +158,22 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		return (
 			currentProject.clips.find((c) => c.trackId === currentTrack.id) ?? null
 		);
+	});
+
+	// Every tempo-labelled loop clip in the project, paired with its resolved
+	// asset (or null when the asset is missing) — LOOP-006 renders one loop-info
+	// panel per loop so a user can tell a tempo-following loop from a pitched
+	// one-shot and read the alpha's stretch behaviour honestly.
+	const loopClips = createMemo(() => {
+		const currentProject = project();
+		if (!currentProject) return [];
+		return currentProject.clips.flatMap((c) => {
+			if (c.content.kind !== "audioLoop") return [];
+			const assetId = c.content.assetId;
+			const asset =
+				currentProject.song.assets.find((a) => a.id === assetId) ?? null;
+			return [{ clip: c, asset }];
+		});
 	});
 
 	const packDependencyLabel = createMemo(() => {
@@ -361,6 +379,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								</div>
 							</header>
 							<div class="workspace">
+								<For each={loopClips()}>
+									{(entry) => (
+										<LoopInfo
+											clip={entry.clip}
+											asset={entry.asset}
+											songTempo={tempo()}
+										/>
+									)}
+								</For>
 								<Show
 									when={clip()}
 									fallback={

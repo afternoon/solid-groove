@@ -594,7 +594,7 @@ export const ANALYTICS_EVENTS = {
 
 	asset_load_failed: {
 		phase: 1,
-		owners: ["LOOP-013"],
+		owners: ["LOOP-006", "LOOP-013"],
 		params: {
 			asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
 			error_code: enumParam(ERROR_CODES),

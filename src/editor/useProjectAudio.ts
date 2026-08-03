@@ -15,10 +15,22 @@ import { UnderrunMonitor } from "../audio/underrun";
 import type { Project } from "../domain/entities";
 import { TICKS_PER_BAR } from "../domain/time";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
+import type { AudioAssetProjection } from "../projection/audioProjection";
 import {
 	type AudioSongProjection,
 	buildAudioProjection,
 } from "../projection/audioProjection";
+
+/**
+ * Maps an asset's library kind to the `asset_load_failed` `asset_type` value
+ * (PRD OPS-02). A `loop` asset is a tempo-labelled loop; a `sample` or
+ * `recording` plays as a pitched one-shot, so both report `one_shot`.
+ */
+function assetLoadFailureType(
+	kind: string,
+): "one_shot" | "loop" | "instrument_preset" {
+	return kind === "loop" ? "loop" : "one_shot";
+}
 
 export interface ProjectAudioControls {
 	readonly isPlaying: Accessor<boolean>;
@@ -154,6 +166,24 @@ export function useProjectAudio(
 		});
 	}
 
+	/**
+	 * A loop or sample the graph needed could not be decoded or is missing
+	 * (PRD OPS-02, LOOP-006). Emitted once per failed load attempt by the buffer
+	 * cache; the error is classified into an actionable code and the asset's
+	 * library kind into an `asset_type`. Carries no URL, storage ref, or asset
+	 * name — those are project/content strings the OPS-02 catalog keeps out of
+	 * telemetry.
+	 */
+	function reportAssetLoadFailure(
+		asset: AudioAssetProjection,
+		error: unknown,
+	): void {
+		analytics.log("asset_load_failed", {
+			asset_type: assetLoadFailureType(asset.kind),
+			error_code: codeFor(error),
+		});
+	}
+
 	function tearDown(): void {
 		stopFrameLoop();
 		metronome?.dispose();
@@ -171,6 +201,7 @@ export function useProjectAudio(
 			ownerId = current.metadata.id;
 			graph = new ProjectAudioGraph(runtime, ownerId, {
 				underrunMonitor: underrunMonitor(),
+				onAssetLoadFailure: reportAssetLoadFailure,
 			});
 			metronome = new TransportMetronome(
 				liveTransportEngine,
@@ -192,6 +223,14 @@ export function useProjectAudio(
 		graph.reconcile(lastProjection);
 		// Mirror the song tempo onto the transport without restarting it.
 		transport?.setTempo(current.song.tempo);
+
+		// `audio_loop` first-use (PRD OPS-02, INS-02): the first time a project
+		// with a tempo-labelled loop clip is wired onto the audio graph. Fired via
+		// `logFeatureFirstUse`, so it lands at most once per account per browser
+		// even though the effect re-runs on every edit.
+		if (current.clips.some((clip) => clip.content.kind === "audioLoop")) {
+			analytics.logFeatureFirstUse("audio_loop");
+		}
 	});
 
 	onCleanup(tearDown);

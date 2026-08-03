@@ -2,7 +2,10 @@ import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
-import { createSliceFixtureProject } from "../domain/fixtures";
+import {
+	createDrumMachineFixtureProject,
+	createSliceFixtureProject,
+} from "../domain/fixtures";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 
@@ -86,6 +89,24 @@ describe("EditorView", () => {
 
 		// Undo starts disabled: nothing has been edited yet in this session.
 		expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+	});
+
+	it("renders the tempo-labelled loop panel for a project with an audio loop (LOOP-006)", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createDrumMachineFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		// The loop panel distinguishes a tempo-labelled loop from a pitched
+		// one-shot and documents the alpha's resampling stretch behaviour.
+		expect(
+			await screen.findByRole("region", { name: "Audio loop" }),
+		).toBeInTheDocument();
+		expect(screen.getByText(/tempo-labelled loop/i)).toBeInTheDocument();
+		expect(screen.getByText(/resampl/i)).toBeInTheDocument();
+		expect(screen.getByText(/does not preserve pitch/i)).toBeInTheDocument();
 	});
 
 	it("toggling a step enables undo, and undo reverts it", async () => {

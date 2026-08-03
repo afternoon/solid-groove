@@ -10,6 +10,7 @@ import {
 	type AssetBufferLoader,
 	AudioBufferCache,
 	type AudioBufferCacheDiagnostics,
+	type BufferLoadFailureListener,
 	type BufferSubscription,
 } from "./AudioBufferCache";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
@@ -87,6 +88,12 @@ export interface ProjectAudioGraphOptions {
 	/** The current audio time, in seconds. Defaults to {@link audioClockNow};
 	 * injectable for tests. */
 	now?: () => number;
+	/**
+	 * Called when a loop or sample asset fails to decode or is missing, so the
+	 * owner can emit `asset_load_failed` (PRD OPS-02, LOOP-006). Fired once per
+	 * failed load attempt; a stale-generation failure is never reported.
+	 */
+	onAssetLoadFailure?: BufferLoadFailureListener;
 }
 
 /** Everything scheduled for one placement, so a later reconcile pass can tell
@@ -142,6 +149,7 @@ export class ProjectAudioGraph {
 		this.transport = options.transport ?? liveTransport;
 		this.bufferCache = new AudioBufferCache(
 			options.bufferLoader ?? toneBufferLoader,
+			{ onLoadFailure: options.onAssetLoadFailure },
 		);
 		this.createInstrument = options.createInstrument;
 		this.createDeviceNode = options.createDeviceNode;
