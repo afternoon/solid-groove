@@ -33,6 +33,16 @@ test.describe("mixer", () => {
 		expect(Math.abs(inputBox.width - trackBox.width)).toBeLessThanOrEqual(1);
 		expect(Math.abs(inputBox.height - trackBox.height)).toBeLessThanOrEqual(1);
 
+		// Sitting over the fill, the input has to stay invisible in every state —
+		// including hover, where the app-wide `input:hover` tint would otherwise
+		// win on specificity and paint over the fill the user is aiming at.
+		await fader.hover();
+		expect(
+			await fader.evaluate(
+				(element) => getComputedStyle(element).backgroundColor,
+			),
+		).toBe("rgba(0, 0, 0, 0)");
+
 		// Dragging down turns the track down, and the readout follows.
 		const before = Number(await fader.inputValue());
 		await page.mouse.move(

@@ -71,10 +71,19 @@
 	transform-origin: calc(var(--fill-slider-track-height) / 2)
 		calc(var(--fill-slider-track-height) / 2);
 	margin: 0;
-	background: transparent;
 	cursor: ns-resize;
 	appearance: none;
 	-webkit-appearance: none;
+}
+
+/* The input sits *over* the fill it paints, so it has to stay invisible in
+   every state. The hover rule is not redundant: the app-wide `input:hover`
+   rule is more specific than a bare class, and would otherwise paint the
+   control tint straight over the fill whenever a pointer crossed a slider. */
+.fill-slider-input,
+.fill-slider-input:hover,
+.fill-slider-input:focus {
+	background: transparent;
 }
 
 .fill-slider-input:focus-visible {
