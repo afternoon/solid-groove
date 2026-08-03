@@ -1,0 +1,102 @@
+/* The vertical fill-slider from design mock 06c-slider: label above, live
+   value below, a thumbless accent fill track between. Fixed 48px width; sliders
+   sequence horizontally and never stack. */
+
+.fill-slider {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 48px;
+	gap: 6px;
+}
+
+.fill-slider-label {
+	font-size: var(--font-size-tiny);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--color-foreground);
+	white-space: nowrap;
+}
+
+.fill-slider-track {
+	position: relative;
+	width: 22px;
+	height: 120px;
+	background-color: var(--color-background);
+	overflow: hidden;
+}
+
+/* The filled portion IS the value, growing from the bottom. Resting sliders use
+   the muted accent; the touched (focused/hovered) one uses the bright accent. */
+.fill-slider-fill {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: color-mix(
+		in srgb,
+		var(--color-accent, #20c8e8) 55%,
+		#1b6b7a
+	);
+	pointer-events: none;
+}
+
+.fill-slider-track:hover .fill-slider-fill,
+.fill-slider-track:focus-within .fill-slider-fill {
+	background-color: var(--color-accent, #20c8e8);
+}
+
+/* The real range input, restyled to an invisible thumbless overlay so the fill
+   div reads the value visually while the input carries keyboard + a11y. */
+.fill-slider-input {
+	position: absolute;
+	inset: 0;
+	width: 120px;
+	height: 22px;
+	/* Rotate a horizontal range so up = more, keeping native arrow-key semantics
+	   (Up/Right increases). The track is 22x120; the rotated input fills it. */
+	transform: rotate(-90deg);
+	transform-origin: 60px 60px;
+	margin: 0;
+	background: transparent;
+	cursor: ns-resize;
+	appearance: none;
+	-webkit-appearance: none;
+}
+
+.fill-slider-input:focus-visible {
+	outline: 2px solid var(--color-accent, #20c8e8);
+	outline-offset: 2px;
+}
+
+.fill-slider-input::-webkit-slider-thumb {
+	appearance: none;
+	-webkit-appearance: none;
+	width: 22px;
+	height: 6px;
+	background: transparent;
+	cursor: ns-resize;
+}
+
+.fill-slider-input::-moz-range-thumb {
+	width: 22px;
+	height: 6px;
+	border: none;
+	background: transparent;
+	cursor: ns-resize;
+}
+
+.fill-slider-input::-webkit-slider-runnable-track {
+	background: transparent;
+}
+
+.fill-slider-input::-moz-range-track {
+	background: transparent;
+}
+
+.fill-slider-value {
+	font-size: var(--font-size-small);
+	color: var(--color-text);
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}

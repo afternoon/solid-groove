@@ -259,4 +259,56 @@ describe("useProjectAudio", () => {
 		expect(afterDispose.byType.schedule ?? 0).toBe(0);
 		expect(afterDispose.byType.subscription ?? 0).toBe(0);
 	});
+
+	it("auditionTrack unlocks the context and resolves true on a loaded project", async () => {
+		const { analytics } = fakeAnalytics();
+		let resumed = 0;
+		const runtime = unreachableAudioHost(() => {
+			resumed += 1;
+			return Promise.resolve();
+		});
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		const played = await result.auditionTrack(
+			"trk_any" as never,
+			{ kind: "pitch", pitch: 60 },
+			192,
+			0.9,
+		);
+		// The audition is a user gesture: it resumes the shared context exactly once
+		// and reports success even when the graph has no such track (a no-op play).
+		expect(played).toBe(true);
+		expect(resumed).toBe(1);
+	});
+
+	it("auditionTrack reports audio_start_failed and resolves false when blocked", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		const runtime = unreachableAudioHost(() =>
+			Promise.reject(new Error("NotAllowedError: blocked")),
+		);
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		const played = await result.auditionTrack(
+			"trk_any" as never,
+			{ kind: "pitch", pitch: 60 },
+			192,
+			0.9,
+		);
+		expect(played).toBe(false);
+		expect(transport.named("audio_start_failed")).toHaveLength(1);
+	});
 });

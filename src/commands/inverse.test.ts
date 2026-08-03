@@ -6,6 +6,7 @@ import {
 	createNoteEvent,
 	createPlacement,
 	createSeededIdFactory,
+	createSynthInstrument,
 	createTrack as createTrackEntity,
 	PAD_PITCH,
 	TICKS_PER_BAR,
@@ -19,6 +20,7 @@ import {
 	addPad,
 	addPlacement,
 	addTrack,
+	changeInstrument,
 	clearNotes,
 	duplicateNotes,
 	quantizeNotes,
@@ -35,6 +37,7 @@ import {
 	setPadFlag,
 	setPadParameter,
 	setParameter,
+	setSample,
 	setTrackFlag,
 	transposeNotes,
 	updateClip,
@@ -255,6 +258,17 @@ const cases: InverseCase[] = [
 	{
 		type: "drum.reorderPad",
 		build: (fixture) => reorderPad(fixture.trackBId, fixture.padIds[0], 1),
+  },
+  {
+		type: "instrument.change",
+		// trackA is a sampler; swap it for a synth so the inverse must restore the
+		// full previous sampler instrument, assetId and all.
+		build: (fixture) =>
+			changeInstrument(fixture.trackAId, createSynthInstrument()),
+	},
+	{
+		type: "instrument.setSample",
+		build: (fixture) => setSample(fixture.trackAId, null),
 	},
 ];
 

@@ -1,0 +1,73 @@
+/* Synth and sampler panels (mocks 05a/05b). Flat, square, single cyan accent;
+   regions separate by elevation tint, not borders. */
+
+.instrument-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 12px;
+	background-color: var(--color-background-secondary);
+}
+
+.instrument-panel-groups {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: flex-start;
+}
+
+.instrument-panel-group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	background-color: var(--color-background-highlight);
+	min-width: 0;
+}
+
+.instrument-panel-heading {
+	margin: 0;
+	font-size: var(--font-size-tiny);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--color-foreground);
+	font-weight: 600;
+}
+
+.instrument-panel-slider-row {
+	display: flex;
+	gap: 10px;
+	align-items: flex-end;
+}
+
+.sampler-sample-name {
+	margin: 0;
+	font-size: var(--font-size-base);
+	color: var(--color-text);
+}
+
+.sampler-load-select,
+.instrument-panel-audition {
+	height: 30px;
+	padding: 0 12px;
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text);
+	border: none;
+	font-size: var(--font-size-small);
+	cursor: pointer;
+}
+
+.sampler-load-select:hover,
+.instrument-panel-audition:hover {
+	background-color: var(--color-background-hover);
+}
+
+.instrument-panel-audition {
+	align-self: flex-start;
+	color: var(--color-accent, #20c8e8);
+}
+
+.instrument-panel-audition:hover {
+	background-color: var(--color-accent, #20c8e8);
+	color: var(--color-background);
+}

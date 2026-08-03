@@ -3,8 +3,13 @@ import type { DrumPad, Instrument } from "../domain/entities";
 import { packVersion } from "../domain/entities";
 import type { AssetId, PadId } from "../domain/ids";
 import { createSeededIdFactory } from "../domain/ids";
+import {
+	SAMPLER_PITCH,
+	SYNTH_FILTER_CUTOFF,
+	SYNTH_WAVEFORM,
+} from "../domain/parameters";
 import type { AudioAssetProjection } from "../projection/audioProjection";
-import { installWebAudioGlobals } from "./testAudioContext";
+import { hfEnergy, installWebAudioGlobals, rms } from "./testAudioContext";
 
 installWebAudioGlobals();
 
@@ -570,5 +575,248 @@ describe("playOneShot", () => {
 			destination.dispose();
 			buffer.dispose();
 		}
+	});
+});
+
+// --- LOOP-004: synth/sampler DSP and lifecycle -----------------------------
+
+const SYNTH_WAVEFORM_KEY = SYNTH_WAVEFORM.id.split(".")[1];
+const SYNTH_CUTOFF_KEY = SYNTH_FILTER_CUTOFF.id.split(".")[1];
+const SAMPLER_PITCH_KEY = SAMPLER_PITCH.id.split(".")[1];
+
+function bareContext() {
+	const runtime = new AudioRuntimeModule.AudioRuntime();
+	const scope = runtime.openProjectScope("p");
+	const { context } = makeContext(scope);
+	return { runtime, context };
+}
+
+describe("synth voice (PRD INS-01)", () => {
+	it("its resonant low-pass cutoff changes the rendered high-frequency energy", async () => {
+		const Tone = await import("tone");
+
+		async function renderAtCutoff(cutoff: number): Promise<Float32Array> {
+			const buffer = await Tone.Offline(
+				async ({ destination }) => {
+					const runtime = new AudioRuntimeModule.AudioRuntime();
+					const scope = runtime.openProjectScope("p");
+					const { context } = makeContext(scope);
+					const node = InstrumentGraphModule.createInstrumentNode(
+						{
+							kind: "synth",
+							parameters: {
+								[SYNTH_WAVEFORM_KEY]: 2, // sawtooth: rich in harmonics
+								[SYNTH_CUTOFF_KEY]: cutoff,
+								ampAttack: 0.001,
+								ampRelease: 0.05,
+							},
+						},
+						context,
+					);
+					node.output.connect(destination);
+					node.trigger({ kind: "pitch", pitch: 45 }, 0, 0.3, 0.9);
+				},
+				0.35,
+				1,
+			);
+			return Float32Array.from(buffer.getChannelData(0));
+		}
+
+		const dark = await renderAtCutoff(300);
+		const bright = await renderAtCutoff(16_000);
+		// A brighter cutoff passes more of the sawtooth's harmonics, so its
+		// high-frequency energy (discrete derivative RMS) is higher.
+		expect(hfEnergy(bright)).toBeGreaterThan(hfEnergy(dark));
+		expect(rms(bright)).toBeGreaterThan(0);
+	});
+
+	it("updates parameters in place without replacing the synth node", async () => {
+		const { runtime, context } = bareContext();
+		const node = InstrumentGraphModule.createInstrumentNode(
+			{ kind: "synth", parameters: {} },
+			context,
+		);
+		const before = runtime.diagnostics().resources.total;
+		// A cutoff sweep and a waveform change both go through update().
+		node.update({
+			kind: "synth",
+			parameters: { [SYNTH_CUTOFF_KEY]: 900, [SYNTH_WAVEFORM_KEY]: 1 },
+		});
+		node.update({
+			kind: "synth",
+			parameters: { [SYNTH_CUTOFF_KEY]: 4000, [SYNTH_WAVEFORM_KEY]: 3 },
+		});
+		expect(runtime.diagnostics().resources.total).toBe(before);
+		node.dispose();
+		await runtime.close();
+	});
+
+	it("survives parameter extremes and repeated triggers without throwing", async () => {
+		const { runtime, context } = bareContext();
+		const node = InstrumentGraphModule.createInstrumentNode(
+			{
+				kind: "synth",
+				parameters: {
+					[SYNTH_CUTOFF_KEY]: SYNTH_FILTER_CUTOFF.max,
+					filterResonance: 20,
+					ampAttack: 0,
+					ampRelease: 0,
+					ampSustain: 0,
+				},
+			},
+			context,
+		);
+		expect(() => {
+			for (let i = 0; i < 64; i += 1) {
+				node.trigger(
+					{ kind: "pitch", pitch: 36 + (i % 48) },
+					i * 0.01,
+					0.05,
+					1,
+				);
+			}
+		}).not.toThrow();
+		node.dispose();
+		await runtime.close();
+	});
+});
+
+describe("one-shot sampler (PRD INS-01)", () => {
+	/** A ramp buffer, so a windowed slice sounds different from the whole file. */
+	async function rampBuffer(): Promise<import("tone").ToneAudioBuffer> {
+		const Tone = await import("tone");
+		const data = new Float32Array(4096);
+		for (let i = 0; i < data.length; i += 1) {
+			data[i] = Math.sin((i / data.length) * Math.PI * 8) * (i / data.length);
+		}
+		return Tone.ToneAudioBuffer.fromArray(data);
+	}
+
+	/** A context whose cache resolves one real ToneAudioBuffer for any asset. */
+	function realBufferContext(buffer: import("tone").ToneAudioBuffer) {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const assetsById = new Map<AssetId, AudioAssetProjection>();
+		const loader = {
+			async load() {
+				return buffer;
+			},
+		};
+		const bufferCache = new AudioBufferCacheModule.AudioBufferCache(
+			loader as unknown as import("./AudioBufferCache").AssetBufferLoader<
+				import("tone").ToneAudioBuffer
+			>,
+		);
+		return { runtime, context: { scope, assetsById, bufferCache } };
+	}
+
+	it("applies pitch as a playback-rate change and windows to start/end", async () => {
+		const Tone = await import("tone");
+		const buffer = await rampBuffer();
+		const { runtime, context } = realBufferContext(buffer);
+		const assetId = ids("asset");
+		context.assetsById.set(assetId, asset(assetId));
+
+		const starts: { rate: number; offset: number; duration: number }[] = [];
+		const startSpy = vi
+			.spyOn(Tone.Player.prototype, "start")
+			.mockImplementation(function mocked(
+				this: { playbackRate: number },
+				_time?: unknown,
+				offset?: unknown,
+				duration?: unknown,
+			) {
+				starts.push({
+					rate: this.playbackRate,
+					offset: Number(offset),
+					duration: Number(duration),
+				});
+				return this as never;
+			});
+
+		try {
+			const node = InstrumentGraphModule.createInstrumentNode(
+				{
+					kind: "sampler",
+					assetId,
+					parameters: {
+						[SAMPLER_PITCH_KEY]: 12, // +1 octave -> 2x rate
+						sampleStart: 0.25,
+						sampleEnd: 0.75,
+					},
+				},
+				context,
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			node.trigger({ kind: "pitch", pitch: 60 }, 0, "192i", 1);
+			expect(starts).toHaveLength(1);
+			expect(starts[0].rate).toBeCloseTo(2, 5);
+			// Start offset is 25% into the buffer; the window is the middle 50%.
+			expect(starts[0].offset).toBeCloseTo(buffer.duration * 0.25, 3);
+			expect(starts[0].duration).toBeCloseTo(buffer.duration * 0.5, 3);
+
+			node.dispose();
+		} finally {
+			startSpy.mockRestore();
+			buffer.dispose();
+			await runtime.close();
+		}
+	});
+
+	it("swapping the sample cancels the old subscription (cache ownership)", async () => {
+		const { runtime, context } = bareContext();
+		const assetA = ids("asset");
+		const assetB = ids("asset");
+		context.assetsById.set(assetA, asset(assetA));
+		context.assetsById.set(assetB, asset(assetB));
+
+		const node = InstrumentGraphModule.createInstrumentNode(
+			{ kind: "sampler", assetId: assetA, parameters: {} },
+			context,
+		);
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(context.bufferCache.diagnostics().cachedAssets).toBe(1);
+
+		node.update({ kind: "sampler", assetId: assetB, parameters: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+		// Old asset released, new one attached — one cached asset, not two.
+		expect(context.bufferCache.diagnostics().cachedAssets).toBe(1);
+
+		node.dispose();
+		await Promise.resolve();
+		expect(runtime.diagnostics().resources.total).toBe(0);
+		await runtime.close();
+	});
+
+	it("a parameter edit keeps the same subscription and disposes cleanly", async () => {
+		const { runtime, context } = bareContext();
+		const assetId = ids("asset");
+		context.assetsById.set(assetId, asset(assetId));
+		const node = InstrumentGraphModule.createInstrumentNode(
+			{ kind: "sampler", assetId, parameters: {} },
+			context,
+		);
+		await Promise.resolve();
+		await Promise.resolve();
+		const subscriptions = runtime.diagnostics().resources.byType.subscription;
+
+		node.update({
+			kind: "sampler",
+			assetId,
+			parameters: { [SAMPLER_PITCH_KEY]: 7, sampleStart: 0.2, sampleEnd: 0.9 },
+		});
+		// A non-asset edit must not resubscribe.
+		expect(runtime.diagnostics().resources.byType.subscription).toBe(
+			subscriptions,
+		);
+
+		node.dispose();
+		await Promise.resolve();
+		expect(runtime.diagnostics().resources.total).toBe(0);
+		await runtime.close();
 	});
 });

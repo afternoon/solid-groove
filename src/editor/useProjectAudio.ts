@@ -12,7 +12,7 @@ import {
 	TransportMetronome,
 } from "../audio/Transport";
 import { UnderrunMonitor } from "../audio/underrun";
-import type { Project } from "../domain/entities";
+import type { NoteTrigger, Project } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
@@ -52,6 +52,19 @@ export interface ProjectAudioControls {
 	 * user-gesture unlock just like `play()`.
 	 */
 	auditionPad(trackId: TrackId, padId: PadId): Promise<void>;
+  /**
+	 * Plays one note through a track's instrument for auditioning (PRD INS-01).
+	 * Resumes the shared context behind the calling user gesture, then triggers
+	 * the sound through the track's own chain. Resolves whether a note was
+	 * triggered; a browser-blocked unlock reports `audio_start_failed` and
+	 * resolves `false`, like `play()`.
+	 */
+	auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): Promise<boolean>;
 }
 
 export interface UseProjectAudioOptions {
@@ -357,6 +370,28 @@ export function useProjectAudio(
 			return;
 		}
 		graph?.auditionPad(trackId, padId);
+
+  }
+  
+  async function auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): Promise<boolean> {
+		try {
+			await resumeWithinTimeout();
+			graph?.auditionTrack(trackId, trigger, durationTicks, velocity);
+			return true;
+		} catch (error) {
+			const code = codeFor(error);
+			analytics.log("audio_start_failed", {
+				error_code: code,
+				was_browser_blocked: code === "autoplay_blocked",
+			});
+			reportError(error, { area: "audio", fatal: false, code });
+			return false;
+		}
 	}
 
 	return {
@@ -375,5 +410,6 @@ export function useProjectAudio(
 		toggleLoop,
 		toggleMetronome,
 		auditionPad,
+		auditionTrack,
 	};
 }

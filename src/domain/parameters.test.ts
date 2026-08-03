@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+	bareParameterId,
 	clampParameterValue,
 	coerceParameterValue,
 	defineParameter,
 	getParameterDefinition,
+	instrumentParameters,
 	isAutomatable,
 	isParameterValueInRange,
 	MASTER_VOLUME,
 	NOTE_VELOCITY,
 	parameterDefinitions,
 	parameterSchemaFor,
+	readInstrumentParameter,
 	requireParameterDefinition,
 	SONG_TEMPO,
+	SYNTH_FILTER_CUTOFF,
+	SYNTH_FILTER_RESONANCE,
+	synthWaveform,
 	TRACK_PAN,
 	TRACK_VOLUME,
 } from "./parameters";
@@ -43,7 +49,21 @@ describe("parameter definitions", () => {
 			"pad.pitch",
 			"return.pan",
 			"return.volume",
+			"sampler.ampAttack",
+			"sampler.ampDecay",
+			"sampler.ampRelease",
+			"sampler.ampSustain",
+			"sampler.pitch",
+			"sampler.sampleEnd",
+			"sampler.sampleStart",
 			"song.tempo",
+			"synth.ampAttack",
+			"synth.ampDecay",
+			"synth.ampRelease",
+			"synth.ampSustain",
+			"synth.filterCutoff",
+			"synth.filterResonance",
+			"synth.waveform",
 			"track.pan",
 			"track.sendLevel",
 			"track.volume",
@@ -167,5 +187,51 @@ describe("parameter definitions", () => {
 		expect(schema.safeParse(0.5).success).toBe(true);
 		expect(schema.safeParse(1.5).success).toBe(false);
 		expect(schema.safeParse(Number.POSITIVE_INFINITY).success).toBe(false);
+	});
+});
+
+describe("instrument parameters (LOOP-004)", () => {
+	it("maps a waveform index onto its oscillator type, clamped in range", () => {
+		expect(synthWaveform(0)).toBe("sine");
+		expect(synthWaveform(2)).toBe("sawtooth");
+		expect(synthWaveform(3)).toBe("triangle");
+		// Out-of-range or fractional indices clamp/round rather than throw.
+		expect(synthWaveform(-1)).toBe("sine");
+		expect(synthWaveform(99)).toBe("triangle");
+		expect(synthWaveform(1.4)).toBe("square");
+	});
+
+	it("reads a stored parameter or falls back to the definition default", () => {
+		expect(readInstrumentParameter(SYNTH_FILTER_CUTOFF, {})).toBe(
+			SYNTH_FILTER_CUTOFF.defaultValue,
+		);
+		expect(
+			readInstrumentParameter(SYNTH_FILTER_CUTOFF, { filterCutoff: 800 }),
+		).toBe(800);
+	});
+
+	it("lists the parameters each instrument kind owns", () => {
+		expect(instrumentParameters("synth").map((p) => p.id)).toContain(
+			"synth.filterResonance",
+		);
+		expect(instrumentParameters("sampler").map((p) => p.id)).toContain(
+			"sampler.sampleEnd",
+		);
+		expect(instrumentParameters("drumMachine")).toEqual([]);
+	});
+
+	it("strips the instrument namespace from a definition id", () => {
+		expect(bareParameterId("synth.filterCutoff")).toBe("filterCutoff");
+		expect(bareParameterId("sampler.pitch")).toBe("pitch");
+		expect(bareParameterId("bare")).toBe("bare");
+	});
+
+	it("declares a resonant filter and a full amp envelope for the synth", () => {
+		expect(SYNTH_FILTER_CUTOFF.unit).toBe("hertz");
+		expect(SYNTH_FILTER_CUTOFF.automatable).toBe(true);
+		expect(SYNTH_FILTER_RESONANCE.automatable).toBe(true);
+		for (const stage of instrumentParameters("synth")) {
+			expect(isParameterValueInRange(stage, stage.defaultValue)).toBe(true);
+		}
 	});
 });

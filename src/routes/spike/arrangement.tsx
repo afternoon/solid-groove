@@ -8,7 +8,7 @@ import {
 } from "../../domain/fixtures";
 
 /**
- * The FND-008 arrangement renderer spike (backlog task; PRD 9.3). Disposable
+ * The FND-008 arrangement renderer spike (task; PRD 9.3). Disposable
  * exploratory UI — see `src/arrangement/spike/README.md` — reachable at
  * `/spike/arrangement?tracks=20|40|50` for manual poking and for the
  * Playwright measurement harness (`perf/arrangement.bench.spec.ts`) to drive.

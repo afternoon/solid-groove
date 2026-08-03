@@ -5,7 +5,7 @@
 | Status | Implemented (`FND-001`) |
 | Scope | Shared tooling all later agents use: dependencies, test suites, CI, and test helpers |
 
-Related documents: [Product requirements](./prd.md) ([9.1](./prd.md#91-committed-alpha-stack), [10](./prd.md#10-non-functional-requirements), [14](./prd.md#14-test-strategy-and-definition-of-done)), [backlog](./backlog.md#fnd-001---test-and-development-foundation)
+Related documents: [Product requirements](./prd.md) ([9.1](./prd.md#91-committed-alpha-stack), [10](./prd.md#10-non-functional-requirements), [14](./prd.md#14-test-strategy-and-definition-of-done))
 
 This document is the map of "which suite do I run, and how." It does not restate `CLAUDE.md`'s stack/style conventions.
 
@@ -177,7 +177,7 @@ None of `checks`, `browser`, `browser-emulator`, or `emulator` touch the product
 | Status | Implemented (`FND-001b`) |
 | Scope | Firebase Hosting deploy pipeline, `firebase.json` hosting config, the release-SHA stamp, and the hosted post-deploy smoke test |
 
-Related: [PRD `OPS-01`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 9.1](./prd.md#91-committed-alpha-stack), [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements), [backlog `FND-001b`](./backlog.md#fnd-001b---firebase-deployment-and-hosted-alpha-environment)
+Related: [PRD `OPS-01`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 9.1](./prd.md#91-committed-alpha-stack), [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements)
 
 ### The single hosted environment
 
@@ -250,7 +250,7 @@ Because Hosting release history and Firestore rules revisions are both associate
 | Status | Implemented (`FND-001c`) |
 | Scope | The typed analytics catalog, the logging boundary, the error-reporting boundary and its Sentry sink, consent/opt-out, source-map upload, and release registration |
 
-Related: [PRD `OPS-02`/`OPS-03`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 11](./prd.md#11-success-metrics), [ADR 0001](./adr/0001-sentry-for-error-monitoring.md), [backlog `FND-001c`](./backlog.md#fnd-001c---analytics-and-error-monitoring-foundation)
+Related: [PRD `OPS-02`/`OPS-03`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 11](./prd.md#11-success-metrics), [ADR 0001](./adr/0001-sentry-for-error-monitoring.md)
 
 ### What is checked without a deployed build
 
@@ -341,7 +341,7 @@ The first must succeed and the second must not. A 200 with map contents means th
 
 The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason.
 
-**When this gets closed.** Executing it is backlog task `OPS-001`, scheduled immediately after Alpha Milestone 2 (PRD section 12, "After Alpha Milestone 2"), following [`docs/runbooks/alpha-milestone-0.md`](./runbooks/alpha-milestone-0.md). It was originally expected during Alpha Milestone 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
+**When this gets closed.** Executing it is task `OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)), scheduled immediately after Alpha Milestone 2 (PRD section 12, "After Alpha Milestone 2"), following [`docs/runbooks/alpha-milestone-0.md`](./runbooks/alpha-milestone-0.md). It was originally expected during Alpha Milestone 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
 
 Until then, treat every statement in that section as untested, and do not cite it as evidence in a task's closing comment. Whoever provisions the accounts runs the procedure once and replaces this section with what they actually observed, including the date and the release SHA.
 

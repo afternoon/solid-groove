@@ -4,7 +4,7 @@ Everything in this directory is the **disposable** half of `FND-008` — a
 representative hybrid virtualized-DOM/Canvas 2D UI built to give the
 measurement harness (`perf/arrangement.bench.spec.ts`) something real to
 drive, and to prove out the geometry/projection contracts under an actual
-Canvas renderer. Per the backlog task and PRD section 9.3 ("When these
+Canvas renderer. Per the task and PRD section 9.3 ("When these
 budgets are enforced"), it is explicitly **not gated on hitting the PRD frame
 budgets** and is expected to be replaced, not grown, by the production
 arrangement editor (`ARR-005`).
@@ -18,7 +18,7 @@ arrangement editor (`ARR-005`).
 - **Disposable** (this directory): `ArrangementSpike.tsx`, `canvasLayers.ts`,
   and `instrumentation.ts`. This is UI code wired to one specific
   Canvas-drawing approach and one specific measurement harness; it benchmarking
-  well here does not make it production code (see the backlog task's last
+  well here does not make it production code (see the task's last
   acceptance line).
 
 ## What it implements

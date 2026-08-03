@@ -32,7 +32,7 @@
 // Event names, parameter names, and parameter values are a published contract:
 // they appear in Google Analytics reports and saved explorations, and renaming
 // one splits a metric across two values for the same behavior. Adding is
-// routine; renaming or removing is a backlog task of its own.
+// routine; renaming or removing is a task of its own.
 
 import {
 	type BucketLabel,
@@ -189,6 +189,8 @@ export const COMMAND_IDS = [
 	"drum.addPad",
 	"drum.removePad",
 	"drum.reorderPad",
+	"instrument.change",
+	"instrument.setSample",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 

@@ -5,7 +5,7 @@
 | Status | Implemented (`FND-004`) |
 | Scope | The Firestore document layout, the repository boundary, optimistic autosave, and the migration harness |
 
-Related documents: [Product requirements](./prd.md) ([PRJ-01…04](./prd.md#71-projects-and-persistence), [9.1](./prd.md#91-committed-alpha-stack), [9.9](./prd.md#99-persistence-boundary)), [backlog](./backlog.md#fnd-004---firebase-schema-v1-repository), [testing](./testing.md)
+Related documents: [Product requirements](./prd.md) ([PRJ-01…04](./prd.md#71-projects-and-persistence), [9.1](./prd.md#91-committed-alpha-stack), [9.9](./prd.md#99-persistence-boundary)), [testing](./testing.md)
 
 Code: [`src/persistence/`](../src/persistence). The canonical domain model it stores is [`src/domain/`](../src/domain); persistence never redefines a domain rule, it only decides where bytes live.
 

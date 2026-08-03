@@ -54,8 +54,10 @@ interface MutableTrack extends JsonRecord {
 	sendConfig: (JsonRecord & { returnId: string })[];
 	instrument:
 		| (JsonRecord & {
+				kind?: string;
 				assetId?: string | null;
 				pads?: MutableDrumPad[];
+				parameters?: Record<string, number>;
 		  })
 		| null;
 	mixer: JsonRecord & { volume: number };
@@ -380,6 +382,42 @@ describe("parseProject", () => {
 		outOfRangeLane.points = [{ tick: 0, value: 40 }];
 		outOfRange.song.automation = [outOfRangeLane];
 		expectIssue(parseProject(outOfRange), "invalid_parameter");
+	});
+
+	it("rejects an instrument parameter outside its declared range", () => {
+		const input = baseProject();
+		const sampler = input.song.tracks.find(
+			(track) => track.instrument?.kind === "sampler",
+		);
+		if (!sampler?.instrument) throw new Error("fixture has no sampler track");
+		// SAMPLER_PITCH is -24..24 semitones; 99 is out of range.
+		sampler.instrument.parameters = { pitch: 99 };
+		expectIssue(parseProject(input), "invalid_parameter");
+	});
+
+	it("accepts in-range instrument parameters", () => {
+		const input = baseProject();
+		const sampler = input.song.tracks.find(
+			(track) => track.instrument?.kind === "sampler",
+		);
+		if (!sampler?.instrument) throw new Error("fixture has no sampler track");
+		sampler.instrument.parameters = {
+			pitch: 5,
+			sampleStart: 0.1,
+			sampleEnd: 0.8,
+			ampAttack: 0.01,
+		};
+		expect(parseProject(input).ok).toBe(true);
+	});
+
+	it("rejects a sample window whose end is not after its start", () => {
+		const input = baseProject();
+		const sampler = input.song.tracks.find(
+			(track) => track.instrument?.kind === "sampler",
+		);
+		if (!sampler?.instrument) throw new Error("fixture has no sampler track");
+		sampler.instrument.parameters = { sampleStart: 0.6, sampleEnd: 0.6 };
+		expectIssue(parseProject(input), "invalid_parameter");
 	});
 
 	it("rejects inconsistent project metadata", () => {
