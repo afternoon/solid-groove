@@ -14,6 +14,14 @@ import {
 	type InstrumentNodeFactory,
 } from "./InstrumentGraph";
 
+/**
+ * The ramp time applied to every continuous channel-strip change — volume,
+ * pan, and send level (PRD TRK-02: "No control change creates audible zipper
+ * noise under normal use"). Short enough to feel instant, long enough that a
+ * fader move glides the gain instead of stepping it sample-to-sample.
+ */
+export const MIXER_SMOOTHING_SECONDS = 0.02;
+
 /** One track's send: which return it targets, its own gain node, and which
  * fader stage it currently taps (needed to reconnect in place if `preFader`
  * flips without the send itself being added or removed). */
@@ -126,8 +134,8 @@ export class TrackAudioGraph {
 			this.reconcileInstrument(next.instrument);
 			this.deviceChain.reconcile(next.devices);
 			this.reconcileSends(next.sendConfig);
-			this.panVol.volume.rampTo(next.mixer.volume, 0.02);
-			this.panVol.pan.rampTo(next.mixer.pan, 0.02);
+			this.panVol.volume.rampTo(next.mixer.volume, MIXER_SMOOTHING_SECONDS);
+			this.panVol.pan.rampTo(next.mixer.pan, MIXER_SMOOTHING_SECONDS);
 			this.lastProjection = next;
 		}
 		this.panVol.mute = effectiveMuted;
@@ -213,7 +221,7 @@ export class TrackAudioGraph {
 				continue;
 			}
 
-			existing.gain.gain.rampTo(send.level, 0.02);
+			existing.gain.gain.rampTo(send.level, MIXER_SMOOTHING_SECONDS);
 			if (existing.preFader !== send.preFader) {
 				const previousTap = existing.preFader
 					? this.preFaderTap

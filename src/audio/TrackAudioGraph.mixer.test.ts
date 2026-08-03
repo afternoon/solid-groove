@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project, Track } from "../domain/entities";
 import { createReferenceProject } from "../domain/fixtures";
 import { buildAudioProjection } from "../projection/audioProjection";
@@ -6,12 +6,16 @@ import { installWebAudioGlobals } from "./testAudioContext";
 
 installWebAudioGlobals();
 
+let Tone: typeof import("tone");
 let AudioRuntimeModule: typeof import("./AudioRuntime");
 let ProjectAudioGraphModule: typeof import("./ProjectAudioGraph");
+let TrackAudioGraphModule: typeof import("./TrackAudioGraph");
 
 beforeAll(async () => {
+	Tone = await import("tone");
 	AudioRuntimeModule = await import("./AudioRuntime");
 	ProjectAudioGraphModule = await import("./ProjectAudioGraph");
+	TrackAudioGraphModule = await import("./TrackAudioGraph");
 });
 
 afterEach(async () => {
@@ -151,6 +155,65 @@ describe("track mixer audio graph (LOOP-007 / TRK-02)", () => {
 
 		expect(runtime.diagnostics().resources.total).toBe(resourcesBefore);
 
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("ramps volume and pan changes rather than stepping them (no zipper noise)", async () => {
+		const base = createReferenceProject({
+			trackCount: 1,
+			placementCount: 1,
+			automationLaneCount: 0,
+		});
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport: fakeTransport(),
+		});
+
+		const before = buildAudioProjection(base);
+		graph.reconcile(before);
+
+		// Spy on the parameter ramp used by the channel strip. A control change
+		// must schedule a short ramp, never a hard set, so it cannot click.
+		// PanVol's volume is a Tone.Param and its pan a Tone.Signal, so both
+		// prototypes are watched.
+		const rampCalls: number[] = [];
+		const paramSpy = vi
+			.spyOn(Tone.Param.prototype, "rampTo")
+			.mockImplementation(function (this: unknown, _value, time) {
+				rampCalls.push(time as number);
+				return this as never;
+			});
+		const signalSpy = vi
+			.spyOn(Tone.Signal.prototype, "rampTo")
+			.mockImplementation(function (this: unknown, _value, time) {
+				rampCalls.push(time as number);
+				return this as never;
+			});
+
+		const edited = setFlags(base, base.song.tracks[0].id, {});
+		const withVolume: Project = {
+			...edited,
+			song: {
+				...edited.song,
+				tracks: edited.song.tracks.map((track, i) =>
+					i === 0
+						? { ...track, mixer: { ...track.mixer, volume: -18, pan: -0.5 } }
+						: track,
+				),
+			},
+		};
+		graph.reconcile(buildAudioProjection(withVolume, before));
+
+		// At least the volume and pan ramps (a send would add more).
+		expect(rampCalls.length).toBeGreaterThanOrEqual(2);
+		for (const time of rampCalls) {
+			expect(time).toBe(TrackAudioGraphModule.MIXER_SMOOTHING_SECONDS);
+			expect(time).toBeGreaterThan(0);
+		}
+
+		paramSpy.mockRestore();
+		signalSpy.mockRestore();
 		await graph.dispose();
 		await runtime.close();
 	});
