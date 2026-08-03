@@ -2,10 +2,10 @@ import * as Tone from "tone";
 import type { DrumPad, Instrument, NoteTrigger } from "../domain/entities";
 import type { AssetId, PadId } from "../domain/ids";
 import {
+	PAD_ATTACK,
+	PAD_DECAY,
+	PAD_PITCH,
 	readInstrumentParameter,
-  PAD_ATTACK,
-  PAD_DECAY,
-  PAD_PITCH,
 	SAMPLER_AMP_ATTACK,
 	SAMPLER_AMP_DECAY,
 	SAMPLER_AMP_RELEASE,

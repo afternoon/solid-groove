@@ -52,7 +52,7 @@ export interface ProjectAudioControls {
 	 * user-gesture unlock just like `play()`.
 	 */
 	auditionPad(trackId: TrackId, padId: PadId): Promise<void>;
-  /**
+	/**
 	 * Plays one note through a track's instrument for auditioning (PRD INS-01).
 	 * Resumes the shared context behind the calling user gesture, then triggers
 	 * the sound through the track's own chain. Resolves whether a note was
@@ -370,10 +370,9 @@ export function useProjectAudio(
 			return;
 		}
 		graph?.auditionPad(trackId, padId);
+	}
 
-  }
-  
-  async function auditionTrack(
+	async function auditionTrack(
 		trackId: TrackId,
 		trigger: NoteTrigger,
 		durationTicks: number,
