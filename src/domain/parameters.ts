@@ -177,6 +177,51 @@ export const MASTER_VOLUME = register({
 	automatable: true,
 });
 
+/**
+ * Per-pad drum-machine parameters (PRD INS-01, LOOP-005).
+ *
+ * A pad's level and pan reuse the track volume/pan definitions (the mixer field
+ * carries them), so only pitch and the amp envelope are new here. Pitch is
+ * automatable playback transposition; the envelope stages are not automatable in
+ * the alpha (they reshape the amp curve of each short-lived voice, not a
+ * continuously-drawn lane).
+ */
+export const PAD_PITCH = register({
+	id: "pad.pitch",
+	label: "Pad pitch",
+	unit: "semitones",
+	min: -24,
+	max: 24,
+	defaultValue: 0,
+	step: 1,
+	clampPolicy: "clamp",
+	automatable: false,
+});
+
+export const PAD_ATTACK = register({
+	id: "pad.attack",
+	label: "Pad attack",
+	unit: "seconds",
+	min: 0,
+	max: 2,
+	defaultValue: 0.001,
+	scale: "logarithmic",
+	clampPolicy: "clamp",
+	automatable: false,
+});
+
+export const PAD_DECAY = register({
+	id: "pad.decay",
+	label: "Pad decay",
+	unit: "seconds",
+	min: 0.01,
+	max: 8,
+	defaultValue: 8,
+	scale: "logarithmic",
+	clampPolicy: "clamp",
+	automatable: false,
+});
+
 export const NOTE_VELOCITY = register({
 	id: "note.velocity",
 	label: "Velocity",

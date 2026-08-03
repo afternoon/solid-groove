@@ -39,11 +39,14 @@ describe("parameter definitions", () => {
 		expect(MASTER_VOLUME.automatable).toBe(true);
 	});
 
-	it("registers the foundation slice and LOOP-004 instrument parameters", () => {
+	it("registers exactly the parameters the alpha needs so far", () => {
 		expect([...parameterDefinitions().keys()].sort()).toEqual([
 			"master.volume",
 			"note.probability",
 			"note.velocity",
+			"pad.attack",
+			"pad.decay",
+			"pad.pitch",
 			"return.pan",
 			"return.volume",
 			"sampler.ampAttack",

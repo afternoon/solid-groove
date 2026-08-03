@@ -14,6 +14,7 @@
  */
 
 export * from "./definitions/clips";
+export * from "./definitions/drum";
 export * from "./definitions/instruments";
 export * from "./definitions/notes";
 export * from "./definitions/parameters";

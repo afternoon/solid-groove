@@ -787,4 +787,53 @@ describe("ProjectAudioGraph", () => {
 		await graph.dispose();
 		await runtime.close();
 	});
+
+	it("auditionPad triggers the named track's instrument off the transport", async () => {
+		const Tone = await import("tone");
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const transport = fakeTransport();
+		const triggered: { padId: string }[] = [];
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			// A stub instrument factory records every pad trigger, so audition can
+			// be asserted without a decoded buffer or a real Tone voice.
+			createInstrument: (instrument) => {
+				const output = new Tone.Gain(1);
+				return {
+					kind: instrument.kind,
+					output,
+					trigger(trigger) {
+						if (trigger.kind === "pad")
+							triggered.push({ padId: trigger.padId });
+					},
+					update() {},
+					dispose() {
+						output.dispose();
+					},
+				};
+			},
+		});
+		const { createDrumMachineFixtureProject } = await import(
+			"../domain/fixtures"
+		);
+		const project = createDrumMachineFixtureProject();
+		graph.reconcile(buildAudioProjection(project));
+
+		const drumTrack = project.song.tracks.find(
+			(track) => track.instrument?.kind === "drumMachine",
+		);
+		if (drumTrack?.instrument?.kind !== "drumMachine") {
+			throw new Error("fixture has no drum machine");
+		}
+		const padId = drumTrack.instrument.pads[0].id;
+
+		graph.auditionPad(drumTrack.id, padId);
+		expect(triggered).toHaveLength(1);
+		expect(triggered[0].padId).toBe(padId);
+
+		await graph.dispose();
+		// After disposal, auditioning is a no-op rather than a use-after-free.
+		expect(() => graph.auditionPad(drumTrack.id, padId)).not.toThrow();
+		await runtime.close();
+	});
 });

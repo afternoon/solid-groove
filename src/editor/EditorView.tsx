@@ -32,6 +32,7 @@ import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import DrumMachinePanel from "./DrumMachinePanel";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
@@ -152,6 +153,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		shortcutLabel(action, shortcuts.platform);
 
 	const track = createMemo(() => project()?.song.tracks[0] ?? null);
+	// The first drum-machine track, if any, gets its instrument panel. The
+	// `FND-009` starter is sampler-only; this surfaces the `LOOP-005` drum
+	// machine wherever a project has one (e.g. the drum-machine fixture).
+	const drumTrack = createMemo(
+		() =>
+			project()?.song.tracks.find(
+				(candidate) => candidate.instrument?.kind === "drumMachine",
+			) ?? null,
+	);
+	const sampleAssets = createMemo(() =>
+		(project()?.song.assets ?? []).filter((asset) => asset.kind === "sample"),
+	);
 	const clip = createMemo(() => {
 		const currentProject = project();
 		const currentTrack = track();
@@ -410,6 +423,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								</div>
 							</header>
 							<div class="workspace">
+								<Show when={drumTrack()}>
+									{(drum) => (
+										<div class="drum-machine-editor">
+											<div class="track-info">
+												<span class="track-name">{drum().name}</span>
+											</div>
+											<DrumMachinePanel
+												track={drum()}
+												assets={sampleAssets()}
+												dispatch={session.dispatch}
+												audition={(padId) =>
+													void audio.auditionPad(drum().id, padId)
+												}
+											/>
+										</div>
+									)}
+								</Show>
 								<Show
 									when={clip()}
 									fallback={

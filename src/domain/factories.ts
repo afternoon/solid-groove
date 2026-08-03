@@ -196,6 +196,7 @@ export function createDrumPad(
 			volume: TRACK_VOLUME.defaultValue,
 			pan: TRACK_PAN.defaultValue,
 			muted: false,
+			soloed: false,
 		},
 	};
 }

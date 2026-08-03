@@ -212,7 +212,7 @@ describe("createInstrumentNode", () => {
 				assetId,
 				chokeGroup: null,
 				parameters: {},
-				mixer: { volume: 0, pan: 0, muted: false },
+				mixer: { volume: 0, pan: 0, muted: false, soloed: false },
 			};
 		}
 
@@ -266,7 +266,7 @@ describe("createInstrumentNode", () => {
 				assetId: assetA,
 				chokeGroup: null,
 				parameters: {},
-				mixer: { volume: 0, pan: 0, muted: false },
+				mixer: { volume: 0, pan: 0, muted: false, soloed: false },
 			};
 		}
 
@@ -313,6 +313,219 @@ describe("createInstrumentNode", () => {
 		expect(runtime.diagnostics().resources.total).toBe(0);
 
 		await runtime.close();
+	});
+
+	describe("drumMachine playback", () => {
+		/** A loader that hands back a real, short `ToneAudioBuffer` so a pad
+		 * trigger builds and plays an actual `Tone.Player`. */
+		async function realBufferContext(
+			scope: import("./AudioRuntime").AudioProjectScope,
+		) {
+			const Tone = await import("tone");
+			const loader = {
+				async load() {
+					return Tone.ToneAudioBuffer.fromArray(new Float32Array(4_410));
+				},
+			};
+			const assetsById = new Map<AssetId, AudioAssetProjection>();
+			const bufferCache = new AudioBufferCacheModule.AudioBufferCache(
+				loader as unknown as import("./AudioBufferCache").AssetBufferLoader<
+					import("tone").ToneAudioBuffer
+				>,
+			);
+			return { context: { scope, assetsById, bufferCache }, assetsById, Tone };
+		}
+
+		function drumPad(
+			id: PadId,
+			assetId: AssetId,
+			overrides: Partial<DrumPad> = {},
+		): DrumPad {
+			return {
+				id,
+				name: id,
+				assetId,
+				chokeGroup: null,
+				parameters: {},
+				mixer: { volume: 0, pan: 0, muted: false, soloed: false },
+				...overrides,
+			};
+		}
+
+		it("a hit builds a short-lived player that self-disposes on stop, leaving no leak", async () => {
+			const runtime = new AudioRuntimeModule.AudioRuntime();
+			const scope = runtime.openProjectScope("p");
+			const { context, assetsById, Tone } = await realBufferContext(scope);
+			const assetId = ids("asset");
+			assetsById.set(assetId, asset(assetId));
+			const padId = ids("pad");
+
+			const node = InstrumentGraphModule.createInstrumentNode(
+				{
+					kind: "drumMachine",
+					pads: [drumPad(padId, assetId)],
+					parameters: {},
+				},
+				context,
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const disposeSpy = vi.spyOn(Tone.Player.prototype, "dispose");
+			try {
+				node.trigger({ kind: "pad", padId }, 0, "16n", 0.8);
+				// Trigger it a few more times; every voice is independent.
+				node.trigger({ kind: "pad", padId }, 0, "16n", 0.8);
+				node.trigger({ kind: "pad", padId }, 0, "16n", 0.8);
+				// A no-op trigger for an unknown pad must not throw or build a voice.
+				expect(() =>
+					node.trigger({ kind: "pad", padId: ids("pad") }, 0, "16n", 0.8),
+				).not.toThrow();
+			} finally {
+				disposeSpy.mockRestore();
+			}
+
+			// Disposing the node tears down its strips; nothing is left registered.
+			node.dispose();
+			await Promise.resolve();
+			expect(runtime.diagnostics().resources.total).toBe(0);
+			await runtime.close();
+		});
+
+		it("choke: a pad silences an earlier voice in the same choke group", async () => {
+			const runtime = new AudioRuntimeModule.AudioRuntime();
+			const scope = runtime.openProjectScope("p");
+			const { context, assetsById, Tone } = await realBufferContext(scope);
+			const openHat = ids("asset");
+			const closedHat = ids("asset");
+			assetsById.set(openHat, asset(openHat));
+			assetsById.set(closedHat, asset(closedHat));
+			const openId = ids("pad");
+			const closedId = ids("pad");
+
+			const node = InstrumentGraphModule.createInstrumentNode(
+				{
+					kind: "drumMachine",
+					pads: [
+						drumPad(openId, openHat, { chokeGroup: 0 }),
+						drumPad(closedId, closedHat, { chokeGroup: 0 }),
+					],
+					parameters: {},
+				},
+				context,
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const stopSpy = vi.spyOn(Tone.Player.prototype, "stop");
+			try {
+				// The open hat rings, then the closed hat in the same group fires.
+				node.trigger({ kind: "pad", padId: openId }, 0, "2n", 0.8);
+				const stopsBefore = stopSpy.mock.calls.length;
+				node.trigger({ kind: "pad", padId: closedId }, 0.1, "16n", 0.8);
+				// The open hat's still-sounding voice was explicitly stopped by the
+				// choke — an extra stop beyond the closed hat's own scheduled one.
+				expect(stopSpy.mock.calls.length).toBeGreaterThan(stopsBefore);
+			} finally {
+				stopSpy.mockRestore();
+			}
+
+			node.dispose();
+			await runtime.close();
+		});
+
+		it("mute wins over solo: a muted-and-soloed pad stays silent while another pad is soloed", async () => {
+			const runtime = new AudioRuntimeModule.AudioRuntime();
+			const scope = runtime.openProjectScope("p");
+			const { context, assetsById, Tone } = await realBufferContext(scope);
+			const a = ids("asset");
+			const b = ids("asset");
+			assetsById.set(a, asset(a));
+			assetsById.set(b, asset(b));
+			const mutedSoloed = ids("pad");
+			const soloed = ids("pad");
+			const plain = ids("pad");
+
+			const node = InstrumentGraphModule.createInstrumentNode(
+				{
+					kind: "drumMachine",
+					pads: [
+						drumPad(mutedSoloed, a, {
+							mixer: { volume: 0, pan: 0, muted: true, soloed: true },
+						}),
+						drumPad(soloed, b, {
+							mixer: { volume: 0, pan: 0, muted: false, soloed: true },
+						}),
+						drumPad(plain, a, {
+							mixer: { volume: 0, pan: 0, muted: false, soloed: false },
+						}),
+					],
+					parameters: {},
+				},
+				context,
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const startSpy = vi.spyOn(Tone.Player.prototype, "start");
+			try {
+				// The muted+soloed pad produces no voice (mute wins).
+				node.trigger({ kind: "pad", padId: mutedSoloed }, 0, "16n", 0.8);
+				expect(startSpy).not.toHaveBeenCalled();
+
+				// A soloed, un-muted pad plays.
+				node.trigger({ kind: "pad", padId: soloed }, 0, "16n", 0.8);
+				expect(startSpy).toHaveBeenCalledTimes(1);
+
+				// A non-soloed, un-muted pad is silenced while any pad is soloed.
+				node.trigger({ kind: "pad", padId: plain }, 0, "16n", 0.8);
+				expect(startSpy).toHaveBeenCalledTimes(1);
+			} finally {
+				startSpy.mockRestore();
+			}
+
+			node.dispose();
+			await runtime.close();
+		});
+
+		it("pad pitch is applied as a playback-rate offset on the triggered voice", async () => {
+			const runtime = new AudioRuntimeModule.AudioRuntime();
+			const scope = runtime.openProjectScope("p");
+			const { context, assetsById, Tone } = await realBufferContext(scope);
+			const assetId = ids("asset");
+			assetsById.set(assetId, asset(assetId));
+			const padId = ids("pad");
+
+			const node = InstrumentGraphModule.createInstrumentNode(
+				{
+					kind: "drumMachine",
+					// +12 semitones => one octave up => playback rate 2.
+					pads: [drumPad(padId, assetId, { parameters: { pitch: 12 } })],
+					parameters: {},
+				},
+				context,
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const rates: number[] = [];
+			const startSpy = vi
+				.spyOn(Tone.Player.prototype, "start")
+				.mockImplementation(function mocked(this: import("tone").Player) {
+					rates.push(this.playbackRate);
+					return this as never;
+				});
+			try {
+				node.trigger({ kind: "pad", padId }, 0, "16n", 0.8);
+				expect(rates).toHaveLength(1);
+				expect(rates[0]).toBeCloseTo(2, 5);
+			} finally {
+				startSpy.mockRestore();
+			}
+
+			node.dispose();
+			await runtime.close();
+		});
 	});
 });
 
