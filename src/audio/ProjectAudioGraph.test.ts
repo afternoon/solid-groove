@@ -6,7 +6,11 @@ import {
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
-import { TICKS_PER_SIXTEENTH, ticksToSeconds } from "../domain/time";
+import {
+	TICKS_PER_BAR,
+	TICKS_PER_SIXTEENTH,
+	ticksToSeconds,
+} from "../domain/time";
 import { buildAudioProjection } from "../projection/audioProjection";
 import { installWebAudioGlobals } from "./testAudioContext";
 import { UnderrunMonitor } from "./underrun";
@@ -59,6 +63,62 @@ function fakeTransport(): import("./ProjectAudioGraph").AudioTransport & {
 			cleared.push(id);
 			scheduled.delete(id);
 			callbacks.delete(id);
+		},
+	};
+}
+
+/**
+ * A transport double that actually *runs*: it models enough of
+ * `Tone.Transport` to play a tick range at a tempo and report what fired and
+ * at what audio time, so musical alignment across seek, tempo change, and
+ * repeated loop passes is assertable without a clock or a Tone context.
+ *
+ * `clockSeconds` accumulates across passes exactly as the audio clock would, so
+ * an alignment error that only shows up as *accumulating* drift (rather than a
+ * single wrong offset) is visible in the absolute times it returns.
+ */
+function simulatedTransport(): import("./ProjectAudioGraph").AudioTransport & {
+	scheduledTicks(): number[];
+	runRange(
+		fromTicks: number,
+		toTicks: number,
+		tempo: number,
+	): { ticks: number; time: number }[];
+} {
+	let nextId = 1;
+	let clockSeconds = 0;
+	const events = new Map<
+		number,
+		{ ticks: number; callback: (time: number) => void }
+	>();
+	return {
+		bpm: { value: 120 },
+		schedule(callback, time) {
+			const id = nextId++;
+			events.set(id, { ticks: Number(time.replace(/i$/, "")), callback });
+			return id;
+		},
+		clear(id) {
+			events.delete(id);
+		},
+		scheduledTicks() {
+			return [...events.values()]
+				.map((event) => event.ticks)
+				.sort((a, b) => a - b);
+		},
+		runRange(fromTicks, toTicks, tempo) {
+			const fired: { ticks: number; time: number }[] = [];
+			const due = [...events.values()]
+				.filter((event) => event.ticks >= fromTicks && event.ticks < toTicks)
+				.sort((a, b) => a.ticks - b.ticks);
+			for (const event of due) {
+				const time =
+					clockSeconds + ticksToSeconds(event.ticks - fromTicks, tempo);
+				event.callback(time);
+				fired.push({ ticks: event.ticks, time });
+			}
+			clockSeconds += ticksToSeconds(toTicks - fromTicks, tempo);
+			return fired;
 		},
 	};
 }
@@ -203,6 +263,121 @@ describe("ProjectAudioGraph", () => {
 				.sort(),
 		);
 		expect(graph.diagnostics().scheduledPlacements).toBe(1);
+
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("keeps every event aligned across seek, tempo change, and repeated loop passes (PRD AUD-01/AUD-02)", async () => {
+		const project = createSliceFixtureProject();
+		const transport = simulatedTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+		});
+
+		const beats = [0, 4, 8, 12].map(
+			(sixteenth) => sixteenth * TICKS_PER_SIXTEENTH,
+		);
+		const before = buildAudioProjection(project);
+		graph.reconcile(before);
+
+		// A whole bar from the top: every note fires once, in order, one beat apart.
+		const pass1 = transport.runRange(0, TICKS_PER_BAR, 120);
+		expect(pass1.map((event) => event.ticks)).toEqual(beats);
+		expect(pass1.map((event) => event.time)).toEqual([0, 0.5, 1, 1.5]);
+
+		// Seek to beat 3: only the events at or after the seek point fire, each
+		// still at its own musical position relative to where playback resumed.
+		// Nothing already passed is replayed and nothing is shifted.
+		const afterSeek = transport.runRange(
+			8 * TICKS_PER_SIXTEENTH,
+			TICKS_PER_BAR,
+			120,
+		);
+		expect(afterSeek.map((event) => event.ticks)).toEqual(beats.slice(2));
+		expect(afterSeek.map((event) => event.time)).toEqual([2, 2.5]);
+
+		// Tempo change mid-playback. `syncSchedule` releases and re-derives every
+		// event of the placement when the tempo moves, so this is exactly where a
+		// duplicate or a dropped event would appear.
+		const retimed: Project = {
+			...project,
+			song: { ...project.song, tempo: 60 },
+		};
+		graph.reconcile(buildAudioProjection(retimed, before));
+
+		// Musical positions are tempo-independent — the schedule is keyed to ticks,
+		// so the same four events exist, once each, at the same ticks.
+		expect(transport.scheduledTicks()).toEqual(beats);
+		expect(graph.diagnostics().scheduledPlacements).toBe(1);
+
+		// ...and they now sound one second apart rather than half a second, without
+		// the playhead moving or the song restarting.
+		const pass2 = transport.runRange(0, TICKS_PER_BAR, 60);
+		expect(pass2.map((event) => event.ticks)).toEqual(beats);
+		expect(pass2.map((event) => event.time)).toEqual([3, 4, 5, 6]);
+
+		// Repeated loop passes over the same bar: each pass fires each event
+		// exactly once, and consecutive passes stay exactly one bar apart — no
+		// accumulating drift and no duplicate trigger at the boundary (PRD AUD-02).
+		const passes = [
+			transport.runRange(0, TICKS_PER_BAR, 60),
+			transport.runRange(0, TICKS_PER_BAR, 60),
+			transport.runRange(0, TICKS_PER_BAR, 60),
+		];
+		for (const pass of passes) {
+			expect(pass.map((event) => event.ticks)).toEqual(beats);
+		}
+		const barSeconds = ticksToSeconds(TICKS_PER_BAR, 60);
+		expect(passes[1][0].time - passes[0][0].time).toBeCloseTo(barSeconds, 10);
+		expect(passes[2][0].time - passes[1][0].time).toBeCloseTo(barSeconds, 10);
+
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("measures underruns against the audio clock, not Tone.now(), so healthy ahead-of-time dispatch is never a drop (PRD AUD-03/OPS-02)", async () => {
+		const Tone = await import("tone");
+		const project = createSliceFixtureProject();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+
+		const reports: unknown[] = [];
+		const monitor = new UnderrunMonitor({
+			contextSampleRate: 48_000,
+			samplingRate: 1,
+			emit: (report) => reports.push(report),
+		});
+		// Deliberately no `now` override: this pins the *default* clock source
+		// against the `time` argument a scheduled callback actually receives, so
+		// the tolerance and the clock cannot drift apart.
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			underrunMonitor: monitor,
+		});
+		graph.reconcile(buildAudioProjection(project));
+		const callbacks = [...transport.callbacks.values()];
+		expect(callbacks.length).toBeGreaterThan(2);
+
+		// Tone's `Clock._loop` dispatches every event whose intended time falls in
+		// `(lastUpdate, currentTime + lookAhead]`. Both ends of that window are
+		// healthy, ahead-of-time playback. The upper end is `Tone.now()` itself —
+		// the case a `Tone.now()`-based clock would score as a drop on *every*
+		// event, turning `audio_underrun` into per-note telemetry.
+		// `updateInterval` is on the concrete `Context`, not the `BaseContext`
+		// `getContext()` is typed as; the runtime installs a real one.
+		const context = Tone.getContext() as import("tone").Context;
+		callbacks[0]?.(context.currentTime + context.lookAhead);
+		callbacks[1]?.(
+			context.currentTime + context.lookAhead - context.updateInterval,
+		);
+		expect(reports).toEqual([]);
+
+		// A genuinely late dispatch — the audio clock is already a second past the
+		// intended time — is still reported.
+		callbacks[2]?.(context.currentTime - 1);
+		expect(reports).toHaveLength(1);
 
 		await graph.dispose();
 		await runtime.close();

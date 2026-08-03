@@ -90,18 +90,19 @@ test.describe("foundation vertical slice", () => {
 		// pack dependency — still runs in both gating browsers, and only the two
 		// playback assertions are Chromium-only.
 		//
-		// The underlying question is a real product one and is filed, not dropped:
-		// if Firefox leaves `resume()` pending when it blocks, a real user gets a
-		// dead play button and no `audio_start_failed`, which undercuts `AUD-07`.
-		// That is tracked on `LOOP-003` (#43), which owns transport and
-		// user-gesture unlock across supported browsers, with `HARD-001` owning
-		// the real-hardware cross-browser pass. Restore this guard to unconditional
-		// once #43 lands.
+		// `LOOP-003` (#43) fixed the half of this that was a product bug: the
+		// unlock is now bounded by a timeout, so a never-settling `resume()`
+		// rejects and Firefox emits `audio_start_failed` with the browser-blocked
+		// flag rather than nothing at all (`AUD-07`). It does not make Firefox
+		// play, so this guard stays: a bounded failure is still a failure. Why
+		// Firefox refuses the unlock here is a real-browser-policy question and is
+		// `HARD-001`'s cross-browser pass. See docs/testing.md, "Playback is
+		// asserted in Chromium only".
 		test.info().annotations.push({
 			type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
 			description: canAssertPlayback
 				? `playback asserted in ${browserName}`
-				: `playback not asserted in ${browserName}: AudioContext.resume() never settles here — see LOOP-003 (#43)`,
+				: `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
 		});
 
 		if (canAssertPlayback) {

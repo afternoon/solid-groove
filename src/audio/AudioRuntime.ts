@@ -93,6 +93,10 @@ export interface AudioDiagnostics {
  */
 export interface AudioHost {
 	getDestination(): Tone.ToneAudioNode;
+	/** The live context's sample rate, in Hz. Asked of the host rather than read
+	 * off `Tone.getContext()` so a consumer given a fake host never silently
+	 * reaches past it to the global context (PRD AUD-07). */
+	getSampleRate(): number;
 	resume(): Promise<void>;
 	openProjectScope(ownerId: string): AudioProjectScope;
 }
@@ -170,6 +174,12 @@ export class AudioRuntime implements AudioHost {
 	getDestination(): Tone.ToneAudioNode {
 		this.ensureContext();
 		return Tone.getDestination();
+	}
+
+	/** The live context's sample rate, in Hz (PRD OPS-02 records it on
+	 * `audio_underrun`). */
+	getSampleRate(): number {
+		return this.ensureContext().sampleRate;
 	}
 
 	/**

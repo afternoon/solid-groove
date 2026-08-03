@@ -148,6 +148,43 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
 		expect(transport.positionTicks).toBe(2 * TICKS_PER_BAR);
 	});
 
+	it("continueFromStop resumes at the position stop() rewound from", () => {
+		const engine = fakeEngine();
+		const transport = new TransportModule.TransportController({ engine });
+
+		transport.play();
+		engine.ticks = 6 * TICKS_PER_QUARTER;
+		transport.stop();
+		// Stop rewound the playhead, which is what makes Shift+Space distinct from
+		// Space: the position it stopped at is remembered, not lost.
+		expect(transport.positionTicks).toBe(0);
+
+		transport.continueFromStop();
+		expect(transport.positionTicks).toBe(6 * TICKS_PER_QUARTER);
+		expect(transport.isPlaying).toBe(true);
+		expect(engine.startCalls).toBe(2);
+	});
+
+	it("continueFromStop resumes in place after a pause, and is a no-op while playing", () => {
+		const engine = fakeEngine();
+		const transport = new TransportModule.TransportController({ engine });
+
+		transport.play();
+		engine.ticks = 3 * TICKS_PER_QUARTER;
+		transport.pause();
+
+		// Pause never moved the playhead, so there is nothing to restore.
+		transport.continueFromStop();
+		expect(transport.positionTicks).toBe(3 * TICKS_PER_QUARTER);
+		expect(engine.startCalls).toBe(2);
+
+		// Already running: continue neither restarts nor rewinds.
+		engine.ticks = 9 * TICKS_PER_QUARTER;
+		transport.continueFromStop();
+		expect(engine.startCalls).toBe(2);
+		expect(transport.positionTicks).toBe(9 * TICKS_PER_QUARTER);
+	});
+
 	it("seekTicks moves the playhead without changing the run state", () => {
 		const engine = fakeEngine();
 		const transport = new TransportModule.TransportController({ engine });

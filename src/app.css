@@ -94,3 +94,18 @@ p.loading {
 p.error {
 	color: var(--color-error);
 }
+
+/* Content that is available to assistive technology but not painted — a
+   label for a control whose meaning is otherwise carried only by position or
+   an icon. Shared: any surface may use it. */
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}

@@ -351,12 +351,14 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
 
 	it("shows the fixed 4/4 time signature and a starting playhead", async () => {
 		await renderSlice();
+		// Both are plain text with a visually hidden prefix naming them, rather
+		// than a role="img" whose aria-label repeats the text it already contains.
 		expect(
-			screen.getByRole("img", { name: "Time signature 4/4" }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("img", { name: "Playhead at bar 1.1" }),
-		).toBeInTheDocument();
+			screen.getByTitle("Time signature (fixed at 4/4)"),
+		).toHaveTextContent("Time signature 4/4");
+		expect(screen.getByTitle("Playhead (bar.beat)")).toHaveTextContent(
+			"Playhead at bar 1.1",
+		);
 	});
 
 	it("toggles the loop and the metronome, reflecting their pressed state", async () => {
@@ -390,6 +392,10 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
 			name: "Undo Set Tempo to 240 BPM",
 		});
 		expect(undo).not.toBeDisabled();
+		// The input reads back from `song.tempo`, so the displayed value proves the
+		// command is the path the tempo travelled — this surface never writes it a
+		// second time straight onto the transport.
+		expect(tempo).toHaveValue(240);
 	});
 
 	it("the metronome shortcut O toggles the click from the keyboard", async () => {

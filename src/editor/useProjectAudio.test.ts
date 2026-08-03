@@ -51,6 +51,9 @@ function unreachableAudioHost(resume: () => Promise<void>): AudioHost {
 		getDestination: () => {
 			throw new Error("not reachable in this test");
 		},
+		getSampleRate: () => {
+			throw new Error("not reachable in this test");
+		},
 		resume,
 		openProjectScope: (): AudioProjectScope => {
 			throw new Error("not reachable in this test");
@@ -196,6 +199,34 @@ describe("useProjectAudio", () => {
 		expect(failures[0]?.params.error_code).toBe("autoplay_blocked");
 		// A blocked unlock is never reported as a play.
 		expect(transport.named("transport_play")).toHaveLength(0);
+	});
+
+	it("continueFromStop goes through the same bounded unlock and reports one play", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		let resumed = 0;
+		const runtime = unreachableAudioHost(() => {
+			resumed += 1;
+			return Promise.resolve();
+		});
+
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		await result.play();
+		result.stop();
+		// Shift+Space is a start-playback gesture too, so it unlocks the context
+		// and reports exactly like Space does — one resume, one transport_play.
+		await result.continueFromStop();
+
+		expect(resumed).toBe(2);
+		expect(result.isPlaying()).toBe(true);
+		expect(transport.named("transport_play")).toHaveLength(2);
 	});
 
 	it("builds a real audio graph for the loaded project and disposes it without leaking resources when the owner unmounts", async () => {

@@ -53,6 +53,24 @@ const liveTransport: AudioTransport = {
 	},
 };
 
+/**
+ * The audio clock the underrun monitor compares a scheduled event's intended
+ * time against: the context's *true* current time, not `Tone.now()`.
+ *
+ * This distinction is the whole measurement. `Tone.now()` is
+ * `currentTime + lookAhead` (default 0.1s), and Tone's `Clock._loop` dispatches
+ * every event whose time falls in `(lastUpdate, Tone.now()]` — so inside a
+ * scheduled callback, `Tone.now() >= intendedTime` *always*, on perfectly
+ * healthy playback. Comparing against it would count most events as drops and
+ * turn `audio_underrun` into per-note telemetry, exactly what PRD OPS-02
+ * forbids. `immediate()` is `currentTime`, which at dispatch sits a whole
+ * lookahead window (50-100ms with Tone's defaults) *before* the intended time
+ * and only passes it on a genuinely late dispatch.
+ */
+export function audioClockNow(): number {
+	return Tone.getContext().immediate();
+}
+
 export interface ProjectAudioGraphOptions {
 	transport?: AudioTransport;
 	bufferLoader?: AssetBufferLoader<Tone.ToneAudioBuffer>;
@@ -66,7 +84,8 @@ export interface ProjectAudioGraphOptions {
 	 * measured.
 	 */
 	underrunMonitor?: UnderrunMonitor;
-	/** The current audio time, in seconds. Defaults to `Tone.now()`; injectable for tests. */
+	/** The current audio time, in seconds. Defaults to {@link audioClockNow};
+	 * injectable for tests. */
 	now?: () => number;
 }
 
@@ -127,7 +146,7 @@ export class ProjectAudioGraph {
 		this.createInstrument = options.createInstrument;
 		this.createDeviceNode = options.createDeviceNode;
 		this.underrunMonitor = options.underrunMonitor;
-		this.now = options.now ?? (() => Tone.now());
+		this.now = options.now ?? audioClockNow;
 		this.master = new MasterAudioGraph(
 			this.scope,
 			this.runtime.getDestination(),

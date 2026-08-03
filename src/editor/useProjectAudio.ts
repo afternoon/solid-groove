@@ -1,5 +1,4 @@
 import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
-import * as Tone from "tone";
 import {
 	type Analytics,
 	analytics as defaultAnalytics,
@@ -32,9 +31,17 @@ export interface ProjectAudioControls {
 	pause(): void;
 	stop(): void;
 	toggle(): Promise<void>;
+	/** Resume from where playback last stopped (KEY-01 `transport.continue`). */
+	continueFromStop(): Promise<void>;
 	seekTicks(ticks: number): void;
-	/** Mirror the song's tempo (already written by a command) onto the transport. */
-	setTempo(bpm: number): void;
+	/**
+	 * Redefine the (bar-aligned) loop range. No surface calls this yet: the
+	 * `FND-009` slice renders a 16-step grid and no timeline, so there is nothing
+	 * to drag a range on — the loop is the one bar the grid shows. The range
+	 * *selection* UI belongs with the timeline that owns range select and range
+	 * loop (`ARR-002`); `setLoop`/`barAlignedLoop` are the engine side of it and
+	 * are exercised by `Transport.test.ts`.
+	 */
 	setLoop(startTicks: number, endTicks: number): void;
 	toggleLoop(): void;
 	toggleMetronome(): void;
@@ -44,8 +51,6 @@ export interface UseProjectAudioOptions {
 	/** Defaults to the application's single `AudioRuntime`; injectable for tests. */
 	readonly runtime?: AudioHost;
 	readonly analytics?: Analytics;
-	/** Surface the play originated from, for `transport_play` (PRD OPS-02). */
-	readonly surface?: "editor" | "dashboard" | "landing";
 	/** Overrides the animation-frame scheduler used to advance the playhead. */
 	readonly requestFrame?: (callback: () => void) => number;
 	readonly cancelFrame?: (handle: number) => void;
@@ -139,7 +144,7 @@ export function useProjectAudio(
 
 	function underrunMonitor(): UnderrunMonitor {
 		return new UnderrunMonitor({
-			contextSampleRate: Tone.getContext().sampleRate,
+			contextSampleRate: runtime.getSampleRate(),
 			emit: (report) => {
 				analytics.log("audio_underrun", {
 					dropped_event_bucket: report.droppedEventBucket,
@@ -173,9 +178,10 @@ export function useProjectAudio(
 				graph.masterInput,
 			);
 			transport = new TransportController({ metronome });
-			// A fresh project defaults to a one-bar loop at the start; enabling it
-			// is a user gesture, but the range is ready so the first toggle needs no
-			// separate selection step.
+			// The slice's loop is the one bar its 16-step grid shows. Enabling it is
+			// a user gesture, but the range is fixed here rather than selected:
+			// there is no timeline to drag a range on until `ARR-002`, which owns
+			// range select and range loop. See `setLoop` on the controls above.
 			transport.setLoop(0, TICKS_PER_BAR);
 			setLoop(transport.loop);
 			setLoopEnabled(false);
@@ -251,14 +257,22 @@ export function useProjectAudio(
 		});
 	}
 
-	async function play(): Promise<void> {
+	/**
+	 * The one start path, shared by `play()` and `continueFromStop()`: unlock the
+	 * context behind the user gesture, start the transport the caller asked for,
+	 * then report it. Both mappings are a "start playback" gesture, so both must
+	 * unlock and both emit exactly one `transport_play`.
+	 */
+	async function startPlayback(
+		startTransport: (controller: TransportController) => void,
+	): Promise<void> {
 		try {
 			// Resuming the shared context is the runtime's job; this call site is
 			// the allowed user gesture that permits it (PRD AUD-07). The unlock is
 			// bounded: a browser that never settles the resume is treated as a
 			// blocked autoplay, not left to hang the play button forever (#43).
 			await resumeWithinTimeout();
-			transport?.play();
+			if (transport) startTransport(transport);
 			analytics.log("transport_play", {
 				is_first_play_in_session: firstPlayInSession,
 			});
@@ -274,6 +288,14 @@ export function useProjectAudio(
 			reportError(error, { area: "audio", fatal: false, code });
 			setIsPlaying(false);
 		}
+	}
+
+	function play(): Promise<void> {
+		return startPlayback((controller) => controller.play());
+	}
+
+	function continueFromStop(): Promise<void> {
+		return startPlayback((controller) => controller.continueFromStop());
 	}
 
 	function pause(): void {
@@ -302,10 +324,6 @@ export function useProjectAudio(
 		setPositionTicks(transport?.positionTicks ?? 0);
 	}
 
-	function setTempo(bpm: number): void {
-		transport?.setTempo(bpm);
-	}
-
 	function setLoopRange(startTicks: number, endTicks: number): void {
 		const range = transport?.setLoop(startTicks, endTicks);
 		if (range) setLoop(range);
@@ -331,8 +349,8 @@ export function useProjectAudio(
 		pause,
 		stop,
 		toggle,
+		continueFromStop,
 		seekTicks,
-		setTempo,
 		setLoop: setLoopRange,
 		toggleLoop,
 		toggleMetronome,

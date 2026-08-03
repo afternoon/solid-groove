@@ -268,6 +268,9 @@ export class TransportController {
 	private readonly engine: TransportEngine;
 	private readonly metronome: Metronome | null;
 	private loopRange: LoopRange | null = null;
+	/** Where the playhead was when `stop()` last ran, so `continueFromStop()`
+	 * can resume there rather than from the position `stop()` rewound to. */
+	private stoppedAtTicks = 0;
 
 	constructor(options: TransportControllerOptions = {}) {
 		this.engine = options.engine ?? liveTransportEngine;
@@ -312,13 +315,30 @@ export class TransportController {
 	/**
 	 * Stop and return the playhead to the loop start when looping, or to the
 	 * arrangement start otherwise (PRD AUD-01: "returns to the expected position
-	 * on stop").
+	 * on stop"). The pre-rewind position is remembered for
+	 * {@link continueFromStop}.
 	 */
 	stop(): void {
+		this.stoppedAtTicks = this.positionTicks;
 		this.engine.stop();
 		this.engine.ticks = this.engine.loop
 			? (this.loopRange?.startTicks ?? 0)
 			: 0;
+	}
+
+	/**
+	 * Resume from where playback last stopped — the KEY-01 `transport.continue`
+	 * mapping (Shift+Space), which is what distinguishes it from play/stop.
+	 * After `stop()` rewound the playhead, this returns it to the remembered
+	 * position; after `pause()` (which never moved it) it simply resumes in
+	 * place. Already-running playback is left alone.
+	 */
+	continueFromStop(): void {
+		if (this.isPlaying) return;
+		if (this.engine.state === "stopped") {
+			this.engine.ticks = this.stoppedAtTicks;
+		}
+		this.engine.start();
 	}
 
 	/** Move the playhead without changing whether the transport is running. A

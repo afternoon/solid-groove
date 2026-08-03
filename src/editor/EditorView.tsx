@@ -78,23 +78,26 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	);
 
 	const project = createMemo(() => session.state.project);
-	const audio = useProjectAudio(project, { surface: "editor" });
+	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
 
 	// Tempo is written by a validated command (song.tempo), clamped to the
-	// AUD-02 40-240 BPM supported range at this surface, then mirrored onto the
-	// transport so a running song re-times without restarting.
+	// AUD-02 40-240 BPM supported range at this surface. The command is the only
+	// path: `useProjectAudio` mirrors `song.tempo` onto the transport on every
+	// project change, so a running song re-times without restarting and without
+	// this surface writing the tempo a second time.
 	const tempo = createMemo(
 		() => project()?.song.tempo ?? SONG_TEMPO.defaultValue,
 	);
 	const timeSignature = createMemo(() => project()?.song.timeSignature ?? null);
 	const applyTempo = (value: number) => {
 		if (!Number.isFinite(value)) return;
-		const clamped = clampTempo(value);
 		session.dispatch(
-			setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, clamped),
+			setParameter(
+				{ scope: "song", parameterId: SONG_TEMPO.id },
+				clampTempo(value),
+			),
 		);
-		audio.setTempo(clamped);
 	};
 
 	const playheadLabel = createMemo(() => {
@@ -109,12 +112,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	// implement yet simply has no handler and never fires.
 	const handlers = (): ShortcutHandlers => ({
 		"transport.play_stop": { run: () => void audio.toggle() },
-		"transport.continue": {
-			run: () => {
-				if (audio.isPlaying()) audio.pause();
-				else void audio.play();
-			},
-		},
+		// Shift+Space resumes from where playback last stopped, exactly as the
+		// registry describes it — not a second play/stop toggle.
+		"transport.continue": { run: () => void audio.continueFromStop() },
 		"transport.metronome": { run: () => audio.toggleMetronome() },
 		"edit.undo": {
 			run: () => session.undo(),
@@ -285,39 +285,42 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									>
 										<HiSolidMusicalNote size={18} />
 									</button>
-									<label class="tempo-control">
-										<span class="visually-hidden">Tempo (BPM)</span>
+									<div class="tempo-control">
+										{/* The label is the input's only accessible name — no
+										    aria-label to override it — and the unit is decorative
+										    text the name already carries. */}
+										<label class="visually-hidden" for="tempo-input">
+											Tempo (BPM)
+										</label>
 										<input
+											id="tempo-input"
 											type="number"
 											class="tempo-input"
 											min={MIN_TEMPO_BPM}
 											max={MAX_TEMPO_BPM}
 											step={1}
 											value={tempo()}
-											aria-label="Tempo (BPM)"
 											onChange={(event) =>
 												applyTempo(event.currentTarget.valueAsNumber)
 											}
 										/>
-										<span class="tempo-unit">BPM</span>
-									</label>
+										<span class="tempo-unit" aria-hidden="true">
+											BPM
+										</span>
+									</div>
 									<Show when={timeSignature()}>
 										{(signature) => (
 											<span
 												class="time-signature"
-												role="img"
-												aria-label={`Time signature ${signature().numerator}/${signature().denominator}`}
 												title="Time signature (fixed at 4/4)"
 											>
+												<span class="visually-hidden">Time signature </span>
 												{signature().numerator}/{signature().denominator}
 											</span>
 										)}
 									</Show>
-									<span
-										class="playhead-position"
-										role="img"
-										aria-label={`Playhead at bar ${playheadLabel()}`}
-									>
+									<span class="playhead-position" title="Playhead (bar.beat)">
+										<span class="visually-hidden">Playhead at bar </span>
 										{playheadLabel()}
 									</span>
 								</div>
