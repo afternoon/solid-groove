@@ -42,8 +42,8 @@ jobs:
           # checkout.
           fetch-depth: 0
 
-      # Bun + null ALSA device, shared with claude-tasks.yml. See the composite
-      # action for why the audio device is mandatory, not convenience.
+      # Bun + null ALSA device. See the composite action for why the audio
+      # device is mandatory, not convenience.
       - uses: ./.github/actions/claude-env
 
       - name: Run Claude Code
