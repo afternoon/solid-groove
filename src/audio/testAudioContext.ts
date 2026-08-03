@@ -1,4 +1,5 @@
 import * as nwaa from "node-web-audio-api";
+import { installWebAudioTeardownGuard } from "./testAudioTeardown";
 
 /**
  * jsdom has no Web Audio API, so Tone.js cannot render. `node-web-audio-api`
@@ -9,6 +10,11 @@ import * as nwaa from "node-web-audio-api";
  * Call this once, before importing Tone, to enable offline rendering.
  */
 export function installWebAudioGlobals(): void {
+	// Native `ended` events from `node-web-audio-api` can fire after jsdom is
+	// torn down; guard against that one teardown-race artifact. See
+	// `testAudioTeardown.ts`.
+	installWebAudioTeardownGuard();
+
 	const classes = [
 		"AudioContext",
 		"OfflineAudioContext",

@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import type { NoteTrigger } from "../domain/entities";
 import type { AssetId, PlacementId, ReturnId, TrackId } from "../domain/ids";
 import type {
 	AudioAssetProjection,
@@ -181,6 +182,25 @@ export class ProjectAudioGraph {
 
 	get returnGraphs(): ReadonlyMap<ReturnId, ReturnAudioGraph> {
 		return this.returns;
+	}
+
+	/**
+	 * Plays one note through a track's instrument right now, for auditioning a
+	 * sound while editing it (PRD INS-01). It routes through the track's own
+	 * device chain and channel strip, so what a user hears is what the track
+	 * sounds like — it is not a bypassed preview. A no-op for an unknown track or
+	 * one with nothing loaded. The caller resumes the shared context first (the
+	 * audition button is a user gesture); this only schedules the trigger.
+	 */
+	auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): void {
+		this.tracks
+			.get(trackId)
+			?.trigger(trigger, this.now(), ticksToToneTime(durationTicks), velocity);
 	}
 
 	diagnostics(): {

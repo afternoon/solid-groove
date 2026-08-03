@@ -12,7 +12,13 @@ import {
 	songSchema,
 	type Track,
 } from "./entities";
-import { getParameterDefinition, isParameterValueInRange } from "./parameters";
+import {
+	bareParameterId,
+	getParameterDefinition,
+	isParameterValueInRange,
+	SAMPLER_SAMPLE_END,
+	SAMPLER_SAMPLE_START,
+} from "./parameters";
 
 /**
  * Parsing and cross-entity integrity (PRD section 9.5).
@@ -516,13 +522,37 @@ function checkInstrument(
 	if (!instrument) {
 		return issues;
 	}
-	if (instrument.kind === "sampler" && instrument.assetId !== null) {
-		if (!assetIds.has(instrument.assetId)) {
+	// Every stored instrument parameter is validated against its registered
+	// definition (invariant 10), the same way device parameters are — namespaced
+	// by instrument kind, `${kind}.${parameterId}`.
+	issues.push(
+		...checkInstrumentParameters(instrument.kind, instrument.parameters, [
+			...path,
+			"instrument",
+			"parameters",
+		]),
+	);
+	if (instrument.kind === "sampler") {
+		if (instrument.assetId !== null && !assetIds.has(instrument.assetId)) {
 			issues.push(
 				issue(
 					"dangling_reference",
 					[...path, "instrument", "assetId"],
 					`Track ${track.id} references missing asset ${instrument.assetId}`,
+				),
+			);
+		}
+		// A sample window collapses to silence — or plays backwards — unless its
+		// end is strictly after its start.
+		const start =
+			instrument.parameters[bareParameterId(SAMPLER_SAMPLE_START.id)];
+		const end = instrument.parameters[bareParameterId(SAMPLER_SAMPLE_END.id)];
+		if (start !== undefined && end !== undefined && end <= start) {
+			issues.push(
+				issue(
+					"invalid_parameter",
+					[...path, "instrument", "parameters", "sampleEnd"],
+					`Sample end ${end} must be greater than sample start ${start}`,
 				),
 			);
 		}
@@ -541,6 +571,28 @@ function checkInstrument(
 				);
 			}
 		});
+	}
+	return issues;
+}
+
+/** Validates a sparse instrument parameter map against its registered definitions. */
+function checkInstrumentParameters(
+	kind: NonNullable<Track["instrument"]>["kind"],
+	parameters: Readonly<Record<string, number>>,
+	path: ReadonlyArray<string | number>,
+): DomainIssue[] {
+	const issues: DomainIssue[] = [];
+	for (const [parameterId, value] of Object.entries(parameters)) {
+		const definition = getParameterDefinition(`${kind}.${parameterId}`);
+		if (definition && !isParameterValueInRange(definition, value)) {
+			issues.push(
+				issue(
+					"invalid_parameter",
+					[...path, parameterId],
+					`Value ${value} is outside the declared range ${definition.min}..${definition.max}`,
+				),
+			);
+		}
 	}
 	return issues;
 }

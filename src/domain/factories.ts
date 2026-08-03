@@ -174,6 +174,10 @@ export function createSamplerInstrument(
 	return { kind: "sampler", assetId, parameters: {} };
 }
 
+export function createSynthInstrument(): Instrument {
+	return { kind: "synth", parameters: {} };
+}
+
 export function createDrumPad(
 	context: DomainFactoryContext,
 	options: {

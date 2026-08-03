@@ -36,6 +36,8 @@ const EXPECTED_COMMANDS = [
 	"placement.delete",
 	"placement.update",
 	"parameter.set",
+	"instrument.change",
+	"instrument.setSample",
 ];
 
 describe("command registry", () => {

@@ -182,6 +182,8 @@ export const COMMAND_IDS = [
 	"placement.delete",
 	"placement.update",
 	"parameter.set",
+	"instrument.change",
+	"instrument.setSample",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 
