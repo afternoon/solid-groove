@@ -48,6 +48,11 @@ export const parameterTargetSchema = z.discriminatedUnion("scope", [
 		parameterId: z.string().min(1),
 	}),
 	z.strictObject({
+		scope: z.literal("instrument"),
+		trackId: trackIdSchema,
+		parameterId: z.string().min(1),
+	}),
+	z.strictObject({
 		scope: z.literal("trackDevice"),
 		trackId: trackIdSchema,
 		deviceId: deviceIdSchema,
@@ -147,6 +152,42 @@ function resolveParameter(
 						}),
 				}),
 			);
+		}
+		case "instrument": {
+			const track = findTrack(project, target.trackId);
+			if (!track) {
+				return { error: `Track ${target.trackId} does not exist` };
+			}
+			const instrument = track.instrument;
+			if (!instrument) {
+				return { error: `Track ${track.id} has no instrument` };
+			}
+			// Instrument parameters are namespaced by instrument kind, matching how
+			// the domain validates a stored instrument parameter value.
+			const definition = getParameterDefinition(
+				`${instrument.kind}.${target.parameterId}`,
+			);
+			if (!definition) {
+				return {
+					error: `Instrument ${instrument.kind} has no registered parameter "${target.parameterId}"`,
+				};
+			}
+			return {
+				definition,
+				current:
+					instrument.parameters[target.parameterId] ?? definition.defaultValue,
+				write: (value) =>
+					replaceTrack(project, {
+						...track,
+						instrument: {
+							...instrument,
+							parameters: {
+								...instrument.parameters,
+								[target.parameterId]: value,
+							},
+						},
+					}),
+			};
 		}
 		case "send": {
 			const track = findTrack(project, target.trackId);

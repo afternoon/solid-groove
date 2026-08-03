@@ -5,7 +5,7 @@
 | Status | Implemented (`FND-008`) |
 | Scope | Disposable hybrid virtualized-DOM/Canvas 2D spike, retained renderer-agnostic projection/geometry contracts, and the scripted-trace measurement harness Alpha Milestone 2 (`ARR-005`) will enforce budgets with |
 
-Related documents: [Product requirements](./prd.md) ([7.5 ARR-01](./prd.md#75-arrangement), [9.3 Arrangement renderer decision](./prd.md#93-arrangement-renderer-decision), [Performance budgets](./prd.md#performance-budgets)), [backlog](./backlog.md#fnd-008---arrangement-renderer-spike-and-measurement-harness)
+Related documents: [Product requirements](./prd.md) ([7.5 ARR-01](./prd.md#75-arrangement), [9.3 Arrangement renderer decision](./prd.md#93-arrangement-renderer-decision), [Performance budgets](./prd.md#performance-budgets))
 
 **This task is not gated on hitting the PRD frame budgets, and not gated on
 the physical baseline device.** Budgets bind at `ARR-005` (Alpha Milestone 2) and
@@ -28,7 +28,7 @@ ran them.
 
 Reusing this task's retained pieces (rather than a second, different
 implementation) is expected of `ARR-005`; growing the spike's disposable UI
-into a production component is not — see the backlog task's final acceptance
+into a production component is not — see the task's final acceptance
 line: "experimental UI is not treated as production merely because it
 benchmarks well."
 
@@ -58,7 +58,7 @@ benchmarks well."
 
 `src/arrangement/spike/ArrangementSpike.tsx`, mounted at
 `/spike/arrangement?tracks=20|40|50` (`src/routes/spike/arrangement.tsx`).
-Implements, per the backlog task's acceptance checkboxes:
+Implements, per the task's acceptance checkboxes:
 
 - **Viewport culling** through `visiblePlacements`/`visiblePlacementsForTrack`.
 - **Layered invalidation**: three stacked canvases (background/content/
@@ -91,7 +91,7 @@ This is `playwright test --config=playwright.bench.config.ts` (a
 2. For each of the three benchmark track counts, opens
    `/spike/arrangement?tracks=<n>` and, once
    `[data-testid="arrangement-spike-ready"]` is attached, runs each of the
-   four scripted traces the backlog task requires — **scroll, zoom, seek,
+   four scripted traces the task requires — **scroll, zoom, seek,
    selection** — for 120 animation frames apiece, through the same public API
    a real gesture would use (`window.__arrangementSpike`,
    `ArrangementSpikeHandle` in `ArrangementSpike.tsx`).
@@ -118,7 +118,7 @@ same way `playwright.config.ts` does for the functional E2E suite).
 
 This suite is not part of `bun run test`, `bun run test:browser`, or CI's
 gating matrix — it produces a baseline artifact, not a pass/fail signal, and
-per the backlog task, it is not required to hit the PRD 9.3 budgets or to run
+per the task, it is not required to hit the PRD 9.3 budgets or to run
 on the physical baseline device.
 
 ## Baseline status

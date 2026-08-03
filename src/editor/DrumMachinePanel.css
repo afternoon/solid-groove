@@ -1,0 +1,106 @@
+.drum-machine {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.drum-pad {
+	display: grid;
+	grid-template-columns:
+		minmax(96px, 1fr) minmax(120px, 1.4fr) repeat(3, minmax(70px, 1fr))
+		minmax(70px, 0.8fr) auto;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	background-color: var(--color-background-secondary);
+	border-left: 3px solid var(--color-background-tertiary);
+}
+
+.drum-pad.muted {
+	opacity: 0.55;
+}
+
+.pad-audition {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	padding: 8px 10px;
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text);
+	border: none;
+	cursor: pointer;
+	transition: background-color 0.05s ease-out;
+}
+
+.pad-audition:hover {
+	background-color: var(--color-background-hover);
+}
+
+.pad-audition:active {
+	background-color: var(--color-foreground-bright);
+	color: var(--color-background-secondary);
+}
+
+.pad-name {
+	font-size: var(--font-size-base);
+	font-weight: 600;
+}
+
+.pad-control {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.pad-control-label {
+	font-size: var(--font-size-tiny);
+	color: var(--color-foreground);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.pad-control input[type="range"] {
+	width: 100%;
+	accent-color: var(--color-foreground-bright);
+}
+
+.pad-control select {
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text);
+	border: 1px solid var(--color-background-hover);
+	font-size: var(--font-size-small);
+	padding: 3px 4px;
+	min-width: 0;
+}
+
+.pad-flags {
+	display: flex;
+	gap: 4px;
+}
+
+.pad-flag {
+	width: 26px;
+	height: 26px;
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text-secondary);
+	border: none;
+	cursor: pointer;
+	font-size: var(--font-size-small);
+	font-weight: 700;
+}
+
+.pad-flag:hover {
+	background-color: var(--color-background-hover);
+}
+
+.pad-flag.active {
+	background-color: var(--color-foreground-bright);
+	color: var(--color-background-secondary);
+}
+
+.drum-machine-empty {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-small);
+}

@@ -1,0 +1,62 @@
+/* Labelled option group from mocks 05a/05b: stacked mutually-exclusive choices,
+   the active one carrying the cyan accent. Square corners, flat surfaces. */
+
+.option-group {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	min-width: 0;
+}
+
+.option-group-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 30px;
+	padding: 0 10px;
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	user-select: none;
+}
+
+.option-group-option:hover {
+	background-color: var(--color-background-hover);
+}
+
+.option-group-option.active {
+	background-color: var(--color-accent, #20c8e8);
+	color: var(--color-background);
+}
+
+/* The radio itself is a visually-hidden a11y/keyboard anchor; the label is the
+   control. Keep it focusable so arrow keys and focus rings still work. */
+.option-group-input {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.option-group-option:focus-within {
+	outline: 2px solid var(--color-accent, #20c8e8);
+	outline-offset: 1px;
+}
+
+.option-group-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.option-group-text {
+	font-size: var(--font-size-small);
+	letter-spacing: 0.02em;
+}

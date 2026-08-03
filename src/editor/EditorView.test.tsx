@@ -88,6 +88,26 @@ describe("EditorView", () => {
 		expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
 	});
 
+	it("shows the sampler instrument panel for the slice's sampler track", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		expect(
+			await screen.findByRole("region", { name: "Sampler" }),
+		).toBeInTheDocument();
+		// The INS-01 sampler controls: pitch, sample start/end, amp envelope.
+		expect(screen.getByLabelText("Pitch")).toBeInTheDocument();
+		expect(screen.getByLabelText("Start")).toBeInTheDocument();
+		expect(screen.getByLabelText("End")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Audition" }),
+		).toBeInTheDocument();
+	});
+
 	it("toggling a step enables undo, and undo reverts it", async () => {
 		repository = inMemoryModule.createInMemoryProjectRepository();
 		const project = createSliceFixtureProject();

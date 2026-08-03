@@ -19,7 +19,7 @@ Let's build it!
 | --- | --- |
 | [`CLAUDE.md`](./CLAUDE.md) | Stack, project structure, commands, and code style |
 | [`docs/prd.md`](./docs/prd.md) | Product requirements — authoritative for scope and acceptance criteria |
-| [`docs/backlog.md`](./docs/backlog.md) | Implementation order, dependencies, and definition of done per task |
+| [GitHub issues](https://github.com/afternoon/solid-groove/issues) | Implementation tasks, dependencies, and per-task acceptance criteria (one issue per task). `CLAUDE.md` describes how work is tracked and landed |
 | [`docs/sample-library.md`](./docs/sample-library.md) | Sound library plan, licensing policy, and the shipped starter library |
 | [`docs/testing.md`](./docs/testing.md) | Which test suite to run, and how |
 
@@ -37,7 +37,7 @@ Without a Firebase project of your own, set `VITE_MOCK_BACKEND=true` in `.env` i
 
 The private alpha has exactly one hosted environment — the **production** Firebase project — deployed to Firebase Hosting from CI on every merge to `main`, never from a developer machine. `bun run deploy` is the one documented command (it builds, scans the build for secrets, then ships Hosting, Firestore rules/indexes, and Storage rules together so a failing rules step fails the whole deploy); `.github/workflows/ci.yml`'s `deploy` job runs it automatically and follows it with a post-deploy smoke test against the real hosted URL. See [`docs/testing.md`](./docs/testing.md#deploy) for the full pipeline, the CI secrets/variables it needs, rollback, and how to get a local build talking to the right project.
 
-The pipeline is committed but has never run against a real project: no Firebase project or Sentry organization is provisioned yet, so the `deploy` job stays skipped and every merge to `main` is verified by the emulator and browser suites only. Provisioning them and verifying the deploy, rollback, analytics, and monitoring paths end to end is backlog task `OPS-001`, scheduled after Alpha Milestone 2 — see [`docs/runbooks/alpha-milestone-0.md`](./docs/runbooks/alpha-milestone-0.md).
+The pipeline is committed but has never run against a real project: no Firebase project or Sentry organization is provisioned yet, so the `deploy` job stays skipped and every merge to `main` is verified by the emulator and browser suites only. Provisioning them and verifying the deploy, rollback, analytics, and monitoring paths end to end is task `OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)), scheduled after Alpha Milestone 2 — see [`docs/runbooks/alpha-milestone-0.md`](./docs/runbooks/alpha-milestone-0.md).
 
 ## Sounds
 

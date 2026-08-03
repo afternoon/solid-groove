@@ -12,7 +12,8 @@ import {
 	TransportMetronome,
 } from "../audio/Transport";
 import { UnderrunMonitor } from "../audio/underrun";
-import type { Project } from "../domain/entities";
+import type { NoteTrigger, Project } from "../domain/entities";
+import type { PadId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
 import {
@@ -51,6 +52,25 @@ export interface ProjectAudioControls {
 	setLoop(startTicks: number, endTicks: number): void;
 	toggleLoop(): void;
 	toggleMetronome(): void;
+	/**
+	 * Plays one drum pad immediately (a panel audition, PRD INS-01). It resumes
+	 * the shared audio context behind the click, so the first audition is a valid
+	 * user-gesture unlock just like `play()`.
+	 */
+	auditionPad(trackId: TrackId, padId: PadId): Promise<void>;
+	/**
+	 * Plays one note through a track's instrument for auditioning (PRD INS-01).
+	 * Resumes the shared context behind the calling user gesture, then triggers
+	 * the sound through the track's own chain. Resolves whether a note was
+	 * triggered; a browser-blocked unlock reports `audio_start_failed` and
+	 * resolves `false`, like `play()`.
+	 */
+	auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): Promise<boolean>;
 }
 
 export interface UseProjectAudioOptions {
@@ -356,6 +376,40 @@ export function useProjectAudio(
 		setMetronomeEnabled(transport?.metronomeEnabled ?? false);
 	}
 
+	async function auditionPad(trackId: TrackId, padId: PadId): Promise<void> {
+		if (!graph) return;
+		try {
+			// The click is the allowed gesture to unlock the shared context; a
+			// blocked/never-settling resume is swallowed rather than throwing into
+			// the panel (a failed audition must never break editing — PRD OPS-02).
+			await resumeWithinTimeout();
+		} catch {
+			return;
+		}
+		graph?.auditionPad(trackId, padId);
+	}
+
+	async function auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): Promise<boolean> {
+		try {
+			await resumeWithinTimeout();
+			graph?.auditionTrack(trackId, trigger, durationTicks, velocity);
+			return true;
+		} catch (error) {
+			const code = codeFor(error);
+			analytics.log("audio_start_failed", {
+				error_code: code,
+				was_browser_blocked: code === "autoplay_blocked",
+			});
+			reportError(error, { area: "audio", fatal: false, code });
+			return false;
+		}
+	}
+
 	return {
 		isPlaying,
 		positionTicks,
@@ -372,5 +426,7 @@ export function useProjectAudio(
 		setLoop: setLoopRange,
 		toggleLoop,
 		toggleMetronome,
+		auditionPad,
+		auditionTrack,
 	};
 }
