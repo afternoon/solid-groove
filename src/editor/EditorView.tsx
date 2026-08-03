@@ -23,13 +23,17 @@ import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
+import type { NoteTrigger } from "../domain/entities";
 import { SONG_TEMPO } from "../domain/parameters";
-import { formatBarsBeatsSixteenths } from "../domain/time";
+import { formatBarsBeatsSixteenths, TICKS_PER_QUARTER } from "../domain/time";
+import SamplerPanel, { type SampleChoice } from "../instrument/SamplerPanel";
+import SynthPanel from "../instrument/SynthPanel";
 import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
@@ -70,7 +74,7 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
  * 16-step sampler track, hear it, undo it, and let autosave save it — the
  * smallest surface that exercises the real UI-to-command-to-audio-to-
  * persistence path end to end. Superseded by `LOOP-010`'s full step editor;
- * not meant to be grown into it (see `docs/backlog.md#fnd-009`).
+ * not meant to be grown into it (see the `FND-009` task).
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [repositoryResource] = createResource(() => getProjectRepository());
@@ -151,6 +155,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		shortcutLabel(action, shortcuts.platform);
 
 	const track = createMemo(() => project()?.song.tracks[0] ?? null);
+	// The first drum-machine track, if any, gets its instrument panel. The
+	// `FND-009` starter is sampler-only; this surfaces the `LOOP-005` drum
+	// machine wherever a project has one (e.g. the drum-machine fixture).
+	const drumTrack = createMemo(
+		() =>
+			project()?.song.tracks.find(
+				(candidate) => candidate.instrument?.kind === "drumMachine",
+			) ?? null,
+	);
+	const sampleAssets = createMemo(() =>
+		(project()?.song.assets ?? []).filter((asset) => asset.kind === "sample"),
+	);
 	const clip = createMemo(() => {
 		const currentProject = project();
 		const currentTrack = track();
@@ -175,6 +191,51 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			return [{ clip: c, asset }];
 		});
 	});
+	// The instrument of the slice's first track, and the audition note it plays.
+	const instrument = createMemo(() => track()?.instrument ?? null);
+	// The track id, only when it carries an instrument this slice renders a panel
+	// for (sampler or synth). The drum machine's panel lands with LOOP-005.
+	const instrumentPanelTrackId = createMemo(() => {
+		const kind = instrument()?.kind;
+		return kind === "sampler" || kind === "synth"
+			? (track()?.id ?? null)
+			: null;
+	});
+	const AUDITION_PITCH = 60; // Middle C
+	const AUDITION_DURATION_TICKS = TICKS_PER_QUARTER;
+	function auditionInstrument(): void {
+		const currentTrack = track();
+		const currentInstrument = instrument();
+		if (!currentTrack || !currentInstrument) return;
+		const trigger: NoteTrigger =
+			currentInstrument.kind === "drumMachine" &&
+			currentInstrument.pads.length > 0
+				? { kind: "pad", padId: currentInstrument.pads[0].id }
+				: { kind: "pitch", pitch: AUDITION_PITCH };
+		void audio.auditionTrack(
+			currentTrack.id,
+			trigger,
+			AUDITION_DURATION_TICKS,
+			0.9,
+		);
+	}
+
+	// Samples the sampler panel can swap to: every `sample`-kind asset the
+	// project already carries. A richer, genre-filtered browser lands with
+	// LOOP-013; here it is a straight list of the project's own samples.
+	const sampleName = createMemo(() => {
+		const current = instrument();
+		if (current?.kind !== "sampler" || !current.assetId) return null;
+		return (
+			project()?.song.assets.find((asset) => asset.id === current.assetId)
+				?.name ?? null
+		);
+	});
+	const replacementOptions = createMemo<readonly SampleChoice[]>(() =>
+		(project()?.song.assets ?? [])
+			.filter((asset) => asset.kind === "sample")
+			.map((asset) => ({ assetId: asset.id, name: asset.name })),
+	);
 
 	const packDependencyLabel = createMemo(() => {
 		const dependency = project()?.metadata.packDependencies[0];
@@ -388,6 +449,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										/>
 									)}
 								</For>
+								<Show when={drumTrack()}>
+									{(drum) => (
+										<div class="drum-machine-editor">
+											<div class="track-info">
+												<span class="track-name">{drum().name}</span>
+											</div>
+											<DrumMachinePanel
+												track={drum()}
+												assets={sampleAssets()}
+												dispatch={session.dispatch}
+												audition={(padId) =>
+													void audio.auditionPad(drum().id, padId)
+												}
+											/>
+										</div>
+									)}
+								</Show>
 								<Show
 									when={clip()}
 									fallback={
@@ -410,6 +488,50 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 												clip={currentClip()}
 												dispatch={session.dispatch}
 											/>
+											<Show when={instrumentPanelTrackId()}>
+												{(trackId) => (
+													<Switch>
+														<Match
+															when={
+																instrument()?.kind === "sampler" &&
+																(instrument() as Extract<
+																	NonNullable<ReturnType<typeof instrument>>,
+																	{ kind: "sampler" }
+																>)
+															}
+														>
+															{(sampler) => (
+																<SamplerPanel
+																	trackId={trackId()}
+																	instrument={sampler()}
+																	sampleName={sampleName()}
+																	replacementOptions={replacementOptions()}
+																	dispatch={session.dispatch}
+																	audition={auditionInstrument}
+																/>
+															)}
+														</Match>
+														<Match
+															when={
+																instrument()?.kind === "synth" &&
+																(instrument() as Extract<
+																	NonNullable<ReturnType<typeof instrument>>,
+																	{ kind: "synth" }
+																>)
+															}
+														>
+															{(synth) => (
+																<SynthPanel
+																	trackId={trackId()}
+																	instrument={synth()}
+																	dispatch={session.dispatch}
+																	audition={auditionInstrument}
+																/>
+															)}
+														</Match>
+													</Switch>
+												)}
+											</Show>
 										</div>
 									)}
 								</Show>

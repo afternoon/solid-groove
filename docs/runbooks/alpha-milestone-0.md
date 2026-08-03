@@ -6,9 +6,9 @@ credential — deliberately — so the pipeline ships, verifies nothing, and no-
 This runbook is the manual half: it takes you from no accounts to a deployed,
 observable alpha with the deferred acceptance criteria actually closed.
 
-Run it once. Record the outcome in [`docs/backlog.md`](../backlog.md) as you go.
+Run it once. Record the outcome on [issue #68 (`OPS-001`)](https://github.com/afternoon/solid-groove/issues/68) as you go.
 
-**When to run this.** This runbook is the body of backlog task `OPS-001`, scheduled immediately **after Alpha Milestone 2** (PRD section 12, "After Alpha Milestone 2"). It was originally expected to run during Alpha Milestone 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once, rather than re-verifying after every milestone. The file is named for Alpha Milestone 0 because that is where the code it verifies was built, not when it runs.
+**When to run this.** This runbook is the body of task `OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)), scheduled immediately **after Alpha Milestone 2** (PRD section 12, "After Alpha Milestone 2"). It was originally expected to run during Alpha Milestone 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once, rather than re-verifying after every milestone. The file is named for Alpha Milestone 0 because that is where the code it verifies was built, not when it runs.
 
 Nothing here is optional or downgraded by the move — the acceptance criteria are unchanged, and the `HARD-005` cohort cannot be invited until this runbook has been executed. What changed is only when.
 
@@ -230,7 +230,7 @@ report can name exactly which release was live before and after.
 
 These acceptance criteria are the ones no amount of implementation work could
 close, because they each require a real environment. They are why `G4.5` is not
-yet open. Tick them in [`docs/backlog.md`](../backlog.md) only from observed
+yet open. Tick them on [issue #68 (`OPS-001`)](https://github.com/afternoon/solid-groove/issues/68) only from observed
 results:
 
 | Task | Criterion | Closed by |

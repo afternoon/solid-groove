@@ -21,24 +21,23 @@ function formatBars(lengthTicks: number): string {
 }
 
 /**
- * The pitch shift, in semitones, that resampling a loop from its source tempo
- * to the song tempo introduces. Positive means the loop plays higher. Exactly
- * `12 * log2(songTempo / sourceTempo)` — this is the honest audible cost of the
- * alpha's resampling stretch, surfaced rather than hidden.
+ * How far the loop is being stretched to fit the song: song tempo over source
+ * tempo. Above 1 the loop is compressed into less time, below 1 it is spread
+ * over more. The stretch is pitch-preserving, so this ratio is the *only* thing
+ * the tempo difference changes — and it is also what sets how audible the
+ * granular artefacts are, which is why the panel shows it.
  */
-export function loopPitchShiftSemitones(
+export function loopStretchRatio(
 	sourceTempo: number,
 	songTempo: number,
 ): number {
-	if (sourceTempo <= 0 || songTempo <= 0) return 0;
-	return 12 * Math.log2(songTempo / sourceTempo);
+	if (sourceTempo <= 0 || songTempo <= 0) return 1;
+	return songTempo / sourceTempo;
 }
 
-function formatSemitones(semitones: number): string {
-	const rounded = Math.round(semitones * 10) / 10;
-	if (Math.abs(rounded) < 0.05) return "no pitch change";
-	const sign = rounded > 0 ? "+" : "";
-	return `${sign}${rounded} semitone${Math.abs(rounded) === 1 ? "" : "s"}`;
+function formatStretchRatio(ratio: number): string {
+	const rounded = Math.round(ratio * 100) / 100;
+	return `${rounded}×`;
 }
 
 /**
@@ -46,12 +45,13 @@ function formatSemitones(semitones: number): string {
  * loop from a pitched one-shot sample and documents the alpha's stretch
  * behaviour honestly.
  *
- * The alpha follows project tempo by *resampling* — it speeds the loop up or
- * slows it down like a tape, so its pitch moves with the tempo. It does not
- * pitch-preserve (no time-stretching), and this panel says so plainly, in the
- * UI, alongside the exact pitch shift at the current tempo. That honesty is an
- * acceptance criterion, not a nicety: a user reaching for a loop needs to know
- * why it sounds higher at a faster tempo.
+ * The loop follows project tempo by *time-stretching*: it is played over more
+ * or less time while its pitch is held where it was recorded, so moving a
+ * song from 90 to 120 BPM does not transpose the loop. What that costs is
+ * stated here rather than hidden — granular stretching softens transients and
+ * adds a faint texture, and both grow with the stretch ratio. That honesty is
+ * an acceptance criterion, not a nicety: a user reaching for a loop needs to
+ * know why a big tempo move sounds smeared but never out of tune.
  */
 export default function LoopInfo(props: LoopInfoProps): JSX.Element {
 	// Only audio-loop clips are described here; a note clip is a pitched-content
@@ -62,8 +62,8 @@ export default function LoopInfo(props: LoopInfoProps): JSX.Element {
 		>
 			{(content) => {
 				const sourceTempo = content().sourceTempo;
-				const semitones = loopPitchShiftSemitones(sourceTempo, props.songTempo);
-				const stretched = Math.abs(semitones) >= 0.05;
+				const ratio = loopStretchRatio(sourceTempo, props.songTempo);
+				const stretched = Math.abs(ratio - 1) >= 0.005;
 				return (
 					<section class="loop-info" aria-label="Audio loop">
 						<div class="loop-info-header">
@@ -95,6 +95,10 @@ export default function LoopInfo(props: LoopInfoProps): JSX.Element {
 								<dt>Playing at</dt>
 								<dd>{props.songTempo} BPM</dd>
 							</div>
+							<div class="loop-fact">
+								<dt>Stretch</dt>
+								<dd>{formatStretchRatio(ratio)}</dd>
+							</div>
 						</dl>
 						<p class="loop-stretch-note">
 							<HiSolidMusicalNote
@@ -102,21 +106,23 @@ export default function LoopInfo(props: LoopInfoProps): JSX.Element {
 								aria-hidden="true"
 								class="loop-stretch-icon"
 							/>
-							This alpha follows the project tempo by resampling the loop, so
-							its pitch moves with the tempo — like speeding up or slowing down
-							a tape. It does not preserve pitch.{" "}
+							This loop follows the project tempo by time-stretching, which
+							preserves pitch: it plays over more or less time, but stays in the
+							key it was recorded in.{" "}
 							<Show
 								when={stretched}
 								fallback={
 									<span class="loop-stretch-live">
-										At {props.songTempo} BPM it plays at its source tempo, so
-										there is no pitch change.
+										At {props.songTempo} BPM it plays at its source tempo, so it
+										is played back untouched, with no stretching at all.
 									</span>
 								}
 							>
 								<span class="loop-stretch-live">
-									At {props.songTempo} BPM it is shifted{" "}
-									{formatSemitones(semitones)} from the source recording.
+									At {props.songTempo} BPM it is stretched{" "}
+									{formatStretchRatio(ratio)}. Stretching is granular, so it
+									softens transients and adds a faint texture — the further from
+									1× it goes, the more you will hear that.
 								</span>
 							</Show>
 						</p>

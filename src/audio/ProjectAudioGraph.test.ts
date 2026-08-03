@@ -173,6 +173,38 @@ describe("ProjectAudioGraph", () => {
 		await runtime.close();
 	});
 
+	it("auditionTrack triggers the target track's instrument once", async () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport: fakeTransport(),
+		});
+		const project = createSliceFixtureProject();
+		graph.reconcile(buildAudioProjection(project));
+
+		const trackId = project.song.tracks[0].id;
+		const trackGraph = graph.trackGraphs.get(trackId);
+		if (!trackGraph) throw new Error("no track graph");
+		const trigger = vi.spyOn(trackGraph, "trigger");
+
+		graph.auditionTrack(trackId, { kind: "pitch", pitch: 60 }, 192, 0.9);
+		expect(trigger).toHaveBeenCalledTimes(1);
+		expect(trigger.mock.calls[0][0]).toEqual({ kind: "pitch", pitch: 60 });
+
+		// An unknown track is a silent no-op, not a throw.
+		expect(() =>
+			graph.auditionTrack(
+				"trk_missing" as never,
+				{ kind: "pitch", pitch: 60 },
+				192,
+				0.9,
+			),
+		).not.toThrow();
+
+		trigger.mockRestore();
+		await graph.dispose();
+		await runtime.close();
+	});
+
 	it("editing one track's mixer does not touch other tracks' graphs", async () => {
 		const project = createReferenceProject({
 			trackCount: 4,
@@ -683,11 +715,11 @@ describe("ProjectAudioGraph", () => {
 
 	// Every fixture in this repo authors its audio at `sourceTempo === tempo`,
 	// where buffer seconds and song seconds coincide and a units bug in either
-	// `player.start()` argument is invisible. This is the one test that pulls
-	// them apart, so it is the only thing standing between a rate != 1 project
-	// and silently truncated or overrunning loops (also inherited by the
+	// `start()` argument is invisible. This is the one test that pulls them
+	// apart, so it is the only thing standing between a rate != 1 project and
+	// silently truncated or overrunning loops (also inherited by the
 	// AUD-05/AUD-06 offline and stem exports, which reuse this expansion).
-	it("hands Tone buffer-timeline seconds for a loop whose sample tempo differs from the song", async () => {
+	it("time-stretches a loop whose sample tempo differs from the song, preserving its pitch", async () => {
 		const Tone = await import("tone");
 		const base = createReferenceProject({
 			trackCount: 1,
@@ -720,7 +752,12 @@ describe("ProjectAudioGraph", () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		const start = vi
+		const grainStart = vi
+			.spyOn(Tone.GrainPlayer.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+		const plainStart = vi
 			.spyOn(Tone.Player.prototype, "start")
 			.mockImplementation(function mocked(this: unknown) {
 				return this as never;
@@ -729,30 +766,88 @@ describe("ProjectAudioGraph", () => {
 		try {
 			for (const callback of transport.callbacks.values()) callback(0);
 
-			expect(start).toHaveBeenCalled();
-			const [, offsetArg, durationArg] = start.mock.calls[0];
-			// Both must be plain buffer-seconds numbers. A tick string like
-			// "768i" here is the regression: Tone divides the duration by the
-			// playback rate, so song-timeline ticks sound for half as long at
-			// rate 2.
+			// A stretched loop goes through the granular player, never the plain
+			// one: `Tone.Player` can only follow tempo by resampling, which would
+			// transpose the loop an octave at rate 2.
+			expect(grainStart).toHaveBeenCalled();
+			expect(plainStart).not.toHaveBeenCalled();
+
+			const player = grainStart.mock.instances[0] as import("tone").GrainPlayer;
+			expect(player.playbackRate).toBeCloseTo(2);
+			// The pitch is held where it was recorded: the grains themselves are
+			// played back untransposed.
+			expect(player.detune).toBe(0);
+
+			const [, offsetArg, durationArg] = grainStart.mock.calls[0];
+			// Both must be plain seconds numbers; a tick string like "768i" here
+			// is the regression.
 			expect(typeof offsetArg).toBe("number");
 			expect(typeof durationArg).toBe("number");
 
-			// The scheduled event covers min(clip length, placement duration)
-			// of song time; at rate 2 that has to reach Tone doubled, so that
-			// Tone's divide-by-rate leaves the correct sounded length.
+			// `GrainPlayer.start` stops at `time + duration`, so the duration is
+			// the song-time span the arrangement draws — unscaled, even at rate 2.
 			const clip = project.clips.find((c) => c.content.kind === "audioLoop");
 			const placement = project.song.placements.find(
 				(p) => p.clipId === clip?.id,
 			);
 			if (!clip || !placement) throw new Error("fixture has no audio loop");
 			const eventTicks = Math.min(clip.lengthTicks, placement.durationTicks);
-			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 120) * 2);
+			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 120));
 		} finally {
-			start.mockRestore();
+			grainStart.mockRestore();
+			plainStart.mockRestore();
 		}
 
 		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("auditionPad triggers the named track's instrument off the transport", async () => {
+		const Tone = await import("tone");
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const transport = fakeTransport();
+		const triggered: { padId: string }[] = [];
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			// A stub instrument factory records every pad trigger, so audition can
+			// be asserted without a decoded buffer or a real Tone voice.
+			createInstrument: (instrument) => {
+				const output = new Tone.Gain(1);
+				return {
+					kind: instrument.kind,
+					output,
+					trigger(trigger) {
+						if (trigger.kind === "pad")
+							triggered.push({ padId: trigger.padId });
+					},
+					update() {},
+					dispose() {
+						output.dispose();
+					},
+				};
+			},
+		});
+		const { createDrumMachineFixtureProject } = await import(
+			"../domain/fixtures"
+		);
+		const project = createDrumMachineFixtureProject();
+		graph.reconcile(buildAudioProjection(project));
+
+		const drumTrack = project.song.tracks.find(
+			(track) => track.instrument?.kind === "drumMachine",
+		);
+		if (drumTrack?.instrument?.kind !== "drumMachine") {
+			throw new Error("fixture has no drum machine");
+		}
+		const padId = drumTrack.instrument.pads[0].id;
+
+		graph.auditionPad(drumTrack.id, padId);
+		expect(triggered).toHaveLength(1);
+		expect(triggered[0].padId).toBe(padId);
+
+		await graph.dispose();
+		// After disposal, auditioning is a no-op rather than a use-after-free.
+		expect(() => graph.auditionPad(drumTrack.id, padId)).not.toThrow();
 		await runtime.close();
 	});
 });
@@ -877,7 +972,7 @@ describe("ProjectAudioGraph audio loops (LOOP-006/INS-02)", () => {
 		await Promise.resolve();
 
 		const start = vi
-			.spyOn(Tone.Player.prototype, "start")
+			.spyOn(Tone.GrainPlayer.prototype, "start")
 			.mockImplementation(function mocked(this: unknown) {
 				return this as never;
 			});
@@ -885,13 +980,16 @@ describe("ProjectAudioGraph audio loops (LOOP-006/INS-02)", () => {
 			for (const callback of transport.callbacks.values()) callback(0);
 			expect(start).toHaveBeenCalledOnce();
 			const [, , durationArg] = start.mock.calls[0];
-			// At 60 BPM against a 120 BPM source the rate is 0.5, so the event's
-			// buffer-timeline duration is song-seconds * 0.5.
+			// At 60 BPM against a 120 BPM source the loop is stretched to 0.5x
+			// and sounds for the whole, now longer, song-time span it covers.
 			const eventTicks = Math.min(
 				clip.lengthTicks,
 				project.song.placements[0].durationTicks,
 			);
-			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 60) * 0.5);
+			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 60));
+			const player = start.mock.instances[0] as import("tone").GrainPlayer;
+			expect(player.playbackRate).toBeCloseTo(0.5);
+			expect(player.detune).toBe(0);
 		} finally {
 			start.mockRestore();
 		}

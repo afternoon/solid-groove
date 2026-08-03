@@ -1,6 +1,6 @@
 <!--
   Fill in every section. Delete a section only when it genuinely does not apply
-  (and say why). See docs/backlog.md "Landing work" for the PR conventions.
+  (and say why). See CLAUDE.md "Task tracking and landing work" for the PR conventions.
 -->
 
 ## What & why

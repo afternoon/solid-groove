@@ -100,13 +100,33 @@ describe("EditorView", () => {
 		renderEditor(project.metadata.id);
 
 		// The loop panel distinguishes a tempo-labelled loop from a pitched
-		// one-shot and documents the alpha's resampling stretch behaviour.
+		// one-shot and documents the alpha's time-stretch behaviour.
 		expect(
 			await screen.findByRole("region", { name: "Audio loop" }),
 		).toBeInTheDocument();
 		expect(screen.getByText(/tempo-labelled loop/i)).toBeInTheDocument();
-		expect(screen.getByText(/resampl/i)).toBeInTheDocument();
-		expect(screen.getByText(/does not preserve pitch/i)).toBeInTheDocument();
+		expect(screen.getByText(/time-stretch/i)).toBeInTheDocument();
+		expect(screen.getByText(/preserves pitch/i)).toBeInTheDocument();
+	});
+
+	it("shows the sampler instrument panel for the slice's sampler track", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		expect(
+			await screen.findByRole("region", { name: "Sampler" }),
+		).toBeInTheDocument();
+		// The INS-01 sampler controls: pitch, sample start/end, amp envelope.
+		expect(screen.getByLabelText("Pitch")).toBeInTheDocument();
+		expect(screen.getByLabelText("Start")).toBeInTheDocument();
+		expect(screen.getByLabelText("End")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Audition" }),
+		).toBeInTheDocument();
 	});
 
 	it("toggling a step enables undo, and undo reverts it", async () => {

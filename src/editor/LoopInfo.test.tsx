@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Asset } from "../domain/entities";
 import { createDrumMachineFixtureProject } from "../domain/fixtures";
-import LoopInfo, { loopPitchShiftSemitones } from "./LoopInfo";
+import LoopInfo, { loopStretchRatio } from "./LoopInfo";
 
 afterEach(() => cleanup());
 
@@ -20,17 +20,17 @@ function loopFixture() {
 	return { project, clip, asset, sourceTempo: content.sourceTempo };
 }
 
-describe("loopPitchShiftSemitones", () => {
-	it("is zero when the song plays at the loop's source tempo", () => {
-		expect(loopPitchShiftSemitones(120, 120)).toBe(0);
+describe("loopStretchRatio", () => {
+	it("is 1 when the song plays at the loop's source tempo", () => {
+		expect(loopStretchRatio(120, 120)).toBe(1);
 	});
 
-	it("is +12 semitones at double the source tempo (an octave up)", () => {
-		expect(loopPitchShiftSemitones(120, 240)).toBeCloseTo(12);
+	it("is 2 at double the source tempo (the loop takes half the time)", () => {
+		expect(loopStretchRatio(120, 240)).toBeCloseTo(2);
 	});
 
-	it("is -12 semitones at half the source tempo (an octave down)", () => {
-		expect(loopPitchShiftSemitones(120, 60)).toBeCloseTo(-12);
+	it("is 0.5 at half the source tempo (the loop takes twice the time)", () => {
+		expect(loopStretchRatio(120, 60)).toBeCloseTo(0.5);
 	});
 });
 
@@ -49,35 +49,38 @@ describe("LoopInfo", () => {
 		);
 	});
 
-	it("documents the resampling stretch behaviour honestly", () => {
-		const { clip, asset, sourceTempo } = loopFixture();
-		render(() => (
-			<LoopInfo clip={clip} asset={asset} songTempo={sourceTempo} />
-		));
-
-		// The honesty requirement: the UI must say it resamples and does not
-		// preserve pitch, rather than implying a transparent time-stretch.
-		expect(screen.getByText(/resampl/i)).toBeInTheDocument();
-		expect(screen.getByText(/does not preserve pitch/i)).toBeInTheDocument();
-	});
-
-	it("reports no pitch change when playing at the source tempo", () => {
-		const { clip, asset, sourceTempo } = loopFixture();
-		render(() => (
-			<LoopInfo clip={clip} asset={asset} songTempo={sourceTempo} />
-		));
-
-		expect(screen.getByText(/no pitch change/i)).toBeInTheDocument();
-	});
-
-	it("reports the live pitch shift when the song tempo differs from the source", () => {
+	it("documents the time-stretch behaviour honestly", () => {
 		const { clip, asset, sourceTempo } = loopFixture();
 		render(() => (
 			<LoopInfo clip={clip} asset={asset} songTempo={sourceTempo * 2} />
 		));
 
-		// Double tempo => +12 semitones.
-		expect(screen.getByText(/\+12 semitones/i)).toBeInTheDocument();
+		// The honesty requirement: the UI names the mechanism (time-stretch),
+		// says pitch is preserved, and does not hide what stretching costs.
+		expect(screen.getByText(/time-stretch/i)).toBeInTheDocument();
+		expect(screen.getByText(/preserves pitch/i)).toBeInTheDocument();
+		expect(screen.getByText(/softens transients/i)).toBeInTheDocument();
+	});
+
+	it("says the loop is played untouched at its source tempo", () => {
+		const { clip, asset, sourceTempo } = loopFixture();
+		render(() => (
+			<LoopInfo clip={clip} asset={asset} songTempo={sourceTempo} />
+		));
+
+		expect(screen.getByText(/no stretching at all/i)).toBeInTheDocument();
+	});
+
+	it("reports the live stretch ratio when the song tempo differs from the source", () => {
+		const { clip, asset, sourceTempo } = loopFixture();
+		render(() => (
+			<LoopInfo clip={clip} asset={asset} songTempo={sourceTempo * 2} />
+		));
+
+		// Double tempo => the loop is squeezed into half the time.
+		const stretchTerm = screen.getByText("Stretch");
+		expect(stretchTerm.nextElementSibling).toHaveTextContent("2×");
+		expect(screen.getByText(/stretched 2×/i)).toBeInTheDocument();
 	});
 
 	it("distinguishes a loop from a pitched one-shot in copy", () => {

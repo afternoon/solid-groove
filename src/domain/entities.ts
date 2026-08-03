@@ -177,6 +177,7 @@ export const padMixerSchema = z.strictObject({
 	volume: parameterValueSchema(TRACK_VOLUME),
 	pan: parameterValueSchema(TRACK_PAN),
 	muted: z.boolean(),
+	soloed: z.boolean(),
 });
 
 export const drumPadSchema = z.strictObject({
