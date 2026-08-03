@@ -5,7 +5,11 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import type { AudioHost, AudioProjectScope } from "../audio/AudioRuntime";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
-import { createSliceFixtureProject } from "../domain/fixtures";
+import type { Project } from "../domain/entities";
+import {
+	createReferenceProject,
+	createSliceFixtureProject,
+} from "../domain/fixtures";
 import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
@@ -258,6 +262,83 @@ describe("useProjectAudio", () => {
 		expect(afterDispose.byType.node ?? 0).toBe(0);
 		expect(afterDispose.byType.schedule ?? 0).toBe(0);
 		expect(afterDispose.byType.subscription ?? 0).toBe(0);
+	});
+
+	// LOOP-006 / INS-02 analytics: a project with a tempo-labelled loop reports
+	// `audio_loop` first-use, and a loop that cannot be decoded reports
+	// `asset_load_failed`.
+	describe("audio-loop analytics", () => {
+		/** A one-track project whose only content is an audio loop. */
+		function loopProject(): Project {
+			return createReferenceProject({
+				trackCount: 1,
+				waveformTrackCount: 1,
+				placementCount: 1,
+				minutes: 1,
+				automationLaneCount: 0,
+			});
+		}
+
+		it("fires feature_first_use(audio_loop) once for a project with a loop clip", async () => {
+			const { analytics, transport } = fakeAnalytics();
+			const runtime = AudioRuntimeModule.getAudioRuntime();
+			const project = loopProject();
+
+			const { cleanup: cleanupHook } = renderHook(
+				() =>
+					useProjectAudioModule.useProjectAudio(() => project, {
+						runtime,
+						analytics,
+					}),
+				{},
+			);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const events = transport.named("feature_first_use");
+			expect(events).toHaveLength(1);
+			expect(events[0]?.params.feature).toBe("audio_loop");
+
+			cleanupHook();
+		});
+
+		it("emits asset_load_failed with asset_type=loop when a loop asset cannot be decoded", async () => {
+			const { analytics, transport } = fakeAnalytics();
+			const runtime = AudioRuntimeModule.getAudioRuntime();
+			const base = loopProject();
+			// Strip the loop asset's URL: the production tone loader rejects an
+			// asset with no URL to decode, the same missing-asset outcome the
+			// event exists to count.
+			const project: Project = {
+				...base,
+				song: {
+					...base.song,
+					assets: base.song.assets.map((asset) =>
+						asset.kind === "loop" ? { ...asset, url: null } : asset,
+					),
+				},
+			};
+
+			const { cleanup: cleanupHook } = renderHook(
+				() =>
+					useProjectAudioModule.useProjectAudio(() => project, {
+						runtime,
+						analytics,
+					}),
+				{},
+			);
+			// Let the reconcile effect run and the rejected decode settle.
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const events = transport.named("asset_load_failed");
+			expect(events).toHaveLength(1);
+			expect(events[0]?.params.asset_type).toBe("loop");
+			expect(events[0]?.params.error_code).toBeDefined();
+
+			cleanupHook();
+		});
 	});
 
 	it("auditionTrack unlocks the context and resolves true on a loaded project", async () => {
