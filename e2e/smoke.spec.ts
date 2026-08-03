@@ -260,16 +260,19 @@ test.describe("keyboard shortcuts", () => {
 	}) => {
 		// Playback is asserted in Chromium only — the same known, tracked gap
 		// `e2e-emulator/slice.spec.ts` documents: in Firefox here
-		// `AudioContext.resume()` never settles, so the transport button never
-		// flips. That is `LOOP-003` (#43), not a shortcut-dispatch problem; the
-		// `?` guide and text-entry coverage below run in every gating browser.
+		// `AudioContext.resume()` is refused, so the transport button never flips.
+		// `LOOP-003` bounded that refusal with a timeout so it now reports
+		// `audio_start_failed` instead of hanging, but a bounded failure is still
+		// a failure — the cause is `HARD-001`'s real-browser pass. Not a
+		// shortcut-dispatch problem; the `?` guide, the text-entry coverage below
+		// and the `transport bar` block all run in every gating browser.
 		// See docs/testing.md, "Playback is asserted in Chromium only".
 		const canAssertPlayback = browserName === "chromium";
 		test.info().annotations.push({
 			type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
 			description: canAssertPlayback
 				? `playback asserted in ${browserName}`
-				: `playback not asserted in ${browserName}: AudioContext.resume() never settles here — see LOOP-003 (#43)`,
+				: `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
 		});
 
 		await page.goto("/dashboard");
@@ -394,5 +397,97 @@ test.describe("keyboard shortcuts", () => {
 		await expect(dialog).toBeHidden();
 		// Cancelled, not deleted.
 		await expect(page.getByText("Untitled Project")).toBeVisible();
+	});
+});
+
+// `LOOP-003`: the transport bar, in every gating browser. Playback itself is
+// still Chromium-only (see `docs/testing.md`, "Playback is asserted in Chromium
+// only"), but none of the surface below needs the context to unlock — the tempo
+// command, the toggles' pressed state, the fixed 4/4 display, and text-entry
+// suppression inside the BPM input are all assertable in Firefox and WebKit
+// today, and they are the parts of this task whose claim is cross-browser.
+test.describe("transport bar", () => {
+	test("edits tempo through a command, toggles loop and metronome, and shows 4/4", async ({
+		page,
+	}) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(
+			page.getByRole("group", { name: "16-step sequence" }),
+		).toBeVisible();
+
+		// The fixed 4/4 display and the bar.beat playhead at the arrangement start.
+		await expect(page.getByTitle("Time signature (fixed at 4/4)")).toHaveText(
+			"Time signature 4/4",
+		);
+		await expect(page.getByTitle("Playhead (bar.beat)")).toHaveText(
+			"Playhead at bar 1.1",
+		);
+
+		// Tempo round-trips through the shared command layer: the input reads back
+		// from `song.tempo`, and undo names the command that wrote it.
+		const tempo = page.getByRole("spinbutton", { name: "Tempo (BPM)" });
+		await expect(tempo).toHaveValue("120");
+		await tempo.fill("144");
+		await tempo.blur();
+		await expect(tempo).toHaveValue("144");
+		await expect(
+			page.getByRole("button", { name: "Undo Set Tempo to 144 BPM" }),
+		).toBeEnabled();
+
+		// Above the AUD-02 supported range the surface clamps before dispatching.
+		await tempo.fill("999");
+		await tempo.blur();
+		await expect(tempo).toHaveValue("240");
+
+		// Undo restores the previous tempo, so the transport bar is on the same
+		// history as every other edit.
+		await page.getByRole("button", { name: /^Undo Set Tempo/ }).click();
+		await expect(tempo).toHaveValue("144");
+
+		// Loop and metronome are toggles with real pressed state, and neither
+		// needs playback to be running.
+		const loop = page.getByRole("button", { name: "Enable loop" });
+		await expect(loop).toHaveAttribute("aria-pressed", "false");
+		await loop.click();
+		await expect(
+			page.getByRole("button", { name: "Disable loop" }),
+		).toHaveAttribute("aria-pressed", "true");
+
+		const metronome = page.getByRole("button", { name: "Enable metronome" });
+		await expect(metronome).toHaveAttribute("aria-pressed", "false");
+		await metronome.click();
+		await expect(
+			page.getByRole("button", { name: "Disable metronome" }),
+		).toHaveAttribute("aria-pressed", "true");
+	});
+
+	// `Space` is `transport.play_stop` and `O` is `transport.metronome`. Inside
+	// the BPM input they are text and a spinbutton keystroke, not transport
+	// commands — the focus-safe half of the AUD-01 criterion, and it is provable
+	// in every gating browser because it never unlocks the context.
+	test("Space and O inside the tempo input do not reach the transport", async ({
+		page,
+	}) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(
+			page.getByRole("group", { name: "16-step sequence" }),
+		).toBeVisible();
+
+		const tempo = page.getByRole("spinbutton", { name: "Tempo (BPM)" });
+		await tempo.focus();
+		await expect(tempo).toBeFocused();
+
+		await page.keyboard.press("Space");
+		await page.keyboard.press("o");
+
+		// Neither mapping fired: playback never started and the click stayed off.
+		await expect(
+			page.getByRole("button", { name: "Start playback" }),
+		).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: "Enable metronome" }),
+		).toBeVisible();
 	});
 });

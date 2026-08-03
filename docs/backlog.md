@@ -493,10 +493,12 @@ Complete `Saving`, `Saved`, `Save failed`, retry, navigation flush, and optimist
 
 Implement dependable play/pause/stop/seek, playhead, 40-240 BPM tempo, fixed 4/4 display, bar loop, metronome, master meter, and safety limiter.
 
-- [ ] Scheduling is ahead-of-time and remains aligned across seek, tempo change, repeated loops, and editor load.
-- [ ] User-gesture unlock and focus-safe `Space` behavior work in all supported browsers.
-- [ ] Master safety and meter tests include silence, extreme chains, and no transport restart on parameter edit.
-- [ ] Emits `transport_play` (with `surface` and `is_first_play_in_session`), `audio_start_failed` with a browser-blocked flag when the context cannot unlock, and sampled `audio_underrun` events with the sampling rate recorded. Playback emits nothing per scheduled event or animation frame.
+- [x] Scheduling is ahead-of-time and remains aligned across seek, tempo change, repeated loops, and editor load.
+- [ ] User-gesture unlock and focus-safe `Space` behavior work in all supported browsers. **Partially met.** Unlock is now bounded and fails loudly (`audio_start_failed`, `was_browser_blocked`) instead of hanging, and focus-safe `Space` is asserted unguarded in chromium, firefox and webkit. Playback itself still does not start in Firefox — measured, not assumed: `AudioContext.resume()` there stays pending forever. The cause is a real-browser-policy question, deferred to `HARD-001`'s cross-browser pass along with a user-facing "your browser blocked audio" state. See [`docs/testing.md`](./testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap).
+- [x] Master safety and meter tests include silence, extreme chains, and no transport restart on parameter edit.
+- [x] Emits `transport_play` (with `surface` and `is_first_play_in_session`), `audio_start_failed` with a browser-blocked flag when the context cannot unlock, and sampled `audio_underrun` events with the sampling rate recorded. Playback emits nothing per scheduled event or animation frame.
+
+Deferred, deliberately: AUD-02's user-defined loop *range*. The engine side (`barAlignedLoop`, `TransportController.setLoop`) is built and tested, but this slice renders a 16-step grid and no timeline, so there is nothing to select a range on — the loop is the one bar the grid shows. The range-selection UI belongs with `ARR-002`, which owns range select and range loop.
 
 ### LOOP-004 - Synth and one-shot sampler
 

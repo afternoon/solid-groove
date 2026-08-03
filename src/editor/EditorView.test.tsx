@@ -336,3 +336,78 @@ describe("EditorView keyboard shortcuts", () => {
 		).toHaveAttribute("title", "Keyboard shortcuts (?)");
 	});
 });
+
+/** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */
+describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
+	async function renderSlice() {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+		renderEditor(project.metadata.id);
+		await screen.findByRole("group", { name: "16-step sequence" });
+		return project;
+	}
+
+	it("shows the fixed 4/4 time signature and a starting playhead", async () => {
+		await renderSlice();
+		// Both are plain text with a visually hidden prefix naming them, rather
+		// than a role="img" whose aria-label repeats the text it already contains.
+		expect(
+			screen.getByTitle("Time signature (fixed at 4/4)"),
+		).toHaveTextContent("Time signature 4/4");
+		expect(screen.getByTitle("Playhead (bar.beat)")).toHaveTextContent(
+			"Playhead at bar 1.1",
+		);
+	});
+
+	it("toggles the loop and the metronome, reflecting their pressed state", async () => {
+		await renderSlice();
+
+		const loop = screen.getByRole("button", { name: "Enable loop" });
+		expect(loop).toHaveAttribute("aria-pressed", "false");
+		fireEvent.click(loop);
+		const loopOn = await screen.findByRole("button", { name: "Disable loop" });
+		expect(loopOn).toHaveAttribute("aria-pressed", "true");
+
+		const metronome = screen.getByRole("button", { name: "Enable metronome" });
+		expect(metronome).toHaveAttribute("aria-pressed", "false");
+		fireEvent.click(metronome);
+		const metronomeOn = await screen.findByRole("button", {
+			name: "Disable metronome",
+		});
+		expect(metronomeOn).toHaveAttribute("aria-pressed", "true");
+	});
+
+	it("dispatches a clamped tempo command from the BPM input", async () => {
+		await renderSlice();
+		const tempo = screen.getByRole("spinbutton", { name: "Tempo (BPM)" });
+		expect(tempo).toHaveAttribute("min", "40");
+		expect(tempo).toHaveAttribute("max", "240");
+
+		// 999 is above the supported range, so the command records the clamped 240.
+		fireEvent.change(tempo, { target: { value: "999" } });
+
+		const undo = await screen.findByRole("button", {
+			name: "Undo Set Tempo to 240 BPM",
+		});
+		expect(undo).not.toBeDisabled();
+		// The input reads back from `song.tempo`, so the displayed value proves the
+		// command is the path the tempo travelled — this surface never writes it a
+		// second time straight onto the transport.
+		expect(tempo).toHaveValue(240);
+	});
+
+	it("the metronome shortcut O toggles the click from the keyboard", async () => {
+		await renderSlice();
+		expect(
+			screen.getByRole("button", { name: "Enable metronome" }),
+		).toBeInTheDocument();
+
+		fireEvent.keyDown(window, { key: "o" });
+
+		expect(
+			await screen.findByRole("button", { name: "Disable metronome" }),
+		).toBeInTheDocument();
+	});
+});

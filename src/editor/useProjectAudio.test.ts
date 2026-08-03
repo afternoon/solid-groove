@@ -20,6 +20,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
 	cleanup();
+	useProjectAudioModule.__resetFirstPlayInSessionForTests();
 	try {
 		await AudioRuntimeModule.getAudioRuntime().close();
 	} catch {
@@ -48,6 +49,9 @@ function fakeAnalytics() {
 function unreachableAudioHost(resume: () => Promise<void>): AudioHost {
 	return {
 		getDestination: () => {
+			throw new Error("not reachable in this test");
+		},
+		getSampleRate: () => {
 			throw new Error("not reachable in this test");
 		},
 		resume,
@@ -106,6 +110,123 @@ describe("useProjectAudio", () => {
 		expect(result.isPlaying()).toBe(false);
 		// stop() never calls resume() again.
 		expect(resumed).toBe(1);
+	});
+
+	it("emits transport_play exactly once per play, with is_first_play_in_session true only the first time", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		const runtime = unreachableAudioHost(() => Promise.resolve());
+
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		await result.play();
+		result.stop();
+		await result.play();
+
+		const events = transport.named("transport_play");
+		expect(events).toHaveLength(2);
+		expect(events[0]?.params.is_first_play_in_session).toBe(true);
+		expect(events[1]?.params.is_first_play_in_session).toBe(false);
+		// The surface is attached automatically (PRD OPS-02), not passed per event.
+		expect(events[0]?.params.surface).toBeDefined();
+	});
+
+	it("does not emit transport_play when the context cannot unlock", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		const runtime = unreachableAudioHost(() =>
+			Promise.reject(new Error("NotAllowedError: blocked")),
+		);
+
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		await result.play();
+
+		// A blocked unlock is reported as audio_start_failed, never transport_play.
+		expect(transport.named("transport_play")).toHaveLength(0);
+		expect(transport.named("audio_start_failed")).toHaveLength(1);
+		expect(
+			transport.named("audio_start_failed")[0]?.params.was_browser_blocked,
+		).toBeDefined();
+	});
+
+	it("treats a never-settling resume() as a browser-blocked unlock (issue #43)", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		// Firefox under a blocked autoplay policy resolves neither way — the
+		// resume promise never settles. Model that exactly.
+		const runtime = unreachableAudioHost(() => new Promise<void>(() => {}));
+
+		// A synchronous timer fires the timeout immediately, so the never-settling
+		// resume loses the race deterministically without waiting on wall clock.
+		let fired = 0;
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+					resumeTimeoutMs: 5_000,
+					setTimer: (callback) => {
+						fired += 1;
+						callback();
+						return 0;
+					},
+					clearTimer: () => {},
+				}),
+			{},
+		);
+
+		await expect(result.play()).resolves.toBeUndefined();
+
+		expect(fired).toBe(1);
+		// The play button does not silently hang: exactly one browser-blocked
+		// failure is surfaced, and playback never claims to have started.
+		expect(result.isPlaying()).toBe(false);
+		const failures = transport.named("audio_start_failed");
+		expect(failures).toHaveLength(1);
+		expect(failures[0]?.params.was_browser_blocked).toBe(true);
+		expect(failures[0]?.params.error_code).toBe("autoplay_blocked");
+		// A blocked unlock is never reported as a play.
+		expect(transport.named("transport_play")).toHaveLength(0);
+	});
+
+	it("continueFromStop goes through the same bounded unlock and reports one play", async () => {
+		const { analytics, transport } = fakeAnalytics();
+		let resumed = 0;
+		const runtime = unreachableAudioHost(() => {
+			resumed += 1;
+			return Promise.resolve();
+		});
+
+		const { result } = renderHook(
+			() =>
+				useProjectAudioModule.useProjectAudio(() => null, {
+					runtime,
+					analytics,
+				}),
+			{},
+		);
+
+		await result.play();
+		result.stop();
+		// Shift+Space is a start-playback gesture too, so it unlocks the context
+		// and reports exactly like Space does — one resume, one transport_play.
+		await result.continueFromStop();
+
+		expect(resumed).toBe(2);
+		expect(result.isPlaying()).toBe(true);
+		expect(transport.named("transport_play")).toHaveLength(2);
 	});
 
 	it("builds a real audio graph for the loaded project and disposes it without leaking resources when the owner unmounts", async () => {

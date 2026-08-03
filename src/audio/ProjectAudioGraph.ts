@@ -27,6 +27,7 @@ import {
 } from "./scheduling";
 import { TrackAudioGraph } from "./TrackAudioGraph";
 import { toneBufferLoader } from "./toneBufferLoader";
+import type { UnderrunMonitor } from "./underrun";
 
 /**
  * The transport this graph schedules against. An interface rather than a
@@ -52,11 +53,40 @@ const liveTransport: AudioTransport = {
 	},
 };
 
+/**
+ * The audio clock the underrun monitor compares a scheduled event's intended
+ * time against: the context's *true* current time, not `Tone.now()`.
+ *
+ * This distinction is the whole measurement. `Tone.now()` is
+ * `currentTime + lookAhead` (default 0.1s), and Tone's `Clock._loop` dispatches
+ * every event whose time falls in `(lastUpdate, Tone.now()]` — so inside a
+ * scheduled callback, `Tone.now() >= intendedTime` *always*, on perfectly
+ * healthy playback. Comparing against it would count most events as drops and
+ * turn `audio_underrun` into per-note telemetry, exactly what PRD OPS-02
+ * forbids. `immediate()` is `currentTime`, which at dispatch sits a whole
+ * lookahead window (50-100ms with Tone's defaults) *before* the intended time
+ * and only passes it on a genuinely late dispatch.
+ */
+export function audioClockNow(): number {
+	return Tone.getContext().immediate();
+}
+
 export interface ProjectAudioGraphOptions {
 	transport?: AudioTransport;
 	bufferLoader?: AssetBufferLoader<Tone.ToneAudioBuffer>;
 	createInstrument?: InstrumentNodeFactory;
 	createDeviceNode?: DeviceNodeFactory;
+	/**
+	 * Sampled scheduling-underrun monitor (PRD AUD-03/OPS-02). Each scheduled
+	 * callback reports its (intended, actual) audio time to this, so a late
+	 * dispatch is detected and sampled rather than emitting per-event telemetry.
+	 * Optional: without it, scheduling behaves identically but underruns are not
+	 * measured.
+	 */
+	underrunMonitor?: UnderrunMonitor;
+	/** The current audio time, in seconds. Defaults to {@link audioClockNow};
+	 * injectable for tests. */
+	now?: () => number;
 }
 
 /** Everything scheduled for one placement, so a later reconcile pass can tell
@@ -90,6 +120,8 @@ export class ProjectAudioGraph {
 	>();
 	private readonly createInstrument?: InstrumentNodeFactory;
 	private readonly createDeviceNode?: DeviceNodeFactory;
+	private readonly underrunMonitor?: UnderrunMonitor;
+	private readonly now: () => number;
 	/**
 	 * One persistent map, mutated in place every reconcile rather than
 	 * replaced. Track/instrument graphs are constructed once and capture a
@@ -113,6 +145,8 @@ export class ProjectAudioGraph {
 		);
 		this.createInstrument = options.createInstrument;
 		this.createDeviceNode = options.createDeviceNode;
+		this.underrunMonitor = options.underrunMonitor;
+		this.now = options.now ?? audioClockNow;
 		this.master = new MasterAudioGraph(
 			this.scope,
 			this.runtime.getDestination(),
@@ -123,6 +157,26 @@ export class ProjectAudioGraph {
 	/** Read access for tests and diagnostics; not part of the reconciliation contract. */
 	get trackGraphs(): ReadonlyMap<TrackId, TrackAudioGraph> {
 		return this.tracks;
+	}
+
+	/** The master bus's peak meter, for a level display (PRD AUD-04). */
+	get masterMeter(): Tone.Meter {
+		return this.master.levelMeter;
+	}
+
+	/**
+	 * The project disposal scope, so a session-scoped companion (e.g. the
+	 * transport metronome) can register its resources under the same owner and
+	 * be torn down when the project graph is disposed.
+	 */
+	get projectScope(): AudioProjectScope {
+		return this.scope;
+	}
+
+	/** The master bus input — where an auxiliary source (the metronome) taps in
+	 * so it too passes through the safety limiter (PRD AUD-04). */
+	get masterInput(): Tone.ToneAudioNode {
+		return this.master.input;
 	}
 
 	get returnGraphs(): ReadonlyMap<ReturnId, ReturnAudioGraph> {
@@ -283,6 +337,7 @@ export class ProjectAudioGraph {
 
 		for (const note of notes) {
 			const scheduleId = this.transport.schedule((time) => {
+				this.underrunMonitor?.observe(time, this.now());
 				this.tracks
 					.get(note.trackId)
 					?.trigger(
@@ -308,6 +363,7 @@ export class ProjectAudioGraph {
 			const offsetSeconds = audioLoopOffsetSeconds(loop, tempo);
 			const durationSeconds = audioLoopDurationSeconds(loop, tempo);
 			const scheduleId = this.transport.schedule((time) => {
+				this.underrunMonitor?.observe(time, this.now());
 				const track = this.tracks.get(loop.trackId);
 				if (track && bufferBox.current) {
 					playOneShot(
