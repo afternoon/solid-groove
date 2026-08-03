@@ -29,7 +29,11 @@ export interface ScheduledAudioLoop {
 	readonly absoluteTicks: Ticks;
 	readonly durationTicks: Ticks;
 	readonly assetId: AssetId;
-	/** Ratio of song tempo to the loop's authored source tempo. */
+	/**
+	 * Ratio of song tempo to the loop's authored source tempo — how much the
+	 * loop has to be stretched to fit the song. `playAudioLoop` applies it as a
+	 * pitch-preserving time-stretch, not as a resampling speed change.
+	 */
 	readonly playbackRate: number;
 	/**
 	 * Where inside the clip's own timeline this event starts, in ticks: the
@@ -54,21 +58,23 @@ export function audioLoopOffsetSeconds(
 }
 
 /**
- * The `player.start()` duration for a scheduled loop, in the decoded buffer's
- * own seconds — the same timeline as the offset above, and for the same reason.
+ * How long a scheduled loop event sounds for, in *song-timeline* seconds —
+ * exactly the span the arrangement draws, unlike the offset above, which is a
+ * position in the buffer's own timeline.
  *
- * `Tone.Player` divides this by the playback rate to get the wall-clock length
- * it sounds for (`Player.js`: `computedDuration = toSeconds(duration) /
- * playbackRate`), so passing song-timeline seconds makes a non-unity rate
- * truncate the loop (rate > 1) or overrun into the next repeat (rate < 1).
- * Scaling by the rate cancels that division and leaves the event sounding for
- * exactly the song-time span the arrangement draws.
+ * The two timelines differ whenever the loop is stretched, so this is the one
+ * place the distinction is written down. `playAudioLoop` stretches with
+ * `Tone.GrainPlayer`, whose `start()` duration is wall-clock (it schedules a
+ * `stop` at `time + duration`), so the song-timeline value is what it wants.
+ * At an unstretched rate of 1 the two timelines coincide and the fallback
+ * `Tone.Player`'s divide-by-rate is a no-op, so the same value is correct
+ * there too.
  */
 export function audioLoopDurationSeconds(
 	loop: ScheduledAudioLoop,
 	tempo: number,
 ): number {
-	return ticksToSeconds(loop.durationTicks, tempo) * loop.playbackRate;
+	return ticksToSeconds(loop.durationTicks, tempo);
 }
 
 export interface PlacementSchedule {

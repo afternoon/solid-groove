@@ -48,6 +48,7 @@ src/
 │   ├── toneBufferLoader.ts  # The only Tone-touching asset decode path `AudioBufferCache` uses in production
 │   ├── Transport.ts         # Play/pause/stop/seek, playhead, tempo mirror, bar loop, metronome (PRD AUD-01/AUD-02)
 │   ├── underrun.ts          # Sampled late-dispatch counter behind `audio_underrun` (PRD AUD-03/OPS-02)
+│   ├── audioLoopPlayer.ts   # Pitch-preserving time-stretch for a tempo-labelled loop event (PRD INS-02)
 │   └── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
@@ -63,6 +64,7 @@ src/
 │   ├── useProjectAudio.ts   # Wires one project onto ProjectAudioGraph/AudioRuntime; play/stop and audio_start_failed
 │   ├── starterProject.ts    # Builds the "New Project" starter (one sampler track, pack-qualified asset, one note clip)
 │   ├── StepGrid.tsx         # The slice's 16-step grid; dispatches note.add/note.remove through the command layer
+│   ├── LoopInfo.tsx         # Tempo-labelled audio-loop panel: distinguishes a loop from a pitched one-shot and documents the pitch-preserving stretch honestly (LOOP-006/INS-02)
 │   ├── deviceProjectRecord.ts # Device-local "opened before" bookkeeping for project_opened's is_first_open (LOOP-001)
 │   └── EditorView.tsx       # The project route's top-level component
 ├── domain/             # Canonical schema-v1 domain model (authoritative)
@@ -132,6 +134,35 @@ e2e-emulator/           # Playwright browser E2E suite against the Firestore/Aut
 tests/emulator/         # Firebase Emulator suite (Firestore rules, etc.)
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 ```
+
+## Task tracking and landing work
+
+Implementation work is tracked entirely in **GitHub issues** in `afternoon/solid-groove` — there is no separate backlog document. Each task is one issue, titled with its task ID (for example `LOOP-003 - Transport, tempo, loop, and metronome`):
+
+- **The issue body is the specification** — scope, the PRD requirements it satisfies, and the acceptance checkboxes. `docs/prd.md` remains authoritative for product behavior; an issue links back to and never weakens it.
+- **The issue is the live record** — its state and labels are status, its assignee is ownership, and its comments carry progress, blockers, and discoveries. Alpha Milestone 0 tasks `FND-001`–`FND-008` and `CNT-000` predate this convention and are recorded in git history instead; they have no issue.
+- **Dependencies are the issue's native `blocked_by` graph**, edited directly on GitHub (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`). The `blocked` label marks a task gated on an undecided `DEC-*` product decision. Milestones group tasks by Alpha Milestone; Projects v2 **Status** (Todo / In Progress / Done) drives the orchestrator.
+
+### Landing work
+
+1. **One PR per task**, branched off the active feature branch, each agent working in its own git worktree so parallel implementations do not collide on the filesystem. A broken task never blocks review of an unrelated one.
+2. Keep the change vertical and self-contained: product code, tests, fixtures, and documentation for that task in one PR. The PR body links its issue (`Closes #<n>`) and states the evidence. **Any change that alters the UI includes a walkthrough** in the PR body — ideally a short video that starts from a common entrypoint (the public landing page, the project dashboard, or a project page) and navigates to the change; a GIF or before/after screenshots are an acceptable fallback for a small, self-contained visual tweak. Name the entrypoint and the theme. A PR with no user-visible change says so instead. The PR template (`.github/pull_request_template.md`) has the section.
+3. Do not start a task until every `blocked_by` issue is closed, unless the task explicitly permits parallel discovery work.
+4. A **contract-owning task lands before its dependents start.** Domain schema, command registry, parameter definitions, persistence layout, selection, audio projection, and rendering projection are contracts; an agent must not alter a published one as incidental feature work. Changing a landed contract is its own issue, updating every contract test and consumer together.
+5. Git history is the completion record. Do not put a commit hash into the commit itself.
+6. Do not preserve compatibility with prototype project data. Schema v1 is the first production schema; migrations are required only for persisted changes after v1 is established.
+
+### Definition of done for every task
+
+- The task's linked PRD acceptance criteria pass, including failure and empty states relevant to the slice.
+- New behavior is reachable through shared commands and boundaries rather than a feature-specific mutation path.
+- Tests fail before the implementation and pass afterward at the lowest useful layer.
+- `bun run typecheck`, `bun run test`, and `bun run check` pass. Tasks that touch browser, Firebase, audio, performance, or export behavior also run their task-specific suites.
+- Resource ownership, accessibility, supported-browser behavior, and persistence effects have been considered and tested where applicable.
+- **Analytics ships with the feature.** From `FND-001c` onward, any task that adds or changes a user action emits its PRD OPS-02 events through the shared typed analytics catalog, plus the reliability event for its principal failure path, with tests that the event fires once per action and that disabling analytics changes nothing. A task whose events are left for later is not done. A user action the catalog does not yet cover extends the catalog in the same PR — at minimum a `feature_first_use` key — rather than shipping unmeasured, and no task introduces an ad-hoc event string outside the catalog.
+- No event or error-report parameter carries a project, track, clip, section, or asset name, assistant text, a user-entered string, an asset URL, or a token.
+- The slice has been exercised against a production-like build in the gating browsers through its browser E2E and emulator suites, not only against a local dev server. Hosted-environment verification is **not** a per-task gate: it is batched into `OPS-001` after Alpha Milestone 2. A task does not stay open waiting for a hosted environment that does not exist yet, and equally does not claim a deploy, smoke test, rollback, or delivered event that never happened.
+- No unrelated formatting, dependency, generated-file, or refactor churn is included.
 
 ## Commands
 
@@ -237,7 +268,7 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - A user-controlled numeric value declares its range, unit, default, clamping policy, and automation capability once in `src/domain/parameters.ts`; UI, validation, audio, and assistant tools read that definition instead of repeating literals.
 - **Asset identity is pack-qualified** (PRD LIB-05, invariant 12). A `Pack` (`pak_` ID, name, `major.minor.patch` version, publisher, kind, description, one rights position) describes *library* content and is never stored inside a project; an `Asset` names the `packId` and `packVersion` it resolved from. A project's `metadata.packDependencies` is the derived list of those packs — `derivePackDependencies(song)` computes it, `executeTransaction` recomputes it once per transaction, `saveSong` writes it to the metadata tier, and `parseProject` rejects a list that has drifted from the song's assets in either direction. An unavailable pack is a reported state from `resolvePackAvailability`, naming the affected tracks and clips, never a dangling reference or a substituted version. See [`docs/persistence.md`](./docs/persistence.md#packs-and-pack-qualified-assets).
 - `parseProject` is the only way to obtain a `Project`. It either returns a fully valid project or a list of issues, and never partially repairs input.
-- Changing this contract is its own backlog task, not incidental work inside a feature.
+- Changing this contract is its own task (a dedicated GitHub issue), not incidental work inside a feature.
 
 ### Schema-v1 persistence (`src/persistence`)
 - The PRD section 9.9 three-tier Firestore layout is a contract: `projects/{projectId}` metadata, `projects/{projectId}/song/current`, `projects/{projectId}/clips/{clipId}`, and `projects/{projectId}/arrangement/{trackId}` chunks when the song document exceeds its budget. See [`docs/persistence.md`](./docs/persistence.md).
@@ -261,6 +292,7 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - `InstrumentGraph.ts` builds the sampler/synth/drum-machine node for a track's `Instrument`. A track only replaces its instrument node when `kind` changes; an asset swap, a drum-pad added/removed, or a generic parameter edit calls the existing node's `update()` instead.
 - `AudioBufferCache` decodes and caches asset buffers keyed by asset ID and content fingerprint, with reference-counted eviction and generation-tracked cancellation so a stale decode can never reconnect or overwrite a newer one. It never imports Tone itself — `toneBufferLoader.ts` is the one production loader that does, which keeps the cache's generation/refcount bookkeeping testable without any Web Audio globals.
 - `Transport.ts` owns the session-scoped playhead: play/pause/stop/seek/continue, the 40-240 BPM clamp, a bar-aligned loop range, and the metronome (PRD AUD-01/AUD-02). It is written against an injectable `TransportEngine` rather than `Tone.getTransport()`, and it never schedules the arrangement — a tempo change is mirrored onto the transport, not applied by rebuilding nodes. Tempo lives in the song and is written only by a `parameter.set` command; this layer mirrors it. `underrun.ts` counts late dispatches and reports them *sampled* as `audio_underrun`; it compares an event's intended time against `ProjectAudioGraph.audioClockNow()` (the context's true `currentTime`), never `Tone.now()`, which is `currentTime + lookAhead` and would score healthy playback as a continuous stream of drops.
+- `audioLoopPlayer.ts` plays one scheduled audio-loop event. A loop declares the tempo it was authored at, and it follows the song tempo by *time-stretching*, not resampling: `Tone.GrainPlayer` walks the buffer at `tempo / sourceTempo` while each grain sounds at its native rate, so the loop's pitch stays where it was recorded (PRD INS-02). At an unstretched rate of 1 it falls back to a plain `Tone.Player`, so a loop at its own tempo pays no granular cost at all. `audioLoopOffsetSeconds` is a position in the *buffer's* timeline and `audioLoopDurationSeconds` a span of the *song's* — the two only coincide at rate 1, and mixing them up is what silently truncates or overruns a stretched loop.
 - `scheduling.ts` expands a placement's clip content into absolute-tick events (looping and clip trimming included) as a pure function of the audio projection; `ProjectAudioGraph` schedules those against `Tone.Transport` (or an injected `AudioTransport` in tests) with an owner-tracked handle per event, never an anonymous global callback.
 - Every constructed Tone/Web Audio resource is registered with the owning `AudioProjectScope` (`AudioRuntime.openProjectScope`) so disposal is idempotent and instrumented (PRD AUD-09) — components and domain stores request graph operations but never receive mutable audio nodes.
 - `src/editor/useProjectAudio.ts` is the one place a component wires a `Project` onto `ProjectAudioGraph`: it rebuilds the `AudioSongProjection` (passing the previous one through, so an unrelated edit reuses unchanged entries) on every project change, and its `play()` is the allowed user gesture that resumes the shared `AudioRuntime` context. The prototype `SongPlayer`/`ToneInstrument`/`AudioProvider.tsx` playback path this superseded was removed by `FND-009`; do not reintroduce a component-owned Tone lifecycle.

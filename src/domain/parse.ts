@@ -12,7 +12,14 @@ import {
 	songSchema,
 	type Track,
 } from "./entities";
-import { getParameterDefinition, isParameterValueInRange } from "./parameters";
+import {
+	bareParameterId,
+	getParameterDefinition,
+	isParameterValueInRange,
+	SAMPLER_SAMPLE_END,
+	SAMPLER_SAMPLE_START,
+} from "./parameters";
+import { TICKS_PER_BAR } from "./time";
 
 /**
  * Parsing and cross-entity integrity (PRD section 9.5).
@@ -516,13 +523,37 @@ function checkInstrument(
 	if (!instrument) {
 		return issues;
 	}
-	if (instrument.kind === "sampler" && instrument.assetId !== null) {
-		if (!assetIds.has(instrument.assetId)) {
+	// Every stored instrument parameter is validated against its registered
+	// definition (invariant 10), the same way device parameters are — namespaced
+	// by instrument kind, `${kind}.${parameterId}`.
+	issues.push(
+		...checkInstrumentParameters(instrument.kind, instrument.parameters, [
+			...path,
+			"instrument",
+			"parameters",
+		]),
+	);
+	if (instrument.kind === "sampler") {
+		if (instrument.assetId !== null && !assetIds.has(instrument.assetId)) {
 			issues.push(
 				issue(
 					"dangling_reference",
 					[...path, "instrument", "assetId"],
 					`Track ${track.id} references missing asset ${instrument.assetId}`,
+				),
+			);
+		}
+		// A sample window collapses to silence — or plays backwards — unless its
+		// end is strictly after its start.
+		const start =
+			instrument.parameters[bareParameterId(SAMPLER_SAMPLE_START.id)];
+		const end = instrument.parameters[bareParameterId(SAMPLER_SAMPLE_END.id)];
+		if (start !== undefined && end !== undefined && end <= start) {
+			issues.push(
+				issue(
+					"invalid_parameter",
+					[...path, "instrument", "parameters", "sampleEnd"],
+					`Sample end ${end} must be greater than sample start ${start}`,
 				),
 			);
 		}
@@ -540,7 +571,41 @@ function checkInstrument(
 					),
 				);
 			}
+			for (const [parameterId, value] of Object.entries(pad.parameters)) {
+				const definition = getParameterDefinition(`pad.${parameterId}`);
+				if (definition && !isParameterValueInRange(definition, value)) {
+					issues.push(
+						issue(
+							"invalid_parameter",
+							[...padPath, "parameters", parameterId],
+							`Value ${value} is outside the declared range ${definition.min}..${definition.max}`,
+						),
+					);
+				}
+			}
 		});
+	}
+	return issues;
+}
+
+/** Validates a sparse instrument parameter map against its registered definitions. */
+function checkInstrumentParameters(
+	kind: NonNullable<Track["instrument"]>["kind"],
+	parameters: Readonly<Record<string, number>>,
+	path: ReadonlyArray<string | number>,
+): DomainIssue[] {
+	const issues: DomainIssue[] = [];
+	for (const [parameterId, value] of Object.entries(parameters)) {
+		const definition = getParameterDefinition(`${kind}.${parameterId}`);
+		if (definition && !isParameterValueInRange(definition, value)) {
+			issues.push(
+				issue(
+					"invalid_parameter",
+					[...path, parameterId],
+					`Value ${value} is outside the declared range ${definition.min}..${definition.max}`,
+				),
+			);
+		}
 	}
 	return issues;
 }
@@ -596,6 +661,35 @@ function checkClipOwnership(
 					"dangling_reference",
 					[...path, "content", "assetId"],
 					`Clip ${clip.id} references missing asset ${clip.content.assetId}`,
+				),
+			);
+		}
+		// INS-02: "Every loop declares source BPM and bar length." The source BPM
+		// is range-checked by the clip content schema (SONG_TEMPO); the bar length
+		// is checked here because a tempo-labelled loop is authored to a whole
+		// number of bars — that is what lets its boundaries stay aligned when the
+		// song tempo moves. A length that is not a multiple of one bar could never
+		// tile the arrangement grid cleanly, so it is malformed input, not content
+		// to repair.
+		if (clip.lengthTicks % TICKS_PER_BAR !== 0) {
+			issues.push(
+				issue(
+					"invalid_musical_time",
+					[...path, "lengthTicks"],
+					`Audio loop clip ${clip.id} has length ${clip.lengthTicks} ticks, which is not a whole number of bars (${TICKS_PER_BAR} ticks)`,
+				),
+			);
+		}
+		// The authored start offset selects where inside the loop its first repeat
+		// begins; an offset at or past the loop's own length would skip the entire
+		// clip and leave nothing to play, so it is rejected rather than silently
+		// wrapping.
+		if (clip.content.startOffsetTicks >= clip.lengthTicks) {
+			issues.push(
+				issue(
+					"invalid_musical_time",
+					[...path, "content", "startOffsetTicks"],
+					`Audio loop clip ${clip.id} start offset ${clip.content.startOffsetTicks} is not before its length ${clip.lengthTicks}`,
 				),
 			);
 		}

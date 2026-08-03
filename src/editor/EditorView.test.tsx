@@ -8,7 +8,10 @@ import {
 } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
-import { createSliceFixtureProject } from "../domain/fixtures";
+import {
+	createDrumMachineFixtureProject,
+	createSliceFixtureProject,
+} from "../domain/fixtures";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import type { PreviewEngine } from "../library/audition";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
@@ -105,6 +108,44 @@ describe("EditorView", () => {
 
 		// Undo starts disabled: nothing has been edited yet in this session.
 		expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+	});
+
+	it("renders the tempo-labelled loop panel for a project with an audio loop (LOOP-006)", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createDrumMachineFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		// The loop panel distinguishes a tempo-labelled loop from a pitched
+		// one-shot and documents the alpha's time-stretch behaviour.
+		expect(
+			await screen.findByRole("region", { name: "Audio loop" }),
+		).toBeInTheDocument();
+		expect(screen.getByText(/tempo-labelled loop/i)).toBeInTheDocument();
+		expect(screen.getByText(/time-stretch/i)).toBeInTheDocument();
+		expect(screen.getByText(/preserves pitch/i)).toBeInTheDocument();
+	});
+
+	it("shows the sampler instrument panel for the slice's sampler track", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		expect(
+			await screen.findByRole("region", { name: "Sampler" }),
+		).toBeInTheDocument();
+		// The INS-01 sampler controls: pitch, sample start/end, amp envelope.
+		expect(screen.getByLabelText("Pitch")).toBeInTheDocument();
+		expect(screen.getByLabelText("Start")).toBeInTheDocument();
+		expect(screen.getByLabelText("End")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Audition" }),
+		).toBeInTheDocument();
 	});
 
 	it("toggling a step enables undo, and undo reverts it", async () => {

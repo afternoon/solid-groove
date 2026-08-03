@@ -12,13 +12,26 @@ import {
 	TransportMetronome,
 } from "../audio/Transport";
 import { UnderrunMonitor } from "../audio/underrun";
-import type { Project } from "../domain/entities";
+import type { NoteTrigger, Project } from "../domain/entities";
+import type { PadId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
+import type { AudioAssetProjection } from "../projection/audioProjection";
 import {
 	type AudioSongProjection,
 	buildAudioProjection,
 } from "../projection/audioProjection";
+
+/**
+ * Maps an asset's library kind to the `asset_load_failed` `asset_type` value
+ * (PRD OPS-02). A `loop` asset is a tempo-labelled loop; a `sample` or
+ * `recording` plays as a pitched one-shot, so both report `one_shot`.
+ */
+function assetLoadFailureType(
+	kind: string,
+): "one_shot" | "loop" | "instrument_preset" {
+	return kind === "loop" ? "loop" : "one_shot";
+}
 
 export interface ProjectAudioControls {
 	readonly isPlaying: Accessor<boolean>;
@@ -45,6 +58,25 @@ export interface ProjectAudioControls {
 	setLoop(startTicks: number, endTicks: number): void;
 	toggleLoop(): void;
 	toggleMetronome(): void;
+	/**
+	 * Plays one drum pad immediately (a panel audition, PRD INS-01). It resumes
+	 * the shared audio context behind the click, so the first audition is a valid
+	 * user-gesture unlock just like `play()`.
+	 */
+	auditionPad(trackId: TrackId, padId: PadId): Promise<void>;
+	/**
+	 * Plays one note through a track's instrument for auditioning (PRD INS-01).
+	 * Resumes the shared context behind the calling user gesture, then triggers
+	 * the sound through the track's own chain. Resolves whether a note was
+	 * triggered; a browser-blocked unlock reports `audio_start_failed` and
+	 * resolves `false`, like `play()`.
+	 */
+	auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): Promise<boolean>;
 }
 
 export interface UseProjectAudioOptions {
@@ -154,6 +186,24 @@ export function useProjectAudio(
 		});
 	}
 
+	/**
+	 * A loop or sample the graph needed could not be decoded or is missing
+	 * (PRD OPS-02, LOOP-006). Emitted once per failed load attempt by the buffer
+	 * cache; the error is classified into an actionable code and the asset's
+	 * library kind into an `asset_type`. Carries no URL, storage ref, or asset
+	 * name — those are project/content strings the OPS-02 catalog keeps out of
+	 * telemetry.
+	 */
+	function reportAssetLoadFailure(
+		asset: AudioAssetProjection,
+		error: unknown,
+	): void {
+		analytics.log("asset_load_failed", {
+			asset_type: assetLoadFailureType(asset.kind),
+			error_code: codeFor(error),
+		});
+	}
+
 	function tearDown(): void {
 		stopFrameLoop();
 		metronome?.dispose();
@@ -171,6 +221,7 @@ export function useProjectAudio(
 			ownerId = current.metadata.id;
 			graph = new ProjectAudioGraph(runtime, ownerId, {
 				underrunMonitor: underrunMonitor(),
+				onAssetLoadFailure: reportAssetLoadFailure,
 			});
 			metronome = new TransportMetronome(
 				liveTransportEngine,
@@ -192,6 +243,14 @@ export function useProjectAudio(
 		graph.reconcile(lastProjection);
 		// Mirror the song tempo onto the transport without restarting it.
 		transport?.setTempo(current.song.tempo);
+
+		// `audio_loop` first-use (PRD OPS-02, INS-02): the first time a project
+		// with a tempo-labelled loop clip is wired onto the audio graph. Fired via
+		// `logFeatureFirstUse`, so it lands at most once per account per browser
+		// even though the effect re-runs on every edit.
+		if (current.clips.some((clip) => clip.content.kind === "audioLoop")) {
+			analytics.logFeatureFirstUse("audio_loop");
+		}
 	});
 
 	onCleanup(tearDown);
@@ -339,6 +398,40 @@ export function useProjectAudio(
 		setMetronomeEnabled(transport?.metronomeEnabled ?? false);
 	}
 
+	async function auditionPad(trackId: TrackId, padId: PadId): Promise<void> {
+		if (!graph) return;
+		try {
+			// The click is the allowed gesture to unlock the shared context; a
+			// blocked/never-settling resume is swallowed rather than throwing into
+			// the panel (a failed audition must never break editing — PRD OPS-02).
+			await resumeWithinTimeout();
+		} catch {
+			return;
+		}
+		graph?.auditionPad(trackId, padId);
+	}
+
+	async function auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): Promise<boolean> {
+		try {
+			await resumeWithinTimeout();
+			graph?.auditionTrack(trackId, trigger, durationTicks, velocity);
+			return true;
+		} catch (error) {
+			const code = codeFor(error);
+			analytics.log("audio_start_failed", {
+				error_code: code,
+				was_browser_blocked: code === "autoplay_blocked",
+			});
+			reportError(error, { area: "audio", fatal: false, code });
+			return false;
+		}
+	}
+
 	return {
 		isPlaying,
 		positionTicks,
@@ -354,5 +447,7 @@ export function useProjectAudio(
 		setLoop: setLoopRange,
 		toggleLoop,
 		toggleMetronome,
+		auditionPad,
+		auditionTrack,
 	};
 }

@@ -46,11 +46,35 @@ export interface AudioBufferCacheDiagnostics {
 	pendingLoads: number;
 }
 
+/**
+ * Called once for each decode attempt that fails and is still current when it
+ * settles. It carries the asset the load was for and the caught reason so the
+ * owner can classify it (missing vs. undecodable) and emit `asset_load_failed`
+ * (PRD OPS-02, LOOP-006/LOOP-013). A load superseded by a replace or release
+ * before it settled is *not* reported — a stale failure is not a user-visible
+ * failure. Deliberately fired at most once per load attempt, since the cache
+ * never auto-retries a failed decode, so the event cannot fan out per frame.
+ */
+export type BufferLoadFailureListener = (
+	asset: AudioAssetProjection,
+	error: unknown,
+) => void;
+
+export interface AudioBufferCacheOptions {
+	onLoadFailure?: BufferLoadFailureListener;
+}
+
 export class AudioBufferCache<B extends CachedBuffer = CachedBuffer> {
 	private readonly trackers = new Map<AssetId, AssetTracker<B>>();
 	private pendingLoads = 0;
+	private readonly onLoadFailure?: BufferLoadFailureListener;
 
-	constructor(private readonly loader: AssetBufferLoader<B>) {}
+	constructor(
+		private readonly loader: AssetBufferLoader<B>,
+		options: AudioBufferCacheOptions = {},
+	) {
+		this.onLoadFailure = options.onLoadFailure;
+	}
 
 	/**
 	 * Subscribe to the decoded buffer for `asset`. `onBuffer` runs synchronously
@@ -163,6 +187,11 @@ export class AudioBufferCache<B extends CachedBuffer = CachedBuffer> {
 					error,
 				);
 				for (const listener of tracker.listeners) listener(null);
+				// Report after notifying subscribers so the graph has already
+				// dropped the (now-null) buffer before the owner reacts to the
+				// failure. Fired at most once per load attempt — see
+				// `BufferLoadFailureListener`.
+				this.onLoadFailure?.(asset, error);
 			},
 		);
 	}

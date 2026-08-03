@@ -1,5 +1,13 @@
 import * as Tone from "tone";
-import type { AssetId, PlacementId, ReturnId, TrackId } from "../domain/ids";
+import type { NoteTrigger } from "../domain/entities";
+import type {
+	AssetId,
+	PadId,
+	PlacementId,
+	ReturnId,
+	TrackId,
+} from "../domain/ids";
+import { TICKS_PER_QUARTER } from "../domain/time";
 import type {
 	AudioAssetProjection,
 	AudioClipProjection,
@@ -10,12 +18,13 @@ import {
 	type AssetBufferLoader,
 	AudioBufferCache,
 	type AudioBufferCacheDiagnostics,
+	type BufferLoadFailureListener,
 	type BufferSubscription,
 } from "./AudioBufferCache";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
+import { playAudioLoop } from "./audioLoopPlayer";
 import type { DeviceNodeFactory } from "./DeviceChain";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
-import { playOneShot } from "./InstrumentGraph";
 import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
 import type { ResourceHandle } from "./resourceRegistry";
@@ -87,6 +96,12 @@ export interface ProjectAudioGraphOptions {
 	/** The current audio time, in seconds. Defaults to {@link audioClockNow};
 	 * injectable for tests. */
 	now?: () => number;
+	/**
+	 * Called when a loop or sample asset fails to decode or is missing, so the
+	 * owner can emit `asset_load_failed` (PRD OPS-02, LOOP-006). Fired once per
+	 * failed load attempt; a stale-generation failure is never reported.
+	 */
+	onAssetLoadFailure?: BufferLoadFailureListener;
 }
 
 /** Everything scheduled for one placement, so a later reconcile pass can tell
@@ -142,6 +157,7 @@ export class ProjectAudioGraph {
 		this.transport = options.transport ?? liveTransport;
 		this.bufferCache = new AudioBufferCache(
 			options.bufferLoader ?? toneBufferLoader,
+			{ onLoadFailure: options.onAssetLoadFailure },
 		);
 		this.createInstrument = options.createInstrument;
 		this.createDeviceNode = options.createDeviceNode;
@@ -181,6 +197,25 @@ export class ProjectAudioGraph {
 
 	get returnGraphs(): ReadonlyMap<ReturnId, ReturnAudioGraph> {
 		return this.returns;
+	}
+
+	/**
+	 * Plays one note through a track's instrument right now, for auditioning a
+	 * sound while editing it (PRD INS-01). It routes through the track's own
+	 * device chain and channel strip, so what a user hears is what the track
+	 * sounds like — it is not a bypassed preview. A no-op for an unknown track or
+	 * one with nothing loaded. The caller resumes the shared context first (the
+	 * audition button is a user gesture); this only schedules the trigger.
+	 */
+	auditionTrack(
+		trackId: TrackId,
+		trigger: NoteTrigger,
+		durationTicks: number,
+		velocity: number,
+	): void {
+		this.tracks
+			.get(trackId)
+			?.trigger(trigger, this.now(), ticksToToneTime(durationTicks), velocity);
 	}
 
 	diagnostics(): {
@@ -228,6 +263,27 @@ export class ProjectAudioGraph {
 		this.syncSchedule(next);
 
 		this.lastProjection = next;
+	}
+
+	/**
+	 * Plays one pad on a track right now, off the transport — the audition a
+	 * drum-machine panel fires when the user clicks a pad (PRD INS-01). It reuses
+	 * the same instrument node the arrangement drives, so choke groups,
+	 * mute/solo, pitch, pan, and envelope behave exactly as they will in
+	 * playback. A no-op if the track has no instrument or the pad's sample has
+	 * not decoded yet.
+	 */
+	auditionPad(trackId: TrackId, padId: PadId, velocity = 0.9): void {
+		if (this.disposed) return;
+		const track = this.tracks.get(trackId);
+		if (!track) return;
+		const now = this.now();
+		track.trigger(
+			{ kind: "pad", padId },
+			now,
+			ticksToToneTime(TICKS_PER_QUARTER),
+			velocity,
+		);
 	}
 
 	private syncReturns(next: AudioSongProjection): void {
@@ -366,14 +422,13 @@ export class ProjectAudioGraph {
 				this.underrunMonitor?.observe(time, this.now());
 				const track = this.tracks.get(loop.trackId);
 				if (track && bufferBox.current) {
-					playOneShot(
-						bufferBox.current,
-						track.audioInput,
+					playAudioLoop(bufferBox.current, {
+						destination: track.audioInput,
 						time,
 						durationSeconds,
-						loop.playbackRate,
+						playbackRate: loop.playbackRate,
 						offsetSeconds,
-					);
+					});
 				}
 			}, ticksToToneTime(loop.absoluteTicks));
 			entry.handles.push(

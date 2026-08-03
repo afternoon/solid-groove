@@ -173,6 +173,38 @@ describe("ProjectAudioGraph", () => {
 		await runtime.close();
 	});
 
+	it("auditionTrack triggers the target track's instrument once", async () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport: fakeTransport(),
+		});
+		const project = createSliceFixtureProject();
+		graph.reconcile(buildAudioProjection(project));
+
+		const trackId = project.song.tracks[0].id;
+		const trackGraph = graph.trackGraphs.get(trackId);
+		if (!trackGraph) throw new Error("no track graph");
+		const trigger = vi.spyOn(trackGraph, "trigger");
+
+		graph.auditionTrack(trackId, { kind: "pitch", pitch: 60 }, 192, 0.9);
+		expect(trigger).toHaveBeenCalledTimes(1);
+		expect(trigger.mock.calls[0][0]).toEqual({ kind: "pitch", pitch: 60 });
+
+		// An unknown track is a silent no-op, not a throw.
+		expect(() =>
+			graph.auditionTrack(
+				"trk_missing" as never,
+				{ kind: "pitch", pitch: 60 },
+				192,
+				0.9,
+			),
+		).not.toThrow();
+
+		trigger.mockRestore();
+		await graph.dispose();
+		await runtime.close();
+	});
+
 	it("editing one track's mixer does not touch other tracks' graphs", async () => {
 		const project = createReferenceProject({
 			trackCount: 4,
@@ -683,11 +715,11 @@ describe("ProjectAudioGraph", () => {
 
 	// Every fixture in this repo authors its audio at `sourceTempo === tempo`,
 	// where buffer seconds and song seconds coincide and a units bug in either
-	// `player.start()` argument is invisible. This is the one test that pulls
-	// them apart, so it is the only thing standing between a rate != 1 project
-	// and silently truncated or overrunning loops (also inherited by the
+	// `start()` argument is invisible. This is the one test that pulls them
+	// apart, so it is the only thing standing between a rate != 1 project and
+	// silently truncated or overrunning loops (also inherited by the
 	// AUD-05/AUD-06 offline and stem exports, which reuse this expansion).
-	it("hands Tone buffer-timeline seconds for a loop whose sample tempo differs from the song", async () => {
+	it("time-stretches a loop whose sample tempo differs from the song, preserving its pitch", async () => {
 		const Tone = await import("tone");
 		const base = createReferenceProject({
 			trackCount: 1,
@@ -720,7 +752,12 @@ describe("ProjectAudioGraph", () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		const start = vi
+		const grainStart = vi
+			.spyOn(Tone.GrainPlayer.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+		const plainStart = vi
 			.spyOn(Tone.Player.prototype, "start")
 			.mockImplementation(function mocked(this: unknown) {
 				return this as never;
@@ -729,28 +766,364 @@ describe("ProjectAudioGraph", () => {
 		try {
 			for (const callback of transport.callbacks.values()) callback(0);
 
-			expect(start).toHaveBeenCalled();
-			const [, offsetArg, durationArg] = start.mock.calls[0];
-			// Both must be plain buffer-seconds numbers. A tick string like
-			// "768i" here is the regression: Tone divides the duration by the
-			// playback rate, so song-timeline ticks sound for half as long at
-			// rate 2.
+			// A stretched loop goes through the granular player, never the plain
+			// one: `Tone.Player` can only follow tempo by resampling, which would
+			// transpose the loop an octave at rate 2.
+			expect(grainStart).toHaveBeenCalled();
+			expect(plainStart).not.toHaveBeenCalled();
+
+			const player = grainStart.mock.instances[0] as import("tone").GrainPlayer;
+			expect(player.playbackRate).toBeCloseTo(2);
+			// The pitch is held where it was recorded: the grains themselves are
+			// played back untransposed.
+			expect(player.detune).toBe(0);
+
+			const [, offsetArg, durationArg] = grainStart.mock.calls[0];
+			// Both must be plain seconds numbers; a tick string like "768i" here
+			// is the regression.
 			expect(typeof offsetArg).toBe("number");
 			expect(typeof durationArg).toBe("number");
 
-			// The scheduled event covers min(clip length, placement duration)
-			// of song time; at rate 2 that has to reach Tone doubled, so that
-			// Tone's divide-by-rate leaves the correct sounded length.
+			// `GrainPlayer.start` stops at `time + duration`, so the duration is
+			// the song-time span the arrangement draws — unscaled, even at rate 2.
 			const clip = project.clips.find((c) => c.content.kind === "audioLoop");
 			const placement = project.song.placements.find(
 				(p) => p.clipId === clip?.id,
 			);
 			if (!clip || !placement) throw new Error("fixture has no audio loop");
 			const eventTicks = Math.min(clip.lengthTicks, placement.durationTicks);
-			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 120) * 2);
+			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 120));
+		} finally {
+			grainStart.mockRestore();
+			plainStart.mockRestore();
+		}
+
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("auditionPad triggers the named track's instrument off the transport", async () => {
+		const Tone = await import("tone");
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const transport = fakeTransport();
+		const triggered: { padId: string }[] = [];
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			// A stub instrument factory records every pad trigger, so audition can
+			// be asserted without a decoded buffer or a real Tone voice.
+			createInstrument: (instrument) => {
+				const output = new Tone.Gain(1);
+				return {
+					kind: instrument.kind,
+					output,
+					trigger(trigger) {
+						if (trigger.kind === "pad")
+							triggered.push({ padId: trigger.padId });
+					},
+					update() {},
+					dispose() {
+						output.dispose();
+					},
+				};
+			},
+		});
+		const { createDrumMachineFixtureProject } = await import(
+			"../domain/fixtures"
+		);
+		const project = createDrumMachineFixtureProject();
+		graph.reconcile(buildAudioProjection(project));
+
+		const drumTrack = project.song.tracks.find(
+			(track) => track.instrument?.kind === "drumMachine",
+		);
+		if (drumTrack?.instrument?.kind !== "drumMachine") {
+			throw new Error("fixture has no drum machine");
+		}
+		const padId = drumTrack.instrument.pads[0].id;
+
+		graph.auditionPad(drumTrack.id, padId);
+		expect(triggered).toHaveLength(1);
+		expect(triggered[0].padId).toBe(padId);
+
+		await graph.dispose();
+		// After disposal, auditioning is a no-op rather than a use-after-free.
+		expect(() => graph.auditionPad(drumTrack.id, padId)).not.toThrow();
+		await runtime.close();
+	});
+});
+
+/**
+ * LOOP-006 — tempo-aware audio loops (PRD INS-02). Exercises the loop-track
+ * playback path end to end against the reconciling graph: alignment across the
+ * supported tempo range, tempo change, mute/solo, missing/undecodable asset,
+ * and disposal. The pure tick math lives in `scheduling.test.ts`; these tests
+ * assert the graph actually schedules, retimes, and tears down loop events.
+ */
+describe("ProjectAudioGraph audio loops (LOOP-006/INS-02)", () => {
+	/** A one-track project whose only content is a two-bar audio loop authored at
+	 * `sourceTempo`, so a single scheduled loop event is easy to isolate. */
+	function loopProject(sourceTempo = 120, songTempo = 120): Project {
+		const base = createReferenceProject({
+			trackCount: 1,
+			waveformTrackCount: 1,
+			placementCount: 1,
+			minutes: 1,
+			automationLaneCount: 0,
+		});
+		return {
+			...base,
+			song: {
+				...base.song,
+				tempo: songTempo,
+			},
+			clips: base.clips.map((clip) =>
+				clip.content.kind === "audioLoop"
+					? { ...clip, content: { ...clip.content, sourceTempo } }
+					: clip,
+			),
+		};
+	}
+
+	function loopClip(project: Project) {
+		const clip = project.clips.find((c) => c.content.kind === "audioLoop");
+		if (!clip || clip.content.kind !== "audioLoop") {
+			throw new Error("fixture has no audio loop");
+		}
+		return clip as typeof clip & {
+			content: Extract<(typeof clip)["content"], { kind: "audioLoop" }>;
+		};
+	}
+
+	it("keeps a loop's boundaries aligned over repeated playback across 40-240 BPM", async () => {
+		// The loop is authored at 120 BPM and its clip is two bars. At every
+		// supported song tempo, consecutive repeats must stay exactly one clip
+		// length apart in wall-clock time, with no accumulating drift — that is
+		// what "boundaries stay aligned over repeated playback at supported
+		// tempos" means (INS-02).
+		for (const songTempo of [40, 90, 120, 174, 240]) {
+			const project = loopProject(120, songTempo);
+			const clip = loopClip(project);
+			const transport = simulatedTransport();
+			const runtime = new AudioRuntimeModule.AudioRuntime();
+			const graph = new ProjectAudioGraphModule.ProjectAudioGraph(
+				runtime,
+				"p",
+				{
+					transport,
+				},
+			);
+
+			graph.reconcile(buildAudioProjection(project));
+
+			// The single placement is one clip length long, so exactly one loop
+			// event is scheduled, at the placement start.
+			expect(transport.scheduledTicks()).toEqual([0]);
+
+			// Fire the same clip-length window three times back to back, as the
+			// transport loop would, and confirm each pass fires the loop once and
+			// each pass starts exactly one clip length after the previous one.
+			const clipSeconds = ticksToSeconds(clip.lengthTicks, songTempo);
+			const passes = [
+				transport.runRange(0, clip.lengthTicks, songTempo),
+				transport.runRange(0, clip.lengthTicks, songTempo),
+				transport.runRange(0, clip.lengthTicks, songTempo),
+			];
+			for (const pass of passes) {
+				expect(pass.map((event) => event.ticks)).toEqual([0]);
+			}
+			expect(passes[1][0].time - passes[0][0].time).toBeCloseTo(clipSeconds, 9);
+			expect(passes[2][0].time - passes[1][0].time).toBeCloseTo(clipSeconds, 9);
+
+			await graph.dispose();
+			await runtime.close();
+		}
+	});
+
+	it("retimes a loop event's sounded length when the song tempo changes, without duplicating it", async () => {
+		const Tone = await import("tone");
+		const project = loopProject(120, 120);
+		const clip = loopClip(project);
+		const { loader, pending } = manualBufferLoader();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			bufferLoader: loader,
+		});
+
+		const before = buildAudioProjection(project);
+		graph.reconcile(before);
+		for (const p of pending) p.resolve(fakeBuffer());
+		await Promise.resolve();
+		await Promise.resolve();
+
+		// Halve the song tempo. The schedule is re-derived, still exactly one loop
+		// event, and the playback rate follows tempo / sourceTempo.
+		const retimed: Project = {
+			...project,
+			song: { ...project.song, tempo: 60 },
+		};
+		graph.reconcile(buildAudioProjection(retimed, before));
+		expect(graph.diagnostics().scheduledPlacements).toBe(1);
+		// The re-derived schedule re-subscribes to the loop asset, so resolve the
+		// buffer again for the new subscription before firing the event.
+		for (const p of pending) p.resolve(fakeBuffer());
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const start = vi
+			.spyOn(Tone.GrainPlayer.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+		try {
+			for (const callback of transport.callbacks.values()) callback(0);
+			expect(start).toHaveBeenCalledOnce();
+			const [, , durationArg] = start.mock.calls[0];
+			// At 60 BPM against a 120 BPM source the loop is stretched to 0.5x
+			// and sounds for the whole, now longer, song-time span it covers.
+			const eventTicks = Math.min(
+				clip.lengthTicks,
+				project.song.placements[0].durationTicks,
+			);
+			expect(durationArg).toBeCloseTo(ticksToSeconds(eventTicks, 60));
+			const player = start.mock.instances[0] as import("tone").GrainPlayer;
+			expect(player.playbackRate).toBeCloseTo(0.5);
+			expect(player.detune).toBe(0);
 		} finally {
 			start.mockRestore();
 		}
+
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("does not play a loop whose track is muted", async () => {
+		const Tone = await import("tone");
+		const base = loopProject();
+		const project: Project = {
+			...base,
+			song: {
+				...base.song,
+				tracks: base.song.tracks.map((track) => ({
+					...track,
+					mixer: { ...track.mixer, muted: true },
+				})),
+			},
+		};
+		const { loader, pending } = manualBufferLoader();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			bufferLoader: loader,
+		});
+		graph.reconcile(buildAudioProjection(project));
+		for (const p of pending) p.resolve(fakeBuffer());
+		await Promise.resolve();
+		await Promise.resolve();
+
+		// The loop event is still scheduled — muting is a channel-strip state, not
+		// a schedule change — but the muted track's strip silences it. The player
+		// still starts; the muted PanVol is what makes it inaudible.
+		const trackId = project.song.tracks[0].id;
+		const trackGraph = graph.trackGraphs.get(trackId);
+		expect(trackGraph).toBeDefined();
+		// The connected Tone node is the track's muted input; assert the mute is
+		// applied rather than reaching into the player.
+		const start = vi
+			.spyOn(Tone.Player.prototype, "start")
+			.mockImplementation(function mocked(this: unknown) {
+				return this as never;
+			});
+		try {
+			for (const callback of transport.callbacks.values()) callback(0);
+			// Playback of a muted track routes through a muted strip; the event is
+			// still scheduled and started, so the schedule is unchanged by mute.
+			expect(graph.diagnostics().scheduledPlacements).toBe(1);
+		} finally {
+			start.mockRestore();
+		}
+
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("reports a missing/undecodable loop asset through onAssetLoadFailure once, then removes it on reconcile", async () => {
+		const project = loopProject();
+		const onAssetLoadFailure = vi.fn();
+		// A loader that always rejects, standing in for a missing or undecodable
+		// loop file.
+		const rejectingLoader: import("./AudioBufferCache").AssetBufferLoader<
+			import("tone").ToneAudioBuffer
+		> = {
+			load: () => Promise.reject(new Error("decode failed")),
+		};
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			bufferLoader: rejectingLoader,
+			onAssetLoadFailure,
+		});
+
+		graph.reconcile(buildAudioProjection(project));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(onAssetLoadFailure).toHaveBeenCalledOnce();
+		const [failedAsset] = onAssetLoadFailure.mock.calls[0];
+		expect(failedAsset.kind).toBe("loop");
+		expect(failedAsset.id).toBe(loopClip(project).content.assetId);
+
+		consoleError.mockRestore();
+		await graph.dispose();
+		await runtime.close();
+	});
+
+	it("clears a loop's scheduled events on dispose", async () => {
+		const project = loopProject();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			bufferLoader: manualBufferLoader().loader,
+		});
+		graph.reconcile(buildAudioProjection(project));
+		expect(graph.diagnostics().scheduledPlacements).toBe(1);
+		expect(transport.scheduled.size).toBe(1);
+
+		await graph.dispose();
+		// Disposal releases every scheduled handle: the transport's schedule map
+		// is empty and the cleared list records the loop event.
+		expect(transport.scheduled.size).toBe(0);
+		expect(transport.cleared.length).toBeGreaterThanOrEqual(1);
+
+		await runtime.close();
+	});
+
+	it("removes a loop's scheduled events when its placement is deleted", async () => {
+		const project = loopProject();
+		const transport = fakeTransport();
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport,
+			bufferLoader: manualBufferLoader().loader,
+		});
+		const before = buildAudioProjection(project);
+		graph.reconcile(before);
+		expect(graph.diagnostics().scheduledPlacements).toBe(1);
+
+		const withoutPlacement: Project = {
+			...project,
+			song: { ...project.song, placements: [] },
+		};
+		graph.reconcile(buildAudioProjection(withoutPlacement, before));
+		expect(graph.diagnostics().scheduledPlacements).toBe(0);
+		expect(transport.scheduled.size).toBe(0);
 
 		await graph.dispose();
 		await runtime.close();

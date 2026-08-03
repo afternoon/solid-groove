@@ -50,7 +50,6 @@
 		"library:validate": "node scripts/starter-library/build.mjs --dry-run",
 		"library:upload": "node scripts/starter-library/upload.mjs",
 		"library:test": "vitest run scripts/starter-library",
-		"issues:deps": "node scripts/sync-issue-dependencies.mjs",
 		"predev": "bun run samples",
 		"dev": "vinxi dev",
 		"prebuild": "bun run samples",

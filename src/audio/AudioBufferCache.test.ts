@@ -282,6 +282,44 @@ describe("AudioBufferCache", () => {
 		consoleError.mockRestore();
 	});
 
+	it("reports a failed decode to onLoadFailure once, with the asset and error", async () => {
+		const { loader, pending } = createManualLoader();
+		const onLoadFailure = vi.fn();
+		const cache = new AudioBufferCache(loader, { onLoadFailure });
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+
+		const failing = asset("ast_a", "f1", { kind: "loop" });
+		cache.subscribe(failing, vi.fn());
+		const error = new Error("decode failed");
+		pending[0].reject(error);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(onLoadFailure).toHaveBeenCalledExactlyOnceWith(failing, error);
+		consoleError.mockRestore();
+	});
+
+	it("does not report a stale-generation failure to onLoadFailure", async () => {
+		const { loader, pending } = createManualLoader();
+		const onLoadFailure = vi.fn();
+		const cache = new AudioBufferCache(loader, { onLoadFailure });
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+
+		const subscription = cache.subscribe(asset("ast_a", "f1"), vi.fn());
+		// Release before the load settles: the in-flight decode is now stale.
+		subscription.release();
+		pending[0].reject(new Error("decode failed"));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(onLoadFailure).not.toHaveBeenCalled();
+		consoleError.mockRestore();
+	});
+
 	it("tracks pending-load and cached-asset diagnostics", async () => {
 		const { loader, pending } = createManualLoader();
 		const cache = new AudioBufferCache(loader);

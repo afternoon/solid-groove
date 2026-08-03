@@ -54,8 +54,10 @@ interface MutableTrack extends JsonRecord {
 	sendConfig: (JsonRecord & { returnId: string })[];
 	instrument:
 		| (JsonRecord & {
+				kind?: string;
 				assetId?: string | null;
 				pads?: MutableDrumPad[];
+				parameters?: Record<string, number>;
 		  })
 		| null;
 	mixer: JsonRecord & { volume: number };
@@ -85,6 +87,7 @@ interface MutableClip extends JsonRecord {
 	content: JsonRecord & {
 		kind: string;
 		assetId?: string;
+		startOffsetTicks?: number;
 		events: (JsonRecord & { id: string; startTicks: number })[];
 	};
 }
@@ -382,6 +385,42 @@ describe("parseProject", () => {
 		expectIssue(parseProject(outOfRange), "invalid_parameter");
 	});
 
+	it("rejects an instrument parameter outside its declared range", () => {
+		const input = baseProject();
+		const sampler = input.song.tracks.find(
+			(track) => track.instrument?.kind === "sampler",
+		);
+		if (!sampler?.instrument) throw new Error("fixture has no sampler track");
+		// SAMPLER_PITCH is -24..24 semitones; 99 is out of range.
+		sampler.instrument.parameters = { pitch: 99 };
+		expectIssue(parseProject(input), "invalid_parameter");
+	});
+
+	it("accepts in-range instrument parameters", () => {
+		const input = baseProject();
+		const sampler = input.song.tracks.find(
+			(track) => track.instrument?.kind === "sampler",
+		);
+		if (!sampler?.instrument) throw new Error("fixture has no sampler track");
+		sampler.instrument.parameters = {
+			pitch: 5,
+			sampleStart: 0.1,
+			sampleEnd: 0.8,
+			ampAttack: 0.01,
+		};
+		expect(parseProject(input).ok).toBe(true);
+	});
+
+	it("rejects a sample window whose end is not after its start", () => {
+		const input = baseProject();
+		const sampler = input.song.tracks.find(
+			(track) => track.instrument?.kind === "sampler",
+		);
+		if (!sampler?.instrument) throw new Error("fixture has no sampler track");
+		sampler.instrument.parameters = { sampleStart: 0.6, sampleEnd: 0.6 };
+		expectIssue(parseProject(input), "invalid_parameter");
+	});
+
 	it("rejects inconsistent project metadata", () => {
 		const timestamps = baseProject();
 		timestamps.metadata.modifiedAt = timestamps.metadata.createdAt - 1;
@@ -458,6 +497,32 @@ describe("audio loop clips and drum pads", () => {
 		const input = drumMachineProject();
 		drumPads(input)[0].assetId = ids("asset");
 		expectIssue(parseProject(input), "dangling_reference");
+	});
+
+	// INS-02: a tempo-labelled loop declares source BPM (schema-checked) and bar
+	// length. The bar-length invariant is what keeps a loop's boundaries aligned
+	// as the song tempo moves, so it is enforced at ingestion.
+	it("rejects an audio-loop clip whose length is not a whole number of bars", () => {
+		const input = drumMachineProject();
+		const clip = audioLoopClip(input);
+		// The fixture loop is two bars (1536 ticks); nudge it one tick off-grid.
+		clip.lengthTicks += 1;
+		expectIssue(parseProject(input), "invalid_musical_time");
+	});
+
+	it("accepts an audio-loop clip whose length is a whole number of bars", () => {
+		const input = drumMachineProject();
+		// One bar (768 ticks) — a valid, differently-sized bar-aligned loop.
+		audioLoopClip(input).lengthTicks = 768;
+		const result = parseProject(input);
+		expect(result.ok, `issues: ${JSON.stringify(result)}`).toBe(true);
+	});
+
+	it("rejects an audio-loop clip whose start offset is not before its length", () => {
+		const input = drumMachineProject();
+		const clip = audioLoopClip(input);
+		clip.content.startOffsetTicks = clip.lengthTicks;
+		expectIssue(parseProject(input), "invalid_musical_time");
 	});
 });
 

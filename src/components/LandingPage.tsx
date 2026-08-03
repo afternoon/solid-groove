@@ -10,7 +10,7 @@ import TelemetryDisclosure from "./TelemetryDisclosure";
 import "./LandingPage.css";
 
 /**
- * The public marketing landing page (PRD `PRJ-06`, backlog `LOOP-001b`).
+ * The public marketing landing page (PRD `PRJ-06`, task `LOOP-001b`).
  *
  * The product's front door, and the entry point into the PRJ-01 anonymous
  * start. Design reference: `docs/design/mocks/04-landing-page.png`. The mock is

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
 	bars,
+	createDrumPad,
 	createNoteClip,
 	createNoteEvent,
 	createPlacement,
 	createSeededIdFactory,
+	createSynthInstrument,
 	createTrack as createTrackEntity,
+	PAD_PITCH,
 	TICKS_PER_BAR,
 	TICKS_PER_SIXTEENTH,
 	TRACK_VOLUME,
@@ -14,18 +17,27 @@ import {
 import {
 	addClip,
 	addNotes,
+	addPad,
 	addPlacement,
 	addTrack,
+	changeInstrument,
 	clearNotes,
 	duplicateNotes,
 	quantizeNotes,
 	removeClip,
 	removeNotes,
+	removePad,
 	removePlacement,
 	removeTrack,
+	reorderPad,
 	reorderTrack,
 	scaleNoteVelocity,
+	setPadAsset,
+	setPadChoke,
+	setPadFlag,
+	setPadParameter,
 	setParameter,
+	setSample,
 	setTrackFlag,
 	transposeNotes,
 	updateClip,
@@ -203,6 +215,60 @@ const cases: InverseCase[] = [
 				},
 				-11,
 			),
+	},
+	{
+		type: "drum.setPadAsset",
+		// The kick pad already uses the pad asset; point it at the sampler asset
+		// (also in the project) so the change is real and never dangles.
+		build: (fixture) =>
+			setPadAsset(
+				fixture.trackBId,
+				fixture.padIds[0],
+				fixture.assetIds.sampler,
+			),
+	},
+	{
+		type: "drum.setPadFlag",
+		build: (fixture) =>
+			setPadFlag(fixture.trackBId, fixture.padIds[0], "soloed", true),
+	},
+	{
+		type: "drum.setPadChoke",
+		build: (fixture) => setPadChoke(fixture.trackBId, fixture.padIds[0], 3),
+	},
+	{
+		type: "drum.setPadParameter",
+		build: (fixture) =>
+			setPadParameter(fixture.trackBId, fixture.padIds[0], PAD_PITCH.id, 7),
+	},
+	{
+		type: "drum.addPad",
+		build: (fixture) =>
+			addPad(
+				fixture.trackBId,
+				createDrumPad(createTestFactoryContext("inverse-pad"), {
+					name: "Extra Pad",
+				}),
+			),
+	},
+	{
+		type: "drum.removePad",
+		build: (fixture) => removePad(fixture.trackBId, fixture.padIds[1]),
+	},
+	{
+		type: "drum.reorderPad",
+		build: (fixture) => reorderPad(fixture.trackBId, fixture.padIds[0], 1),
+	},
+	{
+		type: "instrument.change",
+		// trackA is a sampler; swap it for a synth so the inverse must restore the
+		// full previous sampler instrument, assetId and all.
+		build: (fixture) =>
+			changeInstrument(fixture.trackAId, createSynthInstrument()),
+	},
+	{
+		type: "instrument.setSample",
+		build: (fixture) => setSample(fixture.trackAId, null),
 	},
 ];
 
