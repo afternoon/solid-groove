@@ -173,6 +173,38 @@ describe("ProjectAudioGraph", () => {
 		await runtime.close();
 	});
 
+	it("auditionTrack triggers the target track's instrument once", async () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+			transport: fakeTransport(),
+		});
+		const project = createSliceFixtureProject();
+		graph.reconcile(buildAudioProjection(project));
+
+		const trackId = project.song.tracks[0].id;
+		const trackGraph = graph.trackGraphs.get(trackId);
+		if (!trackGraph) throw new Error("no track graph");
+		const trigger = vi.spyOn(trackGraph, "trigger");
+
+		graph.auditionTrack(trackId, { kind: "pitch", pitch: 60 }, 192, 0.9);
+		expect(trigger).toHaveBeenCalledTimes(1);
+		expect(trigger.mock.calls[0][0]).toEqual({ kind: "pitch", pitch: 60 });
+
+		// An unknown track is a silent no-op, not a throw.
+		expect(() =>
+			graph.auditionTrack(
+				"trk_missing" as never,
+				{ kind: "pitch", pitch: 60 },
+				192,
+				0.9,
+			),
+		).not.toThrow();
+
+		trigger.mockRestore();
+		await graph.dispose();
+		await runtime.close();
+	});
+
 	it("editing one track's mixer does not touch other tracks' graphs", async () => {
 		const project = createReferenceProject({
 			trackCount: 4,

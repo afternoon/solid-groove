@@ -5,6 +5,7 @@ import {
 	createNoteEvent,
 	createPlacement,
 	createSeededIdFactory,
+	createSynthInstrument,
 	createTrack as createTrackEntity,
 	TICKS_PER_BAR,
 	TICKS_PER_SIXTEENTH,
@@ -16,6 +17,7 @@ import {
 	addNotes,
 	addPlacement,
 	addTrack,
+	changeInstrument,
 	clearNotes,
 	duplicateNotes,
 	quantizeNotes,
@@ -26,6 +28,7 @@ import {
 	reorderTrack,
 	scaleNoteVelocity,
 	setParameter,
+	setSample,
 	setTrackFlag,
 	transposeNotes,
 	updateClip,
@@ -203,6 +206,17 @@ const cases: InverseCase[] = [
 				},
 				-11,
 			),
+	},
+	{
+		type: "instrument.change",
+		// trackA is a sampler; swap it for a synth so the inverse must restore the
+		// full previous sampler instrument, assetId and all.
+		build: (fixture) =>
+			changeInstrument(fixture.trackAId, createSynthInstrument()),
+	},
+	{
+		type: "instrument.setSample",
+		build: (fixture) => setSample(fixture.trackAId, null),
 	},
 ];
 

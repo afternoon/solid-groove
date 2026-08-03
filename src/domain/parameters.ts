@@ -197,6 +197,250 @@ export const NOTE_PROBABILITY = register({
 	automatable: false,
 });
 
+// --- Instrument parameters (LOOP-004, PRD INS-01) --------------------------
+//
+// Synth and one-shot sampler parameters. Registered here (not repeated at the
+// UI, command, or audio layers) so a control, its validation, and the audio
+// engine all read one definition. Namespaced by instrument kind — `synth.*`
+// and `sampler.*` — the same way device parameters are namespaced by device
+// type, so `parse.ts` and the `parameter.set` command look them up by
+// `${instrument.kind}.${parameterId}`.
+//
+// The fuller instrument in the design mocks (sub-oscillator, pulse-width,
+// multi-mode filter, key tracking, fine tune, gain/pan, envelope hold, a
+// per-sampler filter) is the INS-01 *deferred* set (P1/P2) and is not
+// registered here.
+
+/**
+ * Oscillator waveform, stored as a small integer index rather than a string so
+ * it fits the numeric-only parameter model. `SYNTH_WAVEFORMS` maps the index to
+ * the Tone oscillator type; the option group in the UI reads the same list.
+ */
+export const SYNTH_WAVEFORMS = [
+	"sine",
+	"square",
+	"sawtooth",
+	"triangle",
+] as const;
+export type SynthWaveform = (typeof SYNTH_WAVEFORMS)[number];
+
+export const SYNTH_WAVEFORM = register({
+	id: "synth.waveform",
+	label: "Waveform",
+	unit: "normalized",
+	min: 0,
+	max: SYNTH_WAVEFORMS.length - 1,
+	defaultValue: 2, // sawtooth
+	step: 1,
+	clampPolicy: "reject",
+	automatable: false,
+});
+
+/** Maps a stored waveform index onto its oscillator type, clamped in range. */
+export function synthWaveform(index: number): SynthWaveform {
+	const clamped = Math.min(
+		SYNTH_WAVEFORMS.length - 1,
+		Math.max(0, Math.round(index)),
+	);
+	return SYNTH_WAVEFORMS[clamped];
+}
+
+/** Amp-envelope attack/decay/release share one range across synth and sampler. */
+const ENVELOPE_TIME = {
+	unit: "seconds",
+	min: 0,
+	max: 4,
+	scale: "logarithmic",
+	automatable: false,
+} as const;
+
+export const SYNTH_AMP_ATTACK = register({
+	id: "synth.ampAttack",
+	label: "Attack",
+	...ENVELOPE_TIME,
+	defaultValue: 0.005,
+});
+
+export const SYNTH_AMP_DECAY = register({
+	id: "synth.ampDecay",
+	label: "Decay",
+	...ENVELOPE_TIME,
+	defaultValue: 0.18,
+});
+
+export const SYNTH_AMP_SUSTAIN = register({
+	id: "synth.ampSustain",
+	label: "Sustain",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 0.6,
+	automatable: false,
+});
+
+export const SYNTH_AMP_RELEASE = register({
+	id: "synth.ampRelease",
+	label: "Release",
+	...ENVELOPE_TIME,
+	defaultValue: 0.22,
+});
+
+export const SYNTH_FILTER_CUTOFF = register({
+	id: "synth.filterCutoff",
+	label: "Cutoff",
+	unit: "hertz",
+	min: 20,
+	max: 20_000,
+	defaultValue: 12_000,
+	scale: "logarithmic",
+	automatable: true,
+});
+
+/**
+ * Resonant low-pass filter Q. The upper bound is finite but deliberately
+ * generous so the classic self-resonant sweep is reachable (AUD/INS "extreme
+ * but finite" ranges).
+ */
+export const SYNTH_FILTER_RESONANCE = register({
+	id: "synth.filterResonance",
+	label: "Resonance",
+	unit: "normalized",
+	min: 0,
+	max: 20,
+	defaultValue: 1,
+	automatable: true,
+});
+
+export const SAMPLER_PITCH = register({
+	id: "sampler.pitch",
+	label: "Pitch",
+	unit: "semitones",
+	min: -24,
+	max: 24,
+	defaultValue: 0,
+	step: 1,
+	automatable: false,
+});
+
+/**
+ * Sample start and end as a normalized position in the buffer (0..1). The end
+ * defaults to 1 (the whole sample); the audio engine reads the material between
+ * them and the domain rejects an end that is not strictly after the start.
+ */
+export const SAMPLER_SAMPLE_START = register({
+	id: "sampler.sampleStart",
+	label: "Start",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 0,
+	automatable: false,
+});
+
+export const SAMPLER_SAMPLE_END = register({
+	id: "sampler.sampleEnd",
+	label: "End",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 1,
+	automatable: false,
+});
+
+export const SAMPLER_AMP_ATTACK = register({
+	id: "sampler.ampAttack",
+	label: "Attack",
+	...ENVELOPE_TIME,
+	defaultValue: 0.001,
+});
+
+export const SAMPLER_AMP_DECAY = register({
+	id: "sampler.ampDecay",
+	label: "Decay",
+	...ENVELOPE_TIME,
+	defaultValue: 0.1,
+});
+
+export const SAMPLER_AMP_SUSTAIN = register({
+	id: "sampler.ampSustain",
+	label: "Sustain",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 1,
+	automatable: false,
+});
+
+export const SAMPLER_AMP_RELEASE = register({
+	id: "sampler.ampRelease",
+	label: "Release",
+	...ENVELOPE_TIME,
+	defaultValue: 0.2,
+});
+
+/** Every synth parameter, in panel order. Keyed by its full `synth.*` id. */
+export const SYNTH_PARAMETERS: readonly ParameterDefinition[] = [
+	SYNTH_WAVEFORM,
+	SYNTH_AMP_ATTACK,
+	SYNTH_AMP_DECAY,
+	SYNTH_AMP_SUSTAIN,
+	SYNTH_AMP_RELEASE,
+	SYNTH_FILTER_CUTOFF,
+	SYNTH_FILTER_RESONANCE,
+];
+
+/** Every sampler parameter, in panel order. Keyed by its full `sampler.*` id. */
+export const SAMPLER_PARAMETERS: readonly ParameterDefinition[] = [
+	SAMPLER_PITCH,
+	SAMPLER_SAMPLE_START,
+	SAMPLER_SAMPLE_END,
+	SAMPLER_AMP_ATTACK,
+	SAMPLER_AMP_DECAY,
+	SAMPLER_AMP_SUSTAIN,
+	SAMPLER_AMP_RELEASE,
+];
+
+/**
+ * The registered parameter definitions an instrument of `kind` owns. The
+ * `parameter.set` command and `parse.ts` both use this to reject a parameter a
+ * given instrument does not own without repeating the list.
+ */
+export function instrumentParameters(
+	kind: "synth" | "sampler" | "drumMachine",
+): readonly ParameterDefinition[] {
+	switch (kind) {
+		case "synth":
+			return SYNTH_PARAMETERS;
+		case "sampler":
+			return SAMPLER_PARAMETERS;
+		case "drumMachine":
+			// Per-pad drum parameters are authored by LOOP-005; the machine itself
+			// exposes none at this layer yet.
+			return [];
+	}
+}
+
+/**
+ * Reads one instrument parameter's stored value, falling back to the
+ * definition's default when the sparse parameter map omits it. Parameter ids
+ * here are the bare `attack`/`cutoff`-style keys stored in `parameters`, not the
+ * namespaced definition id.
+ */
+export function readInstrumentParameter(
+	definition: ParameterDefinition,
+	parameters: Readonly<Record<string, number>>,
+): number {
+	const key = bareParameterId(definition.id);
+	const stored = parameters[key];
+	return stored === undefined ? definition.defaultValue : stored;
+}
+
+/** Strips the `synth.`/`sampler.` namespace from a definition id. */
+export function bareParameterId(id: string): string {
+	const dot = id.indexOf(".");
+	return dot === -1 ? id : id.slice(dot + 1);
+}
+
 /** Every parameter registered so far, keyed by parameter ID. */
 export function parameterDefinitions(): ReadonlyMap<
 	string,
