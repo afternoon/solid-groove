@@ -35,6 +35,12 @@ export interface ProjectAudioControls {
 	continueFromStop(): Promise<void>;
 	seekTicks(ticks: number): void;
 	/**
+	 * The current post-fader peak level of a track, in dBFS, or `null` when no
+	 * graph is live yet or the track has no meter. The mixer polls this for a
+	 * per-track level display (PRD TRK-02); reading a meter emits no telemetry.
+	 */
+	trackLevelDb(trackId: string): number | null;
+	/**
 	 * Redefine the (bar-aligned) loop range. No surface calls this yet: the
 	 * `FND-009` slice renders a 16-step grid and no timeline, so there is nothing
 	 * to drag a range on — the loop is the one bar the grid shows. The range
@@ -319,6 +325,17 @@ export function useProjectAudio(
 		}
 	}
 
+	function trackLevelDb(trackId: string): number | null {
+		const meter = graph?.trackMeter(
+			trackId as Parameters<ProjectAudioGraph["trackMeter"]>[0],
+		);
+		if (!meter) return null;
+		const value = meter.getValue();
+		// Tone.Meter returns a single number in mono or a per-channel array in
+		// stereo; the level display wants one peak, so take the louder channel.
+		return Array.isArray(value) ? Math.max(...value) : value;
+	}
+
 	function seekTicks(ticks: number): void {
 		transport?.seekTicks(ticks);
 		setPositionTicks(transport?.positionTicks ?? 0);
@@ -351,6 +368,7 @@ export function useProjectAudio(
 		toggle,
 		continueFromStop,
 		seekTicks,
+		trackLevelDb,
 		setLoop: setLoopRange,
 		toggleLoop,
 		toggleMetronome,

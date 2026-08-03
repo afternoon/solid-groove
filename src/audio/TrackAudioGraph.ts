@@ -45,6 +45,8 @@ export class TrackAudioGraph {
 	private readonly deviceChain: DeviceChain;
 	private readonly panVol: Tone.PanVol;
 	private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
+	private readonly meter: Tone.Meter;
+	private readonly meterHandle: ReturnType<AudioProjectScope["register"]>;
 	private instrumentNode: InstrumentNode | null = null;
 	private instrumentHandle: ReturnType<AudioProjectScope["register"]> | null =
 		null;
@@ -67,8 +69,35 @@ export class TrackAudioGraph {
 		this.panVolHandle = context.scope.register("node", () => {
 			this.panVol.dispose();
 		});
+		// A per-track peak meter (PRD TRK-02: "Every track provides ... a level
+		// meter"). It taps the post-fader signal as a fan-out, so it reflects what
+		// mute/solo/volume actually let through without colouring the signal, and
+		// is polled by the mixer UI rather than sourcing any per-frame telemetry.
+		this.meter = new Tone.Meter();
+		this.meterHandle = context.scope.register("node", () => {
+			this.meter.dispose();
+		});
 		this.deviceChain.output.connect(this.panVol.input);
 		this.panVol.connect(destination);
+		this.panVol.connect(this.meter);
+	}
+
+	/**
+	 * This track's post-fader peak meter. The mixer polls it for a level
+	 * display; it is never the source of an analytics event, so metering adds no
+	 * per-frame telemetry (PRD TRK-02/OPS-02).
+	 */
+	get levelMeter(): Tone.Meter {
+		return this.meter;
+	}
+
+	/**
+	 * Whether this track's channel strip is currently silenced — its own mute or
+	 * the project-wide solo rule. Read access for tests and diagnostics; the
+	 * value is set by {@link reconcile}'s `effectiveMuted` argument.
+	 */
+	get isMuted(): boolean {
+		return this.panVol.mute;
 	}
 
 	/** The pre-fader tap point: after devices, before pan/volume/mute. */
@@ -207,5 +236,6 @@ export class TrackAudioGraph {
 		this.sends.clear();
 		this.deviceChain.dispose();
 		void this.context.scope.release(this.panVolHandle);
+		void this.context.scope.release(this.meterHandle);
 	}
 }

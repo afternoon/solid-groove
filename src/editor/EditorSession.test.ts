@@ -2,10 +2,23 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import { addNotes, removeNotes, updateNote } from "../commands";
-import { createFactoryContext, createNoteEvent } from "../domain/factories";
+import {
+	addNotes,
+	removeNotes,
+	removeTrack,
+	setParameter,
+	setTrackFlag,
+	updateNote,
+} from "../commands";
+import {
+	createFactoryContext,
+	createNoteEvent,
+	createSynthInstrument,
+	createTrack,
+} from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import type { ClipId } from "../domain/ids";
+import { TRACK_VOLUME } from "../domain/parameters";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
@@ -276,6 +289,99 @@ describe("EditorSession", () => {
 		expect(opened[0]?.params.is_first_open).toBe(true);
 
 		otherDeviceSession.dispose();
+	});
+
+	it("persists a mixer edit (a song-tier command) through autosave", async () => {
+		const { session, repository, project } = ctx;
+		const trackId = project.song.tracks[0].id;
+
+		session.dispatch(setTrackFlag(trackId, "muted", true));
+		expect(session.autosave.status.pending).toBe(1);
+
+		await session.autosave.flush();
+		expect(session.autosave.status.state).toBe("saved");
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(loaded.value.song.tracks[0].mixer.muted).toBe(true);
+	});
+
+	it("persists a volume change and does not queue any clip for it", async () => {
+		const { session, repository, project } = ctx;
+		const trackId = project.song.tracks[0].id;
+
+		session.dispatch(
+			setParameter(
+				{ scope: "track", trackId, parameterId: TRACK_VOLUME.id },
+				-6,
+			),
+		);
+		// Exactly one queued entry — the song tier — never a clip document.
+		expect(session.autosave.status.pending).toBe(1);
+		await session.autosave.flush();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(loaded.value.song.tracks[0].mixer.volume).toBe(-6);
+	});
+
+	it("a fader gesture persists a single song write on commit", async () => {
+		const { session, project } = ctx;
+		const trackId = project.song.tracks[0].id;
+
+		const gesture = session.beginGesture({ summary: "vol" });
+		for (const db of [-3, -6, -9]) {
+			gesture.apply(
+				setParameter(
+					{ scope: "track", trackId, parameterId: TRACK_VOLUME.id },
+					db,
+				),
+			);
+		}
+		// Nothing is queued until the gesture commits.
+		expect(session.autosave.status.pending).toBe(0);
+		gesture.commit();
+		expect(session.autosave.status.pending).toBe(1);
+
+		await session.autosave.flush();
+		expect(session.project.song.tracks[0].mixer.volume).toBe(-9);
+	});
+
+	it("deleting a track queues the song and every one of its clips for deletion", async () => {
+		const { session, repository, project } = ctx;
+		const trackId = project.song.tracks[0].id;
+		const clipIds = project.clips
+			.filter((clip) => clip.trackId === trackId)
+			.map((clip) => clip.id);
+		expect(clipIds.length).toBeGreaterThan(0);
+
+		session.dispatch(removeTrack(trackId));
+		await session.autosave.flush();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(loaded.value.song.tracks.some((t) => t.id === trackId)).toBe(false);
+		for (const clipId of clipIds) {
+			expect(loaded.value.clips.some((c) => c.id === clipId)).toBe(false);
+		}
+	});
+
+	it("adding a track with a clip queues both the song and the new clip", async () => {
+		const { session, repository, project } = ctx;
+		const factoryContext = createFactoryContext();
+		const track = createTrack(factoryContext, {
+			name: "Synth",
+			order: project.song.tracks.length,
+			instrument: createSynthInstrument(),
+		});
+		const { addTrack } = await import("../commands");
+
+		session.dispatch(addTrack(track));
+		await session.autosave.flush();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(loaded.value.song.tracks.some((t) => t.id === track.id)).toBe(true);
 	});
 
 	it("dispose stops the repository watch subscription", async () => {

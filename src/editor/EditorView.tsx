@@ -29,6 +29,7 @@ import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import Mixer from "./Mixer";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
@@ -386,6 +387,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										</div>
 									)}
 								</Show>
+								<Mixer
+									project={currentProject()}
+									dispatch={session.dispatch}
+									beginGesture={session.beginGesture}
+									trackLevelDb={audio.trackLevelDb}
+									isPlaying={audio.isPlaying}
+								/>
 							</div>
 							<Show when={guideOpen()}>
 								<ShortcutGuide
