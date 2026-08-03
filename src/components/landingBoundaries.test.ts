@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * The structural half of the PRD `PRJ-06` performance expectation for a public
- * marketing page (backlog `LOOP-001b`).
+ * marketing page (task `LOOP-001b`).
  *
  * The landing page is the product's first impression and has no editing state
  * to protect, so nothing a visitor might never use should be on its first-paint

@@ -71,7 +71,7 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
  * 16-step sampler track, hear it, undo it, and let autosave save it — the
  * smallest surface that exercises the real UI-to-command-to-audio-to-
  * persistence path end to end. Superseded by `LOOP-010`'s full step editor;
- * not meant to be grown into it (see `docs/backlog.md#fnd-009`).
+ * not meant to be grown into it (see the `FND-009` task).
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [repositoryResource] = createResource(() => getProjectRepository());

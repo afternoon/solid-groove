@@ -752,7 +752,7 @@ Sessions, first opens, page views, and engagement time come from Google Analytic
 
 *Event catalog*
 
-The `Owning task` column names the backlog task that must ship the event with the feature it measures. An event has no separate "instrumentation task" later.
+The `Owning task` column names the task that must ship the event with the feature it measures. An event has no separate "instrumentation task" later.
 
 | Event | Fires when | Key parameters | Alpha Milestone / owning task |
 | --- | --- | --- | --- |
@@ -1245,7 +1245,7 @@ In user sessions, at least 5 of 8 target users should be able to create a variat
 
 ## 12. Delivery plan
 
-The agent-ready task sequence, ownership protocol, dependencies, and completion evidence are maintained in [`docs/backlog.md`](./backlog.md). This PRD remains authoritative for product scope and acceptance criteria; backlog tasks must link back to and satisfy it.
+The agent-ready task sequence, ownership protocol, dependencies, and completion evidence are maintained as [GitHub issues](https://github.com/afternoon/solid-groove/issues) — one issue per task, with dependencies as the native `blocked_by` graph and Alpha Milestones as GitHub milestones. `CLAUDE.md` ("Task tracking and landing work") describes the convention. This PRD remains authoritative for product scope and acceptance criteria; tasks must link back to and satisfy it.
 
 ### Alpha Milestone 0 - Foundations
 

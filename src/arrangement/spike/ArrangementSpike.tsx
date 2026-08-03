@@ -39,7 +39,7 @@ import {
 import "./ArrangementSpike.css";
 
 /**
- * The FND-008 renderer spike (backlog task; PRD 9.3). Disposable, exploratory
+ * The FND-008 renderer spike (task; PRD 9.3). Disposable, exploratory
  * UI: it exists to give the measurement harness something representative to
  * drive, not to be grown into the production arrangement editor (`ARR-005`
  * replaces it). See `spike/README.md`. The parts worth keeping —
@@ -365,7 +365,7 @@ export default function ArrangementSpike(props: ArrangementSpikeProps) {
 		instrumentation.dispose();
 	});
 
-	/** Runs one of the four scripted traces the backlog task calls for
+	/** Runs one of the four scripted traces the task calls for
 	 * (scroll/zoom/seek/selection), driving the same public API a real
 	 * pointer/wheel/keyboard gesture would, for `frames` animation frames,
 	 * and returns the frame/long-task/redraw/memory numbers collected while

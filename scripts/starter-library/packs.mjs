@@ -13,7 +13,7 @@
 // cannot build a basic idea in its own genre on its own; splitting any
 // coarser would erase the one distinction a producer actually chooses by
 // (drums vs. bass vs. tonal vs. texture vs. FX). Five packs is the small
-// number section 5.1 and the CNT-000b backlog block call for.
+// number section 5.1 and the CNT-000b task block call for.
 //
 // A sixth, reserved pack exists for acquired CC0 content
 // (`library:acquire`, `library:vcsl`). Nothing is pinned yet (`sources.lock.json`
