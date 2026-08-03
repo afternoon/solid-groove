@@ -26,6 +26,7 @@ import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 import { SONG_TEMPO } from "../domain/parameters";
 import { formatBarsBeatsSixteenths } from "../domain/time";
+import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import type { SaveFailureReason } from "../persistence/projectRepository";
@@ -40,6 +41,12 @@ import "./EditorView.css";
 
 export interface EditorViewProps {
 	readonly projectId: string;
+	/**
+	 * Builds the audition engine each time the Library panel mounts. Defaults to
+	 * a Tone-backed engine on the shared runtime; injected in tests so the
+	 * per-mount lifecycle can be exercised without Web Audio.
+	 */
+	readonly createAuditionEngine?: () => PreviewEngine;
 }
 
 const SAVE_STATUS_LABEL: Record<string, string> = {
@@ -86,17 +93,17 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [guideOpen, setGuideOpen] = createSignal(false);
 	const [libraryOpen, setLibraryOpen] = createSignal(false);
 
-	// One audition engine, built lazily off the shared runtime the first time the
-	// browser opens, so opening the editor costs nothing until a user browses.
-	// Auditions play through the same destination the project does — never an
-	// export/offline context (LIB-01).
-	let auditionEngine: ToneAuditionEngine | null = null;
-	const previewEngine = () => {
-		if (!auditionEngine) {
-			auditionEngine = new ToneAuditionEngine(getAudioRuntime());
-		}
-		return auditionEngine;
-	};
+	// A fresh audition engine per panel mount, built off the shared runtime the
+	// first time each opening browses. `LibraryBrowser`'s `useLibraryBrowser`
+	// disposes the engine on unmount (its `AuditionController.dispose()` calls
+	// `engine.dispose()`), and a disposed `ToneAuditionEngine` stays disposed —
+	// so the engine must be owned per mount, never cached across panel opens, or
+	// the second open would reuse a dead engine and every audition would fail
+	// with `asset_missing` (LOOP-013). Auditions play through the same
+	// destination the project does — never an export/offline context (LIB-01).
+	const createAuditionEngine =
+		props.createAuditionEngine ??
+		(() => new ToneAuditionEngine(getAudioRuntime()));
 
 	// Tempo is written by a validated command (song.tempo), clamped to the
 	// AUD-02 40-240 BPM supported range at this surface. The command is the only
@@ -415,8 +422,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								</Show>
 							</div>
 							<Show when={libraryOpen()}>
+								{/*
+								 * One engine per mount: `Show` disposes and recreates this
+								 * child branch on each false->true transition, so
+								 * `createAuditionEngine()` runs once per open. Closing the
+								 * panel unmounts `LibraryBrowser`, whose `useLibraryBrowser`
+								 * disposes the engine — so each reopen must get a fresh,
+								 * undisposed engine, never a cached (now-dead) one.
+								 */}
 								<aside class="library-panel" aria-label="Library">
-									<LibraryBrowser previewEngine={previewEngine()} />
+									<LibraryBrowser previewEngine={createAuditionEngine()} />
 								</aside>
 							</Show>
 							<Show when={guideOpen()}>
