@@ -1,15 +1,19 @@
 export const meta = {
   name: 'solid-groove-phase-1',
   description:
-    'Implement Solid Groove Alpha Milestone 1 (LOOP-001..016, CNT-001..002) — Sonnet implements, Opus reviews every branch before its PR opens',
+    'Implement every unblocked Solid Groove alpha issue (milestones #2..#5) — Opus implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to execute Alpha Milestone 1, after FND-009 has landed. The scheduler is driven live by GitHub: each pass it reads the milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestone: 2, maxConcurrent: 3 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once; default 3 balances throughput against contention, raise it in cloud.',
+    'Run to drive the Solid Groove alpha forward. ONE scheduler with ONE concurrency budget consumes every unblocked issue across the alpha milestones (#2 Loop Workflow, #3 Arrangement + Export, #4 AI Assistant, #5 Private Alpha Hardening; Post-Alpha #6 is out of scope). Milestones are only a scope filter, never a per-run partition — do not launch one workflow per milestone (that made two runs collide on the same task). Each pass it reads every in-scope milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestones: [2,3,4,5], maxConcurrent: 3 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once across ALL milestones; default 3 balances throughput against contention, raise it in cloud.',
   phases: [
     { title: 'Foundations', detail: 'transport, autosave, shortcuts, dashboard, asset pipeline — everything that only needs FND-009' },
     { title: 'Instruments', detail: 'synth/sampler, drum machine, audio loops, tracks and mixer, library browser' },
     { title: 'Editing', detail: 'device chains, processing devices, step editor, piano roll, transformations' },
     { title: 'Content', detail: 'the factory library and the genre starter templates' },
-    { title: 'Gate', detail: 'LOOP-016 manual loop workflow gate' },
+    { title: 'Arrangement', detail: 'ARR-* — arrangement projection, clips, sections, automation' },
+    { title: 'Export', detail: 'EXP-* — offline renderer, WAV and stem export' },
+    { title: 'AI', detail: 'AI-* — assistant gateway, analysis, proposals, evals' },
+    { title: 'Hardening', detail: 'HARD-* — cross-browser, accessibility, performance, release audit' },
+    { title: 'Gate', detail: 'gate/decision tasks: LOOP-016, REL-*, OPS-*, DEC-*' },
   ],
 }
 
@@ -447,21 +451,43 @@ const PHASE_BY_TASK = {
   'CNT-002': 'Content', 'LOOP-015': 'Content',
   'LOOP-016': 'Gate',
 }
-const phaseFor = (taskId) => PHASE_BY_TASK[normaliseId(taskId)] ?? 'Foundations'
+// Cross-milestone tasks (#3..#5) group by task-id prefix. A prefix fallback also
+// means a newly-filed id never silently lands in the wrong phase.
+const PHASE_BY_PREFIX = {
+  ARR: 'Arrangement', EXP: 'Export',
+  AI: 'AI', DEC: 'Gate', REL: 'Gate', OPS: 'Gate',
+  HARD: 'Hardening',
+}
+const phaseFor = (taskId) => {
+  const id = normaliseId(taskId)
+  if (PHASE_BY_TASK[id]) return PHASE_BY_TASK[id]
+  const prefix = id.split('-')[0]
+  return PHASE_BY_PREFIX[prefix] ?? 'Foundations'
+}
 
 // Run configuration comes from `args`, all optional:
-//   { milestone: <number>, maxConcurrent: <number> }
+//   { milestones: <number[]>, maxConcurrent: <number> }
+// Milestones are only a SCOPE FILTER: they say which issues are in the alpha, not
+// how the run is partitioned. There is exactly ONE scheduler with ONE concurrency
+// budget over the union of all in-scope milestones — never one workflow per
+// milestone. (Running separate workflows per milestone is what caused two runs to
+// both pick the same lowest-numbered ready task and collide in its worktree.)
 // `maxConcurrent` is the real backstop against the resource contention that has
 // bitten this workflow before: each running task is its own git worktree doing
 // `bun install` plus the full test suite, so N of them at once is N parallel test
 // runs. The runtime's own agent cap (min(16, cores-2)) sits ABOVE this; on a
 // laptop this limit is what actually binds. Default 3 balances throughput against
 // that contention; raise it (e.g. {maxConcurrent: 6}) when running in cloud.
-const DEFAULT_MILESTONE = 2 // GitHub milestone "Alpha Milestone 1: Loop Workflow"
+// GitHub milestones #2..#5 are the four alpha milestones (Loop Workflow,
+// Arrangement + Export, AI Assistant, Private Alpha Hardening). #6 (Post-Alpha) is
+// intentionally out of scope.
+const DEFAULT_MILESTONES = [2, 3, 4, 5]
 const DEFAULT_MAX_CONCURRENT = 3
 
 const config = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {}
-const milestone = Number.isInteger(config.milestone) ? config.milestone : DEFAULT_MILESTONE
+const milestones = (Array.isArray(config.milestones) && config.milestones.every((m) => Number.isInteger(m)))
+  ? [...new Set(config.milestones)].sort((a, b) => a - b)
+  : (Number.isInteger(config.milestone) ? [config.milestone] : DEFAULT_MILESTONES)
 const rawMax = Number(config.maxConcurrent)
 const maxConcurrent = Number.isFinite(rawMax) && rawMax >= 1 ? Math.floor(rawMax) : DEFAULT_MAX_CONCURRENT
 if (config.maxConcurrent !== undefined && !(Number.isFinite(rawMax) && rawMax >= 1)) {
@@ -485,28 +511,45 @@ const results = []
 const startedThisRun = new Set() // issue numbers this run has already launched
 let pass = 0
 
+const milestoneLabel = milestones.map((m) => `#${m}`).join(', ')
+
 while (true) {
   pass += 1
   phase('Foundations')
-  log(`Pass ${pass}: reading milestone #${milestone} — open issues, Status, and dependency graph`)
+  log(`Pass ${pass}: reading milestones ${milestoneLabel} — open issues, Status, and dependency graph`)
 
-  const snapshot = await agent(discoveryPrompt(milestone), {
-    model: 'sonnet',
-    label: `discover#${pass}`,
-    phase: 'Foundations',
-    schema: MILESTONE_SCHEMA,
-  })
+  // One discovery per in-scope milestone, run concurrently, then merged into a
+  // single ready-set. The scheduler downstream is milestone-agnostic: it sees one
+  // flat list of open issues and one concurrency budget across all of them.
+  const snapshots = await parallel(
+    milestones.map((m) => () =>
+      agent(discoveryPrompt(m), {
+        model: 'sonnet',
+        label: `discover#${pass}·m${m}`,
+        phase: 'Foundations',
+        schema: MILESTONE_SCHEMA,
+      }),
+    ),
+  )
 
   // A failed discovery must stop the loop, never fall back to "run everything":
   // scheduling blind is exactly how finished work gets re-implemented and
-  // in-progress work gets duplicated.
-  if (!snapshot || !Array.isArray(snapshot.issues)) {
-    throw new Error(`Pass ${pass}: could not read milestone #${milestone} from GitHub; refusing to schedule without the source of truth.`)
-  }
+  // in-progress work gets duplicated. If ANY milestone failed to read, abort.
+  snapshots.forEach((s, idx) => {
+    if (!s || !Array.isArray(s.issues)) {
+      throw new Error(`Pass ${pass}: could not read milestone #${milestones[idx]} from GitHub; refusing to schedule without the source of truth.`)
+    }
+  })
 
-  const open = snapshot.issues
+  // Merge every milestone's open issues into one list, de-duplicated by issue
+  // number (an issue only lives in one milestone, but guard anyway).
+  const byIssue = new Map()
+  for (const s of snapshots) {
+    for (const i of s.issues) if (!byIssue.has(i.issue)) byIssue.set(i.issue, i)
+  }
+  const open = [...byIssue.values()]
   if (!open.length) {
-    log(`Milestone #${milestone} has no open issues left — done.`)
+    log(`Milestones ${milestoneLabel} have no open issues left — done.`)
     break
   }
 
@@ -538,7 +581,7 @@ while (true) {
     if (humanInput.length) log(`Awaiting human input (skipped): ${humanInput.join('; ')}`)
     if (waiting.length) log(`Blocked by open dependencies: ${waiting.join('; ')}`)
     return {
-      milestone,
+      milestones,
       maxConcurrent,
       results,
       approved: results.filter((r) => r.status === 'approved').map((r) => `${r.id} ${r.pr ?? r.branch}`),
@@ -577,10 +620,10 @@ while (true) {
 }
 
 const approved = results.filter((r) => r.status === 'approved')
-log(`Milestone #${milestone}: ${approved.length}/${results.length} started tasks approved and raised as PRs this run`)
+log(`Milestones ${milestoneLabel}: ${approved.length}/${results.length} started tasks approved and raised as PRs this run`)
 
 return {
-  milestone,
+  milestones,
   maxConcurrent,
   results,
   approved: approved.map((r) => `${r.id} ${r.pr ?? r.branch}`),
