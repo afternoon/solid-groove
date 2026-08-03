@@ -39,12 +39,27 @@ export interface FillSliderProps {
 	readonly ariaLabel?: string;
 	/** The slider's own coordinate space, if not the parameter's range. */
 	readonly range?: FillSliderRange;
+	/**
+	 * Which way the fill travels. Vertical is the default and the mock's shape;
+	 * horizontal is for a value whose range *is* an axis the user already reads
+	 * left-to-right — pan being the one that matters, where a vertical control
+	 * would ask them to translate "up" into "right".
+	 */
+	readonly orientation?: "vertical" | "horizontal";
+	/**
+	 * Fill outwards from the centre rather than from the start of the track, for
+	 * a bipolar value where the centre is the meaningful rest position. A pan
+	 * filled from the left would read "half loud" at centre.
+	 */
+	readonly bipolar?: boolean;
 }
 
 /**
- * The one continuous control (design mock `06c-slider`): a thumbless vertical
- * fill track with its label above and live value below. The filled portion *is*
- * the value; dragging up/down maps directly onto the fill.
+ * The one continuous control (design mock `06c-slider`): a thumbless fill track
+ * with its label and live value beside it. The filled portion *is* the value;
+ * dragging along the track maps directly onto the fill. Vertical by default;
+ * `orientation="horizontal"` lays the same control on its side for a value the
+ * user reads as a left-right axis, and `bipolar` fills it out from the centre.
  *
  * It is a real `<input type="range">` underneath — so it is keyboard-operable
  * and screen-reader labelled for free — visually restyled to a fill track. The
@@ -67,6 +82,23 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
 		return ((props.value - min) / span) * 100;
 	});
 
+	const horizontal = () => props.orientation === "horizontal";
+
+	/**
+	 * Where the accent is painted. A unipolar slider fills from the start of the
+	 * track to the value; a bipolar one fills from the centre out to it, in
+	 * whichever direction the value went. The centre span never collapses to
+	 * nothing, so a value sitting exactly at rest still shows where it is.
+	 */
+	const fillStyle = createMemo((): JSX.CSSProperties => {
+		const percent = fillPercent();
+		if (!horizontal()) return { height: `${percent}%` };
+		if (!props.bipolar) return { left: "0%", width: `${percent}%` };
+		const from = Math.min(percent, 50);
+		const to = Math.max(percent, 50);
+		return { left: `${from}%`, width: `${to - from}%` };
+	});
+
 	const coerce = (raw: number): number => {
 		const range = props.range;
 		if (!range) return clampParameterValue(props.definition, raw);
@@ -75,22 +107,21 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
 	};
 
 	return (
-		<div class="fill-slider">
+		<div
+			class="fill-slider"
+			classList={{ horizontal: horizontal(), bipolar: props.bipolar === true }}
+		>
 			<label class="fill-slider-label" for={id()}>
 				{props.label ?? props.definition.label}
 			</label>
 			<div class="fill-slider-track">
-				<div
-					class="fill-slider-fill"
-					style={{ height: `${fillPercent()}%` }}
-					aria-hidden="true"
-				/>
+				<div class="fill-slider-fill" style={fillStyle()} aria-hidden="true" />
 				<input
 					id={id()}
 					class="fill-slider-input"
 					type="range"
-					// A vertical orientation for pointer and arrow-key semantics.
-					aria-orientation="vertical"
+					// The orientation the pointer and arrow keys actually move in.
+					aria-orientation={horizontal() ? "horizontal" : "vertical"}
 					aria-label={props.ariaLabel}
 					// The slider's raw number is meaningless to a screen reader — a
 					// fader position, or a bipolar pan. Announce what is painted.

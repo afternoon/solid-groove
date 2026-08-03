@@ -284,6 +284,41 @@ describe("Mixer controls (TRK-02)", () => {
 		expect(fader.max).toBe("1");
 	});
 
+	it("lays pan out horizontally and fills it out from centre", () => {
+		const { history } = renderMixer();
+		const track = history.project.song.tracks[0];
+		const pan = screen.getByLabelText(
+			`Pan for ${track.name}`,
+		) as HTMLInputElement;
+		const fader = screen.getByLabelText(`Volume for ${track.name}`);
+
+		// Pan's range is the stereo field, so it moves the way the field reads —
+		// left-to-right — while the fader stays vertical.
+		expect(pan).toHaveAttribute("aria-orientation", "horizontal");
+		expect(fader).toHaveAttribute("aria-orientation", "vertical");
+
+		const slider = pan.closest(".fill-slider");
+		const fill = slider?.querySelector<HTMLElement>(".fill-slider-fill");
+		expect(slider?.classList.contains("horizontal")).toBe(true);
+		expect(slider?.classList.contains("bipolar")).toBe(true);
+
+		// Centre pans paint at the centre, not half a track of accent.
+		expect(fill?.style.left).toBe("50%");
+		expect(fill?.style.width).toBe("0%");
+
+		// Panned left, the fill runs from the value back to the centre; panned
+		// right, from the centre out to the value.
+		pan.value = "-0.5";
+		fireEvent.change(pan);
+		expect(fill?.style.left).toBe("25%");
+		expect(fill?.style.width).toBe("25%");
+
+		pan.value = "1";
+		fireEvent.change(pan);
+		expect(fill?.style.left).toBe("50%");
+		expect(fill?.style.width).toBe("50%");
+	});
+
 	it("lands a value from a change that had no preceding input", () => {
 		const { history } = renderMixer();
 		const pan = screen.getByLabelText(

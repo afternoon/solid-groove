@@ -122,3 +122,75 @@
 	white-space: nowrap;
 	font-variant-numeric: tabular-nums;
 }
+
+/* The same control on its side, for a value that already reads as a left-right
+   axis (pan). Label and live value share one line and the track spans the whole
+   width beneath them: two thin rows instead of a column, and the track measures
+   the container rather than setting it — so it can never widen what holds it,
+   and the row does not reflow as "C" becomes "L100". */
+.fill-slider.horizontal {
+	display: grid;
+	grid-template-columns: auto auto;
+	justify-content: space-between;
+	align-items: center;
+	width: 100%;
+	gap: 3px 6px;
+}
+
+/* Placed explicitly: the DOM order is label, track, value — the reading order
+   for the vertical shape — and only the layout is rearranged here. */
+.fill-slider.horizontal .fill-slider-label {
+	grid-area: 1 / 1;
+}
+
+.fill-slider.horizontal .fill-slider-value {
+	grid-area: 1 / 2;
+	justify-self: end;
+}
+
+.fill-slider.horizontal .fill-slider-track {
+	grid-area: 2 / 1 / 2 / -1;
+	width: auto;
+	height: var(--fill-slider-track-thickness, 10px);
+}
+
+.fill-slider.horizontal .fill-slider-fill {
+	top: 0;
+	right: auto;
+	/* A bipolar value at exact centre still shows where it is rather than
+	   vanishing; 2px reads as a tick, not as an offset. */
+	min-width: 2px;
+}
+
+/* Centre rest position, marked once so the pan's own fill is read against it. */
+.fill-slider.horizontal.bipolar .fill-slider-track::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(50% - 1px);
+	width: 2px;
+	background-color: var(--color-background-hover);
+}
+
+/* Horizontal is a range input's native orientation, so it needs no rotation —
+   only to be stretched over the track it paints. */
+.fill-slider.horizontal .fill-slider-input {
+	width: 100%;
+	height: 100%;
+	transform: none;
+	transform-origin: 50% 50%;
+	cursor: ew-resize;
+}
+
+.fill-slider.horizontal .fill-slider-input::-webkit-slider-thumb {
+	width: 6px;
+	height: 100%;
+	cursor: ew-resize;
+}
+
+.fill-slider.horizontal .fill-slider-input::-moz-range-thumb {
+	width: 6px;
+	height: 100%;
+	cursor: ew-resize;
+}

@@ -66,8 +66,9 @@
 	flex-direction: column;
 	align-items: stretch;
 	gap: 6px;
-	/* Fixed: two 48px sliders and the meter, so no control can widen a strip. */
-	width: 116px;
+	/* Fixed: the fader, the meter beside it, and a pan row that takes whatever
+	   width is here rather than setting it — so no control can widen a strip. */
+	width: 96px;
 	flex: 0 0 auto;
 	padding: 6px;
 	box-sizing: border-box;
@@ -128,7 +129,11 @@
 	line-height: 1;
 }
 
-.mixer-strip-button:hover:not(:disabled) {
+/* `:not(.active)`, because hover is three simple selectors and would otherwise
+   out-specify the active state below — putting a pointer on a soloed S or a
+   muted M would repaint it as if it were off, exactly when the user is about to
+   decide whether to press it again. */
+.mixer-strip-button:hover:not(:disabled):not(.active) {
 	background-color: var(--color-background-hover);
 	color: var(--color-text);
 }
@@ -140,24 +145,35 @@
 
 /* Active state is carried by fill weight, not hue: solo fills bright, mute is
    the one place a warning colour is allowed to speak. */
-.mixer-solo.active {
+.mixer-solo.active,
+.mixer-solo.active:hover {
 	background-color: var(--color-foreground-bright);
 	color: var(--color-background-secondary);
 }
 
-.mixer-mute.active {
+.mixer-mute.active,
+.mixer-mute.active:hover {
 	background-color: var(--color-error);
 	color: var(--color-background-secondary);
 }
 
+/* Pan is the shared fill slider laid on its side (`orientation="horizontal"`),
+   because its range is the stereo field and the user reads that left-to-right.
+   One dense row — PAN · track · value — spanning the strip it is already in. */
+.mixer-strip-pan .fill-slider.horizontal {
+	--fill-slider-track-thickness: 10px;
+
+	gap: 4px;
+}
+
 .mixer-strip-controls {
-	/* One travel length for the faders and the meter beside them. */
+	/* One travel length for the fader and the meter beside it. */
 	--mixer-travel: 104px;
 
 	display: flex;
 	align-items: flex-start;
-	justify-content: space-between;
-	gap: 2px;
+	justify-content: center;
+	gap: 8px;
 }
 
 /* The one continuous control (mock 06c), shared with the instrument panels;
@@ -172,6 +188,7 @@
 /* A muted track recedes, the way a muted drum pad does — the M button itself
    stays at full strength so the way back out is never dimmed. */
 .mixer-strip.muted .mixer-strip-head,
+.mixer-strip.muted .mixer-strip-pan,
 .mixer-strip.muted .mixer-strip-controls {
 	opacity: 0.5;
 }

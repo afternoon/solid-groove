@@ -309,13 +309,16 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				</button>
 			</div>
 
-			<div class="mixer-strip-controls">
+			<div class="mixer-strip-pan">
 				<PanControl
 					track={props.track}
 					value={panValue()}
 					dispatch={props.dispatch}
 					beginGesture={props.beginGesture}
 				/>
+			</div>
+
+			<div class="mixer-strip-controls">
 				<VolumeFader
 					track={props.track}
 					value={volumeDb()}
@@ -462,6 +465,11 @@ function PanControl(props: FaderProps): JSX.Element {
 			inputId={`mixer-pan-${props.track.id}`}
 			label="Pan"
 			ariaLabel={`Pan for ${props.track.name}`}
+			// Pan's range *is* the stereo field: left is left. A vertical fader
+			// would ask the user to read "up" as "right", so this one control lies
+			// on its side and fills out from centre.
+			orientation="horizontal"
+			bipolar
 			range={PAN_RANGE}
 			value={props.value}
 			displayValue={formatPan(props.value)}
