@@ -180,8 +180,10 @@ const REVIEW_SCHEMA = {
 // hardcoded: no task list, no dependency map, no "what landed" set. Each pass a
 // discovery agent reads the milestone's open issues live and returns, per issue,
 // its Status, its `blocked_by` numbers, and whether each of those is closed. The
-// script body has no `gh` and no MCP; every GitHub read and write happens inside
-// an agent via `mcp__github__*`.
+// script body has no GitHub access; every GitHub read and write happens inside an
+// agent via the `gh` CLI (there is no GitHub MCP server in this environment — only
+// `gh` is authenticated). `gh api graphql` reaches the Projects v2 Status field and
+// the issue-dependency graph; plain `gh issue`/`gh pr` handle everything else.
 //
 // Readiness is a pure function of that snapshot:
 //   ready  = Status "Todo"/unset AND every blocked_by issue CLOSED AND not `human-input-required`
@@ -239,21 +241,24 @@ const MILESTONE_SCHEMA = {
   },
 }
 
-// Discover the milestone live. The agent reads the Projects Status via GraphQL
-// (needs the `read:project` scope) and the dependency graph via the issue
-// dependencies API. Read-only.
-const discoveryPrompt = (milestoneNumber) => `You are the scheduler's eyes for the Solid Groove Alpha Milestone workflow, repo \`afternoon/solid-groove\`. Use the \`mcp__github__*\` tools; there is no \`gh\` CLI. This is **read-only** — do not modify any issue, project, or PR.
+// Discover the milestone live. The agent uses the `gh` CLI (there is no GitHub MCP
+// server here — only `gh` is authenticated). It reads the Projects Status via
+// `gh api graphql` (needs the `read:project` scope) and the dependency graph via
+// the issue-dependencies REST endpoint. Read-only.
+const discoveryPrompt = (milestoneNumber) => `You are the scheduler's eyes for the Solid Groove Alpha Milestone workflow, repo \`afternoon/solid-groove\`. Use the **\`gh\` CLI** for every GitHub read (there is **no GitHub MCP server** in this environment — do not look for \`mcp__github__*\` tools, they do not exist; \`gh\` is already authenticated). This is **read-only** — do not modify any issue, project, or PR.
 
 Report the live state of **GitHub milestone #${milestoneNumber}**. For every issue that is currently **open** in that milestone, return one entry with:
 
 - \`issue\`: the issue number.
 - \`taskId\` and \`title\`: parsed from the issue title, which is formatted \`TASK-ID - Title\` (e.g. "LOOP-004 - Synth and one-shot sampler" -> taskId "LOOP-004", title "Synth and one-shot sampler").
-- \`status\`: the issue's **Projects v2 "Status"** single-select value — one of "Todo", "In Progress", "Done". Use "None" only if the issue genuinely has no Status set. This field lives on the user-owned Project the issue is added to (project "Solid Grooooooove"), NOT on the issue itself, so read it via the GraphQL \`projectItems -> fieldValues -> ProjectV2ItemFieldSingleSelectValue\` where the field name is "Status". Do not infer it from labels or from whether a PR exists — read the actual field.
-- \`blockedBy\`: the issue numbers this issue is **blocked by**, from GitHub's native issue-dependency graph (the \`blocked_by\` relationship), not from any "Dependencies" text in the body.
-- \`openBlockers\`: the subset of \`blockedBy\` whose issues are still open; \`allDepsClosed\` is true exactly when this list is empty.
-- \`humanInputRequired\`: true if the issue carries the label **\`human-input-required\`**. These are decision/input tasks (e.g. \`DEC-*\`) that a human must resolve; the scheduler never implements them. Read the label list; do not infer this from the title.
+- \`status\`: the issue's **Projects v2 "Status"** single-select value — one of "Todo", "In Progress", "Done". Use "None" only if the issue genuinely has no Status set. This field lives on the user-owned Project the issue is added to (project "Solid Grooooooove", project number 2), NOT on the issue itself. Read it with \`gh api graphql\`, walking \`repository.issue.projectItems.nodes -> fieldValues\` and picking the \`ProjectV2ItemFieldSingleSelectValue\` whose \`field.name\` is "Status" (its \`.name\` is the option label). Do not infer it from labels or from whether a PR exists — read the actual field.
+- \`blockedBy\`: the issue numbers this issue is **blocked by**, from GitHub's native issue-dependency graph, not from any "Dependencies" text in the body. Read it with \`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by --paginate\` (send header \`-H "Accept: application/vnd.github+json"\`); each returned issue's \`number\` is a blocker.
+- \`openBlockers\`: the subset of \`blockedBy\` whose issues are still open; \`allDepsClosed\` is true exactly when this list is empty. (Get each blocker's state with \`gh issue view <n> --json state\`.)
+- \`humanInputRequired\`: true if the issue carries the label **\`human-input-required\`**. These are decision/input tasks (e.g. \`DEC-*\`) that a human must resolve; the scheduler never implements them. Read the label list (\`gh issue view <n> --json labels\`); do not infer this from the title.
 - \`hasOpenPr\`/\`openPrNumber\`: if an open PR already closes or references this issue, report it.
 - \`decisionBlockers\`: for any open blocker whose title is a \`DEC-*\` decision issue, list its DEC id.
+
+A good starting point is \`gh issue list --repo afternoon/solid-groove --milestone "<milestone title>" --state open --limit 100 --json number,title,labels\`; resolve milestone #${milestoneNumber}'s title first with \`gh api repos/afternoon/solid-groove/milestones/${milestoneNumber} --jq .title\`.
 
 Also report \`milestoneOpenCount\`: how many issues are open in the milestone in total.
 
@@ -273,14 +278,36 @@ const SET_STATUS_SCHEMA = {
   },
 }
 
-const setStatusPrompt = (issue, value) => `Set the **Projects v2 "Status"** field of \`afternoon/solid-groove\` issue #${issue} to "${value}". Use the \`mcp__github__*\` tools; there is no \`gh\` CLI.
+// Known IDs for the user-owned Project "Solid Grooooooove" (project #2), captured
+// so the Status-write agent doesn't have to rediscover them each time. If the board
+// is rebuilt these change; the prompt tells the agent to re-resolve them if the
+// mutation 404s on a stale ID rather than silently giving up.
+const PROJECT_ID = 'PVT_kwHNqEHOAXy6Zw'
+const STATUS_FIELD_ID = 'PVTSSF_lAHNqEHOAXy6Z84WYFWU'
+const STATUS_OPTION_ID = { 'Todo': 'f75ad846', 'In Progress': '47fc9ee4', 'Done': '98236657' }
 
-The Status field is on the user-owned Project "Solid Grooooooove" (project number 2). Find the issue's project item and update its "Status" single-select field to the option named "${value}" via the appropriate GraphQL mutation.
+const setStatusPrompt = (issue, value) => `Set the **Projects v2 "Status"** field of \`afternoon/solid-groove\` issue #${issue} to "${value}". Use the **\`gh\` CLI** (there is **no GitHub MCP server** here — \`gh\` is already authenticated).
 
-If you lack the permission or scope to write the project field, do **not** treat that as fatal and do **not** change anything else — just report \`set: false\` with the error in \`detail\`. Report \`set: true\` only if the field is now actually "${value}".`
+The Status field is on the user-owned Project "Solid Grooooooove" (project number 2). Writing it needs the \`project\` token scope (reading needs only \`read:project\`); if the mutation fails with \`INSUFFICIENT_SCOPES\` the scope has not been granted — report \`set: false\` with that error, do not retry, and do not change anything else.
+
+Two steps:
+
+1. Find this issue's **project item id** for project #2:
+\`\`\`
+gh api graphql -f query='query($n:Int!){ repository(owner:"afternoon", name:"solid-groove"){ issue(number:$n){ projectItems(first:20){ nodes{ id project{ number } } } } } }' -F n=${issue} \\
+  --jq '.data.repository.issue.projectItems.nodes[] | select(.project.number==2) | .id'
+\`\`\`
+
+2. Set its Status to "${value}" (project id \`${PROJECT_ID}\`, Status field id \`${STATUS_FIELD_ID}\`, "${value}" option id \`${STATUS_OPTION_ID[value] ?? 'UNKNOWN'}\`):
+\`\`\`
+gh api graphql -f query='mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){ updateProjectV2ItemFieldValue(input:{projectId:$p, itemId:$i, fieldId:$f, value:{singleSelectOptionId:$o}}){ projectV2Item{ id } } }' \\
+  -f p=${PROJECT_ID} -f i=<itemId-from-step-1> -f f=${STATUS_FIELD_ID} -f o=${STATUS_OPTION_ID[value] ?? ''}
+\`\`\`
+
+If step 1 finds no item for project #2, or a baked-in id 404s (the board was rebuilt), re-resolve the ids from the project itself before giving up. If you lack the \`project\` scope, do **not** treat that as fatal — just report \`set: false\` with the error in \`detail\`. Report \`set: true\` only if the field is now actually "${value}".`
 
 const issueBrief = (t) =>
-  `\n\n## Your GitHub issue\n\nTask ${t.id} is tracked in \`afternoon/solid-groove\` issue **#${t.issue}** — that issue, not \`docs/backlog.md\`, is the live record. Use the \`mcp__github__*\` tools; there is no \`gh\` CLI.\n\n- Assign #${t.issue} to \`afternoon\` and comment that you have started, naming the branch you will push to, **before** you change product code.\n- Tick the acceptance checkboxes on #${t.issue} as you genuinely satisfy them. Never tick one you have not. A reviewer treats a ticked box as a claim to verify, and a box ticked without supporting code is itself a blocking finding.\n- Comment when something is worth knowing — a blocker, a decision you had to make, a discovery belonging to another task — not once per commit.\n- Do **not** close the issue. A reviewer runs after you and the PR closes it on merge.\n- End every comment with a blank line, a \`---\` rule, then \`_Generated by [Claude Code](https://claude.ai/code)_\`.`
+  `\n\n## Your GitHub issue\n\nTask ${t.id} is tracked in \`afternoon/solid-groove\` issue **#${t.issue}** — that issue, not \`docs/backlog.md\`, is the live record. Use the **\`gh\` CLI** for GitHub (there is **no GitHub MCP server** here — \`gh\` is already authenticated: \`gh issue view ${t.issue}\`, \`gh issue comment ${t.issue} --body ...\`, \`gh issue edit ${t.issue} --add-assignee afternoon\`).\n\n- Assign #${t.issue} to \`afternoon\` and comment that you have started, naming the branch you will push to, **before** you change product code.\n- Tick the acceptance checkboxes on #${t.issue} as you genuinely satisfy them. Never tick one you have not. A reviewer treats a ticked box as a claim to verify, and a box ticked without supporting code is itself a blocking finding.\n- Comment when something is worth knowing — a blocker, a decision you had to make, a discovery belonging to another task — not once per commit.\n- Do **not** close the issue. A reviewer runs after you and the PR closes it on merge.\n- End every comment with a blank line, a \`---\` rule, then \`_Generated by [Claude Code](https://claude.ai/code)_\`.`
 
 const implPrompt = (t) => `${brief(IMPLEMENTER)}Implement backlog task ${t.id} - ${t.title}.
 
@@ -298,7 +325,7 @@ const reviewPrompt = (t, impl, round) => `${brief(REVIEWER)}Review branch ${impl
     : ''
 }
 
-The task's live record is issue #${t.issue}. Read it with \`mcp__github__issue_read\` — including its comments — and treat every ticked acceptance checkbox as a claim to verify against the diff, exactly like a line in the implementer's summary. A box ticked without the code to support it is a blocking finding. Do not tick, untick, or close anything yourself.${
+The task's live record is issue #${t.issue}. Read it with \`gh issue view ${t.issue} --comments\` (use the **\`gh\` CLI**; there is **no GitHub MCP server** here) — including its comments — and treat every ticked acceptance checkbox as a claim to verify against the diff, exactly like a line in the implementer's summary. A box ticked without the code to support it is a blocking finding. Do not tick, untick, or close anything yourself.${
   t.blocked
     ? `\n\nThis task is blocked on ${t.blocked.map((d) => `\`${d}\``).join(' and ')}, which ${t.blocked.length > 1 ? 'are' : 'is'} undecided. Check specifically that the implementer did **not** invent the decision: a hardcoded retention window, template list, or licence policy that reads as deliberate product behavior is a blocking finding no matter how reasonable it looks. An honest gap is the correct outcome here.`
     : ''
@@ -326,7 +353,7 @@ ${review.blocking
 
 Report the same structured result as the original implementation, describing the branch as it now stands.`
 
-const prPrompt = (t, impl) => `Open a pull request for branch ${impl.branch} into ${BASE_BRANCH}.
+const prPrompt = (t, impl) => `Open a pull request for branch ${impl.branch} into ${BASE_BRANCH} with the **\`gh\` CLI** (\`gh pr create\`; there is **no GitHub MCP server** here, and \`gh\` is already authenticated).
 
 Check the repository for a PR template and mirror its structure if one exists. Title it "${t.id} - ${t.title}". In the body, describe the change, link the task's PRD requirements, list the acceptance checkboxes met, and state that the branch passed an Opus review round in the implementation workflow.
 
