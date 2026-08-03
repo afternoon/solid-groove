@@ -242,6 +242,40 @@ export function sampleRateKey(rate: number): SampleRateKey {
 		: "other";
 }
 
+/**
+ * Pack identifiers, as `library_audition`'s `pack_id` (PRD LIB-05, LOOP-013).
+ *
+ * A pack's stable **slug** — never its display name. PRD OPS-02 forbids logging
+ * project content and LOOP-013 forbids logging pack display names, so `pack_id`
+ * is the low-cardinality, rename-stable slug the delivery layout keys a pack on
+ * (`scripts/starter-library/packs.mjs`). Pinned here as an enum rather than
+ * free text for the same reason `GENRES` is: an analytics parameter's value set
+ * is a published GA4 contract, so a pack added to the factory library has to be
+ * given an analytics decision in the same change, and a library re-slugging can
+ * never silently rewrite analytics history. A slug not in this set is dropped by
+ * the runtime validator, never sent — matching how every other enum degrades.
+ */
+export const LIBRARY_PACK_SLUGS = [
+	"core-electronic-drums",
+	"foundation-bass",
+	"tonal-elements",
+	"ambient-textures",
+	"transitions-fx",
+	"cc0-community",
+] as const;
+export type LibraryPackSlug = (typeof LIBRARY_PACK_SLUGS)[number];
+
+/**
+ * Narrows a pack slug to the declared set for `library_audition`'s `pack_id`.
+ * An unknown slug (a pack the catalog does not yet know) degrades to
+ * `"unknown"` rather than being logged as free text.
+ */
+export function libraryPackSlug(slug: string): LibraryPackSlug | "unknown" {
+	return (LIBRARY_PACK_SLUGS as readonly string[]).includes(slug)
+		? (slug as LibraryPackSlug)
+		: "unknown";
+}
+
 /** Keys owned by a task that has not landed yet — see the file banner. */
 const UNCLAIMED: readonly never[] = [];
 
@@ -417,6 +451,11 @@ export const ANALYTICS_EVENTS = {
 		params: {
 			asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
 			had_genre_filter: boolParam(),
+			// The pack's stable slug (never its display name), so an audition can
+			// be attributed to a pack without leaking library copy — see
+			// `LIBRARY_PACK_SLUGS`. `"unknown"` covers a pack the catalog does not
+			// yet list, so the event still fires rather than being dropped.
+			pack_id: enumParam([...LIBRARY_PACK_SLUGS, "unknown"]),
 		},
 	},
 

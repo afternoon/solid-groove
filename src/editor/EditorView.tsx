@@ -6,6 +6,7 @@ import {
 	HiSolidMusicalNote,
 	HiSolidPlay,
 	HiSolidQuestionMarkCircle,
+	HiSolidRectangleStack,
 	HiSolidSquares2x2,
 	HiSolidStop,
 } from "solid-icons/hi";
@@ -18,12 +19,15 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 import { SONG_TEMPO } from "../domain/parameters";
 import { formatBarsBeatsSixteenths } from "../domain/time";
+import LibraryBrowser from "../library/LibraryBrowser";
+import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
@@ -80,6 +84,19 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const project = createMemo(() => session.state.project);
 	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
+	const [libraryOpen, setLibraryOpen] = createSignal(false);
+
+	// One audition engine, built lazily off the shared runtime the first time the
+	// browser opens, so opening the editor costs nothing until a user browses.
+	// Auditions play through the same destination the project does — never an
+	// export/offline context (LIB-01).
+	let auditionEngine: ToneAuditionEngine | null = null;
+	const previewEngine = () => {
+		if (!auditionEngine) {
+			auditionEngine = new ToneAuditionEngine(getAudioRuntime());
+		}
+		return auditionEngine;
+	};
 
 	// Tempo is written by a validated command (song.tempo), clamped to the
 	// AUD-02 40-240 BPM supported range at this surface. The command is the only
@@ -326,6 +343,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								</div>
 								<button
 									type="button"
+									class="library-toggle"
+									aria-label="Library"
+									aria-pressed={libraryOpen()}
+									title="Library"
+									onClick={() => setLibraryOpen((open) => !open)}
+								>
+									<HiSolidRectangleStack size={18} />
+								</button>
+								<button
+									type="button"
 									class="shortcut-guide-button"
 									aria-label="Keyboard shortcuts"
 									title={`Keyboard shortcuts (${keyHint("help.shortcut_guide")})`}
@@ -387,6 +414,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									)}
 								</Show>
 							</div>
+							<Show when={libraryOpen()}>
+								<aside class="library-panel" aria-label="Library">
+									<LibraryBrowser previewEngine={previewEngine()} />
+								</aside>
+							</Show>
 							<Show when={guideOpen()}>
 								<ShortcutGuide
 									contexts={editorContexts()}

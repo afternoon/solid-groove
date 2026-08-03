@@ -203,3 +203,21 @@
 	font-size: var(--font-size-small);
 	color: var(--color-text-secondary);
 }
+
+/*
+ * The library browser panel (LOOP-013). Opened from the header toggle, it sits
+ * below the workspace as a bounded, scrolling region so a large library never
+ * pushes the editor off screen.
+ */
+.editor-header .library-toggle[aria-pressed="true"] {
+	color: var(--color-foreground-bright);
+	background-color: var(--color-background-highlight);
+}
+
+.library-panel {
+	display: block;
+	height: 22rem;
+	min-height: 0;
+	border-top: var(--size-divider) solid var(--color-background);
+	background-color: var(--color-background-secondary);
+}

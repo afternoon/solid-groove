@@ -45,6 +45,7 @@
 		"library:candidates": "node scripts/starter-library/acquire/generateCandidates.mjs",
 		"library:build": "node scripts/starter-library/build.mjs",
 		"library:emit-runtime": "node scripts/starter-library/emitRuntime.mjs",
+		"library:emit-fixtures": "node scripts/starter-library/emitBrowserFixtures.mjs",
 		"library:audition": "node scripts/starter-library/audition.mjs",
 		"library:validate": "node scripts/starter-library/build.mjs --dry-run",
 		"library:upload": "node scripts/starter-library/upload.mjs",

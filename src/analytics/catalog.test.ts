@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+// The delivered factory pack set, the source of truth `pack_id` is pinned
+// against — see the cross-reference test below.
+import { PACKS } from "../../scripts/starter-library/packs.mjs";
 import { COMMAND_TYPES } from "../commands/registry";
 import type { SaveFailureReason } from "../persistence/projectRepository";
 import { SHORTCUT_ACTION_IDS as REGISTERED_SHORTCUT_IDS } from "../shortcuts/registry";
@@ -11,6 +14,8 @@ import {
 	COMMAND_IDS,
 	declaredValues,
 	FEATURE_KEYS,
+	LIBRARY_PACK_SLUGS,
+	libraryPackSlug,
 	PARAM_KINDS,
 	SHORTCUT_ACTION_IDS,
 	sampleRateKey,
@@ -224,6 +229,28 @@ describe("catalog cross-references", () => {
 		expect([...SHORTCUT_ACTION_IDS].sort()).toEqual(
 			[...REGISTERED_SHORTCUT_IDS].sort(),
 		);
+	});
+
+	it("pins exactly the delivered pack slugs as library_audition's pack_id", () => {
+		// The same "analytics ships with the feature" rule (PRD section 14): a pack
+		// added to the factory library has to be given an analytics decision here,
+		// and the value logged is the stable slug, never the display name (LOOP-013).
+		const deliveredSlugs = PACKS.map((pack: { slug: string }) => pack.slug);
+		expect([...LIBRARY_PACK_SLUGS].sort()).toEqual([...deliveredSlugs].sort());
+		// pack_id declares every slug plus the `"unknown"` fallback.
+		const packIdValues = declaredValues(
+			ANALYTICS_EVENTS.library_audition.params.pack_id,
+		);
+		expect([...packIdValues].sort()).toEqual(
+			[...deliveredSlugs, "unknown"].sort(),
+		);
+	});
+
+	it("maps an unknown pack slug to the unknown fallback rather than free text", () => {
+		expect(libraryPackSlug("core-electronic-drums")).toBe(
+			"core-electronic-drums",
+		);
+		expect(libraryPackSlug("a-pack-we-do-not-ship")).toBe("unknown");
 	});
 
 	it("covers every persistence failure reason with an error code", () => {
