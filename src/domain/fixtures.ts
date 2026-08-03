@@ -504,7 +504,7 @@ function evenlySpacedIndices(total: number, count: number): Set<number> {
 	return indices;
 }
 
-/** Track counts the `FND-008` renderer spike's fixtures cover (backlog task). */
+/** Track counts the `FND-008` renderer spike's fixtures cover (task). */
 export const ARRANGEMENT_SPIKE_TRACK_COUNTS = [20, 40, 50] as const;
 export type ArrangementSpikeTrackCount =
 	(typeof ARRANGEMENT_SPIKE_TRACK_COUNTS)[number];
