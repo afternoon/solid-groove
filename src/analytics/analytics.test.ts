@@ -127,32 +127,57 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 });
 
 describe("library_pack_added (LIB-08)", () => {
-	// The event is defined and emitted through the shared catalog here; the call
-	// site (the pack browser's Add-pack action) arrives with LOOP-013, which is
-	// the surface that holds the Pack record and therefore its kind. These tests
-	// pin the catalog contract: shape, once-per-action, and consent-gating.
-	it("sends exactly one event carrying only pack_kind", () => {
+	// The event is emitted through the shared catalog here; its call site is
+	// `EditorSession`'s `pack.add` dispatch (see `EditorSession.test.ts`), which
+	// is where every surface that can shelve a pack converges. These tests pin
+	// the catalog contract: shape, once-per-action, and consent-gating.
+	it("sends exactly one event naming which pack was added", () => {
 		const { analytics, transport } = setup();
-		analytics.log("library_pack_added", { pack_kind: "factory" });
+		analytics.log("library_pack_added", {
+			pack_kind: "factory",
+			pack_key: "core-electronic-drums",
+		});
 		expect(transport.named("library_pack_added")).toHaveLength(1);
 		expect(transport.events[0].params).toEqual({
 			release_sha: "abc123def456",
 			surface: "editor",
 			pack_kind: "factory",
+			pack_key: "core-electronic-drums",
 		});
 	});
 
 	it("fires once per add, not once per render", () => {
 		const { analytics, transport } = setup();
-		analytics.log("library_pack_added", { pack_kind: "factory" });
-		analytics.log("library_pack_added", { pack_kind: "user" });
+		analytics.log("library_pack_added", {
+			pack_kind: "factory",
+			pack_key: "core-electronic-drums",
+		});
+		analytics.log("library_pack_added", {
+			pack_kind: "user",
+			pack_key: "other",
+		});
 		expect(transport.named("library_pack_added")).toHaveLength(2);
+	});
+
+	it("drops an event whose pack key is not a published library key", () => {
+		// The untyped edge: a caller that reaches past the compiler with a pack's
+		// own ID gets the event dropped, not a pack ID delivered to GA4.
+		const { analytics, transport } = setup();
+		analytics.log("library_pack_added", {
+			pack_kind: "user",
+			// @ts-expect-error — deliberately outside the declared value set.
+			pack_key: "pak_SdlN_OazweXrwury0j27Y",
+		});
+		expect(transport.events).toHaveLength(0);
 	});
 
 	it("sends nothing while the user is opted out", () => {
 		const { analytics, transport, consent } = setup();
 		consent.optOut();
-		analytics.log("library_pack_added", { pack_kind: "factory" });
+		analytics.log("library_pack_added", {
+			pack_kind: "factory",
+			pack_key: "core-electronic-drums",
+		});
 		expect(transport.events).toHaveLength(0);
 	});
 });

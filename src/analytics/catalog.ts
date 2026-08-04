@@ -40,6 +40,7 @@ import {
 	bucketLabels,
 } from "./buckets";
 import { ERROR_AREAS, ERROR_CODES } from "./errorCodes";
+import { LIBRARY_PACK_KEYS, PACK_KINDS } from "./packKeys";
 
 // ---------------------------------------------------------------------------
 // Parameter kinds
@@ -434,9 +435,14 @@ export const ANALYTICS_EVENTS = {
 	library_pack_added: {
 		phase: 2,
 		owners: ["LIB-08", "LOOP-013"],
-		// `pack_kind` is the only descriptor of what was added — never the pack's
-		// ID, name, or version, which would identify the specific content.
-		params: { pack_kind: enumParam(["factory", "user", "third_party"]) },
+		// `pack_key` is what makes "which packs are most popular" answerable. It
+		// is a *published factory pack's* slug and nothing else: a user-authored
+		// or third-party pack reports `other`, so no pack ID, name, or version a
+		// user chose can travel (see `packKeys.ts`).
+		params: {
+			pack_kind: enumParam(PACK_KINDS),
+			pack_key: enumParam(LIBRARY_PACK_KEYS),
+		},
 	},
 
 	clip_edited: {

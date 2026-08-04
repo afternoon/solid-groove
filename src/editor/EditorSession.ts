@@ -4,9 +4,12 @@ import {
 } from "../analytics/analytics";
 import { bucketOf, projectAgeBucket } from "../analytics/buckets";
 import { COMMAND_IDS, type CommandId } from "../analytics/catalog";
+import { libraryPackAnalytics } from "../analytics/packKeys";
 import {
 	CommandHistory,
 	type HistoryListener,
+	packAddCommand,
+	packAddPayloadSchema,
 	type RawCommandInput,
 	type TransactionResult,
 	type TransactionSuccess,
@@ -113,6 +116,7 @@ export class EditorSession {
 		const result = this.history.execute(commands);
 		if (result.ok) {
 			this.logFirstEdit(result);
+			this.logPackAdds(result);
 			this.queueAutosave(result);
 		}
 		return result;
@@ -185,6 +189,30 @@ export class EditorSession {
 			command_id: commandId,
 			seconds_since_open_bucket: bucketOf("elapsed_seconds", secondsSinceOpen),
 		});
+	}
+
+	/**
+	 * `library_pack_added` (PRD `OPS-02`), once per pack a committed transaction
+	 * shelves.
+	 *
+	 * Logged here, at the command boundary, rather than in the surface that
+	 * offers the action: every way a pack can reach a project's shelf is a
+	 * `pack.add` command, so the pack browser (`LOOP-013`), a template, and an
+	 * assistant proposal are all measured by this one call site rather than each
+	 * remembering to log. Deliberately not fired from `redo()` — redoing an add
+	 * the user just undid is not a second pack adoption, and counting it as one
+	 * would inflate the popularity comparison this event exists to answer.
+	 */
+	private logPackAdds(result: TransactionSuccess): void {
+		for (const command of result.commands) {
+			if (command.type !== packAddCommand.type) continue;
+			const parsed = packAddPayloadSchema.safeParse(command.payload);
+			if (!parsed.success) continue;
+			this.analytics.log(
+				"library_pack_added",
+				libraryPackAnalytics(parsed.data.pack.packId),
+			);
+		}
 	}
 
 	/** Queues exactly the clip(s) a note command's payload names. */

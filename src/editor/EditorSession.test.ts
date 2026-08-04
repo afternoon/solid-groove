@@ -2,15 +2,26 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import { addNotes, removeNotes, updateNote } from "../commands";
+import { addNotes, addPack, removeNotes, updateNote } from "../commands";
+import type { PackDependency } from "../domain/entities";
+import { packVersion } from "../domain/entities";
 import { createFactoryContext, createNoteEvent } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
-import type { ClipId } from "../domain/ids";
+import {
+	type ClipId,
+	createSeededIdFactory,
+	packIdSchema,
+} from "../domain/ids";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
 import { memoryStorage } from "../testing/storage";
 import { EditorSession } from "./EditorSession";
+
+/** One shelf entry, by pack ID — the shape `pack.add` carries. */
+function factoryPack(packId: string): PackDependency {
+	return { packId: packIdSchema.parse(packId), version: packVersion("1.0.0") };
+}
 
 async function setUp(options: { deviceStorage?: Storage } = {}) {
 	const repository = createInMemoryProjectRepository();
@@ -181,6 +192,49 @@ describe("EditorSession", () => {
 		);
 		expect(firstEditEvents).toHaveLength(1);
 		expect(firstEditEvents[0]?.params.command_id).toBe("note.update");
+	});
+
+	it("logs library_pack_added naming the factory pack a pack.add shelved", () => {
+		// The popularity measure: the event says *which* pack, by its published
+		// library slug, so "most added packs" is a GA4 breakdown rather than a
+		// question the data cannot answer.
+		const { session, transport } = ctx;
+
+		session.dispatch(addPack(factoryPack("pak_FH8gyASzYiWGCrtpKZ-Ho")));
+
+		const events = transport.named("library_pack_added");
+		expect(events).toHaveLength(1);
+		expect(events[0]?.params).toMatchObject({
+			pack_key: "foundation-bass",
+			pack_kind: "factory",
+		});
+	});
+
+	it("reports a pack outside the published library as other, without its id", () => {
+		// A user-authored or third-party pack: its ID is user content, so it is
+		// counted but never named.
+		const { session, transport } = ctx;
+		const pack = factoryPack(createSeededIdFactory("user-pack")("pack"));
+
+		session.dispatch(addPack(pack));
+
+		const events = transport.named("library_pack_added");
+		expect(events).toHaveLength(1);
+		expect(events[0]?.params).toMatchObject({
+			pack_key: "other",
+			pack_kind: "unknown",
+		});
+		expect(JSON.stringify(events[0]?.params)).not.toContain(pack.packId);
+	});
+
+	it("does not count a redone add as a second pack adoption", () => {
+		const { session, transport } = ctx;
+		session.dispatch(addPack(factoryPack("pak_RznkYK7KIIo7BOZQZ_i0O")));
+
+		session.undo();
+		session.redo();
+
+		expect(transport.named("library_pack_added")).toHaveLength(1);
 	});
 
 	it("logs undo_used with direction and actor on undo and redo, once per invocation", () => {

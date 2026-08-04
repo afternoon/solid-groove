@@ -770,7 +770,7 @@ The `Owning task` column names the task that must ship the event with the featur
 | `instrument_changed` | A track's instrument or its sample selection changes | `instrument_type` | 1 / `LOOP-004`, `LOOP-005` |
 | `device_added` | A processing device is added to an insert chain, return, or master | `device_type`, `chain` | 1 / `LOOP-008`, `LOOP-009` |
 | `library_audition` | A library asset is auditioned | `asset_type`, `had_genre_filter` | 1 / `LOOP-013` |
-| `library_pack_added` | A pack is added to the project's shelf | `pack_kind` | 2 / `LIB-08`, `LOOP-013` |
+| `library_pack_added` | A pack is added to the project's shelf | `pack_kind`, `pack_key` (a published factory pack's slug, else `other`) | 2 / `LIB-08`, `LOOP-013` |
 | `clip_edited` | A step-editor or piano-roll editing gesture completes | `editor` (`step`, `piano_roll`), `event_count_bucket` | 1 / `LOOP-010`, `LOOP-011` |
 | `shortcut_used` | A registered keyboard shortcut fires | `action_id` | 1 / `LOOP-014` |
 | `undo_used` | Undo or redo is invoked | `direction`, `actor` (`user`, `assistant`) | 1 / `LOOP-002` |
