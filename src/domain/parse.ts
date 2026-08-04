@@ -23,14 +23,17 @@ import {
 import { TICKS_PER_BAR } from "./time";
 
 /**
- * Routing capacity ceilings (PRD FX-01, LOOP-008). These are the finite limits
- * the alpha guarantees: "at least eight serial insert devices per track" and
- * "two stereo send/return buses". They live here so every mutation path — the
- * device/send commands and any imported document — is judged against one
- * declared bound rather than a literal repeated at each call site.
+ * Routing capacity ceilings (PRD FX-01, LOOP-008). The PRD states a floor —
+ * "at least eight serial insert devices per track" and "two stereo send/return
+ * buses" — and these are the ceilings the alpha actually enforces, set well
+ * above that floor so a chain or a send layout stays a creative choice rather
+ * than a limit users design around. They are still finite: a bound exists so
+ * every mutation path — the device/send commands and any imported document —
+ * is judged against one declared value rather than a literal repeated at each
+ * call site, and so a runaway document cannot grow a track's graph without end.
  */
-export const MAX_TRACK_INSERTS = 8;
-export const MAX_RETURN_BUSES = 2;
+export const MAX_TRACK_INSERTS = 16;
+export const MAX_RETURN_BUSES = 8;
 
 /**
  * Parsing and cross-entity integrity (PRD section 9.5).

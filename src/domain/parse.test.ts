@@ -235,30 +235,38 @@ describe("parseProject", () => {
 		expectIssue(parseProject(input), "invalid_order");
 	});
 
-	it("accepts eight insert devices on a track but rejects a ninth", () => {
-		const eight = baseProject();
-		eight.song.tracks[0].devices = Array.from({ length: 8 }, (_, order) =>
+	it("accepts sixteen insert devices on a track but rejects a seventeenth", () => {
+		const atCeiling = baseProject();
+		atCeiling.song.tracks[0].devices = Array.from({ length: 16 }, (_, order) =>
 			device(order, "filter"),
 		) as MutableTrack["devices"];
-		expect(parseProject(eight).ok).toBe(true);
+		expect(parseProject(atCeiling).ok).toBe(true);
 
-		const nine = baseProject();
-		nine.song.tracks[0].devices = Array.from({ length: 9 }, (_, order) =>
-			device(order, "filter"),
+		const overCeiling = baseProject();
+		overCeiling.song.tracks[0].devices = Array.from(
+			{ length: 17 },
+			(_, order) => device(order, "filter"),
 		) as MutableTrack["devices"];
-		expectIssue(parseProject(nine), "capacity_exceeded");
+		expectIssue(parseProject(overCeiling), "capacity_exceeded");
 	});
 
-	it("rejects a third return bus", () => {
-		const input = baseProject();
-		input.song.returns = [0, 1, 2].map((order) => ({
-			id: ids("return"),
-			name: `Return ${order + 1}`,
-			order,
-			devices: [],
-			mixer: { volume: 0, pan: 0, muted: false },
-		}));
-		expectIssue(parseProject(input), "capacity_exceeded");
+	it("accepts eight return buses but rejects a ninth", () => {
+		const returns = (count: number): JsonRecord[] =>
+			Array.from({ length: count }, (_, order) => ({
+				id: ids("return"),
+				name: `Return ${order + 1}`,
+				order,
+				devices: [],
+				mixer: { volume: 0, pan: 0, muted: false },
+			}));
+
+		const atCeiling = baseProject();
+		atCeiling.song.returns = returns(8);
+		expect(parseProject(atCeiling).ok).toBe(true);
+
+		const overCeiling = baseProject();
+		overCeiling.song.returns = returns(9);
+		expectIssue(parseProject(overCeiling), "capacity_exceeded");
 	});
 
 	it("rejects a send to a missing return bus", () => {
