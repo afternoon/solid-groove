@@ -16,6 +16,25 @@ You implement exactly one task, tracked as one GitHub issue in `afternoon/solid-
 
 Read your issue's linked PRD sections before writing code. Do not widen scope beyond the task: a discovery that belongs to another task is reported in your result, not implemented.
 
+## Keep every PR small and single-purpose (hard limit: 400 lines)
+
+A PR is a single reviewable unit of purpose, **not** a whole task, and **its diff is at most 400 changed lines** (added + deleted across product and test code; generated files, lockfiles and vendored assets are excluded — never let a generated blob carry real logic). Big PRs are the thing this rule exists to prevent, so before you write code, **plan how the task splits into a stack of ≤400-line PRs**, each doing one thing a reviewer can hold in their head:
+
+- Split along natural seams: "introduce the *X* commands (with their tests)", then "add the *Y* domain entity + schema", then "wire the *Z* panel UI onto those commands". Each PR has one clear purpose stated in one sentence.
+- **Tests ship with the code they cover, in the same PR** — never a "tests later" PR. When a UI PR builds on commands from an earlier PR in your stack, it still tests the behavior it newly exposes; splitting must not drop or defer coverage. If the honest slice (code + its tests) exceeds 400 lines, the slice is too big — cut it smaller, do not trim tests to fit.
+- **Stack the branches:** the first PR branches off the base you are given; each subsequent PR branches off the *previous PR's branch* and sets its base to that branch (`gh pr create --base <prev-branch>`), so each diff shows only its own slice. A later PR may open while an earlier one is in review, but must not merge ahead of it.
+- Only the final PR in the stack — the one that satisfies the last acceptance criteria — uses `Closes #<n>`. Earlier PRs use `Refs #<n>` and name their place in the stack ("1 of 3").
+
+If a task is genuinely small enough to land in one ≤400-line PR, do that — the point is the ceiling and the single purpose, not splitting for its own sake.
+
+### Land central-registration edits first, in their own tiny PR
+
+A few files are shared registration points every parallel task appends to: `src/analytics/catalog.ts` (event keys), `src/commands/registry.ts` / `src/commands/index.ts` (command IDs), `src/domain/parse.ts` (invariants), and `src/editor/EditorView.tsx` (where a panel mounts). Two features editing the same one collide on merge even when the rest of their code is disjoint, and the collision only surfaces after review, when the first of the pair lands — creating rework in the sibling that is already approved.
+
+So if your task must touch any of these, make **the first PR in your stack the registration ALONE**: add the catalog key(s), register the command ID, add the invariant, reserve the panel slot — and nothing else. Keep it to a handful of lines so it reviews in seconds and merges fast, shrinking the window a sibling can clash with it. The feature PRs that follow depend on that registration but touch only their own new files. Do not invent a registration PR when your task adds nothing shared — this applies only when you would otherwise be editing one of these hot files.
+
+**Do not edit `docs/prd.md` unless your task strictly requires it.** It is authoritative, every task reads it, and it conflicts as badly as any registry. Reference PRD requirements; do not restate or amend them. Touch it only when your task genuinely revises product behavior, and then in the smallest possible edit — never incidental wording or formatting.
+
 ## Hard rules
 
 - **Never alter a published contract as incidental work.** The domain schema, command registry, parameter definitions, persistence layout, selection model, audio projection and rendering projection are contracts. If your task genuinely cannot be completed without changing one, stop and report it as a blocker rather than changing it.
@@ -32,6 +51,7 @@ Before you report success, all of these must hold:
 - `bun run typecheck`, `bun run test` and `bun run check` pass. Tasks touching browser, Firebase, audio, performance or export behavior also run their task-specific suites.
 - Audio resources and reactive subscriptions are disposed; accessibility and persistence effects are considered and tested where applicable.
 - No unrelated formatting, dependency, generated-file or refactor churn is in the diff.
+- **Every PR you open is ≤400 changed lines and has one clear, single-sentence purpose**, with the tests for its slice included (see "Keep every PR small" above). A task larger than that is delivered as a stack of such PRs; report the stack you opened and which PR closes the issue.
 - **If your task changes anything a user sees** — a new or changed component, layout, styling, copy or interaction — you capture a walkthrough of the result and include it in your report so it can go in the PR body. Run the app (see `docs/testing.md` / the `run` skill; the in-memory mock backend via `VITE_MOCK_BACKEND=true` avoids needing real Firebase), then record a short video that starts from a common entrypoint — the public landing page, the project dashboard, or a project page — and navigates to your change, so the reviewer sees it in context. A GIF or before/after screenshots are an acceptable fallback for a small, self-contained visual tweak. Name the entrypoint you started from and the theme (light/dark) where it matters. A task with no user-visible change says so instead.
 
 ## Your GitHub issue
@@ -50,12 +70,12 @@ If your issue carries the `blocked` label, an undecided `DEC-*` product decision
 
 ## Working method
 
-1. Assign your issue to yourself and comment that you are starting.
-2. Create a branch named `claude/<task-id-lowercase>` off the base branch you are given.
-3. Implement the task, with tests, fixtures and any documentation the task requires.
-4. Run the full check suite and fix what it surfaces.
-5. Commit and push the branch.
-6. Tick the satisfied acceptance checkboxes on the issue.
-7. Report: the branch name, a summary of the approach, the commands you ran with their real results, which acceptance checkboxes you consider met, and anything you could not complete.
+1. Assign your issue to yourself and comment that you are starting, naming the branch(es) you plan to push and — if the task needs more than one PR — the stack you intend to open, one sentence of purpose each.
+2. Plan the split into ≤400-line, single-purpose PRs (see "Keep every PR small"). For the first slice, create a branch named `claude/<task-id-lowercase>` (or `claude/<task-id-lowercase>-<slice>` for later slices) off the base you are given; each later slice branches off the previous slice's branch.
+3. Implement one slice at a time, with the tests that cover it, plus any fixtures and documentation that slice requires. Keep each slice's diff under 400 lines.
+4. Run the full check suite and fix what it surfaces — for each slice, before you move to the next.
+5. Commit and push each branch. Open its PR with the correct base (the previous slice's branch for a mid-stack PR, otherwise the given base), `Refs #<n>` for mid-stack PRs and `Closes #<n>` only on the final one, naming its place in the stack.
+6. Tick the satisfied acceptance checkboxes on the issue as each slice genuinely satisfies them.
+7. Report: every branch and PR you opened with its one-line purpose and diff size, which PR closes the issue, a summary of the approach, the commands you ran with their real results, which acceptance checkboxes you consider met, and anything you could not complete.
 
 Report outcomes faithfully. If a test fails or a checkbox is unmet, say so plainly with the output — a reviewer will check, and an inflated report costs more than an honest one.

@@ -81,7 +81,7 @@ test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
 		// Reaching the grid means the editor mounted and `tone` has been pulled in
 		// and optimized. Re-check after a settle so that if this very navigation
 		// triggered the reload, the post-reload page is the one left warm.
-		const grid = page.getByRole("group", { name: "16-step sequence" });
+		const grid = page.getByRole("region", { name: "Step editor" });
 		await grid.waitFor({ state: "visible", timeout: 60_000 });
 		await page.waitForTimeout(2_000);
 		await grid.waitFor({ state: "visible", timeout: 60_000 });

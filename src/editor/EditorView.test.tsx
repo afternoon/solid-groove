@@ -1,11 +1,20 @@
 import { MemoryRouter, Route } from "@solidjs/router";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
 	createDrumMachineFixtureProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
+import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
+import type { PreviewEngine } from "../library/audition";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 
@@ -40,13 +49,37 @@ vi.mock("../projectRepositoryClient", () => ({
 	getProjectRepository: () => Promise.resolve(repository),
 }));
 
+/**
+ * Paints or erases one step-editor cell the way a pointer does: `pointerdown`
+ * begins the stroke (add if the cell is empty, erase if filled), `pointerup`
+ * commits it as one history entry. `fireEvent.click` is not enough — the step
+ * editor drives painting from pointer events, not click, so a drag never starts
+ * a text selection (CLP-02).
+ */
+function paintStep(name: string): void {
+	const cell = screen.getByRole("button", { name });
+	fireEvent.pointerDown(cell, { button: 0 });
+	fireEvent.pointerUp(cell);
+}
+
 // EditorView links back to the dashboard with <A>, which needs a matched Route
 // context to resolve against — a bare MemoryRouter isn't enough.
-function renderEditor(projectId: string) {
+function renderEditor(
+	projectId: string,
+	options: { createAuditionEngine?: () => PreviewEngine } = {},
+) {
 	const EditorView = EditorViewModule.default;
 	return render(() => (
 		<MemoryRouter>
-			<Route path="/" component={() => <EditorView projectId={projectId} />} />
+			<Route
+				path="/"
+				component={() => (
+					<EditorView
+						projectId={projectId}
+						createAuditionEngine={options.createAuditionEngine}
+					/>
+				)}
+			/>
 		</MemoryRouter>
 	));
 }
@@ -63,7 +96,7 @@ describe("EditorView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("loads a project and renders its 16-step grid with the saved steps", async () => {
+	it("loads a project and renders its step editor with the saved steps", async () => {
 		repository = inMemoryModule.createInMemoryProjectRepository();
 		const project = createSliceFixtureProject();
 		const created = await repository.createProject(project);
@@ -72,15 +105,24 @@ describe("EditorView", () => {
 		renderEditor(project.metadata.id);
 
 		expect(
-			await screen.findByRole("group", { name: "16-step sequence" }),
+			await screen.findByRole("region", { name: "Step editor" }),
+		).toBeInTheDocument();
+		// The slice fixture's four-on-the-floor clip: steps 1, 5, 9, 13 on the
+		// single pitched "Notes" lane.
+		expect(
+			screen.getByRole("button", { name: "Notes, step 1, on" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "Step 1, on" }),
+			screen.getByRole("button", { name: "Notes, step 2, off" }),
 		).toBeInTheDocument();
+		// The track name appears in the step-editor's track-info header. (The
+		// ARR-001 arrangement shell also lists it in its virtualized headers and
+		// accessible track list, so scope this to the track editor.)
+		const trackEditor = document.querySelector(".track-editor");
+		expect(trackEditor).not.toBeNull();
 		expect(
-			screen.getByRole("button", { name: "Step 2, off" }),
+			within(trackEditor as HTMLElement).getByText(project.song.tracks[0].name),
 		).toBeInTheDocument();
-		expect(screen.getByText(project.song.tracks[0].name)).toBeInTheDocument();
 		// The reopened project reports the pack dependency it saved.
 		const dependency = project.metadata.packDependencies[0];
 		expect(
@@ -136,11 +178,11 @@ describe("EditorView", () => {
 		if (!created.ok) throw new Error("fixture project failed to create");
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 		expect(
-			await screen.findByRole("button", { name: "Step 2, on" }),
+			await screen.findByRole("button", { name: "Notes, step 2, on" }),
 		).toBeInTheDocument();
 
 		const undoButton = await screen.findByRole("button", { name: /^Undo/ });
@@ -148,7 +190,7 @@ describe("EditorView", () => {
 		fireEvent.click(undoButton);
 
 		expect(
-			await screen.findByRole("button", { name: "Step 2, off" }),
+			await screen.findByRole("button", { name: "Notes, step 2, off" }),
 		).toBeInTheDocument();
 	});
 
@@ -160,9 +202,9 @@ describe("EditorView", () => {
 		const startingRevision = project.metadata.revision;
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 
 		const saveStatus = await screen.findByText("Saved", {}, { timeout: 3_000 });
 		expect(
@@ -183,9 +225,9 @@ describe("EditorView", () => {
 		if (!created.ok) throw new Error("fixture project failed to create");
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 		await screen.findByText("Saved", {}, { timeout: 3_000 });
 		const saveStatusEl = document.querySelector(".save-status");
 		const revisionAfterAdd = Number(
@@ -194,7 +236,7 @@ describe("EditorView", () => {
 
 		const undoButton = await screen.findByRole("button", { name: /^Undo/ });
 		fireEvent.click(undoButton);
-		await screen.findByRole("button", { name: "Step 2, off" });
+		await screen.findByRole("button", { name: "Notes, step 2, off" });
 
 		await vi.waitFor(() => {
 			const revisionAfterUndo = Number(
@@ -219,9 +261,9 @@ describe("EditorView", () => {
 
 		repository.failNextWrites({ count: 1 });
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 
 		await screen.findByText("Save failed", {}, { timeout: 3_000 });
 		expect(screen.getByText("Check your connection.")).toBeInTheDocument();
@@ -249,7 +291,7 @@ describe("EditorView", () => {
 		if (!created.ok) throw new Error("fixture project failed to create");
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
 		// Another client's write lands in the store directly, without going
 		// through `saveMetadata` (which would notify this session's own
@@ -265,7 +307,7 @@ describe("EditorView", () => {
 			revision: (stored.revision as number) + 1,
 		});
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 
 		await screen.findByText("Save failed", {}, { timeout: 3_000 });
 		expect(
@@ -277,6 +319,73 @@ describe("EditorView", () => {
 	});
 });
 
+/**
+ * The Library panel builds one audition engine per mount (LOOP-013). Toggling
+ * the panel closed unmounts `LibraryBrowser`, whose `useLibraryBrowser` disposes
+ * the engine; a `ToneAuditionEngine` stays disposed permanently, so a cached
+ * single engine would be dead on the second open and every audition would then
+ * fail with `asset_missing`. This asserts each open gets a fresh, live engine.
+ */
+describe("EditorView library audition engine lifecycle", () => {
+	async function renderWithLibrary() {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		const engines: ReturnType<typeof fakePreviewEngine>[] = [];
+		renderEditor(project.metadata.id, {
+			createAuditionEngine: () => {
+				const engine = fakePreviewEngine();
+				engines.push(engine);
+				return engine;
+			},
+		});
+		await screen.findByRole("region", { name: "Step editor" });
+		return { engines };
+	}
+
+	function toggleLibrary() {
+		fireEvent.click(screen.getByRole("button", { name: "Library" }));
+	}
+
+	it("builds a fresh, live engine on each open and disposes the closed one", async () => {
+		const { engines } = await renderWithLibrary();
+
+		// First open builds one engine.
+		toggleLibrary();
+		await screen.findByRole("complementary", { name: "Library" });
+		expect(engines).toHaveLength(1);
+		expect(engines[0].disposed()).toBe(false);
+
+		// Closing the panel unmounts LibraryBrowser, which disposes that engine.
+		toggleLibrary();
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("complementary", { name: "Library" }),
+			).not.toBeInTheDocument(),
+		);
+		await waitFor(() => expect(engines[0].disposed()).toBe(true));
+
+		// Reopening builds a second, distinct, undisposed engine — never the dead
+		// first one. Under the old cached-singleton bug this would still be
+		// engines[0], now disposed, and audition would fail for the rest of the
+		// session.
+		toggleLibrary();
+		await screen.findByRole("complementary", { name: "Library" });
+		expect(engines).toHaveLength(2);
+		expect(engines[1]).not.toBe(engines[0]);
+		expect(engines[1].disposed()).toBe(false);
+
+		// The fresh engine still starts an audition — the exact path the bug broke.
+		await expect(
+			engines[1].start({ id: "ast_x", url: "sound.wav" } as never, {
+				sync: false,
+			}),
+		).resolves.toBeDefined();
+	});
+});
+
 /** The PRD KEY-01/KEY-02 wiring, end to end through the real registry. */
 describe("EditorView keyboard shortcuts", () => {
 	async function renderSlice() {
@@ -285,20 +394,20 @@ describe("EditorView keyboard shortcuts", () => {
 		const created = await repository.createProject(project);
 		if (!created.ok) throw new Error("fixture project failed to create");
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 		return project;
 	}
 
 	it("undoes an edit from the keyboard, through the same command path as the button", async () => {
 		await renderSlice();
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
-		await screen.findByRole("button", { name: "Step 2, on" });
+		paintStep("Notes, step 2, off");
+		await screen.findByRole("button", { name: "Notes, step 2, on" });
 
 		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
 		expect(
-			await screen.findByRole("button", { name: "Step 2, off" }),
+			await screen.findByRole("button", { name: "Notes, step 2, off" }),
 		).toBeInTheDocument();
 	});
 
@@ -310,7 +419,7 @@ describe("EditorView keyboard shortcuts", () => {
 
 		expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
 		expect(
-			screen.getByRole("button", { name: "Step 1, on" }),
+			screen.getByRole("button", { name: "Notes, step 1, on" }),
 		).toBeInTheDocument();
 	});
 
@@ -361,6 +470,34 @@ describe("EditorView keyboard shortcuts", () => {
 		).toBeInTheDocument();
 	});
 
+	it("does not toggle playback while the pack browser is open, and Escape closes it", async () => {
+		await renderSlice();
+
+		// The pack browser is a modal surface like the guide, so it takes the
+		// keyboard the same way (PRD KEY-02).
+		fireEvent.click(screen.getByRole("button", { name: "Library" }));
+		fireEvent.click(
+			await screen.findByRole("button", { name: /Browse packs/ }),
+		);
+		await screen.findByRole("dialog");
+
+		fireEvent.keyDown(window, { key: " " });
+		expect(
+			screen.getByRole("button", { name: "Start playback" }),
+		).toBeInTheDocument();
+
+		fireEvent.keyDown(window, { key: "Escape" });
+		await vi.waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		// With the modal gone the editor context has the keyboard back: `?` is an
+		// `editor`-context mapping, so it only fires once nothing is suppressing it.
+		fireEvent.keyDown(window, { key: "?", shiftKey: true });
+		expect(
+			await screen.findByRole("searchbox", { name: "Search shortcuts" }),
+		).toBeInTheDocument();
+	});
+
 	it("shows each action's mapping in its tooltip, from the registry", async () => {
 		await renderSlice();
 
@@ -386,7 +523,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
 		const created = await repository.createProject(project);
 		if (!created.ok) throw new Error("fixture project failed to create");
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 		return project;
 	}
 
