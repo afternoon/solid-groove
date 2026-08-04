@@ -260,13 +260,27 @@ describe("type safety (PRD OPS-02: logging an unregistered event is a type error
 
 	it("cannot log an event whose keys a later task still owns", () => {
 		const { analytics } = setup();
-		// `device_added`'s `device_type` keys are authored per device by
-		// LOOP-008/009. Until those land the enum is empty, so the event is
-		// declared but un-loggable — no call site can ship ahead of its keys.
-		// (`shortcut_used`'s `action_id` was the example here until LOOP-014
-		// claimed it from the shortcut registry.)
+		// `arrangement_outline_created`'s `template_id` keys are authored by
+		// ARR-003. Until then the enum is empty, so the event is declared but
+		// un-loggable — no call site can ship ahead of its keys. (`device_added`
+		// was the example here until LOOP-008 claimed its `device_type` keys, and
+		// `shortcut_used` before that until LOOP-014.)
+		const emptyEnum = {
+			template_id: "verse_chorus",
+			section_count: 4,
+		} as const;
 		// @ts-expect-error - no value satisfies an empty enum.
+		analytics.log("arrangement_outline_created", emptyEnum);
+	});
+
+	it("logs device_added now that LOOP-008 has claimed its device_type keys", () => {
+		const { analytics } = setup();
+		// A correct call compiles...
 		analytics.log("device_added", { device_type: "reverb", chain: "insert" });
+		// ...but an unregistered device type does not.
+		const unknownType = { device_type: "bitcrusher", chain: "insert" } as const;
+		// @ts-expect-error - "bitcrusher" is not one of the authored device types.
+		analytics.log("device_added", unknownType);
 	});
 });
 

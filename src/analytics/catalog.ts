@@ -457,8 +457,16 @@ export const ANALYTICS_EVENTS = {
 		phase: 1,
 		owners: ["LOOP-008", "LOOP-009"],
 		params: {
-			// Device keys are authored per-device in Alpha Milestone 1 (LOOP-008/009).
-			device_type: enumParam(UNCLAIMED),
+			// The alpha's six core device types (LOOP-008); LOOP-009 extends this
+			// list as it authors more. Kept in sync with `src/domain/devices.ts`.
+			device_type: enumParam([
+				"filter",
+				"overdrive",
+				"saturator",
+				"compressor",
+				"delay",
+				"reverb",
+			]),
 			chain: enumParam(["insert", "return", "master"]),
 		},
 	},
