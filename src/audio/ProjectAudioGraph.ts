@@ -18,12 +18,13 @@ import {
 	type AssetBufferLoader,
 	AudioBufferCache,
 	type AudioBufferCacheDiagnostics,
+	type BufferLoadFailureListener,
 	type BufferSubscription,
 } from "./AudioBufferCache";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
+import { playAudioLoop } from "./audioLoopPlayer";
 import type { DeviceNodeFactory } from "./DeviceChain";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
-import { playOneShot } from "./InstrumentGraph";
 import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
 import type { ResourceHandle } from "./resourceRegistry";
@@ -95,6 +96,12 @@ export interface ProjectAudioGraphOptions {
 	/** The current audio time, in seconds. Defaults to {@link audioClockNow};
 	 * injectable for tests. */
 	now?: () => number;
+	/**
+	 * Called when a loop or sample asset fails to decode or is missing, so the
+	 * owner can emit `asset_load_failed` (PRD OPS-02, LOOP-006). Fired once per
+	 * failed load attempt; a stale-generation failure is never reported.
+	 */
+	onAssetLoadFailure?: BufferLoadFailureListener;
 }
 
 /** Everything scheduled for one placement, so a later reconcile pass can tell
@@ -150,6 +157,7 @@ export class ProjectAudioGraph {
 		this.transport = options.transport ?? liveTransport;
 		this.bufferCache = new AudioBufferCache(
 			options.bufferLoader ?? toneBufferLoader,
+			{ onLoadFailure: options.onAssetLoadFailure },
 		);
 		this.createInstrument = options.createInstrument;
 		this.createDeviceNode = options.createDeviceNode;
@@ -422,14 +430,13 @@ export class ProjectAudioGraph {
 				this.underrunMonitor?.observe(time, this.now());
 				const track = this.tracks.get(loop.trackId);
 				if (track && bufferBox.current) {
-					playOneShot(
-						bufferBox.current,
-						track.audioInput,
+					playAudioLoop(bufferBox.current, {
+						destination: track.audioInput,
 						time,
 						durationSeconds,
-						loop.playbackRate,
+						playbackRate: loop.playbackRate,
 						offsetSeconds,
-					);
+					});
 				}
 			}, ticksToToneTime(loop.absoluteTicks));
 			entry.handles.push(

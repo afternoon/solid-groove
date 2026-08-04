@@ -87,6 +87,7 @@ interface MutableClip extends JsonRecord {
 	content: JsonRecord & {
 		kind: string;
 		assetId?: string;
+		startOffsetTicks?: number;
 		events: (JsonRecord & { id: string; startTicks: number })[];
 	};
 }
@@ -496,6 +497,32 @@ describe("audio loop clips and drum pads", () => {
 		const input = drumMachineProject();
 		drumPads(input)[0].assetId = ids("asset");
 		expectIssue(parseProject(input), "dangling_reference");
+	});
+
+	// INS-02: a tempo-labelled loop declares source BPM (schema-checked) and bar
+	// length. The bar-length invariant is what keeps a loop's boundaries aligned
+	// as the song tempo moves, so it is enforced at ingestion.
+	it("rejects an audio-loop clip whose length is not a whole number of bars", () => {
+		const input = drumMachineProject();
+		const clip = audioLoopClip(input);
+		// The fixture loop is two bars (1536 ticks); nudge it one tick off-grid.
+		clip.lengthTicks += 1;
+		expectIssue(parseProject(input), "invalid_musical_time");
+	});
+
+	it("accepts an audio-loop clip whose length is a whole number of bars", () => {
+		const input = drumMachineProject();
+		// One bar (768 ticks) — a valid, differently-sized bar-aligned loop.
+		audioLoopClip(input).lengthTicks = 768;
+		const result = parseProject(input);
+		expect(result.ok, `issues: ${JSON.stringify(result)}`).toBe(true);
+	});
+
+	it("rejects an audio-loop clip whose start offset is not before its length", () => {
+		const input = drumMachineProject();
+		const clip = audioLoopClip(input);
+		clip.content.startOffsetTicks = clip.lengthTicks;
+		expectIssue(parseProject(input), "invalid_musical_time");
 	});
 });
 
