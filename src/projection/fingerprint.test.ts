@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { fingerprintOf, stableStringify } from "./fingerprint";
+import {
+	fingerprintOf,
+	rememberSource,
+	reuseIfUnchanged,
+	stableStringify,
+} from "./fingerprint";
 
 describe("stableStringify", () => {
 	it("is independent of object key order", () => {
@@ -31,5 +36,47 @@ describe("fingerprintOf", () => {
 		const a = fingerprintOf({ volume: -6 });
 		const b = fingerprintOf({ volume: -3 });
 		expect(a).not.toBe(b);
+	});
+});
+
+describe("reuseIfUnchanged / rememberSource", () => {
+	it("returns the previous entry when every dependency is identical", () => {
+		const source = { id: "trk_1" };
+		const previous = rememberSource({ built: true }, [source]);
+		expect(reuseIfUnchanged(previous, [source])).toBe(previous);
+	});
+
+	it("does not reuse when a dependency reference differs", () => {
+		const previous = rememberSource({ built: true }, [{ id: "trk_1" }]);
+		// A structurally-equal but distinct object must not match — the fast path
+		// is object identity, not deep equality (deep equality is exactly the cost
+		// it exists to avoid).
+		expect(reuseIfUnchanged(previous, [{ id: "trk_1" }])).toBeUndefined();
+	});
+
+	it("does not reuse when a scalar dependency differs", () => {
+		const source = { id: "trk_1" };
+		const previous = rememberSource({ built: true }, [source, 0]);
+		expect(reuseIfUnchanged(previous, [source, 0])).toBe(previous);
+		expect(reuseIfUnchanged(previous, [source, 1])).toBeUndefined();
+	});
+
+	it("does not reuse when the dependency count differs", () => {
+		const source = { id: "trk_1" };
+		const previous = rememberSource({ built: true }, [source]);
+		expect(reuseIfUnchanged(previous, [source, 0])).toBeUndefined();
+	});
+
+	it("never reuses a previous entry that predates the cache", () => {
+		// An entry built before this mechanism existed has no recorded deps, so it
+		// degrades to the caller's fingerprint path rather than misfiring.
+		const strangerFromAnOlderBuild = { built: true };
+		expect(
+			reuseIfUnchanged(strangerFromAnOlderBuild, [{ id: "trk_1" }]),
+		).toBeUndefined();
+	});
+
+	it("returns undefined for no previous entry", () => {
+		expect(reuseIfUnchanged(undefined, [{ id: "trk_1" }])).toBeUndefined();
 	});
 });

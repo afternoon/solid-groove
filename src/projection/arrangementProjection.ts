@@ -13,7 +13,7 @@ import type {
 	TrackId,
 } from "../domain/ids";
 import { TICKS_PER_BAR, type Ticks, toTicks } from "../domain/time";
-import { fingerprintOf } from "./fingerprint";
+import { fingerprintOf, rememberSource, reuseIfUnchanged } from "./fingerprint";
 
 /**
  * The arrangement renderer's read-only projection (PRD section 9.3).
@@ -169,6 +169,8 @@ function buildClip(
 	clip: Project["clips"][number],
 	previous: ArrangementClip | undefined,
 ): ArrangementClip {
+	const reused = reuseIfUnchanged(previous, [clip]);
+	if (reused) return reused;
 	const preview = clipPreviewShape(clip);
 	const shape = {
 		trackId: clip.trackId,
@@ -179,23 +181,28 @@ function buildClip(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [clip]);
 	}
-	return {
-		id: clip.id,
-		trackId: clip.trackId,
-		name: clip.name,
-		color: clip.color,
-		lengthTicks: clip.lengthTicks,
-		preview,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: clip.id,
+			trackId: clip.trackId,
+			name: clip.name,
+			color: clip.color,
+			lengthTicks: clip.lengthTicks,
+			preview,
+			fingerprint,
+		},
+		[clip],
+	);
 }
 
 function buildPlacement(
 	placement: Project["song"]["placements"][number],
 	previous: ArrangementPlacement | undefined,
 ): ArrangementPlacement {
+	const reused = reuseIfUnchanged(previous, [placement]);
+	if (reused) return reused;
 	const endTicks = toTicks(placement.startTicks + placement.durationTicks);
 	const shape = {
 		clipId: placement.clipId,
@@ -207,25 +214,30 @@ function buildPlacement(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [placement]);
 	}
-	return {
-		id: placement.id,
-		clipId: placement.clipId,
-		trackId: placement.trackId,
-		startTicks: placement.startTicks,
-		durationTicks: placement.durationTicks,
-		endTicks,
-		clipOffsetTicks: placement.clipOffsetTicks,
-		looped: placement.looped,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: placement.id,
+			clipId: placement.clipId,
+			trackId: placement.trackId,
+			startTicks: placement.startTicks,
+			durationTicks: placement.durationTicks,
+			endTicks,
+			clipOffsetTicks: placement.clipOffsetTicks,
+			looped: placement.looped,
+			fingerprint,
+		},
+		[placement],
+	);
 }
 
 function buildSection(
 	section: Project["song"]["sections"][number],
 	previous: ArrangementSection | undefined,
 ): ArrangementSection {
+	const reused = reuseIfUnchanged(previous, [section]);
+	if (reused) return reused;
 	const endTicks = toTicks(section.startTicks + section.durationTicks);
 	const shape = {
 		name: section.name,
@@ -235,23 +247,28 @@ function buildSection(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [section]);
 	}
-	return {
-		id: section.id,
-		name: section.name,
-		color: section.color,
-		startTicks: section.startTicks,
-		durationTicks: section.durationTicks,
-		endTicks,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: section.id,
+			name: section.name,
+			color: section.color,
+			startTicks: section.startTicks,
+			durationTicks: section.durationTicks,
+			endTicks,
+			fingerprint,
+		},
+		[section],
+	);
 }
 
 function buildAutomationLane(
 	lane: AutomationLane,
 	previous: ArrangementAutomationLane | undefined,
 ): ArrangementAutomationLane {
+	const reused = reuseIfUnchanged(previous, [lane]);
+	if (reused) return reused;
 	const points = [...lane.points].sort((a, b) => a.tick - b.tick);
 	const values = points.map((point) => point.value);
 	const minValue = values.length > 0 ? Math.min(...values) : 0;
@@ -263,17 +280,20 @@ function buildAutomationLane(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [lane]);
 	}
-	return {
-		id: lane.id,
-		target: lane.target,
-		interpolation: lane.interpolation,
-		points,
-		minValue,
-		maxValue,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: lane.id,
+			target: lane.target,
+			interpolation: lane.interpolation,
+			points,
+			minValue,
+			maxValue,
+			fingerprint,
+		},
+		[lane],
+	);
 }
 
 function buildRow(
@@ -283,6 +303,13 @@ function buildRow(
 	rowHeight: number,
 	previous: ArrangementTrackRow | undefined,
 ): ArrangementTrackRow {
+	// A row's fingerprint depends on the track object *and* its computed layout
+	// position (rowIndex/rowTop/rowHeight), which move when an earlier track's
+	// order or height changes even though this track's object did not — so all
+	// four are dependencies, not just `track`.
+	const deps = [track, rowIndex, rowTop, rowHeight] as const;
+	const reused = reuseIfUnchanged(previous, deps);
+	if (reused) return reused;
 	const shape = {
 		name: track.name,
 		color: track.color,
@@ -294,19 +321,22 @@ function buildRow(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, deps);
 	}
-	return {
-		id: track.id,
-		name: track.name,
-		color: track.color,
-		order: track.order,
-		type: track.type,
-		rowIndex,
-		rowTop,
-		rowHeight,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: track.id,
+			name: track.name,
+			color: track.color,
+			order: track.order,
+			type: track.type,
+			rowIndex,
+			rowTop,
+			rowHeight,
+			fingerprint,
+		},
+		deps,
+	);
 }
 
 /**
