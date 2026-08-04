@@ -1,6 +1,8 @@
 import { type Accessor, createEffect, onCleanup } from "solid-js";
 import { createStore } from "solid-js/store";
 import type {
+	Gesture,
+	GestureOptions,
 	HistorySnapshot,
 	RawCommandInput,
 	TransactionResult,
@@ -69,6 +71,13 @@ export interface UseEditorSessionResult {
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
+	/**
+	 * Opens a continuous edit gesture — a step-editor paint/erase stroke, a
+	 * fader/pan drag — or `undefined` before a session has loaded. Every step
+	 * applies live; the whole gesture commits as one history entry, one
+	 * revision, and one autosave (PRD `CLP-02`, `TRK-02`).
+	 */
+	beginGesture(options?: GestureOptions): Gesture | undefined;
 	undo(): TransactionResult | null | undefined;
 	redo(): TransactionResult | null | undefined;
 	/** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
@@ -176,6 +185,7 @@ export function useEditorSession(
 	return {
 		state: state as EditorSessionState,
 		dispatch: (commands) => session?.dispatch(commands),
+		beginGesture: (options) => session?.beginGesture(options),
 		undo: () => session?.undo(),
 		redo: () => session?.redo(),
 		retry: () => session?.autosave.retry(),

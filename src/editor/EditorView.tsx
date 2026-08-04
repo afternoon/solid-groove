@@ -6,6 +6,7 @@ import {
 	HiSolidMusicalNote,
 	HiSolidPlay,
 	HiSolidQuestionMarkCircle,
+	HiSolidRectangleStack,
 	HiSolidSquares2x2,
 	HiSolidStop,
 } from "solid-icons/hi";
@@ -19,15 +20,21 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import ArrangementView from "../arrangement/ArrangementView";
+import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 import type { NoteTrigger } from "../domain/entities";
+import type { EventId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { formatBarsBeatsSixteenths, TICKS_PER_QUARTER } from "../domain/time";
 import SamplerPanel, { type SampleChoice } from "../instrument/SamplerPanel";
 import SynthPanel from "../instrument/SynthPanel";
+import type { PreviewEngine } from "../library/audition";
+import LibraryBrowser from "../library/LibraryBrowser";
+import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
@@ -35,13 +42,21 @@ import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
-import StepGrid from "./StepGrid";
+import Mixer from "./Mixer";
+import StepEditor, { deleteSelectedNotes } from "./StepEditor";
+import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
 import "./EditorView.css";
 
 export interface EditorViewProps {
 	readonly projectId: string;
+	/**
+	 * Builds the audition engine each time the Library panel mounts. Defaults to
+	 * a Tone-backed engine on the shared runtime; injected in tests so the
+	 * per-mount lifecycle can be exercised without Web Audio.
+	 */
+	readonly createAuditionEngine?: () => PreviewEngine;
 }
 
 const SAVE_STATUS_LABEL: Record<string, string> = {
@@ -70,11 +85,11 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
 };
 
 /**
- * The `FND-009` foundation vertical slice: open a schema-v1 project, edit its
- * 16-step sampler track, hear it, undo it, and let autosave save it — the
- * smallest surface that exercises the real UI-to-command-to-audio-to-
- * persistence path end to end. Superseded by `LOOP-010`'s full step editor;
- * not meant to be grown into it (see the `FND-009` task).
+ * The project editor: open a schema-v1 project, program its sampler or
+ * drum-machine clip on the CLP-02 step editor, hear it, undo it, and let
+ * autosave save it. The `FND-009` slice's minimal 16-step grid was replaced by
+ * `LOOP-010`'s full step editor (`StepEditor`); the surrounding transport,
+ * instrument panels, and save/undo wiring are the same path it established.
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [repositoryResource] = createResource(() => getProjectRepository());
@@ -86,6 +101,47 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const project = createMemo(() => session.state.project);
 	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
+	// The step editor's note selection, lifted here so the `edit.delete` shortcut
+	// can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
+	const [selectedNoteIds, setSelectedNoteIds] = createSignal<
+		readonly EventId[]
+	>([]);
+	const [libraryOpen, setLibraryOpen] = createSignal(false);
+	const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
+
+	/**
+	 * The packs this editing session has added on top of the ones the project
+	 * already depends on.
+	 *
+	 * `metadata.packDependencies` is *derived* from the assets a project uses
+	 * (`derivePackDependencies`), so it answers "which packs does this project
+	 * need to open?" — not "which packs has the user put on their shelf?". The
+	 * second is a new piece of project state and a new command, which is a domain
+	 * contract change and its own task (see the LOOP-013 follow-up); until that
+	 * lands, an added pack lives for the session, which is enough for the browser
+	 * to show it and for the user to work out of it.
+	 */
+	const [sessionPackIds, setSessionPackIds] = createSignal<readonly string[]>(
+		[],
+	);
+	const addedPackIds = createMemo<readonly string[]>(() => {
+		const fromProject = (project()?.metadata.packDependencies ?? []).map(
+			(dependency) => dependency.packId,
+		);
+		return [...new Set([...fromProject, ...sessionPackIds()])];
+	});
+
+	// A fresh audition engine per panel mount, built off the shared runtime the
+	// first time each opening browses. `LibraryBrowser`'s `useLibraryBrowser`
+	// disposes the engine on unmount (its `AuditionController.dispose()` calls
+	// `engine.dispose()`), and a disposed `ToneAuditionEngine` stays disposed —
+	// so the engine must be owned per mount, never cached across panel opens, or
+	// the second open would reuse a dead engine and every audition would fail
+	// with `asset_missing` (LOOP-013). Auditions play through the same
+	// destination the project does — never an export/offline context (LIB-01).
+	const createAuditionEngine =
+		props.createAuditionEngine ??
+		(() => new ToneAuditionEngine(getAudioRuntime()));
 
 	// Tempo is written by a validated command (song.tempo), clamped to the
 	// AUD-02 40-240 BPM supported range at this surface. The command is the only
@@ -130,6 +186,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			run: () => session.redo(),
 			isEnabled: () => session.state.canRedo,
 		},
+		// Delete the step editor's selected notes (CLP-02). Only fires when the
+		// selection is non-empty, so an empty-selection Delete leaves the browser
+		// default alone (PRD KEY-02).
+		"edit.delete": {
+			run: () => deleteSelection(),
+			isEnabled: () => selectedNoteIds().length > 0,
+		},
 		"help.shortcut_guide": { run: () => setGuideOpen(true) },
 		"view.close_surface": {
 			run: () => setGuideOpen(false),
@@ -145,10 +208,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		"step_editor",
 	];
 
-	// While the guide is open it is the only active context, so nothing behind
-	// it can fire — including playback and selection (PRD KEY-02).
+	// While a modal is open it is the only active context, so nothing behind it
+	// can fire — including playback and selection (PRD KEY-02). The pack browser
+	// is a modal surface like the guide, so it takes the keyboard the same way.
 	const contexts = (): readonly ShortcutContext[] =>
-		guideOpen() ? ["dialog"] : editorContexts();
+		guideOpen() || packBrowserOpen() ? ["dialog"] : editorContexts();
 
 	const shortcuts = useShortcuts({ handlers, contexts });
 	const keyHint = (action: Parameters<typeof shortcutLabel>[0]) =>
@@ -175,6 +239,26 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			currentProject.clips.find((c) => c.trackId === currentTrack.id) ?? null
 		);
 	});
+
+	// The step editor's live playback-step indicator (CLP-02): which 16th step of
+	// the edited clip the playhead is currently passing, wrapped within the clip's
+	// bars, or null when stopped.
+	const editorPlaybackStep = createMemo(() => {
+		const currentClip = clip();
+		if (!currentClip) return null;
+		return playbackStepOf(
+			currentClip,
+			audio.positionTicks(),
+			audio.isPlaying(),
+		);
+	});
+
+	function deleteSelection(): void {
+		const currentClip = clip();
+		if (!currentClip) return;
+		deleteSelectedNotes(currentClip, selectedNoteIds(), session.dispatch);
+		setSelectedNoteIds([]);
+	}
 
 	// Every tempo-labelled loop clip in the project, paired with its resolved
 	// asset (or null when the asset is missing) — LOOP-006 renders one loop-info
@@ -405,6 +489,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								</div>
 								<button
 									type="button"
+									class="library-toggle"
+									aria-label="Library"
+									aria-pressed={libraryOpen()}
+									title="Library"
+									onClick={() => setLibraryOpen((open) => !open)}
+								>
+									<HiSolidRectangleStack size={18} />
+								</button>
+								<button
+									type="button"
 									class="shortcut-guide-button"
 									aria-label="Keyboard shortcuts"
 									title={`Keyboard shortcuts (${keyHint("help.shortcut_guide")})`}
@@ -439,102 +533,147 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									</Show>
 								</div>
 							</header>
-							<div class="workspace">
-								<For each={loopClips()}>
-									{(entry) => (
-										<LoopInfo
-											clip={entry.clip}
-											asset={entry.asset}
-											songTempo={tempo()}
+							<div class="arrangement-panel">
+								<ArrangementView
+									project={currentProject()}
+									playheadTicks={audio.positionTicks}
+									isPlaying={audio.isPlaying}
+								/>
+							</div>
+							<div class="editor-body">
+								<Show when={libraryOpen()}>
+									{/*
+									 * One engine per mount: `Show` disposes and recreates this
+									 * child branch on each false->true transition, so
+									 * `createAuditionEngine()` runs once per open. Closing the
+									 * panel unmounts `LibraryBrowser`, whose `useLibraryBrowser`
+									 * disposes the engine — so each reopen must get a fresh,
+									 * undisposed engine, never a cached (now-dead) one.
+									 */}
+									<aside class="library-panel" aria-label="Library">
+										<LibraryBrowser
+											previewEngine={createAuditionEngine()}
+											addedPackIds={addedPackIds()}
+											onAddPack={(pack) =>
+												setSessionPackIds((previous) =>
+													previous.includes(pack.id)
+														? previous
+														: [...previous, pack.id],
+												)
+											}
+											onPackBrowserOpenChange={setPackBrowserOpen}
 										/>
-									)}
-								</For>
-								<Show when={drumTrack()}>
-									{(drum) => (
-										<div class="drum-machine-editor">
-											<div class="track-info">
-												<span class="track-name">{drum().name}</span>
-											</div>
-											<DrumMachinePanel
-												track={drum()}
-												assets={sampleAssets()}
-												dispatch={session.dispatch}
-												audition={(padId) =>
-													void audio.auditionPad(drum().id, padId)
-												}
-											/>
-										</div>
-									)}
+									</aside>
 								</Show>
-								<Show
-									when={clip()}
-									fallback={
-										<p class="no-track">
-											This project has no sampler track yet.
-										</p>
-									}
-								>
-									{(currentClip) => (
-										<div class="track-editor">
-											<div class="track-info">
-												<span class="track-name">{track()?.name}</span>
-												<Show when={packDependencyLabel()}>
-													<span class="pack-dependency">
-														Pack: {packDependencyLabel()}
-													</span>
+								<div class="workspace">
+									<For each={loopClips()}>
+										{(entry) => (
+											<LoopInfo
+												clip={entry.clip}
+												asset={entry.asset}
+												songTempo={tempo()}
+											/>
+										)}
+									</For>
+									<Show when={drumTrack()}>
+										{(drum) => (
+											<div class="drum-machine-editor">
+												<div class="track-info">
+													<span class="track-name">{drum().name}</span>
+												</div>
+												<DrumMachinePanel
+													track={drum()}
+													assets={sampleAssets()}
+													dispatch={session.dispatch}
+													audition={(padId) =>
+														void audio.auditionPad(drum().id, padId)
+													}
+												/>
+											</div>
+										)}
+									</Show>
+									<Show
+										when={clip()}
+										fallback={
+											<p class="no-track">
+												This project has no sampler track yet.
+											</p>
+										}
+									>
+										{(currentClip) => (
+											<div class="track-editor">
+												<div class="track-info">
+													<span class="track-name">{track()?.name}</span>
+													<Show when={packDependencyLabel()}>
+														<span class="pack-dependency">
+															Pack: {packDependencyLabel()}
+														</span>
+													</Show>
+												</div>
+												<StepEditor
+													clip={currentClip()}
+													instrument={instrument()}
+													dispatch={session.dispatch}
+													beginGesture={session.beginGesture}
+													playbackStep={editorPlaybackStep}
+													selectedIds={selectedNoteIds}
+													setSelectedIds={setSelectedNoteIds}
+												/>
+												<Show when={instrumentPanelTrackId()}>
+													{(trackId) => (
+														<Switch>
+															<Match
+																when={
+																	instrument()?.kind === "sampler" &&
+																	(instrument() as Extract<
+																		NonNullable<ReturnType<typeof instrument>>,
+																		{ kind: "sampler" }
+																	>)
+																}
+															>
+																{(sampler) => (
+																	<SamplerPanel
+																		trackId={trackId()}
+																		instrument={sampler()}
+																		sampleName={sampleName()}
+																		replacementOptions={replacementOptions()}
+																		dispatch={session.dispatch}
+																		audition={auditionInstrument}
+																	/>
+																)}
+															</Match>
+															<Match
+																when={
+																	instrument()?.kind === "synth" &&
+																	(instrument() as Extract<
+																		NonNullable<ReturnType<typeof instrument>>,
+																		{ kind: "synth" }
+																	>)
+																}
+															>
+																{(synth) => (
+																	<SynthPanel
+																		trackId={trackId()}
+																		instrument={synth()}
+																		dispatch={session.dispatch}
+																		audition={auditionInstrument}
+																	/>
+																)}
+															</Match>
+														</Switch>
+													)}
 												</Show>
 											</div>
-											<StepGrid
-												clip={currentClip()}
-												dispatch={session.dispatch}
-											/>
-											<Show when={instrumentPanelTrackId()}>
-												{(trackId) => (
-													<Switch>
-														<Match
-															when={
-																instrument()?.kind === "sampler" &&
-																(instrument() as Extract<
-																	NonNullable<ReturnType<typeof instrument>>,
-																	{ kind: "sampler" }
-																>)
-															}
-														>
-															{(sampler) => (
-																<SamplerPanel
-																	trackId={trackId()}
-																	instrument={sampler()}
-																	sampleName={sampleName()}
-																	replacementOptions={replacementOptions()}
-																	dispatch={session.dispatch}
-																	audition={auditionInstrument}
-																/>
-															)}
-														</Match>
-														<Match
-															when={
-																instrument()?.kind === "synth" &&
-																(instrument() as Extract<
-																	NonNullable<ReturnType<typeof instrument>>,
-																	{ kind: "synth" }
-																>)
-															}
-														>
-															{(synth) => (
-																<SynthPanel
-																	trackId={trackId()}
-																	instrument={synth()}
-																	dispatch={session.dispatch}
-																	audition={auditionInstrument}
-																/>
-															)}
-														</Match>
-													</Switch>
-												)}
-											</Show>
-										</div>
-									)}
-								</Show>
+										)}
+									</Show>
+									<Mixer
+										project={currentProject()}
+										dispatch={session.dispatch}
+										beginGesture={session.beginGesture}
+										trackLevelDb={audio.trackLevelDb}
+										isPlaying={audio.isPlaying}
+									/>
+								</div>
 							</div>
 							<Show when={guideOpen()}>
 								<ShortcutGuide
