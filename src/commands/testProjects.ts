@@ -62,6 +62,7 @@ export interface CommandTestProject {
 	clipAId: ClipId;
 	clipBId: ClipId;
 	deviceId: DeviceId;
+	device2Id: DeviceId;
 	returnId: ReturnId;
 	placementAId: PlacementId;
 	padIds: PadId[];
@@ -109,6 +110,15 @@ export function createCommandTestProject(
 		parameters: { [TEST_DEVICE_PARAMETER]: 0.25 },
 		preset: null,
 	};
+	// A second insert device so a device reorder has something to move past.
+	const device2: Device = {
+		id: context.ids("device"),
+		type: TEST_DEVICE_TYPE,
+		order: 1,
+		bypassed: false,
+		parameters: {},
+		preset: null,
+	};
 
 	const returnBus = createReturnBus(context, { name: "Reverb", order: 0 });
 
@@ -116,7 +126,7 @@ export function createCommandTestProject(
 		name: "Bass",
 		order: 0,
 		instrument: createSamplerInstrument(asset.id),
-		devices: [device],
+		devices: [device, device2],
 		sendConfig: [createSend(returnBus.id, 0.25)],
 	});
 
@@ -208,6 +218,7 @@ export function createCommandTestProject(
 		clipAId: clipA.id,
 		clipBId: clipB.id,
 		deviceId: device.id,
+		device2Id: device2.id,
 		returnId: returnBus.id,
 		placementAId: placementA.id,
 		padIds: [kick.id, clap.id],

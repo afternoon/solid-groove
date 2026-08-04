@@ -193,6 +193,13 @@ export const COMMAND_IDS = [
 	"drum.reorderPad",
 	"instrument.change",
 	"instrument.setSample",
+	"device.add",
+	"device.remove",
+	"device.reorder",
+	"device.duplicate",
+	"device.setBypass",
+	"device.reset",
+	"device.restoreParameters",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 
