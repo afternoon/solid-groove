@@ -45,6 +45,13 @@ const EXPECTED_COMMANDS = [
 	"drum.reorderPad",
 	"instrument.change",
 	"instrument.setSample",
+	"device.add",
+	"device.remove",
+	"device.reorder",
+	"device.duplicate",
+	"device.setBypass",
+	"device.reset",
+	"device.restoreParameters",
 ];
 
 describe("command registry", () => {
