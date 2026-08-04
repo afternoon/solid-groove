@@ -1,11 +1,19 @@
 import { MemoryRouter, Route } from "@solidjs/router";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
 	createDrumMachineFixtureProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
+import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
+import type { PreviewEngine } from "../library/audition";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 
@@ -55,11 +63,22 @@ function paintStep(name: string): void {
 
 // EditorView links back to the dashboard with <A>, which needs a matched Route
 // context to resolve against — a bare MemoryRouter isn't enough.
-function renderEditor(projectId: string) {
+function renderEditor(
+	projectId: string,
+	options: { createAuditionEngine?: () => PreviewEngine } = {},
+) {
 	const EditorView = EditorViewModule.default;
 	return render(() => (
 		<MemoryRouter>
-			<Route path="/" component={() => <EditorView projectId={projectId} />} />
+			<Route
+				path="/"
+				component={() => (
+					<EditorView
+						projectId={projectId}
+						createAuditionEngine={options.createAuditionEngine}
+					/>
+				)}
+			/>
 		</MemoryRouter>
 	));
 }
@@ -292,6 +311,73 @@ describe("EditorView", () => {
 	});
 });
 
+/**
+ * The Library panel builds one audition engine per mount (LOOP-013). Toggling
+ * the panel closed unmounts `LibraryBrowser`, whose `useLibraryBrowser` disposes
+ * the engine; a `ToneAuditionEngine` stays disposed permanently, so a cached
+ * single engine would be dead on the second open and every audition would then
+ * fail with `asset_missing`. This asserts each open gets a fresh, live engine.
+ */
+describe("EditorView library audition engine lifecycle", () => {
+	async function renderWithLibrary() {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		const engines: ReturnType<typeof fakePreviewEngine>[] = [];
+		renderEditor(project.metadata.id, {
+			createAuditionEngine: () => {
+				const engine = fakePreviewEngine();
+				engines.push(engine);
+				return engine;
+			},
+		});
+		await screen.findByRole("region", { name: "Step editor" });
+		return { engines };
+	}
+
+	function toggleLibrary() {
+		fireEvent.click(screen.getByRole("button", { name: "Library" }));
+	}
+
+	it("builds a fresh, live engine on each open and disposes the closed one", async () => {
+		const { engines } = await renderWithLibrary();
+
+		// First open builds one engine.
+		toggleLibrary();
+		await screen.findByRole("complementary", { name: "Library" });
+		expect(engines).toHaveLength(1);
+		expect(engines[0].disposed()).toBe(false);
+
+		// Closing the panel unmounts LibraryBrowser, which disposes that engine.
+		toggleLibrary();
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("complementary", { name: "Library" }),
+			).not.toBeInTheDocument(),
+		);
+		await waitFor(() => expect(engines[0].disposed()).toBe(true));
+
+		// Reopening builds a second, distinct, undisposed engine — never the dead
+		// first one. Under the old cached-singleton bug this would still be
+		// engines[0], now disposed, and audition would fail for the rest of the
+		// session.
+		toggleLibrary();
+		await screen.findByRole("complementary", { name: "Library" });
+		expect(engines).toHaveLength(2);
+		expect(engines[1]).not.toBe(engines[0]);
+		expect(engines[1].disposed()).toBe(false);
+
+		// The fresh engine still starts an audition — the exact path the bug broke.
+		await expect(
+			engines[1].start({ id: "ast_x", url: "sound.wav" } as never, {
+				sync: false,
+			}),
+		).resolves.toBeDefined();
+	});
+});
+
 /** The PRD KEY-01/KEY-02 wiring, end to end through the real registry. */
 describe("EditorView keyboard shortcuts", () => {
 	async function renderSlice() {
@@ -373,6 +459,34 @@ describe("EditorView keyboard shortcuts", () => {
 		// The transport button still offers Play, so Space never reached it.
 		expect(
 			screen.getByRole("button", { name: "Start playback" }),
+		).toBeInTheDocument();
+	});
+
+	it("does not toggle playback while the pack browser is open, and Escape closes it", async () => {
+		await renderSlice();
+
+		// The pack browser is a modal surface like the guide, so it takes the
+		// keyboard the same way (PRD KEY-02).
+		fireEvent.click(screen.getByRole("button", { name: "Library" }));
+		fireEvent.click(
+			await screen.findByRole("button", { name: /Browse packs/ }),
+		);
+		await screen.findByRole("dialog");
+
+		fireEvent.keyDown(window, { key: " " });
+		expect(
+			screen.getByRole("button", { name: "Start playback" }),
+		).toBeInTheDocument();
+
+		fireEvent.keyDown(window, { key: "Escape" });
+		await vi.waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		// With the modal gone the editor context has the keyboard back: `?` is an
+		// `editor`-context mapping, so it only fires once nothing is suppressing it.
+		fireEvent.keyDown(window, { key: "?", shiftKey: true });
+		expect(
+			await screen.findByRole("searchbox", { name: "Search shortcuts" }),
 		).toBeInTheDocument();
 	});
 
