@@ -236,6 +236,40 @@ describe("parseProject", () => {
 		expectIssue(parseProject(input), "invalid_order");
 	});
 
+	it("accepts sixteen insert devices on a track but rejects a seventeenth", () => {
+		const atCeiling = baseProject();
+		atCeiling.song.tracks[0].devices = Array.from({ length: 16 }, (_, order) =>
+			device(order, "filter"),
+		) as MutableTrack["devices"];
+		expect(parseProject(atCeiling).ok).toBe(true);
+
+		const overCeiling = baseProject();
+		overCeiling.song.tracks[0].devices = Array.from(
+			{ length: 17 },
+			(_, order) => device(order, "filter"),
+		) as MutableTrack["devices"];
+		expectIssue(parseProject(overCeiling), "capacity_exceeded");
+	});
+
+	it("accepts eight return buses but rejects a ninth", () => {
+		const returns = (count: number): JsonRecord[] =>
+			Array.from({ length: count }, (_, order) => ({
+				id: ids("return"),
+				name: `Return ${order + 1}`,
+				order,
+				devices: [],
+				mixer: { volume: 0, pan: 0, muted: false },
+			}));
+
+		const atCeiling = baseProject();
+		atCeiling.song.returns = returns(8);
+		expect(parseProject(atCeiling).ok).toBe(true);
+
+		const overCeiling = baseProject();
+		overCeiling.song.returns = returns(9);
+		expectIssue(parseProject(overCeiling), "capacity_exceeded");
+	});
+
 	it("rejects a send to a missing return bus", () => {
 		const input = baseProject();
 		input.song.tracks[0].sendConfig = [

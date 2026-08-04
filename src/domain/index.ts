@@ -10,6 +10,7 @@
  * commands, audio, and rendering consume this model from the outside.
  */
 
+export * from "./devices";
 export * from "./entities";
 export * from "./factories";
 export * from "./fixtures";

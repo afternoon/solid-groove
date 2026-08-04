@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	bars,
+	createDevice,
 	createDrumPad,
 	createNoteClip,
 	createNoteEvent,
@@ -17,6 +18,7 @@ import {
 } from "../domain";
 import {
 	addClip,
+	addDevice,
 	addNotes,
 	addPack,
 	addPad,
@@ -24,17 +26,23 @@ import {
 	addTrack,
 	changeInstrument,
 	clearNotes,
+	duplicateDevice,
 	duplicateNotes,
+	insertChain,
 	quantizeNotes,
 	removeClip,
+	removeDevice,
 	removeNotes,
 	removePack,
 	removePad,
 	removePlacement,
 	removeTrack,
+	reorderDevice,
 	reorderPad,
 	reorderTrack,
+	resetDevice,
 	scaleNoteVelocity,
+	setDeviceBypass,
 	setPadAsset,
 	setPadChoke,
 	setPadFlag,
@@ -307,6 +315,59 @@ const cases: InverseCase[] = [
 				version: fixture.shelfOnlyPack.version,
 			}),
 		signature: shelfSignature,
+	},
+	{
+		type: "device.add",
+		build: (fixture) =>
+			addDevice(
+				insertChain(fixture.trackAId),
+				createDevice(
+					createSeededIdFactory("inverse-device-add")("device"),
+					"reverb",
+					1,
+				),
+			),
+	},
+	{
+		type: "device.remove",
+		build: (fixture) =>
+			removeDevice(insertChain(fixture.trackAId), fixture.deviceId),
+	},
+	{
+		type: "device.reorder",
+		// The fixture's track A has two inserts; move the first past the second.
+		build: (fixture) =>
+			reorderDevice(insertChain(fixture.trackAId), fixture.deviceId, 1),
+	},
+	{
+		type: "device.duplicate",
+		build: (fixture) =>
+			duplicateDevice(
+				insertChain(fixture.trackAId),
+				fixture.deviceId,
+				createSeededIdFactory("inverse-device-dup")("device"),
+			),
+	},
+	{
+		type: "device.setBypass",
+		build: (fixture) =>
+			setDeviceBypass(insertChain(fixture.trackAId), fixture.deviceId, true),
+	},
+	{
+		type: "device.reset",
+		build: (fixture) =>
+			resetDevice(insertChain(fixture.trackAId), fixture.deviceId),
+	},
+	{
+		type: "device.restoreParameters",
+		build: (fixture) => ({
+			type: "device.restoreParameters",
+			payload: {
+				target: insertChain(fixture.trackAId),
+				deviceId: fixture.deviceId,
+				parameters: { time: 0.5 },
+			},
+		}),
 	},
 ];
 

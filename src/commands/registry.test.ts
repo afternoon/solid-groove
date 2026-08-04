@@ -47,6 +47,13 @@ const EXPECTED_COMMANDS = [
 	"instrument.setSample",
 	"pack.add",
 	"pack.remove",
+	"device.add",
+	"device.remove",
+	"device.reorder",
+	"device.duplicate",
+	"device.setBypass",
+	"device.reset",
+	"device.restoreParameters",
 ];
 
 describe("command registry", () => {

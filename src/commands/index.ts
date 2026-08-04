@@ -14,6 +14,8 @@
  */
 
 export * from "./definitions/clips";
+export * from "./definitions/deviceChains";
+export * from "./definitions/devices";
 export * from "./definitions/drum";
 export * from "./definitions/instruments";
 export * from "./definitions/notes";
