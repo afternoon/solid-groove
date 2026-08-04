@@ -235,6 +235,32 @@ describe("parseProject", () => {
 		expectIssue(parseProject(input), "invalid_order");
 	});
 
+	it("accepts eight insert devices on a track but rejects a ninth", () => {
+		const eight = baseProject();
+		eight.song.tracks[0].devices = Array.from({ length: 8 }, (_, order) =>
+			device(order, "filter"),
+		) as MutableTrack["devices"];
+		expect(parseProject(eight).ok).toBe(true);
+
+		const nine = baseProject();
+		nine.song.tracks[0].devices = Array.from({ length: 9 }, (_, order) =>
+			device(order, "filter"),
+		) as MutableTrack["devices"];
+		expectIssue(parseProject(nine), "capacity_exceeded");
+	});
+
+	it("rejects a third return bus", () => {
+		const input = baseProject();
+		input.song.returns = [0, 1, 2].map((order) => ({
+			id: ids("return"),
+			name: `Return ${order + 1}`,
+			order,
+			devices: [],
+			mixer: { volume: 0, pan: 0, muted: false },
+		}));
+		expectIssue(parseProject(input), "capacity_exceeded");
+	});
+
 	it("rejects a send to a missing return bus", () => {
 		const input = baseProject();
 		input.song.tracks[0].sendConfig = [
