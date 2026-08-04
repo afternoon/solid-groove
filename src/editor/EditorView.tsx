@@ -12,8 +12,6 @@ import ArrangementView from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
-import ProjectNotFound from "../components/ProjectNotFound";
-import TapeLoader from "../components/TapeLoader";
 import type { NoteTrigger } from "../domain/entities";
 import type { EventId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
@@ -23,18 +21,18 @@ import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
-import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
-import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
 import type { PianoRollActions } from "./PianoRoll";
+import ProjectLoadStates from "./ProjectLoadStates";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import TrackEditor from "./TrackEditor";
 import { useEditorSession } from "./useEditorSession";
+import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
 import "./EditorView.css";
 
@@ -140,77 +138,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		return `${Number(bars) + 1}.${Number(beats) + 1}`;
 	});
 
-	// The KEY-01 registry owns every mapping; this component only says which
-	// actions exist here and what they do. An action the slice does not
-	// implement yet simply has no handler and never fires.
-	const handlers = (): ShortcutHandlers => ({
-		"transport.play_stop": { run: () => void audio.toggle() },
-		// Shift+Space resumes from where playback last stopped, exactly as the
-		// registry describes it — not a second play/stop toggle.
-		"transport.continue": { run: () => void audio.continueFromStop() },
-		"transport.metronome": { run: () => audio.toggleMetronome() },
-		"edit.undo": {
-			run: () => session.undo(),
-			isEnabled: () => session.state.canUndo,
-		},
-		"edit.redo": {
-			run: () => session.redo(),
-			isEnabled: () => session.state.canRedo,
-		},
-		// Delete the selected notes of whichever note editor is showing: the piano
-		// roll keeps its own selection and hands the operation up through
-		// `registerActions` (CLP-03), the step editor's is lifted into this
-		// component (CLP-02). Either way it only fires when that selection is
-		// non-empty, so an empty-selection Delete leaves the browser default alone
-		// (PRD KEY-02).
-		"edit.delete": {
-			run: () => {
-				if (showPianoRoll()) pianoRollActions()?.deleteSelection();
-				else deleteSelection();
-			},
-			isEnabled: () =>
-				showPianoRoll()
-					? (pianoRollActions()?.hasSelection() ?? false)
-					: selectedNoteIds().length > 0,
-		},
-		"help.shortcut_guide": { run: () => setGuideOpen(true) },
-		"view.close_surface": {
-			run: () => setGuideOpen(false),
-			isEnabled: () => guideOpen(),
-		},
-		// The piano roll's remaining note operations, dispatched by the registry
-		// (KEY-01), not by a listener the roll owns. Each is enabled only while the
-		// roll is showing; duplicate additionally needs a selection.
-		"edit.duplicate": {
-			run: () => pianoRollActions()?.duplicateSelection(),
-			isEnabled: () => pianoRollActions()?.hasSelection() ?? false,
-		},
-		"edit.select_all": {
-			run: () => pianoRollActions()?.selectAll(),
-			isEnabled: () => pianoRollActions() !== null,
-		},
-	});
-
-	// The surfaces this slice actually shows. The guide filters against these,
-	// so "shortcuts valid in the current context" means the editor underneath
-	// rather than the modal covering it. The piano roll adds its own contexts:
-	// `piano_roll` (where `edit.delete` lives) and `selection` (where
-	// `edit.duplicate`/`edit.select_all` live).
-	const editorContexts = (): readonly ShortcutContext[] =>
-		showPianoRoll()
-			? ["editor", "step_editor", "piano_roll", "selection"]
-			: ["editor", "step_editor"];
-
-	// While a modal is open it is the only active context, so nothing behind it
-	// can fire — including playback and selection (PRD KEY-02). The pack browser
-	// is a modal surface like the guide, so it takes the keyboard the same way.
-	const contexts = (): readonly ShortcutContext[] =>
-		guideOpen() || packBrowserOpen() ? ["dialog"] : editorContexts();
-
-	const shortcuts = useShortcuts({ handlers, contexts });
-	const keyHint = (action: Parameters<typeof shortcutLabel>[0]) =>
-		shortcutLabel(action, shortcuts.platform);
-
 	const track = createMemo(() => project()?.song.tracks[0] ?? null);
 	// The first drum-machine track, if any, gets its instrument panel. The
 	// `FND-009` starter is sampler-only; this surfaces the `LOOP-005` drum
@@ -277,6 +204,19 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		const c = clip();
 		return instrument()?.kind === "synth" && c?.content.kind === "notes";
 	});
+
+	const { shortcuts, editorContexts, keyHint } = useEditorShortcuts({
+		audio,
+		session,
+		showPianoRoll,
+		pianoRollActions,
+		selectedNoteIds,
+		deleteSelection,
+		guideOpen,
+		setGuideOpen,
+		packBrowserOpen,
+	});
+
 	// The track id, only when it carries an instrument this slice renders a panel
 	// for (sampler or synth). The drum machine's panel lands with LOOP-005.
 	const instrumentPanelTrackId = createMemo(() => {
@@ -331,28 +271,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	return (
 		<main class="editor">
 			<Switch>
-				<Match when={session.state.loading}>
-					<TapeLoader label="Loading project" />
-				</Match>
-				<Match when={session.state.notFound}>
-					<ProjectNotFound />
-				</Match>
-				<Match when={session.state.error}>
-					<div class="project-error">
-						<p class="project-error-message">{session.state.error}</p>
-						<div class="project-error-actions">
-							<button
-								type="button"
-								class="project-error-retry"
-								onClick={() => location.reload()}
-							>
-								Try again
-							</button>
-							<a class="project-error-home" href="/dashboard">
-								Back to your projects
-							</a>
-						</div>
-					</div>
+				<Match
+					when={
+						session.state.loading ||
+						session.state.notFound ||
+						session.state.error
+					}
+				>
+					<ProjectLoadStates
+						loading={session.state.loading}
+						notFound={session.state.notFound}
+						error={session.state.error}
+					/>
 				</Match>
 				<Match when={project()}>
 					{(currentProject) => (
