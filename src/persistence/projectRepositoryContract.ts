@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Clip, Pack, Project, Song } from "../domain/entities";
+import {
+	type Clip,
+	type Pack,
+	type Project,
+	packVersion,
+	type Song,
+} from "../domain/entities";
 import { createFactoryContext, createNoteEvent } from "../domain/factories";
 import {
 	createDrumMachineFixtureProject,
@@ -374,6 +380,42 @@ export function describeProjectRepositoryContract(
 			expect(metadata.value.packDependencies).toEqual(
 				project.metadata.packDependencies,
 			);
+		});
+
+		it("persists an added-but-unused pack on the shelf across a reload (LIB-08)", async () => {
+			const project = await store(createDrumMachineFixtureProject());
+			const shelfOnly = {
+				packId: createSeededIdFactory("contract-shelf")("pack"),
+				version: packVersion("1.0.0"),
+			};
+
+			// Adding a pack the project uses no asset from touches only the metadata
+			// tier — the shelf is maintained, not derived.
+			const saved = await repository.saveMetadata(
+				project.metadata.id,
+				{ addedPacks: [...project.metadata.addedPacks, shelfOnly] },
+				project.metadata.revision,
+			);
+			expect(saved.ok).toBe(true);
+			if (!saved.ok) return;
+
+			// Reloading — the "reopen on another device" path — still shows the pack.
+			const loaded = await repository.loadProject(project.metadata.id);
+			expect(loaded.ok).toBe(true);
+			if (!loaded.ok) return;
+			expect(loaded.value.metadata.addedPacks).toContainEqual(shelfOnly);
+			// It is on the shelf but not a dependency: no asset resolves from it.
+			expect(loaded.value.metadata.packDependencies).not.toContainEqual(
+				shelfOnly,
+			);
+
+			// The dashboard read shows it too, from the metadata tier alone.
+			const metadata = await repository.loadProjectMetadata(
+				project.metadata.id,
+			);
+			expect(metadata.ok).toBe(true);
+			if (!metadata.ok) return;
+			expect(metadata.value.addedPacks).toContainEqual(shelfOnly);
 		});
 
 		it("round trips a two-pack project's asset pack qualification", async () => {

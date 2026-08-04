@@ -4,12 +4,14 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import {
 	addNotes,
+	addPack,
 	removeNotes,
 	removeTrack,
 	setParameter,
 	setTrackFlag,
 	updateNote,
 } from "../commands";
+import { type PackDependency, packVersion } from "../domain/entities";
 import {
 	createFactoryContext,
 	createNoteEvent,
@@ -17,13 +19,18 @@ import {
 	createTrack,
 } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
-import type { ClipId } from "../domain/ids";
+import { type ClipId, packIdSchema } from "../domain/ids";
 import { TRACK_VOLUME } from "../domain/parameters";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
 import { memoryStorage } from "../testing/storage";
 import { EditorSession } from "./EditorSession";
+
+/** One shelf entry, by pack ID — the shape `pack.add` carries. */
+function factoryPack(packId: string): PackDependency {
+	return { packId: packIdSchema.parse(packId), version: packVersion("1.0.0") };
+}
 
 async function setUp(options: { deviceStorage?: Storage } = {}) {
 	const repository = createInMemoryProjectRepository();
@@ -256,6 +263,37 @@ describe("EditorSession", () => {
 		);
 		expect(firstEditEvents).toHaveLength(1);
 		expect(firstEditEvents[0]?.params.command_id).toBe("note.update");
+	});
+
+	it("persists a shelved pack that no asset uses yet, so it survives a reload", async () => {
+		// The shelf is maintained, not derived (LIB-08): `pack.add` changes no song
+		// and no clip, so unless the metadata tier is queued the pack would be gone
+		// on the next load — the failure the "still there after a reload"
+		// acceptance criterion names.
+		const { session, repository, project } = ctx;
+		const shelved = factoryPack("pak_FH8gyASzYiWGCrtpKZ-Ho");
+
+		session.dispatch(addPack(shelved));
+		expect(session.autosave.status.pending).toBe(1);
+		await session.autosave.flush();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(loaded.value.metadata.addedPacks).toContainEqual(shelved);
+	});
+
+	it("persists the shelf again when a pack is removed from it", async () => {
+		const { session, repository, project } = ctx;
+		const shelved = factoryPack("pak_FH8gyASzYiWGCrtpKZ-Ho");
+		session.dispatch(addPack(shelved));
+		await session.autosave.flush();
+
+		session.undo();
+		await session.autosave.flush();
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(loaded.value.metadata.addedPacks).not.toContainEqual(shelved);
 	});
 
 	it("logs undo_used with direction and actor on undo and redo, once per invocation", () => {

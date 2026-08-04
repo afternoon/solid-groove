@@ -38,22 +38,26 @@ service cloud.firestore {
 
     // `packDependencies` is the derived pack dependency list (LIB-05): one
     // `{ packId, version }` entry per pack the project's assets resolve from.
-    // The rules check it is a list; the decoder checks it against those assets,
-    // which the rules cannot see without reading the song document.
+    // `addedPacks` is the project's pack shelf (LIB-08): the packs the user has
+    // added, a superset of the dependency list. The rules check both are lists;
+    // the decoder checks their relationship, which the rules cannot see without
+    // reading the song document.
     function metadataFields() {
       return ['schemaVersion', 'revision', 'name', 'ownerId', 'collaboratorIds',
-              'createdAt', 'modifiedAt', 'template', 'genre', 'packDependencies'];
+              'createdAt', 'modifiedAt', 'template', 'genre', 'packDependencies',
+              'addedPacks'];
     }
 
     function validMetadata(data) {
       return data.keys().hasOnly(metadataFields())
         && data.keys().hasAll(metadataFields())
-        && data.schemaVersion == 1
+        && data.schemaVersion == 2
         && data.revision is int && data.revision >= 0
         && data.name is string && data.name.size() > 0 && data.name.size() <= 120
         && data.ownerId is string && data.ownerId.size() > 0
         && data.collaboratorIds is list
         && data.packDependencies is list
+        && data.addedPacks is list
         && data.createdAt is int && data.createdAt >= 0
         && data.modifiedAt is int && data.modifiedAt >= data.createdAt;
     }
@@ -62,7 +66,7 @@ service cloud.firestore {
     // copied out of another project is rejected rather than silently adopted.
     function validChild(projectId, data) {
       return data.projectId == projectId
-        && data.schemaVersion == 1
+        && data.schemaVersion == 2
         && data.revision is int && data.revision >= 0
         && data.updatedAt is int && data.updatedAt >= 0;
     }

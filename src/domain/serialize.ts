@@ -69,6 +69,13 @@ export function serializeProjectMetadata(
 			packId: dependency.packId,
 			version: dependency.version,
 		})),
+		addedPacks: sortBy(metadata.addedPacks, (entry) => [
+			entry.packId,
+			entry.version,
+		]).map((entry) => ({
+			packId: entry.packId,
+			version: entry.version,
+		})),
 	};
 }
 

@@ -1,7 +1,7 @@
 {
 	"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
 	"metadata": {
-		"schemaVersion": 2,
+		"schemaVersion": 3,
 		"revision": 0,
 		"name": "Slice fixture",
 		"ownerId": "user_fixture",
@@ -20,7 +20,7 @@
 	},
 	"song": {
 		"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
-		"schemaVersion": 2,
+		"schemaVersion": 3,
 		"revision": 0,
 		"updatedAt": 1700000000000,
 		"tempo": 120,
@@ -93,7 +93,7 @@
 	"clips": [
 		{
 			"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
-			"schemaVersion": 1,
+			"schemaVersion": 3,
 			"revision": 0,
 			"updatedAt": 1700000000000,
 			"id": "clp_PtDxUzJoUiMAQuVqxEadW",

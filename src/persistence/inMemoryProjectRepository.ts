@@ -1,6 +1,6 @@
 import type { Clip, Project, ProjectMetadata, Song } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
-import { derivePackDependencies } from "../domain/packs";
+import { derivePackDependencies, reconcilePackShelf } from "../domain/packs";
 import type { JsonObject } from "../domain/serialize";
 import { type Clock, systemClock } from "../shared/clock";
 import {
@@ -11,8 +11,6 @@ import {
 	arrangementCollectionPath,
 	clipDocumentPath,
 	clipsCollectionPath,
-	decodeProject,
-	decodeProjectMetadata,
 	encodeClip,
 	encodeProject,
 	encodeProjectMetadata,
@@ -23,6 +21,7 @@ import {
 	type StoredDocument,
 	songDocumentPath,
 } from "./documents";
+import { decodeStoredProject, decodeStoredProjectMetadata } from "./migrations";
 import {
 	type DerivedMetadataFields,
 	type LoadResult,
@@ -138,7 +137,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
 		if (!metadata) {
 			return loadFailure("not_found", `Project ${projectId} does not exist`);
 		}
-		const decoded = decodeProject({
+		const decoded = decodeStoredProject({
 			projectId,
 			metadata,
 			song: this.documents.get(songDocumentPath(projectId)),
@@ -154,7 +153,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
 			)
 				? "unsupported_schema_version"
 				: "invalid_document",
-			`Stored project ${projectId} is not valid schema-v1 state`,
+			`Stored project ${projectId} could not be read as a current-schema project`,
 			decoded.issues,
 		);
 	}
@@ -175,9 +174,10 @@ export class InMemoryProjectRepository implements ProjectRepository {
 			if (!isProjectMetadataPath(path) || data.ownerId !== ownerId) {
 				continue;
 			}
-			const decoded = decodeProjectMetadata(documentId(path), data);
+			const decoded = decodeStoredProjectMetadata(documentId(path), data);
 			// A document that no longer parses cannot be rendered by the dashboard;
-			// it is skipped rather than allowed to break the whole listing.
+			// it is skipped rather than allowed to break the whole listing. A project
+			// from an older schema is migrated forward first (LIB-08), so it lists.
 			if (decoded.ok) {
 				summaries.push(decoded.value);
 			}
@@ -395,12 +395,15 @@ export class InMemoryProjectRepository implements ProjectRepository {
 	private emitMetadata(projectId: string): void {
 		const raw = this.documents.get(projectDocumentPath(projectId));
 		if (!raw) return;
-		const decoded = decodeProjectMetadata(projectId, raw);
+		const decoded = decodeStoredProjectMetadata(projectId, raw);
 		this.emit(
 			projectId,
 			decoded.ok
 				? { kind: "metadata", metadata: decoded.value }
-				: { kind: "error", message: "Stored metadata is not valid schema v1" },
+				: {
+						kind: "error",
+						message: "Stored metadata is not valid current-schema state",
+					},
 		);
 	}
 
@@ -440,7 +443,7 @@ export function toMetadataResult(
 	projectId: string,
 	raw: JsonObject,
 ): LoadResult<ProjectMetadata> {
-	const decoded = decodeProjectMetadata(projectId, raw);
+	const decoded = decodeStoredProjectMetadata(projectId, raw);
 	if (decoded.ok) {
 		return { ok: true, value: decoded.value };
 	}
@@ -448,7 +451,7 @@ export function toMetadataResult(
 		decoded.issues.some((issue) => issue.code === "unsupported_schema_version")
 			? "unsupported_schema_version"
 			: "invalid_document",
-		`Stored metadata for ${projectId} is not valid schema-v1 state`,
+		`Stored metadata for ${projectId} could not be read as current-schema metadata`,
 		decoded.issues,
 	);
 }
@@ -465,15 +468,21 @@ export function nextMetadata(
 	revision: number,
 	modifiedAt: number,
 ): ProjectMetadata {
+	const packDependencies = derived.packDependencies
+		? [...derived.packDependencies]
+		: metadata.packDependencies;
+	// The shelf starts from the caller's patch (a `pack.add`/`pack.remove`) or the
+	// stored shelf, then is reconciled against the dependency list being written,
+	// so a used pack is always shelved regardless of which write touched it.
+	const shelfBase = patch.addedPacks ?? metadata.addedPacks;
 	return {
 		...metadata,
 		...definedFields(patch),
 		collaboratorIds: patch.collaboratorIds
 			? [...patch.collaboratorIds]
 			: metadata.collaboratorIds,
-		packDependencies: derived.packDependencies
-			? [...derived.packDependencies]
-			: metadata.packDependencies,
+		packDependencies,
+		addedPacks: [...reconcilePackShelf(shelfBase, packDependencies)],
 		revision,
 		modifiedAt,
 	};

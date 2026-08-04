@@ -9,7 +9,7 @@ import {
 import { memoryStorage } from "../testing/storage";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
 import { fixtureFetcher } from "./__fixtures__/fixtures";
-import { LibraryClient } from "./libraryClient";
+import { type JsonFetcher, LibraryClient } from "./libraryClient";
 import { type LibraryPackSummary, PACK_INDEX_PATH } from "./manifest";
 import {
 	type LibraryBrowserControls,
@@ -54,6 +54,30 @@ async function withBrowser(
 	} finally {
 		dispose();
 	}
+}
+
+/**
+ * The fixture library with its first pack republished under another `kind`.
+ *
+ * The committed fixtures are a slice of our own delivered library, so every
+ * pack in them is `factory`. Analytics treats a *published* pack (factory or
+ * third-party) differently from an unpublished user pack, and this is the
+ * smallest honest way to exercise the other two: the same wire document, one
+ * field changed, still parsed by the real `manifest.ts`.
+ */
+function withPackKind(kind: "third-party" | "user"): JsonFetcher {
+	const base = fixtureFetcher();
+	return async (path: string) => {
+		const document = await base(path);
+		if (path !== PACK_INDEX_PATH) return document;
+		const index = document as { packs: { kind: string }[] };
+		return {
+			...index,
+			packs: index.packs.map((pack, position) =>
+				position === 0 ? { ...pack, kind } : pack,
+			),
+		};
+	};
 }
 
 describe("opening the browser", () => {
@@ -379,5 +403,41 @@ describe("adding a pack (LIB-05)", () => {
 		});
 		const logged = JSON.stringify(transport.named("library_pack_added"));
 		expect(logged).not.toContain(index[0].name);
+	});
+
+	it("names a third-party pack, so its creator can be told it landed", async () => {
+		// Pack adoption is the feedback a third-party creator gets (LIB-05,
+		// LIB-06), so a pack published *through* us is named exactly like one of
+		// ours — its slug is public either way.
+		const { analytics: a, transport } = analytics();
+		const client = new LibraryClient(withPackKind("third-party"));
+		const index = await client.loadIndex();
+		await withBrowser({ analytics: a, client }, async (browser) => {
+			await browser.open();
+			await browser.addPack(index[0]);
+		});
+		expect(transport.named("library_pack_added")[0].params).toMatchObject({
+			pack_id: index[0].slug,
+			pack_kind: "third_party",
+		});
+	});
+
+	it("counts a user's own pack without naming it", async () => {
+		// A user pack is not published. Its slug is the user's own content, so the
+		// add is counted and the identifier withheld.
+		const { analytics: a, transport } = analytics();
+		const client = new LibraryClient(withPackKind("user"));
+		const index = await client.loadIndex();
+		await withBrowser({ analytics: a, client }, async (browser) => {
+			await browser.open();
+			await browser.addPack(index[0]);
+		});
+		const events = transport.named("library_pack_added");
+		expect(events).toHaveLength(1);
+		expect(events[0].params).toMatchObject({
+			pack_id: "user",
+			pack_kind: "user",
+		});
+		expect(JSON.stringify(events[0].params)).not.toContain(index[0].slug);
 	});
 });

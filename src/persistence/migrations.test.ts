@@ -11,8 +11,8 @@ import {
 } from "./migrations";
 
 describe("migration harness", () => {
-	it("passes a schema-v1 project through untouched", async () => {
-		const stored = await loadStoredProjectFixture("v1-slice-project.json");
+	it("passes a current-schema project through untouched", async () => {
+		const stored = await loadStoredProjectFixture("v2-slice-project.json");
 
 		const result = migrateProjectDocuments(stored);
 
@@ -22,10 +22,10 @@ describe("migration harness", () => {
 		expect(result.documents).toBe(stored);
 	});
 
-	it("decodes the checked-in schema-v1 fixture into the fixture project", async () => {
+	it("decodes the checked-in current-schema fixture into the fixture project", async () => {
 		// This pins the stored wire format: if encoding changes shape, the file on
 		// disk stops decoding and the change has to be a deliberate migration.
-		const stored = await loadStoredProjectFixture("v1-slice-project.json");
+		const stored = await loadStoredProjectFixture("v2-slice-project.json");
 
 		const decoded = decodeProject(stored);
 
@@ -36,15 +36,41 @@ describe("migration harness", () => {
 		);
 	});
 
+	it("migrates a schema-v1 project forward into a valid project (LIB-08)", async () => {
+		// PRJ-04's fixture convention: the v1 source fixture is stored as it was
+		// actually written, and migrating it must produce a project that decodes.
+		const stored = await loadStoredProjectFixture("v1-slice-project.json");
+
+		const result = migrateProjectDocuments(stored);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.applied).toHaveLength(1);
+
+		const decoded = decodeProject(result.documents);
+		expect(decoded.ok).toBe(true);
+		if (!decoded.ok) return;
+		expect(decoded.value.metadata.schemaVersion).toBe(SCHEMA_VERSION);
+		// A v1 project's shelf is seeded from the packs it already depends on, so a
+		// migrated project starts with exactly its used packs shelved.
+		expect(decoded.value.metadata.addedPacks).toEqual(
+			decoded.value.metadata.packDependencies,
+		);
+		// The migrated v1 fixture is byte-for-byte the current-schema fixture.
+		expect(stringifyProject(decoded.value)).toBe(
+			stringifyProject(createSliceFixtureProject()),
+		);
+	});
+
 	it("refuses a newer schema version without touching it", async () => {
-		const stored = await loadStoredProjectFixture("v2-future-project.json");
+		const stored = await loadStoredProjectFixture("v3-future-project.json");
 
 		const result = migrateProjectDocuments(stored);
 
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.reason).toBe("future_version");
-		expect(result.storedVersion).toBe(2);
+		expect(result.storedVersion).toBe(3);
 		expect(result.message).toContain("will not read or overwrite it");
 	});
 

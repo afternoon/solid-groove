@@ -42,7 +42,9 @@ import { assertProject } from "./parse";
  * Packs themselves are never duplicated: `packId`/`packVersion` name library
  * content the duplicate still resolves from, so they are copied unchanged onto
  * the fresh asset rows, and `derivePackDependencies` recomputes the metadata
- * tier's dependency list from those unchanged pack references.
+ * tier's dependency list from those unchanged pack references. The pack shelf
+ * (`addedPacks`, LIB-08) carries over from the source unchanged, so an
+ * added-but-unused pack the user shelved is still shelved in the copy.
  */
 export interface DuplicateProjectOptions {
 	/** Defaults to the source project's owner. */

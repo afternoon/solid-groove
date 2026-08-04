@@ -47,6 +47,7 @@ function metadata(overrides: Record<string, unknown> = {}) {
 		template: null,
 		genre: null,
 		packDependencies: [],
+		addedPacks: [],
 		...overrides,
 	};
 }
@@ -167,10 +168,31 @@ describe("firestore.rules: projects/{projectId} metadata", () => {
 		);
 	});
 
+	it("requires the pack shelf list (addedPacks), and takes a non-empty one", async () => {
+		const db = testEnv.authenticatedContext("owner-a").firestore();
+		const { addedPacks: _omitted, ...withoutShelf } = metadata();
+		await assertFails(setDoc(doc(db, "projects", PROJECT_A), withoutShelf));
+		await assertFails(
+			setDoc(doc(db, "projects", PROJECT_A), metadata({ addedPacks: "none" })),
+		);
+		await assertSucceeds(
+			setDoc(
+				doc(db, "projects", PROJECT_A),
+				metadata({
+					packDependencies: [{ packId: PACK_A, version: "1.0.0" }],
+					addedPacks: [{ packId: PACK_A, version: "1.0.0" }],
+				}),
+			),
+		);
+	});
+
 	it("denies a metadata document from an unknown schema version", async () => {
 		const db = testEnv.authenticatedContext("owner-a").firestore();
 		await assertFails(
-			setDoc(doc(db, "projects", PROJECT_A), metadata({ schemaVersion: 2 })),
+			setDoc(
+				doc(db, "projects", PROJECT_A),
+				metadata({ schemaVersion: SCHEMA_VERSION + 1 }),
+			),
 		);
 	});
 

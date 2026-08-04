@@ -28,7 +28,6 @@ import {
 	CLIPS_COLLECTION,
 	clipDocumentPath,
 	clipsCollectionPath,
-	decodeProject,
 	encodeClip,
 	encodeProject,
 	encodeProjectMetadata,
@@ -47,6 +46,7 @@ import {
 	toMetadataResult,
 	tooLarge,
 } from "./inMemoryProjectRepository";
+import { decodeStoredProject } from "./migrations";
 import {
 	type DerivedMetadataFields,
 	type LoadResult,
@@ -153,7 +153,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
 					`${projectDocumentPath(projectId)}/${ARRANGEMENT_COLLECTION}`,
 				),
 			]);
-			const decoded = decodeProject({
+			const decoded = decodeStoredProject({
 				projectId,
 				metadata,
 				song,
@@ -169,7 +169,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
 				)
 					? "unsupported_schema_version"
 					: "invalid_document",
-				`Stored project ${projectId} is not valid schema-v1 state`,
+				`Stored project ${projectId} could not be read as a current-schema project`,
 				decoded.issues,
 			);
 		} catch (error) {

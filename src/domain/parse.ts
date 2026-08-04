@@ -237,6 +237,7 @@ export function checkProjectIntegrity(project: Project): DomainIssue[] {
 	issues.push(...checkMetadata(project.metadata));
 	issues.push(...checkSongIntegrity(project.song, ["song"], seenIds));
 	issues.push(...checkPackQualification(project));
+	issues.push(...checkAddedPacks(project));
 
 	const trackIds = new Map(
 		project.song.tracks.map((track) => [track.id, track]),
@@ -538,6 +539,74 @@ function checkPackQualification(project: Project): DomainIssue[] {
 					"invalid_metadata",
 					["metadata", "packDependencies", index],
 					`Pack ${dependency.packId} is declared as a dependency but no asset resolves from it; the dependency list is derived from project state, not maintained by hand`,
+				),
+			);
+		}
+	});
+
+	return issues;
+}
+
+/**
+ * The pack shelf (`metadata.addedPacks`) against the derived dependency list
+ * (LIB-08).
+ *
+ * The shelf is "which packs has the user added?" and the dependency list is
+ * "which packs does the project use?". The shelf is *maintained* by the
+ * `pack.add`/`pack.remove` commands rather than derived, so unlike
+ * `packDependencies` it may hold a pack no asset uses. But it is not free-form:
+ *
+ * 1. **At most one version per pack.** Two versions of one pack on the shelf is
+ *    the same ambiguity invariant 12 rules out for dependencies.
+ * 2. **Every used pack is on the shelf, at the version it is used at.** A pack a
+ *    project depends on but does not have on its shelf could be removed from the
+ *    panel while its sounds still play — the shelf must be a superset of the
+ *    dependency list. A shelf that lists a used pack at a *different* version
+ *    contradicts what the project actually resolves, and is the drift this
+ *    check rejects rather than silently reconciling.
+ */
+function checkAddedPacks(project: Project): DomainIssue[] {
+	const issues: DomainIssue[] = [];
+	const shelved = new Map<string, string>();
+	project.metadata.addedPacks.forEach((entry, index) => {
+		const path = ["metadata", "addedPacks", index] as const;
+		const existing = shelved.get(entry.packId);
+		if (existing === entry.version) {
+			issues.push(
+				issue(
+					"duplicate_id",
+					path,
+					`Pack ${entry.packId} is on the shelf more than once at version ${entry.version}`,
+				),
+			);
+		} else if (existing !== undefined) {
+			issues.push(
+				issue(
+					"invalid_pack_reference",
+					path,
+					`The shelf holds two versions of pack ${entry.packId} (${existing} and ${entry.version}); a project shelves one version per pack`,
+				),
+			);
+		}
+		shelved.set(entry.packId, entry.version);
+	});
+
+	project.metadata.packDependencies.forEach((dependency, index) => {
+		const shelvedVersion = shelved.get(dependency.packId);
+		if (shelvedVersion === undefined) {
+			issues.push(
+				issue(
+					"invalid_metadata",
+					["metadata", "packDependencies", index],
+					`Pack ${dependency.packId} is a dependency but is not on the project's shelf (addedPacks); a used pack must be shelved so it cannot be removed from the panel while its sounds still play`,
+				),
+			);
+		} else if (shelvedVersion !== dependency.version) {
+			issues.push(
+				issue(
+					"invalid_pack_reference",
+					["metadata", "packDependencies", index],
+					`Pack ${dependency.packId} is used at version ${dependency.version} but shelved at version ${shelvedVersion}; the shelf must match the version the project resolves`,
 				),
 			);
 		}

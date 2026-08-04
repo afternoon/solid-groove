@@ -246,6 +246,11 @@ export class EditorSession {
 	 *   recomputes the metadata tier's pack-dependency list in the same
 	 *   revision-checked step, so a track add/delete that drops or adds a pack
 	 *   needs no separate metadata write.
+	 * - A changed `metadata.addedPacks` queues a metadata patch. The shelf is the
+	 *   one piece of pack state that is *maintained* rather than derived (LIB-08),
+	 *   so a `pack.add` for a pack no asset uses yet changes no song and no clip —
+	 *   without this branch it would never reach the repository, and the pack
+	 *   would vanish on reload.
 	 * - Every clip whose reference changed (added, edited) is queued, and every
 	 *   clip that disappeared is queued for deletion. This is a structural diff
 	 *   rather than a per-command payload scan, so it covers a note edit (one
@@ -264,6 +269,9 @@ export class EditorSession {
 	private queueDiff(next: Project, before: Project): void {
 		if (next.song !== before.song) {
 			this.autosave.queueSong(next.song);
+		}
+		if (next.metadata.addedPacks !== before.metadata.addedPacks) {
+			this.autosave.queueMetadata({ addedPacks: next.metadata.addedPacks });
 		}
 		this.queueChangedClips(next, before);
 	}

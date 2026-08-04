@@ -483,6 +483,12 @@ export interface CreateProjectMetadataOptions {
 	 * does not match.
 	 */
 	packDependencies?: readonly PackDependency[];
+	/**
+	 * The packs on the project's shelf (LIB-08). Every used pack must be shelved,
+	 * so this defaults to `packDependencies`; pass a superset to seed
+	 * added-but-unused packs.
+	 */
+	addedPacks?: readonly PackDependency[];
 }
 
 export function createProjectMetadata(
@@ -502,6 +508,7 @@ export function createProjectMetadata(
 		template: options.template ?? null,
 		genre: options.genre ?? null,
 		packDependencies: [...(options.packDependencies ?? [])],
+		addedPacks: [...(options.addedPacks ?? options.packDependencies ?? [])],
 	};
 }
 

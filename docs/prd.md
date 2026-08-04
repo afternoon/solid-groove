@@ -769,8 +769,8 @@ The `Owning task` column names the task that must ship the event with the featur
 | `track_added` | A track is added | `track_type` | 1 / `LOOP-007` |
 | `instrument_changed` | A track's instrument or its sample selection changes | `instrument_type` | 1 / `LOOP-004`, `LOOP-005` |
 | `device_added` | A processing device is added to an insert chain, return, or master | `device_type`, `chain` | 1 / `LOOP-008`, `LOOP-009` |
-| `library_audition` | A library asset is auditioned | `asset_type`, `had_genre_filter`, `pack_id` | 1 / `LOOP-013` |
-| `library_pack_added` | A pack is added to a project from the pack browser | `pack_id` | 1 / `LOOP-013` |
+| `library_audition` | A library asset is auditioned | `asset_type`, `had_genre_filter`, `pack_id`, `pack_kind` | 1 / `LOOP-013` |
+| `library_pack_added` | A pack is added to the project's shelf | `pack_id` (a *published* pack's slug — factory or third-party — else `user`/`unknown`), `pack_kind` | 1 / `LOOP-013`, `LIB-08` |
 | `clip_edited` | A step-editor or piano-roll editing gesture completes | `editor` (`step`, `piano_roll`), `event_count_bucket` | 1 / `LOOP-010`, `LOOP-011` |
 | `shortcut_used` | A registered keyboard shortcut fires | `action_id` | 1 / `LOOP-014` |
 | `undo_used` | Undo or redo is invoked | `direction`, `actor` (`user`, `assistant`) | 1 / `LOOP-002` |
@@ -794,6 +794,8 @@ The `Owning task` column names the task that must ship the event with the featur
 | `audio_underrun` | The engine detects skipped or late scheduled events (sampled) | `dropped_event_bucket`, `sample_rate` | 1 / `LOOP-003` |
 | `asset_load_failed` | A library or user asset fails to load or decode | `asset_type`, `error_code` | 1 / `LOOP-013` |
 | `exception` | An uncaught error reaches a boundary or global handler (OPS-03) | `fatal`, `area`, `error_code` | 0 / `FND-001c` |
+
+`pack_id` names a pack by its stable slug, never its display name or its `pak_` ID, and it is governed by publication rather than authorship: a `factory` pack and a `third-party` pack are both content published through the library under a public slug, so both are named — pack adoption is an internal success measure *and* the feedback a third-party pack's creator is given. A `user` pack is not published, so it reports `user` and its slug never leaves the device; a user pack that becomes shareable becomes a third-party pack first, and is named from then on. A pack with no published index entry reports `unknown`.
 
 `feature_first_use` carries a single low-cardinality `feature` key rather than a separate event name per feature, so the catalog stays well inside the Google Analytics distinct-event-name limit and first-use across features is comparable in one report. The alpha keys are: `step_editor`, `piano_roll`, `drum_machine`, `synth`, `sampler`, `audio_loop`, `device_chain`, `send_return`, `mixer`, `library_browser`, `pack_browser`, `arrangement`, `shortcut_guide`, `sections`, `automation`, `assistant`, `export_stereo`, `export_stems`. A feature task adds its key with the feature.
 

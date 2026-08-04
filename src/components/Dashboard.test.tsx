@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import type { ProjectMetadata } from "../domain/entities";
+import { type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
 import { memoryStorage } from "../testing/storage";
 import Dashboard from "./Dashboard";
 
@@ -68,7 +68,7 @@ function makeMetadata(
 	return {
 		id: "prj_abc" as ProjectMetadata["id"],
 		name: "My Groove",
-		schemaVersion: 1,
+		schemaVersion: SCHEMA_VERSION,
 		revision: 0,
 		ownerId: "user-1",
 		collaboratorIds: [],
@@ -77,6 +77,7 @@ function makeMetadata(
 		template: null,
 		genre: null,
 		packDependencies: [],
+		addedPacks: [],
 		...overrides,
 	};
 }

@@ -71,21 +71,69 @@ export function packDependenciesEqual(
 
 /**
  * Returns `project` with its metadata pack dependency list recomputed from its
- * song.
+ * song, and its pack shelf (`addedPacks`) reconciled so every derived
+ * dependency is shelved at the version it is used at (LIB-08).
  *
- * When the stored list is already correct the *same object* comes back, not an
+ * When both lists are already correct the *same object* comes back, not an
  * equal copy. Every transaction runs this, so preserving identity is what keeps
  * a note edit from looking like a metadata change to the `FND-005` projections.
+ *
+ * The shelf reconciliation only ever *adds* a used pack that was missing (or
+ * corrects its shelved version to the used one); it never removes a shelved
+ * pack, because an added-but-unused pack is a legitimate shelf entry the user
+ * put there on purpose. Removing a pack from the shelf is the `pack.remove`
+ * command's job, not a side effect of an edit.
  */
 export function withDerivedPackDependencies(project: Project): Project {
 	const derived = derivePackDependencies(project.song);
-	if (packDependenciesEqual(project.metadata.packDependencies, derived)) {
+	const shelf = reconcilePackShelf(project.metadata.addedPacks, derived);
+	const dependenciesChanged = !packDependenciesEqual(
+		project.metadata.packDependencies,
+		derived,
+	);
+	if (!dependenciesChanged && shelf === project.metadata.addedPacks) {
 		return project;
 	}
 	return {
 		...project,
-		metadata: { ...project.metadata, packDependencies: derived },
+		metadata: {
+			...project.metadata,
+			packDependencies: derived,
+			addedPacks: [...shelf],
+		},
 	};
+}
+
+/**
+ * Ensures the shelf is a superset of the dependency list at matching versions,
+ * preserving added-but-unused entries. Returns the same array object when
+ * nothing needs changing, so an unrelated edit does not churn the shelf.
+ *
+ * Exported because the persistence layer applies it too: when `saveSong`
+ * recomputes the derived dependency list from the song it is about to write, it
+ * reconciles the stored shelf against that list in the same revision, so the two
+ * metadata fields can never disagree on disk.
+ */
+export function reconcilePackShelf(
+	shelf: readonly PackDependency[],
+	dependencies: readonly PackDependency[],
+): readonly PackDependency[] {
+	const byPack = new Map(shelf.map((entry) => [entry.packId, entry]));
+	let changed = false;
+	for (const dependency of dependencies) {
+		const shelved = byPack.get(dependency.packId);
+		if (!shelved || shelved.version !== dependency.version) {
+			byPack.set(dependency.packId, dependency);
+			changed = true;
+		}
+	}
+	if (!changed) {
+		return shelf;
+	}
+	return [...byPack.values()].sort(
+		(a, b) =>
+			compare(a.packId, b.packId) || compare(a.version as string, b.version),
+	);
 }
 
 // --- Availability -----------------------------------------------------

@@ -9,8 +9,8 @@ import {
 	type Analytics,
 	analytics as defaultAnalytics,
 } from "../analytics/analytics";
-import { libraryPackSlug } from "../analytics/catalog";
 import { toErrorCode } from "../analytics/errorCodes";
+import { packAnalyticsIdentity } from "../analytics/packIdentity";
 import type { PreviewEngine } from "./audition";
 import { AuditionController } from "./audition";
 import {
@@ -198,6 +198,17 @@ export function useLibraryBrowser(
 		return packs().filter((pack) => wanted.has(pack.id));
 	});
 
+	/**
+	 * One pack's index entry by slug, or `undefined` before the index has loaded
+	 * (or for an asset whose pack is no longer listed). Analytics resolves a
+	 * pack's kind through this: a `LibraryAsset` carries its pack's slug but not
+	 * whether that pack is published, and only the published entry may authorize
+	 * naming it.
+	 */
+	function packBySlug(slug: string): LibraryPackSummary | undefined {
+		return packs().find((candidate) => candidate.slug === slug);
+	}
+
 	const tree = createMemo<readonly LibraryTreePack[]>(() =>
 		buildLibraryTree({
 			packs: addedPacks(),
@@ -320,7 +331,10 @@ export function useLibraryBrowser(
 		analytics.log("library_audition", {
 			asset_type: analyticsAssetType(asset),
 			had_genre_filter: hasGenreFilter(filter()),
-			pack_id: libraryPackSlug(asset.packSlug),
+			// The pack's *published* identity, resolved from the index rather than
+			// taken from the asset: only the index says whether this pack is one
+			// anyone may be told about (see `packAnalyticsIdentity`).
+			...packAnalyticsIdentity(packBySlug(asset.packSlug)),
 		});
 		await audition.play(asset);
 	}
@@ -376,9 +390,11 @@ export function useLibraryBrowser(
 	 * project is the editor's job (see {@link UseLibraryBrowserOptions.onAddPack}).
 	 */
 	async function addPack(pack: LibraryPackSummary): Promise<void> {
-		analytics.log("library_pack_added", {
-			pack_id: libraryPackSlug(pack.slug),
-		});
+		// Which pack was added, for every pack we publish *and* every pack a third
+		// party publishes through us — a third-party creator's adoption number is
+		// the feedback the marketplace runs on (LIB-05, LIB-06). A pack the user
+		// authored themselves is counted but not named.
+		analytics.log("library_pack_added", packAnalyticsIdentity(pack));
 		options.onAddPack?.(pack);
 		setNodeExpanded(pack.slug, true);
 		await loadPack(pack);

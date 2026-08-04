@@ -40,6 +40,12 @@ import {
 	bucketLabels,
 } from "./buckets";
 import { ERROR_AREAS, ERROR_CODES } from "./errorCodes";
+import {
+	isPublishedPackSlug,
+	PACK_KINDS,
+	type PublishedPackId,
+	RESERVED_PACK_IDS,
+} from "./packIdentity";
 
 // ---------------------------------------------------------------------------
 // Parameter kinds
@@ -75,14 +81,40 @@ export interface CountParam<O extends boolean = boolean> {
 	readonly optional: O;
 }
 
+/**
+ * A value set an enum cannot express because it is *published* rather than
+ * compiled: a third-party pack's slug enters the library by publication, so no
+ * table in this repository can enumerate it ahead of time (LIB-05, LIB-08).
+ *
+ * The guarantee is therefore a shape and a set of reserved sentinels instead of
+ * a fixed list — a kebab-case slug within {@link MAX_PACK_ID_LENGTH}, or one of
+ * `reserved`. Anything else is dropped exactly like an out-of-set enum value.
+ * This is the *only* parameter kind that admits a value the catalog has not
+ * seen, which is why the decision about whether a value may travel at all is
+ * made before it gets here, by `packAnalyticsIdentity`.
+ */
+export interface SlugParam<O extends boolean = boolean> {
+	readonly kind: "slug";
+	/** Non-slug values that are always allowed (e.g. `"user"`, `"unknown"`). */
+	readonly reserved: readonly string[];
+	readonly optional: O;
+}
+
 export type AnalyticsParam =
 	| EnumParam
 	| BucketParam
 	| BooleanParam
-	| CountParam;
+	| CountParam
+	| SlugParam;
 
 /** Every parameter kind, for exhaustiveness checks in tests and validation. */
-export const PARAM_KINDS = ["enum", "bucket", "boolean", "count"] as const;
+export const PARAM_KINDS = [
+	"enum",
+	"bucket",
+	"boolean",
+	"count",
+	"slug",
+] as const;
 
 function enumParam<const V extends string>(
 	values: readonly V[],
@@ -108,6 +140,12 @@ function boolParam(): BooleanParam<false> {
 
 function countParam(max: number): CountParam<false> {
 	return { kind: "count", max, optional: false };
+}
+
+function slugParam<const R extends string>(
+	reserved: readonly R[],
+): SlugParam<false> {
+	return { kind: "slug", reserved, optional: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +231,8 @@ export const COMMAND_IDS = [
 	"drum.reorderPad",
 	"instrument.change",
 	"instrument.setSample",
+	"pack.add",
+	"pack.remove",
 	"device.add",
 	"device.remove",
 	"device.reorder",
@@ -261,17 +301,20 @@ export function sampleRateKey(rate: number): SampleRateKey {
 }
 
 /**
- * Pack identifiers, as `library_audition`'s `pack_id` (PRD LIB-05, LOOP-013).
+ * Our own published packs, as `pack_id` values (PRD LIB-05, LOOP-013, LIB-08).
  *
- * A pack's stable **slug** — never its display name. PRD OPS-02 forbids logging
- * project content and LOOP-013 forbids logging pack display names, so `pack_id`
- * is the low-cardinality, rename-stable slug the delivery layout keys a pack on
- * (`scripts/starter-library/packs.mjs`). Pinned here as an enum rather than
- * free text for the same reason `GENRES` is: an analytics parameter's value set
- * is a published GA4 contract, so a pack added to the factory library has to be
- * given an analytics decision in the same change, and a library re-slugging can
- * never silently rewrite analytics history. A slug not in this set is dropped by
- * the runtime validator, never sent — matching how every other enum degrades.
+ * `pack_id` is a pack's stable **slug** — never its display name, never its
+ * `pak_` ID. This list is *not* the parameter's whole value set: a third-party
+ * pack is published into the library out of band, so no table compiled into the
+ * app can enumerate every legitimate slug, and `pack_id` is a
+ * {@link SlugParam} that admits any published slug by shape (see
+ * `packAnalyticsIdentity`, which decides whether a given pack's slug may travel
+ * at all).
+ *
+ * What the list still buys is a decision point for *our* catalogue: a factory
+ * pack shipped without an analytics decision fails `catalog.test.ts` rather than
+ * quietly appearing in reports, and the frozen slugs document what a saved GA4
+ * exploration of the first-party library can rely on.
  */
 export const LIBRARY_PACK_SLUGS = [
 	"core-electronic-drums",
@@ -282,17 +325,6 @@ export const LIBRARY_PACK_SLUGS = [
 	"cc0-community",
 ] as const;
 export type LibraryPackSlug = (typeof LIBRARY_PACK_SLUGS)[number];
-
-/**
- * Narrows a pack slug to the declared set for `library_audition`'s `pack_id`.
- * An unknown slug (a pack the catalog does not yet know) degrades to
- * `"unknown"` rather than being logged as free text.
- */
-export function libraryPackSlug(slug: string): LibraryPackSlug | "unknown" {
-	return (LIBRARY_PACK_SLUGS as readonly string[]).includes(slug)
-		? (slug as LibraryPackSlug)
-		: "unknown";
-}
 
 /** Keys owned by a task that has not landed yet — see the file banner. */
 const UNCLAIMED: readonly never[] = [];
@@ -479,20 +511,25 @@ export const ANALYTICS_EVENTS = {
 			had_genre_filter: boolParam(),
 			// The pack's stable slug (never its display name), so an audition can
 			// be attributed to a pack without leaking library copy — see
-			// `LIBRARY_PACK_SLUGS`. `"unknown"` covers a pack the catalog does not
-			// yet list, so the event still fires rather than being dropped.
-			pack_id: enumParam([...LIBRARY_PACK_SLUGS, "unknown"]),
+			// `packIdentity.ts` for which packs may be named at all.
+			pack_id: slugParam(RESERVED_PACK_IDS),
+			pack_kind: enumParam(PACK_KINDS),
 		},
 	},
 
 	library_pack_added: {
 		phase: 1,
-		owners: ["LOOP-013"],
+		owners: ["LOOP-013", "LIB-08"],
+		// This is the pack-popularity measure, so it has to say *which* pack —
+		// including a third party's, whose creator the adoption number is fed back
+		// to (LIB-05, LIB-06). `pack_id` therefore carries any *published* pack's
+		// slug, first-party or third-party, and `"user"` for an unpublished pack a
+		// producer authored themselves. `packAnalyticsIdentity` is what draws that
+		// line; the same two parameters as `library_audition`, so a pack's
+		// auditions and its adds join on one vocabulary.
 		params: {
-			// The same stable slug `library_audition` carries, for the same reason:
-			// which pack a producer reached for is the measure, and a display name
-			// would be library copy in an analytics report (PRD LIB-05, OPS-02).
-			pack_id: enumParam([...LIBRARY_PACK_SLUGS, "unknown"]),
+			pack_id: slugParam(RESERVED_PACK_IDS),
+			pack_kind: enumParam(PACK_KINDS),
 		},
 	},
 
@@ -708,7 +745,9 @@ export type ParamValue<P> = P extends EnumParam<infer V, boolean>
 			? boolean
 			: P extends CountParam
 				? number
-				: never;
+				: P extends SlugParam
+					? PublishedPackId
+					: never;
 
 type ParamsOf<N extends AnalyticsEventName> = AnalyticsCatalog[N]["params"];
 
@@ -833,16 +872,28 @@ function coerceParam(
 			if (typeof value !== "number" || !Number.isFinite(value))
 				return undefined;
 			return Math.min(Math.max(Math.round(value), 0), spec.max);
+		case "slug":
+			if (typeof value !== "string") return undefined;
+			if (spec.reserved.includes(value)) return value;
+			// Shape, not membership — the published set is not knowable here. A
+			// value that is not a well-formed slug (a `pak_` ID, a display name, a
+			// user-entered string) is dropped exactly like an out-of-set enum value.
+			return isPublishedPackSlug(value) ? value : undefined;
 	}
 }
 
-/** Every allowed value of an `enum` or `bucket` parameter, for tests. */
+/**
+ * Every allowed value of an `enum` or `bucket` parameter, for tests. A `slug`
+ * parameter has no closed set — only its reserved sentinels are declared.
+ */
 export function declaredValues(spec: AnalyticsParam): readonly string[] {
 	switch (spec.kind) {
 		case "enum":
 			return spec.values;
 		case "bucket":
 			return bucketLabels(spec.scale);
+		case "slug":
+			return spec.reserved;
 		default:
 			return [];
 	}
