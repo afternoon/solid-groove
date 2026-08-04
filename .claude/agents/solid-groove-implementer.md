@@ -27,6 +27,14 @@ A PR is a single reviewable unit of purpose, **not** a whole task, and **its dif
 
 If a task is genuinely small enough to land in one ≤400-line PR, do that — the point is the ceiling and the single purpose, not splitting for its own sake.
 
+### Land central-registration edits first, in their own tiny PR
+
+A few files are shared registration points every parallel task appends to: `src/analytics/catalog.ts` (event keys), `src/commands/registry.ts` / `src/commands/index.ts` (command IDs), `src/domain/parse.ts` (invariants), and `src/editor/EditorView.tsx` (where a panel mounts). Two features editing the same one collide on merge even when the rest of their code is disjoint, and the collision only surfaces after review, when the first of the pair lands — creating rework in the sibling that is already approved.
+
+So if your task must touch any of these, make **the first PR in your stack the registration ALONE**: add the catalog key(s), register the command ID, add the invariant, reserve the panel slot — and nothing else. Keep it to a handful of lines so it reviews in seconds and merges fast, shrinking the window a sibling can clash with it. The feature PRs that follow depend on that registration but touch only their own new files. Do not invent a registration PR when your task adds nothing shared — this applies only when you would otherwise be editing one of these hot files.
+
+**Do not edit `docs/prd.md` unless your task strictly requires it.** It is authoritative, every task reads it, and it conflicts as badly as any registry. Reference PRD requirements; do not restate or amend them. Touch it only when your task genuinely revises product behavior, and then in the smallest possible edit — never incidental wording or formatting.
+
 ## Hard rules
 
 - **Never alter a published contract as incidental work.** The domain schema, command registry, parameter definitions, persistence layout, selection model, audio projection and rendering projection are contracts. If your task genuinely cannot be completed without changing one, stop and report it as a blocker rather than changing it.

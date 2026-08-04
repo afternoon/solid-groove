@@ -20,12 +20,14 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import ArrangementView from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 import type { NoteTrigger } from "../domain/entities";
+import type { EventId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { formatBarsBeatsSixteenths, TICKS_PER_QUARTER } from "../domain/time";
 import SamplerPanel, { type SampleChoice } from "../instrument/SamplerPanel";
@@ -42,7 +44,8 @@ import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
-import StepGrid from "./StepGrid";
+import StepEditor, { deleteSelectedNotes } from "./StepEditor";
+import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
 import "./EditorView.css";
@@ -83,11 +86,12 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
 };
 
 /**
- * The `FND-009` foundation vertical slice: open a schema-v1 project, edit its
- * 16-step sampler track, hear it, undo it, and let autosave save it — the
- * smallest surface that exercises the real UI-to-command-to-audio-to-
- * persistence path end to end. Superseded by `LOOP-010`'s full step editor;
- * not meant to be grown into it (see the `FND-009` task).
+ * The project editor: open a schema-v1 project, program its clip — on the
+ * CLP-02 step editor for a sampler or drum machine, on the CLP-03 piano roll
+ * for a synth's note clip — hear it, undo it, and let autosave save it. The
+ * `FND-009` slice's minimal 16-step grid was replaced by `LOOP-010`'s full step
+ * editor (`StepEditor`) and `LOOP-011`'s `PianoRoll`; the surrounding transport,
+ * instrument panels, and save/undo wiring are the same path it established.
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [repositoryResource] = createResource(() => getProjectRepository());
@@ -105,6 +109,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	// handlers below can call them.
 	const [pianoRollActions, setPianoRollActions] =
 		createSignal<PianoRollActions | null>(null);
+	// The step editor's note selection, lifted here so the `edit.delete` shortcut
+	// can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
+	const [selectedNoteIds, setSelectedNoteIds] = createSignal<
+		readonly EventId[]
+	>([]);
 	const [libraryOpen, setLibraryOpen] = createSignal(false);
 	const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
 
@@ -185,18 +194,30 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			run: () => session.redo(),
 			isEnabled: () => session.state.canRedo,
 		},
+		// Delete the selected notes of whichever note editor is showing: the piano
+		// roll keeps its own selection and hands the operation up through
+		// `registerActions` (CLP-03), the step editor's is lifted into this
+		// component (CLP-02). Either way it only fires when that selection is
+		// non-empty, so an empty-selection Delete leaves the browser default alone
+		// (PRD KEY-02).
+		"edit.delete": {
+			run: () => {
+				if (showPianoRoll()) pianoRollActions()?.deleteSelection();
+				else deleteSelection();
+			},
+			isEnabled: () =>
+				showPianoRoll()
+					? (pianoRollActions()?.hasSelection() ?? false)
+					: selectedNoteIds().length > 0,
+		},
 		"help.shortcut_guide": { run: () => setGuideOpen(true) },
 		"view.close_surface": {
 			run: () => setGuideOpen(false),
 			isEnabled: () => guideOpen(),
 		},
-		// The piano roll's note operations, dispatched by the registry (KEY-01),
-		// not by a listener the roll owns. Each is enabled only while the roll is
-		// showing; delete/duplicate additionally need a selection.
-		"edit.delete": {
-			run: () => pianoRollActions()?.deleteSelection(),
-			isEnabled: () => pianoRollActions()?.hasSelection() ?? false,
-		},
+		// The piano roll's remaining note operations, dispatched by the registry
+		// (KEY-01), not by a listener the roll owns. Each is enabled only while the
+		// roll is showing; duplicate additionally needs a selection.
 		"edit.duplicate": {
 			run: () => pianoRollActions()?.duplicateSelection(),
 			isEnabled: () => pianoRollActions()?.hasSelection() ?? false,
@@ -248,6 +269,26 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			currentProject.clips.find((c) => c.trackId === currentTrack.id) ?? null
 		);
 	});
+
+	// The step editor's live playback-step indicator (CLP-02): which 16th step of
+	// the edited clip the playhead is currently passing, wrapped within the clip's
+	// bars, or null when stopped.
+	const editorPlaybackStep = createMemo(() => {
+		const currentClip = clip();
+		if (!currentClip) return null;
+		return playbackStepOf(
+			currentClip,
+			audio.positionTicks(),
+			audio.isPlaying(),
+		);
+	});
+
+	function deleteSelection(): void {
+		const currentClip = clip();
+		if (!currentClip) return;
+		deleteSelectedNotes(currentClip, selectedNoteIds(), session.dispatch);
+		setSelectedNoteIds([]);
+	}
 
 	// Every tempo-labelled loop clip in the project, paired with its resolved
 	// asset (or null when the asset is missing) — LOOP-006 renders one loop-info
@@ -529,6 +570,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									</Show>
 								</div>
 							</header>
+							<div class="arrangement-panel">
+								<ArrangementView
+									project={currentProject()}
+									playheadTicks={audio.positionTicks}
+									isPlaying={audio.isPlaying}
+								/>
+							</div>
 							<div class="editor-body">
 								<Show when={libraryOpen()}>
 									{/*
@@ -599,12 +647,24 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 														</span>
 													</Show>
 												</div>
+												{/*
+												 * A synth track's note clip gets the CLP-03 piano
+												 * roll; everything else stays on LOOP-010's CLP-02
+												 * step editor. Pitched notes want two dimensions
+												 * (pitch x time), which a one-row-per-step grid
+												 * cannot show.
+												 */}
 												<Show
 													when={showPianoRoll()}
 													fallback={
-														<StepGrid
+														<StepEditor
 															clip={currentClip()}
+															instrument={instrument()}
 															dispatch={session.dispatch}
+															beginGesture={session.beginGesture}
+															playbackStep={editorPlaybackStep}
+															selectedIds={selectedNoteIds}
+															setSelectedIds={setSelectedNoteIds}
 														/>
 													}
 												>

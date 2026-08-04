@@ -374,6 +374,142 @@ export function sliceFixturePacks(options: FixtureOptions = {}): FixturePacks {
 	return fixturePacks(fixtureContext(options, "slice-fixture"));
 }
 
+/** Bars in the dense step-editor fixture — the CLP-02 upper bound. */
+export const DENSE_STEP_FIXTURE_BARS = 8;
+
+/**
+ * A dense, maximum-length drum-machine clip for the CLP-02 step editor: three
+ * named pads over the full 8-bar range with a busy pattern on every pad, so the
+ * step editor is exercised at its worst case — 8 bars × 16 steps × 3 lanes =
+ * 384 cells — rather than the one-bar slice fixture. `LOOP-010`'s step-editor
+ * component tests render this to prove painting, erasing, resize, playback-step,
+ * and selection all hold up on a big grid.
+ *
+ * The pattern is deterministic (a fixed function of step and pad index), so two
+ * runs produce the same clip; it deliberately covers on- and off-beat steps and
+ * a range of velocities.
+ */
+export function createDenseStepFixtureProject(
+	options: FixtureOptions = {},
+): Project {
+	const context = fixtureContext(options, "dense-step-fixture");
+	const packs = fixturePacks(context);
+	const song = createEmptySong(options.tempo ?? 120);
+	const lengthTicks = TICKS_PER_BAR * DENSE_STEP_FIXTURE_BARS;
+	const stepCount = (lengthTicks / TICKS_PER_SIXTEENTH) | 0;
+
+	const kickAsset = createAsset(context, {
+		pack: packs.drums,
+		name: "909 Bass Drum",
+		storageRef: "samples/house/drums/bd/909-bd.wav",
+		url: "/samples/house/drums/bd/909-bd.wav",
+		durationSeconds: 0.6,
+		sampleRate: 44_100,
+		channelCount: 1,
+	});
+	const snareAsset = createAsset(context, {
+		pack: packs.drums,
+		name: "909 Snare",
+		storageRef: "samples/house/drums/sd/909-sd.wav",
+		url: "/samples/house/drums/sd/909-sd.wav",
+		durationSeconds: 0.4,
+		sampleRate: 44_100,
+		channelCount: 1,
+	});
+	const hatAsset = createAsset(context, {
+		pack: packs.drums,
+		name: "909 Closed Hat",
+		storageRef: "samples/house/drums/hh/909-hh.wav",
+		url: "/samples/house/drums/hh/909-hh.wav",
+		durationSeconds: 0.2,
+		sampleRate: 44_100,
+		channelCount: 1,
+	});
+
+	const kickPad = createDrumPad(context, { name: "BD", assetId: kickAsset.id });
+	const snarePad = createDrumPad(context, {
+		name: "SD",
+		assetId: snareAsset.id,
+	});
+	const hatPad = createDrumPad(context, { name: "HH", assetId: hatAsset.id });
+
+	const drumTrack = createTrack(context, {
+		name: "Drums",
+		order: 0,
+		instrument: createDrumMachineInstrument([kickPad, snarePad, hatPad]),
+	});
+
+	const events = [];
+	for (let step = 0; step < stepCount; step += 1) {
+		const beat = step % 4;
+		const bar16 = step % 16;
+		// Kick on every downbeat, snare on the backbeat, hat on every off-eighth —
+		// a straight-ahead but busy pattern that fills the grid.
+		if (beat === 0) {
+			events.push(
+				createNoteEvent(context, {
+					startTicks: step * TICKS_PER_SIXTEENTH,
+					durationTicks: TICKS_PER_SIXTEENTH,
+					padId: kickPad.id,
+					velocity: 0.9,
+				}),
+			);
+		}
+		if (bar16 === 4 || bar16 === 12) {
+			events.push(
+				createNoteEvent(context, {
+					startTicks: step * TICKS_PER_SIXTEENTH,
+					durationTicks: TICKS_PER_SIXTEENTH,
+					padId: snarePad.id,
+					velocity: 0.8,
+				}),
+			);
+		}
+		if (step % 2 === 0) {
+			events.push(
+				createNoteEvent(context, {
+					startTicks: step * TICKS_PER_SIXTEENTH,
+					durationTicks: TICKS_PER_SIXTEENTH,
+					padId: hatPad.id,
+					velocity: 0.5 + (step % 4) * 0.1,
+				}),
+			);
+		}
+	}
+
+	const drumClip = createNoteClip(context, {
+		trackId: drumTrack.id,
+		name: "Dense beat",
+		lengthTicks,
+		events,
+	});
+
+	const fixtureSong: Song = {
+		...song,
+		assets: [kickAsset, snareAsset, hatAsset],
+		tracks: [drumTrack],
+		placements: [
+			createPlacement(context, {
+				clipId: drumClip.id,
+				trackId: drumTrack.id,
+				startTicks: 0,
+				durationTicks: lengthTicks,
+			}),
+		],
+	};
+
+	return assertProject({
+		metadata: createProjectMetadata(context, {
+			ownerId: options.ownerId ?? "user_fixture",
+			name: "Dense step fixture",
+			template: "blank",
+			packDependencies: derivePackDependencies(fixtureSong),
+		}),
+		song: fixtureSong,
+		clips: [drumClip],
+	});
+}
+
 export interface ReferenceProjectOptions extends FixtureOptions {
 	/** Tracks in the arrangement. The PRD reference project uses 50. */
 	trackCount?: number;

@@ -1,0 +1,134 @@
+.step-editor {
+	--step-accent: var(--color-accent, #20c8e8);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	/* A paint or erase drag must never start a text selection (CLP-02). */
+	user-select: none;
+	-webkit-user-select: none;
+	touch-action: none;
+}
+
+.step-editor-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	flex-wrap: wrap;
+	min-height: 30px;
+}
+
+.step-editor-length,
+.step-editor-velocity {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+}
+
+.step-editor-length-select {
+	height: 30px;
+	background-color: var(--color-background-tertiary);
+	color: var(--color-text);
+	border: none;
+	border-radius: 0;
+	padding: 0 8px;
+	font-size: var(--font-size-small);
+}
+
+.step-editor-velocity-input {
+	accent-color: var(--step-accent);
+	width: 120px;
+}
+
+.step-editor-velocity-value {
+	min-width: 2ch;
+	font-variant-numeric: tabular-nums;
+	color: var(--color-text);
+}
+
+.step-editor-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	overflow-x: auto;
+}
+
+.step-lane {
+	display: grid;
+	grid-template-columns: 64px 1fr;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+	/* Reset the fieldset default chrome; the lane groups its step buttons only
+	   for assistive tech, not visually. */
+	margin: 0;
+	padding: 0;
+	border: none;
+}
+
+.step-lane-name {
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.step-lane-cells {
+	display: grid;
+	grid-template-columns: repeat(var(--step-count, 16), minmax(20px, 1fr));
+	gap: 2px;
+	min-width: 0;
+}
+
+.step-cell {
+	aspect-ratio: 1;
+	min-width: 20px;
+	background-color: var(--color-background-tertiary);
+	border: 1px solid transparent;
+	border-radius: 0;
+	padding: 0;
+	cursor: pointer;
+	position: relative;
+	transition: background-color 0.02s ease-out;
+}
+
+/* Beat and bar divisions are visually distinct (CLP-02): a beat starts a
+   lighter left edge, a bar a heavier, brighter one. */
+.step-cell.beat-start {
+	border-left-color: var(--color-background-hover);
+}
+
+.step-cell.bar-start {
+	border-left: 2px solid var(--color-foreground);
+}
+
+.step-cell:hover {
+	background-color: var(--color-background-hover);
+}
+
+/* An active step is filled with the accent; its opacity tracks velocity so a
+   softer hit reads as dimmer without another control. */
+.step-cell.active {
+	background-color: var(--step-accent);
+	opacity: calc(0.35 + 0.65 * var(--velocity, 1));
+}
+
+.step-cell.selected {
+	outline: 2px solid var(--color-foreground-bright);
+	outline-offset: -2px;
+	opacity: 1;
+}
+
+/* The current playback step (CLP-02): a bright ring over whichever cell the
+   playhead is passing, on or off. */
+.step-cell.playing {
+	box-shadow: inset 0 0 0 2px var(--color-foreground-bright);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.step-cell {
+		transition: none;
+	}
+}

@@ -72,10 +72,10 @@ export interface UseEditorSessionResult {
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
 	/**
-	 * Opens a continuous gesture — a fader/pan drag or a piano-roll note drag —
-	 * that commits as one history entry, one revision, and one autosave (PRD
-	 * section 8, PRD `TRK-02`). Returns `undefined` before the session has
-	 * loaded.
+	 * Opens a continuous edit gesture — a piano-roll note drag, a step-editor
+	 * paint/erase stroke, a fader/pan drag — or `undefined` before a session has
+	 * loaded. Every step applies live; the whole gesture commits as one history
+	 * entry, one revision, and one autosave (PRD `CLP-02`, `CLP-03`, `TRK-02`).
 	 */
 	beginGesture(options?: GestureOptions): Gesture | undefined;
 	undo(): TransactionResult | null | undefined;

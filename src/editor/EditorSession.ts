@@ -8,7 +8,6 @@ import {
 	CommandHistory,
 	type Gesture,
 	type GestureOptions,
-	type HistoryEntry,
 	type HistoryListener,
 	type RawCommandInput,
 	type TransactionResult,
@@ -125,37 +124,44 @@ export class EditorSession {
 	}
 
 	/**
-	 * Opens a continuous gesture (a note drag in the piano roll, a fader or pan
-	 * drag) that applies each step immediately — so the UI and audio stay live
-	 * — but commits as one history entry and one revision (PRD section 9.6).
-	 * Autosave is queued once, on commit, by diffing the project as it was
-	 * when the gesture began against the project the commit produced: a drag
-	 * persists a single write, not one per intermediate frame.
+	 * Opens a continuous edit gesture — a piano-roll note drag, a step-editor
+	 * paint or erase stroke, a fader or pan drag — that applies each step
+	 * immediately (so the UI and audio stay live) but commits as one history
+	 * entry and one revision (PRD section 9.6; CLP-02 "undo groups a single drag
+	 * gesture", CLP-03 for the piano roll).
+	 *
+	 * Autosave is deferred to `commit` and queued from a structural diff against
+	 * the project as it was when the gesture began: a fader drag persists a
+	 * single song write, and a stroke or note drag that touches ten steps writes
+	 * the changed clip document *once*, not once per intermediate frame.
+	 * `first_edit` fires for the gesture's first command. `cancel` abandons the
+	 * whole gesture, so nothing is queued and nothing was persisted.
 	 *
 	 * The returned gesture's `commit`/`cancel` wrap the history kernel's so
-	 * callers cannot forget the autosave/first-edit side effects the way a raw
+	 * callers cannot forget those side effects the way a raw
 	 * `history.beginGesture()` would let them.
 	 */
 	beginGesture(options: GestureOptions = {}): Gesture {
 		const before = this.history.project;
 		const gesture = this.history.beginGesture(options);
-		const session = this;
+		let firstEditResult: TransactionSuccess | null = null;
 		return {
 			get active() {
 				return gesture.active;
 			},
-			apply(commands) {
-				return gesture.apply(commands);
+			apply: (commands) => {
+				const result = gesture.apply(commands);
+				if (result.ok && !firstEditResult) firstEditResult = result;
+				return result;
 			},
-			commit(summary): HistoryEntry | null {
+			commit: (summary?: string) => {
 				const entry = gesture.commit(summary);
-				if (entry) {
-					session.logFirstEditForEntry(entry);
-					session.queueDiff(session.history.project, before);
-				}
+				if (!entry) return entry;
+				if (firstEditResult) this.logFirstEdit(firstEditResult);
+				this.queueDiff(this.history.project, before);
 				return entry;
 			},
-			cancel() {
+			cancel: () => {
 				gesture.cancel();
 			},
 		};
@@ -215,16 +221,8 @@ export class EditorSession {
 	}
 
 	private logFirstEdit(result: TransactionSuccess): void {
-		this.logFirstEditForCommandId(result.commands[0]?.type);
-	}
-
-	/** The gesture path only has the committed entry, not a transaction. */
-	private logFirstEditForEntry(entry: HistoryEntry): void {
-		this.logFirstEditForCommandId(entry.commands[0]?.type);
-	}
-
-	private logFirstEditForCommandId(commandId: string | undefined): void {
 		if (this.firstEditLogged) return;
+		const commandId = result.commands[0]?.type;
 		if (!commandId || !isCommandId(commandId)) return;
 		this.firstEditLogged = true;
 		const secondsSinceOpen = Math.max(

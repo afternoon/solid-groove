@@ -45,7 +45,7 @@ import {
 } from "./pitchClass";
 import "./PianoRoll.css";
 
-/** Mints event IDs for notes the roll creates. Module singleton (see StepGrid). */
+/** Mints event IDs for notes the roll creates. Module singleton (see StepEditor). */
 const factoryContext = createFactoryContext();
 
 /** Default pixel scale. Kept modest so a bar fits without horizontal scroll. */
