@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { SCHEMA_VERSION } from "../domain/entities";
 import { createFactoryContext, createPlacement } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
@@ -166,7 +167,7 @@ describe("InMemoryProjectRepository", () => {
 		const path = projectDocumentPath(project.metadata.id);
 		repository.writeDocument(path, {
 			...repository.readDocument(path),
-			schemaVersion: 2,
+			schemaVersion: SCHEMA_VERSION + 1,
 		});
 
 		const loaded = await repository.loadProject(project.metadata.id);
@@ -179,7 +180,10 @@ describe("InMemoryProjectRepository", () => {
 		const project = createSliceFixtureProject();
 		await repository.createProject(project);
 		const path = projectDocumentPath(project.metadata.id);
-		const stored = { ...repository.readDocument(path), schemaVersion: 2 };
+		const stored = {
+			...repository.readDocument(path),
+			schemaVersion: SCHEMA_VERSION + 1,
+		};
 		repository.writeDocument(path, stored);
 
 		const saved = await repository.saveMetadata(

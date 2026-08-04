@@ -32,6 +32,7 @@ interface MutableProject {
 		modifiedAt: number;
 		collaboratorIds: string[];
 		packDependencies: { packId: string; version: string }[];
+		addedPacks: { packId: string; version: string }[];
 	};
 	song: {
 		tempo: number;
@@ -623,7 +624,57 @@ describe("pack-qualified asset identity", () => {
 		input.song.assets = [];
 		input.song.tracks[0].instrument = { kind: "synth", parameters: {} };
 		input.metadata.packDependencies = [];
+		input.metadata.addedPacks = [];
 		expect(parseProject(input).ok).toBe(true);
+	});
+});
+
+describe("pack shelf (addedPacks, LIB-08)", () => {
+	it("accepts a shelf that adds a pack no asset uses", () => {
+		const input = baseProject();
+		// A pack the user added but has not drawn a sound from: on the shelf,
+		// never in the derived dependency list.
+		input.metadata.addedPacks = [
+			...input.metadata.addedPacks,
+			{ packId: ids("pack"), version: "1.0.0" },
+		];
+		expect(parseProject(input).ok).toBe(true);
+	});
+
+	it("rejects a shelf that omits a pack the project depends on", () => {
+		const input = baseProject();
+		// The project uses this pack, but the shelf does not list it — a used pack
+		// could then be removed from the panel while its sounds still play.
+		input.metadata.addedPacks = [];
+		expectIssue(parseProject(input), "invalid_metadata");
+	});
+
+	it("rejects a shelf that lists a used pack at the wrong version", () => {
+		const input = baseProject();
+		const [used] = input.metadata.packDependencies;
+		input.metadata.addedPacks = input.metadata.addedPacks.map((entry) =>
+			entry.packId === used.packId
+				? { packId: entry.packId, version: "9.9.9" }
+				: entry,
+		);
+		expectIssue(parseProject(input), "invalid_pack_reference");
+	});
+
+	it("rejects two versions of one pack on the shelf", () => {
+		const input = baseProject();
+		const [first] = input.metadata.addedPacks;
+		input.metadata.addedPacks = [
+			...input.metadata.addedPacks,
+			{ packId: first.packId, version: "5.0.0" },
+		];
+		expectIssue(parseProject(input), "invalid_pack_reference");
+	});
+
+	it("rejects the same shelf entry listed twice", () => {
+		const input = baseProject();
+		const [first] = input.metadata.addedPacks;
+		input.metadata.addedPacks = [...input.metadata.addedPacks, { ...first }];
+		expectIssue(parseProject(input), "duplicate_id");
 	});
 });
 

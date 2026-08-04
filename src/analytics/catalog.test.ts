@@ -86,6 +86,7 @@ describe("event names", () => {
 				"instrument_changed",
 				"landing_cta_click",
 				"library_audition",
+				"library_pack_added",
 				"project_created",
 				"project_deleted",
 				"project_opened",

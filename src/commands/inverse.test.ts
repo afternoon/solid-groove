@@ -9,6 +9,7 @@ import {
 	createSynthInstrument,
 	createTrack as createTrackEntity,
 	PAD_PITCH,
+	packVersion,
 	TICKS_PER_BAR,
 	TICKS_PER_SIXTEENTH,
 	TRACK_VOLUME,
@@ -17,6 +18,7 @@ import {
 import {
 	addClip,
 	addNotes,
+	addPack,
 	addPad,
 	addPlacement,
 	addTrack,
@@ -26,6 +28,7 @@ import {
 	quantizeNotes,
 	removeClip,
 	removeNotes,
+	removePack,
 	removePad,
 	removePlacement,
 	removeTrack,
@@ -70,6 +73,21 @@ import type { RawCommandInput } from "./types";
 interface InverseCase {
 	readonly type: string;
 	build(fixture: CommandTestProject): RawCommandInput;
+	/**
+	 * How the round-trip decides "the project changed". Defaults to the musical
+	 * `contentSignature`, which deliberately excludes metadata. The pack-shelf
+	 * commands touch only `metadata.addedPacks`, so they supply a signature that
+	 * includes it — but still excludes revision/modifiedAt, which change on every
+	 * commit.
+	 */
+	signature?(project: CommandTestProject["project"]): string;
+}
+
+/** A signature that includes the pack shelf but not volatile metadata. */
+function shelfSignature(project: CommandTestProject["project"]): string {
+	return `${contentSignature(project)}::shelf=${JSON.stringify(
+		project.metadata.addedPacks,
+	)}`;
 }
 
 const cases: InverseCase[] = [
@@ -270,7 +288,32 @@ const cases: InverseCase[] = [
 		type: "instrument.setSample",
 		build: (fixture) => setSample(fixture.trackAId, null),
 	},
+	{
+		type: "pack.add",
+		// A brand-new pack the project does not use — a legitimate shelf-only add.
+		build: () =>
+			addPack({
+				packId: createPackId("inverse-added"),
+				version: packVersion("1.0.0"),
+			}),
+		signature: shelfSignature,
+	},
+	{
+		type: "pack.remove",
+		// The fixture's added-but-unused pack; removing a used pack is refused.
+		build: (fixture) =>
+			removePack({
+				packId: fixture.shelfOnlyPack.id,
+				version: fixture.shelfOnlyPack.version,
+			}),
+		signature: shelfSignature,
+	},
 ];
+
+/** A stable pack ID for the add case, independent of the fixture's IDs. */
+function createPackId(seed: string) {
+	return createSeededIdFactory(seed)("pack");
+}
 
 describe("generated inverses", () => {
 	it("covers every registered command", () => {
@@ -280,26 +323,27 @@ describe("generated inverses", () => {
 	});
 
 	for (const testCase of cases) {
+		const signatureOf = testCase.signature ?? contentSignature;
 		it(`${testCase.type} undoes and redoes exactly`, () => {
 			const fixture = createCommandTestProject();
 			const history = createCommandHistory(fixture.project);
 			const command = testCase.build(fixture);
 			expect(command.type).toBe(testCase.type);
 
-			const before = contentSignature(fixture.project);
+			const before = signatureOf(fixture.project);
 			const result = history.execute(command);
 			expect(result.ok, result.ok ? "" : result.issues[0].message).toBe(true);
 
-			const after = contentSignature(history.project);
+			const after = signatureOf(history.project);
 			expect(after).not.toBe(before);
 
 			const undone = history.undo();
 			expect(undone?.ok).toBe(true);
-			expect(contentSignature(history.project)).toBe(before);
+			expect(signatureOf(history.project)).toBe(before);
 
 			const redone = history.redo();
 			expect(redone?.ok).toBe(true);
-			expect(contentSignature(history.project)).toBe(after);
+			expect(signatureOf(history.project)).toBe(after);
 		});
 
 		it(`${testCase.type} is deterministic`, () => {
@@ -313,9 +357,7 @@ describe("generated inverses", () => {
 
 			expect(first.ok && second.ok).toBe(true);
 			if (!first.ok || !second.ok) return;
-			expect(contentSignature(second.project)).toBe(
-				contentSignature(first.project),
-			);
+			expect(signatureOf(second.project)).toBe(signatureOf(first.project));
 			expect(second.summary).toBe(first.summary);
 		});
 	}

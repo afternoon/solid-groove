@@ -17,6 +17,7 @@ export * from "./definitions/clips";
 export * from "./definitions/drum";
 export * from "./definitions/instruments";
 export * from "./definitions/notes";
+export * from "./definitions/packs";
 export * from "./definitions/parameters";
 export * from "./definitions/placements";
 export * from "./definitions/tracks";

@@ -45,6 +45,8 @@ const EXPECTED_COMMANDS = [
 	"drum.reorderPad",
 	"instrument.change",
 	"instrument.setSample",
+	"pack.add",
+	"pack.remove",
 ];
 
 describe("command registry", () => {

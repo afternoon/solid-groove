@@ -69,6 +69,8 @@ export interface CommandTestProject {
 	assetIds: { sampler: AssetId; pad: AssetId };
 	/** The two packs the fixture's assets resolve from, in dependency order. */
 	packs: [Pack, Pack];
+	/** A pack on the shelf that no asset uses — a `pack.remove` target (LIB-08). */
+	shelfOnlyPack: Pack;
 	/** Event IDs of `clipA`, in the order the fixture created them. */
 	eventIds: EventId[];
 }
@@ -88,6 +90,13 @@ export function createCommandTestProject(
 	const bassPack = createPack(context, {
 		name: "Command Bass",
 		version: "3.2.1",
+	});
+	// A pack the user has added to the shelf but drawn no sound from yet (LIB-08):
+	// it is in `addedPacks` and never in the derived `packDependencies`, which is
+	// the state a `pack.remove` must be able to act on.
+	const shelfOnlyPack = createPack(context, {
+		name: "Command Extras",
+		version: "2.0.0",
 	});
 
 	const asset = createAsset(context, {
@@ -191,11 +200,17 @@ export function createCommandTestProject(
 		],
 	};
 
+	const derivedDependencies = derivePackDependencies(song);
 	const project = assertProject({
 		metadata: createProjectMetadata(context, {
 			ownerId: "user_commands",
 			name: "Command fixture",
-			packDependencies: derivePackDependencies(song),
+			packDependencies: derivedDependencies,
+			// The shelf is every used pack plus the one added-but-unused pack.
+			addedPacks: [
+				...derivedDependencies,
+				{ packId: shelfOnlyPack.id, version: shelfOnlyPack.version },
+			],
 		}),
 		song,
 		clips: [clipA, clipB],
@@ -213,6 +228,7 @@ export function createCommandTestProject(
 		padIds: [kick.id, clap.id],
 		assetIds: { sampler: asset.id, pad: padAsset.id },
 		packs: [drumsPack, bassPack],
+		shelfOnlyPack,
 		eventIds:
 			clipA.content.kind === "notes"
 				? clipA.content.events.map((event) => event.id)

@@ -1,0 +1,161 @@
+{
+	"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
+	"metadata": {
+		"schemaVersion": 2,
+		"revision": 0,
+		"name": "Slice fixture",
+		"ownerId": "user_fixture",
+		"collaboratorIds": [],
+		"createdAt": 1700000000000,
+		"modifiedAt": 1700000000000,
+		"template": "blank",
+		"genre": null,
+		"packDependencies": [
+			{
+				"packId": "pak_6dWiqlhnLQoPeMlRo5QXl",
+				"version": "1.0.0"
+			}
+		],
+		"addedPacks": [
+			{
+				"packId": "pak_6dWiqlhnLQoPeMlRo5QXl",
+				"version": "1.0.0"
+			}
+		]
+	},
+	"song": {
+		"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
+		"schemaVersion": 2,
+		"revision": 0,
+		"updatedAt": 1700000000000,
+		"tempo": 120,
+		"timeSignature": {
+			"numerator": 4,
+			"denominator": 4
+		},
+		"tracks": [
+			{
+				"id": "trk_AMG8c3052Z607YHwbSBRw",
+				"name": "BD",
+				"color": "#ef4444",
+				"order": 0,
+				"type": "instrument",
+				"instrument": {
+					"kind": "sampler",
+					"assetId": "ast_KtvuGKJ5Sj1BtxiXgqo2R",
+					"parameters": {}
+				},
+				"devices": [],
+				"sendConfig": [],
+				"mixer": {
+					"volume": 0,
+					"pan": 0,
+					"muted": false,
+					"soloed": false
+				}
+			}
+		],
+		"returns": [],
+		"master": {
+			"volume": 0,
+			"devices": []
+		},
+		"sections": [],
+		"placements": [
+			{
+				"id": "plc_F0zuRpRTKKE813jnES26C",
+				"clipId": "clp_PtDxUzJoUiMAQuVqxEadW",
+				"trackId": "trk_AMG8c3052Z607YHwbSBRw",
+				"startTicks": 0,
+				"durationTicks": 768,
+				"clipOffsetTicks": 0,
+				"looped": false
+			}
+		],
+		"automation": [],
+		"assets": [
+			{
+				"id": "ast_KtvuGKJ5Sj1BtxiXgqo2R",
+				"packId": "pak_6dWiqlhnLQoPeMlRo5QXl",
+				"packVersion": "1.0.0",
+				"kind": "sample",
+				"name": "909 Bass Drum",
+				"storageRef": "samples/house/drums/bd/909-bd.wav",
+				"url": "/samples/house/drums/bd/909-bd.wav",
+				"durationSeconds": 0.6,
+				"sampleRate": 44100,
+				"channelCount": 1,
+				"provenance": {
+					"source": "solid-groove",
+					"licence": "internal",
+					"attribution": null
+				}
+			}
+		],
+		"arrangementChunked": false,
+		"chunkTrackIds": []
+	},
+	"clips": [
+		{
+			"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
+			"schemaVersion": 2,
+			"revision": 0,
+			"updatedAt": 1700000000000,
+			"id": "clp_PtDxUzJoUiMAQuVqxEadW",
+			"trackId": "trk_AMG8c3052Z607YHwbSBRw",
+			"name": "Four on the floor",
+			"color": "#ef4444",
+			"lengthTicks": 768,
+			"content": {
+				"kind": "notes",
+				"events": [
+					{
+						"id": "evt_R1lZVhKlsqX5aIFR-c7Ut",
+						"trigger": {
+							"kind": "pitch",
+							"pitch": 36
+						},
+						"startTicks": 0,
+						"durationTicks": 48,
+						"velocity": 0.8,
+						"probability": null
+					},
+					{
+						"id": "evt_wPjYmJpT-UQC8YvWJY6Jp",
+						"trigger": {
+							"kind": "pitch",
+							"pitch": 36
+						},
+						"startTicks": 192,
+						"durationTicks": 48,
+						"velocity": 0.8,
+						"probability": null
+					},
+					{
+						"id": "evt_mr6pdj7xVc9Qpp0lOvSK0",
+						"trigger": {
+							"kind": "pitch",
+							"pitch": 36
+						},
+						"startTicks": 384,
+						"durationTicks": 48,
+						"velocity": 0.8,
+						"probability": null
+					},
+					{
+						"id": "evt_NnQT1jPXc8m-AT-DQK-Ll",
+						"trigger": {
+							"kind": "pitch",
+							"pitch": 36
+						},
+						"startTicks": 576,
+						"durationTicks": 48,
+						"velocity": 0.8,
+						"probability": null
+					}
+				]
+			}
+		}
+	],
+	"arrangement": []
+}

@@ -86,12 +86,16 @@ export type LoadResult<T> =
  *
  * `packDependencies` is deliberately absent: it is derived from song state, so
  * `saveSong` recomputes it rather than a caller offering a value (invariant 12).
+ * `addedPacks` — the project's pack shelf (LIB-08) — *is* present, because it is
+ * maintained by the `pack.add`/`pack.remove` commands rather than derived, and
+ * adding a pack the user has not yet used touches only this tier.
  */
 export interface ProjectMetadataPatch {
 	readonly name?: string;
 	readonly template?: string | null;
 	readonly genre?: string | null;
 	readonly collaboratorIds?: readonly string[];
+	readonly addedPacks?: readonly PackDependency[];
 }
 
 /**

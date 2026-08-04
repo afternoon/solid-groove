@@ -2,6 +2,7 @@ import { clipCommands } from "./definitions/clips";
 import { drumCommands } from "./definitions/drum";
 import { instrumentCommands } from "./definitions/instruments";
 import { noteCommands } from "./definitions/notes";
+import { packCommands } from "./definitions/packs";
 import { parameterCommands } from "./definitions/parameters";
 import { placementCommands } from "./definitions/placements";
 import { trackCommands } from "./definitions/tracks";
@@ -30,6 +31,7 @@ const ALL_DEFINITIONS: readonly RegisteredCommand[] = [
 	...parameterCommands,
 	...drumCommands,
 	...instrumentCommands,
+	...packCommands,
 ];
 
 function buildRegistry(

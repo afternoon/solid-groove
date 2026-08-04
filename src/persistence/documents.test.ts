@@ -169,7 +169,10 @@ describe("decodeProject", () => {
 		const documents = documentsOf();
 		const future = {
 			...documents,
-			metadata: { ...(documents.metadata as object), schemaVersion: 2 },
+			metadata: {
+				...(documents.metadata as object),
+				schemaVersion: SCHEMA_VERSION + 1,
+			},
 		};
 
 		const decoded = decodeProject(future);

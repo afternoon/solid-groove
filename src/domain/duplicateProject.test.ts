@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { duplicateProject } from "./duplicateProject";
-import type { AutomationLane, Device, Project, Song } from "./entities";
+import {
+	type AutomationLane,
+	type Device,
+	type Project,
+	packVersion,
+	type Song,
+} from "./entities";
 import {
 	createAsset,
 	createAudioLoopClip,
@@ -233,13 +239,19 @@ function buildRichProject(seed = "duplicate-fixture"): Project {
 		automation,
 	};
 
+	const dependencies = derivePackDependencies(song);
 	return assertProject({
 		metadata: createProjectMetadata(context, {
 			ownerId: "user_owner",
 			name: "Rich Project",
 			template: "starter",
 			genre: "house",
-			packDependencies: derivePackDependencies(song),
+			packDependencies: dependencies,
+			// A pack on the shelf that no asset uses, so duplication has to carry it.
+			addedPacks: [
+				...dependencies,
+				{ packId: context.ids("pack"), version: packVersion("1.0.0") },
+			],
 		}),
 		song,
 		clips: [drumClip, bassClip, loopClip],
@@ -329,6 +341,18 @@ describe("duplicateProject", () => {
 		expect(duplicatePacks).toEqual(sourcePacks);
 		expect(duplicate.metadata.packDependencies).toEqual(
 			source.metadata.packDependencies,
+		);
+	});
+
+	it("carries the pack shelf, including an added-but-unused pack, into the copy", () => {
+		const source = buildRichProject();
+		const duplicate = duplicateProject(source);
+
+		expect(duplicate.metadata.addedPacks).toEqual(source.metadata.addedPacks);
+		// The shelf is a strict superset of the dependency list: the extra pack the
+		// user added but never used survives duplication.
+		expect(duplicate.metadata.addedPacks.length).toBeGreaterThan(
+			duplicate.metadata.packDependencies.length,
 		);
 	});
 

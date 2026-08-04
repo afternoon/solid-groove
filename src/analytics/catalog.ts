@@ -191,6 +191,8 @@ export const COMMAND_IDS = [
 	"drum.reorderPad",
 	"instrument.change",
 	"instrument.setSample",
+	"pack.add",
+	"pack.remove",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 
@@ -427,6 +429,14 @@ export const ANALYTICS_EVENTS = {
 			asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
 			had_genre_filter: boolParam(),
 		},
+	},
+
+	library_pack_added: {
+		phase: 2,
+		owners: ["LIB-08", "LOOP-013"],
+		// `pack_kind` is the only descriptor of what was added — never the pack's
+		// ID, name, or version, which would identify the specific content.
+		params: { pack_kind: enumParam(["factory", "user", "third_party"]) },
 	},
 
 	clip_edited: {

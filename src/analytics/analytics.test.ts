@@ -126,6 +126,37 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 	});
 });
 
+describe("library_pack_added (LIB-08)", () => {
+	// The event is defined and emitted through the shared catalog here; the call
+	// site (the pack browser's Add-pack action) arrives with LOOP-013, which is
+	// the surface that holds the Pack record and therefore its kind. These tests
+	// pin the catalog contract: shape, once-per-action, and consent-gating.
+	it("sends exactly one event carrying only pack_kind", () => {
+		const { analytics, transport } = setup();
+		analytics.log("library_pack_added", { pack_kind: "factory" });
+		expect(transport.named("library_pack_added")).toHaveLength(1);
+		expect(transport.events[0].params).toEqual({
+			release_sha: "abc123def456",
+			surface: "editor",
+			pack_kind: "factory",
+		});
+	});
+
+	it("fires once per add, not once per render", () => {
+		const { analytics, transport } = setup();
+		analytics.log("library_pack_added", { pack_kind: "factory" });
+		analytics.log("library_pack_added", { pack_kind: "user" });
+		expect(transport.named("library_pack_added")).toHaveLength(2);
+	});
+
+	it("sends nothing while the user is opted out", () => {
+		const { analytics, transport, consent } = setup();
+		consent.optOut();
+		analytics.log("library_pack_added", { pack_kind: "factory" });
+		expect(transport.events).toHaveLength(0);
+	});
+});
+
 describe("fail-open (PRD OPS-02)", () => {
 	it("swallows a throwing transport", () => {
 		const { analytics } = setup({ transport: createFailingTransport() });

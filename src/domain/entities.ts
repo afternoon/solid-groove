@@ -38,8 +38,14 @@ import { durationTickSchema, tickSchema } from "./time";
  * `parse.ts`, which is the only entry point that yields a `Project`.
  */
 
-/** The first production schema version. Prototype documents are not v1. */
-export const SCHEMA_VERSION = 1;
+/**
+ * The current production schema version. Prototype documents are not v1.
+ *
+ * v1 was the first production schema. v2 (LIB-08) adds `metadata.addedPacks`,
+ * the project's pack shelf; a v1 project migrates forward by seeding its shelf
+ * from its derived pack dependencies (`persistence/migrations.ts`).
+ */
+export const SCHEMA_VERSION = 2;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);
@@ -412,6 +418,20 @@ export const projectMetadataSchema = z.strictObject({
 	 * carries at most one version per pack.
 	 */
 	packDependencies: z.array(packDependencySchema),
+	/**
+	 * The packs the user has *added to this project's shelf* (LIB-08).
+	 *
+	 * This is the "which packs has the user put on the shelf?" list, distinct
+	 * from `packDependencies`, which is "which packs does the project need in
+	 * order to open?". A user can add a pack, browse it, and not yet use a sound
+	 * from it: that pack belongs here but not in `packDependencies`, and it must
+	 * survive a reload. So unlike `packDependencies` this list is *maintained*
+	 * by the `pack.add` / `pack.remove` commands rather than derived — but it is
+	 * not free-form: a used pack (one in `packDependencies`) must also appear
+	 * here at the same version, so the shelf is always a superset of the
+	 * dependency list. `checkProjectIntegrity` enforces both directions.
+	 */
+	addedPacks: z.array(packDependencySchema),
 });
 export type ProjectMetadata = z.infer<typeof projectMetadataSchema>;
 
