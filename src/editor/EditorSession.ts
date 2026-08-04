@@ -122,31 +122,39 @@ export class EditorSession {
 	}
 
 	/**
-	 * Opens a continuous gesture — a fader or pan drag — that applies each step
-	 * immediately (so audio stays live) but commits as one history entry and one
-	 * revision (PRD section 9.6). Autosave is queued once, on commit, against the
-	 * project as it was when the gesture began: a fader drag persists a single
-	 * song write, not one per pointer move.
+	 * Opens a continuous edit gesture — a step-editor paint or erase stroke, a
+	 * fader or pan drag — that applies each step immediately (so the UI and audio
+	 * stay live) but commits as one history entry and one revision (PRD section
+	 * 9.6; CLP-02 "undo groups a single drag gesture").
+	 *
+	 * Autosave is deferred to `commit` and queued from a structural diff against
+	 * the project as it was when the gesture began: a fader drag persists a
+	 * single song write, and a stroke that touches ten steps writes the changed
+	 * clip document *once*, not once per step. `first_edit` fires for the
+	 * stroke's first command. `cancel` abandons the whole stroke, so nothing is
+	 * queued and nothing was persisted.
 	 */
 	beginGesture(options: GestureOptions = {}): Gesture {
 		const before = this.history.project;
 		const gesture = this.history.beginGesture(options);
-		const session = this;
+		let firstEditResult: TransactionSuccess | null = null;
 		return {
 			get active() {
 				return gesture.active;
 			},
-			apply(commands) {
-				return gesture.apply(commands);
+			apply: (commands) => {
+				const result = gesture.apply(commands);
+				if (result.ok && !firstEditResult) firstEditResult = result;
+				return result;
 			},
-			commit(summary) {
+			commit: (summary?: string) => {
 				const entry = gesture.commit(summary);
-				if (entry) {
-					session.queueDiff(session.history.project, before);
-				}
+				if (!entry) return entry;
+				if (firstEditResult) this.logFirstEdit(firstEditResult);
+				this.queueDiff(this.history.project, before);
 				return entry;
 			},
-			cancel() {
+			cancel: () => {
 				gesture.cancel();
 			},
 		};

@@ -48,6 +48,19 @@ vi.mock("../projectRepositoryClient", () => ({
 	getProjectRepository: () => Promise.resolve(repository),
 }));
 
+/**
+ * Paints or erases one step-editor cell the way a pointer does: `pointerdown`
+ * begins the stroke (add if the cell is empty, erase if filled), `pointerup`
+ * commits it as one history entry. `fireEvent.click` is not enough — the step
+ * editor drives painting from pointer events, not click, so a drag never starts
+ * a text selection (CLP-02).
+ */
+function paintStep(name: string): void {
+	const cell = screen.getByRole("button", { name });
+	fireEvent.pointerDown(cell, { button: 0 });
+	fireEvent.pointerUp(cell);
+}
+
 // EditorView links back to the dashboard with <A>, which needs a matched Route
 // context to resolve against — a bare MemoryRouter isn't enough.
 function renderEditor(
@@ -82,7 +95,7 @@ describe("EditorView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("loads a project and renders its 16-step grid with the saved steps", async () => {
+	it("loads a project and renders its step editor with the saved steps", async () => {
 		repository = inMemoryModule.createInMemoryProjectRepository();
 		const project = createSliceFixtureProject();
 		const created = await repository.createProject(project);
@@ -91,13 +104,15 @@ describe("EditorView", () => {
 		renderEditor(project.metadata.id);
 
 		expect(
-			await screen.findByRole("group", { name: "16-step sequence" }),
+			await screen.findByRole("region", { name: "Step editor" }),
+		).toBeInTheDocument();
+		// The slice fixture's four-on-the-floor clip: steps 1, 5, 9, 13 on the
+		// single pitched "Notes" lane.
+		expect(
+			screen.getByRole("button", { name: "Notes, step 1, on" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "Step 1, on" }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Step 2, off" }),
+			screen.getByRole("button", { name: "Notes, step 2, off" }),
 		).toBeInTheDocument();
 		expect(screen.getByText(project.song.tracks[0].name)).toBeInTheDocument();
 		// The reopened project reports the pack dependency it saved.
@@ -155,11 +170,11 @@ describe("EditorView", () => {
 		if (!created.ok) throw new Error("fixture project failed to create");
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 		expect(
-			await screen.findByRole("button", { name: "Step 2, on" }),
+			await screen.findByRole("button", { name: "Notes, step 2, on" }),
 		).toBeInTheDocument();
 
 		const undoButton = await screen.findByRole("button", { name: /^Undo/ });
@@ -167,7 +182,7 @@ describe("EditorView", () => {
 		fireEvent.click(undoButton);
 
 		expect(
-			await screen.findByRole("button", { name: "Step 2, off" }),
+			await screen.findByRole("button", { name: "Notes, step 2, off" }),
 		).toBeInTheDocument();
 	});
 
@@ -179,9 +194,9 @@ describe("EditorView", () => {
 		const startingRevision = project.metadata.revision;
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 
 		const saveStatus = await screen.findByText("Saved", {}, { timeout: 3_000 });
 		expect(
@@ -202,9 +217,9 @@ describe("EditorView", () => {
 		if (!created.ok) throw new Error("fixture project failed to create");
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 		await screen.findByText("Saved", {}, { timeout: 3_000 });
 		const saveStatusEl = document.querySelector(".save-status");
 		const revisionAfterAdd = Number(
@@ -213,7 +228,7 @@ describe("EditorView", () => {
 
 		const undoButton = await screen.findByRole("button", { name: /^Undo/ });
 		fireEvent.click(undoButton);
-		await screen.findByRole("button", { name: "Step 2, off" });
+		await screen.findByRole("button", { name: "Notes, step 2, off" });
 
 		await vi.waitFor(() => {
 			const revisionAfterUndo = Number(
@@ -238,9 +253,9 @@ describe("EditorView", () => {
 
 		repository.failNextWrites({ count: 1 });
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 
 		await screen.findByText("Save failed", {}, { timeout: 3_000 });
 		expect(screen.getByText("Check your connection.")).toBeInTheDocument();
@@ -268,7 +283,7 @@ describe("EditorView", () => {
 		if (!created.ok) throw new Error("fixture project failed to create");
 
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 
 		// Another client's write lands in the store directly, without going
 		// through `saveMetadata` (which would notify this session's own
@@ -284,7 +299,7 @@ describe("EditorView", () => {
 			revision: (stored.revision as number) + 1,
 		});
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
+		paintStep("Notes, step 2, off");
 
 		await screen.findByText("Save failed", {}, { timeout: 3_000 });
 		expect(
@@ -318,7 +333,7 @@ describe("EditorView library audition engine lifecycle", () => {
 				return engine;
 			},
 		});
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 		return { engines };
 	}
 
@@ -371,20 +386,20 @@ describe("EditorView keyboard shortcuts", () => {
 		const created = await repository.createProject(project);
 		if (!created.ok) throw new Error("fixture project failed to create");
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 		return project;
 	}
 
 	it("undoes an edit from the keyboard, through the same command path as the button", async () => {
 		await renderSlice();
 
-		fireEvent.click(screen.getByRole("button", { name: "Step 2, off" }));
-		await screen.findByRole("button", { name: "Step 2, on" });
+		paintStep("Notes, step 2, off");
+		await screen.findByRole("button", { name: "Notes, step 2, on" });
 
 		fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
 		expect(
-			await screen.findByRole("button", { name: "Step 2, off" }),
+			await screen.findByRole("button", { name: "Notes, step 2, off" }),
 		).toBeInTheDocument();
 	});
 
@@ -396,7 +411,7 @@ describe("EditorView keyboard shortcuts", () => {
 
 		expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
 		expect(
-			screen.getByRole("button", { name: "Step 1, on" }),
+			screen.getByRole("button", { name: "Notes, step 1, on" }),
 		).toBeInTheDocument();
 	});
 
@@ -500,7 +515,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
 		const created = await repository.createProject(project);
 		if (!created.ok) throw new Error("fixture project failed to create");
 		renderEditor(project.metadata.id);
-		await screen.findByRole("group", { name: "16-step sequence" });
+		await screen.findByRole("region", { name: "Step editor" });
 		return project;
 	}
 
