@@ -1,15 +1,3 @@
-import { A } from "@solidjs/router";
-import {
-	HiSolidArrowPathRoundedSquare,
-	HiSolidArrowUturnLeft,
-	HiSolidArrowUturnRight,
-	HiSolidMusicalNote,
-	HiSolidPlay,
-	HiSolidQuestionMarkCircle,
-	HiSolidRectangleStack,
-	HiSolidSquares2x2,
-	HiSolidStop,
-} from "solid-icons/hi";
 import {
 	createMemo,
 	createResource,
@@ -22,7 +10,7 @@ import {
 } from "solid-js";
 import ArrangementView from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
-import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
+import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
@@ -35,12 +23,12 @@ import SynthPanel from "../instrument/SynthPanel";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
-import type { SaveFailureReason } from "../persistence/projectRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
+import EditorHeader from "./EditorHeader";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
@@ -59,31 +47,6 @@ export interface EditorViewProps {
 	 */
 	readonly createAuditionEngine?: () => PreviewEngine;
 }
-
-const SAVE_STATUS_LABEL: Record<string, string> = {
-	idle: "",
-	pending: "Saving…",
-	saving: "Saving…",
-	saved: "Saved",
-	failed: "Save failed",
-};
-
-/**
- * Actionable text for the PRD `PRJ-03` "actionable Save failed" state. Never
- * the repository's raw `SaveFailure.message` — that can carry backend error
- * text not meant for a user-facing surface — and never the reason string
- * itself, which is an internal, unlocalized identifier.
- */
-const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
-	unavailable: "Check your connection.",
-	revision_conflict: "This project changed in another tab or session.",
-	not_found: "This project no longer exists.",
-	already_exists: "A save conflict occurred.",
-	unsupported_schema_version:
-		"This project needs a newer version of Solid Groove.",
-	invalid_document: "Something about this save wasn't valid.",
-	document_too_large: "This project is too large to save further changes.",
-};
 
 /**
  * The project editor: open a schema-v1 project, program its clip — on the
@@ -363,14 +326,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		return dependency ? `${dependency.packId} @ ${dependency.version}` : null;
 	});
 
-	const saveStatusLabel = createMemo(
-		() => SAVE_STATUS_LABEL[session.state.saveStatus?.state ?? "idle"],
-	);
-	const saveFailure = createMemo(() => session.state.saveStatus?.failure);
-	const saveFailureMessage = createMemo(() => {
-		const failure = saveFailure();
-		return failure ? SAVE_FAILURE_REASON_LABEL[failure.reason] : null;
-	});
+	const saveStatus = createMemo(() => session.state.saveStatus);
 
 	return (
 		<main class="editor">
@@ -401,175 +357,31 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 				<Match when={project()}>
 					{(currentProject) => (
 						<>
-							<header class="editor-header">
-								<A
-									class="back-to-projects"
-									href="/dashboard"
-									aria-label="Projects"
-									title="Projects"
-								>
-									<HiSolidSquares2x2 size={18} />
-								</A>
-								<h1 class="project-name">{currentProject().metadata.name}</h1>
-								<div class="transport-controls">
-									<button
-										type="button"
-										class="undo-button"
-										disabled={!session.state.canUndo}
-										aria-label={
-											session.state.undoSummary
-												? `Undo ${session.state.undoSummary}`
-												: "Undo"
-										}
-										title={`${session.state.undoSummary ?? "Undo"} (${keyHint("edit.undo")})`}
-										onClick={() => session.undo()}
-									>
-										<HiSolidArrowUturnLeft size={18} />
-									</button>
-									<button
-										type="button"
-										class="redo-button"
-										disabled={!session.state.canRedo}
-										aria-label={
-											session.state.redoSummary
-												? `Redo ${session.state.redoSummary}`
-												: "Redo"
-										}
-										title={`${session.state.redoSummary ?? "Redo"} (${keyHint("edit.redo")})`}
-										onClick={() => session.redo()}
-									>
-										<HiSolidArrowUturnRight size={18} />
-									</button>
-									<button
-										type="button"
-										class="transport-toggle"
-										onClick={() => void audio.toggle()}
-										aria-pressed={audio.isPlaying()}
-										aria-label={
-											audio.isPlaying() ? "Stop playback" : "Start playback"
-										}
-										title={`${audio.isPlaying() ? "Stop" : "Play"} (${keyHint(
-											"transport.play_stop",
-										)})`}
-									>
-										<Show
-											when={audio.isPlaying()}
-											fallback={<HiSolidPlay size={22} />}
-										>
-											<HiSolidStop size={22} />
-										</Show>
-									</button>
-									<button
-										type="button"
-										class="loop-toggle"
-										onClick={() => audio.toggleLoop()}
-										aria-pressed={audio.loopEnabled()}
-										aria-label={
-											audio.loopEnabled() ? "Disable loop" : "Enable loop"
-										}
-										title={audio.loopEnabled() ? "Disable loop" : "Enable loop"}
-									>
-										<HiSolidArrowPathRoundedSquare size={18} />
-									</button>
-									<button
-										type="button"
-										class="metronome-toggle"
-										onClick={() => audio.toggleMetronome()}
-										aria-pressed={audio.metronomeEnabled()}
-										aria-label={
-											audio.metronomeEnabled()
-												? "Disable metronome"
-												: "Enable metronome"
-										}
-										title={`Metronome (${keyHint("transport.metronome")})`}
-									>
-										<HiSolidMusicalNote size={18} />
-									</button>
-									<div class="tempo-control">
-										{/* The label is the input's only accessible name — no
-										    aria-label to override it — and the unit is decorative
-										    text the name already carries. */}
-										<label class="visually-hidden" for="tempo-input">
-											Tempo (BPM)
-										</label>
-										<input
-											id="tempo-input"
-											type="number"
-											class="tempo-input"
-											min={MIN_TEMPO_BPM}
-											max={MAX_TEMPO_BPM}
-											step={1}
-											value={tempo()}
-											onChange={(event) =>
-												applyTempo(event.currentTarget.valueAsNumber)
-											}
-										/>
-										<span class="tempo-unit" aria-hidden="true">
-											BPM
-										</span>
-									</div>
-									<Show when={timeSignature()}>
-										{(signature) => (
-											<span
-												class="time-signature"
-												title="Time signature (fixed at 4/4)"
-											>
-												<span class="visually-hidden">Time signature </span>
-												{signature().numerator}/{signature().denominator}
-											</span>
-										)}
-									</Show>
-									<span class="playhead-position" title="Playhead (bar.beat)">
-										<span class="visually-hidden">Playhead at bar </span>
-										{playheadLabel()}
-									</span>
-								</div>
-								<button
-									type="button"
-									class="library-toggle"
-									aria-label="Library"
-									aria-pressed={libraryOpen()}
-									title="Library"
-									onClick={() => setLibraryOpen((open) => !open)}
-								>
-									<HiSolidRectangleStack size={18} />
-								</button>
-								<button
-									type="button"
-									class="shortcut-guide-button"
-									aria-label="Keyboard shortcuts"
-									title={`Keyboard shortcuts (${keyHint("help.shortcut_guide")})`}
-									onClick={() => setGuideOpen(true)}
-								>
-									<HiSolidQuestionMarkCircle size={18} />
-								</button>
-								<div class="save-status-group">
-									<div
-										class="save-status"
-										data-state={session.state.saveStatus?.state}
-										data-revision={session.state.saveStatus?.revision}
-										title={`Revision ${session.state.saveStatus?.revision ?? 0}`}
-									>
-										{saveStatusLabel()}
-									</div>
-									<Show when={saveFailure()}>
-										<div class="save-recovery" role="alert">
-											<span class="save-recovery-message">
-												{saveFailureMessage()}
-											</span>
-											<Show when={saveFailure()?.retryable}>
-												<button
-													type="button"
-													class="save-retry-button"
-													onClick={() => void session.retry()}
-												>
-													Retry
-												</button>
-											</Show>
-										</div>
-									</Show>
-								</div>
-							</header>
+							<EditorHeader
+								projectName={currentProject().metadata.name}
+								canUndo={session.state.canUndo}
+								undoSummary={session.state.undoSummary}
+								canRedo={session.state.canRedo}
+								redoSummary={session.state.redoSummary}
+								onUndo={() => session.undo()}
+								onRedo={() => session.redo()}
+								isPlaying={audio.isPlaying}
+								onTogglePlay={() => void audio.toggle()}
+								loopEnabled={audio.loopEnabled}
+								onToggleLoop={() => audio.toggleLoop()}
+								metronomeEnabled={audio.metronomeEnabled}
+								onToggleMetronome={() => audio.toggleMetronome()}
+								tempo={tempo}
+								onTempoChange={applyTempo}
+								timeSignature={timeSignature}
+								playheadLabel={playheadLabel}
+								libraryOpen={libraryOpen}
+								onToggleLibrary={() => setLibraryOpen((open) => !open)}
+								onOpenGuide={() => setGuideOpen(true)}
+								keyHint={keyHint}
+								saveStatus={saveStatus}
+								onRetrySave={() => void session.retry()}
+							/>
 							<div class="arrangement-panel">
 								<ArrangementView
 									project={currentProject()}
