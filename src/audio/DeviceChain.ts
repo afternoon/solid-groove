@@ -50,6 +50,18 @@ export function createPassthroughDeviceNode(device: Device): DeviceNode {
 
 const defaultDeviceNodeFactory: DeviceNodeFactory = createPassthroughDeviceNode;
 
+/**
+ * The gain dip applied around a chain relink so composition or order changes do
+ * not click (PRD FX-01: a reorder's reconnection must be click-safe). A Web
+ * Audio `disconnect()`/`connect()` is an instantaneous topology change: the
+ * sample the graph produces on the block after the change can jump from the old
+ * routing's value to the new one, and that step is an audible transient. Ramping
+ * the chain's own output to zero, relinking, then ramping back masks the step in
+ * a fade far shorter than a fader move yet long enough to avoid the click. It
+ * costs nothing on a parameter- or bypass-only reconcile, which never relinks.
+ */
+export const RELINK_FADE_SECONDS = 0.005;
+
 interface TrackedDevice {
 	node: DeviceNode;
 	handle: ReturnType<AudioProjectScope["register"]>;
@@ -115,7 +127,19 @@ export class DeviceChain {
 		if (compositionChanged || orderChanged) this.relink();
 	}
 
+	/**
+	 * Rewires the serial signal path, click-safe: the output is faded to zero
+	 * across `RELINK_FADE_SECONDS`, the topology is rebuilt while it is silent,
+	 * then it is faded back. Only the added/removed/reordered case reaches here;
+	 * a bypass- or parameter-only reconcile applies changes on the existing nodes
+	 * and never relinks, so it pays no fade.
+	 */
 	private relink(): void {
+		const now = this.output.immediate();
+		this.output.gain.cancelScheduledValues(now);
+		this.output.gain.setValueAtTime(this.output.gain.value, now);
+		this.output.gain.linearRampToValueAtTime(0, now + RELINK_FADE_SECONDS);
+
 		this.input.disconnect();
 		let previous: Tone.ToneAudioNode = this.input;
 		for (const id of this.order) {
@@ -126,6 +150,8 @@ export class DeviceChain {
 			previous = tracked.node.output;
 		}
 		previous.connect(this.output);
+
+		this.output.gain.linearRampToValueAtTime(1, now + 2 * RELINK_FADE_SECONDS);
 	}
 
 	/** Tears down every device node and this chain's own shell. Idempotent. */

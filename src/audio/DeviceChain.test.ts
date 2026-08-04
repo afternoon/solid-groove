@@ -176,6 +176,55 @@ describe("DeviceChain", () => {
 		await runtime.close();
 	});
 
+	it("dips the chain output around a relink so a reorder is click-safe", () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const chain = new DeviceChainModule.DeviceChain(scope, fakeFactory([]));
+
+		chain.reconcile([device("dev_a", 0), device("dev_b", 1)]);
+		// A reorder relinks: the output gain must be scheduled down to 0 and back
+		// to 1 (a make-before-break fade) rather than switching topology at full
+		// gain, which is the audible transient FX-01 forbids.
+		const rampsScheduled: number[] = [];
+		const gain = chain.output.gain;
+		const originalRamp = gain.linearRampToValueAtTime.bind(gain);
+		gain.linearRampToValueAtTime = ((value: number, time: number) => {
+			rampsScheduled.push(value);
+			return originalRamp(value, time);
+		}) as typeof gain.linearRampToValueAtTime;
+
+		chain.reconcile([device("dev_b", 0), device("dev_a", 1)]);
+		expect(rampsScheduled).toEqual([0, 1]);
+
+		chain.dispose();
+		return runtime.close();
+	});
+
+	it("does not dip the output on a bypass/parameter-only reconcile", () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const chain = new DeviceChainModule.DeviceChain(scope, fakeFactory([]));
+
+		chain.reconcile([device("dev_a", 0), device("dev_b", 1)]);
+		const gain = chain.output.gain;
+		let ramps = 0;
+		const originalRamp = gain.linearRampToValueAtTime.bind(gain);
+		gain.linearRampToValueAtTime = ((value: number, time: number) => {
+			ramps += 1;
+			return originalRamp(value, time);
+		}) as typeof gain.linearRampToValueAtTime;
+
+		// Same ids, same order, only a bypass flip — no relink, so no fade.
+		chain.reconcile([
+			{ ...device("dev_a", 0), bypassed: true },
+			device("dev_b", 1),
+		]);
+		expect(ramps).toBe(0);
+
+		chain.dispose();
+		return runtime.close();
+	});
+
 	it("the default passthrough device leaves a signal unchanged", async () => {
 		const rendered = await Tone.Offline(({ destination }) => {
 			const runtime = new AudioRuntimeModule.AudioRuntime();
