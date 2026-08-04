@@ -1,6 +1,8 @@
 import * as Tone from "tone";
 import type { Device } from "../domain/entities";
 import type { DeviceId } from "../domain/ids";
+import type { CancelScheduled, Scheduler } from "../shared/scheduler";
+import { timeoutScheduler } from "../shared/scheduler";
 import type { AudioProjectScope } from "./AudioRuntime";
 
 /**
@@ -80,10 +82,20 @@ export class DeviceChain {
 	private readonly nodes = new Map<DeviceId, TrackedDevice>();
 	private order: DeviceId[] = [];
 	private readonly chainHandle: ReturnType<AudioProjectScope["register"]>;
+	/** True once the signal path has been wired at least once. Guards the very
+	 * first `relink()` (empty -> initial topology) so it connects directly at
+	 * gain 1 instead of scheduling a spurious dip nothing was ever routed
+	 * through in the first place. */
+	private linked = false;
+	/** Cancels a rewire deferred by a relink still fading out, so a second
+	 * relink arriving before the first completes supersedes it instead of
+	 * racing it (see `relink()`). */
+	private pendingRelink: CancelScheduled | null = null;
 
 	constructor(
 		private readonly scope: AudioProjectScope,
 		private readonly createNode: DeviceNodeFactory = defaultDeviceNodeFactory,
+		private readonly scheduler: Scheduler = timeoutScheduler,
 	) {
 		this.input = new Tone.Gain(1);
 		this.output = new Tone.Gain(1);
@@ -128,18 +140,58 @@ export class DeviceChain {
 	}
 
 	/**
-	 * Rewires the serial signal path, click-safe: the output is faded to zero
-	 * across `RELINK_FADE_SECONDS`, the topology is rebuilt while it is silent,
-	 * then it is faded back. Only the added/removed/reordered case reaches here;
-	 * a bypass- or parameter-only reconcile applies changes on the existing nodes
-	 * and never relinks, so it pays no fade.
+	 * Rewires the serial signal path with a true make-before-break: the output
+	 * is ramped to zero across `RELINK_FADE_SECONDS`, and only once that ramp
+	 * has actually reached silence does the topology change (deferred via the
+	 * injectable `Scheduler`, so tests can drive it deterministically instead
+	 * of racing a real timer). Rewiring synchronously — before the ramp
+	 * completes — was the FX-01 bug this guards against: the graph's sample
+	 * discontinuity would have played through at ~full gain, since a scheduled
+	 * ramp is only a future automation curve, not an instantaneous value.
+	 *
+	 * The very first relink (nothing was ever live) skips the fade entirely —
+	 * there is no prior routing to click away from, so dipping to 0 and back
+	 * would just be an audible fade-in on project open.
+	 *
+	 * A relink that arrives while a previous one is still fading cancels the
+	 * previous one's deferred rewire outright and starts its own down-ramp
+	 * fresh from `now`; only the newest relink's rewire ever runs, reading
+	 * `this.order`/`this.nodes` at fire time so the latest composition wins
+	 * even if it changed again while waiting out the fade.
 	 */
 	private relink(): void {
+		this.pendingRelink?.();
+		this.pendingRelink = null;
+
+		if (!this.linked) {
+			this.rewire();
+			this.linked = true;
+			return;
+		}
+
 		const now = this.output.immediate();
 		this.output.gain.cancelScheduledValues(now);
 		this.output.gain.setValueAtTime(this.output.gain.value, now);
 		this.output.gain.linearRampToValueAtTime(0, now + RELINK_FADE_SECONDS);
 
+		this.pendingRelink = this.scheduler.schedule(() => {
+			this.pendingRelink = null;
+			this.rewire();
+			const resumeNow = this.output.immediate();
+			this.output.gain.cancelScheduledValues(resumeNow);
+			this.output.gain.setValueAtTime(0, resumeNow);
+			this.output.gain.linearRampToValueAtTime(
+				1,
+				resumeNow + RELINK_FADE_SECONDS,
+			);
+		}, RELINK_FADE_SECONDS * 1000);
+	}
+
+	/** Rebuilds the serial signal path from the current `order`/`nodes`. Only
+	 * ever called while the output is silent (or, for the very first link,
+	 * before anything has ever been connected), so the topology change itself
+	 * is inaudible regardless of when it runs. */
+	private rewire(): void {
 		this.input.disconnect();
 		let previous: Tone.ToneAudioNode = this.input;
 		for (const id of this.order) {
@@ -150,12 +202,12 @@ export class DeviceChain {
 			previous = tracked.node.output;
 		}
 		previous.connect(this.output);
-
-		this.output.gain.linearRampToValueAtTime(1, now + 2 * RELINK_FADE_SECONDS);
 	}
 
 	/** Tears down every device node and this chain's own shell. Idempotent. */
 	dispose(): void {
+		this.pendingRelink?.();
+		this.pendingRelink = null;
 		for (const [, tracked] of this.nodes) {
 			void this.scope.release(tracked.handle);
 		}

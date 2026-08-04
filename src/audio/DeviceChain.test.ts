@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device } from "../domain/entities";
+import { createManualScheduler } from "../shared/scheduler";
 import { installWebAudioGlobals, rms } from "./testAudioContext";
 
 // Must run before Tone is imported — see AudioRuntime.test.ts for why.
@@ -179,11 +180,17 @@ describe("DeviceChain", () => {
 	it("dips the chain output around a relink so a reorder is click-safe", () => {
 		const runtime = new AudioRuntimeModule.AudioRuntime();
 		const scope = runtime.openProjectScope("p");
-		const chain = new DeviceChainModule.DeviceChain(scope, fakeFactory([]));
+		const scheduler = createManualScheduler();
+		const chain = new DeviceChainModule.DeviceChain(
+			scope,
+			fakeFactory([]),
+			scheduler,
+		);
 
 		chain.reconcile([device("dev_a", 0), device("dev_b", 1)]);
-		// A reorder relinks: the output gain must be scheduled down to 0 and back
-		// to 1 (a make-before-break fade) rather than switching topology at full
+		// A reorder relinks: the output gain must be scheduled down to 0, and
+		// (once the down-ramp has actually reached silence) back to 1 — a
+		// make-before-break fade — rather than switching topology at full
 		// gain, which is the audible transient FX-01 forbids.
 		const rampsScheduled: number[] = [];
 		const gain = chain.output.gain;
@@ -194,10 +201,176 @@ describe("DeviceChain", () => {
 		}) as typeof gain.linearRampToValueAtTime;
 
 		chain.reconcile([device("dev_b", 0), device("dev_a", 1)]);
+		expect(rampsScheduled).toEqual([0]);
+
+		scheduler.advance(DeviceChainModule.RELINK_FADE_SECONDS * 1000);
 		expect(rampsScheduled).toEqual([0, 1]);
 
 		chain.dispose();
 		return runtime.close();
+	});
+
+	it("defers the topology rewire until the down-ramp has reached silence (true make-before-break)", () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const scheduler = createManualScheduler();
+		const chain = new DeviceChainModule.DeviceChain(
+			scope,
+			fakeFactory([]),
+			scheduler,
+		);
+
+		// First reconcile is the initial build — no prior topology, so it
+		// links immediately with no fade (see the initial-build guard test).
+		chain.reconcile([device("dev_a", 0), device("dev_b", 1)]);
+
+		const events: string[] = [];
+		const originalDisconnect = chain.input.disconnect.bind(chain.input);
+		chain.input.disconnect = (() => {
+			events.push("rewire");
+			return originalDisconnect();
+		}) as typeof chain.input.disconnect;
+		const gain = chain.output.gain;
+		const originalRamp = gain.linearRampToValueAtTime.bind(gain);
+		gain.linearRampToValueAtTime = ((value: number, time: number) => {
+			events.push(value === 0 ? "ramp-down" : "ramp-up");
+			return originalRamp(value, time);
+		}) as typeof gain.linearRampToValueAtTime;
+
+		// A reorder is a genuine relink: the down-ramp must be scheduled, but
+		// the rewire (input.disconnect(), the FX-01 bug's synchronous half)
+		// must NOT run yet — the previous topology is still live and
+		// connected, and the down-ramp is only a future automation curve at
+		// this point, not yet a value of 0.
+		chain.reconcile([device("dev_b", 0), device("dev_a", 1)]);
+		expect(events).toEqual(["ramp-down"]);
+		expect(scheduler.pending).toBe(1);
+
+		// Only once the scheduler fires — i.e. once the down-ramp has actually
+		// reached 0 — does the rewire run, immediately followed by the ramp
+		// back up. This ordering (rewire strictly after ramp-down) is exactly
+		// what the pre-fix synchronous code got backwards.
+		scheduler.advance(DeviceChainModule.RELINK_FADE_SECONDS * 1000);
+		expect(events).toEqual(["ramp-down", "rewire", "ramp-up"]);
+
+		chain.dispose();
+		return runtime.close();
+	});
+
+	it("the initial build links directly with no fade or deferred rewire", () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const scheduler = createManualScheduler();
+		const chain = new DeviceChainModule.DeviceChain(
+			scope,
+			fakeFactory([]),
+			scheduler,
+		);
+
+		const gain = chain.output.gain;
+		let ramps = 0;
+		const originalRamp = gain.linearRampToValueAtTime.bind(gain);
+		gain.linearRampToValueAtTime = ((value: number, time: number) => {
+			ramps += 1;
+			return originalRamp(value, time);
+		}) as typeof gain.linearRampToValueAtTime;
+
+		// The very first reconcile builds topology from empty — there is no
+		// prior live routing to click away from, so it must not schedule any
+		// fade (which would just be an audible dip/fade-in on project open).
+		chain.reconcile([device("dev_a", 0), device("dev_b", 1)]);
+
+		expect(ramps).toBe(0);
+		expect(scheduler.pending).toBe(0);
+
+		chain.dispose();
+		return runtime.close();
+	});
+
+	it("coalesces a relink that arrives mid-fade into exactly one consistent wiring and one gain recovery", () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const scheduler = createManualScheduler();
+		const chain = new DeviceChainModule.DeviceChain(
+			scope,
+			fakeFactory([]),
+			scheduler,
+		);
+
+		chain.reconcile([
+			device("dev_a", 0),
+			device("dev_b", 1),
+			device("dev_c", 2),
+		]);
+
+		let disconnectCalls = 0;
+		const originalDisconnect = chain.input.disconnect.bind(chain.input);
+		chain.input.disconnect = (() => {
+			disconnectCalls += 1;
+			return originalDisconnect();
+		}) as typeof chain.input.disconnect;
+		const gain = chain.output.gain;
+		let rampUps = 0;
+		const originalRamp = gain.linearRampToValueAtTime.bind(gain);
+		gain.linearRampToValueAtTime = ((value: number, time: number) => {
+			if (value === 1) rampUps += 1;
+			return originalRamp(value, time);
+		}) as typeof gain.linearRampToValueAtTime;
+
+		// First relink starts fading out...
+		chain.reconcile([
+			device("dev_b", 0),
+			device("dev_a", 1),
+			device("dev_c", 2),
+		]);
+		expect(scheduler.pending).toBe(1);
+
+		// ...but a second relink arrives before the first's deferred rewire
+		// fires. The first's pending rewire must be superseded, not run.
+		chain.reconcile([
+			device("dev_c", 0),
+			device("dev_a", 1),
+			device("dev_b", 2),
+		]);
+		expect(scheduler.pending).toBe(1); // still exactly one pending rewire
+		expect(disconnectCalls).toBe(0); // neither has rewired yet
+
+		scheduler.runAll();
+
+		// Exactly one rewire ran (the superseded one never fired), and the
+		// gain recovered to 1 exactly once — never stuck at 0, never double.
+		expect(disconnectCalls).toBe(1);
+		expect(rampUps).toBe(1);
+		expect(scheduler.pending).toBe(0);
+
+		chain.dispose();
+		return runtime.close();
+	});
+
+	it("dispose() cancels a pending scheduled rewire so it can never fire after teardown", async () => {
+		const runtime = new AudioRuntimeModule.AudioRuntime();
+		const scope = runtime.openProjectScope("p");
+		const scheduler = createManualScheduler();
+		const chain = new DeviceChainModule.DeviceChain(
+			scope,
+			fakeFactory([]),
+			scheduler,
+		);
+
+		chain.reconcile([device("dev_a", 0), device("dev_b", 1)]);
+		chain.reconcile([device("dev_b", 0), device("dev_a", 1)]);
+		expect(scheduler.pending).toBe(1);
+
+		chain.dispose();
+
+		// Advancing the scheduler afterward must not throw or touch disposed
+		// nodes — the pending rewire was cancelled by dispose().
+		expect(() =>
+			scheduler.advance(DeviceChainModule.RELINK_FADE_SECONDS * 1000),
+		).not.toThrow();
+		expect(scheduler.pending).toBe(0);
+
+		await runtime.close();
 	});
 
 	it("does not dip the output on a bypass/parameter-only reconcile", () => {
