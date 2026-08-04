@@ -113,6 +113,13 @@ interface MarqueeState {
 	y: number;
 }
 
+interface VelocityGestureState {
+	readonly gesture: Gesture;
+	readonly noteId: EventId;
+	/** Whether any value has actually been applied yet. */
+	moved: boolean;
+}
+
 function noteEvents(clip: Clip): readonly NoteEvent[] {
 	return clip.content.kind === "notes" ? clip.content.events : [];
 }
@@ -145,6 +152,11 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 	);
 	const [drag, setDrag] = createSignal<DragState | null>(null);
 	const [marquee, setMarquee] = createSignal<MarqueeState | null>(null);
+	// A velocity slider drag: one gesture spans the whole drag so it commits as a
+	// single undo entry / revision / clip_edited event (mirrors the move/resize
+	// path). Held in a plain variable — it is transient drag bookkeeping the
+	// render never reads.
+	let velocityDrag: VelocityGestureState | null = null;
 
 	// The in-key guide is view-only UI state — never persisted, never gating
 	// which notes may be created (PRD CLP-03 "optional in-key pitch guide").
@@ -441,13 +453,50 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 		setSelection(new Set<EventId>());
 	}
 
-	function setVelocity(note: NoteEvent, velocity: number): void {
+	/**
+	 * Applies one intermediate velocity value from a slider drag. A range slider
+	 * fires `input` continuously while the thumb moves, so the whole drag must be
+	 * one gesture — otherwise a single velocity change would be many revisions,
+	 * many undo entries, and many `clip_edited` events. The first `input` opens
+	 * the gesture; each subsequent one applies live without bumping the revision;
+	 * `commitVelocity` (on `change` / pointer-up) commits the single entry.
+	 */
+	function applyVelocity(note: NoteEvent, velocity: number): void {
 		if (!Number.isFinite(velocity)) return;
-		markFeatureUse();
-		props.dispatch(
+		// A slider swap between notes mid-drag: commit the prior one first.
+		if (velocityDrag && velocityDrag.noteId !== note.id) commitVelocity();
+		if (!velocityDrag) {
+			markFeatureUse();
+			const gesture = props.beginGesture({ summary: "Set velocity" });
+			if (!gesture) {
+				// No history available: fall back to a single committed update.
+				props.dispatch(
+					updateNotes(props.clip.id, [
+						{ eventId: note.id, changes: { velocity } },
+					]),
+				);
+				logClipEdited(1);
+				return;
+			}
+			velocityDrag = { gesture, noteId: note.id, moved: false };
+		}
+		velocityDrag.gesture.apply(
 			updateNotes(props.clip.id, [{ eventId: note.id, changes: { velocity } }]),
 		);
-		logClipEdited(1);
+		velocityDrag.moved = true;
+	}
+
+	/** Commits the open velocity gesture as one entry, or cancels an empty one. */
+	function commitVelocity(): void {
+		const state = velocityDrag;
+		if (!state) return;
+		velocityDrag = null;
+		if (state.moved) {
+			state.gesture.commit();
+			logClipEdited(1);
+		} else {
+			state.gesture.cancel();
+		}
 	}
 
 	function selectAll(): void {
@@ -715,8 +764,14 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 									aria-label={`Velocity of ${pitchLabel(pitchOf(note))}`}
 									onPointerDown={(event) => event.stopPropagation()}
 									onInput={(event) =>
-										setVelocity(note, event.currentTarget.valueAsNumber)
+										applyVelocity(note, event.currentTarget.valueAsNumber)
 									}
+									// `change` fires once the drag (or keyboard nudge) settles;
+									// pointer-up/cancel cover the mouse path. All commit the one
+									// open gesture — extra calls are a safe no-op.
+									onChange={() => commitVelocity()}
+									onPointerUp={() => commitVelocity()}
+									onPointerCancel={() => commitVelocity()}
 								/>
 							</div>
 						)}

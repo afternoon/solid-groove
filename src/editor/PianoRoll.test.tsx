@@ -379,11 +379,48 @@ describe("PianoRoll", () => {
 		const slider = el.querySelector(".pr-note-velocity") as HTMLInputElement;
 
 		fireEvent.input(slider, { target: { value: "0.3" } });
+		// `change` fires when the slider settles, committing the gesture.
+		fireEvent.change(slider, { target: { value: "0.3" } });
 
 		const updated = noteEvents(session.project.clips[0]).find(
 			(n) => n.id === note.id,
 		);
 		expect(updated?.velocity).toBeCloseTo(0.3);
+	});
+
+	it("sets velocity across a slider drag as ONE undo transaction and ONE clip_edited", async () => {
+		const { session, renderRoll, transport } = await setUp();
+		const { container } = renderRoll();
+		const note = noteEvents(session.project.clips[0])[0];
+		const el = noteEl(container, note.id);
+		const slider = el.querySelector(".pr-note-velocity") as HTMLInputElement;
+		const startRevision = session.project.metadata.revision;
+		const startUndoDepth = session.history.entries.length;
+		const startEdited = clipEditedEvents(transport).length;
+
+		// A range slider fires `input` continuously while its thumb is dragged;
+		// the whole drag is one gesture and must land as one entry / revision.
+		for (const value of [0.2, 0.35, 0.5, 0.62, 0.7, 0.78, 0.8]) {
+			fireEvent.input(slider, { target: { value: String(value) } });
+		}
+		fireEvent.change(slider, { target: { value: "0.8" } });
+
+		const updated = noteEvents(session.project.clips[0]).find(
+			(n) => n.id === note.id,
+		);
+		expect(updated?.velocity).toBeCloseTo(0.8);
+		// One revision, one history entry, one analytics event — not seven.
+		expect(session.project.metadata.revision).toBe(startRevision + 1);
+		expect(session.history.entries.length).toBe(startUndoDepth + 1);
+		expect(clipEditedEvents(transport).length).toBe(startEdited + 1);
+
+		// Undoing the whole gesture takes exactly one step back to the original.
+		session.undo();
+		const reverted = noteEvents(session.project.clips[0]).find(
+			(n) => n.id === note.id,
+		);
+		expect(reverted?.velocity).toBeCloseTo(note.velocity);
+		expect(session.project.metadata.revision).toBe(startRevision + 2);
 	});
 
 	it("survives a save and reload: an edit made through the roll persists", async () => {
