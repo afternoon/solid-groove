@@ -170,6 +170,39 @@ test.describe("new project", () => {
 			page.getByRole("button", { name: "Step 2, off" }),
 		).toBeVisible();
 	});
+
+	// `ARR-001`: the arrangement shell is a bounded strip above the step editor.
+	// Real layout is the only place this can be proved — jsdom has no layout, so
+	// a shell that overflowed its panel would look fine to the component tests
+	// while silently covering the workspace and swallowing its clicks.
+	test("keeps the arrangement shell inside its panel, above the step grid", async ({
+		page,
+	}) => {
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(page).toHaveURL(/\/projects\/prj_/);
+
+		const shell = page.getByTestId("arrangement-view-ready");
+		await expect(shell).toBeVisible();
+
+		const panelBox = await page.locator(".arrangement-panel").boundingBox();
+		const shellBox = await shell.boundingBox();
+		const gridBox = await page
+			.getByRole("group", { name: "16-step sequence" })
+			.boundingBox();
+		expect(panelBox).not.toBeNull();
+		expect(shellBox).not.toBeNull();
+		expect(gridBox).not.toBeNull();
+		if (!panelBox || !shellBox || !gridBox) return;
+
+		// The shell fills its panel and stops there.
+		expect(shellBox.height).toBeLessThanOrEqual(panelBox.height + 1);
+		expect(shellBox.y + shellBox.height).toBeLessThanOrEqual(
+			panelBox.y + panelBox.height + 1,
+		);
+		// ...and the step grid below it is clear of the panel entirely.
+		expect(gridBox.y).toBeGreaterThanOrEqual(panelBox.y + panelBox.height);
+	});
 });
 
 // `LOOP-001`: the dashboard's project-management surface — blank creation,

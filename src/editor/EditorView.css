@@ -179,6 +179,12 @@
 	/* A bounded height so the arrangement's own native scroll container owns
 	   scrolling, rather than growing the whole page. */
 	height: 340px;
+	/* The panel is a fixed strip in the editor's flex column: it neither
+	   shrinks under pressure from the surfaces below it nor lets its contents
+	   spill over them (which would leave the arrangement covering — and
+	   swallowing pointer events destined for — the workspace). */
+	flex-shrink: 0;
+	overflow: hidden;
 	border-bottom: 1px solid var(--color-divider, #262626);
 }
 

@@ -7,7 +7,11 @@
 	flex-direction: column;
 	width: 100%;
 	height: 100%;
-	min-height: 480px;
+	/* The host panel owns the height. The shell must never claim more than the
+	   box it was given: it sizes its canvases from the scroll viewport's own
+	   rect, so a shell taller than its host would both paint over whatever sits
+	   below it and desynchronize the canvas size from the visible area. */
+	min-height: 0;
 	background: #141414;
 	color: #e6e6e6;
 	font-family: system-ui, -apple-system, sans-serif;
