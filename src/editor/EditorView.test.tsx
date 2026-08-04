@@ -1,5 +1,11 @@
 import { MemoryRouter, Route } from "@solidjs/router";
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	within,
+} from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
@@ -80,7 +86,14 @@ describe("EditorView", () => {
 		expect(
 			screen.getByRole("button", { name: "Step 2, off" }),
 		).toBeInTheDocument();
-		expect(screen.getByText(project.song.tracks[0].name)).toBeInTheDocument();
+		// The track name appears in the step-editor's track-info header. (The
+		// ARR-001 arrangement shell also lists it in its virtualized headers and
+		// accessible track list, so scope this to the track editor.)
+		const trackEditor = document.querySelector(".track-editor");
+		expect(trackEditor).not.toBeNull();
+		expect(
+			within(trackEditor as HTMLElement).getByText(project.song.tracks[0].name),
+		).toBeInTheDocument();
 		// The reopened project reports the pack dependency it saved.
 		const dependency = project.metadata.packDependencies[0];
 		expect(

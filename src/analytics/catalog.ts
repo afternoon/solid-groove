@@ -143,6 +143,7 @@ export const FEATURE_KEYS = [
 	"mixer",
 	"library_browser",
 	"shortcut_guide",
+	"arrangement",
 	"sections",
 	"automation",
 	"assistant",

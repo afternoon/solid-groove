@@ -1,0 +1,142 @@
+/* ARR-001 production arrangement shell styling. Reuses the documented design
+   DNA (flat surfaces, square corners, single cyan accent) rather than inventing
+   a second visual language. */
+
+.arrangement-view {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	min-height: 480px;
+	background: #141414;
+	color: #e6e6e6;
+	font-family: system-ui, -apple-system, sans-serif;
+	overflow: hidden;
+}
+
+.arrangement-toolbar {
+	display: flex;
+	gap: 8px;
+	padding: 6px 8px;
+	background: #181818;
+	border-bottom: 1px solid #262626;
+	flex-shrink: 0;
+}
+
+.arrangement-action {
+	appearance: none;
+	background: #202020;
+	color: #e6e6e6;
+	border: 1px solid #303030;
+	border-radius: 0;
+	padding: 4px 10px;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.arrangement-action:hover:not(:disabled) {
+	border-color: #20c8e8;
+}
+
+.arrangement-action:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.arrangement-action:focus-visible {
+	outline: 2px solid #20c8e8;
+	outline-offset: 1px;
+}
+
+.arrangement-body {
+	position: relative;
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.arrangement-headers {
+	position: relative;
+	flex-shrink: 0;
+	background: #181818;
+	border-right: 1px solid #262626;
+	overflow: hidden;
+}
+
+/* Reserves the ruler-height strip at the top so header rows line up with the
+   canvas rows, which begin below the ruler. */
+.arrangement-headers-ruler-spacer {
+	height: 22px;
+	background: #101010;
+	border-bottom: 1px solid #262626;
+}
+
+.arrangement-headers-inner {
+	position: relative;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	will-change: transform;
+}
+
+.arrangement-header-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 8px;
+	font-size: 12px;
+	box-sizing: border-box;
+	border-bottom: 1px solid #1e1e1e;
+}
+
+.arrangement-header-swatch {
+	width: 8px;
+	height: 8px;
+	flex-shrink: 0;
+}
+
+.arrangement-header-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The native scroll container. Its own scrollbars scroll the whole
+   arrangement; the spacer gives it a logical size, and the canvas stack is
+   sticky so viewport-sized canvases stay pinned in view as it scrolls. */
+.arrangement-viewport {
+	position: relative;
+	flex: 1;
+	overflow: auto;
+}
+
+.arrangement-spacer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	/* Zero visual footprint; it exists only to give the scroll container its
+	   logical scrollable extent. */
+	pointer-events: none;
+}
+
+.arrangement-canvas-stack {
+	position: sticky;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.arrangement-layer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: block;
+}
+
+.arrangement-layer-interactive {
+	touch-action: none;
+	cursor: default;
+}

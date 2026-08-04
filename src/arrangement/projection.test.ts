@@ -63,6 +63,23 @@ describe("buildArrangementProjection", () => {
 		expect(waveformPlacement).toBeDefined();
 	});
 
+	it("exposes section markers sorted by start tick with bar ranges", () => {
+		const project = createArrangementSpikeProject(20);
+		const projection = buildArrangementProjection(project, rowMetrics);
+		expect(projection.sections.length).toBe(project.song.sections.length);
+		for (let index = 1; index < projection.sections.length; index += 1) {
+			expect(projection.sections[index].startTicks).toBeGreaterThanOrEqual(
+				projection.sections[index - 1].startTicks,
+			);
+		}
+		const first = projection.sections[0];
+		const source = project.song.sections.find((s) => s.id === first.id);
+		expect(source).toBeDefined();
+		expect(first.endTicks).toBe(
+			(source?.startTicks ?? 0) + (source?.durationTicks ?? 0),
+		);
+	});
+
 	it("exposes at most one automation lane per track", () => {
 		const project = createArrangementSpikeProject(20);
 		const projection = buildArrangementProjection(project, rowMetrics);

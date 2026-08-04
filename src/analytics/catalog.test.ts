@@ -244,6 +244,7 @@ describe("catalog cross-references", () => {
 	it("declares the PRD OPS-02 feature_first_use keys", () => {
 		expect([...FEATURE_KEYS].sort()).toEqual(
 			[
+				"arrangement",
 				"assistant",
 				"audio_loop",
 				"automation",
