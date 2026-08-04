@@ -506,16 +506,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									isPlaying={audio.isPlaying}
 								/>
 							</div>
-							<div class="workspace">
-								<For each={loopClips()}>
-									{(entry) => (
-										<LoopInfo
-											clip={entry.clip}
-											asset={entry.asset}
-											songTempo={tempo()}
-										/>
-								</Show>
-              </div>
 							<div class="editor-body">
 								<Show when={libraryOpen()}>
 									{/*
