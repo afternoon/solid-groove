@@ -275,15 +275,38 @@
 	letter-spacing: 0.08em;
 }
 
-/* The facet bar has room here — the panel is where it did not fit. */
+/*
+ * The facet bar has room here — the panel is where it did not fit. It is still
+ * bounded, because at the delivered library size Type + 13 genres + ~40 roles +
+ * ~30 characters is taller than the dialog, and a facet bar that pushes every
+ * result below the fold is the panel's defect moved rather than fixed.
+ *
+ * The bound is a scrolling region, so the boundary has to read as an edge. A
+ * bare `max-height` cut the ROLE legend through the middle of its glyphs and
+ * looked like a rendering fault; the rule below reserves the scrollbar gutter
+ * so the region announces itself as scrollable, pads the last row clear of the
+ * cut, and draws the edge the cut lands on.
+ */
 .pack-browser-detail .library-facets {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.5rem 0.75rem;
 	flex: 0 0 auto;
-	max-height: 9rem;
+	max-height: 10.5rem;
 	overflow-y: auto;
+	scrollbar-gutter: stable;
+	padding-bottom: 0.5rem;
+	border-bottom: 1px solid var(--color-background-tertiary);
+}
+
+/*
+ * Each facet group starts its own line. Wrapping them together packed a group's
+ * legend onto the tail of the previous group's chips, so "ROLE" read as another
+ * chip, and the scroll cut could land mid-legend far more often.
+ */
+.pack-browser-detail .library-facet-group {
+	flex: 1 0 100%;
 }
 
 .pack-browser-detail .library-search {
