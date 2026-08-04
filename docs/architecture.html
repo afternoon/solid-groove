@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Solid Groove — System Architecture</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --surface: #ffffff;
+    --ink: #1c1b19;
+    --muted: #6b675f;
+    --line: #d8d4cc;
+    --band: #efede8;
+
+    --ui: #4a6fa5;
+    --session: #7a5ea8;
+    --command: #b0632e;
+    --domain: #2e7d5b;
+    --projection: #3d8a8f;
+    --engine: #a04a5e;
+    --persist: #8a6d1f;
+    --external: #55524b;
+    --cross: #5f6b52;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #191816;
+      --surface: #23221f;
+      --ink: #e8e5df;
+      --muted: #a09b91;
+      --line: #3a3833;
+      --band: #201f1c;
+
+      --ui: #8fb0dd;
+      --session: #b49ede;
+      --command: #dd9a63;
+      --domain: #6fbd97;
+      --projection: #7cc0c5;
+      --engine: #d68a9b;
+      --persist: #c8ab5a;
+      --external: #9a968d;
+      --cross: #9dab8b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  code, .path {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85em;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  header h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p.sub { color: var(--muted); margin: 0 0 8px; max-width: 70ch; }
+  header p.tech { color: var(--muted); margin: 0; font-size: 13px; }
+  header p.tech code { color: var(--ink); }
+
+  /* ---- diagram scaffolding ---- */
+  .diagram {
+    margin-top: 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .diagram { grid-template-columns: minmax(0, 1fr); } }
+
+  .stack { display: flex; flex-direction: column; }
+
+  .layer {
+    background: var(--band);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent, var(--line));
+    border-radius: 10px;
+    padding: 14px 16px 16px;
+  }
+  .layer > h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin: 0 0 2px;
+    color: var(--accent, var(--ink));
+  }
+  .layer > p.desc { margin: 0 0 12px; font-size: 13px; color: var(--muted); max-width: 90ch; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .card b { display: block; font-size: 13.5px; }
+  .card .path { color: var(--accent, var(--muted)); display: block; margin: 1px 0 3px; word-break: break-all; }
+  .card span { font-size: 12.5px; color: var(--muted); display: block; }
+
+  .arrow {
+    align-self: center;
+    text-align: center;
+    padding: 6px 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .arrow::before { content: "▼"; display: block; font-size: 11px; color: var(--muted); }
+  .arrow.up::before { content: "▲"; }
+  .arrow.both::before { content: "▲ ▼"; letter-spacing: 4px; }
+
+  /* engine row: audio / arrangement / persistence side by side */
+  .split { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .split { grid-template-columns: minmax(0, 1fr); } }
+  .split .layer { height: 100%; }
+
+  /* cross-cutting rail */
+  .rail .layer { margin-bottom: 14px; }
+  .rail .cards { grid-template-columns: minmax(0, 1fr); }
+
+  .external {
+    margin-top: 20px;
+  }
+  .external .cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+
+  /* ---- flow + invariants ---- */
+  section.notes { margin-top: 48px; }
+  section.notes h2 { font-size: 20px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  section.notes > p { color: var(--muted); margin: 0 0 16px; max-width: 80ch; }
+
+  ol.flow { margin: 0; padding: 0 0 0 2px; list-style: none; counter-reset: step; max-width: 86ch; }
+  ol.flow li {
+    counter-increment: step;
+    position: relative;
+    padding: 0 0 14px 40px;
+  }
+  ol.flow li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    display: grid; place-items: center;
+    font-size: 12.5px; font-weight: 600;
+  }
+  ol.flow li:not(:last-child)::after {
+    content: "";
+    position: absolute; left: 13px; top: 28px; bottom: 2px;
+    width: 1px; background: var(--line);
+  }
+  ol.flow b { font-weight: 600; }
+
+  ul.invariants { margin: 0; padding-left: 20px; max-width: 86ch; }
+  ul.invariants li { margin-bottom: 8px; }
+
+  footer { margin-top: 48px; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Solid Groove — System Architecture</h1>
+    <p class="sub">
+      A browser-based music production tool: pattern-based sequencing, real-time persistence,
+      and a stable Tone.js audio graph, built around one canonical domain model that every
+      other layer consumes through read-only projections and a typed command layer.
+    </p>
+    <p class="tech">
+      <code>SolidJS</code> + <code>SolidJS Start</code> (CSR-only) · <code>Vinxi</code> ·
+      <code>TypeScript</code> (strict) · <code>Zod</code> · <code>Tone.js</code> ·
+      <code>Firebase Auth + Firestore</code> · <code>Bun</code> · <code>Vitest</code> / <code>Playwright</code>
+    </p>
+  </header>
+
+  <div class="diagram">
+    <!-- ==================== main vertical flow ==================== -->
+    <div class="stack">
+
+      <div class="layer" style="--accent: var(--ui)">
+        <h2>UI — SolidJS components &amp; routes</h2>
+        <p class="desc">Components never mutate a <code>Project</code>; they build typed commands and read reactive state.</p>
+        <div class="cards">
+          <div class="card"><b>Routes</b><span class="path">src/routes/</span><span>File-based: landing, dashboard, <code>projects/[id]</code> editor route.</span></div>
+          <div class="card"><b>Editor UI</b><span class="path">src/editor/</span><span>EditorView, StepGrid, ArrangementView, DrumMachinePanel, LoopInfo, piano-roll geometry/edits.</span></div>
+          <div class="card"><b>Instrument panels</b><span class="path">src/instrument/</span><span>Sampler/Synth panels, sliders, value formatting.</span></div>
+          <div class="card"><b>App components</b><span class="path">src/components/</span><span>LandingPage, Dashboard, ProjectList, ConfirmDialog.</span></div>
+          <div class="card"><b>Auth</b><span class="path">src/auth/</span><span>AuthProvider context + Firebase auth service wrapper.</span></div>
+        </div>
+      </div>
+
+      <div class="arrow">typed commands down · reactive project state up</div>
+
+      <div class="layer" style="--accent: var(--session)">
+        <h2>Editor session — one open project</h2>
+        <p class="desc">The Solid adapter around a framework-free session object.</p>
+        <div class="cards">
+          <div class="card"><b>EditorSession</b><span class="path">src/editor/EditorSession.ts</span><span>Framework-free: CommandHistory + ProjectAutosave + repository watch, wired together.</span></div>
+          <div class="card"><b>useEditorSession</b><span class="path">src/editor/useEditorSession.ts</span><span>Loads a project, exposes the session as a Solid store.</span></div>
+          <div class="card"><b>useProjectAudio</b><span class="path">src/editor/useProjectAudio.ts</span><span>The one place a project is wired onto the audio graph; play() is the resume gesture.</span></div>
+        </div>
+      </div>
+
+      <div class="arrow">every mutation — pointer, keyboard, or assistant — is a registered command</div>
+
+      <div class="layer" style="--accent: var(--command)">
+        <h2>Command layer — the only write path</h2>
+        <p class="desc">No Firebase, Tone, or Solid imports. One committed transaction = one revision = one history entry.</p>
+        <div class="cards">
+          <div class="card"><b>Registry + definitions</b><span class="path">src/commands/registry.ts · definitions/</span><span>Versioned type, Zod payload, pure <code>apply</code>, generated <code>invert</code>, <code>summarize</code>. Notes, clips, tracks, drum, instruments, parameters, placements, transforms.</span></div>
+          <div class="card"><b>executeTransaction</b><span class="path">src/commands/execute.ts</span><span>Atomic: apply to a working copy, check every invariant, commit or return the original untouched.</span></div>
+          <div class="card"><b>CommandHistory</b><span class="path">src/commands/history.ts</span><span>Bounded session-local undo/redo replaying inverse commands; gestures commit as one entry.</span></div>
+        </div>
+      </div>
+
+      <div class="arrow">produces a new immutable <code>Project</code> revision</div>
+
+      <div class="layer" style="--accent: var(--domain)">
+        <h2>Domain — canonical schema-v1 model (authoritative)</h2>
+        <p class="desc">No Firebase, Tone.js, or SolidJS imports. <code>parseProject</code> is the only way to obtain a <code>Project</code>.</p>
+        <div class="cards">
+          <div class="card"><b>Entities + schemas</b><span class="path">src/domain/entities.ts</span><span>Zod schemas; discriminated unions for instruments and clip content.</span></div>
+          <div class="card"><b>Time &amp; IDs</b><span class="path">time.ts · ids.ts</span><span>Integer ticks at 192 PPQ; prefixed stable IDs, never array positions.</span></div>
+          <div class="card"><b>Parameters</b><span class="path">parameters.ts</span><span>Range, unit, default, clamping, automation declared once; all layers read it.</span></div>
+          <div class="card"><b>Parse &amp; serialize</b><span class="path">parse.ts · serialize.ts</span><span>Invariant checking (valid project or issues, never partial repair); deterministic JSON.</span></div>
+          <div class="card"><b>Packs</b><span class="path">packs.ts</span><span>Pack-qualified asset identity; derived <code>packDependencies</code>; unavailable pack is a reported state.</span></div>
+          <div class="card"><b>Factories &amp; fixtures</b><span class="path">factories.ts · fixtures.ts · duplicateProject.ts</span><span>Blank entities, deterministic reference projects, deep duplication with fresh IDs.</span></div>
+        </div>
+      </div>
+
+      <div class="arrow">read-only projections, fingerprinted for change detection</div>
+
+      <div class="layer" style="--accent: var(--projection)">
+        <h2>Projections — read side, per consumer</h2>
+        <p class="desc">Each consumer gets its own shape built from a <code>Project</code>; unchanged entries are reused across edits.</p>
+        <div class="cards">
+          <div class="card"><b>audioProjection</b><span class="path">src/projection/</span><span>The audio engine's song projection.</span></div>
+          <div class="card"><b>arrangementProjection</b><span class="path">src/projection/</span><span>The arrangement renderer's projection.</span></div>
+          <div class="card"><b>projectSummaryProjection</b><span class="path">src/projection/</span><span>Dashboard / persistence summary.</span></div>
+          <div class="card"><b>assistantContextProjection</b><span class="path">src/projection/</span><span>Compact context for the AI assistant.</span></div>
+          <div class="card"><b>fingerprint</b><span class="path">src/projection/fingerprint.ts</span><span>Deterministic content fingerprint for change detection.</span></div>
+        </div>
+      </div>
+
+      <div class="arrow">reconciled by stable ID — an edit touches only its own subgraph</div>
+
+      <div class="split">
+        <div class="layer" style="--accent: var(--engine)">
+          <h2>Audio engine</h2>
+          <p class="desc">All Tone.js code lives here. Every node is registered with an owning scope; disposal is idempotent.</p>
+          <div class="cards">
+            <div class="card"><b>AudioRuntime</b><span class="path">src/audio/AudioRuntime.ts</span><span>Single app-scoped Tone/Web Audio context, transport, buffer cache, resource registry.</span></div>
+            <div class="card"><b>ProjectAudioGraph</b><span class="path">ProjectAudioGraph.ts</span><span>Reconciles the audio projection into a stable ID-keyed graph; same projection object = no-op.</span></div>
+            <div class="card"><b>Track / Return / Master</b><span class="path">TrackAudioGraph.ts · …</span><span>One channel strip + DeviceChain each; InstrumentGraph builds sampler/synth/drum nodes.</span></div>
+            <div class="card"><b>Transport</b><span class="path">Transport.ts</span><span>Play/pause/stop/seek, 40–240 BPM mirror, bar loop, metronome; injectable engine.</span></div>
+            <div class="card"><b>Scheduling &amp; loops</b><span class="path">scheduling.ts · audioLoopPlayer.ts</span><span>Placement → absolute-tick events; pitch-preserving time-stretch for tempo-labelled loops.</span></div>
+            <div class="card"><b>Buffers &amp; health</b><span class="path">AudioBufferCache.ts · underrun.ts</span><span>Fingerprint-keyed decode cache with stale-load cancellation; sampled underrun counter.</span></div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="layer" style="--accent: var(--projection)">
+            <h2>Arrangement rendering</h2>
+            <div class="cards">
+              <div class="card"><b>Geometry &amp; waveforms</b><span class="path">src/arrangement/</span><span>Layout geometry, revision tracking, waveform cache feeding the arrangement view.</span></div>
+            </div>
+          </div>
+          <div class="arrow" style="visibility:hidden">·</div>
+          <div class="layer" style="--accent: var(--persist)">
+            <h2>Persistence — schema-v1 repository</h2>
+            <p class="desc">Three-tier layout: metadata · <code>song/current</code> · per-clip docs (+ arrangement chunks).</p>
+            <div class="cards">
+              <div class="card"><b>ProjectRepository</b><span class="path">src/persistence/projectRepository.ts</span><span>One contract, two stores: in-memory (tests/mock) and Firestore — the only <code>firebase/firestore</code> import.</span></div>
+              <div class="card"><b>Autosave</b><span class="path">autosave.ts</span><span>Coalesced, revision-checked optimistic saves per tier; failed writes retry; remote echoes ignored.</span></div>
+              <div class="card"><b>Documents &amp; migrations</b><span class="path">documents.ts · migrations.ts</span><span>Every Firestore path/body defined here; size budgets; forward migrations.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ==================== cross-cutting rail ==================== -->
+    <div class="rail">
+      <div class="layer" style="--accent: var(--cross)">
+        <h2>Cross-cutting</h2>
+        <p class="desc">Consumed by every layer; none of it lives in project state.</p>
+        <div class="cards">
+          <div class="card"><b>Shortcuts</b><span class="path">src/shortcuts/</span><span>The one registry of key mappings; ShortcutController owns all dispatch; guide, docs, and analytics IDs are derived from it.</span></div>
+          <div class="card"><b>Selection</b><span class="path">src/selection/</span><span>UI-only selection/focus state, reconciled against the project, never persisted.</span></div>
+          <div class="card"><b>Factory library</b><span class="path">src/library/</span><span>Typed read side of the generated asset manifest — the only place src/ learns an asset's facts.</span></div>
+          <div class="card"><b>Analytics</b><span class="path">src/analytics/</span><span>Typed event catalog, consent, buckets, error codes; no names/user text in any parameter.</span></div>
+          <div class="card"><b>Monitoring</b><span class="path">src/monitoring/</span><span>Error reporting with scrubbing, global handlers, Sentry sink.</span></div>
+          <div class="card"><b>Telemetry &amp; release</b><span class="path">src/telemetry.ts · release.ts</span><span>Wires analytics + error boundaries to vendors; build stamped with the git SHA.</span></div>
+          <div class="card"><b>Shared kernel</b><span class="path">src/shared/</span><span>Prefixed-ID factory, injectable Clock and Scheduler, Zod parse helper — determinism for tests.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== external services ==================== -->
+  <div class="arrow both">boundary modules are the only vendor imports</div>
+  <div class="layer external" style="--accent: var(--external)">
+    <h2>External services &amp; platform</h2>
+    <div class="cards">
+      <div class="card"><b>Firebase Firestore</b><span>Real-time project storage; owner-based security rules; local emulator for tests.</span></div>
+      <div class="card"><b>Firebase Auth</b><span>Sessions, incl. anonymous start from the landing page.</span></div>
+      <div class="card"><b>Tone.js / Web Audio</b><span>Synthesis and scheduling under the single AudioRuntime context.</span></div>
+      <div class="card"><b>Sample library CDN</b><span>Pack index + manifests fetched on browse; built by <code>scripts/starter-library/</code>, not bundled.</span></div>
+      <div class="card"><b>Sentry · Firebase Analytics</b><span>Error and event transports behind the telemetry boundary.</span></div>
+    </div>
+  </div>
+
+  <!-- ==================== data flow ==================== -->
+  <section class="notes">
+    <h2>The edit round-trip</h2>
+    <p>Every project change follows one path, whatever the input device:</p>
+    <ol class="flow">
+      <li><b>Component</b> builds a typed command (e.g. <code>note.add</code>) — it never touches the <code>Project</code>.</li>
+      <li><b>CommandHistory.execute()</b> (via EditorSession) runs the transaction: pure <code>apply</code> on a working copy, all domain invariants checked, pack dependencies recomputed.</li>
+      <li>A <b>new immutable revision</b> replaces the store; undo gets the generated inverse command.</li>
+      <li><b>ProjectAutosave</b> coalesces the edit and queues only the changed tier — a note edit writes one clip document, never song structure.</li>
+      <li><b>ProjectRepository</b> performs the revision-checked write to Firestore (or the in-memory store under <code>VITE_MOCK_BACKEND</code>).</li>
+      <li><b>watchProject</b> delivers remote snapshots; <code>applyRemote()</code> ignores echoes at or below the local revision, and components update reactively.</li>
+      <li>In parallel, <b>useProjectAudio</b> rebuilds the audio projection (reusing unchanged entries) and <b>ProjectAudioGraph</b> reconciles only the touched subgraph.</li>
+    </ol>
+  </section>
+
+  <section class="notes">
+    <h2>Load-bearing rules</h2>
+    <ul class="invariants">
+      <li><b>Contracts are layered by import direction:</b> <code>domain</code> and <code>commands</code> import no Firebase, Tone, or Solid; only <code>firestoreProjectRepository.ts</code> imports <code>firebase/firestore</code>; all Tone code stays in <code>src/audio/</code>.</li>
+      <li><b>One write path:</b> registered commands via <code>executeTransaction</code> — no feature-specific mutation routes.</li>
+      <li><b>Stable IDs everywhere:</b> persistent relationships use prefixed IDs; audio-graph reconciliation, undo replay, and Firestore documents all key on them.</li>
+      <li><b>Musical time is integer ticks at 192 PPQ;</b> seconds, bars, and pixels are derived views.</li>
+      <li><b>Single audio context:</b> <code>AudioRuntime</code> owns it; every constructed node is registered with a project scope so disposal is provable.</li>
+      <li><b>Analytics ships with features:</b> events come only from the typed catalog, and no parameter ever carries a name, user text, URL, or token.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Sources: <code>CLAUDE.md</code>, <code>docs/prd.md</code>, <code>docs/persistence.md</code>, <code>docs/testing.md</code>, and the <code>src/</code> tree as of August 2026.
+    Regenerate by re-reading those; this page has no build step.
+  </footer>
+</main>
+</body>
+</html>

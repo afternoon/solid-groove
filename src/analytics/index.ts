@@ -59,6 +59,18 @@ export {
 	isErrorCode,
 	toErrorCode,
 } from "./errorCodes";
+export type {
+	IdentifiablePack,
+	PackAnalyticsIdentity,
+	PackKind,
+	PublishedPackId,
+} from "./packIdentity";
+export {
+	isPublishedPackSlug,
+	PACK_KINDS,
+	packAnalyticsIdentity,
+	RESERVED_PACK_IDS,
+} from "./packIdentity";
 export type { AnalyticsTransport, RecordingTransport } from "./transport";
 export {
 	createFailingTransport,

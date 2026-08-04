@@ -24,7 +24,7 @@ import type {
 	TrackId,
 } from "../domain/ids";
 import type { Ticks } from "../domain/time";
-import { fingerprintOf } from "./fingerprint";
+import { fingerprintOf, rememberSource, reuseIfUnchanged } from "./fingerprint";
 
 /**
  * The audio engine's read-only song projection (PRD section 9.7).
@@ -237,6 +237,8 @@ function buildAudioTrack(
 	track: Track,
 	previous: AudioTrackProjection | undefined,
 ): AudioTrackProjection {
+	const reused = reuseIfUnchanged(previous, [track]);
+	if (reused) return reused;
 	const devices = sortDevices(track.devices);
 	const topologyFingerprint = fingerprintOf(trackTopologyShape(track, devices));
 	const fingerprint = fingerprintOf(trackFullShape(track, devices));
@@ -245,18 +247,21 @@ function buildAudioTrack(
 		previous.fingerprint === fingerprint &&
 		previous.topologyFingerprint === topologyFingerprint
 	) {
-		return previous;
+		return rememberSource(previous, [track]);
 	}
-	return {
-		id: track.id,
-		type: track.type,
-		instrument: track.instrument,
-		devices,
-		sendConfig: sortSends(track.sendConfig),
-		mixer: track.mixer,
-		fingerprint,
-		topologyFingerprint,
-	};
+	return rememberSource(
+		{
+			id: track.id,
+			type: track.type,
+			instrument: track.instrument,
+			devices,
+			sendConfig: sortSends(track.sendConfig),
+			mixer: track.mixer,
+			fingerprint,
+			topologyFingerprint,
+		},
+		[track],
+	);
 }
 
 function returnTopologyShape(devices: readonly Device[]): unknown {
@@ -286,6 +291,8 @@ function buildAudioReturn(
 	bus: ReturnBus,
 	previous: AudioReturnProjection | undefined,
 ): AudioReturnProjection {
+	const reused = reuseIfUnchanged(previous, [bus]);
+	if (reused) return reused;
 	const devices = sortDevices(bus.devices);
 	const topologyFingerprint = fingerprintOf(returnTopologyShape(devices));
 	const fingerprint = fingerprintOf(
@@ -296,22 +303,27 @@ function buildAudioReturn(
 		previous.fingerprint === fingerprint &&
 		previous.topologyFingerprint === topologyFingerprint
 	) {
-		return previous;
+		return rememberSource(previous, [bus]);
 	}
-	return {
-		id: bus.id,
-		order: bus.order,
-		devices,
-		mixer: bus.mixer,
-		fingerprint,
-		topologyFingerprint,
-	};
+	return rememberSource(
+		{
+			id: bus.id,
+			order: bus.order,
+			devices,
+			mixer: bus.mixer,
+			fingerprint,
+			topologyFingerprint,
+		},
+		[bus],
+	);
 }
 
 function buildAudioMaster(
 	master: MasterSettings,
 	previous: AudioMasterProjection | undefined,
 ): AudioMasterProjection {
+	const reused = reuseIfUnchanged(previous, [master]);
+	if (reused) return reused;
 	const devices = sortDevices(master.devices);
 	const topologyFingerprint = fingerprintOf(returnTopologyShape(devices));
 	const fingerprint = fingerprintOf({
@@ -327,20 +339,25 @@ function buildAudioMaster(
 		previous.fingerprint === fingerprint &&
 		previous.topologyFingerprint === topologyFingerprint
 	) {
-		return previous;
+		return rememberSource(previous, [master]);
 	}
-	return {
-		volume: master.volume,
-		devices,
-		fingerprint,
-		topologyFingerprint,
-	};
+	return rememberSource(
+		{
+			volume: master.volume,
+			devices,
+			fingerprint,
+			topologyFingerprint,
+		},
+		[master],
+	);
 }
 
 function buildAudioClip(
 	clip: Project["clips"][number],
 	previous: AudioClipProjection | undefined,
 ): AudioClipProjection {
+	const reused = reuseIfUnchanged(previous, [clip]);
+	if (reused) return reused;
 	const shape = {
 		trackId: clip.trackId,
 		lengthTicks: clip.lengthTicks,
@@ -348,21 +365,26 @@ function buildAudioClip(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [clip]);
 	}
-	return {
-		id: clip.id,
-		trackId: clip.trackId,
-		lengthTicks: clip.lengthTicks,
-		content: clip.content,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: clip.id,
+			trackId: clip.trackId,
+			lengthTicks: clip.lengthTicks,
+			content: clip.content,
+			fingerprint,
+		},
+		[clip],
+	);
 }
 
 function buildAudioPlacement(
 	placement: Placement,
 	previous: AudioPlacementProjection | undefined,
 ): AudioPlacementProjection {
+	const reused = reuseIfUnchanged(previous, [placement]);
+	if (reused) return reused;
 	const shape = {
 		clipId: placement.clipId,
 		trackId: placement.trackId,
@@ -373,15 +395,19 @@ function buildAudioPlacement(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [placement]);
 	}
-	return { id: placement.id, ...shape, fingerprint };
+	return rememberSource({ id: placement.id, ...shape, fingerprint }, [
+		placement,
+	]);
 }
 
 function buildAudioAutomation(
 	lane: AutomationLane,
 	previous: AudioAutomationProjection | undefined,
 ): AudioAutomationProjection {
+	const reused = reuseIfUnchanged(previous, [lane]);
+	if (reused) return reused;
 	const points = [...lane.points].sort((a, b) => a.tick - b.tick);
 	const shape = {
 		target: lane.target,
@@ -390,21 +416,26 @@ function buildAudioAutomation(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [lane]);
 	}
-	return {
-		id: lane.id,
-		target: lane.target,
-		interpolation: lane.interpolation,
-		points,
-		fingerprint,
-	};
+	return rememberSource(
+		{
+			id: lane.id,
+			target: lane.target,
+			interpolation: lane.interpolation,
+			points,
+			fingerprint,
+		},
+		[lane],
+	);
 }
 
 function buildAudioAsset(
 	asset: Project["song"]["assets"][number],
 	previous: AudioAssetProjection | undefined,
 ): AudioAssetProjection {
+	const reused = reuseIfUnchanged(previous, [asset]);
+	if (reused) return reused;
 	const shape = {
 		packId: asset.packId,
 		packVersion: asset.packVersion,
@@ -417,9 +448,9 @@ function buildAudioAsset(
 	};
 	const fingerprint = fingerprintOf(shape);
 	if (previous && previous.fingerprint === fingerprint) {
-		return previous;
+		return rememberSource(previous, [asset]);
 	}
-	return { id: asset.id, ...shape, fingerprint };
+	return rememberSource({ id: asset.id, ...shape, fingerprint }, [asset]);
 }
 
 /**

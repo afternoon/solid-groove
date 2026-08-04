@@ -13,4 +13,5 @@ export * from "./arrangementProjection";
 export * from "./assistantContextProjection";
 export * from "./audioProjection";
 export * from "./fingerprint";
+export * from "./projectAnalysisProjection";
 export * from "./projectSummaryProjection";

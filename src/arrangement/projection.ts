@@ -1,5 +1,11 @@
 import type { Asset, AutomationLane, Clip, Project } from "../domain/entities";
-import type { AssetId, ClipId, PlacementId, TrackId } from "../domain/ids";
+import type {
+	AssetId,
+	ClipId,
+	PlacementId,
+	SectionId,
+	TrackId,
+} from "../domain/ids";
 import {
 	buildRowOffsets,
 	type RowMetrics,
@@ -62,6 +68,21 @@ export interface PlacementGeometry {
 	readonly revision: number;
 }
 
+/**
+ * A section marker's bar range, for the ruler's section labels (PRD ARR-01/9.3:
+ * the ruler shows "bar/section labels"). Sections label ranges on the same
+ * timeline and contain no audio (PRD ARR-02); this exposes their bounds and
+ * label for read-only display. Editing sections is `ARR-003`.
+ */
+export interface SectionGeometry {
+	readonly id: SectionId;
+	readonly name: string;
+	readonly color: string;
+	readonly startTicks: number;
+	readonly endTicks: number;
+	readonly revision: number;
+}
+
 export interface AutomationLaneGeometry {
 	readonly id: string;
 	readonly trackId: TrackId;
@@ -94,6 +115,8 @@ export interface ArrangementProjection {
 	readonly rowOffsets: readonly number[];
 	/** Sorted by `order` — index `i` is row `i`. */
 	readonly tracks: readonly TrackRow[];
+	/** Section markers sorted by `startTicks`, for the ruler's section labels. */
+	readonly sections: readonly SectionGeometry[];
 	readonly placementsByTrack: ReadonlyMap<TrackId, TrackPlacementIndex>;
 	readonly placementsById: ReadonlyMap<PlacementId, PlacementGeometry>;
 	/** At most one lane per track: "a track can show one automation lane at
@@ -179,6 +202,17 @@ export function buildArrangementProjection(
 		});
 	}
 
+	const sections: SectionGeometry[] = [...project.song.sections]
+		.sort((a, b) => a.startTicks - b.startTicks)
+		.map((section) => ({
+			id: section.id,
+			name: section.name,
+			color: section.color,
+			startTicks: section.startTicks,
+			endTicks: section.startTicks + section.durationTicks,
+			revision: revisionOf(section),
+		}));
+
 	const automationByTrack = new Map<TrackId, AutomationLaneGeometry>();
 	for (const lane of project.song.automation) {
 		if (lane.target.scope !== "track") continue;
@@ -203,6 +237,7 @@ export function buildArrangementProjection(
 		rowMetrics,
 		rowOffsets: buildRowOffsets(tracks.length, rowMetrics),
 		tracks,
+		sections,
 		placementsByTrack,
 		placementsById,
 		automationByTrack,

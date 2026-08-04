@@ -400,16 +400,33 @@ describe("ProjectAudioGraph", () => {
 		// `updateInterval` is on the concrete `Context`, not the `BaseContext`
 		// `getContext()` is typed as; the runtime installs a real one.
 		const context = Tone.getContext() as import("tone").Context;
-		callbacks[0]?.(context.currentTime + context.lookAhead);
-		callbacks[1]?.(
-			context.currentTime + context.lookAhead - context.updateInterval,
-		);
-		expect(reports).toEqual([]);
+		// The intended times below are computed from a `currentTime` read *here*,
+		// but the monitor re-reads the audio clock inside the callback — and the
+		// audio clock keeps advancing in real time in between. With Tone's default
+		// 0.1s lookahead that gap may only be ~70ms before healthy dispatch scores
+		// as a drop, which a loaded test runner exceeds on a stall. Widening the
+		// lookahead for this test buys ~1s of that slack while leaving the actual
+		// discriminator untouched: a `Tone.now()`-based clock is still exactly one
+		// `updateInterval` (0.05s) past the second intended time, still over the
+		// 0.02s tolerance, so this test still fails if the clock source regresses.
+		const defaultLookAhead = context.lookAhead;
+		context.lookAhead = 1;
+		try {
+			callbacks[0]?.(context.currentTime + context.lookAhead);
+			callbacks[1]?.(
+				context.currentTime + context.lookAhead - context.updateInterval,
+			);
+			expect(reports).toEqual([]);
 
-		// A genuinely late dispatch — the audio clock is already a second past the
-		// intended time — is still reported.
-		callbacks[2]?.(context.currentTime - 1);
-		expect(reports).toHaveLength(1);
+			// A genuinely late dispatch — the audio clock is already a second past
+			// the intended time — is still reported.
+			callbacks[2]?.(context.currentTime - 1);
+			expect(reports).toHaveLength(1);
+		} finally {
+			// The runtime adopts a live context rather than making one per test, so
+			// this must not leak into whatever runs next.
+			context.lookAhead = defaultLookAhead;
+		}
 
 		await graph.dispose();
 		await runtime.close();

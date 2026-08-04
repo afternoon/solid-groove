@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hostileStorage, memoryStorage } from "../testing/storage";
 import { Analytics, type AnalyticsOptions } from "./analytics";
 import { ConsentStore } from "./consent";
+import { packAnalyticsIdentity } from "./packIdentity";
 import {
 	type AnalyticsTransport,
 	createFailingTransport,
@@ -126,47 +127,56 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 	});
 });
 
-describe("library_pack_added (LIB-08)", () => {
-	// The event is emitted through the shared catalog here; its call site is
-	// `EditorSession`'s `pack.add` dispatch (see `EditorSession.test.ts`), which
-	// is where every surface that can shelve a pack converges. These tests pin
-	// the catalog contract: shape, once-per-action, and consent-gating.
+describe("library_pack_added (LOOP-013, LIB-08)", () => {
+	// Its call site is the library browser's `addPack` (see
+	// `useLibraryBrowser.test.ts`), which is the only place a pack's *published*
+	// identity is known. These tests pin the catalog contract: shape,
+	// once-per-action, and consent-gating.
+	const factoryPack = {
+		slug: "core-electronic-drums",
+		kind: "factory",
+	} as const;
+	const thirdPartyPack = {
+		slug: "midnight-tape-drums",
+		kind: "third-party",
+	} as const;
+
 	it("sends exactly one event naming which pack was added", () => {
 		const { analytics, transport } = setup();
-		analytics.log("library_pack_added", {
-			pack_kind: "factory",
-			pack_key: "core-electronic-drums",
-		});
+		analytics.log("library_pack_added", packAnalyticsIdentity(factoryPack));
 		expect(transport.named("library_pack_added")).toHaveLength(1);
 		expect(transport.events[0].params).toEqual({
 			release_sha: "abc123def456",
 			surface: "editor",
 			pack_kind: "factory",
-			pack_key: "core-electronic-drums",
+			pack_id: "core-electronic-drums",
+		});
+	});
+
+	it("names a third-party pack, so its creator's adoption is reportable", () => {
+		const { analytics, transport } = setup();
+		analytics.log("library_pack_added", packAnalyticsIdentity(thirdPartyPack));
+		expect(transport.events[0].params).toMatchObject({
+			pack_kind: "third_party",
+			pack_id: "midnight-tape-drums",
 		});
 	});
 
 	it("fires once per add, not once per render", () => {
 		const { analytics, transport } = setup();
-		analytics.log("library_pack_added", {
-			pack_kind: "factory",
-			pack_key: "core-electronic-drums",
-		});
-		analytics.log("library_pack_added", {
-			pack_kind: "user",
-			pack_key: "other",
-		});
+		analytics.log("library_pack_added", packAnalyticsIdentity(factoryPack));
+		analytics.log("library_pack_added", packAnalyticsIdentity(thirdPartyPack));
 		expect(transport.named("library_pack_added")).toHaveLength(2);
 	});
 
-	it("drops an event whose pack key is not a published library key", () => {
+	it("drops an event whose pack id is not a published slug", () => {
 		// The untyped edge: a caller that reaches past the compiler with a pack's
 		// own ID gets the event dropped, not a pack ID delivered to GA4.
 		const { analytics, transport } = setup();
 		analytics.log("library_pack_added", {
 			pack_kind: "user",
-			// @ts-expect-error — deliberately outside the declared value set.
-			pack_key: "pak_SdlN_OazweXrwury0j27Y",
+			// @ts-expect-error — a raw string is not a checked pack identity.
+			pack_id: "pak_SdlN_OazweXrwury0j27Y",
 		});
 		expect(transport.events).toHaveLength(0);
 	});
@@ -174,10 +184,7 @@ describe("library_pack_added (LIB-08)", () => {
 	it("sends nothing while the user is opted out", () => {
 		const { analytics, transport, consent } = setup();
 		consent.optOut();
-		analytics.log("library_pack_added", {
-			pack_kind: "factory",
-			pack_key: "core-electronic-drums",
-		});
+		analytics.log("library_pack_added", packAnalyticsIdentity(factoryPack));
 		expect(transport.events).toHaveLength(0);
 	});
 });
