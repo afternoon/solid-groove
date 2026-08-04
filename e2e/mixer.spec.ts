@@ -23,6 +23,13 @@ test.describe("mixer", () => {
 		const track = page.locator(".mixer-strip-controls .fill-slider-track", {
 			has: fader,
 		});
+		// The mixer sits at the bottom of the workspace, which scrolls inside
+		// itself (`LOOP-013`), so on a 720px viewport the strip can start below
+		// the fold. `boundingBox()` reports viewport coordinates and
+		// `page.mouse` takes them literally — neither scrolls anything — so
+		// without this the drag below is aimed off-screen and silently does
+		// nothing. Scroll first, then read the box the mouse will be driven at.
+		await track.scrollIntoViewIfNeeded();
 		const inputBox = await fader.boundingBox();
 		const trackBox = await track.boundingBox();
 		expect(inputBox).not.toBeNull();
@@ -78,6 +85,9 @@ test.describe("mixer", () => {
 		const track = page.locator(".mixer-strip-pan .fill-slider-track", {
 			has: pan,
 		});
+		// As above: bring the strip into the viewport before reading the
+		// coordinates the click is aimed at.
+		await track.scrollIntoViewIfNeeded();
 		const inputBox = await pan.boundingBox();
 		const trackBox = await track.boundingBox();
 		expect(inputBox).not.toBeNull();

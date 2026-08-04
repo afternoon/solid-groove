@@ -11,7 +11,8 @@
 			"!test-results",
 			"!scripts/starter-library/acquire/candidate-sources",
 			"!scripts/starter-library/acquire/candidates.json",
-			"!src/library/factoryLibrary.generated.ts"
+			"!src/library/factoryLibrary.generated.ts",
+			"!src/library/__fixtures__/library.generated.ts"
 		]
 	}
 }
