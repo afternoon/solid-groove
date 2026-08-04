@@ -43,6 +43,7 @@ import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
+import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepEditor, { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import { useEditorSession } from "./useEditorSession";
@@ -85,10 +86,11 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
 };
 
 /**
- * The project editor: open a schema-v1 project, program its sampler or
- * drum-machine clip on the CLP-02 step editor, hear it, undo it, and let
- * autosave save it. The `FND-009` slice's minimal 16-step grid was replaced by
- * `LOOP-010`'s full step editor (`StepEditor`); the surrounding transport,
+ * The project editor: open a schema-v1 project, program its clip — on the
+ * CLP-02 step editor for a sampler or drum machine, on the CLP-03 piano roll
+ * for a synth's note clip — hear it, undo it, and let autosave save it. The
+ * `FND-009` slice's minimal 16-step grid was replaced by `LOOP-010`'s full step
+ * editor (`StepEditor`) and `LOOP-011`'s `PianoRoll`; the surrounding transport,
  * instrument panels, and save/undo wiring are the same path it established.
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
@@ -101,6 +103,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const project = createMemo(() => session.state.project);
 	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
+	// The piano roll owns its own note selection, but the KEY-01 registry — not
+	// the roll — dispatches delete/duplicate/select-all. The roll hands its
+	// operations up through `registerActions`; this holds them so the shortcut
+	// handlers below can call them.
+	const [pianoRollActions, setPianoRollActions] =
+		createSignal<PianoRollActions | null>(null);
 	// The step editor's note selection, lifted here so the `edit.delete` shortcut
 	// can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
 	const [selectedNoteIds, setSelectedNoteIds] = createSignal<
@@ -186,27 +194,49 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			run: () => session.redo(),
 			isEnabled: () => session.state.canRedo,
 		},
-		// Delete the step editor's selected notes (CLP-02). Only fires when the
-		// selection is non-empty, so an empty-selection Delete leaves the browser
-		// default alone (PRD KEY-02).
+		// Delete the selected notes of whichever note editor is showing: the piano
+		// roll keeps its own selection and hands the operation up through
+		// `registerActions` (CLP-03), the step editor's is lifted into this
+		// component (CLP-02). Either way it only fires when that selection is
+		// non-empty, so an empty-selection Delete leaves the browser default alone
+		// (PRD KEY-02).
 		"edit.delete": {
-			run: () => deleteSelection(),
-			isEnabled: () => selectedNoteIds().length > 0,
+			run: () => {
+				if (showPianoRoll()) pianoRollActions()?.deleteSelection();
+				else deleteSelection();
+			},
+			isEnabled: () =>
+				showPianoRoll()
+					? (pianoRollActions()?.hasSelection() ?? false)
+					: selectedNoteIds().length > 0,
 		},
 		"help.shortcut_guide": { run: () => setGuideOpen(true) },
 		"view.close_surface": {
 			run: () => setGuideOpen(false),
 			isEnabled: () => guideOpen(),
 		},
+		// The piano roll's remaining note operations, dispatched by the registry
+		// (KEY-01), not by a listener the roll owns. Each is enabled only while the
+		// roll is showing; duplicate additionally needs a selection.
+		"edit.duplicate": {
+			run: () => pianoRollActions()?.duplicateSelection(),
+			isEnabled: () => pianoRollActions()?.hasSelection() ?? false,
+		},
+		"edit.select_all": {
+			run: () => pianoRollActions()?.selectAll(),
+			isEnabled: () => pianoRollActions() !== null,
+		},
 	});
 
 	// The surfaces this slice actually shows. The guide filters against these,
 	// so "shortcuts valid in the current context" means the editor underneath
-	// rather than the modal covering it.
-	const editorContexts = (): readonly ShortcutContext[] => [
-		"editor",
-		"step_editor",
-	];
+	// rather than the modal covering it. The piano roll adds its own contexts:
+	// `piano_roll` (where `edit.delete` lives) and `selection` (where
+	// `edit.duplicate`/`edit.select_all` live).
+	const editorContexts = (): readonly ShortcutContext[] =>
+		showPianoRoll()
+			? ["editor", "step_editor", "piano_roll", "selection"]
+			: ["editor", "step_editor"];
 
 	// While a modal is open it is the only active context, so nothing behind it
 	// can fire — including playback and selection (PRD KEY-02). The pack browser
@@ -277,6 +307,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	});
 	// The instrument of the slice's first track, and the audition note it plays.
 	const instrument = createMemo(() => track()?.instrument ?? null);
+	// A synth track holding a note clip gets the CLP-03 piano roll instead of the
+	// FND-009 step grid: pitched notes want two dimensions (pitch x time), which
+	// the 16-step grid cannot show.
+	const showPianoRoll = createMemo(() => {
+		const c = clip();
+		return instrument()?.kind === "synth" && c?.content.kind === "notes";
+	});
 	// The track id, only when it carries an instrument this slice renders a panel
 	// for (sampler or synth). The drum machine's panel lands with LOOP-005.
 	const instrumentPanelTrackId = createMemo(() => {
@@ -610,15 +647,36 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 														</span>
 													</Show>
 												</div>
-												<StepEditor
-													clip={currentClip()}
-													instrument={instrument()}
-													dispatch={session.dispatch}
-													beginGesture={session.beginGesture}
-													playbackStep={editorPlaybackStep}
-													selectedIds={selectedNoteIds}
-													setSelectedIds={setSelectedNoteIds}
-												/>
+												{/*
+												 * A synth track's note clip gets the CLP-03 piano
+												 * roll; everything else stays on LOOP-010's CLP-02
+												 * step editor. Pitched notes want two dimensions
+												 * (pitch x time), which a one-row-per-step grid
+												 * cannot show.
+												 */}
+												<Show
+													when={showPianoRoll()}
+													fallback={
+														<StepEditor
+															clip={currentClip()}
+															instrument={instrument()}
+															dispatch={session.dispatch}
+															beginGesture={session.beginGesture}
+															playbackStep={editorPlaybackStep}
+															selectedIds={selectedNoteIds}
+															setSelectedIds={setSelectedNoteIds}
+														/>
+													}
+												>
+													<PianoRoll
+														clip={currentClip()}
+														project={currentProject()}
+														dispatch={session.dispatch}
+														beginGesture={session.beginGesture}
+														playheadTicks={audio.positionTicks()}
+														registerActions={setPianoRollActions}
+													/>
+												</Show>
 												<Show when={instrumentPanelTrackId()}>
 													{(trackId) => (
 														<Switch>

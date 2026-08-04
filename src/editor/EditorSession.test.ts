@@ -353,6 +353,129 @@ describe("EditorSession", () => {
 		otherDeviceSession.dispose();
 	});
 
+	describe("gestures (the piano-roll note drag path)", () => {
+		it("commits a multi-step gesture as one revision and one undo entry", () => {
+			const { session, clipId } = ctx;
+			const events =
+				session.project.clips[0].content.kind === "notes"
+					? session.project.clips[0].content.events
+					: [];
+			const first = events[0];
+			const startRevision = session.project.metadata.revision;
+
+			const gesture = session.beginGesture({ summary: "Move notes" });
+			// Three intermediate frames, each applying immediately.
+			for (const start of [1, 2, 3]) {
+				gesture.apply(
+					updateNote(clipId, first.id, {
+						startTicks: (start * TICKS_PER_SIXTEENTH) as never,
+					}),
+				);
+			}
+			const entry = gesture.commit();
+
+			expect(entry).not.toBeNull();
+			// One revision bump for the whole drag, not one per frame.
+			expect(session.project.metadata.revision).toBe(startRevision + 1);
+			expect(session.history.entries).toHaveLength(1);
+			expect(session.history.redoEntries).toHaveLength(0);
+
+			// The final position is what the last frame set.
+			const moved =
+				session.project.clips[0].content.kind === "notes"
+					? session.project.clips[0].content.events.find(
+							(candidate) => candidate.id === first.id,
+						)
+					: undefined;
+			expect(moved?.startTicks).toBe(3 * TICKS_PER_SIXTEENTH);
+		});
+
+		it("one undo reverts the whole gesture", () => {
+			const { session, clipId } = ctx;
+			const first =
+				session.project.clips[0].content.kind === "notes"
+					? session.project.clips[0].content.events[0]
+					: undefined;
+			if (!first) throw new Error("expected a note");
+			const originalStart = first.startTicks;
+
+			const gesture = session.beginGesture();
+			gesture.apply(
+				updateNote(clipId, first.id, {
+					startTicks: (5 * TICKS_PER_SIXTEENTH) as never,
+				}),
+			);
+			gesture.apply(
+				updateNote(clipId, first.id, {
+					startTicks: (7 * TICKS_PER_SIXTEENTH) as never,
+				}),
+			);
+			gesture.commit();
+
+			session.undo();
+
+			const reverted =
+				session.project.clips[0].content.kind === "notes"
+					? session.project.clips[0].content.events.find(
+							(candidate) => candidate.id === first.id,
+						)
+					: undefined;
+			expect(reverted?.startTicks).toBe(originalStart);
+		});
+
+		it("queues the touched clip for autosave exactly once on commit", async () => {
+			const { session, repository, project, clipId } = ctx;
+			const first =
+				session.project.clips[0].content.kind === "notes"
+					? session.project.clips[0].content.events[0]
+					: undefined;
+			if (!first) throw new Error("expected a note");
+
+			const gesture = session.beginGesture();
+			gesture.apply(
+				updateNote(clipId, first.id, {
+					startTicks: (2 * TICKS_PER_SIXTEENTH) as never,
+				}),
+			);
+			// Mid-gesture, nothing is queued yet: the write is deferred to commit.
+			expect(session.autosave.status.pending).toBe(0);
+
+			gesture.commit();
+			expect(session.autosave.status.pending).toBe(1);
+
+			await session.autosave.flush();
+			const loaded = await repository.loadProject(project.metadata.id);
+			if (!loaded.ok) throw new Error("expected the project to load");
+			const clip = loaded.value.clips.find((c) => c.id === clipId);
+			if (clip?.content.kind !== "notes")
+				throw new Error("expected a note clip");
+			const persisted = clip.content.events.find((e) => e.id === first.id);
+			expect(persisted?.startTicks).toBe(2 * TICKS_PER_SIXTEENTH);
+		});
+
+		it("a cancelled gesture leaves no revision, entry, or queued write", () => {
+			const { session, clipId } = ctx;
+			const first =
+				session.project.clips[0].content.kind === "notes"
+					? session.project.clips[0].content.events[0]
+					: undefined;
+			if (!first) throw new Error("expected a note");
+			const startRevision = session.project.metadata.revision;
+
+			const gesture = session.beginGesture();
+			gesture.apply(
+				updateNote(clipId, first.id, {
+					startTicks: (9 * TICKS_PER_SIXTEENTH) as never,
+				}),
+			);
+			gesture.cancel();
+
+			expect(session.project.metadata.revision).toBe(startRevision);
+			expect(session.history.entries).toHaveLength(0);
+			expect(session.autosave.status.pending).toBe(0);
+		});
+	});
+
 	it("persists a mixer edit (a song-tier command) through autosave", async () => {
 		const { session, repository, project } = ctx;
 		const trackId = project.song.tracks[0].id;

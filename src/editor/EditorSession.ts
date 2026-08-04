@@ -66,6 +66,8 @@ function isCommandId(value: string): value is CommandId {
  * document. `LOOP-007` introduced the first UI that edits song structure
  * (tracks and the mixer), so dispatch-to-autosave had to cover the song tier
  * and multi-clip track edits, not just the single clip a note command names.
+ * The same diff drives `beginGesture`'s commit path, so a piano-roll note drag
+ * and a fader/pan drag share exactly one autosave mechanism.
  */
 export class EditorSession {
 	readonly repository: ProjectRepository;
@@ -122,17 +124,22 @@ export class EditorSession {
 	}
 
 	/**
-	 * Opens a continuous edit gesture — a step-editor paint or erase stroke, a
-	 * fader or pan drag — that applies each step immediately (so the UI and audio
-	 * stay live) but commits as one history entry and one revision (PRD section
-	 * 9.6; CLP-02 "undo groups a single drag gesture").
+	 * Opens a continuous edit gesture — a piano-roll note drag, a step-editor
+	 * paint or erase stroke, a fader or pan drag — that applies each step
+	 * immediately (so the UI and audio stay live) but commits as one history
+	 * entry and one revision (PRD section 9.6; CLP-02 "undo groups a single drag
+	 * gesture", CLP-03 for the piano roll).
 	 *
 	 * Autosave is deferred to `commit` and queued from a structural diff against
 	 * the project as it was when the gesture began: a fader drag persists a
-	 * single song write, and a stroke that touches ten steps writes the changed
-	 * clip document *once*, not once per step. `first_edit` fires for the
-	 * stroke's first command. `cancel` abandons the whole stroke, so nothing is
-	 * queued and nothing was persisted.
+	 * single song write, and a stroke or note drag that touches ten steps writes
+	 * the changed clip document *once*, not once per intermediate frame.
+	 * `first_edit` fires for the gesture's first command. `cancel` abandons the
+	 * whole gesture, so nothing is queued and nothing was persisted.
+	 *
+	 * The returned gesture's `commit`/`cancel` wrap the history kernel's so
+	 * callers cannot forget those side effects the way a raw
+	 * `history.beginGesture()` would let them.
 	 */
 	beginGesture(options: GestureOptions = {}): Gesture {
 		const before = this.history.project;
@@ -242,8 +249,8 @@ export class EditorSession {
 	 * - Every clip whose reference changed (added, edited) is queued, and every
 	 *   clip that disappeared is queued for deletion. This is a structural diff
 	 *   rather than a per-command payload scan, so it covers a note edit (one
-	 *   clip changes), a track duplicate (several new clips), and a track delete
-	 *   (several clip deletions) with one path.
+	 *   clip changes), a track duplicate (several new clips), a track delete
+	 *   (several clip deletions), and a piano-roll note drag with one path.
 	 *
 	 * Structural sharing makes the diff cheap: an unchanged song or clip keeps
 	 * its exact object reference through the immutable edit helpers, so an edit
