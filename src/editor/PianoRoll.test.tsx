@@ -13,7 +13,10 @@ import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectR
 import { createManualClock } from "../shared/clock";
 import { memoryStorage } from "../testing/storage";
 import { EditorSession } from "./EditorSession";
-import PianoRoll, { type PianoRollActions } from "./PianoRoll";
+import PianoRoll, {
+	type PianoRollActions,
+	type PianoRollProps,
+} from "./PianoRoll";
 
 afterEach(() => cleanup());
 
@@ -94,13 +97,22 @@ async function setUp() {
 	componentAnalytics.setAccountType("anonymous");
 
 	let actions: PianoRollActions | null = null;
-	function renderRoll() {
+	/**
+	 * `beginGesture` is overridable so a test can wrap it (e.g. to force a
+	 * synchronous re-entrant `commitVelocity()` from within `apply()`) while
+	 * still sharing this helper's analytics/dispatch wiring.
+	 */
+	function renderRoll(
+		overrides: { beginGesture?: PianoRollProps["beginGesture"] } = {},
+	) {
 		return render(() => (
 			<PianoRoll
 				clip={session.project.clips[0]}
 				project={session.project}
 				dispatch={session.dispatch.bind(session)}
-				beginGesture={session.beginGesture.bind(session)}
+				beginGesture={
+					overrides.beginGesture ?? session.beginGesture.bind(session)
+				}
 				analytics={componentAnalytics}
 				registerActions={(a) => {
 					actions = a;
@@ -421,6 +433,96 @@ describe("PianoRoll", () => {
 		);
 		expect(reverted?.velocity).toBeCloseTo(note.velocity);
 		expect(session.project.metadata.revision).toBe(startRevision + 2);
+	});
+
+	it("survives a re-entrant commit triggered synchronously from within gesture.apply()", async () => {
+		// Regression test for a real-browser crash jsdom's synthetic fireEvent
+		// sequencing cannot reproduce: `applyVelocity` used to call
+		// `velocityDrag.gesture.apply(...)` (which synchronously notifies history
+		// listeners and can re-render the reactive tree) and THEN read
+		// `velocityDrag.moved = true` -- but that re-render can synchronously
+		// re-enter `commitVelocity()` (the range input's own `change`/blur firing
+		// mid-render), which nulls the module-level `velocityDrag`. Control then
+		// returns to `applyVelocity` and dereferences a null `velocityDrag`,
+		// throwing `TypeError: Cannot set properties of null (setting 'moved')`.
+		//
+		// This test forces that exact re-entrancy directly: `beginGesture` hands
+		// the roll a `Gesture` whose `apply()` calls straight through to the real
+		// one, then -- standing in for the synchronous reactive re-render a real
+		// browser performs -- synchronously fires the slider's native `change`
+		// event, which re-enters `commitVelocity()` from inside `apply()`, before
+		// `apply()` returns to `applyVelocity`.
+		const { session, renderRoll, transport } = await setUp();
+		const note = noteEvents(session.project.clips[0])[0];
+		const startRevision = session.project.metadata.revision;
+		const startUndoDepth = session.history.entries.length;
+		const startEdited = clipEditedEvents(transport).length;
+
+		// The slider element the wrapped gesture will fire a re-entrant `change`
+		// on. Assigned once the component below is rendered, so the closure below
+		// can reference it despite being constructed first.
+		let reenterSlider: HTMLInputElement | null = null;
+		let reenter = false;
+		const realBeginGesture = session.beginGesture.bind(session);
+		const wrappedBeginGesture: PianoRollProps["beginGesture"] = (options) => {
+			const real = realBeginGesture(options);
+			return {
+				get active() {
+					return real.active;
+				},
+				apply(commands) {
+					const result = real.apply(commands);
+					if (reenter && reenterSlider) {
+						reenter = false;
+						// Simulate the synchronous reactive re-render re-entering the
+						// slider's own change handler mid-`apply()`.
+						fireEvent.change(reenterSlider, {
+							target: { value: reenterSlider.value },
+						});
+					}
+					return result;
+				},
+				commit: real.commit.bind(real),
+				cancel: real.cancel.bind(real),
+			};
+		};
+
+		const { container: reenterContainer } = renderRoll({
+			beginGesture: wrappedBeginGesture,
+		});
+		const reenterEl = noteEl(reenterContainer, note.id);
+		reenterSlider = reenterEl.querySelector(
+			".pr-note-velocity",
+		) as HTMLInputElement;
+
+		reenter = true;
+		expect(() => {
+			fireEvent.input(reenterSlider as HTMLInputElement, {
+				target: { value: "0.42" },
+			});
+		}).not.toThrow();
+
+		// The re-entrant `change` committed the gesture from inside `apply()`:
+		// exactly one revision, one undo entry, one `clip_edited` -- not a crash,
+		// not a double-commit.
+		const updated = noteEvents(session.project.clips[0]).find(
+			(n) => n.id === note.id,
+		);
+		expect(updated?.velocity).toBeCloseTo(0.42);
+		expect(session.project.metadata.revision).toBe(startRevision + 1);
+		expect(session.history.entries.length).toBe(startUndoDepth + 1);
+		expect(clipEditedEvents(transport).length).toBe(startEdited + 1);
+
+		// No lingering open gesture: an unrelated subsequent edit must not throw
+		// "A gesture is already in progress".
+		expect(() => {
+			fireEvent.input(reenterSlider, { target: { value: "0.55" } });
+			fireEvent.change(reenterSlider, { target: { value: "0.55" } });
+		}).not.toThrow();
+		const final = noteEvents(session.project.clips[0]).find(
+			(n) => n.id === note.id,
+		);
+		expect(final?.velocity).toBeCloseTo(0.55);
 	});
 
 	it("survives a save and reload: an edit made through the roll persists", async () => {

@@ -480,10 +480,18 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 			}
 			velocityDrag = { gesture, noteId: note.id, moved: false };
 		}
-		velocityDrag.gesture.apply(
+		// Capture the gesture locally and mark it moved BEFORE the notifying
+		// `apply()` call. `apply()` synchronously notifies history listeners,
+		// which re-renders the reactive tree; that re-render can synchronously
+		// re-enter `commitVelocity()` (e.g. the range input's own `change`/blur
+		// firing during that render), which nulls the module-level
+		// `velocityDrag`. So `velocityDrag` must never be dereferenced again
+		// after `apply()` runs -- only the locally captured `drag`.
+		const drag = velocityDrag;
+		drag.moved = true;
+		drag.gesture.apply(
 			updateNotes(props.clip.id, [{ eventId: note.id, changes: { velocity } }]),
 		);
-		velocityDrag.moved = true;
 	}
 
 	/** Commits the open velocity gesture as one entry, or cancels an empty one. */
