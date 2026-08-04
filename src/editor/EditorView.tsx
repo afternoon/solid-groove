@@ -24,6 +24,7 @@ import { setParameter } from "../commands/definitions/parameters";
 import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 import type { NoteTrigger } from "../domain/entities";
+import type { EventId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { formatBarsBeatsSixteenths, TICKS_PER_QUARTER } from "../domain/time";
 import SamplerPanel, { type SampleChoice } from "../instrument/SamplerPanel";
@@ -35,7 +36,8 @@ import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
-import StepGrid from "./StepGrid";
+import StepEditor, { deleteSelectedNotes } from "./StepEditor";
+import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
 import "./EditorView.css";
@@ -70,11 +72,11 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
 };
 
 /**
- * The `FND-009` foundation vertical slice: open a schema-v1 project, edit its
- * 16-step sampler track, hear it, undo it, and let autosave save it — the
- * smallest surface that exercises the real UI-to-command-to-audio-to-
- * persistence path end to end. Superseded by `LOOP-010`'s full step editor;
- * not meant to be grown into it (see the `FND-009` task).
+ * The project editor: open a schema-v1 project, program its sampler or
+ * drum-machine clip on the CLP-02 step editor, hear it, undo it, and let
+ * autosave save it. The `FND-009` slice's minimal 16-step grid was replaced by
+ * `LOOP-010`'s full step editor (`StepEditor`); the surrounding transport,
+ * instrument panels, and save/undo wiring are the same path it established.
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [repositoryResource] = createResource(() => getProjectRepository());
@@ -86,6 +88,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const project = createMemo(() => session.state.project);
 	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
+	// The step editor's note selection, lifted here so the `edit.delete` shortcut
+	// can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
+	const [selectedNoteIds, setSelectedNoteIds] = createSignal<
+		readonly EventId[]
+	>([]);
 
 	// Tempo is written by a validated command (song.tempo), clamped to the
 	// AUD-02 40-240 BPM supported range at this surface. The command is the only
@@ -129,6 +136,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		"edit.redo": {
 			run: () => session.redo(),
 			isEnabled: () => session.state.canRedo,
+		},
+		// Delete the step editor's selected notes (CLP-02). Only fires when the
+		// selection is non-empty, so an empty-selection Delete leaves the browser
+		// default alone (PRD KEY-02).
+		"edit.delete": {
+			run: () => deleteSelection(),
+			isEnabled: () => selectedNoteIds().length > 0,
 		},
 		"help.shortcut_guide": { run: () => setGuideOpen(true) },
 		"view.close_surface": {
@@ -175,6 +189,26 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			currentProject.clips.find((c) => c.trackId === currentTrack.id) ?? null
 		);
 	});
+
+	// The step editor's live playback-step indicator (CLP-02): which 16th step of
+	// the edited clip the playhead is currently passing, wrapped within the clip's
+	// bars, or null when stopped.
+	const editorPlaybackStep = createMemo(() => {
+		const currentClip = clip();
+		if (!currentClip) return null;
+		return playbackStepOf(
+			currentClip,
+			audio.positionTicks(),
+			audio.isPlaying(),
+		);
+	});
+
+	function deleteSelection(): void {
+		const currentClip = clip();
+		if (!currentClip) return;
+		deleteSelectedNotes(currentClip, selectedNoteIds(), session.dispatch);
+		setSelectedNoteIds([]);
+	}
 
 	// Every tempo-labelled loop clip in the project, paired with its resolved
 	// asset (or null when the asset is missing) — LOOP-006 renders one loop-info
@@ -484,9 +518,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 													</span>
 												</Show>
 											</div>
-											<StepGrid
+											<StepEditor
 												clip={currentClip()}
+												instrument={instrument()}
 												dispatch={session.dispatch}
+												beginGesture={session.beginGesture}
+												playbackStep={editorPlaybackStep}
+												selectedIds={selectedNoteIds}
+												setSelectedIds={setSelectedNoteIds}
 											/>
 											<Show when={instrumentPanelTrackId()}>
 												{(trackId) => (

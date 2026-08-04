@@ -6,6 +6,9 @@ import { bucketOf, projectAgeBucket } from "../analytics/buckets";
 import { COMMAND_IDS, type CommandId } from "../analytics/catalog";
 import {
 	CommandHistory,
+	type Gesture,
+	type GestureOptions,
+	type HistoryEntry,
 	type HistoryListener,
 	type RawCommandInput,
 	type TransactionResult,
@@ -119,6 +122,47 @@ export class EditorSession {
 	}
 
 	/**
+	 * Opens a continuous edit gesture — a step-editor paint or erase stroke, a
+	 * fader drag — that commits as one history entry and one revision (PRD
+	 * section 8, "Undo and redo"; CLP-02 "undo groups a single drag gesture").
+	 *
+	 * Every `apply` takes effect immediately so the UI and audio stay live, but
+	 * autosave is deferred to `commit`: a stroke that touches ten steps writes
+	 * the changed clip document *once*, not once per step, and `first_edit` fires
+	 * for the stroke's first command. `cancel` abandons the whole stroke, so no
+	 * clip is queued and nothing was persisted.
+	 */
+	beginGesture(options: GestureOptions = {}): Gesture {
+		const gesture = this.history.beginGesture(options);
+		const touchedClipIds = new Set<ClipId>();
+		let firstEditResult: TransactionSuccess | null = null;
+		return {
+			get active() {
+				return gesture.active;
+			},
+			apply: (commands) => {
+				const result = gesture.apply(commands);
+				if (result.ok) {
+					if (!firstEditResult) firstEditResult = result;
+					for (const command of result.commands) {
+						const clipId = clipIdOf(command.payload);
+						if (clipId) touchedClipIds.add(clipId);
+					}
+				}
+				return result;
+			},
+			commit: (summary?: string): HistoryEntry | null => {
+				const entry = gesture.commit(summary);
+				if (!entry) return null;
+				if (firstEditResult) this.logFirstEdit(firstEditResult);
+				this.queueClips(this.project, touchedClipIds);
+				return entry;
+			},
+			cancel: () => gesture.cancel(),
+		};
+	}
+
+	/**
 	 * `actor` is who invoked the undo, not who authored the entry being undone
 	 * (`history.undo()` already replays the entry's own actor for that). Only
 	 * `"user"` is reachable today — an assistant-invoked undo is `AI-003`'s
@@ -194,10 +238,13 @@ export class EditorSession {
 			const clipId = clipIdOf(command.payload);
 			if (clipId) clipIds.add(clipId);
 		}
+		this.queueClips(result.project, clipIds);
+	}
+
+	/** Queues each named clip as it stands in `project`, or its deletion. */
+	private queueClips(project: Project, clipIds: ReadonlySet<ClipId>): void {
 		for (const clipId of clipIds) {
-			const clip = result.project.clips.find(
-				(candidate) => candidate.id === clipId,
-			);
+			const clip = project.clips.find((candidate) => candidate.id === clipId);
 			if (clip) {
 				this.autosave.queueClip(clip);
 			} else {

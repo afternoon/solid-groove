@@ -101,6 +101,68 @@ describe("EditorSession", () => {
 		expect(clip.content.events).toHaveLength(5);
 	});
 
+	it("commits a paint gesture as one history entry, one revision, and one clip write", async () => {
+		const { session, repository, project, clipId } = ctx;
+		const factoryContext = createFactoryContext();
+		const startRevision = session.project.metadata.revision;
+
+		// A three-step paint stroke: each step applies immediately, but the whole
+		// stroke commits as one entry and one revision (CLP-02 undo grouping).
+		const gesture = session.beginGesture();
+		for (const sixteenth of [1, 2, 3]) {
+			const note = createNoteEvent(factoryContext, {
+				startTicks: sixteenth * TICKS_PER_SIXTEENTH,
+				durationTicks: TICKS_PER_SIXTEENTH,
+				pitch: 36,
+			});
+			gesture.apply(addNotes(clipId, [note]));
+		}
+		// Autosave is deferred until commit: no clip is queued mid-stroke.
+		expect(session.autosave.status.pending).toBe(0);
+		gesture.commit("Paint 3 steps");
+
+		expect(session.project.metadata.revision).toBe(startRevision + 1);
+		expect(session.history.entries).toHaveLength(1);
+		// Exactly one clip queued for the whole stroke, not one per step.
+		expect(session.autosave.status.pending).toBe(1);
+
+		await session.autosave.flush();
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		const clip = loaded.value.clips.find(
+			(candidate) => candidate.id === clipId,
+		);
+		if (clip?.content.kind !== "notes") throw new Error("expected a note clip");
+		// The four fixture events plus the three painted.
+		expect(clip.content.events).toHaveLength(7);
+
+		// One undo reverts the whole stroke.
+		session.undo();
+		expect(session.project.clips[0].content).toMatchObject({ kind: "notes" });
+	});
+
+	it("a cancelled gesture leaves the project untouched and queues nothing", () => {
+		const { session, clipId } = ctx;
+		const factoryContext = createFactoryContext();
+		const before = session.project;
+
+		const gesture = session.beginGesture();
+		gesture.apply(
+			addNotes(clipId, [
+				createNoteEvent(factoryContext, {
+					startTicks: 1 * TICKS_PER_SIXTEENTH,
+					durationTicks: TICKS_PER_SIXTEENTH,
+					pitch: 36,
+				}),
+			]),
+		);
+		gesture.cancel();
+
+		expect(session.project).toBe(before);
+		expect(session.autosave.status.pending).toBe(0);
+		expect(session.history.canUndo).toBe(false);
+	});
+
 	it("undo reverts the project and re-queues the same clip for autosave", async () => {
 		const { session, repository, project, clipId } = ctx;
 		const factoryContext = createFactoryContext();

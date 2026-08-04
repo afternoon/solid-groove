@@ -40,14 +40,14 @@ test.describe("foundation vertical slice", () => {
 		await expect(page).toHaveURL(/\/projects\/prj_/);
 		const projectUrl = page.url();
 
-		const grid = page.getByRole("group", { name: "16-step sequence" });
+		const grid = page.getByRole("region", { name: "Step editor" });
 		await expect(grid).toBeVisible();
 		// The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on.
 		await expect(
-			page.getByRole("button", { name: "Step 1, on" }),
+			page.getByRole("button", { name: "Notes, step 1, on" }),
 		).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: "Step 3, off" }),
+			page.getByRole("button", { name: "Notes, step 3, off" }),
 		).toBeVisible();
 
 		// The reopened project must report the same pack dependency it saved
@@ -58,9 +58,9 @@ test.describe("foundation vertical slice", () => {
 		const packDependencyText = await packLabel.textContent();
 
 		// Add a note: dispatches note.add through the shared command layer.
-		await page.getByRole("button", { name: "Step 3, off" }).click();
+		await page.getByRole("button", { name: "Notes, step 3, off" }).click();
 		await expect(
-			page.getByRole("button", { name: "Step 3, on" }),
+			page.getByRole("button", { name: "Notes, step 3, on" }),
 		).toBeVisible();
 
 		// The revision-checked write actually advances the persisted revision,
@@ -153,7 +153,7 @@ test.describe("foundation vertical slice", () => {
 		// Undo it: the added note is removed through the same history.
 		await page.getByRole("button", { name: /^Undo/ }).click();
 		await expect(
-			page.getByRole("button", { name: "Step 3, off" }),
+			page.getByRole("button", { name: "Notes, step 3, off" }),
 		).toBeVisible();
 
 		// Save it: the autosave status settles once the revision-checked write
@@ -179,13 +179,13 @@ test.describe("foundation vertical slice", () => {
 		await page.reload();
 		await expect(page).toHaveURL(projectUrl);
 		await expect(
-			page.getByRole("button", { name: "Step 1, on" }),
+			page.getByRole("button", { name: "Notes, step 1, on" }),
 		).toBeVisible();
 		// The undone note stayed undone — a stale echo of the pre-undo save
 		// never got the chance to restore it, and the reload reads the
 		// post-undo revision that was actually persisted.
 		await expect(
-			page.getByRole("button", { name: "Step 3, off" }),
+			page.getByRole("button", { name: "Notes, step 3, off" }),
 		).toBeVisible();
 		await expect(page.getByText(packDependencyText ?? "")).toBeVisible();
 
