@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { deviceParameters } from "./devices";
 import {
 	type Clip,
 	clipSchema,
@@ -22,6 +23,19 @@ import {
 import { TICKS_PER_BAR } from "./time";
 
 /**
+ * Routing capacity ceilings (PRD FX-01, LOOP-008). The PRD states a floor —
+ * "at least eight serial insert devices per track" and "two stereo send/return
+ * buses" — and these are the ceilings the alpha actually enforces, set well
+ * above that floor so a chain or a send layout stays a creative choice rather
+ * than a limit users design around. They are still finite: a bound exists so
+ * every mutation path — the device/send commands and any imported document —
+ * is judged against one declared value rather than a literal repeated at each
+ * call site, and so a runaway document cannot grow a track's graph without end.
+ */
+export const MAX_TRACK_INSERTS = 16;
+export const MAX_RETURN_BUSES = 8;
+
+/**
  * Parsing and cross-entity integrity (PRD section 9.5).
  *
  * `parseProject` is the only way to obtain a `Project`. It validates shape,
@@ -41,6 +55,8 @@ export type DomainIssueCode =
 	| "invalid_automation"
 	| "invalid_musical_time"
 	| "invalid_metadata"
+	/** A track's insert count or the song's return count exceeds its ceiling. */
+	| "capacity_exceeded"
 	/** An asset names a pack the project does not declare, or a wrong version. */
 	| "invalid_pack_reference";
 
@@ -310,6 +326,15 @@ export function checkSongIntegrity(
 			"return buses",
 		),
 	);
+	if (song.returns.length > MAX_RETURN_BUSES) {
+		issues.push(
+			issue(
+				"capacity_exceeded",
+				[...path, "returns"],
+				`A song may have at most ${MAX_RETURN_BUSES} return buses, found ${song.returns.length}`,
+			),
+		);
+	}
 
 	issues.push(
 		...checkDeviceChain(
@@ -326,6 +351,15 @@ export function checkSongIntegrity(
 		issues.push(
 			...checkDeviceChain(track.devices, [...trackPath, "devices"], seenIds),
 		);
+		if (track.devices.length > MAX_TRACK_INSERTS) {
+			issues.push(
+				issue(
+					"capacity_exceeded",
+					[...trackPath, "devices"],
+					`A track may have at most ${MAX_TRACK_INSERTS} insert devices, track ${track.id} has ${track.devices.length}`,
+				),
+			);
+		}
 		issues.push(...checkInstrument(track, trackPath, assetIds, seenIds));
 
 		const usedReturns = new Set<string>();
@@ -723,7 +757,26 @@ function checkDeviceChain(
 	const issues: DomainIssue[] = [];
 	devices.forEach((device, index) => {
 		claimId(seenIds, device.id, [...path, index, "id"], issues);
+		// A registered device type owns a known parameter set; an unregistered
+		// type (forward-compatible passthrough, LOOP-009) declares none, so its
+		// stored parameters are accepted as opaque finite numbers.
+		const declared = new Set(
+			deviceParameters(device.type).map((definition) =>
+				bareParameterId(definition.id),
+			),
+		);
+		const typeIsRegistered = declared.size > 0;
 		for (const [parameterId, value] of Object.entries(device.parameters)) {
+			if (typeIsRegistered && !declared.has(parameterId)) {
+				issues.push(
+					issue(
+						"invalid_parameter",
+						[...path, index, "parameters", parameterId],
+						`Device type "${device.type}" has no parameter "${parameterId}"`,
+					),
+				);
+				continue;
+			}
 			const definition = getParameterDefinition(
 				`${device.type}.${parameterId}`,
 			);
