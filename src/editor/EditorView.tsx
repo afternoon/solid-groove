@@ -35,6 +35,7 @@ import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
+import Mixer from "./Mixer";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
@@ -580,6 +581,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										</div>
 									)}
 								</Show>
+								<Mixer
+									project={currentProject()}
+									dispatch={session.dispatch}
+									beginGesture={session.beginGesture}
+									trackLevelDb={audio.trackLevelDb}
+									isPlaying={audio.isPlaying}
+								/>
 							</div>
 							<Show when={guideOpen()}>
 								<ShortcutGuide

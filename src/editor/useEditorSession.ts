@@ -72,9 +72,10 @@ export interface UseEditorSessionResult {
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
 	/**
-	 * Opens a continuous gesture that commits as one history entry and one
-	 * revision (PRD section 8). Returns `undefined` before the session has
-	 * loaded. The piano-roll note drags use this so a whole drag is one undo.
+	 * Opens a continuous gesture — a fader/pan drag or a piano-roll note drag —
+	 * that commits as one history entry, one revision, and one autosave (PRD
+	 * section 8, PRD `TRK-02`). Returns `undefined` before the session has
+	 * loaded.
 	 */
 	beginGesture(options?: GestureOptions): Gesture | undefined;
 	undo(): TransactionResult | null | undefined;

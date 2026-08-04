@@ -14,7 +14,7 @@ import {
 	type TransactionResult,
 	type TransactionSuccess,
 } from "../commands";
-import type { Project } from "../domain/entities";
+import type { Clip, Project } from "../domain/entities";
 import type { ClipId } from "../domain/ids";
 import {
 	createProjectAutosave,
@@ -61,12 +61,14 @@ function isCommandId(value: string): value is CommandId {
  * Framework-free, like `CommandHistory` and `ProjectAutosave` themselves —
  * `src/editor/useEditorSession.ts` is what adapts it into Solid signals.
  *
- * Autosave scope is deliberately narrow: only a command whose payload names a
- * `clipId` (every note command does) queues that clip. A command that edits
- * `song` structure (tracks, placements, assets, ...) would need `queueSong`
- * too, but no such command is dispatched by this slice's UI — generalizing
- * dispatch-to-autosave for every future command family is `LOOP-002`'s fuller
- * autosave UX, not this task's.
+ * Autosave scope is a structural diff of the committed project against the one
+ * before it (see {@link queueAutosave}): a changed `song` reference queues the
+ * song tier, and each clip that was added, edited, or removed queues that clip
+ * document. `LOOP-007` introduced the first UI that edits song structure
+ * (tracks and the mixer), so dispatch-to-autosave had to cover the song tier
+ * and multi-clip track edits, not just the single clip a note command names.
+ * The same diff drives `beginGesture`'s commit path, so a piano-roll note drag
+ * and a fader/pan drag share exactly one autosave mechanism.
  */
 export class EditorSession {
 	readonly repository: ProjectRepository;
@@ -113,50 +115,43 @@ export class EditorSession {
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult {
+		const before = this.history.project;
 		const result = this.history.execute(commands);
 		if (result.ok) {
 			this.logFirstEdit(result);
-			this.queueAutosave(result);
+			this.queueAutosave(result, before);
 		}
 		return result;
 	}
 
 	/**
-	 * Opens a continuous gesture (a note drag in the piano roll, a fader drag)
-	 * that commits as one history entry and one revision (PRD section 8). Each
-	 * `apply` runs immediately so the UI and audio stay live; autosave is queued
-	 * only when the gesture commits, so a clip is written once for the whole
-	 * drag rather than on every intermediate frame.
+	 * Opens a continuous gesture (a note drag in the piano roll, a fader or pan
+	 * drag) that applies each step immediately — so the UI and audio stay live
+	 * — but commits as one history entry and one revision (PRD section 9.6).
+	 * Autosave is queued once, on commit, by diffing the project as it was
+	 * when the gesture began against the project the commit produced: a drag
+	 * persists a single write, not one per intermediate frame.
 	 *
 	 * The returned gesture's `commit`/`cancel` wrap the history kernel's so
 	 * callers cannot forget the autosave/first-edit side effects the way a raw
 	 * `history.beginGesture()` would let them.
 	 */
 	beginGesture(options: GestureOptions = {}): Gesture {
+		const before = this.history.project;
 		const gesture = this.history.beginGesture(options);
 		const session = this;
-		let touchedClips = false;
 		return {
 			get active() {
 				return gesture.active;
 			},
 			apply(commands) {
-				const result = gesture.apply(commands);
-				if (result.ok && clipIdsOf(result).size > 0) {
-					touchedClips = true;
-				}
-				return result;
+				return gesture.apply(commands);
 			},
 			commit(summary): HistoryEntry | null {
-				const wasActive = gesture.active;
 				const entry = gesture.commit(summary);
 				if (entry) {
 					session.logFirstEditForEntry(entry);
-					session.queueAutosaveForClips(entry, touchedClips);
-				} else if (wasActive && touchedClips) {
-					// A gesture that applied a change and then reverted it (drag
-					// back to the start) commits nothing, so there is no revision
-					// to persist. Nothing to queue.
+					session.queueDiff(session.history.project, before);
 				}
 				return entry;
 			},
@@ -173,19 +168,21 @@ export class EditorSession {
 	 * `assistant_proposal_undone`, a distinct catalog event, not this one.
 	 */
 	undo(actor: "user" | "assistant" = "user"): TransactionResult | null {
+		const before = this.history.project;
 		const result = this.history.undo();
 		if (result?.ok) {
-			this.queueAutosave(result);
+			this.queueAutosave(result, before);
 			this.analytics.log("undo_used", { direction: "undo", actor });
 		}
 		return result;
 	}
 
 	redo(actor: "user" | "assistant" = "user"): TransactionResult | null {
+		const before = this.history.project;
 		const result = this.history.redo();
 		if (result?.ok) {
 			this.logFirstEdit(result);
-			this.queueAutosave(result);
+			this.queueAutosave(result, before);
 			this.analytics.log("undo_used", { direction: "redo", actor });
 		}
 		return result;
@@ -243,56 +240,51 @@ export class EditorSession {
 		});
 	}
 
-	/** Queues exactly the clip(s) a note command's payload names. */
-	private queueAutosave(result: TransactionSuccess): void {
-		this.queueClips(clipIdsOf(result));
-	}
-
 	/**
-	 * Queues the clip(s) a committed gesture entry touched. `touched` guards the
-	 * common case where the gesture applied no clip command at all, so a gesture
-	 * that only moved UI state never queues a write.
+	 * Queues exactly the tiers a transaction changed, by comparing the project
+	 * before and after it committed.
+	 *
+	 * - A changed `song` reference queues the song document. `saveSong`
+	 *   recomputes the metadata tier's pack-dependency list in the same
+	 *   revision-checked step, so a track add/delete that drops or adds a pack
+	 *   needs no separate metadata write.
+	 * - Every clip whose reference changed (added, edited) is queued, and every
+	 *   clip that disappeared is queued for deletion. This is a structural diff
+	 *   rather than a per-command payload scan, so it covers a note edit (one
+	 *   clip changes), a track duplicate (several new clips), a track delete
+	 *   (several clip deletions), and a piano-roll note drag with one path.
+	 *
+	 * Structural sharing makes the diff cheap: an unchanged song or clip keeps
+	 * its exact object reference through the immutable edit helpers, so an edit
+	 * to one track compares `false` for the song and `true` (skip) for every
+	 * clip it did not touch.
 	 */
-	private queueAutosaveForClips(entry: HistoryEntry, touched: boolean): void {
-		if (!touched) return;
-		const clipIds = new Set<ClipId>();
-		for (const command of entry.commands) {
-			const clipId = clipIdOf(command.payload);
-			if (clipId) clipIds.add(clipId);
-		}
-		this.queueClips(clipIds);
+	private queueAutosave(result: TransactionSuccess, before: Project): void {
+		this.queueDiff(result.project, before);
 	}
 
-	private queueClips(clipIds: ReadonlySet<ClipId>): void {
-		for (const clipId of clipIds) {
-			const clip = this.history.project.clips.find(
-				(candidate) => candidate.id === clipId,
-			);
-			if (clip) {
+	private queueDiff(next: Project, before: Project): void {
+		if (next.song !== before.song) {
+			this.autosave.queueSong(next.song);
+		}
+		this.queueChangedClips(next, before);
+	}
+
+	private queueChangedClips(next: Project, before: Project): void {
+		if (next.clips === before.clips) return;
+		const beforeById = new Map<ClipId, Clip>(
+			before.clips.map((clip) => [clip.id, clip]),
+		);
+		for (const clip of next.clips) {
+			if (beforeById.get(clip.id) !== clip) {
 				this.autosave.queueClip(clip);
-			} else {
-				this.autosave.queueClipDeletion(clipId);
 			}
+			beforeById.delete(clip.id);
+		}
+		for (const clipId of beforeById.keys()) {
+			this.autosave.queueClipDeletion(clipId);
 		}
 	}
-}
-
-/** Distinct clip ids named by every command in a transaction. */
-function clipIdsOf(result: {
-	readonly commands: readonly { readonly payload: unknown }[];
-}): ReadonlySet<ClipId> {
-	const clipIds = new Set<ClipId>();
-	for (const command of result.commands) {
-		const clipId = clipIdOf(command.payload);
-		if (clipId) clipIds.add(clipId);
-	}
-	return clipIds;
-}
-
-function clipIdOf(payload: unknown): ClipId | undefined {
-	if (typeof payload !== "object" || payload === null) return undefined;
-	const clipId = (payload as { clipId?: unknown }).clipId;
-	return typeof clipId === "string" ? (clipId as ClipId) : undefined;
 }
 
 export function createEditorSession(
