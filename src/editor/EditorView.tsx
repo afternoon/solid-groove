@@ -20,6 +20,7 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import ArrangementView from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
@@ -532,6 +533,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									</Show>
 								</div>
 							</header>
+							<div class="arrangement-panel">
+								<ArrangementView
+									project={currentProject()}
+									playheadTicks={audio.positionTicks}
+									isPlaying={audio.isPlaying}
+								/>
+							</div>
 							<div class="editor-body">
 								<Show when={libraryOpen()}>
 									{/*

@@ -795,7 +795,7 @@ The `Owning task` column names the task that must ship the event with the featur
 | `asset_load_failed` | A library or user asset fails to load or decode | `asset_type`, `error_code` | 1 / `LOOP-013` |
 | `exception` | An uncaught error reaches a boundary or global handler (OPS-03) | `fatal`, `area`, `error_code` | 0 / `FND-001c` |
 
-`feature_first_use` carries a single low-cardinality `feature` key rather than a separate event name per feature, so the catalog stays well inside the Google Analytics distinct-event-name limit and first-use across features is comparable in one report. The alpha keys are: `step_editor`, `piano_roll`, `drum_machine`, `synth`, `sampler`, `audio_loop`, `device_chain`, `send_return`, `mixer`, `library_browser`, `pack_browser`, `shortcut_guide`, `sections`, `automation`, `assistant`, `export_stereo`, `export_stems`. A feature task adds its key with the feature.
+`feature_first_use` carries a single low-cardinality `feature` key rather than a separate event name per feature, so the catalog stays well inside the Google Analytics distinct-event-name limit and first-use across features is comparable in one report. The alpha keys are: `step_editor`, `piano_roll`, `drum_machine`, `synth`, `sampler`, `audio_loop`, `device_chain`, `send_return`, `mixer`, `library_browser`, `pack_browser`, `arrangement`, `shortcut_guide`, `sections`, `automation`, `assistant`, `export_stereo`, `export_stems`. A feature task adds its key with the feature.
 
 Acceptance criteria:
 
