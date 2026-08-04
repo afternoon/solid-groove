@@ -1,14 +1,26 @@
+/*
+ * The editor fills the viewport exactly and never scrolls the document — its
+ * regions scroll inside themselves instead (LOOP-013).
+ *
+ * This was `min-height: 100vh`, which let the page grow with its content. That
+ * is fine for a workspace you scroll top-to-bottom, but it leaves the library
+ * panel beside it with no definite height, so `.library-tree`'s own scroller
+ * never engaged: expanding a 121-sound pack grew the document instead and
+ * carried the panel's search box and its "Browse packs" footer off the screen.
+ * A persistent side column only works against a bounded page.
+ */
 .editor {
 	--size-divider: 5px;
 
 	width: 100vw;
-	min-height: 100vh;
+	height: 100vh;
 	margin: 0;
 	padding: var(--size-divider);
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-divider);
+	overflow: hidden;
 }
 
 .editor .project-error {
@@ -216,4 +228,45 @@
 .track-info .pack-dependency {
 	font-size: var(--font-size-small);
 	color: var(--color-text-secondary);
+}
+
+/*
+ * The library panel (LOOP-013). Opened from the header toggle, it is a narrow
+ * left-hand column beside the workspace rather than a band beneath it: a
+ * browser is something you keep open while you work, and a fixed-height band
+ * had to be tall enough to be useful, which cost the editor its vertical room.
+ *
+ * ~250px is the whole layout constraint. The panel's contents are a tree and
+ * one full-width button (`LibraryBrowser.css`); anything that needs to lay out
+ * horizontally lives in the pack browser modal instead.
+ */
+.editor-header .library-toggle[aria-pressed="true"] {
+	color: var(--color-foreground-bright);
+	background-color: var(--color-background-highlight);
+}
+
+.editor-body {
+	display: flex;
+	align-items: stretch;
+	gap: var(--size-divider);
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* The workspace takes the page's old job: it is what scrolls, inside itself. */
+.editor-body .workspace {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.library-panel {
+	display: block;
+	flex: 0 0 15.625rem;
+	width: 15.625rem;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	background-color: var(--color-background-secondary);
 }
