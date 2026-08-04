@@ -1,4 +1,3 @@
-import type { z } from "zod";
 import { deviceParameters } from "./devices";
 import {
 	type Clip,
@@ -20,7 +19,21 @@ import {
 	SAMPLER_SAMPLE_END,
 	SAMPLER_SAMPLE_START,
 } from "./parameters";
+import {
+	checkOrdering,
+	claimId,
+	type DomainIssue,
+	type DomainIssueCode,
+	DomainValidationError,
+	formatIssue,
+	issue,
+	type ParseResult,
+	parseWith,
+} from "./parse/primitives";
 import { TICKS_PER_BAR } from "./time";
+
+export type { DomainIssue, DomainIssueCode, ParseResult };
+export { DomainValidationError, formatIssue };
 
 /**
  * Routing capacity ceilings (PRD FX-01, LOOP-008). The PRD states a floor —
@@ -42,76 +55,13 @@ export const MAX_RETURN_BUSES = 8;
  * schema version, and every relationship, and either returns a complete valid
  * project or a list of issues — it never mutates its input and never returns
  * partially repaired state.
+ *
+ * This file is being split into per-concern modules under `./parse/*` so a
+ * new invariant lands in its own file instead of appending to one growing
+ * one (REFACTOR-002). The issue primitives and the shared `claimId`/
+ * `checkOrdering` helpers have moved to `./parse/primitives`; the rest still
+ * live here.
  */
-
-export type DomainIssueCode =
-	| "invalid_shape"
-	| "unsupported_schema_version"
-	| "duplicate_id"
-	| "dangling_reference"
-	| "cross_owner_reference"
-	| "invalid_order"
-	| "invalid_parameter"
-	| "invalid_automation"
-	| "invalid_musical_time"
-	| "invalid_metadata"
-	/** A track's insert count or the song's return count exceeds its ceiling. */
-	| "capacity_exceeded"
-	/** An asset names a pack the project does not declare, or a wrong version. */
-	| "invalid_pack_reference";
-
-export interface DomainIssue {
-	readonly code: DomainIssueCode;
-	readonly path: ReadonlyArray<string | number>;
-	readonly message: string;
-}
-
-export type ParseResult<T> =
-	| { readonly ok: true; readonly value: T }
-	| { readonly ok: false; readonly issues: readonly DomainIssue[] };
-
-export class DomainValidationError extends Error {
-	readonly issues: readonly DomainIssue[];
-
-	constructor(message: string, issues: readonly DomainIssue[]) {
-		super(`${message}: ${issues.map(formatIssue).join("; ")}`);
-		this.name = "DomainValidationError";
-		this.issues = issues;
-	}
-}
-
-export function formatIssue(issue: DomainIssue): string {
-	const path = issue.path.length > 0 ? issue.path.join(".") : "<root>";
-	return `[${issue.code}] ${path}: ${issue.message}`;
-}
-
-function issue(
-	code: DomainIssueCode,
-	path: ReadonlyArray<string | number>,
-	message: string,
-): DomainIssue {
-	return { code, path, message };
-}
-
-function fromZod(error: z.ZodError): DomainIssue[] {
-	return error.issues.map((zodIssue) =>
-		issue(
-			"invalid_shape",
-			zodIssue.path as (string | number)[],
-			zodIssue.message,
-		),
-	);
-}
-
-function parseWith<T>(
-	schema: { safeParse: (input: unknown) => z.ZodSafeParseResult<T> },
-	input: unknown,
-): ParseResult<T> {
-	const result = schema.safeParse(input);
-	return result.success
-		? { ok: true, value: result.data }
-		: { ok: false, issues: fromZod(result.error) };
-}
 
 /**
  * Parses one `projects/{projectId}` metadata document.
@@ -870,25 +820,6 @@ function checkDeviceChain(
 	return issues;
 }
 
-/** Insert chains and track lists are serial: orders are 0..n-1 exactly once. */
-function checkOrdering(
-	orders: readonly number[],
-	path: ReadonlyArray<string | number>,
-	label: string,
-): DomainIssue[] {
-	const sorted = [...orders].sort((a, b) => a - b);
-	const contiguous = sorted.every((order, index) => order === index);
-	return contiguous
-		? []
-		: [
-				issue(
-					"invalid_order",
-					path,
-					`Order values for ${label} must be 0..${orders.length - 1} without gaps or duplicates, received [${orders.join(", ")}]`,
-				),
-			];
-}
-
 function checkAutomationLane(
 	lane: Song["automation"][number],
 	path: ReadonlyArray<string | number>,
@@ -990,16 +921,4 @@ function checkAutomationLane(
 	});
 
 	return issues;
-}
-
-function claimId(
-	seenIds: Set<string>,
-	id: string,
-	path: ReadonlyArray<string | number>,
-	issues: DomainIssue[],
-): void {
-	if (seenIds.has(id)) {
-		issues.push(issue("duplicate_id", path, `Duplicate entity id ${id}`));
-	}
-	seenIds.add(id);
 }
