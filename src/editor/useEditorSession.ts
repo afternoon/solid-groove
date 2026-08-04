@@ -1,6 +1,8 @@
 import { type Accessor, createEffect, onCleanup } from "solid-js";
 import { createStore } from "solid-js/store";
 import type {
+	Gesture,
+	GestureOptions,
 	HistorySnapshot,
 	RawCommandInput,
 	TransactionResult,
@@ -69,6 +71,12 @@ export interface UseEditorSessionResult {
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
+	/**
+	 * Opens a continuous gesture that commits as one history entry and one
+	 * revision (PRD section 8). Returns `undefined` before the session has
+	 * loaded. The piano-roll note drags use this so a whole drag is one undo.
+	 */
+	beginGesture(options?: GestureOptions): Gesture | undefined;
 	undo(): TransactionResult | null | undefined;
 	redo(): TransactionResult | null | undefined;
 	/** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
@@ -176,6 +184,7 @@ export function useEditorSession(
 	return {
 		state: state as EditorSessionState,
 		dispatch: (commands) => session?.dispatch(commands),
+		beginGesture: (options) => session?.beginGesture(options),
 		undo: () => session?.undo(),
 		redo: () => session?.redo(),
 		retry: () => session?.autosave.retry(),

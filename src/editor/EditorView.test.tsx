@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
 	createDrumMachineFixtureProject,
+	createPianoRollFixtureProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
@@ -107,6 +108,24 @@ describe("EditorView", () => {
 		expect(screen.getByText(/tempo-labelled loop/i)).toBeInTheDocument();
 		expect(screen.getByText(/time-stretch/i)).toBeInTheDocument();
 		expect(screen.getByText(/preserves pitch/i)).toBeInTheDocument();
+	});
+
+	it("renders the piano roll (not the step grid) for a synth track's note clip (CLP-03)", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createPianoRollFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		expect(
+			await screen.findByRole("region", { name: /Piano roll/ }),
+		).toBeInTheDocument();
+		// The FND-009 step grid is a two-dimensional pitch editor's poor fit, so a
+		// synth note clip shows the piano roll instead.
+		expect(
+			screen.queryByRole("group", { name: "16-step sequence" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("shows the sampler instrument panel for the slice's sampler track", async () => {

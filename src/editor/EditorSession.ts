@@ -6,6 +6,9 @@ import { bucketOf, projectAgeBucket } from "../analytics/buckets";
 import { COMMAND_IDS, type CommandId } from "../analytics/catalog";
 import {
 	CommandHistory,
+	type Gesture,
+	type GestureOptions,
+	type HistoryEntry,
 	type HistoryListener,
 	type RawCommandInput,
 	type TransactionResult,
@@ -119,6 +122,51 @@ export class EditorSession {
 	}
 
 	/**
+	 * Opens a continuous gesture (a note drag in the piano roll, a fader drag)
+	 * that commits as one history entry and one revision (PRD section 8). Each
+	 * `apply` runs immediately so the UI and audio stay live; autosave is queued
+	 * only when the gesture commits, so a clip is written once for the whole
+	 * drag rather than on every intermediate frame.
+	 *
+	 * The returned gesture's `commit`/`cancel` wrap the history kernel's so
+	 * callers cannot forget the autosave/first-edit side effects the way a raw
+	 * `history.beginGesture()` would let them.
+	 */
+	beginGesture(options: GestureOptions = {}): Gesture {
+		const gesture = this.history.beginGesture(options);
+		const session = this;
+		let touchedClips = false;
+		return {
+			get active() {
+				return gesture.active;
+			},
+			apply(commands) {
+				const result = gesture.apply(commands);
+				if (result.ok && clipIdsOf(result).size > 0) {
+					touchedClips = true;
+				}
+				return result;
+			},
+			commit(summary): HistoryEntry | null {
+				const wasActive = gesture.active;
+				const entry = gesture.commit(summary);
+				if (entry) {
+					session.logFirstEditForEntry(entry);
+					session.queueAutosaveForClips(entry, touchedClips);
+				} else if (wasActive && touchedClips) {
+					// A gesture that applied a change and then reverted it (drag
+					// back to the start) commits nothing, so there is no revision
+					// to persist. Nothing to queue.
+				}
+				return entry;
+			},
+			cancel() {
+				gesture.cancel();
+			},
+		};
+	}
+
+	/**
 	 * `actor` is who invoked the undo, not who authored the entry being undone
 	 * (`history.undo()` already replays the entry's own actor for that). Only
 	 * `"user"` is reachable today — an assistant-invoked undo is `AI-003`'s
@@ -170,8 +218,16 @@ export class EditorSession {
 	}
 
 	private logFirstEdit(result: TransactionSuccess): void {
+		this.logFirstEditForCommandId(result.commands[0]?.type);
+	}
+
+	/** The gesture path only has the committed entry, not a transaction. */
+	private logFirstEditForEntry(entry: HistoryEntry): void {
+		this.logFirstEditForCommandId(entry.commands[0]?.type);
+	}
+
+	private logFirstEditForCommandId(commandId: string | undefined): void {
 		if (this.firstEditLogged) return;
-		const commandId = result.commands[0]?.type;
 		if (!commandId || !isCommandId(commandId)) return;
 		this.firstEditLogged = true;
 		const secondsSinceOpen = Math.max(
@@ -189,13 +245,27 @@ export class EditorSession {
 
 	/** Queues exactly the clip(s) a note command's payload names. */
 	private queueAutosave(result: TransactionSuccess): void {
+		this.queueClips(clipIdsOf(result));
+	}
+
+	/**
+	 * Queues the clip(s) a committed gesture entry touched. `touched` guards the
+	 * common case where the gesture applied no clip command at all, so a gesture
+	 * that only moved UI state never queues a write.
+	 */
+	private queueAutosaveForClips(entry: HistoryEntry, touched: boolean): void {
+		if (!touched) return;
 		const clipIds = new Set<ClipId>();
-		for (const command of result.commands) {
+		for (const command of entry.commands) {
 			const clipId = clipIdOf(command.payload);
 			if (clipId) clipIds.add(clipId);
 		}
+		this.queueClips(clipIds);
+	}
+
+	private queueClips(clipIds: ReadonlySet<ClipId>): void {
 		for (const clipId of clipIds) {
-			const clip = result.project.clips.find(
+			const clip = this.history.project.clips.find(
 				(candidate) => candidate.id === clipId,
 			);
 			if (clip) {
@@ -205,6 +275,18 @@ export class EditorSession {
 			}
 		}
 	}
+}
+
+/** Distinct clip ids named by every command in a transaction. */
+function clipIdsOf(result: {
+	readonly commands: readonly { readonly payload: unknown }[];
+}): ReadonlySet<ClipId> {
+	const clipIds = new Set<ClipId>();
+	for (const command of result.commands) {
+		const clipId = clipIdOf(command.payload);
+		if (clipId) clipIds.add(clipId);
+	}
+	return clipIds;
 }
 
 function clipIdOf(payload: unknown): ClipId | undefined {

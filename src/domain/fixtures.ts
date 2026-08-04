@@ -23,6 +23,7 @@ import {
 	createProjectMetadata,
 	createSamplerInstrument,
 	createSection,
+	createSynthInstrument,
 	createTrack,
 	type DomainFactoryContext,
 } from "./factories";
@@ -150,6 +151,73 @@ export function createSliceFixtureProject(
 		metadata: createProjectMetadata(context, {
 			ownerId: options.ownerId ?? "user_fixture",
 			name: "Slice fixture",
+			template: "blank",
+			packDependencies: derivePackDependencies(fixtureSong),
+		}),
+		song: fixtureSong,
+		clips: [clip],
+	});
+}
+
+/**
+ * The piano-roll fixture (CLP-03 / LOOP-011): one synth track holding a one-bar
+ * note clip of pitched notes — a short C-major arpeggio at varying velocities —
+ * placed once in the arrangement. A synth needs no sample asset, so this is the
+ * fixture with **no pack dependency**, the counterpart to the sampler fixtures.
+ */
+export function createPianoRollFixtureProject(
+	options: FixtureOptions = {},
+): Project {
+	const context = fixtureContext(options, "piano-roll-fixture");
+	const song = createEmptySong(options.tempo ?? 120);
+
+	const track = createTrack(context, {
+		name: "Lead",
+		order: 0,
+		instrument: createSynthInstrument(),
+	});
+
+	// A C-major arpeggio across the bar: C4, E4, G4, C5, each a 16th long, with
+	// a descending velocity so a velocity test has distinct values to assert.
+	// A two-bar clip: a one-bar duplicate of the arpeggio fits inside it, which
+	// is what the piano roll's Ctrl/Cmd+D offsets by.
+	const clip = createNoteClip(context, {
+		trackId: track.id,
+		name: "Arp",
+		lengthTicks: TICKS_PER_BAR * 2,
+		events: [
+			{ pitch: 60, sixteenth: 0, velocity: 0.9 },
+			{ pitch: 64, sixteenth: 4, velocity: 0.75 },
+			{ pitch: 67, sixteenth: 8, velocity: 0.6 },
+			{ pitch: 72, sixteenth: 12, velocity: 0.45 },
+		].map((note) =>
+			createNoteEvent(context, {
+				startTicks: note.sixteenth * TICKS_PER_SIXTEENTH,
+				durationTicks: TICKS_PER_SIXTEENTH,
+				pitch: note.pitch,
+				velocity: note.velocity,
+			}),
+		),
+	});
+
+	const placement = createPlacement(context, {
+		clipId: clip.id,
+		trackId: track.id,
+		startTicks: 0,
+		durationTicks: TICKS_PER_BAR * 2,
+	});
+
+	const fixtureSong: Song = {
+		...song,
+		assets: [],
+		tracks: [track],
+		placements: [placement],
+	};
+
+	return assertProject({
+		metadata: createProjectMetadata(context, {
+			ownerId: options.ownerId ?? "user_fixture",
+			name: "Piano roll fixture",
 			template: "blank",
 			packDependencies: derivePackDependencies(fixtureSong),
 		}),

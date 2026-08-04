@@ -35,6 +35,7 @@ import { shortcutLabel, useShortcuts } from "../shortcuts";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import LoopInfo from "./LoopInfo";
+import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepGrid from "./StepGrid";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
@@ -86,6 +87,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const project = createMemo(() => session.state.project);
 	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
+	// The piano roll owns its own note selection, but the KEY-01 registry — not
+	// the roll — dispatches delete/duplicate/select-all. The roll hands its
+	// operations up through `registerActions`; this holds them so the shortcut
+	// handlers below can call them.
+	const [pianoRollActions, setPianoRollActions] =
+		createSignal<PianoRollActions | null>(null);
 
 	// Tempo is written by a validated command (song.tempo), clamped to the
 	// AUD-02 40-240 BPM supported range at this surface. The command is the only
@@ -135,15 +142,32 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 			run: () => setGuideOpen(false),
 			isEnabled: () => guideOpen(),
 		},
+		// The piano roll's note operations, dispatched by the registry (KEY-01),
+		// not by a listener the roll owns. Each is enabled only while the roll is
+		// showing; delete/duplicate additionally need a selection.
+		"edit.delete": {
+			run: () => pianoRollActions()?.deleteSelection(),
+			isEnabled: () => pianoRollActions()?.hasSelection() ?? false,
+		},
+		"edit.duplicate": {
+			run: () => pianoRollActions()?.duplicateSelection(),
+			isEnabled: () => pianoRollActions()?.hasSelection() ?? false,
+		},
+		"edit.select_all": {
+			run: () => pianoRollActions()?.selectAll(),
+			isEnabled: () => pianoRollActions() !== null,
+		},
 	});
 
 	// The surfaces this slice actually shows. The guide filters against these,
 	// so "shortcuts valid in the current context" means the editor underneath
-	// rather than the modal covering it.
-	const editorContexts = (): readonly ShortcutContext[] => [
-		"editor",
-		"step_editor",
-	];
+	// rather than the modal covering it. The piano roll adds its own contexts:
+	// `piano_roll` (where `edit.delete` lives) and `selection` (where
+	// `edit.duplicate`/`edit.select_all` live).
+	const editorContexts = (): readonly ShortcutContext[] =>
+		showPianoRoll()
+			? ["editor", "step_editor", "piano_roll", "selection"]
+			: ["editor", "step_editor"];
 
 	// While the guide is open it is the only active context, so nothing behind
 	// it can fire — including playback and selection (PRD KEY-02).
@@ -193,6 +217,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	});
 	// The instrument of the slice's first track, and the audition note it plays.
 	const instrument = createMemo(() => track()?.instrument ?? null);
+	// A synth track holding a note clip gets the CLP-03 piano roll instead of the
+	// FND-009 step grid: pitched notes want two dimensions (pitch x time), which
+	// the 16-step grid cannot show.
+	const showPianoRoll = createMemo(() => {
+		const c = clip();
+		return instrument()?.kind === "synth" && c?.content.kind === "notes";
+	});
 	// The track id, only when it carries an instrument this slice renders a panel
 	// for (sampler or synth). The drum machine's panel lands with LOOP-005.
 	const instrumentPanelTrackId = createMemo(() => {
@@ -484,10 +515,24 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 													</span>
 												</Show>
 											</div>
-											<StepGrid
-												clip={currentClip()}
-												dispatch={session.dispatch}
-											/>
+											<Show
+												when={showPianoRoll()}
+												fallback={
+													<StepGrid
+														clip={currentClip()}
+														dispatch={session.dispatch}
+													/>
+												}
+											>
+												<PianoRoll
+													clip={currentClip()}
+													project={currentProject()}
+													dispatch={session.dispatch}
+													beginGesture={session.beginGesture}
+													playheadTicks={audio.positionTicks()}
+													registerActions={setPianoRollActions}
+												/>
+											</Show>
 											<Show when={instrumentPanelTrackId()}>
 												{(trackId) => (
 													<Switch>
