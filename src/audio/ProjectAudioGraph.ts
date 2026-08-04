@@ -181,6 +181,14 @@ export class ProjectAudioGraph {
 	}
 
 	/**
+	 * A track's post-fader peak meter, or `undefined` if no such track is in the
+	 * graph (PRD TRK-02). The mixer polls this for a per-track level display.
+	 */
+	trackMeter(trackId: TrackId): Tone.Meter | undefined {
+		return this.tracks.get(trackId)?.levelMeter;
+	}
+
+	/**
 	 * The project disposal scope, so a session-scoped companion (e.g. the
 	 * transport metronome) can register its resources under the same owner and
 	 * be torn down when the project graph is disposed.

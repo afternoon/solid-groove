@@ -14,6 +14,14 @@ import {
 	type InstrumentNodeFactory,
 } from "./InstrumentGraph";
 
+/**
+ * The ramp time applied to every continuous channel-strip change — volume,
+ * pan, and send level (PRD TRK-02: "No control change creates audible zipper
+ * noise under normal use"). Short enough to feel instant, long enough that a
+ * fader move glides the gain instead of stepping it sample-to-sample.
+ */
+export const MIXER_SMOOTHING_SECONDS = 0.02;
+
 /** One track's send: which return it targets, its own gain node, and which
  * fader stage it currently taps (needed to reconnect in place if `preFader`
  * flips without the send itself being added or removed). */
@@ -45,6 +53,8 @@ export class TrackAudioGraph {
 	private readonly deviceChain: DeviceChain;
 	private readonly panVol: Tone.PanVol;
 	private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
+	private readonly meter: Tone.Meter;
+	private readonly meterHandle: ReturnType<AudioProjectScope["register"]>;
 	private instrumentNode: InstrumentNode | null = null;
 	private instrumentHandle: ReturnType<AudioProjectScope["register"]> | null =
 		null;
@@ -67,8 +77,35 @@ export class TrackAudioGraph {
 		this.panVolHandle = context.scope.register("node", () => {
 			this.panVol.dispose();
 		});
+		// A per-track peak meter (PRD TRK-02: "Every track provides ... a level
+		// meter"). It taps the post-fader signal as a fan-out, so it reflects what
+		// mute/solo/volume actually let through without colouring the signal, and
+		// is polled by the mixer UI rather than sourcing any per-frame telemetry.
+		this.meter = new Tone.Meter();
+		this.meterHandle = context.scope.register("node", () => {
+			this.meter.dispose();
+		});
 		this.deviceChain.output.connect(this.panVol.input);
 		this.panVol.connect(destination);
+		this.panVol.connect(this.meter);
+	}
+
+	/**
+	 * This track's post-fader peak meter. The mixer polls it for a level
+	 * display; it is never the source of an analytics event, so metering adds no
+	 * per-frame telemetry (PRD TRK-02/OPS-02).
+	 */
+	get levelMeter(): Tone.Meter {
+		return this.meter;
+	}
+
+	/**
+	 * Whether this track's channel strip is currently silenced — its own mute or
+	 * the project-wide solo rule. Read access for tests and diagnostics; the
+	 * value is set by {@link reconcile}'s `effectiveMuted` argument.
+	 */
+	get isMuted(): boolean {
+		return this.panVol.mute;
 	}
 
 	/** The pre-fader tap point: after devices, before pan/volume/mute. */
@@ -97,8 +134,8 @@ export class TrackAudioGraph {
 			this.reconcileInstrument(next.instrument);
 			this.deviceChain.reconcile(next.devices);
 			this.reconcileSends(next.sendConfig);
-			this.panVol.volume.rampTo(next.mixer.volume, 0.02);
-			this.panVol.pan.rampTo(next.mixer.pan, 0.02);
+			this.panVol.volume.rampTo(next.mixer.volume, MIXER_SMOOTHING_SECONDS);
+			this.panVol.pan.rampTo(next.mixer.pan, MIXER_SMOOTHING_SECONDS);
 			this.lastProjection = next;
 		}
 		this.panVol.mute = effectiveMuted;
@@ -184,7 +221,7 @@ export class TrackAudioGraph {
 				continue;
 			}
 
-			existing.gain.gain.rampTo(send.level, 0.02);
+			existing.gain.gain.rampTo(send.level, MIXER_SMOOTHING_SECONDS);
 			if (existing.preFader !== send.preFader) {
 				const previousTap = existing.preFader
 					? this.preFaderTap
@@ -207,5 +244,6 @@ export class TrackAudioGraph {
 		this.sends.clear();
 		this.deviceChain.dispose();
 		void this.context.scope.release(this.panVolHandle);
+		void this.context.scope.release(this.meterHandle);
 	}
 }
