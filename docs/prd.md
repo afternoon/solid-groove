@@ -769,7 +769,8 @@ The `Owning task` column names the task that must ship the event with the featur
 | `track_added` | A track is added | `track_type` | 1 / `LOOP-007` |
 | `instrument_changed` | A track's instrument or its sample selection changes | `instrument_type` | 1 / `LOOP-004`, `LOOP-005` |
 | `device_added` | A processing device is added to an insert chain, return, or master | `device_type`, `chain` | 1 / `LOOP-008`, `LOOP-009` |
-| `library_audition` | A library asset is auditioned | `asset_type`, `had_genre_filter` | 1 / `LOOP-013` |
+| `library_audition` | A library asset is auditioned | `asset_type`, `had_genre_filter`, `pack_id` | 1 / `LOOP-013` |
+| `library_pack_added` | A pack is added to a project from the pack browser | `pack_id` | 1 / `LOOP-013` |
 | `clip_edited` | A step-editor or piano-roll editing gesture completes | `editor` (`step`, `piano_roll`), `event_count_bucket` | 1 / `LOOP-010`, `LOOP-011` |
 | `shortcut_used` | A registered keyboard shortcut fires | `action_id` | 1 / `LOOP-014` |
 | `undo_used` | Undo or redo is invoked | `direction`, `actor` (`user`, `assistant`) | 1 / `LOOP-002` |
@@ -794,7 +795,7 @@ The `Owning task` column names the task that must ship the event with the featur
 | `asset_load_failed` | A library or user asset fails to load or decode | `asset_type`, `error_code` | 1 / `LOOP-013` |
 | `exception` | An uncaught error reaches a boundary or global handler (OPS-03) | `fatal`, `area`, `error_code` | 0 / `FND-001c` |
 
-`feature_first_use` carries a single low-cardinality `feature` key rather than a separate event name per feature, so the catalog stays well inside the Google Analytics distinct-event-name limit and first-use across features is comparable in one report. The alpha keys are: `step_editor`, `piano_roll`, `drum_machine`, `synth`, `sampler`, `audio_loop`, `device_chain`, `send_return`, `mixer`, `library_browser`, `shortcut_guide`, `sections`, `automation`, `assistant`, `export_stereo`, `export_stems`. A feature task adds its key with the feature.
+`feature_first_use` carries a single low-cardinality `feature` key rather than a separate event name per feature, so the catalog stays well inside the Google Analytics distinct-event-name limit and first-use across features is comparable in one report. The alpha keys are: `step_editor`, `piano_roll`, `drum_machine`, `synth`, `sampler`, `audio_loop`, `device_chain`, `send_return`, `mixer`, `library_browser`, `pack_browser`, `shortcut_guide`, `sections`, `automation`, `assistant`, `export_stereo`, `export_stems`. A feature task adds its key with the feature.
 
 Acceptance criteria:
 

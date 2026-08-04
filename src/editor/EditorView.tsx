@@ -98,6 +98,29 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const audio = useProjectAudio(project);
 	const [guideOpen, setGuideOpen] = createSignal(false);
 	const [libraryOpen, setLibraryOpen] = createSignal(false);
+	const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
+
+	/**
+	 * The packs this editing session has added on top of the ones the project
+	 * already depends on.
+	 *
+	 * `metadata.packDependencies` is *derived* from the assets a project uses
+	 * (`derivePackDependencies`), so it answers "which packs does this project
+	 * need to open?" — not "which packs has the user put on their shelf?". The
+	 * second is a new piece of project state and a new command, which is a domain
+	 * contract change and its own task (see the LOOP-013 follow-up); until that
+	 * lands, an added pack lives for the session, which is enough for the browser
+	 * to show it and for the user to work out of it.
+	 */
+	const [sessionPackIds, setSessionPackIds] = createSignal<readonly string[]>(
+		[],
+	);
+	const addedPackIds = createMemo<readonly string[]>(() => {
+		const fromProject = (project()?.metadata.packDependencies ?? []).map(
+			(dependency) => dependency.packId,
+		);
+		return [...new Set([...fromProject, ...sessionPackIds()])];
+	});
 
 	// A fresh audition engine per panel mount, built off the shared runtime the
 	// first time each opening browses. `LibraryBrowser`'s `useLibraryBrowser`
@@ -169,10 +192,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		"step_editor",
 	];
 
-	// While the guide is open it is the only active context, so nothing behind
-	// it can fire — including playback and selection (PRD KEY-02).
+	// While a modal is open it is the only active context, so nothing behind it
+	// can fire — including playback and selection (PRD KEY-02). The pack browser
+	// is a modal surface like the guide, so it takes the keyboard the same way.
 	const contexts = (): readonly ShortcutContext[] =>
-		guideOpen() ? ["dialog"] : editorContexts();
+		guideOpen() || packBrowserOpen() ? ["dialog"] : editorContexts();
 
 	const shortcuts = useShortcuts({ handlers, contexts });
 	const keyHint = (action: Parameters<typeof shortcutLabel>[0]) =>
@@ -473,116 +497,129 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									</Show>
 								</div>
 							</header>
-							<div class="workspace">
-								<For each={loopClips()}>
-									{(entry) => (
-										<LoopInfo
-											clip={entry.clip}
-											asset={entry.asset}
-											songTempo={tempo()}
+							<div class="editor-body">
+								<Show when={libraryOpen()}>
+									{/*
+									 * One engine per mount: `Show` disposes and recreates this
+									 * child branch on each false->true transition, so
+									 * `createAuditionEngine()` runs once per open. Closing the
+									 * panel unmounts `LibraryBrowser`, whose `useLibraryBrowser`
+									 * disposes the engine — so each reopen must get a fresh,
+									 * undisposed engine, never a cached (now-dead) one.
+									 */}
+									<aside class="library-panel" aria-label="Library">
+										<LibraryBrowser
+											previewEngine={createAuditionEngine()}
+											addedPackIds={addedPackIds()}
+											onAddPack={(pack) =>
+												setSessionPackIds((previous) =>
+													previous.includes(pack.id)
+														? previous
+														: [...previous, pack.id],
+												)
+											}
+											onPackBrowserOpenChange={setPackBrowserOpen}
 										/>
-									)}
-								</For>
-								<Show when={drumTrack()}>
-									{(drum) => (
-										<div class="drum-machine-editor">
-											<div class="track-info">
-												<span class="track-name">{drum().name}</span>
-											</div>
-											<DrumMachinePanel
-												track={drum()}
-												assets={sampleAssets()}
-												dispatch={session.dispatch}
-												audition={(padId) =>
-													void audio.auditionPad(drum().id, padId)
-												}
-											/>
-										</div>
-									)}
+									</aside>
 								</Show>
-								<Show
-									when={clip()}
-									fallback={
-										<p class="no-track">
-											This project has no sampler track yet.
-										</p>
-									}
-								>
-									{(currentClip) => (
-										<div class="track-editor">
-											<div class="track-info">
-												<span class="track-name">{track()?.name}</span>
-												<Show when={packDependencyLabel()}>
-													<span class="pack-dependency">
-														Pack: {packDependencyLabel()}
-													</span>
+								<div class="workspace">
+									<For each={loopClips()}>
+										{(entry) => (
+											<LoopInfo
+												clip={entry.clip}
+												asset={entry.asset}
+												songTempo={tempo()}
+											/>
+										)}
+									</For>
+									<Show when={drumTrack()}>
+										{(drum) => (
+											<div class="drum-machine-editor">
+												<div class="track-info">
+													<span class="track-name">{drum().name}</span>
+												</div>
+												<DrumMachinePanel
+													track={drum()}
+													assets={sampleAssets()}
+													dispatch={session.dispatch}
+													audition={(padId) =>
+														void audio.auditionPad(drum().id, padId)
+													}
+												/>
+											</div>
+										)}
+									</Show>
+									<Show
+										when={clip()}
+										fallback={
+											<p class="no-track">
+												This project has no sampler track yet.
+											</p>
+										}
+									>
+										{(currentClip) => (
+											<div class="track-editor">
+												<div class="track-info">
+													<span class="track-name">{track()?.name}</span>
+													<Show when={packDependencyLabel()}>
+														<span class="pack-dependency">
+															Pack: {packDependencyLabel()}
+														</span>
+													</Show>
+												</div>
+												<StepGrid
+													clip={currentClip()}
+													dispatch={session.dispatch}
+												/>
+												<Show when={instrumentPanelTrackId()}>
+													{(trackId) => (
+														<Switch>
+															<Match
+																when={
+																	instrument()?.kind === "sampler" &&
+																	(instrument() as Extract<
+																		NonNullable<ReturnType<typeof instrument>>,
+																		{ kind: "sampler" }
+																	>)
+																}
+															>
+																{(sampler) => (
+																	<SamplerPanel
+																		trackId={trackId()}
+																		instrument={sampler()}
+																		sampleName={sampleName()}
+																		replacementOptions={replacementOptions()}
+																		dispatch={session.dispatch}
+																		audition={auditionInstrument}
+																	/>
+																)}
+															</Match>
+															<Match
+																when={
+																	instrument()?.kind === "synth" &&
+																	(instrument() as Extract<
+																		NonNullable<ReturnType<typeof instrument>>,
+																		{ kind: "synth" }
+																	>)
+																}
+															>
+																{(synth) => (
+																	<SynthPanel
+																		trackId={trackId()}
+																		instrument={synth()}
+																		dispatch={session.dispatch}
+																		audition={auditionInstrument}
+																	/>
+																)}
+															</Match>
+														</Switch>
+													)}
 												</Show>
 											</div>
-											<StepGrid
-												clip={currentClip()}
-												dispatch={session.dispatch}
-											/>
-											<Show when={instrumentPanelTrackId()}>
-												{(trackId) => (
-													<Switch>
-														<Match
-															when={
-																instrument()?.kind === "sampler" &&
-																(instrument() as Extract<
-																	NonNullable<ReturnType<typeof instrument>>,
-																	{ kind: "sampler" }
-																>)
-															}
-														>
-															{(sampler) => (
-																<SamplerPanel
-																	trackId={trackId()}
-																	instrument={sampler()}
-																	sampleName={sampleName()}
-																	replacementOptions={replacementOptions()}
-																	dispatch={session.dispatch}
-																	audition={auditionInstrument}
-																/>
-															)}
-														</Match>
-														<Match
-															when={
-																instrument()?.kind === "synth" &&
-																(instrument() as Extract<
-																	NonNullable<ReturnType<typeof instrument>>,
-																	{ kind: "synth" }
-																>)
-															}
-														>
-															{(synth) => (
-																<SynthPanel
-																	trackId={trackId()}
-																	instrument={synth()}
-																	dispatch={session.dispatch}
-																	audition={auditionInstrument}
-																/>
-															)}
-														</Match>
-													</Switch>
-												)}
-											</Show>
-										</div>
-									)}
-								</Show>
+										)}
+									</Show>
+								</div>
 							</div>
-							<Show when={libraryOpen()}>
-								{/*
-								 * One engine per mount: `Show` disposes and recreates this
-								 * child branch on each false->true transition, so
-								 * `createAuditionEngine()` runs once per open. Closing the
-								 * panel unmounts `LibraryBrowser`, whose `useLibraryBrowser`
-								 * disposes the engine — so each reopen must get a fresh,
-								 * undisposed engine, never a cached (now-dead) one.
-								 */}
-								<aside class="library-panel" aria-label="Library">
-									<LibraryBrowser previewEngine={createAuditionEngine()} />
-								</aside>
-							</Show>
 							<Show when={guideOpen()}>
 								<ShortcutGuide
 									contexts={editorContexts()}

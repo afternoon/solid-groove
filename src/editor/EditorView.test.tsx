@@ -447,6 +447,34 @@ describe("EditorView keyboard shortcuts", () => {
 		).toBeInTheDocument();
 	});
 
+	it("does not toggle playback while the pack browser is open, and Escape closes it", async () => {
+		await renderSlice();
+
+		// The pack browser is a modal surface like the guide, so it takes the
+		// keyboard the same way (PRD KEY-02).
+		fireEvent.click(screen.getByRole("button", { name: "Library" }));
+		fireEvent.click(
+			await screen.findByRole("button", { name: /Browse packs/ }),
+		);
+		await screen.findByRole("dialog");
+
+		fireEvent.keyDown(window, { key: " " });
+		expect(
+			screen.getByRole("button", { name: "Start playback" }),
+		).toBeInTheDocument();
+
+		fireEvent.keyDown(window, { key: "Escape" });
+		await vi.waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		// With the modal gone the editor context has the keyboard back: `?` is an
+		// `editor`-context mapping, so it only fires once nothing is suppressing it.
+		fireEvent.keyDown(window, { key: "?", shiftKey: true });
+		expect(
+			await screen.findByRole("searchbox", { name: "Search shortcuts" }),
+		).toBeInTheDocument();
+	});
+
 	it("shows each action's mapping in its tooltip, from the registry", async () => {
 		await renderSlice();
 

@@ -27,6 +27,7 @@ import {
 	hasGenreFilter,
 	type LibraryFilter,
 } from "./search";
+import { buildLibraryTree, type LibraryTreePack } from "./tree";
 
 /**
  * The reactive brain of the library browser (PRD LIB-01, LIB-05; LOOP-013).
@@ -67,6 +68,14 @@ export interface LibraryBrowserState {
 	readonly auditioningId: Accessor<string | null>;
 	/** Assets whose audition failed, keyed by id, for a per-row error badge. */
 	readonly assetErrors: Accessor<ReadonlyMap<string, string>>;
+	/** The panel tree: the project's packs, their role groups, their assets. */
+	readonly tree: Accessor<readonly LibraryTreePack[]>;
+	/** The panel tree's own free-text filter, independent of the modal's. */
+	readonly treeQuery: Accessor<string>;
+	/** Whether a tree node (pack slug or group key) is expanded. */
+	readonly isExpanded: (key: string) => boolean;
+	/** The packs the project has added, in index order. */
+	readonly addedPacks: Accessor<readonly LibraryPackSummary[]>;
 }
 
 export interface LibraryBrowserControls extends LibraryBrowserState {
@@ -84,6 +93,15 @@ export interface LibraryBrowserControls extends LibraryBrowserState {
 	audition(asset: LibraryAsset): Promise<void>;
 	/** Stop the current preview. */
 	stopAudition(): void;
+	setTreeQuery(query: string): void;
+	/** Expand/collapse a pack node, lazily loading its manifest on first expand. */
+	togglePackNode(slug: string): Promise<void>;
+	/** Expand/collapse a role group inside a pack. */
+	toggleGroupNode(key: string): void;
+	/** Add a pack to the project and load its manifest (emits `library_pack_added`). */
+	addPack(pack: LibraryPackSummary): Promise<void>;
+	/** Retry a pack whose manifest failed to load. */
+	retryPack(pack: LibraryPackSummary): Promise<void>;
 }
 
 export interface UseLibraryBrowserOptions {
@@ -91,6 +109,18 @@ export interface UseLibraryBrowserOptions {
 	/** The audio engine audition plays through. Omit only in a headless test. */
 	readonly previewEngine?: PreviewEngine;
 	readonly analytics?: Analytics;
+	/**
+	 * The packs the open project has added, as pack IDs — the panel tree's top
+	 * level. Read reactively, so adding a pack in the pack browser re-renders the
+	 * tree without this controller owning project state.
+	 */
+	readonly addedPackIds?: Accessor<readonly string[]>;
+	/**
+	 * Called when the user adds a pack in the pack browser. The *project's* record
+	 * of its packs belongs to the editor (and, eventually, to a command); the
+	 * browser only reports the choice, exactly as `onInsert` does for an asset.
+	 */
+	readonly onAddPack?: (pack: LibraryPackSummary) => void;
 }
 
 export function useLibraryBrowser(
@@ -120,6 +150,8 @@ export function useLibraryBrowser(
 		ReadonlyMap<string, string>
 	>(new Map());
 	const [auditioningId, setAuditioningId] = createSignal<string | null>(null);
+	const [treeQuery, setTreeQuerySignal] = createSignal("");
+	const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set());
 
 	// One first-use signal per browser session (PRD OPS-02). Emitted the first
 	// time the browser is opened, not per open, so it measures adoption.
@@ -155,6 +187,26 @@ export function useLibraryBrowser(
 	const results = createMemo(() => filterAssets(assets(), filter()));
 	const facets = createMemo(() => facetValues(assets()));
 
+	/**
+	 * The packs the project has added, resolved against the index. Matching is by
+	 * pack *id* rather than slug because that is what a project records
+	 * (`metadata.packDependencies`), and a slug is a URL convenience that a rename
+	 * may change while the id never does (sample-library section 5.1).
+	 */
+	const addedPacks = createMemo<readonly LibraryPackSummary[]>(() => {
+		const wanted = new Set(options.addedPackIds?.() ?? []);
+		return packs().filter((pack) => wanted.has(pack.id));
+	});
+
+	const tree = createMemo<readonly LibraryTreePack[]>(() =>
+		buildLibraryTree({
+			packs: addedPacks(),
+			assetsByPack: loadedByPack(),
+			failedSlugs: packErrors().map((error) => error.packSlug),
+			query: treeQuery(),
+		}),
+	);
+
 	async function open(): Promise<void> {
 		if (packs().length > 0 || indexLoading()) return;
 		setIndexLoading(true);
@@ -162,14 +214,13 @@ export function useLibraryBrowser(
 		try {
 			const summaries = await client.loadIndex();
 			setPacks(summaries);
-			// Open into the first pack so the browser shows content immediately
-			// rather than an empty cross-pack view. This loads exactly one pack's
+			// Open the project's first pack so the panel shows sounds immediately
+			// rather than a row of collapsed nodes. That fetches exactly one pack's
 			// manifest — still the index plus one pack, never every pack's metadata
-			// (sample-library section 12).
-			const first = summaries[0];
-			if (first && selectedPackSlug() === null) {
-				await selectPack(first.slug);
-			}
+			// (sample-library section 12). A project with no packs fetches nothing
+			// beyond the index.
+			const first = addedPacks()[0];
+			if (first) await togglePackNode(first.slug);
 		} catch (error) {
 			setIndexError(reasonOfIndexError(error));
 		} finally {
@@ -278,6 +329,78 @@ export function useLibraryBrowser(
 		audition?.stop();
 	}
 
+	// -----------------------------------------------------------------------
+	// The panel tree
+	// -----------------------------------------------------------------------
+
+	function isExpanded(key: string): boolean {
+		return expanded().has(key);
+	}
+
+	function setNodeExpanded(key: string, open: boolean): void {
+		setExpanded((prev) => {
+			const next = new Set(prev);
+			if (open) next.add(key);
+			else next.delete(key);
+			return next;
+		});
+	}
+
+	/**
+	 * Expand or collapse a pack node. Expanding is the *only* thing that fetches a
+	 * pack's manifest from the panel, which is what keeps the load lazy: the tree
+	 * lists every pack the project depends on from the index alone, and a pack
+	 * costs a request only once someone looks inside it (LIB-05).
+	 */
+	async function togglePackNode(slug: string): Promise<void> {
+		const open = !isExpanded(slug);
+		setNodeExpanded(slug, open);
+		if (!open) return;
+		const summary = packs().find((candidate) => candidate.slug === slug);
+		if (!summary || loadedByPack().has(slug)) return;
+		setAssetsLoading(true);
+		try {
+			await loadPack(summary);
+		} finally {
+			setAssetsLoading(false);
+		}
+	}
+
+	function toggleGroupNode(key: string): void {
+		setNodeExpanded(key, !isExpanded(key));
+	}
+
+	/**
+	 * Add a pack to the project. The browser reports the choice and warms the
+	 * pack's manifest so the panel can show it straight away; recording it on the
+	 * project is the editor's job (see {@link UseLibraryBrowserOptions.onAddPack}).
+	 */
+	async function addPack(pack: LibraryPackSummary): Promise<void> {
+		analytics.log("library_pack_added", {
+			pack_id: libraryPackSlug(pack.slug),
+		});
+		options.onAddPack?.(pack);
+		setNodeExpanded(pack.slug, true);
+		await loadPack(pack);
+	}
+
+	/** Retry a pack whose manifest failed, clearing its error before the attempt. */
+	async function retryPack(pack: LibraryPackSummary): Promise<void> {
+		setPackErrors((prev) =>
+			prev.filter((error) => error.packSlug !== pack.slug),
+		);
+		setAssetsLoading(true);
+		try {
+			await loadPack(pack);
+		} finally {
+			setAssetsLoading(false);
+		}
+	}
+
+	function setTreeQuery(query: string): void {
+		setTreeQuerySignal(query);
+	}
+
 	return {
 		packs,
 		indexLoading,
@@ -291,6 +414,10 @@ export function useLibraryBrowser(
 		packErrors,
 		auditioningId,
 		assetErrors,
+		tree,
+		treeQuery,
+		isExpanded,
+		addedPacks,
 		open,
 		selectPack,
 		setQuery,
@@ -301,6 +428,11 @@ export function useLibraryBrowser(
 		clearFilters,
 		audition: auditionAsset,
 		stopAudition,
+		setTreeQuery,
+		togglePackNode,
+		toggleGroupNode,
+		addPack,
+		retryPack,
 	};
 }
 

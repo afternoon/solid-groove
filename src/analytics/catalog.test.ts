@@ -91,6 +91,7 @@ describe("event names", () => {
 				"instrument_changed",
 				"landing_cta_click",
 				"library_audition",
+				"library_pack_added",
 				"project_created",
 				"project_deleted",
 				"project_opened",
@@ -244,6 +245,13 @@ describe("catalog cross-references", () => {
 		expect([...packIdValues].sort()).toEqual(
 			[...deliveredSlugs, "unknown"].sort(),
 		);
+		// `library_pack_added` reports the same identifier the same way, so the two
+		// library events can be joined on `pack_id` without a second vocabulary.
+		expect(
+			[
+				...declaredValues(ANALYTICS_EVENTS.library_pack_added.params.pack_id),
+			].sort(),
+		).toEqual([...deliveredSlugs, "unknown"].sort());
 	});
 
 	it("maps an unknown pack slug to the unknown fallback rather than free text", () => {
@@ -280,6 +288,7 @@ describe("catalog cross-references", () => {
 				"export_stereo",
 				"library_browser",
 				"mixer",
+				"pack_browser",
 				"piano_roll",
 				"sampler",
 				"sections",

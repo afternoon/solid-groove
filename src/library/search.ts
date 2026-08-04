@@ -53,7 +53,17 @@ export function hasGenreFilter(filter: LibraryFilter): boolean {
 	return filter.genres.length > 0;
 }
 
-function matchesQuery(asset: LibraryAsset, needle: string): boolean {
+/**
+ * Does an asset match a free-text needle (already trimmed and lowered)?
+ *
+ * Exported because the panel tree (`tree.ts`) filters with the same rule the
+ * cross-pack result list does — a producer typing "kick" must see the same
+ * matches in either surface, and one predicate is what keeps that true.
+ */
+export function matchesLibraryQuery(
+	asset: LibraryAsset,
+	needle: string,
+): boolean {
 	if (needle === "") return true;
 	// A single lowered haystack per asset, matched by substring. Cheap enough for
 	// the section 12 target; a name/role/family/pack hit is all a producer needs
@@ -93,7 +103,7 @@ export function filterAssets(
 			matchesAny(filter.roles, [asset.role]) &&
 			matchesAny(filter.genres, asset.genres) &&
 			matchesAny(filter.characters, asset.characters) &&
-			matchesQuery(asset, needle),
+			matchesLibraryQuery(asset, needle),
 	);
 }
 
@@ -119,6 +129,51 @@ export interface FacetValues {
 	readonly roles: string[];
 	readonly characters: string[];
 	readonly types: LibraryAssetType[];
+}
+
+/** The facets the pack browser offers over *packs*, before any manifest loads. */
+export interface PackFilter {
+	/** Matched against a pack's name, publisher, and description. */
+	readonly query: string;
+	/** Pack kinds to admit; empty admits every kind. */
+	readonly kinds: readonly PackKind[];
+}
+
+export type PackKind = "factory" | "user" | "third-party";
+
+export const EMPTY_PACK_FILTER: PackFilter = { query: "", kinds: [] };
+
+/** The pack facts {@link filterPacks} reads — satisfied by a `LibraryPackSummary`. */
+export interface FilterablePack {
+	readonly name: string;
+	readonly publisher: string;
+	readonly description: string;
+	readonly kind: PackKind;
+}
+
+/**
+ * The packs that satisfy a {@link PackFilter}.
+ *
+ * Deliberately over the *index* only — name, publisher, description, kind — so
+ * searching the pack browser never has to fetch every pack's manifest to answer
+ * a query (sample-library section 12's lazy load order). Genre-level filtering
+ * of packs needs coverage tags on the index, which the pack index does not carry
+ * yet; asset-level genre/role/character facets live inside a pack's contents,
+ * where the manifest that answers them is already loaded.
+ */
+export function filterPacks<T extends FilterablePack>(
+	packs: readonly T[],
+	filter: PackFilter,
+): T[] {
+	const needle = filter.query.trim().toLowerCase();
+	return packs.filter(
+		(pack) =>
+			(filter.kinds.length === 0 || filter.kinds.includes(pack.kind)) &&
+			(needle === "" ||
+				pack.name.toLowerCase().includes(needle) ||
+				pack.publisher.toLowerCase().includes(needle) ||
+				pack.description.toLowerCase().includes(needle)),
+	);
 }
 
 export function facetValues(assets: readonly LibraryAsset[]): FacetValues {

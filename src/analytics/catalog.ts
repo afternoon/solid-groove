@@ -142,6 +142,7 @@ export const FEATURE_KEYS = [
 	"send_return",
 	"mixer",
 	"library_browser",
+	"pack_browser",
 	"shortcut_guide",
 	"sections",
 	"automation",
@@ -464,6 +465,17 @@ export const ANALYTICS_EVENTS = {
 			// be attributed to a pack without leaking library copy — see
 			// `LIBRARY_PACK_SLUGS`. `"unknown"` covers a pack the catalog does not
 			// yet list, so the event still fires rather than being dropped.
+			pack_id: enumParam([...LIBRARY_PACK_SLUGS, "unknown"]),
+		},
+	},
+
+	library_pack_added: {
+		phase: 1,
+		owners: ["LOOP-013"],
+		params: {
+			// The same stable slug `library_audition` carries, for the same reason:
+			// which pack a producer reached for is the measure, and a display name
+			// would be library copy in an analytics report (PRD LIB-05, OPS-02).
 			pack_id: enumParam([...LIBRARY_PACK_SLUGS, "unknown"]),
 		},
 	},

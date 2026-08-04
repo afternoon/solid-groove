@@ -1,12 +1,16 @@
 import {
+	HiSolidChevronDown,
+	HiSolidChevronRight,
 	HiSolidExclamationTriangle,
 	HiSolidPlay,
 	HiSolidPlus,
+	HiSolidSquares2x2,
 	HiSolidStop,
 } from "solid-icons/hi";
 import {
 	createEffect,
 	createMemo,
+	createSignal,
 	For,
 	type JSX,
 	onCleanup,
@@ -17,7 +21,9 @@ import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
 import type { PreviewEngine } from "./audition";
 import type { LibraryClient } from "./libraryClient";
-import type { LibraryAsset, LibraryAssetType } from "./manifest";
+import type { LibraryAsset, LibraryPackSummary } from "./manifest";
+import PackBrowser from "./PackBrowser";
+import type { LibraryTreeGroup, LibraryTreePack } from "./tree";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import "./LibraryBrowser.css";
 
@@ -32,15 +38,19 @@ export interface LibraryBrowserProps {
 	 * (LOOP-005/LOOP-006), so the browser only announces the choice.
 	 */
 	readonly onInsert?: (asset: LibraryAsset) => void;
+	/** The packs the open project has, as pack IDs — the tree's top level. */
+	readonly addedPackIds?: readonly string[];
+	/** Fired when a pack is added from the pack browser. */
+	readonly onAddPack?: (pack: LibraryPackSummary) => void;
+	/**
+	 * Announces whether the pack browser modal is open, so the surface hosting
+	 * this panel can hand the keyboard to the `dialog` shortcut context while it
+	 * is (PRD KEY-02: a modal suppresses every other context).
+	 */
+	readonly onPackBrowserOpenChange?: (open: boolean) => void;
 }
 
-const TYPE_LABELS: Record<LibraryAssetType, string> = {
-	"one-shot": "One-shots",
-	loop: "Loops",
-	preset: "Presets",
-};
-
-const LOAD_REASON_LABELS: Record<string, string> = {
+export const LOAD_REASON_LABELS: Record<string, string> = {
 	network: "Check your connection.",
 	not_found: "This library is unavailable.",
 	corrupt: "The library data could not be read.",
@@ -48,18 +58,24 @@ const LOAD_REASON_LABELS: Record<string, string> = {
 };
 
 /**
- * The searchable, sync-audition library browser (PRD LIB-01, LIB-02, LIB-05;
- * LOOP-013).
+ * The library panel: a narrow, always-available column beside the workspace
+ * (PRD LIB-01, LIB-02, LIB-05; LOOP-013).
  *
- * Packs are the first-class way in: the sidebar lists every available pack with
- * an "All packs" entry for a cross-pack view, and a producer can open a pack and
- * browse it as a coherent set without knowing the taxonomy. Search and the
- * genre/role/character/type facets work within a pack and across all of them.
- * Play auditions an asset in sync where appropriate through the shared runtime,
- * stopping on selection change, close, navigation, or teardown; a missing or
- * corrupt asset — or a whole unavailable pack — reports locally without blocking
- * anything else. All of that logic lives in {@link useLibraryBrowser}; this is
- * the view.
+ * It shows the packs *this project* has as a tree — pack, then the pack's own
+ * role groups ("Kicks", "Claps", "Closed hats"), then the sounds — so a
+ * producer reaches a sound through the structure the pack already has rather
+ * than through a taxonomy they have to learn. Expanding a pack is what fetches
+ * its manifest, so the panel costs the pack index and nothing else until
+ * someone looks inside a pack (sample-library section 12).
+ *
+ * Everything that needs room — browsing the whole library, filtering by genre,
+ * role and character, comparing packs, adding one — lives in the {@link
+ * PackBrowser} modal this opens, not in the panel. That split is deliberate:
+ * the previous layout put the full facet bar in the panel, where at the
+ * delivered library's size it consumed the entire height and left no room for
+ * results.
+ *
+ * The load/filter/audition logic lives in `useLibraryBrowser`; this is the view.
  */
 export default function LibraryBrowser(
 	props: LibraryBrowserProps,
@@ -68,9 +84,32 @@ export default function LibraryBrowser(
 		client: props.client,
 		previewEngine: props.previewEngine,
 		analytics: props.analytics,
+		addedPackIds: () => props.addedPackIds ?? [],
+		onAddPack: (pack) => props.onAddPack?.(pack),
 	});
 
+	const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
+
+	function openPackBrowser(): void {
+		// A preview started in the panel does not follow the user into the modal:
+		// audition stops on any surface change, exactly as it does on close.
+		browser.stopAudition();
+		setPackBrowserOpen(true);
+		props.onPackBrowserOpenChange?.(true);
+	}
+
+	function closePackBrowser(): void {
+		browser.stopAudition();
+		setPackBrowserOpen(false);
+		props.onPackBrowserOpenChange?.(false);
+	}
+
 	onMount(() => void browser.open());
+
+	// Leaving the panel open while the surface unmounts already stops audition
+	// (`useLibraryBrowser` disposes it on cleanup); tell the host the modal is
+	// gone too, so it does not leave the keyboard in the `dialog` context.
+	onCleanup(() => props.onPackBrowserOpenChange?.(false));
 
 	// Stop audition when this surface is navigated away from within the SPA (a
 	// route change unmounts the component; `useLibraryBrowser`'s onCleanup then
@@ -83,27 +122,27 @@ export default function LibraryBrowser(
 		onCleanup(() => window.removeEventListener("pagehide", stop));
 	});
 
-	const selectedPackName = createMemo(() => {
-		const slug = browser.selectedPackSlug();
-		if (slug === null) return "All packs";
-		return browser.packs().find((pack) => pack.slug === slug)?.name ?? slug;
-	});
-
-	const selectedPackDescription = createMemo(() => {
-		const slug = browser.selectedPackSlug();
-		if (slug === null) return null;
-		return (
-			browser.packs().find((pack) => pack.slug === slug)?.description ?? null
-		);
-	});
+	const hasQuery = createMemo(() => browser.treeQuery().trim() !== "");
 
 	return (
 		<section class="library-browser" aria-label="Library">
+			<header class="library-browser-header">
+				<h2 class="library-browser-title">Library</h2>
+				<input
+					type="search"
+					class="library-search"
+					placeholder="Search sounds"
+					aria-label="Search sounds"
+					value={browser.treeQuery()}
+					onInput={(event) => browser.setTreeQuery(event.currentTarget.value)}
+				/>
+			</header>
+
 			<Show
 				when={!browser.indexError()}
 				fallback={
 					<div class="library-error" role="alert">
-						<HiSolidExclamationTriangle size={18} />
+						<HiSolidExclamationTriangle size={16} />
 						<span>{LOAD_REASON_LABELS[browser.indexError() ?? "network"]}</span>
 						<button type="button" onClick={() => void browser.open()}>
 							Retry
@@ -115,238 +154,201 @@ export default function LibraryBrowser(
 					when={!browser.indexLoading() || browser.packs().length > 0}
 					fallback={<TapeLoader label="Loading library" />}
 				>
-					<div class="library-layout">
-						<nav class="library-packs" aria-label="Packs">
-							<button
-								type="button"
-								class="library-pack"
-								classList={{
-									"library-pack-active": browser.selectedPackSlug() === null,
-								}}
-								aria-pressed={browser.selectedPackSlug() === null}
-								onClick={() => void browser.selectPack(null)}
-							>
-								<span class="library-pack-name">All packs</span>
-							</button>
-							<For each={browser.packs()}>
-								{(pack) => {
-									const failed = createMemo(() =>
-										browser
-											.packErrors()
-											.some((error) => error.packSlug === pack.slug),
-									);
-									return (
-										<button
-											type="button"
-											class="library-pack"
-											classList={{
-												"library-pack-active":
-													browser.selectedPackSlug() === pack.slug,
-												"library-pack-failed": failed(),
-											}}
-											aria-pressed={browser.selectedPackSlug() === pack.slug}
-											title={pack.description}
-											onClick={() => void browser.selectPack(pack.slug)}
-										>
-											<span class="library-pack-name">{pack.name}</span>
-											<span class="library-pack-count">
-												{failed() ? "!" : pack.assetCount}
-											</span>
-										</button>
-									);
-								}}
+					<Show
+						when={browser.tree().length > 0}
+						fallback={
+							<p class="library-empty">
+								No packs in this project yet. Browse packs to add one.
+							</p>
+						}
+					>
+						<ul class="library-tree">
+							<For each={browser.tree()}>
+								{(pack) => (
+									<PackNode
+										pack={pack}
+										browser={browser}
+										hasQuery={hasQuery()}
+										onInsert={props.onInsert}
+									/>
+								)}
 							</For>
-						</nav>
-
-						<div class="library-main">
-							<header class="library-header">
-								<div class="library-heading">
-									<h2 class="library-pack-title">{selectedPackName()}</h2>
-									<Show when={selectedPackDescription()}>
-										<p class="library-pack-blurb">
-											{selectedPackDescription()}
-										</p>
-									</Show>
-								</div>
-								<input
-									type="search"
-									class="library-search"
-									placeholder="Search sounds"
-									aria-label="Search sounds"
-									value={browser.filter().query}
-									onInput={(event) =>
-										browser.setQuery(event.currentTarget.value)
-									}
-								/>
-							</header>
-
-							<FacetBar browser={browser} />
-
-							<Show
-								when={!browser.assetsLoading()}
-								fallback={<TapeLoader label="Loading pack" />}
-							>
-								<PackErrors browser={browser} />
-								<Show
-									when={browser.results().length > 0}
-									fallback={
-										<p class="library-empty">
-											No sounds match. Clear a filter to see more.
-										</p>
-									}
-								>
-									<ul class="library-results">
-										<For each={browser.results()}>
-											{(asset) => (
-												<AssetRow
-													asset={asset}
-													active={browser.auditioningId() === asset.id}
-													error={browser.assetErrors().get(asset.id) ?? null}
-													onPlay={() => void browser.audition(asset)}
-													onStop={() => browser.stopAudition()}
-													onInsert={
-														props.onInsert
-															? () => props.onInsert?.(asset)
-															: undefined
-													}
-												/>
-											)}
-										</For>
-									</ul>
-								</Show>
-							</Show>
-						</div>
-					</div>
+						</ul>
+					</Show>
 				</Show>
+			</Show>
+
+			<footer class="library-browser-footer">
+				<button
+					type="button"
+					class="library-browse-packs"
+					onClick={() => openPackBrowser()}
+				>
+					<HiSolidSquares2x2 size={14} />
+					<span>Browse packs</span>
+				</button>
+			</footer>
+
+			<Show when={packBrowserOpen()}>
+				<PackBrowser
+					browser={browser}
+					analytics={props.analytics}
+					addedPackIds={props.addedPackIds ?? []}
+					onInsert={props.onInsert}
+					onClose={() => closePackBrowser()}
+				/>
 			</Show>
 		</section>
 	);
 }
 
-/** The active-facet controls, computed from the assets actually present. */
-function FacetBar(props: {
+/** One pack in the tree: a disclosure whose expansion fetches its manifest. */
+function PackNode(props: {
+	pack: LibraryTreePack;
 	browser: ReturnType<typeof useLibraryBrowser>;
+	hasQuery: boolean;
+	onInsert?: (asset: LibraryAsset) => void;
 }): JSX.Element {
-	const { browser } = props;
-	const anyFilter = createMemo(() => {
-		const filter = browser.filter();
-		return (
-			filter.genres.length > 0 ||
-			filter.roles.length > 0 ||
-			filter.characters.length > 0 ||
-			filter.types.length > 0 ||
-			filter.query.trim() !== ""
-		);
-	});
+	const expanded = createMemo(() => props.browser.isExpanded(props.pack.slug));
+	const summary = createMemo(
+		() =>
+			props.browser.packs().find((pack) => pack.slug === props.pack.slug) ??
+			null,
+	);
+	// Before the manifest loads the index's count is all there is to show; after
+	// it, the count reflects what the current query actually matched.
+	const count = createMemo(() =>
+		props.pack.loaded ? props.pack.matchCount : props.pack.assetCount,
+	);
 	return (
-		<div class="library-facets">
-			<FacetGroup
-				label="Type"
-				values={browser.facets().types}
-				active={browser.filter().types}
-				display={(type) => TYPE_LABELS[type as LibraryAssetType]}
-				onToggle={(type) => browser.toggleType(type as LibraryAssetType)}
-			/>
-			<FacetGroup
-				label="Genre"
-				values={browser.facets().genres}
-				active={browser.filter().genres}
-				onToggle={(genre) => browser.toggleGenre(genre)}
-			/>
-			<FacetGroup
-				label="Role"
-				values={browser.facets().roles}
-				active={browser.filter().roles}
-				onToggle={(role) => browser.toggleRole(role)}
-			/>
-			<FacetGroup
-				label="Character"
-				values={browser.facets().characters}
-				active={browser.filter().characters}
-				onToggle={(character) => browser.toggleCharacter(character)}
-			/>
-			<Show when={anyFilter()}>
-				<button
-					type="button"
-					class="library-clear"
-					onClick={() => browser.clearFilters()}
+		<li class="library-tree-pack">
+			<button
+				type="button"
+				class="library-node library-node-pack"
+				aria-expanded={expanded()}
+				onClick={() => void props.browser.togglePackNode(props.pack.slug)}
+			>
+				<Chevron expanded={expanded()} />
+				<span class="library-node-label">{props.pack.name}</span>
+				<span class="library-node-count">
+					{props.pack.failed ? "!" : count()}
+				</span>
+			</button>
+			<Show when={expanded()}>
+				<Show
+					when={!props.pack.failed}
+					fallback={
+						<div class="library-node-error" role="alert">
+							<span>“{props.pack.name}” is unavailable. Other packs work.</span>
+							<Show when={summary()}>
+								{(pack) => (
+									<button
+										type="button"
+										onClick={() => void props.browser.retryPack(pack())}
+									>
+										Retry
+									</button>
+								)}
+							</Show>
+						</div>
+					}
 				>
-					Clear filters
-				</button>
+					<Show
+						when={props.pack.loaded}
+						fallback={<TapeLoader label="Loading pack" />}
+					>
+						<Show
+							when={props.pack.groups.length > 0}
+							fallback={
+								<p class="library-node-empty">
+									{props.hasQuery
+										? "No sounds match in this pack."
+										: "This pack has no sounds."}
+								</p>
+							}
+						>
+							<ul class="library-tree-groups">
+								<For each={props.pack.groups}>
+									{(group) => (
+										<GroupNode
+											group={group}
+											browser={props.browser}
+											forceOpen={props.hasQuery}
+											onInsert={props.onInsert}
+										/>
+									)}
+								</For>
+							</ul>
+						</Show>
+					</Show>
+				</Show>
 			</Show>
-		</div>
+		</li>
 	);
 }
 
-function FacetGroup(props: {
-	label: string;
-	values: readonly string[];
-	active: readonly string[];
-	display?: (value: string) => string;
-	onToggle: (value: string) => void;
-}): JSX.Element {
-	return (
-		<Show when={props.values.length > 0}>
-			<fieldset class="library-facet-group">
-				<legend class="library-facet-label">{props.label}</legend>
-				<For each={props.values}>
-					{(value) => {
-						const isActive = createMemo(() => props.active.includes(value));
-						return (
-							<button
-								type="button"
-								class="library-chip"
-								classList={{ "library-chip-active": isActive() }}
-								aria-pressed={isActive()}
-								onClick={() => props.onToggle(value)}
-							>
-								{props.display ? props.display(value) : value}
-							</button>
-						);
-					}}
-				</For>
-			</fieldset>
-		</Show>
-	);
-}
-
-/** Per-pack load failures, named and isolated (LIB-05). */
-function PackErrors(props: {
+/** One role group ("Kicks") and its sounds. */
+function GroupNode(props: {
+	group: LibraryTreeGroup;
 	browser: ReturnType<typeof useLibraryBrowser>;
+	/** A search opens every matching group, so a hit is never hidden by a collapse. */
+	forceOpen: boolean;
+	onInsert?: (asset: LibraryAsset) => void;
 }): JSX.Element {
+	const expanded = createMemo(
+		() => props.forceOpen || props.browser.isExpanded(props.group.key),
+	);
 	return (
-		<Show when={props.browser.packErrors().length > 0}>
-			<div class="library-pack-errors" role="alert">
-				<For each={props.browser.packErrors()}>
-					{(error) => {
-						const name = createMemo(
-							() =>
-								props.browser
-									.packs()
-									.find((pack) => pack.slug === error.packSlug)?.name ??
-								error.packSlug,
-						);
-						return (
-							<p class="library-pack-error">
-								<HiSolidExclamationTriangle size={14} />
-								<span>
-									“{name()}” is unavailable.{" "}
-									{LOAD_REASON_LABELS[error.reason] ?? ""} Other packs still
-									work.
-								</span>
-							</p>
-						);
-					}}
-				</For>
-			</div>
-		</Show>
+		<li class="library-tree-group">
+			<button
+				type="button"
+				class="library-node library-node-group"
+				aria-expanded={expanded()}
+				onClick={() => props.browser.toggleGroupNode(props.group.key)}
+			>
+				<Chevron expanded={expanded()} />
+				<span class="library-node-label">{props.group.label}</span>
+				<span class="library-node-count">{props.group.assets.length}</span>
+			</button>
+			<Show when={expanded()}>
+				<ul class="library-tree-assets">
+					<For each={props.group.assets}>
+						{(asset) => (
+							<AssetRow
+								asset={asset}
+								active={props.browser.auditioningId() === asset.id}
+								error={props.browser.assetErrors().get(asset.id) ?? null}
+								onPlay={() => void props.browser.audition(asset)}
+								onStop={() => props.browser.stopAudition()}
+								onInsert={
+									props.onInsert ? () => props.onInsert?.(asset) : undefined
+								}
+							/>
+						)}
+					</For>
+				</ul>
+			</Show>
+		</li>
 	);
 }
 
-function AssetRow(props: {
+function Chevron(props: { expanded: boolean }): JSX.Element {
+	return (
+		<span class="library-node-chevron" aria-hidden="true">
+			<Show when={props.expanded} fallback={<HiSolidChevronRight size={12} />}>
+				<HiSolidChevronDown size={12} />
+			</Show>
+		</span>
+	);
+}
+
+/** One auditionable sound. Shared by the panel tree and the pack browser. */
+export function AssetRow(props: {
 	asset: LibraryAsset;
 	active: boolean;
 	error: string | null;
+	/** Shown in the pack browser, where a result can come from any pack. */
+	showPack?: boolean;
 	onPlay: () => void;
 	onStop: () => void;
 	onInsert?: () => void;
@@ -370,21 +372,25 @@ function AssetRow(props: {
 				aria-pressed={props.active}
 				onClick={() => (props.active ? props.onStop() : props.onPlay())}
 			>
-				<Show when={props.active} fallback={<HiSolidPlay size={14} />}>
-					<HiSolidStop size={14} />
+				<Show when={props.active} fallback={<HiSolidPlay size={12} />}>
+					<HiSolidStop size={12} />
 				</Show>
 			</button>
 			<div class="library-row-meta">
 				<span class="library-row-name">{props.asset.name}</span>
-				<span class="library-row-tags">
-					{props.asset.role} · {props.asset.packName}
-					<Show when={props.error}>
-						<span class="library-row-error-text">
-							{" "}
-							· {LOAD_REASON_LABELS[props.error ?? ""] ?? "Could not load."}
-						</span>
-					</Show>
-				</span>
+				<Show when={props.showPack || props.error}>
+					<span class="library-row-tags">
+						<Show when={props.showPack}>
+							{props.asset.role} · {props.asset.packName}
+						</Show>
+						<Show when={props.error}>
+							<span class="library-row-error-text">
+								{props.showPack ? " · " : ""}
+								{LOAD_REASON_LABELS[props.error ?? ""] ?? "Could not load."}
+							</span>
+						</Show>
+					</span>
+				</Show>
 			</div>
 			<Show when={props.onInsert}>
 				<button
@@ -393,7 +399,7 @@ function AssetRow(props: {
 					aria-label={`Insert ${props.asset.name}`}
 					onClick={() => props.onInsert?.()}
 				>
-					<HiSolidPlus size={14} />
+					<HiSolidPlus size={12} />
 				</button>
 			</Show>
 		</li>

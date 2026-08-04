@@ -4,8 +4,10 @@ import { LibraryClient } from "./libraryClient";
 import type { LibraryAsset } from "./manifest";
 import {
 	EMPTY_FILTER,
+	EMPTY_PACK_FILTER,
 	facetValues,
 	filterAssets,
+	filterPacks,
 	hasGenreFilter,
 	isEmptyFilter,
 } from "./search";
@@ -132,5 +134,44 @@ describe("responsiveness at the planned library size (section 12)", () => {
 		// Generous headroom over the 50 ms target so the assertion is not flaky on
 		// a loaded CI machine, while still catching an accidental O(n^2) regression.
 		expect(elapsed).toBeLessThan(50);
+	});
+});
+
+describe("filtering packs (the pack browser's own facets)", () => {
+	async function packs() {
+		return new LibraryClient(fixtureFetcher()).loadIndex();
+	}
+
+	it("admits every pack when nothing is active", async () => {
+		const all = await packs();
+		expect(filterPacks(all, EMPTY_PACK_FILTER)).toHaveLength(all.length);
+	});
+
+	it("matches a pack's name, publisher, or description", async () => {
+		const all = await packs();
+		const byName = filterPacks(all, {
+			...EMPTY_PACK_FILTER,
+			query: "foundation",
+		});
+		expect(byName.length).toBeGreaterThan(0);
+		expect(byName.length).toBeLessThan(all.length);
+		// The publisher is a way in too, so "who made this" is searchable.
+		const byPublisher = filterPacks(all, {
+			...EMPTY_PACK_FILTER,
+			query: all[0].publisher,
+		});
+		expect(byPublisher.length).toBeGreaterThan(0);
+	});
+
+	it("narrows by kind, and clearing the kind facet widens again", async () => {
+		const all = await packs();
+		const factory = filterPacks(all, {
+			...EMPTY_PACK_FILTER,
+			kinds: ["factory"],
+		});
+		expect(factory.every((pack) => pack.kind === "factory")).toBe(true);
+		const user = filterPacks(all, { ...EMPTY_PACK_FILTER, kinds: ["user"] });
+		expect(user).toHaveLength(0);
+		expect(filterPacks(all, EMPTY_PACK_FILTER)).toHaveLength(all.length);
 	});
 });

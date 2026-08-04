@@ -10,7 +10,7 @@ import { memoryStorage } from "../testing/storage";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
 import { fixtureFetcher } from "./__fixtures__/fixtures";
 import { LibraryClient } from "./libraryClient";
-import { PACK_INDEX_PATH } from "./manifest";
+import { type LibraryPackSummary, PACK_INDEX_PATH } from "./manifest";
 import {
 	type LibraryBrowserControls,
 	useLibraryBrowser,
@@ -33,6 +33,8 @@ async function withBrowser(
 		client?: LibraryClient;
 		previewEngine?: ReturnType<typeof fakePreviewEngine>;
 		analytics?: Analytics;
+		addedPackIds?: readonly string[];
+		onAddPack?: (pack: LibraryPackSummary) => void;
 	},
 	body: (browser: LibraryBrowserControls) => Promise<void>,
 ): Promise<void> {
@@ -43,6 +45,8 @@ async function withBrowser(
 			client: setup.client ?? new LibraryClient(fixtureFetcher()),
 			previewEngine: setup.previewEngine ?? fakePreviewEngine(),
 			analytics: setup.analytics,
+			addedPackIds: () => setup.addedPackIds ?? [],
+			onAddPack: setup.onAddPack,
 		});
 	});
 	try {
@@ -59,16 +63,34 @@ describe("opening the browser", () => {
 			calls.push(path);
 			return fixtureFetcher()(path);
 		});
+		const index = await new LibraryClient(fixtureFetcher()).loadIndex();
+		await withBrowser(
+			{ client, addedPackIds: [index[0].id, index[1].id] },
+			async (browser) => {
+				await browser.open();
+				expect(browser.packs().length).toBeGreaterThan(1);
+				// The index came first.
+				expect(calls[0]).toBe(PACK_INDEX_PATH);
+				// Exactly one pack manifest was fetched — the project's first pack,
+				// which the panel opens into — not one per added pack
+				// (sample-library section 12).
+				const manifestCalls = calls.filter((path) => path !== PACK_INDEX_PATH);
+				expect(manifestCalls).toHaveLength(1);
+				expect(manifestCalls[0]).toContain(index[0].slug);
+			},
+		);
+	});
+
+	it("fetches nothing beyond the index for a project with no packs", async () => {
+		const calls: string[] = [];
+		const client = new LibraryClient(async (path) => {
+			calls.push(path);
+			return fixtureFetcher()(path);
+		});
 		await withBrowser({ client }, async (browser) => {
 			await browser.open();
-			expect(browser.packs().length).toBeGreaterThan(1);
-			// The index came first.
-			expect(calls[0]).toBe(PACK_INDEX_PATH);
-			// Exactly one pack manifest was fetched — the first pack it opened into,
-			// not one per pack (sample-library section 12).
-			const manifestCalls = calls.filter((path) => path !== PACK_INDEX_PATH);
-			expect(manifestCalls).toHaveLength(1);
-			expect(manifestCalls[0]).toContain(browser.packs()[0].slug);
+			expect(calls).toEqual([PACK_INDEX_PATH]);
+			expect(browser.tree()).toHaveLength(0);
 		});
 	});
 
@@ -230,5 +252,132 @@ describe("pack failure isolation", () => {
 			// The remaining packs still contributed assets.
 			expect(browser.assets().length).toBeGreaterThan(0);
 		});
+	});
+});
+
+describe("the panel tree (LOOP-013 layout)", () => {
+	async function firstTwoPacks(): Promise<LibraryPackSummary[]> {
+		const index = await new LibraryClient(fixtureFetcher()).loadIndex();
+		return [index[0], index[1]];
+	}
+
+	it("has one node per pack the project has, in index order", async () => {
+		const [first, second] = await firstTwoPacks();
+		await withBrowser(
+			{ addedPackIds: [second.id, first.id] },
+			async (browser) => {
+				await browser.open();
+				expect(browser.tree().map((pack) => pack.slug)).toEqual([
+					first.slug,
+					second.slug,
+				]);
+			},
+		);
+	});
+
+	it("loads a pack's manifest only when its node is expanded", async () => {
+		const [first, second] = await firstTwoPacks();
+		const calls: string[] = [];
+		const client = new LibraryClient(async (path) => {
+			calls.push(path);
+			return fixtureFetcher()(path);
+		});
+		await withBrowser(
+			{ client, addedPackIds: [first.id, second.id] },
+			async (browser) => {
+				await browser.open();
+				// Only the pack the panel opened into has been fetched.
+				expect(calls.filter((path) => path.includes(second.slug))).toEqual([]);
+				await browser.togglePackNode(second.slug);
+				expect(calls.filter((path) => path.includes(second.slug)).length).toBe(
+					1,
+				);
+				const node = browser.tree().find((pack) => pack.slug === second.slug);
+				expect(node?.loaded).toBe(true);
+				expect(node?.groups.length).toBeGreaterThan(0);
+			},
+		);
+	});
+
+	it("collapsing a pack does not re-fetch it when it is expanded again", async () => {
+		const [first] = await firstTwoPacks();
+		const calls: string[] = [];
+		const client = new LibraryClient(async (path) => {
+			calls.push(path);
+			return fixtureFetcher()(path);
+		});
+		await withBrowser({ client, addedPackIds: [first.id] }, async (browser) => {
+			await browser.open();
+			await browser.togglePackNode(first.slug); // collapse
+			await browser.togglePackNode(first.slug); // expand again
+			expect(calls.filter((path) => path.includes(first.slug))).toHaveLength(1);
+		});
+	});
+
+	it("filters the tree by its own query, independently of the modal's filter", async () => {
+		const [first] = await firstTwoPacks();
+		await withBrowser({ addedPackIds: [first.id] }, async (browser) => {
+			await browser.open();
+			const before = browser.tree()[0].matchCount;
+			expect(before).toBeGreaterThan(0);
+			browser.setTreeQuery("zzzz-no-such-sound");
+			expect(browser.tree()[0].matchCount).toBe(0);
+			// The pack browser's filter is untouched by the panel's search box.
+			expect(browser.filter().query).toBe("");
+			browser.setTreeQuery("");
+			expect(browser.tree()[0].matchCount).toBe(before);
+		});
+	});
+
+	it("retries a failed pack and clears its error", async () => {
+		const [first] = await firstTwoPacks();
+		let fail = true;
+		const client = new LibraryClient(async (path) => {
+			if (path !== PACK_INDEX_PATH && fail) {
+				fail = false;
+				throw new Error("boom");
+			}
+			return fixtureFetcher()(path);
+		});
+		await withBrowser({ client, addedPackIds: [first.id] }, async (browser) => {
+			await browser.open();
+			expect(browser.tree()[0].failed).toBe(true);
+			await browser.retryPack(first);
+			expect(browser.packErrors()).toHaveLength(0);
+			expect(browser.tree()[0].loaded).toBe(true);
+		});
+	});
+});
+
+describe("adding a pack (LIB-05)", () => {
+	it("reports the choice, warms the pack, and logs library_pack_added once", async () => {
+		const { analytics: a, transport } = analytics();
+		const added: string[] = [];
+		const index = await new LibraryClient(fixtureFetcher()).loadIndex();
+		const pack = index[1];
+		await withBrowser(
+			{ analytics: a, onAddPack: (chosen) => added.push(chosen.id) },
+			async (browser) => {
+				await browser.open();
+				await browser.addPack(pack);
+				expect(added).toEqual([pack.id]);
+				const events = transport.named("library_pack_added");
+				expect(events).toHaveLength(1);
+				expect(events[0].params.pack_id).toBe(pack.slug);
+				// Its manifest is warm, so the panel can show it immediately.
+				expect(browser.isExpanded(pack.slug)).toBe(true);
+			},
+		);
+	});
+
+	it("never logs a pack display name", async () => {
+		const { analytics: a, transport } = analytics();
+		const index = await new LibraryClient(fixtureFetcher()).loadIndex();
+		await withBrowser({ analytics: a }, async (browser) => {
+			await browser.open();
+			await browser.addPack(index[0]);
+		});
+		const logged = JSON.stringify(transport.named("library_pack_added"));
+		expect(logged).not.toContain(index[0].name);
 	});
 });
