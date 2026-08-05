@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import { createArrangementSpikeProject } from "../domain/fixtures";
+import { createLargeArrangementProject } from "../domain/fixtures";
 import { memoryStorage } from "../testing/storage";
 import ArrangementView from "./ArrangementView";
 
@@ -29,7 +29,7 @@ function analyticsAllowing() {
 }
 
 function renderView(analytics: Analytics) {
-	const project = createArrangementSpikeProject(20);
+	const project = createLargeArrangementProject(20);
 	return render(() => (
 		<ArrangementView project={project} analytics={analytics} />
 	));
@@ -49,7 +49,7 @@ describe("ArrangementView shell", () => {
 		const { analytics } = analyticsAllowing();
 		// 50 tracks at 28px is 1,400px of content; the default 480px viewport
 		// windows to roughly 21 rows (+ overscan), well under all 50.
-		const project = createArrangementSpikeProject(50);
+		const project = createLargeArrangementProject(50);
 		render(() => <ArrangementView project={project} analytics={analytics} />);
 		const headerList = screen.getByLabelText("Tracks");
 		const rows = headerList.querySelectorAll(".arrangement-header-row");

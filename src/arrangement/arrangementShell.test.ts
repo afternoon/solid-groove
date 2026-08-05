@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createArrangementSpikeProject } from "../domain/fixtures";
+import { createLargeArrangementProject } from "../domain/fixtures";
 import { TICKS_PER_BAR } from "../domain/time";
 import {
 	type ArrangementShell,
@@ -32,7 +32,7 @@ function setup(overrides: Partial<Viewport> = {}): {
 	projection: ArrangementProjection;
 	drain: () => Set<DirtyLayer>;
 } {
-	const project = createArrangementSpikeProject(20);
+	const project = createLargeArrangementProject(20);
 	const projection = buildArrangementProjection(project, ROW_METRICS);
 	let dirtyAccum = new Set<DirtyLayer>();
 	const shell = createArrangementShell(() => projection, {

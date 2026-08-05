@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { SCHEMA_VERSION } from "./entities";
 import { createBlankProject } from "./factories";
 import {
-	ARRANGEMENT_SPIKE_TRACK_COUNTS,
-	createArrangementSpikeFixtures,
-	createArrangementSpikeProject,
+	ARRANGEMENT_BENCHMARK_TRACK_COUNTS,
 	createDrumMachineFixtureProject,
+	createLargeArrangementFixtures,
+	createLargeArrangementProject,
 	createReferenceProject,
 	createSliceFixtureProject,
 	drumMachineFixturePacks,
@@ -224,8 +224,8 @@ describe("fixtures", () => {
 				createSliceFixtureProject(),
 				createDrumMachineFixtureProject(),
 				createReferenceProject({ trackCount: 4, waveformTrackCount: 2 }),
-				...ARRANGEMENT_SPIKE_TRACK_COUNTS.map((count) =>
-					createArrangementSpikeProject(count),
+				...ARRANGEMENT_BENCHMARK_TRACK_COUNTS.map((count) =>
+					createLargeArrangementProject(count),
 				),
 			]) {
 				expect(
@@ -245,10 +245,10 @@ describe("fixtures", () => {
 });
 
 describe("FND-008 arrangement spike fixtures", () => {
-	it.each(ARRANGEMENT_SPIKE_TRACK_COUNTS)(
+	it.each(ARRANGEMENT_BENCHMARK_TRACK_COUNTS)(
 		"builds a valid, ten-minute, dense, automated %i-track arrangement",
 		(trackCount) => {
-			const project = createArrangementSpikeProject(trackCount);
+			const project = createLargeArrangementProject(trackCount);
 			const lengthTicks = minutesToTicks(10, project.song.tempo);
 
 			expect(parseProject(project).ok).toBe(true);
@@ -277,14 +277,14 @@ describe("FND-008 arrangement spike fixtures", () => {
 	);
 
 	it("is deterministic across calls at the same track count", () => {
-		expect(createArrangementSpikeProject(20)).toEqual(
-			createArrangementSpikeProject(20),
+		expect(createLargeArrangementProject(20)).toEqual(
+			createLargeArrangementProject(20),
 		);
 	});
 
 	it("builds all three benchmark track counts keyed by count", () => {
-		const fixtures = createArrangementSpikeFixtures();
-		for (const trackCount of ARRANGEMENT_SPIKE_TRACK_COUNTS) {
+		const fixtures = createLargeArrangementFixtures();
+		for (const trackCount of ARRANGEMENT_BENCHMARK_TRACK_COUNTS) {
 			expect(fixtures[trackCount].song.tracks).toHaveLength(trackCount);
 		}
 	});

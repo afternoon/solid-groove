@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../domain/entities";
 import {
-	createArrangementSpikeProject,
 	createDrumMachineFixtureProject,
+	createLargeArrangementProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { TICKS_PER_BAR } from "../domain/time";
@@ -64,7 +64,7 @@ describe("buildArrangementProjection", () => {
 	});
 
 	it("exposes section markers sorted by start tick with bar ranges", () => {
-		const project = createArrangementSpikeProject(20);
+		const project = createLargeArrangementProject(20);
 		const projection = buildArrangementProjection(project, rowMetrics);
 		expect(projection.sections.length).toBe(project.song.sections.length);
 		for (let index = 1; index < projection.sections.length; index += 1) {
@@ -81,7 +81,7 @@ describe("buildArrangementProjection", () => {
 	});
 
 	it("exposes at most one automation lane per track", () => {
-		const project = createArrangementSpikeProject(20);
+		const project = createLargeArrangementProject(20);
 		const projection = buildArrangementProjection(project, rowMetrics);
 		expect(projection.automationByTrack.size).toBeLessThanOrEqual(
 			projection.tracks.length,
@@ -98,7 +98,7 @@ describe("buildArrangementProjection", () => {
 		});
 
 		it("changes only the affected track's revision when only that track changes", () => {
-			const project = createArrangementSpikeProject(20);
+			const project = createLargeArrangementProject(20);
 			const before = buildArrangementProjection(project, rowMetrics);
 
 			const changedTrack = { ...project.song.tracks[0], name: "Renamed" };
@@ -125,7 +125,7 @@ describe("buildArrangementProjection", () => {
 
 describe("visiblePlacementsForTrack / visiblePlacements culling", () => {
 	it("only returns placements that intersect the requested tick range", () => {
-		const project = createArrangementSpikeProject(20);
+		const project = createLargeArrangementProject(20);
 		const projection = buildArrangementProjection(project, rowMetrics);
 		const [track] = projection.tracks;
 		const index = projection.placementsByTrack.get(track.id);
@@ -165,7 +165,7 @@ describe("visiblePlacementsForTrack / visiblePlacements culling", () => {
 	});
 
 	it("restricts visiblePlacements to the requested row range", () => {
-		const project = createArrangementSpikeProject(20);
+		const project = createLargeArrangementProject(20);
 		const projection = buildArrangementProjection(project, rowMetrics);
 		const fullTickRange = { startTick: 0, endTick: projection.lengthTicks };
 
