@@ -1,6 +1,6 @@
 import { createRoot } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
-import { createArrangementSpikeProject } from "../domain/fixtures";
+import { createLargeArrangementProject } from "../domain/fixtures";
 import {
 	type ArrangementShell,
 	createArrangementShell,
@@ -56,7 +56,7 @@ const INITIAL_VIEWPORT: Viewport = {
  * disposable reactive root so `onCleanup` runs. */
 function harness() {
 	const projection = buildArrangementProjection(
-		createArrangementSpikeProject(20),
+		createLargeArrangementProject(20),
 		ROW_METRICS,
 	);
 	const canvases = {
