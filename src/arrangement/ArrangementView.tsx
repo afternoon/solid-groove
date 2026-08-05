@@ -4,7 +4,6 @@ import {
 	createMemo,
 	createSignal,
 	For,
-	onCleanup,
 	onMount,
 	Show,
 } from "solid-js";
@@ -14,16 +13,13 @@ import {
 } from "../analytics/analytics";
 import type { Project } from "../domain/entities";
 import { TICKS_PER_BAR } from "../domain/time";
+import { ArrangementToolbar } from "./ArrangementToolbar";
 import {
 	type ArrangementShell,
 	createArrangementShell,
 } from "./arrangementShell";
 import {
 	createArrangementWaveformCache,
-	type DrawEnvironment,
-	drawBackgroundLayer,
-	drawContentLayer,
-	drawInteractionLayer,
 	type InteractionState,
 	RULER_HEIGHT_PX,
 } from "./canvasRenderer";
@@ -32,6 +28,7 @@ import {
 	type ArrangementProjection,
 	buildArrangementProjection,
 } from "./projection";
+import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
 
 /**
@@ -97,7 +94,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
 	const waveformCache = createArrangementWaveformCache();
 	let shell: ArrangementShell | null = null;
-	let rafHandle: number | null = null;
 	let firstUseLogged = false;
 
 	function initialViewport(): Viewport {
@@ -110,61 +106,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		};
 	}
 
-	function scheduleDraw(): void {
-		if (rafHandle !== null) return;
-		rafHandle =
-			typeof requestAnimationFrame === "function"
-				? requestAnimationFrame(() => {
-						rafHandle = null;
-						drawDirtyLayers();
-					})
-				: (setTimeout(() => {
-						rafHandle = null;
-						drawDirtyLayers();
-					}, 16) as unknown as number);
-	}
-
-	function cancelScheduledDraw(): void {
-		if (rafHandle === null) return;
-		if (typeof cancelAnimationFrame === "function")
-			cancelAnimationFrame(rafHandle);
-		else clearTimeout(rafHandle);
-		rafHandle = null;
-	}
-
-	function hostDevicePixelRatio(): number {
-		return typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-	}
-
-	function sizeCanvas(canvas: HTMLCanvasElement, port: Viewport): void {
-		const ratio = shell?.devicePixelRatio(hostDevicePixelRatio()) ?? 1;
-		const targetWidth = Math.round(port.width * ratio);
-		const targetHeight = Math.round(port.height * ratio);
-		if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-			canvas.width = targetWidth;
-			canvas.height = targetHeight;
-		}
-		canvas.style.width = `${port.width}px`;
-		canvas.style.height = `${port.height}px`;
-	}
-
-	function drawEnv(canvas: HTMLCanvasElement): DrawEnvironment | null {
-		if (!shell) return null;
-		const ctx = canvas.getContext("2d");
-		if (!ctx) return null;
-		const port = shell.getViewport();
-		const ratio = shell.devicePixelRatio(hostDevicePixelRatio());
-		ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-		return {
-			ctx,
-			viewport: port,
-			projection: projection(),
-			rowRange: shell.rowRange(),
-			tickRange: shell.tickRange(),
-			waveformCache,
-		};
-	}
-
 	function interactionState(): InteractionState {
 		const state = shell?.getState();
 		return {
@@ -174,29 +115,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		};
 	}
 
-	/** Draws exactly the layers marked dirty since the last frame. A playhead
-	 * move touches only the interaction canvas (PRD 9.3 dirty reasons). */
-	function drawDirtyLayers(): void {
-		if (!shell) return;
-		const layers = shell.takeDirty();
-		if (layers.size === 0) return;
-		const port = shell.getViewport();
-		for (const canvas of [backgroundCanvas, contentCanvas, interactionCanvas]) {
-			sizeCanvas(canvas, port);
-		}
-		if (layers.has("background")) {
-			const env = drawEnv(backgroundCanvas);
-			if (env) drawBackgroundLayer(env);
-		}
-		if (layers.has("content")) {
-			const env = drawEnv(contentCanvas);
-			if (env) drawContentLayer(env);
-		}
-		if (layers.has("interaction")) {
-			const env = drawEnv(interactionCanvas);
-			if (env) drawInteractionLayer(env, interactionState());
-		}
-	}
+	// The canvas lifecycle — frame scheduling, DPR sizing, per-layer dirty
+	// dispatch, resize observation — lives in `useArrangementCanvas`. The shell
+	// and the canvas refs are read through accessors because both are assigned
+	// during render/mount, after this call.
+	const canvas = useArrangementCanvas({
+		shell: () => shell,
+		projection: () => projection(),
+		canvases: () => ({
+			background: backgroundCanvas,
+			content: contentCanvas,
+			interaction: interactionCanvas,
+		}),
+		interactionState,
+		waveformCache,
+	});
 
 	/** One arrangement interaction the user initiated: the once-per-account
 	 * `feature_first_use` for `arrangement` (PRD OPS-02). */
@@ -213,22 +146,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		shell = createArrangementShell(() => projection(), {
 			initialViewport: initialViewport(),
 			config: { maxDevicePixelRatio: 2 },
-			onDirty: () => scheduleDraw(),
+			onDirty: () => canvas.scheduleDraw(),
 		});
 
-		// Resize / DPR: the native scroll viewport's own rect drives canvas size.
-		// Every supported browser has `ResizeObserver`; guarded only so a
-		// non-browser test host (jsdom, which has no `ResizeObserver`) can still
-		// render the shell.
-		if (typeof ResizeObserver === "function") {
-			const resizeObserver = new ResizeObserver(() => {
-				const rect = scrollEl.getBoundingClientRect();
-				shell?.resize(rect.width, rect.height);
-				bumpState();
-			});
-			resizeObserver.observe(scrollEl);
-			onCleanup(() => resizeObserver.disconnect());
-		}
+		canvas.observeViewport(scrollEl, bumpState);
 
 		// Prime the initial size and paint every layer once.
 		const rect = scrollEl.getBoundingClientRect();
@@ -238,10 +159,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
 			shell.markDirty("background", "content", "interaction");
 		}
 		bumpState();
-	});
-
-	onCleanup(() => {
-		cancelScheduledDraw();
 	});
 
 	// Project identity / structure changed: everything is dirty, scroll bounds
@@ -437,45 +354,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
 	return (
 		<div class="arrangement-view" data-testid="arrangement-view-ready">
-			<div class="arrangement-toolbar">
-				<button
-					type="button"
-					class="arrangement-action"
-					data-action="zoom-in"
-					aria-label="Zoom in"
-					onClick={zoomIn}
-				>
-					Zoom in
-				</button>
-				<button
-					type="button"
-					class="arrangement-action"
-					data-action="zoom-out"
-					aria-label="Zoom out"
-					onClick={zoomOut}
-				>
-					Zoom out
-				</button>
-				<button
-					type="button"
-					class="arrangement-action"
-					data-action="zoom-to-selection"
-					aria-label="Zoom to selection"
-					disabled={selectionSummary() === null}
-					onClick={zoomToSelection}
-				>
-					Zoom to selection
-				</button>
-				<button
-					type="button"
-					class="arrangement-action"
-					data-action="scroll-to-playhead"
-					aria-label="Scroll to playhead"
-					onClick={scrollToPlayhead}
-				>
-					Scroll to playhead
-				</button>
-			</div>
+			<ArrangementToolbar
+				onZoomIn={zoomIn}
+				onZoomOut={zoomOut}
+				onZoomToSelection={zoomToSelection}
+				onScrollToPlayhead={scrollToPlayhead}
+				hasSelection={selectionSummary() !== null}
+			/>
 			<div class="arrangement-body">
 				<div
 					class="arrangement-headers"
