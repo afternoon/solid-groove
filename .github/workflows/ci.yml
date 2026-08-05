@@ -200,20 +200,25 @@ jobs:
   # in the same command, so a failing rules/index step fails the deploy
   # instead of shipping application code its deployed rules don't match.
   #
-  # Gated on `vars.FIREBASE_PROJECT_ID` (a GitHub Actions repository
-  # *variable*, not a secret -- a Firebase project ID is not sensitive, and
-  # `vars` is safe to read from an `if:` condition, unlike `secrets`) so this
-  # job silently no-ops until the production project and its CI credentials
-  # actually exist, rather than failing every merge to `main` in the
-  # meantime. Provisioning the project and setting these is tracked outside
-  # this repository (this task "provisions no accounts and holds no
-  # secrets" -- see docs/testing.md "Deploy" for the full secret/variable
-  # list and how to add them).
+  # Every value this job needs -- the four `vars` and two `secrets` read
+  # below -- lives in the `prod` GitHub *environment*, so the job declares
+  # `environment: prod` to have them injected. Without that declaration a job
+  # sees only repository-scoped values, and an environment-scoped `vars`
+  # lookup silently returns the empty string.
+  #
+  # That is also why the `if:` condition below no longer gates on
+  # `vars.FIREBASE_PROJECT_ID`: GitHub evaluates a job's `if:` *before* it
+  # loads the environment, so an environment-scoped variable is always empty
+  # at gate time and would skip this job unconditionally. The branch check is
+  # the gate now. Provisioning the project and setting these values is
+  # tracked outside this repository -- see docs/testing.md "Deploy" for the
+  # full secret/variable list and how to add them.
   deploy:
     name: deploy to Firebase Hosting
     needs: [checks, browser, browser-emulator, emulator, build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.FIREBASE_PROJECT_ID != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: prod
     # A second deploy landing while one is mid-flight must queue behind it,
     # never run concurrently or cancel it: `firebase deploy --only
     # hosting,firestore,storage` is not atomic across tiers, and two
