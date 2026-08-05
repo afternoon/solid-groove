@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createArrangementSpikeProject } from "../domain/fixtures";
+import { createLargeArrangementProject } from "../domain/fixtures";
 import { TICKS_PER_BAR } from "../domain/time";
 import {
 	createArrangementWaveformCache,
@@ -72,7 +72,7 @@ function baseViewport(overrides: Partial<Viewport> = {}): Viewport {
 function envFor(
 	viewport: Viewport,
 ): DrawEnvironment & { ctx: ReturnType<typeof fakeContext> } {
-	const project = createArrangementSpikeProject(20);
+	const project = createLargeArrangementProject(20);
 	const projection = buildArrangementProjection(project, ROW_METRICS);
 	return {
 		ctx: fakeContext(),

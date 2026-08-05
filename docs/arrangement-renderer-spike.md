@@ -1,166 +1,105 @@
-# Arrangement renderer spike and measurement harness
+# Arrangement renderer spike and measurement harness (retired)
 
 | Field | Value |
 | --- | --- |
-| Status | Implemented (`FND-008`) |
-| Scope | Disposable hybrid virtualized-DOM/Canvas 2D spike, retained renderer-agnostic projection/geometry contracts, and the scripted-trace measurement harness Alpha Milestone 2 (`ARR-005`) will enforce budgets with |
+| Status | **Retired.** Implemented by `FND-008`; its disposable UI, its unlinked route, and its measurement harness were removed once the production arrangement renderer landed. |
+| Scope | Historical record of what `FND-008` produced, which parts were retained, and where its baseline numbers came from. |
 
-Related documents: [Product requirements](./prd.md) ([7.5 ARR-01](./prd.md#75-arrangement), [9.3 Arrangement renderer decision](./prd.md#93-arrangement-renderer-decision), [Performance budgets](./prd.md#performance-budgets))
+Related documents: [Product requirements](./prd.md) ([7.5 ARR-01](./prd.md#75-arrangement), [9.3 Arrangement renderer decision](./prd.md#93-arrangement-renderer-decision), [Performance budgets](./prd.md#performance-budgets)), [testing](./testing.md)
 
-**This task is not gated on hitting the PRD frame budgets, and not gated on
-the physical baseline device.** Budgets bind at `ARR-005` (Alpha Milestone 2) and
-`HARD-001` (Alpha Milestone 4). What this task owes — and what this document is the map
-of — is deterministic fixtures, a working spike, scripted traces, a
-single-command harness, and honestly recorded numbers from whatever hardware
-ran them.
+`FND-008` built a deliberately disposable hybrid virtualized-DOM/Canvas 2D
+spike to prove out the projection/geometry contracts under a real Canvas
+renderer and to give a measurement harness something to drive. It was never
+gated on hitting the PRD frame budgets — those bind at `ARR-005` (Alpha
+Milestone 2) and `HARD-001` (Alpha Milestone 4) — and it was explicitly
+expected to be *replaced, not grown*.
 
-## What's retained vs. disposable
+That replacement exists: `src/arrangement/ArrangementView.tsx`, built on the
+retained contracts below. With the production renderer in place the spike's
+own UI had no remaining consumer, so it was removed rather than left to rot
+alongside the renderer that supersedes it.
 
-| Path | Status | Why |
-| --- | --- | --- |
-| `src/arrangement/geometry.ts` | Retained | Pure viewport/row/zoom math (PRD 9.3 "Viewport and scrolling model"). No DOM/Canvas/SolidJS imports. |
-| `src/arrangement/projection.ts` | Retained | Builds the renderer-specific `ArrangementProjection` PRD 9.3 calls for: stable IDs, integer musical bounds, track order, colors, labels, compact preview data, revision counters, viewport culling, hit testing. |
-| `src/arrangement/revision.ts` | Retained | Object-identity revision counters — cheap because domain state is edited immutably (`produce`), so reference equality already tells you what changed. |
-| `src/arrangement/waveformCache.ts` | Retained (cache contract; generator is a stand-in) | LRU, multi-resolution, keyed by `(assetId, revision)`, budgeted at the PRD's `128 MiB`. `generateSyntheticPeaks` is the one piece a real audio-decode pipeline replaces later. |
-| `src/arrangement/spike/*` | **Disposable** | The actual Canvas-drawing Solid component, layer-drawing code, and measurement instrumentation. Wired to one specific approach and one specific harness; see `spike/README.md`. `ARR-005` replaces this, it does not grow it. |
-| `src/routes/spike/arrangement.tsx` | Disposable | Unlinked route that mounts the spike for manual poking and for the harness to drive. |
-| `perf/arrangement.bench.spec.ts`, `playwright.bench.config.ts` | Harness (kept until superseded) | Drives the scripted traces and writes the baseline. |
+## What was removed
 
-Reusing this task's retained pieces (rather than a second, different
-implementation) is expected of `ARR-005`; growing the spike's disposable UI
-into a production component is not — see the task's final acceptance
-line: "experimental UI is not treated as production merely because it
-benchmarks well."
+| Path | Note |
+| --- | --- |
+| `src/arrangement/spike/` | The Canvas-drawing Solid component (`ArrangementSpike.tsx`), its layer-drawing code (`canvasLayers.ts`), its measurement instrumentation (`instrumentation.ts`), and its README. |
+| `src/routes/spike/arrangement.tsx` | The unlinked `/spike/arrangement` route that mounted it. |
+| `perf/arrangement.bench.spec.ts`, `playwright.bench.config.ts` | The scripted-trace harness and its Playwright config. Both drove the spike route exclusively and could not outlive it unchanged. |
+| `.github/workflows/bench-arrangement.yml` | The `workflow_dispatch` job that produced the checked-in baseline on CI. |
+| `bun run bench:arrangement` | The npm script pair (`prebench:arrangement`/`bench:arrangement`). |
 
-## Fixtures
+Git history remains the full record; every file above is recoverable from the
+commit that removed it.
 
-`src/domain/fixtures.ts` adds:
+## What was retained
 
-- `createReferenceProject({ waveformTrackCount, ... })` — the existing PRD 9.3
+These have no DOM/Canvas/SolidJS imports and are the renderer-agnostic
+contracts the production renderer uses today:
+
+| Path | Why |
+| --- | --- |
+| `src/arrangement/geometry.ts` | Pure viewport/row/zoom math (PRD 9.3 "Viewport and scrolling model"). |
+| `src/arrangement/projection.ts` | Builds the `ArrangementProjection` PRD 9.3 calls for: stable IDs, integer musical bounds, track order, colors, labels, compact preview data, revision counters, viewport culling, hit testing. |
+| `src/arrangement/revision.ts` | Object-identity revision counters — cheap because domain state is edited immutably (`produce`), so reference equality already tells you what changed. |
+| `src/arrangement/waveformCache.ts` | LRU, multi-resolution, keyed by `(assetId, revision)`, budgeted at the PRD's `128 MiB`. `generateSyntheticPeaks` is the one piece a real audio-decode pipeline replaces later. |
+
+## Retained fixtures
+
+`src/domain/fixtures.ts` still provides the large-arrangement fixtures the
+spike introduced, because the production renderer's own unit tests
+(`ArrangementView.test.tsx`, `canvasRenderer.test.ts`,
+`arrangementShell.test.ts`, `projection.test.ts`) all drive them:
+
+- `createReferenceProject({ waveformTrackCount, ... })` — the PRD 9.3
   reference-arrangement fixture (50 tracks, ten minutes, 2,500 placements, 100
-  automation lanes by default) gains an optional `waveformTrackCount`: that
-  many of its tracks become `audio` tracks holding an `audioLoop` clip instead
-  of an `instrument` track holding a note clip, so waveform-preview placements
-  get fixture coverage too, not just note-preview ones. Defaults to `0`, so
-  every existing caller/test is unaffected.
-- `createArrangementSpikeProject(trackCount)` — the task's three benchmark
-  fixtures: `20`, `40`, or `50` tracks (`ARRANGEMENT_SPIKE_TRACK_COUNTS`), each
-  a ten-minute arrangement with `50 × trackCount` placements (50 per track
-  spread across the ten minutes — the same per-track density as the PRD 9.3
-  reference arrangement, so the 50-track case reaches its "at least 2,500
-  clip placements"), `2 × trackCount` automation lanes, and ~40% of tracks as
-  waveform-bearing audio tracks. Deterministic (seeded by track count) and
-  validated by `parseProject`, like every other domain fixture.
-- `createArrangementSpikeFixtures()` — all three, keyed by track count, for
-  tests or tooling that want to iterate over the full matrix.
+  automation lanes by default). `waveformTrackCount` turns that many tracks
+  into `audio` tracks holding an `audioLoop` clip, so waveform-preview
+  placements get coverage too. Defaults to `0`.
+- `createLargeArrangementProject(trackCount)` — a benchmark fixture at `20`,
+  `40`, or `50` tracks (`ARRANGEMENT_BENCHMARK_TRACK_COUNTS`), each a
+  ten-minute arrangement with `50 × trackCount` placements (matching the PRD
+  9.3 reference arrangement's per-track density, so the 50-track case reaches
+  "at least 2,500 clip placements"), `2 × trackCount` automation lanes, and
+  ~40% of tracks as waveform-bearing audio tracks. Deterministic and validated
+  by `parseProject`.
+- `createLargeArrangementFixtures()` — all three, keyed by track count.
 
-## The spike
+These were named `createArrangementSpikeProject` /
+`createArrangementSpikeFixtures` / `ARRANGEMENT_SPIKE_TRACK_COUNTS` while the
+spike owned them. Their **seed literals are deliberately unchanged** by that
+rename: the seed determines every generated ID and placement, so editing it
+would silently reshape every fixture these tests assert against.
 
-`src/arrangement/spike/ArrangementSpike.tsx`, mounted at
-`/spike/arrangement?tracks=20|40|50` (`src/routes/spike/arrangement.tsx`).
-Implements, per the task's acceptance checkboxes:
+## The `FND-008` baseline (historical)
 
-- **Viewport culling** through `visiblePlacements`/`visiblePlacementsForTrack`.
-- **Layered invalidation**: three stacked canvases (background/content/
-  interaction), each redrawn only for its own dirty reason, coalesced to at
-  most one draw per animation frame, idle when nothing is dirty.
-- **Pointer hit testing** via `hitTestArrangement`, checking resize handles
-  before the placement body.
-- **Wheel/pinch zoom anchoring** via `zoomAtAnchor` — plain wheel scrolls,
-  ctrl/cmd-wheel zooms anchored under the pointer.
-- **Virtualized track headers** — a DOM `<ul>`/`<li>` list windowed to the
-  visible row range plus overscan, sharing the same row metrics and scroll
-  state as the canvas.
-
-See `src/arrangement/spike/README.md` for the retained/disposable boundary in
-more detail.
-
-## Running the measurement harness
-
-```sh
-bun run bench:arrangement
-```
-
-This is `playwright test --config=playwright.bench.config.ts` (a
-`prebench:arrangement` hook generates `public/samples/*` first, matching
-`pretest:browser`, since the harness loads the real app shell). It:
-
-1. Starts the dev server (`bun run dev`, `VITE_MOCK_BACKEND=true`) on its own
-   port (`3100`) so it can run alongside `bun run test:browser` without
-   fighting over one.
-2. For each of the three benchmark track counts, opens
-   `/spike/arrangement?tracks=<n>` and, once
-   `[data-testid="arrangement-spike-ready"]` is attached, runs each of the
-   four scripted traces the task requires — **scroll, zoom, seek,
-   selection** — for 120 animation frames apiece, through the same public API
-   a real gesture would use (`window.__arrangementSpike`,
-   `ArrangementSpikeHandle` in `ArrangementSpike.tsx`).
-3. Collects, per trace: frame count; median and p95 **frame time**
-   (`medianFrameMs`/`p95FrameMs` — the wall-clock interval between
-   consecutive presented animation frames, the basis PRD 9.3's budget
-   ("median frame time at or below 16.7 ms, p95 at or below 33 ms") is
-   stated against, spanning rasterization/compositing/layout/reactive work
-   as well as the draw call itself); median and p95 **draw time**
-   (`medianDrawMs`/`p95DrawMs` — just the synchronous canvas draw-command
-   issue duration, a strict lower bound on frame cost, not frame time);
-   long-task count and total duration (Chromium-only `PerformanceObserver`
-   `"longtask"` entries — Firefox/WebKit simply report zero); redraw counts
-   per layer; and JS heap usage where the browser exposes it
-   (`performance.memory`, Chromium-only).
-4. Writes everything to `docs/perf/arrangement-spike-baseline.json`, tagged
-   with the browser and the hardware (`os.cpus()`, `os.totalmem()`,
-   platform/arch) that produced it.
-
-Only Chromium is configured for the bench project today (the harness measures
-one representative engine rather than tripling the run; nothing prevents
-adding `firefox`/`webkit` projects to `playwright.bench.config.ts` later the
-same way `playwright.config.ts` does for the functional E2E suite).
-
-This suite is not part of `bun run test`, `bun run test:browser`, or CI's
-gating matrix — it produces a baseline artifact, not a pass/fail signal, and
-per the task, it is not required to hit the PRD 9.3 budgets or to run
-on the physical baseline device.
-
-## Baseline status
-
-**A baseline is checked in**: `docs/perf/arrangement-spike-baseline.json`.
-`bun run test:browser:install` downloads Playwright's browser binaries from
-`cdn.playwright.dev`; the sandbox this task (and its review pass) ran in has
-no outbound access to that host (the same constraint `docs/testing.md`
-already documents for `bun run test:browser`), so `bench:arrangement` could
-not run there. Rather than land the task with the checkbox unmet, the review
-pass ran it for real on this repository's own GitHub Actions CI, which does
-have outbound access — see `.github/workflows/bench-arrangement.yml`
-(`workflow_dispatch`, currently invokable only once it exists on the default
-branch; a one-off job on `ci.yml`'s existing push trigger produced this
-baseline in the meantime) — and committed the resulting numbers here.
+`docs/perf/arrangement-spike-baseline.json` is kept as milestone evidence. It
+is the honest record of what the spike measured, and the PRD's Alpha Milestone
+0 exit criteria name it directly — deleting it would erase that trail.
 
 Recorded on: Linux x64, AMD EPYC 9V74 80-Core Processor (GitHub Actions
-`ubuntu-latest` runner, 4 vCPUs allotted, 15.6 GiB RAM), Chromium 151.0.7922.34.
-This is **not** the PRD 9.3 physical baseline device (a 2019 13-inch Intel
-MacBook Pro class machine, 8 GB RAM, integrated graphics) — that device binds
-at `ARR-005`/`HARD-001`, not here — but per PRD 9.3's own instruction,
+`ubuntu-latest` runner, 4 vCPUs allotted, 15.6 GiB RAM), Chromium
+151.0.7922.34. This is **not** the PRD 9.3 physical baseline device (a 2019
+13-inch Intel MacBook Pro class machine, 8 GB RAM, integrated graphics) —
+that device binds at `ARR-005`/`HARD-001`. Per PRD 9.3's own instruction,
 "Measuring a spike on unrepresentative hardware and declaring the budget met
-is a worse outcome than an honest early number," so this is recorded exactly
-as measured rather than adjusted or waited on. All twelve traces land at or
-near the ~16.7 ms vsync cadence with p95 no higher than ~17.2 ms and zero
-long tasks — a CI headless-Chromium runner under light load is not a
-substitute for the physical baseline device's stress case, so this should
-read as "the harness runs correctly end-to-end and produces sane numbers,"
-not as evidence the PRD 9.3 budgets are met.
+is a worse outcome than an honest early number," the numbers were recorded
+exactly as measured. All twelve traces landed at or near the ~16.7 ms vsync
+cadence with p95 no higher than ~17.2 ms and zero long tasks — which reads as
+"the harness ran correctly end-to-end and produced sane numbers," **not** as
+evidence that the PRD 9.3 budgets are met.
 
-To refresh this baseline later (e.g. on the physical baseline device, or
-after a renderer change worth re-measuring), run:
+Because those numbers describe the retired spike renderer, they are not a
+baseline for the production renderer and must not be compared against it.
 
-```sh
-bun run test:browser:install   # one-time
-bun run bench:arrangement
-```
+## Measuring the production renderer
 
-and commit the resulting `docs/perf/arrangement-spike-baseline.json`, noting
-the machine and browser version it ran on, which the harness records
-automatically from `os` and Playwright's own browser metadata. From a
-sandbox without `cdn.playwright.dev` access, dispatch
-`bench-arrangement.yml` instead (`gh workflow run bench-arrangement.yml` or
-the Actions UI) and pull the `arrangement-spike-baseline` artifact it
-uploads.
+There is currently **no arrangement performance harness.** Removing the spike
+removed the only one, and repointing it at `ArrangementView` requires
+instrumentation the production component does not yet have: per-frame redraw
+recording, a scripted-trace driver, and an imperative handle for a harness to
+drive.
+
+Standing that back up against the production renderer is tracked separately.
+The PRD 9.3 budgets bind at `ARR-005` and `HARD-001`, so a harness must exist
+again before either can be assessed.

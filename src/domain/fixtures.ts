@@ -708,21 +708,28 @@ function evenlySpacedIndices(total: number, count: number): Set<number> {
 	return indices;
 }
 
-/** Track counts the `FND-008` renderer spike's fixtures cover (task). */
-export const ARRANGEMENT_SPIKE_TRACK_COUNTS = [20, 40, 50] as const;
-export type ArrangementSpikeTrackCount =
-	(typeof ARRANGEMENT_SPIKE_TRACK_COUNTS)[number];
+/** Track counts the large-arrangement benchmark fixtures cover (PRD 9.3). */
+export const ARRANGEMENT_BENCHMARK_TRACK_COUNTS = [20, 40, 50] as const;
+export type ArrangementBenchmarkTrackCount =
+	(typeof ARRANGEMENT_BENCHMARK_TRACK_COUNTS)[number];
 
 /**
- * The `FND-008` renderer-spike fixture: a ten-minute, densely placed,
- * automated arrangement at one of the spike's three benchmark track counts,
- * with a proportional share of `audio` tracks holding `audioLoop` clips so
+ * The large-arrangement benchmark fixture: a ten-minute, densely placed,
+ * automated arrangement at one of the three benchmark track counts, with a
+ * proportional share of `audio` tracks holding `audioLoop` clips so
  * waveform-preview placements (not just note-preview ones) get exercised.
  * Built on {@link createReferenceProject} so it stays the same shape as the
  * PRD 9.3 reference arrangement, just parameterized by track count.
+ *
+ * Introduced for the `FND-008` renderer spike; retained after that spike was
+ * retired because the production arrangement renderer's unit tests and the
+ * measurement harness (`perf/arrangement.bench.spec.ts`) both drive it. The
+ * seed literal below is deliberately unchanged by that rename: it determines
+ * every generated ID and placement, so editing it would silently reshape
+ * every fixture these tests assert against.
  */
-export function createArrangementSpikeProject(
-	trackCount: ArrangementSpikeTrackCount,
+export function createLargeArrangementProject(
+	trackCount: ArrangementBenchmarkTrackCount,
 	options: FixtureOptions = {},
 ): Project {
 	return createReferenceProject({
@@ -740,16 +747,16 @@ export function createArrangementSpikeProject(
 	});
 }
 
-/** All three `FND-008` benchmark fixtures, keyed by track count. */
-export function createArrangementSpikeFixtures(
+/** All three benchmark fixtures, keyed by track count. */
+export function createLargeArrangementFixtures(
 	options: FixtureOptions = {},
-): Record<ArrangementSpikeTrackCount, Project> {
-	const entries = ARRANGEMENT_SPIKE_TRACK_COUNTS.map(
+): Record<ArrangementBenchmarkTrackCount, Project> {
+	const entries = ARRANGEMENT_BENCHMARK_TRACK_COUNTS.map(
 		(trackCount) =>
-			[trackCount, createArrangementSpikeProject(trackCount, options)] as const,
+			[trackCount, createLargeArrangementProject(trackCount, options)] as const,
 	);
 	return Object.fromEntries(entries) as Record<
-		ArrangementSpikeTrackCount,
+		ArrangementBenchmarkTrackCount,
 		Project
 	>;
 }

@@ -6,7 +6,7 @@
 | Scope | Audit of the per-edit and per-frame hot paths against the PRD section 10 performance budgets and section 9.3 arrangement acceptance, plus the fixes the audit surfaced |
 | Gates | Blocks `REL-003` (the private-alpha release gate, issue #80) |
 
-Related documents: [Product requirements](../prd.md) ([section 10 Performance budgets](../prd.md#performance-budgets), [section 9.3 Arrangement performance acceptance](../prd.md#93-arrangement-renderer-decision)), [arrangement renderer spike & bench harness](../arrangement-renderer-spike.md), [testing](../testing.md).
+Related documents: [Product requirements](../prd.md) ([section 10 Performance budgets](../prd.md#performance-budgets), [section 9.3 Arrangement performance acceptance](../prd.md#93-arrangement-renderer-decision)), [arrangement renderer spike & bench harness (retired)](../arrangement-renderer-spike.md), [testing](../testing.md).
 
 The issue body for #127 is empty; this document, together with the PRD sections
 above, is the specification the task was implemented against. What lands here is
@@ -142,9 +142,11 @@ catalog for.
 
 - It does **not** claim the section 9.3 frame budgets are met on the physical
   baseline device. That measurement binds at `ARR-005`/`HARD-001` on that
-  device in the gating browsers; the bench harness
-  (`bun run bench:arrangement`) and its checked-in baseline are the tool for it,
-  and this fix reduces the per-rebuild work that measurement would see, but the
-  measurement itself is not part of this task.
+  device in the gating browsers. The `FND-008` bench harness that would have
+  been the tool for it was retired with the renderer spike it drove (see
+  [the retirement record](../arrangement-renderer-spike.md)), so a harness must
+  be stood back up against the production renderer first. This fix reduces the
+  per-rebuild work such a measurement would see, but the measurement itself is
+  not part of this task.
 - It does **not** deploy, smoke-test, or observe any event from a hosted build.
   There is no hosted environment; that is `OPS-001`.
