@@ -17,6 +17,7 @@ Let's build it!
 
 | Document | What it covers |
 | --- | --- |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Local development: setup, running against mock/emulator/real backends, and the pre-PR checks |
 | [`CLAUDE.md`](./CLAUDE.md) | Stack, project structure, commands, and code style |
 | [`docs/prd.md`](./docs/prd.md) | Product requirements — authoritative for scope and acceptance criteria |
 | [GitHub issues](https://github.com/afternoon/solid-groove/issues) | Implementation tasks, dependencies, and per-task acceptance criteria (one issue per task). `CLAUDE.md` describes how work is tracked and landed |
@@ -27,11 +28,11 @@ Let's build it!
 
 ```sh
 bun install
-cp .env.example .env   # fill in your Firebase project's values
+cp .env.example .env
 bun run dev
 ```
 
-Without a Firebase project of your own, set `VITE_MOCK_BACKEND=true` in `.env` instead — the app runs entirely against in-memory mock services (the same mode the browser E2E suite uses), so local UI work needs no Firebase project at all.
+Set `VITE_MOCK_BACKEND=true` in `.env` to run against in-memory mock services, which needs no Firebase project at all. [`CONTRIBUTING.md`](./CONTRIBUTING.md) covers that and the other two backends — a local Firebase Emulator, or a real project — along with the day-to-day development loop.
 
 ## Deployment
 
