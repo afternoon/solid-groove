@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	createDevice,
+	DELAY_DIVISIONS,
 	defaultDeviceParameters,
+	delayDivision,
 	deviceParameters,
 	deviceTypeDefinition,
 	deviceTypes,
@@ -56,6 +58,75 @@ describe("device type registry", () => {
 				);
 			}
 		}
+	});
+});
+
+describe("FX-01 required controls", () => {
+	function parameterIds(type: string): string[] {
+		return deviceParameters(type).map((p) => bareParameterId(p.id));
+	}
+
+	it("gives the delay synced and free timing, feedback, filtering, stereo, and wet/dry", () => {
+		expect(parameterIds("delay")).toEqual(
+			expect.arrayContaining([
+				"sync",
+				"division",
+				"time",
+				"feedback",
+				"filter",
+				"spread",
+				"wet",
+			]),
+		);
+	});
+
+	it("gives the reverb decay, size, pre-delay, filtering, and wet/dry", () => {
+		expect(parameterIds("reverb")).toEqual(
+			expect.arrayContaining(["decay", "size", "predelay", "filter", "wet"]),
+		);
+	});
+
+	it("gives the compressor threshold, ratio, attack, release, makeup, and a parallel wet/dry", () => {
+		expect(parameterIds("compressor")).toEqual(
+			expect.arrayContaining([
+				"threshold",
+				"ratio",
+				"attack",
+				"release",
+				"makeup",
+				"wet",
+			]),
+		);
+	});
+
+	it("treats delay sync and division as discrete, non-automatable modes", () => {
+		for (const id of ["delay.sync", "delay.division"]) {
+			const definition = getParameterDefinition(id);
+			if (!definition) throw new Error(`${id} not registered`);
+			expect(definition.step).toBe(1);
+			expect(definition.automatable).toBe(false);
+			// A discrete mode is refused outright rather than folded to an
+			// adjacent one, so an out-of-range index can never mean a different
+			// division than the caller asked for.
+			expect(definition.clampPolicy).toBe("reject");
+			expect(coerceParameterValue(definition, definition.max + 1).ok).toBe(
+				false,
+			);
+		}
+	});
+
+	it("resolves every stored division index to a finite fraction of a whole note", () => {
+		const division = getParameterDefinition("delay.division");
+		if (!division) throw new Error("delay.division not registered");
+		expect(division.max).toBe(DELAY_DIVISIONS.length - 1);
+		for (let i = division.min; i <= division.max; i++) {
+			expect(delayDivision(i)).toBe(DELAY_DIVISIONS[i]);
+			expect(delayDivision(i).wholeNotes).toBeGreaterThan(0);
+		}
+		// Out-of-range indexes still resolve to a real division rather than
+		// throwing, so a hostile stored value cannot break the audio graph.
+		expect(delayDivision(-5)).toBe(DELAY_DIVISIONS[0]);
+		expect(delayDivision(99)).toBe(DELAY_DIVISIONS[DELAY_DIVISIONS.length - 1]);
 	});
 });
 
