@@ -33,10 +33,11 @@ Nothing here is optional or downgraded by the move — the acceptance criteria a
 - [ ] `firebase-tools` is available locally (`bunx firebase --version`) for parts
       1 and 6. Parts 3–5 need only a browser.
 
-A note on ordering: the deploy pipeline is gated on the `FIREBASE_PROJECT_ID`
-repository *variable*. Nothing deploys until you set it in part 3, so parts 1 and
-2 are safe to do in any order and at any pace — merges to `main` keep passing
-with `deploy` reported as skipped.
+A note on ordering: the deploy pipeline draws every value it needs from the
+`prod` GitHub *environment*, which you create in part 3. Nothing deploys until
+that environment exists and holds them, so parts 1 and 2 are safe to do in any
+order and at any pace — merges to `main` keep passing, with `deploy` failing
+fast on missing credentials rather than shipping anything.
 
 ## Part 1 — the Firebase project
 
@@ -113,24 +114,37 @@ reopens the self-hosting option the ADR rejected, and this part changes.
 
 ## Part 3 — GitHub Actions configuration
 
-`afternoon/solid-groove` → Settings → Secrets and variables → Actions. The
-split between variables and secrets is deliberate throughout: a value that ships
-to browsers is not stored as if it were confidential.
+- [ ] **Create the `prod` environment.** `afternoon/solid-groove` → Settings →
+      Environments → New environment, named exactly `prod`. The `deploy` job
+      declares `environment: prod`, and that name is how it finds the six values
+      below. No protection rules or branch policy are required for the alpha —
+      the job's own `if:` already restricts it to `push` events on `main` — but
+      this is where you would add a required reviewer later.
+
+Then set all six **inside that environment**, not at repository scope. The split
+between variables and secrets is deliberate throughout: a value that ships to
+browsers is not stored as if it were confidential.
 
 | Name | Kind | Value |
 | --- | --- | --- |
-| `FIREBASE_PROJECT_ID` | Variable | The project ID from part 1. Also the deploy job's `if:` gate — only `vars` can safely appear there. |
+| `FIREBASE_PROJECT_ID` | Variable | The project ID from part 1. |
 | `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | **Secret** | The full service-account JSON, inline. |
 | `VITE_SENTRY_DSN` | Variable | The DSN from part 2. Public by design. |
 | `SENTRY_ORG` | Variable | Org slug. |
 | `SENTRY_PROJECT` | Variable | Project slug. |
 | `SENTRY_AUTH_TOKEN` | **Secret** | The auth token from part 2. |
 
-- [ ] Set all six. Partial configuration degrades cleanly rather than breaking:
-      without `FIREBASE_PROJECT_ID` the whole `deploy` job stays skipped; without
-      the `SENTRY_*` values the deploy still ships and source maps are still
+- [ ] Set all six. **Scope matters more than it looks**: a job only receives an
+      environment's variables and secrets if it declares that environment, and an
+      environment-scoped `vars.*` lookup from a job that does not resolves to the
+      empty string with no error. Setting these at repository scope instead
+      leaves the `deploy` job reading blanks.
+- [ ] Partial configuration degrades cleanly rather than breaking: without the
+      `SENTRY_*` values the deploy still ships and source maps are still
       generated and still withheld from Hosting — they are simply not uploaded,
-      so stack traces stay minified.
+      so stack traces stay minified. `FIREBASE_PROJECT_ID` and
+      `FIREBASE_DEPLOY_SERVICE_ACCOUNT` are not optional; with either missing the
+      deploy step fails rather than silently skipping.
 
 ## Part 4 — the first deploy
 

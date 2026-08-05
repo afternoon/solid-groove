@@ -197,7 +197,9 @@ This needs `FIREBASE_PROJECT_ID` and Google Application Default Credentials (`GO
 
 `.github/workflows/ci.yml`'s `build` job runs `bun run build`, `bun run verify:bundle`, and `bun run verify:budget` unconditionally, on every push and PR, with no credentials at all — proving the production build succeeds, ships no secret, and keeps the error-monitoring SDK off the interactive path on every change, long before a real deploy is possible.
 
-The `deploy` job runs only when `github.ref == 'refs/heads/main'` on a `push` event **and** the `FIREBASE_PROJECT_ID` repository variable is set. That gate is deliberate: this task ("FND-001b") provisions no Firebase project, CI service account, or any other credential — it builds the pipeline and leaves it inert until a real project exists. Until then, `deploy` reports as skipped and every other job keeps gating merges normally.
+The `deploy` job runs only when `github.ref == 'refs/heads/main'` on a `push` event, and declares `environment: prod` so the GitHub environment of that name supplies its variables and secrets.
+
+That `environment:` declaration is load-bearing: a job that does not name an environment sees only repository-scoped values, and an environment-scoped `vars.*` lookup silently evaluates to the empty string rather than failing. For the same reason the `if:` condition deliberately does **not** gate on `vars.FIREBASE_PROJECT_ID` — GitHub evaluates a job's `if:` *before* loading its environment, so an environment-scoped variable is always empty at gate time and would skip the job on every merge. Before the `prod` environment existed the job was gated on that variable to stay inert until a real project was provisioned; the environment now serves that role, and deleting it (or removing its values) is what makes the deploy stop.
 
 Once the project and its secrets exist, `deploy`:
 
@@ -206,16 +208,16 @@ Once the project and its secrets exist, `deploy`:
 3. Marks the release deployed in Sentry (`sentry-cli releases deploys … new --env alpha`), after the deploy succeeded so a release that never shipped is never recorded as live. Skipped when the Sentry variables are unset. See "Source maps and release registration" below.
 4. Installs Chromium and runs `bun run smoke:hosted` against `https://$FIREBASE_PROJECT_ID.web.app`. A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01).
 
-Required GitHub Actions configuration (`afternoon/solid-groove` → Settings → Secrets and variables → Actions), named but never set by this task:
+Required GitHub Actions configuration, all of it scoped to the **`prod` environment** (`afternoon/solid-groove` → Settings → Environments → `prod`), named but never set by this task. Setting any of these at repository scope instead has no effect on the `deploy` job, which reads them through `environment: prod`:
 
 | Name | Kind | Purpose |
 | --- | --- | --- |
-| `FIREBASE_PROJECT_ID` | Repository **variable** | The production project ID. Not sensitive — used in the `deploy` job's `if:` condition, which only `vars` (not `secrets`) can safely appear in. |
-| `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Repository **secret** | Inline service-account JSON with Hosting, Firestore rules/indexes, and Storage rules deploy permissions. Distinct from any credential `library:upload`/CNT-000 uses, so the deploy pipeline's IAM scope doesn't have to match a different task's. |
-| `VITE_SENTRY_DSN` | Repository **variable** | The client DSN (`FND-001c`). **Public by design**: it ships in the client bundle, because a browser SDK cannot submit an event without it. It identifies an ingest endpoint and grants nothing else — the same standing as the Firebase Web API key. Stored as a variable, not a secret, so nothing pretends otherwise. |
-| `SENTRY_ORG` | Repository **variable** | Sentry organization slug. Not sensitive. |
-| `SENTRY_PROJECT` | Repository **variable** | Sentry project slug. Not sensitive. |
-| `SENTRY_AUTH_TOKEN` | Repository **secret** | Creates releases and uploads source maps (`project:releases`, `org:read`). This is the one genuinely secret Sentry value — it can rewrite what your error data says. **CI only**: it never belongs in a developer `.env`, and `verify:bundle` fails the build if it ever appears in the output. |
+| `FIREBASE_PROJECT_ID` | Environment **variable** | The production project ID. Not sensitive. Consumed by the deploy step and the hosted smoke test's URL; it is *not* the job's `if:` gate — see above for why an environment-scoped variable cannot be one. |
+| `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Environment **secret** | Inline service-account JSON with Hosting, Firestore rules/indexes, and Storage rules deploy permissions. Distinct from any credential `library:upload`/CNT-000 uses, so the deploy pipeline's IAM scope doesn't have to match a different task's. |
+| `VITE_SENTRY_DSN` | Environment **variable** | The client DSN (`FND-001c`). **Public by design**: it ships in the client bundle, because a browser SDK cannot submit an event without it. It identifies an ingest endpoint and grants nothing else — the same standing as the Firebase Web API key. Stored as a variable, not a secret, so nothing pretends otherwise. |
+| `SENTRY_ORG` | Environment **variable** | Sentry organization slug. Not sensitive. |
+| `SENTRY_PROJECT` | Environment **variable** | Sentry project slug. Not sensitive. |
+| `SENTRY_AUTH_TOKEN` | Environment **secret** | Creates releases and uploads source maps (`project:releases`, `org:read`). This is the one genuinely secret Sentry value — it can rewrite what your error data says. **CI only**: it never belongs in a developer `.env`, and `verify:bundle` fails the build if it ever appears in the output. |
 
 ### Release SHA
 
