@@ -10,6 +10,8 @@ import {
 	type DomainIssueCode,
 	DomainValidationError,
 	isProject,
+	MAX_RETURN_BUSES,
+	MAX_TRACK_INSERTS,
 	type ParseResult,
 	parseClip,
 	parseProject,
@@ -236,22 +238,26 @@ describe("parseProject", () => {
 		expectIssue(parseProject(input), "invalid_order");
 	});
 
-	it("accepts sixteen insert devices on a track but rejects a seventeenth", () => {
+	// Sized from `MAX_TRACK_INSERTS`, never a literal, so moving the ceiling
+	// cannot leave a stale expectation behind. The PRD's stated number is pinned
+	// separately below.
+	it("accepts insert devices up to the ceiling but rejects one past it", () => {
 		const atCeiling = baseProject();
-		atCeiling.song.tracks[0].devices = Array.from({ length: 16 }, (_, order) =>
-			device(order, "filter"),
+		atCeiling.song.tracks[0].devices = Array.from(
+			{ length: MAX_TRACK_INSERTS },
+			(_, order) => device(order, "filter"),
 		) as MutableTrack["devices"];
 		expect(parseProject(atCeiling).ok).toBe(true);
 
 		const overCeiling = baseProject();
 		overCeiling.song.tracks[0].devices = Array.from(
-			{ length: 17 },
+			{ length: MAX_TRACK_INSERTS + 1 },
 			(_, order) => device(order, "filter"),
 		) as MutableTrack["devices"];
 		expectIssue(parseProject(overCeiling), "capacity_exceeded");
 	});
 
-	it("accepts eight return buses but rejects a ninth", () => {
+	it("accepts return buses up to the ceiling but rejects one past it", () => {
 		const returns = (count: number): JsonRecord[] =>
 			Array.from({ length: count }, (_, order) => ({
 				id: ids("return"),
@@ -262,12 +268,22 @@ describe("parseProject", () => {
 			}));
 
 		const atCeiling = baseProject();
-		atCeiling.song.returns = returns(8);
+		atCeiling.song.returns = returns(MAX_RETURN_BUSES);
 		expect(parseProject(atCeiling).ok).toBe(true);
 
 		const overCeiling = baseProject();
-		overCeiling.song.returns = returns(9);
+		overCeiling.song.returns = returns(MAX_RETURN_BUSES + 1);
 		expectIssue(parseProject(overCeiling), "capacity_exceeded");
+	});
+
+	// The PRD states these ceilings as a promise to users ("up to sixteen serial
+	// insert devices per track", "up to eight stereo send/return buses"), so the
+	// numbers themselves are pinned here. Every other capacity assertion derives
+	// from the constants; this is the one place a deliberate product change has
+	// to be acknowledged, rather than a stale test failing somewhere unrelated.
+	it("enforces the insert and return ceilings the PRD states (FX-01)", () => {
+		expect(MAX_TRACK_INSERTS).toBe(16);
+		expect(MAX_RETURN_BUSES).toBe(8);
 	});
 
 	it("rejects a send to a missing return bus", () => {

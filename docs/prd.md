@@ -372,7 +372,7 @@ Acceptance criteria:
 - Compression exposes threshold, ratio, attack, release, and makeup gain with gain-reduction metering.
 - Delay supports synced and free timing, feedback, filtering, stereo behavior, and wet/dry control.
 - Reverb supports decay/size, pre-delay, filtering, and wet/dry control.
-- The alpha supports at least eight serial insert devices per track, master processing, and two stereo send/return buses suitable for shared delay and reverb.
+- The alpha supports up to sixteen serial insert devices per track, master processing, and up to eight stereo send/return buses suitable for shared delay and reverb.
 - Device parameter changes are smoothed where necessary and do not rebuild unrelated audio nodes.
 - Live playback, offline WAV render, and Ableton fallback stems use equivalent Solid Groove processing.
 

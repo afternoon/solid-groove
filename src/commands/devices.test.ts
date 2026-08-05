@@ -3,6 +3,7 @@ import {
 	createDevice,
 	createSeededIdFactory,
 	type DeviceId,
+	MAX_TRACK_INSERTS,
 	type Project,
 } from "../domain";
 import {
@@ -120,27 +121,37 @@ describe("device.remove and device.reorder renumber contiguously", () => {
 	});
 });
 
-describe("eight-insert ceiling (FX-01)", () => {
-	it("accepts an eighth insert but rejects a ninth", () => {
+describe("insert ceiling (FX-01)", () => {
+	// Sized from `MAX_TRACK_INSERTS` rather than a literal: the ceiling is a
+	// declared product number (PRD FX-01, "up to sixteen serial insert devices
+	// per track"), and a test that hard-codes it silently goes stale the moment
+	// the ceiling moves — which is exactly what happened when it went 8 -> 16.
+	it("accepts inserts up to the ceiling but rejects one past it", () => {
 		let project = createCommandTestProject().project;
 		const trackId = project.song.tracks[0].id;
-		// The fixture starts with two inserts; fill to eight.
-		for (let i = 0; i < 6; i++) {
+		const startingInserts = findTrack(project, trackId)?.devices.length ?? 0;
+		expect(startingInserts).toBeLessThan(MAX_TRACK_INSERTS);
+
+		// Fill the chain exactly to the ceiling.
+		for (let order = startingInserts; order < MAX_TRACK_INSERTS; order++) {
 			project = apply(
 				project,
 				addDevice(
 					insertChain(trackId),
-					createDevice(newDeviceId(), "filter", 2 + i),
+					createDevice(newDeviceId(), "filter", order),
 				),
 			);
 		}
-		expect(findTrack(project, trackId)?.devices.length).toBe(8);
+		expect(findTrack(project, trackId)?.devices.length).toBe(MAX_TRACK_INSERTS);
 
-		const ninth = executeCommand(
+		const overCeiling = executeCommand(
 			project,
-			addDevice(insertChain(trackId), createDevice(newDeviceId(), "filter", 8)),
+			addDevice(
+				insertChain(trackId),
+				createDevice(newDeviceId(), "filter", MAX_TRACK_INSERTS),
+			),
 		);
-		expect(ninth.ok).toBe(false);
+		expect(overCeiling.ok).toBe(false);
 	});
 });
 

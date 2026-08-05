@@ -11,14 +11,18 @@ import { checkAutomationLane } from "./automation";
 import { checkOrdering, claimId, type DomainIssue, issue } from "./primitives";
 
 /**
- * Routing capacity ceilings (PRD FX-01, LOOP-008). The PRD states a floor —
- * "at least eight serial insert devices per track" and "two stereo send/return
- * buses" — and these are the ceilings the alpha actually enforces, set well
- * above that floor so a chain or a send layout stays a creative choice rather
- * than a limit users design around. They are still finite: a bound exists so
- * every mutation path — the device/send commands and any imported document —
- * is judged against one declared value rather than a literal repeated at each
- * call site, and so a runaway document cannot grow a track's graph without end.
+ * Routing capacity ceilings (PRD FX-01, LOOP-008): "up to sixteen serial insert
+ * devices per track" and "up to eight stereo send/return buses". These are the
+ * numbers the PRD states and the ones every mutation path enforces, set high
+ * enough that a chain or a send layout stays a creative choice rather than a
+ * limit users design around. They are still finite: a bound exists so every
+ * mutation path — the device/send commands and any imported document — is
+ * judged against one declared value rather than a literal repeated at each call
+ * site, and so a runaway document cannot grow a track's graph without end.
+ *
+ * Tests assert against these constants, never against a hard-coded 16 or 8, so
+ * a future change to a ceiling does not silently leave a stale expectation
+ * behind (see `devices.test.ts` and `parse.test.ts`).
  */
 export const MAX_TRACK_INSERTS = 16;
 export const MAX_RETURN_BUSES = 8;
