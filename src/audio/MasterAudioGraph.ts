@@ -79,9 +79,18 @@ export class MasterAudioGraph {
 		return this.meter;
 	}
 
-	reconcile(next: AudioMasterProjection): void {
-		if (this.lastProjection === next) return;
-		this.deviceChain.reconcile(next.devices);
+	/**
+	 * `reapplyDevices` reports that state outside the master projection moved
+	 * (the song tempo, which a synced delay resolves against) and so must survive
+	 * the reference short-circuit — otherwise a tempo-only edit, which leaves this
+	 * projection reference-identical, would never reach the device chain.
+	 */
+	reconcile(next: AudioMasterProjection, reapplyDevices = false): void {
+		if (this.lastProjection === next) {
+			if (reapplyDevices) this.deviceChain.reconcile(next.devices, true);
+			return;
+		}
+		this.deviceChain.reconcile(next.devices, reapplyDevices);
 		this.volume.volume.rampTo(next.volume, 0.02);
 		this.lastProjection = next;
 	}
