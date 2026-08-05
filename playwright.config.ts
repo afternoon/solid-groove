@@ -10,7 +10,7 @@ const baseURL = `http://127.0.0.1:${PORT}`;
 // under the hood and is not separately covered here.
 //
 // Playwright drives the app against the in-memory mock backend
-// (`VITE_MOCK_BACKEND=true`, see src/projectRepositoryClient.ts and
+// (`VITE_DEV_BACKEND=mock`, see src/projectRepositoryClient.ts and
 // src/auth/authService.ts) rather than a real Firebase project, so this
 // suite has no external dependency and needs no emulator. `page.reload()`
 // cannot be used to prove persistence here — the in-memory repository is a
@@ -52,7 +52,7 @@ export default defineConfig({
 		stdout: "pipe",
 		stderr: "pipe",
 		env: {
-			VITE_MOCK_BACKEND: "true",
+			VITE_DEV_BACKEND: "mock",
 		},
 	},
 	projects: [

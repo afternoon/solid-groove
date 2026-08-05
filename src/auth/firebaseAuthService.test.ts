@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 // Exercise the *Firebase* branch of `createAuthService()`. The sibling
-// `authService.test.ts` forces `VITE_MOCK_BACKEND=true` at module scope so it
+// `authService.test.ts` forces `VITE_DEV_BACKEND=mock` at module scope so it
 // only ever sees `MockAuthService`, which is why this lives in its own file.
-vi.stubEnv("VITE_MOCK_BACKEND", "false");
+vi.stubEnv("VITE_DEV_BACKEND", "project");
 
 // Reproduce what `src/firebaseConfig.ts` actually does with no Firebase config
 // present: `getAuth(app)` throws in the module body, so the module fails to

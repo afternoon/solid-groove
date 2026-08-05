@@ -29,10 +29,10 @@ Let's build it!
 ```sh
 bun install
 cp .env.example .env
-bun run dev
+bun run dev:mock
 ```
 
-Set `VITE_MOCK_BACKEND=true` in `.env` to run against in-memory mock services, which needs no Firebase project at all. [`CONTRIBUTING.md`](./CONTRIBUTING.md) covers that and the other two backends — a local Firebase Emulator, or a real project — along with the day-to-day development loop.
+`bun run dev:mock` runs against in-memory mock services and needs no Firebase project at all; `bun run dev:emulator` runs against a local Firebase Emulator (started with `bun run firebase:emulator`) when you need real persistence. [`CONTRIBUTING.md`](./CONTRIBUTING.md) covers both, and the real-project setup, along with the day-to-day development loop.
 
 ## Deployment
 

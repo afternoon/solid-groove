@@ -7,29 +7,25 @@ import {
 import { initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { placeholderFirebaseConfig, resolveEmulatorHosts } from "./devBackend";
 
-// In mock mode the app talks to the in-memory mock services rather than real
-// Firebase, so we don't need real credentials. Fall back to harmless
-// placeholder values so `initializeApp` succeeds and the UI can render without
-// a configured .env.
-const isMock = import.meta.env.VITE_MOCK_BACKEND === "true";
+// Placeholder credentials for the two backends that do not authenticate
+// against a real project: the mock backend never loads the SDK at all, and the
+// emulator validates none of them. Falling back keeps `initializeApp`
+// succeeding so neither mode needs a configured `.env`. The emulator's
+// `projectId` is load-bearing rather than cosmetic — see `src/devBackend.ts`.
+const placeholders = placeholderFirebaseConfig();
 
 const firebaseConfig = {
-	apiKey:
-		import.meta.env.VITE_FIREBASE_API_KEY ??
-		(isMock ? "mock-api-key" : undefined),
+	apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? placeholders?.apiKey,
 	authDomain:
-		import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ??
-		(isMock ? "mock.firebaseapp.com" : undefined),
+		import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? placeholders?.authDomain,
 	projectId:
-		import.meta.env.VITE_FIREBASE_PROJECT_ID ??
-		(isMock ? "mock-project" : undefined),
+		import.meta.env.VITE_FIREBASE_PROJECT_ID ?? placeholders?.projectId,
 	databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
 	storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
 	messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-	appId:
-		import.meta.env.VITE_FIREBASE_APP_ID ??
-		(isMock ? "mock-app-id" : undefined),
+	appId: import.meta.env.VITE_FIREBASE_APP_ID ?? placeholders?.appId,
 	measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
@@ -37,22 +33,19 @@ export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Local Firebase Emulator wiring (`FND-009`'s emulator-backed browser E2E
-// suite; see `playwright.emulator.config.ts`). Distinct from
-// `VITE_MOCK_BACKEND`: the mock backend swaps in an in-memory fake and never
-// touches the Firebase SDK at all, while this points the *real* SDK at a
-// local emulator so a genuine page reload proves persistence rather than a
-// fake that resets on every navigation. Both env vars are dev/test-only —
-// never set in a real deployment, and connecting is a no-op unless a caller
-// opts in.
-const firestoreEmulatorHost = import.meta.env.VITE_FIRESTORE_EMULATOR_HOST;
-const authEmulatorHost = import.meta.env.VITE_AUTH_EMULATOR_HOST;
-if (firestoreEmulatorHost) {
-	const [host, port] = firestoreEmulatorHost.split(":");
-	connectFirestoreEmulator(db, host, Number(port));
-}
-if (authEmulatorHost) {
-	connectAuthEmulator(auth, `http://${authEmulatorHost}`, {
+// Local Firebase Emulator wiring (`VITE_DEV_BACKEND=emulator`, plus the
+// `FND-009` emulator-backed browser E2E suite; see
+// `playwright.emulator.config.ts`). Distinct from the mock backend, which swaps
+// in an in-memory fake and never touches the Firebase SDK at all: this points
+// the *real* SDK at a local emulator so a genuine page reload proves
+// persistence rather than a fake that resets on every navigation. Emulator mode
+// implies the default hosts and `VITE_*_EMULATOR_HOST` overrides them — see
+// `src/devBackend.ts`. Dev/test only; never set in a real deployment.
+const emulatorHosts = resolveEmulatorHosts();
+if (emulatorHosts) {
+	const [firestoreHost, firestorePort] = emulatorHosts.firestore.split(":");
+	connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));
+	connectAuthEmulator(auth, `http://${emulatorHosts.auth}`, {
 		disableWarnings: true,
 	});
 }

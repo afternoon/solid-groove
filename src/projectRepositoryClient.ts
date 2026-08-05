@@ -1,12 +1,13 @@
+import { isMockBackend } from "./devBackend";
 import type { ProjectRepository } from "./persistence/projectRepository";
 
 /**
  * The application's `ProjectRepository` (PRD section 9.9; `FND-009`).
  *
  * Mirrors `src/auth/authService.ts`'s mock/Firestore switch, but for the
- * schema-v1 repository boundary: `VITE_MOCK_BACKEND=true` (the browser E2E
+ * schema-v1 repository boundary: `VITE_DEV_BACKEND=mock` (the browser E2E
  * suite, local UI development) gets the in-memory repository, everything
- * else gets Firestore.
+ * else — including the emulator — gets Firestore.
  *
  * `firestoreProjectRepository.ts` is deliberately not imported at the top of
  * this module — `src/persistence`'s own barrel omits it for the same reason
@@ -28,7 +29,7 @@ export function getProjectRepository(): Promise<ProjectRepository> {
 }
 
 async function createProjectRepository(): Promise<ProjectRepository> {
-	if (import.meta.env.VITE_MOCK_BACKEND === "true") {
+	if (isMockBackend) {
 		const { createInMemoryProjectRepository } = await import(
 			"./persistence/inMemoryProjectRepository"
 		);

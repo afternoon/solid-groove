@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
 // successful until it passes.
 //
 // This intentionally does not reuse e2e/smoke.spec.ts: that suite drives the
-// in-memory mock backend (`VITE_MOCK_BACKEND=true`) against a local dev
+// in-memory mock backend (`VITE_DEV_BACKEND=mock`) against a local dev
 // server, which proves the UI works but nothing about whether the deployed
 // build can actually reach production Firebase Authentication, Firestore, and
 // security rules.

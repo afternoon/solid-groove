@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Force the mock backend so createAuthService() returns MockAuthService
 // without touching Firebase.
-vi.stubEnv("VITE_MOCK_BACKEND", "true");
+vi.stubEnv("VITE_DEV_BACKEND", "mock");
 
 afterEach(() => {
 	vi.restoreAllMocks();
