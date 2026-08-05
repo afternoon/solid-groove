@@ -27,6 +27,17 @@ A PR is a single reviewable unit of purpose, **not** a whole task, and **its dif
 
 If a task is genuinely small enough to land in one ≤400-line PR, do that — the point is the ceiling and the single purpose, not splitting for its own sake.
 
+### What makes a stack cheap to review
+
+Stacking is not just a way to get under the line limit — it is what lets a reviewer merge the front of your stack without reading the back of it. Four properties are what actually buy that, and a stack that lacks them costs *more* to review than one big PR:
+
+- **Every slice is independently green.** Each PR in the stack typechecks and passes tests *on its own commit*, not merely at the tip of the stack. Run the checks at each slice before you push the next one. A reviewer must be able to merge PR 1 and walk away without PR 2 existing — if slice N only works once slice N+1 lands, the split is in the wrong place.
+- **State the invariant that makes the slice safe, and prove it in one line.** The cheapest review is one where the reviewer verifies a claim in seconds instead of reading every line. If a refactor should not change behavior, say so and give the evidence: "`Foo.test.tsx` is untouched across this stack — `git diff --stat origin/main..HEAD -- src/foo/Foo.test.tsx` is empty, and all 22 tests pass unchanged." If a slice is a pure code move, say "pure move: same code relocated, no logic edits," so review is "is this the same code?" rather than "what changed?"
+- **Never mix a behavior change into a move.** A slice that relocates code *and* tweaks logic forces a line-by-line read of the whole diff, because the reviewer cannot tell which hunks are the move and which are the change. Land the move first, the behavior change second, as separate PRs.
+- **Be specific and honest about failures.** If a test is red, name it exactly and say whether you verified it fails on unmodified `main` too — and how you verified it (a clean checkout, a fresh install). "Unrelated flake" without that check reads as an excuse and makes a reviewer re-run everything themselves. A genuine pre-existing failure you diagnosed is worth its own issue; link it.
+
+**Surface your deviations in the PR body.** If you deliberately did not do something the issue asked for — a suggested seam you judged to be over-engineering, an approach that did not fit — say so plainly, with the reasoning, in the PR that was supposed to contain it. A reviewer discovering a silent omission has to re-read the issue and reconstruct your thinking; a stated one takes a sentence to accept or push back on. Declining a suggestion with a reason is a normal outcome, not a failure — quietly skipping it is what costs.
+
 ### Land central-registration edits first, in their own tiny PR
 
 A few files are shared registration points every parallel task appends to: `src/analytics/catalog.ts` (event keys), `src/commands/registry.ts` / `src/commands/index.ts` (command IDs), `src/domain/parse.ts` (invariants), and `src/editor/EditorView.tsx` (where a panel mounts). Two features editing the same one collide on merge even when the rest of their code is disjoint, and the collision only surfaces after review, when the first of the pair lands — creating rework in the sibling that is already approved.
@@ -73,9 +84,9 @@ If your issue carries the `blocked` label, an undecided `DEC-*` product decision
 1. Assign your issue to yourself and comment that you are starting, naming the branch(es) you plan to push and — if the task needs more than one PR — the stack you intend to open, one sentence of purpose each.
 2. Plan the split into ≤400-line, single-purpose PRs (see "Keep every PR small"). For the first slice, create a branch named `claude/<task-id-lowercase>` (or `claude/<task-id-lowercase>-<slice>` for later slices) off the base you are given; each later slice branches off the previous slice's branch.
 3. Implement one slice at a time, with the tests that cover it, plus any fixtures and documentation that slice requires. Keep each slice's diff under 400 lines.
-4. Run the full check suite and fix what it surfaces — for each slice, before you move to the next.
+4. Run the full check suite and fix what it surfaces — for each slice, before you move to the next. Each slice must be green **on its own commit**, so the reviewer can merge the front of your stack without the rest of it.
 5. Commit and push each branch. Open its PR with the correct base (the previous slice's branch for a mid-stack PR, otherwise the given base), `Refs #<n>` for mid-stack PRs and `Closes #<n>` only on the final one, naming its place in the stack.
 6. Tick the satisfied acceptance checkboxes on the issue as each slice genuinely satisfies them.
-7. Report: every branch and PR you opened with its one-line purpose and diff size, which PR closes the issue, a summary of the approach, the commands you ran with their real results, which acceptance checkboxes you consider met, and anything you could not complete.
+7. Report: every branch and PR you opened with its one-line purpose and diff size, which PR closes the issue, a summary of the approach, the commands you ran with their real results, which acceptance checkboxes you consider met, the safety invariant for each slice and how you proved it, any suggestion from the issue you deliberately declined and why, and anything you could not complete.
 
 Report outcomes faithfully. If a test fails or a checkbox is unmet, say so plainly with the output — a reviewer will check, and an inflated report costs more than an honest one.
