@@ -107,9 +107,16 @@ reopens the self-hosting option the ADR rejected, and this part changes.
       a real secret — it can create releases and rewrite what your error data
       says. CI only. `scripts/verify-no-secrets-in-bundle.mjs` fails the build if
       it ever appears in built output.
-- [ ] Confirm **Session Replay is off** for the project. ADR 0001 forbids it for
-      a product whose value is the user's private music; turning it on needs a
-      superseding ADR, not a console toggle.
+- [ ] Confirm **Session Replay is enabled** for the project, per
+      [ADR 0002](../adr/0002-sentry-session-replay.md), which supersedes ADR 0001
+      decision 4. Replay is for understanding how the app is used, never for
+      reaching the user's music: the protection is mask-by-default *capture* in
+      the client, so verify the client configuration rather than trusting a
+      console toggle. Do not adjust masking, sampling, or canvas capture from the
+      Sentry console — those are set in `src/monitoring/sentrySink.ts` and
+      covered by tests; a console override would silently diverge from them.
+      Until the client work lands (see the Session Replay disclosure and opt-out
+      issue), replay captures nothing regardless of this project setting.
 
 ## Part 3 — GitHub Actions configuration
 

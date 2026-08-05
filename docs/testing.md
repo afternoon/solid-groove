@@ -264,7 +264,7 @@ Most of this layer is verified in the ordinary `bun run test` suite, deliberatel
 | `src/monitoring/scrub.test.ts` | The no-PII criterion, run over the scrubbing functions directly against a deliberately hostile payload — so it also covers events and breadcrumbs added by later tasks. |
 | `src/monitoring/errorReporting.test.ts` | One report per error, duplicates collapsed, fatal/non-fatal carried, and no recursion or caller impact when a sink throws. |
 | `src/monitoring/globalHandlers.test.ts` | `error` and `unhandledrejection` each report once, as fatal, and dispose cleanly. |
-| `src/monitoring/sentrySink.test.ts` | The ADR 0001 configuration as facts: `sendDefaultPii` off, console breadcrumbs disabled, **Session Replay not enabled**, minimal integration set, Release Health on. Injects a fake SDK module, so no test loads Sentry. |
+| `src/monitoring/sentrySink.test.ts` | The ADR 0001 configuration as facts: `sendDefaultPii` off, console breadcrumbs disabled, minimal integration set, Release Health on. Per [ADR 0002](./adr/0002-sentry-session-replay.md), **Session Replay is enabled with masking on**: all text masked, all media blocked, canvas capture off, error-triggered replay at zero. Injects a fake SDK module, so no test loads Sentry. |
 | `src/monitoring/boundaries.test.ts` | `@sentry/*` is imported by `sentrySink.ts` and nothing else, it is absent from the barrel, and `telemetry.ts` reaches it only through a dynamic `import()`. |
 | `src/telemetry.test.ts` | The SDK loads only after first paint and never on the landing page, and the **core journey (edit → save → undo) is identical** with both transports throwing and the user opted out. |
 | `bun run verify:budget` | The SDK contributes **zero bytes** before first paint, measured against the built output rather than assumed (see below). |
@@ -320,7 +320,9 @@ In Sentry, the issue should show:
 - the **release** equal to the deployed commit SHA, and *Deploys* listing the `alpha` deploy for it;
 - a **symbolicated stack trace** naming `src/` files and real line numbers — if frames are minified, the source-map upload did not run (check `SENTRY_AUTH_TOKEN` in the deploy log) or the debug IDs did not match;
 - `area`, `error_code`, `fatal`, and `browser_*` tags, and a **redacted** message;
-- **no** `request`, `user`, `extra`, or `server_name`, no console breadcrumbs, and no Session Replay.
+- **no** `request`, `user`, `extra`, or `server_name`, and no console breadcrumbs.
+
+Session Replay ([ADR 0002](./adr/0002-sentry-session-replay.md)) is checked separately, because "a replay exists" is not the thing that matters — what it contains is. Open a sampled replay from *Replays* and confirm it shows interaction (pointer, clicks, navigation, timing) while every piece of user-authored content — track and clip names, the arrangement, note data, assistant messages, and anything typed — is masked or blocked. An unmasked clip name is a release blocker, not a cosmetic defect. Then confirm that with telemetry declined no replay is produced at all.
 
 Then confirm the same error produced exactly **one** issue (not two — Sentry's own global handlers are switched off so ours is the only capture point) and that *Releases → Health* shows a crash-free session rate for that release.
 
