@@ -18,8 +18,7 @@ import type { NoteTrigger } from "../domain/entities";
 import type { EventId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { formatBarsBeatsSixteenths, TICKS_PER_QUARTER } from "../domain/time";
-import SamplerPanel, { type SampleChoice } from "../instrument/SamplerPanel";
-import SynthPanel from "../instrument/SynthPanel";
+import type { SampleChoice } from "../instrument/SamplerPanel";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
@@ -31,9 +30,10 @@ import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
-import PianoRoll, { type PianoRollActions } from "./PianoRoll";
-import StepEditor, { deleteSelectedNotes } from "./StepEditor";
+import type { PianoRollActions } from "./PianoRoll";
+import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
+import TrackEditor from "./TrackEditor";
 import { useEditorSession } from "./useEditorSession";
 import { useProjectAudio } from "./useProjectAudio";
 import "./EditorView.css";
@@ -450,90 +450,25 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										}
 									>
 										{(currentClip) => (
-											<div class="track-editor">
-												<div class="track-info">
-													<span class="track-name">{track()?.name}</span>
-													<Show when={packDependencyLabel()}>
-														<span class="pack-dependency">
-															Pack: {packDependencyLabel()}
-														</span>
-													</Show>
-												</div>
-												{/*
-												 * A synth track's note clip gets the CLP-03 piano
-												 * roll; everything else stays on LOOP-010's CLP-02
-												 * step editor. Pitched notes want two dimensions
-												 * (pitch x time), which a one-row-per-step grid
-												 * cannot show.
-												 */}
-												<Show
-													when={showPianoRoll()}
-													fallback={
-														<StepEditor
-															clip={currentClip()}
-															instrument={instrument()}
-															dispatch={session.dispatch}
-															beginGesture={session.beginGesture}
-															playbackStep={editorPlaybackStep}
-															selectedIds={selectedNoteIds}
-															setSelectedIds={setSelectedNoteIds}
-														/>
-													}
-												>
-													<PianoRoll
-														clip={currentClip()}
-														project={currentProject()}
-														dispatch={session.dispatch}
-														beginGesture={session.beginGesture}
-														playheadTicks={audio.positionTicks()}
-														registerActions={setPianoRollActions}
-													/>
-												</Show>
-												<Show when={instrumentPanelTrackId()}>
-													{(trackId) => (
-														<Switch>
-															<Match
-																when={
-																	instrument()?.kind === "sampler" &&
-																	(instrument() as Extract<
-																		NonNullable<ReturnType<typeof instrument>>,
-																		{ kind: "sampler" }
-																	>)
-																}
-															>
-																{(sampler) => (
-																	<SamplerPanel
-																		trackId={trackId()}
-																		instrument={sampler()}
-																		sampleName={sampleName()}
-																		replacementOptions={replacementOptions()}
-																		dispatch={session.dispatch}
-																		audition={auditionInstrument}
-																	/>
-																)}
-															</Match>
-															<Match
-																when={
-																	instrument()?.kind === "synth" &&
-																	(instrument() as Extract<
-																		NonNullable<ReturnType<typeof instrument>>,
-																		{ kind: "synth" }
-																	>)
-																}
-															>
-																{(synth) => (
-																	<SynthPanel
-																		trackId={trackId()}
-																		instrument={synth()}
-																		dispatch={session.dispatch}
-																		audition={auditionInstrument}
-																	/>
-																)}
-															</Match>
-														</Switch>
-													)}
-												</Show>
-											</div>
+											<TrackEditor
+												clip={currentClip()}
+												trackName={track()?.name}
+												packDependencyLabel={packDependencyLabel()}
+												showPianoRoll={showPianoRoll}
+												instrument={instrument()}
+												dispatch={session.dispatch}
+												beginGesture={session.beginGesture}
+												editorPlaybackStep={editorPlaybackStep}
+												selectedNoteIds={selectedNoteIds}
+												setSelectedNoteIds={setSelectedNoteIds}
+												project={currentProject()}
+												playheadTicks={audio.positionTicks()}
+												registerPianoRollActions={setPianoRollActions}
+												instrumentPanelTrackId={instrumentPanelTrackId()}
+												sampleName={sampleName()}
+												replacementOptions={replacementOptions()}
+												auditionInstrument={auditionInstrument}
+											/>
 										)}
 									</Show>
 									<Mixer
