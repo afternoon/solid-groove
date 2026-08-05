@@ -393,6 +393,8 @@ bun run library:emit-runtime        # regenerate src/library/factoryLibrary.gene
 bun run library:upload              # publish to Cloud Storage (see .env.example for credentials)
 ```
 
+These scripts run under `node`, not `bun`, and Node does not read `.env` on its own the way Bun does — so every `node scripts/...` entry in `package.json` passes `--env-file-if-exists=.env`. Without it a value set correctly in `.env` is simply invisible to the script, which reports it as unset. The flag tolerates a missing `.env` (CI, fresh clones) and real environment variables still take precedence over the file, so CI behaviour is unchanged. `.env` is resolved relative to the **current directory**: run these from the repository root, and note that a git worktree has no `.env` of its own unless you put one there.
+
 `bun run library` is the entry point: it prints the ordered workflow and reports
 what has been built, pinned, and ingested, so the next step is stated rather than
 inferred. `library:test` is the fast inner loop while changing the catalogue or
