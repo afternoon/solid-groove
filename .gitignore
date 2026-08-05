@@ -19,6 +19,12 @@ playwright/.cache/
 *-debug.log
 .firebase/
 
+# Scratch space at the repo root: screenshots captured for a PR walkthrough,
+# intermediate output, one-off scripts. Useful while working and never source —
+# a stray `git add -A` had otherwise been one keystroke away from committing a
+# megabyte of PNGs.
+tmp/
+
 # Throwaway Playwright configs. A sandbox whose pre-installed browser build
 # differs from the one @playwright/test pins cannot run the committed configs
 # directly, so verifying a browser suite there means writing a short config that
