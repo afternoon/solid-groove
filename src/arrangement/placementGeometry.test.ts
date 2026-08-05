@@ -3,8 +3,10 @@ import { executeTransaction } from "../commands/execute";
 import type { Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import type { PlacementId } from "../domain/ids";
-import { TICKS_PER_BAR } from "../domain/time";
+import { SONG_TEMPO } from "../domain/parameters";
+import { minutesToTicks, TICKS_PER_BAR, ticksToSeconds } from "../domain/time";
 import {
+	clampTick,
 	deletePlacements,
 	floorToBar,
 	MAX_ARRANGEMENT_TICKS,
@@ -51,6 +53,22 @@ describe("bar snapping (ARR-01: placements snap to bars by default)", () => {
 		);
 	});
 
+	// ARR-01 guarantees 10:00 "at any supported tempo". Asserting the bound in
+	// *seconds* is what ties it to the product promise; comparing the constant
+	// to itself would pass for any value, including one that caps the
+	// arrangement at 3:20.
+	it("guarantees ten minutes at the fastest tempo a project may store", () => {
+		expect(
+			ticksToSeconds(MAX_ARRANGEMENT_TICKS, SONG_TEMPO.max),
+		).toBeGreaterThanOrEqual(600);
+	});
+
+	it("does not clamp an edit inside the guaranteed span at the default tempo", () => {
+		const minuteNine = floorToBar(minutesToTicks(9, SONG_TEMPO.defaultValue));
+		expect(snapToBar(minuteNine)).toBe(minuteNine);
+		expect(clampTick(minuteNine)).toBe(minuteNine);
+	});
+
 	it("treats a non-finite drag position as tick zero rather than NaN", () => {
 		expect(snapToBar(Number.NaN)).toBe(0);
 		expect(snapToBar(Number.POSITIVE_INFINITY)).toBe(0);
@@ -89,9 +107,37 @@ describe("movePlacement", () => {
 		const { project } = fixture();
 		expect(movePlacement(project, "plc_missing" as PlacementId, 0)).toEqual([]);
 	});
+
+	it("lands a drag to minute nine exactly, not silently clamped short", () => {
+		const { project, placementId } = fixture();
+		const target = floorToBar(minutesToTicks(9, SONG_TEMPO.defaultValue));
+		const next = apply(project, movePlacement(project, placementId, target));
+		expect(next.song.placements[0].startTicks).toBe(target);
+		expect(ticksToSeconds(next.song.placements[0].startTicks, 120)).toBeCloseTo(
+			540,
+			0,
+		);
+	});
 });
 
 describe("resizePlacement", () => {
+	it("stretches a placement out to minute nine without clamping short", () => {
+		// clampDuration caps at MAX_ARRANGEMENT_TICKS, so a bound taken from the
+		// slow end of the tempo range would truncate this resize.
+		const { project, placementId } = fixture();
+		const target = floorToBar(minutesToTicks(9, SONG_TEMPO.defaultValue));
+		const next = apply(
+			project,
+			resizePlacement(project, placementId, "end", target),
+		);
+		const placement = next.song.placements[0];
+		// Assert in seconds, not against `target`: snapToBar clamps its own input,
+		// so a tick-only assertion stays self-consistent under a wrong bound.
+		expect(
+			ticksToSeconds(placement.startTicks + placement.durationTicks, 120),
+		).toBeCloseTo(540, 0);
+	});
+
 	it("resizes from the end edge by whole bars", () => {
 		const { project, placementId } = fixture();
 		const next = apply(

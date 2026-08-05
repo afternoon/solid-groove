@@ -19,7 +19,8 @@ import { executeTransaction } from "../commands/execute";
 import type { Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
-import { TICKS_PER_BAR } from "../domain/time";
+import { SONG_TEMPO } from "../domain/parameters";
+import { minutesToTicks, TICKS_PER_BAR, ticksToSeconds } from "../domain/time";
 import {
 	pixelsToTicks,
 	type RowMetrics,
@@ -28,6 +29,7 @@ import {
 } from "./geometry";
 import { createPlacementAt } from "./placementClipboard";
 import {
+	floorToBar,
 	MAX_ARRANGEMENT_TICKS,
 	movePlacement,
 	resizePlacement,
@@ -327,6 +329,35 @@ describe("offscreen culling", () => {
 });
 
 describe("ten-minute bounds (PRD ARR-01)", () => {
+	// ARR-01 guarantees ten minutes "at any supported tempo". These assertions
+	// convert the bound to *seconds* at a concrete tempo rather than comparing
+	// MAX_ARRANGEMENT_TICKS against itself: a self-referential assertion passes
+	// for any value of the constant, including a wrong one.
+	it("spans at least ten minutes at every supported tempo", () => {
+		// Ticks per second rise with tempo, so the fastest tempo the domain
+		// admits is the worst case for a bound expressed in ticks. Clearing it
+		// clears the transport's narrower 40-240 range too.
+		expect(
+			ticksToSeconds(MAX_ARRANGEMENT_TICKS, SONG_TEMPO.max),
+		).toBeGreaterThanOrEqual(600);
+		expect(
+			ticksToSeconds(MAX_ARRANGEMENT_TICKS, SONG_TEMPO.defaultValue),
+		).toBeGreaterThanOrEqual(600);
+	});
+
+	it("moves a placement out to minute nine at the default tempo", () => {
+		const base = createSliceFixtureProject();
+		const placementId = base.song.placements[0].id;
+		// Minute 9 is inside ARR-01's guaranteed 10:00, so the edit must land
+		// exactly where the user dropped it rather than being silently clamped.
+		const target = floorToBar(minutesToTicks(9, SONG_TEMPO.defaultValue));
+		const moved = apply(base, movePlacement(base, placementId, target));
+		expect(moved.song.placements[0].startTicks).toBe(target);
+		expect(
+			ticksToSeconds(moved.song.placements[0].startTicks, 120),
+		).toBeCloseTo(540, 0);
+	});
+
 	it("hit-tests a placement at the far end of the guaranteed range", () => {
 		const base = createSliceFixtureProject();
 		const placementId = base.song.placements[0].id;

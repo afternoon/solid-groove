@@ -3,12 +3,18 @@ import { executeTransaction } from "../commands/execute";
 import type { Clip, Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory, type PlacementId } from "../domain/ids";
+import { SONG_TEMPO } from "../domain/parameters";
+import { minutesToTicks } from "../domain/time";
 import {
 	copyClip,
 	describeDuplicate,
 	duplicatePlacement,
 } from "./placementDuplication";
-import { MAX_ARRANGEMENT_TICKS, movePlacement } from "./placementGeometry";
+import {
+	floorToBar,
+	MAX_ARRANGEMENT_TICKS,
+	movePlacement,
+} from "./placementGeometry";
 
 function fixture(): {
 	project: Project;
@@ -122,6 +128,29 @@ describe("duplicatePlacement: reuse versus independent variation (CLP-01)", () =
 		const next = apply(project, commands);
 		const added = next.song.placements.find((p) => p.id === newId);
 		expect(added?.startTicks).toBe(source.startTicks + source.durationTicks);
+	});
+
+	it("duplicates a placement at minute nine, inside the guarantee", () => {
+		// The refusal below is only correct if the bound itself is right: at
+		// minute 9 of ARR-01's guaranteed 10:00 a duplicate must still be
+		// produced, not silently dropped.
+		const { project, placementId } = fixture();
+		const moved = apply(
+			project,
+			movePlacement(
+				project,
+				placementId,
+				floorToBar(minutesToTicks(9, SONG_TEMPO.defaultValue)),
+			),
+		);
+		const result = duplicatePlacement(
+			moved,
+			placementId,
+			"linked",
+			createSeededIdFactory("inside"),
+		);
+		expect(result.placementId).not.toBeNull();
+		expect(result.commands.length).toBeGreaterThan(0);
 	});
 
 	it("refuses a duplicate that would run past the ten-minute guarantee", () => {
