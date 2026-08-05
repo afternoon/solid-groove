@@ -274,6 +274,43 @@ jobs:
           VITE_RELEASE_SHA: ${{ github.sha }}
           FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-deploy-service-account.json
+          # The Firebase *client* config, read by src/firebaseConfig.ts. These
+          # are baked into the client bundle at build time, so they must be
+          # present in this step's environment -- not merely on the project.
+          # Without them `initializeApp` receives `undefined` for every field
+          # and the first Auth call fails at runtime with
+          # `auth/invalid-api-key`, which renders the app's error boundary
+          # instead of the page. That is a fully successful deploy of a broken
+          # build: only the post-deploy smoke test catches it.
+          #
+          # Public by design -- they ship to every browser that loads the app,
+          # are protected by security rules and API-key restrictions rather
+          # than secrecy, and so are stored as `vars`, not `secrets`.
+          # `verify:bundle` deliberately does not flag them (see
+          # scripts/verify-no-secrets-in-bundle.mjs).
+          #
+          # Three of these are derived from `vars.FIREBASE_PROJECT_ID` rather
+          # than stored separately. The project ID is the same value the deploy
+          # targets, and Firebase builds the auth domain and storage bucket from
+          # it by fixed convention (`<id>.firebaseapp.com`,
+          # `<id>.firebasestorage.app`), so storing them again would only create
+          # room for them to drift from the project actually being deployed to.
+          #
+          # The remaining three cannot be derived -- they are independent
+          # identifiers assigned by Firebase -- so they stay as variables. Read
+          # them from the console: Project settings -> your web app -> SDK setup.
+          #
+          # If a future environment ever needs the client to talk to a different
+          # project than the deploy targets, or Firebase changes those suffixes,
+          # that is the point to introduce explicit variables -- with the split
+          # visible here rather than implied by a duplicate.
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_PROJECT_ID }}.firebaseapp.com
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_PROJECT_ID }}.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}

@@ -134,14 +134,33 @@ browsers is not stored as if it were confidential.
 
 | Name | Kind | Value |
 | --- | --- | --- |
-| `FIREBASE_PROJECT_ID` | Variable | The project ID from part 1. |
+| `FIREBASE_PROJECT_ID` | Variable | The project ID from part 1 — where the deploy *ships to*. |
 | `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | **Secret** | The full service-account JSON, inline. |
+| `VITE_FIREBASE_API_KEY` | Variable | Firebase console → Project settings → your web app → SDK setup. Public by design. |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Variable | Same panel. |
+| `VITE_FIREBASE_APP_ID` | Variable | Same panel. |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Variable | Same panel. GA4; the app degrades cleanly without it. |
 | `VITE_SENTRY_DSN` | Variable | The DSN from part 2. Public by design. |
 | `SENTRY_ORG` | Variable | Org slug. |
 | `SENTRY_PROJECT` | Variable | Project slug. |
 | `SENTRY_AUTH_TOKEN` | **Secret** | The auth token from part 2. |
 
-- [ ] Set all six. **Scope matters more than it looks**: a job only receives an
+The `VITE_FIREBASE_*` values are the Firebase **client** config — what the built
+app talks to, as opposed to `FIREBASE_PROJECT_ID`, which is where the deploy
+ships. Only the four above are stored: the client's project ID, auth domain, and
+storage bucket are derived from `FIREBASE_PROJECT_ID` in `ci.yml` (Firebase names
+the latter two `<id>.firebaseapp.com` and `<id>.firebasestorage.app` by
+convention), so no value is written down twice and none can drift from the
+project actually being deployed to.
+
+They are inlined into the browser bundle at build time, so they must be set
+*before* the deploy that is meant to use them — setting them afterwards changes
+nothing until something rebuilds. Leaving them unset does not fail the deploy: it
+ships an app that loads and then dies on its first Auth call with
+`auth/invalid-api-key`. `bun run verify:client-config` runs in `predeploy` to
+turn that into a build failure instead.
+
+- [ ] Set all of them. **Scope matters more than it looks**: a job only receives an
       environment's variables and secrets if it declares that environment, and an
       environment-scoped `vars.*` lookup from a job that does not resolves to the
       empty string with no error. Setting these at repository scope instead
