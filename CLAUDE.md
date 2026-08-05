@@ -203,7 +203,7 @@ bun run test:browser:emulator  # Browser E2E suite against a local Firestore/Aut
 bun run test:browser:install  # One-time: download Playwright's browser binaries
 ```
 
-See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI gates on them, and the shared test helpers (`src/shared/id.ts`, `src/shared/clock.ts`, `src/testing/fixtures.ts`).
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends the app can run against (mock, Firebase Emulator, real project), and the day-to-day loop; [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI gates on them, and the shared test helpers (`src/shared/id.ts`, `src/shared/clock.ts`, `src/testing/fixtures.ts`).
 
 ## Code Style Guidelines
 
@@ -342,33 +342,13 @@ See [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI ga
 - Use `src/shared/id.ts`'s `createId`/`createSeededIdFactory` for entity IDs and `src/shared/clock.ts`'s `Clock` for anything that needs the current time, rather than calling `nanoid()`/`Date.now()` directly, so tests can be deterministic
 - Use `src/testing/fixtures.ts`'s builders (`buildProject`, `buildTrack`, ...) instead of hand-writing fixture literals in new tests
 
-### Set up a null ALSA device before running tests that touch an `AudioContext`
+### `bun run test` needs an audio output device
 
-**Do this once per machine/container before `bun run test`.** Importing `tone` creates a real (non-offline) global `AudioContext` as a side effect, and `node-web-audio-api`'s `cpal` backend refuses to create one when the host has no default output device. Containers, CI runners, and headless VMs have no `/dev/snd`, so any suite that reaches Tone (e.g. `src/audio/ToneInstrument.test.ts`) fails at import time with:
+Importing `tone` creates a real global `AudioContext`, and `node-web-audio-api`'s `cpal` backend refuses to create one on a host with no default output device (containers, CI runners, headless VMs), so any suite that reaches Tone fails at import time with `InvalidStateError: cpal backend error during default_output_config: DeviceUnavailable`.
 
-```
-InvalidStateError: cpal backend error during default_output_config: DeviceUnavailable
-```
+That is an environment problem, not a test bug — **do not "fix" it by mocking Tone, skipping the file, or editing `src/audio/testAudioContext.ts`.** Set up a null ALSA device instead; [`CONTRIBUTING.md`](./CONTRIBUTING.md#a-null-alsa-device-on-machines-with-no-audio-hardware) has the exact steps.
 
-That is an environment problem, not a test bug — do not "fix" it by mocking Tone, skipping the file, or editing `src/audio/testAudioContext.ts`. Point ALSA's default PCM at its built-in `null` device instead (it discards every sample and needs no audio hardware and no `snd-dummy` kernel module):
-
-```bash
-# Only if the ALSA runtime library is missing (check: dpkg -l libasound2t64)
-sudo apt-get update && sudo apt-get install -y libasound2t64
-
-cat > "$HOME/.asoundrc" <<'EOF'
-pcm.!default {
-    type null
-}
-ctl.!default {
-    type null
-}
-EOF
-```
-
-Use `/etc/asound.conf` (same contents) instead when the suite runs as a different user than the one whose `$HOME` you wrote to. A machine with real audio hardware needs none of this. `.github/workflows/ci.yml`'s `checks` job runs exactly these steps before `bun run test`; see [`docs/testing.md`](./docs/testing.md#unit-and-component-tests) for the full background.
-
-**This applies to `bun run test` only — not to the browser suites.** The problem it solves is specific to `node-web-audio-api` under Node, whose `cpal` backend refuses to *construct* a context without a default output device. A real browser constructs one regardless: in the emulator browser suite, Firefox reports a fresh `AudioContext` at `state="suspended"` on a runner with no `/dev/snd` at all. So if a *browser* test fails around audio, a null ALSA device will not help and its absence is not the cause — this exact wrong turn has already cost a CI round. See [`docs/testing.md`](./docs/testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap) for what is actually known about that failure, and `LOOP-003` (#43) for the product-side gap behind it.
+**It applies to `bun run test` only — not the browser suites.** A real browser constructs a context regardless: Firefox reports `state="suspended"` on a runner with no `/dev/snd` at all. So if a *browser* test fails around audio, a null ALSA device will not help and its absence is not the cause — this exact wrong turn has already cost a CI round. See [`docs/testing.md`](./docs/testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap), and `LOOP-003` (#43) for the product-side gap behind it.
 
 ## Important Configuration Notes
 

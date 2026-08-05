@@ -7,7 +7,7 @@
 
 Related documents: [Product requirements](./prd.md) ([9.1](./prd.md#91-committed-alpha-stack), [10](./prd.md#10-non-functional-requirements), [14](./prd.md#14-test-strategy-and-definition-of-done))
 
-This document is the map of "which suite do I run, and how." It does not restate `CLAUDE.md`'s stack/style conventions.
+This document is the map of "which suite do I run, and how." It does not restate `CLAUDE.md`'s stack/style conventions, and it is not the local setup guide — [`CONTRIBUTING.md`](../CONTRIBUTING.md) covers installing prerequisites, running the app against the mock backend or a local Firebase Emulator, and the pre-PR loop.
 
 ## Suites at a glance
 
@@ -33,7 +33,7 @@ Config: `vitest.config.ts`. `vite-plugin-solid` sets `test.environment: "jsdom"`
 
 `src/audio/InstrumentGraph.test.ts`, `src/audio/TrackAudioGraph.test.ts`, `src/audio/DeviceChain.test.ts`, and `src/audio/ProjectAudioGraph.test.ts` additionally render real audio via `node-web-audio-api` (see `src/audio/testAudioContext.ts`). Importing `tone` creates a real (non-offline) global `AudioContext` as a side effect, and `node-web-audio-api`'s `cpal` backend needs to find *some* default output device to satisfy that, even though the tests themselves only render through `Tone.Offline`. On a machine with no audio hardware (`/dev/snd` absent — every GitHub-hosted runner, most containers), that context creation throws `InvalidStateError: ... DeviceUnavailable` and the whole file fails before any test runs.
 
-`.github/workflows/ci.yml`'s `checks` job works around this without needing real hardware or a kernel module: it installs the ALSA runtime library (`libasound2t64`) and points `~/.asoundrc` at ALSA's built-in `null` PCM as the default output device (discards every sample, touches no hardware). That gives `cpal` a device to find. Running the same suite locally on a machine with no audio device needs the same `~/.asoundrc` (see the CI step for the exact config) — machines with real audio hardware need no workaround.
+`.github/workflows/ci.yml`'s `checks` job works around this without needing real hardware or a kernel module: it installs the ALSA runtime library (`libasound2t64`) and points `~/.asoundrc` at ALSA's built-in `null` PCM as the default output device (discards every sample, touches no hardware). That gives `cpal` a device to find. Running the same suite locally on a machine with no audio device needs the same `~/.asoundrc` — [`CONTRIBUTING.md`](../CONTRIBUTING.md#a-null-alsa-device-on-machines-with-no-audio-hardware) has the exact config to copy. Machines with real audio hardware need no workaround.
 
 These suites always dispose the instrument/graph they build once the offline render resolves. Without that, repeated back-to-back offline renders in the same process left native audio nodes bound to torn-down `OfflineAudioContext`s undisposed, which showed up as rare, wildly out-of-range sample values (filter-energy assertions occasionally comparing against values like `1e30`) once the suite could actually run past context creation. Always dispose the built instrument/graph after consuming its rendered buffer in new tests that follow this pattern.
 
