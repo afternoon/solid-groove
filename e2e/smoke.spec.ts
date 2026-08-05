@@ -189,7 +189,7 @@ test.describe("new project", () => {
 		const panelBox = await page.locator(".arrangement-panel").boundingBox();
 		const shellBox = await shell.boundingBox();
 		const gridBox = await page
-			.getByRole("group", { name: "16-step sequence" })
+			.getByRole("region", { name: "Step editor" })
 			.boundingBox();
 		expect(panelBox).not.toBeNull();
 		expect(shellBox).not.toBeNull();
