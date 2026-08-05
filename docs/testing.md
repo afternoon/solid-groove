@@ -189,7 +189,7 @@ The alpha has exactly one hosted environment: the **production** Firebase projec
 bun run deploy
 ```
 
-`predeploy` (`bun run build && bun run verify:bundle`) runs first automatically — the same pattern `predev`/`prebuild` already use for sample generation — so `bun run deploy` alone is the whole pipeline: build, scan the output for secrets, then `firebase deploy --only hosting,firestore,storage --project "$FIREBASE_PROJECT_ID"`. Firestore rules/indexes and Storage rules deploy in that same command as the application; if either fails, the whole command exits non-zero and nothing ships out of step with what shipped before it.
+`predeploy` (`bun run build && bun run verify:bundle && bun run verify:client-config`) runs first automatically — the same pattern `predev`/`prebuild` already use for sample generation — so `bun run deploy` alone is the whole pipeline: build, scan the output for secrets, then `firebase deploy --only hosting,firestore,storage --project "$FIREBASE_PROJECT_ID"`. Firestore rules/indexes and Storage rules deploy in that same command as the application; if either fails, the whole command exits non-zero and nothing ships out of step with what shipped before it.
 
 This needs `FIREBASE_PROJECT_ID` and Google Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS` pointing at a service-account key, exactly like `library:upload`) in the environment. `.env.example` documents both, and neither belongs in a real developer's `.env` — they exist only as CI secrets/variables (see below). A local run of `bun run deploy` is possible in principle (e.g. a break-glass rollback), but is not the normal path and is never exercised by a developer in the ordinary course of work.
 
@@ -204,7 +204,7 @@ That `environment:` declaration is load-bearing: a job that does not name an env
 Once the project and its secrets exist, `deploy`:
 
 1. Writes the `FIREBASE_DEPLOY_SERVICE_ACCOUNT` secret to a runner-local temp file and points `GOOGLE_APPLICATION_CREDENTIALS` at it (never committed, never logged).
-2. Runs `bun run deploy` with `VITE_RELEASE_SHA` pinned to `github.sha` — the exact commit being deployed. `predeploy` builds and re-runs `verify:bundle` against that build before `firebase deploy --only hosting,firestore,storage` ships it.
+2. Runs `bun run deploy` with `VITE_RELEASE_SHA` pinned to `github.sha` — the exact commit being deployed, alongside the `VITE_FIREBASE_*` client config that gets inlined into the bundle. `predeploy` builds and re-runs `verify:bundle` and `verify:client-config` against that build before `firebase deploy --only hosting,firestore,storage` ships it.
 3. Marks the release deployed in Sentry (`sentry-cli releases deploys … new --env alpha`), after the deploy succeeded so a release that never shipped is never recorded as live. Skipped when the Sentry variables are unset. See "Source maps and release registration" below.
 4. Installs Chromium and runs `bun run smoke:hosted` against `https://$FIREBASE_PROJECT_ID.web.app`. A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01).
 
@@ -212,7 +212,8 @@ Required GitHub Actions configuration, all of it scoped to the **`prod` environm
 
 | Name | Kind | Purpose |
 | --- | --- | --- |
-| `FIREBASE_PROJECT_ID` | Environment **variable** | The production project ID. Not sensitive. Consumed by the deploy step and the hosted smoke test's URL; it is *not* the job's `if:` gate — see above for why an environment-scoped variable cannot be one. |
+| `FIREBASE_PROJECT_ID` | Environment **variable** | The production project ID — the project `firebase deploy` ships *to*. Not sensitive. Consumed by the deploy step and the hosted smoke test's URL; it is *not* the job's `if:` gate — see above for why an environment-scoped variable cannot be one. |
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MEASUREMENT_ID` | Environment **variables** | The Firebase *client* config (Firebase console → Project settings → your web app), read by `src/firebaseConfig.ts` and **inlined into the client bundle at build time**. Public by design — they ship to every browser, and are protected by security rules and API-key restrictions rather than secrecy. Only these four are stored: `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_AUTH_DOMAIN`, and `VITE_FIREBASE_STORAGE_BUCKET` are derived from `FIREBASE_PROJECT_ID` in `ci.yml` by Firebase's naming convention, so one value is never written down twice. With them unset the build still succeeds and deploys, then fails in the browser with `auth/invalid-api-key`; `verify:client-config` exists to turn that into a build failure. |
 | `FIREBASE_DEPLOY_SERVICE_ACCOUNT` | Environment **secret** | Inline service-account JSON with Hosting, Firestore rules/indexes, and Storage rules deploy permissions. Distinct from any credential `library:upload`/CNT-000 uses, so the deploy pipeline's IAM scope doesn't have to match a different task's. |
 | `VITE_SENTRY_DSN` | Environment **variable** | The client DSN (`FND-001c`). **Public by design**: it ships in the client bundle, because a browser SDK cannot submit an event without it. It identifies an ingest endpoint and grants nothing else — the same standing as the Firebase Web API key. Stored as a variable, not a secret, so nothing pretends otherwise. |
 | `SENTRY_ORG` | Environment **variable** | Sentry organization slug. Not sensitive. |
@@ -222,6 +223,12 @@ Required GitHub Actions configuration, all of it scoped to the **`prod` environm
 ### Release SHA
 
 `app.config.ts` stamps the deployed git commit SHA into `import.meta.env.VITE_RELEASE_SHA` at build time (`src/release.ts` reads it, `src/components/ReleaseBadge.tsx` renders it). Resolution order: an explicit `VITE_RELEASE_SHA` (what the `deploy` job sets), then `GITHUB_SHA` (set automatically in every Actions run, including the unconditional `build` job), then `git rev-parse HEAD` for a local build, then the `"unknown"` sentinel if even `git` fails — stamping must never be able to block a build. `FND-001c` reads `RELEASE_SHA` to attach the release to every analytics and error event.
+
+### The client bundle carries a usable Firebase config
+
+`scripts/verify-client-config.mjs` is the mirror image of the secret scan below: that one fails when something private *is* in the bundle, this one fails when something public is *missing* from it. `src/firebaseConfig.ts` reads `import.meta.env.VITE_FIREBASE_*`, which Vite inlines at build time; with those unset outside mock mode every field becomes `undefined`, the build still succeeds, the secret scan still passes, and `firebase deploy` still reports success — then the first Auth call in the browser throws `auth/invalid-api-key` and the app renders its error boundary instead of the page.
+
+That is exactly what shipped on `d65077c`, where a fully green deploy put an app live that could not start a session; the post-deploy smoke test was the only thing that caught it, after the fact. A missing build-time constant is a build defect, so `predeploy` now fails on it before `firebase deploy` runs. The check asserts the presence and shape of the four fields whose absence breaks startup (`apiKey`, `authDomain`, `projectId`, `appId`) — it cannot tell a valid key from a revoked one, which remains the smoke test's job.
 
 ### No secret reaches the client bundle
 
