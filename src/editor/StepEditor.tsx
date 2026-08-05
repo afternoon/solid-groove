@@ -12,7 +12,7 @@ import {
 	analytics as defaultAnalytics,
 } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
-import { addNotes, removeNotes, updateClip, updateNote } from "../commands";
+import { removeNotes, updateClip, updateNote } from "../commands";
 import type {
 	Clip,
 	Instrument,
@@ -25,8 +25,6 @@ import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import {
 	barCount,
-	cellKey,
-	eventCountBucket,
 	isBarStart,
 	isBeatStart,
 	lanesFor,
@@ -37,6 +35,7 @@ import {
 	stepCount,
 	stepStartTicks,
 } from "./stepEditorModel";
+import { createStroke } from "./stepStroke";
 import "./StepEditor.css";
 
 /**
@@ -65,17 +64,6 @@ export interface StepEditorProps {
 	readonly setSelectedIds?: (next: readonly EventId[]) => void;
 	/** Defaults to the application singleton; injectable for tests. */
 	readonly analytics?: Analytics;
-}
-
-type PaintMode = "add" | "erase";
-
-interface StrokeState {
-	readonly gesture: Gesture;
-	readonly mode: PaintMode;
-	/** (lane, step) cells already visited this stroke, so a drag never re-fires. */
-	readonly visited: Set<string>;
-	/** How many cells this stroke actually changed, for `event_count_bucket`. */
-	changed: number;
 }
 
 /**
@@ -140,10 +128,6 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 		);
 	});
 
-	// The active paint/erase stroke, if a pointer is down. Held outside Solid's
-	// reactive graph: it is imperative gesture bookkeeping, not rendered state.
-	let stroke: StrokeState | null = null;
-
 	function noteForCell(lane: StepLane, step: number): NoteEvent | undefined {
 		return noteAt(props.clip, lane, step);
 	}
@@ -159,62 +143,21 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 		};
 	}
 
-	/** Applies the stroke's mode to one cell, once. Records what it changed. */
-	function paintCell(lane: StepLane, step: number): void {
-		if (!stroke) return;
-		const key = cellKey(lane, step);
-		if (stroke.visited.has(key)) return;
-		stroke.visited.add(key);
-
-		const existing = noteForCell(lane, step);
-		if (stroke.mode === "add") {
-			if (existing) return; // Already on; nothing to add.
-			const note = newNote(lane, step);
-			stroke.gesture.apply(addNotes(props.clip.id, [note]));
-			stroke.changed += 1;
-			// A freshly painted note becomes the selection, so its velocity is
-			// immediately editable.
-			selectOnly(note.id);
-		} else {
-			if (!existing) return; // Already off; nothing to erase.
-			stroke.gesture.apply(removeNotes(props.clip.id, [existing.id]));
-			stroke.changed += 1;
-			deselect(existing.id);
-		}
-	}
-
-	function beginStroke(lane: StepLane, step: number): void {
-		if (stroke) return;
-		const gesture = props.beginGesture();
-		if (!gesture) return;
-		const existing = noteForCell(lane, step);
-		const mode: PaintMode = existing ? "erase" : "add";
-		stroke = { gesture, mode, visited: new Set(), changed: 0 };
-		paintCell(lane, step);
-	}
-
-	function endStroke(): void {
-		if (!stroke) return;
-		const active = stroke;
-		stroke = null;
-		if (active.changed === 0) {
-			active.gesture.cancel();
-			return;
-		}
-		const summary =
-			active.mode === "add"
-				? `Paint ${active.changed} step${active.changed === 1 ? "" : "s"}`
-				: `Erase ${active.changed} step${active.changed === 1 ? "" : "s"}`;
-		active.gesture.commit(summary);
-
-		// Analytics fires once per completed stroke, not per step (PRD OPS-02):
-		// the `event_count_bucket` counts the steps this stroke changed.
-		analytics().log("clip_edited", {
-			editor: "step",
-			event_count_bucket: eventCountBucket(active.changed),
-		});
-		analytics().logFeatureFirstUse("step_editor");
-	}
+	// The active paint/erase stroke, if a pointer is down. Held outside Solid's
+	// reactive graph: it is imperative gesture bookkeeping, not rendered state.
+	// The machine itself lives in `stepStroke.ts`; this component supplies the
+	// seam it reads the clip, the gesture kernel, and the selection through.
+	const stroke = createStroke({
+		get clipId() {
+			return props.clip.id;
+		},
+		beginGesture: (options) => props.beginGesture(options),
+		noteAt: noteForCell,
+		newNote,
+		analytics,
+		onNoteAdded: (id) => selectOnly(id),
+		onNoteRemoved: (id) => deselect(id),
+	});
 
 	// --- Pointer handling ---------------------------------------------------
 	//
@@ -239,12 +182,12 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 			return;
 		}
 		event.preventDefault();
-		batch(() => beginStroke(lane, step));
+		batch(() => stroke.begin(lane, step));
 	}
 
 	function onCellPointerEnter(lane: StepLane, step: number): void {
-		if (!stroke) return;
-		batch(() => paintCell(lane, step));
+		if (!stroke.active) return;
+		batch(() => stroke.paint(lane, step));
 	}
 
 	function velocityFor(note: NoteEvent): number {
@@ -282,8 +225,8 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 			aria-label="Step editor"
 			// Ending or cancelling a stroke anywhere the pointer is released keeps a
 			// drag that leaves the grid from committing a half-open gesture.
-			onPointerUp={() => endStroke()}
-			onPointerLeave={() => endStroke()}
+			onPointerUp={() => stroke.end()}
+			onPointerLeave={() => stroke.end()}
 		>
 			<div class="step-editor-toolbar">
 				<label class="step-editor-length">
