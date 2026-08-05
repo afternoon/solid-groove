@@ -15,8 +15,7 @@ import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
 import type { EventId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
-import { formatBarsBeatsSixteenths, TICKS_PER_QUARTER } from "../domain/time";
-import type { SampleChoice } from "../instrument/SamplerPanel";
+import { TICKS_PER_QUARTER } from "../domain/time";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
@@ -24,6 +23,7 @@ import { getProjectRepository } from "../projectRepositoryClient";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
+import * as model from "./editorViewModel";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
 import type { PianoRollActions } from "./PianoRoll";
@@ -78,27 +78,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [libraryOpen, setLibraryOpen] = createSignal(false);
 	const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
 
-	/**
-	 * The packs this editing session has added on top of the ones the project
-	 * already depends on.
-	 *
-	 * `metadata.packDependencies` is *derived* from the assets a project uses
-	 * (`derivePackDependencies`), so it answers "which packs does this project
-	 * need to open?" — not "which packs has the user put on their shelf?". The
-	 * second is a new piece of project state and a new command, which is a domain
-	 * contract change and its own task (see the LOOP-013 follow-up); until that
-	 * lands, an added pack lives for the session, which is enough for the browser
-	 * to show it and for the user to work out of it.
-	 */
+	// The packs this editing session has added on top of the project's own
+	// derived dependencies; see `model.addedPackIds` for why they live for the
+	// session only.
 	const [sessionPackIds, setSessionPackIds] = createSignal<readonly string[]>(
 		[],
 	);
-	const addedPackIds = createMemo<readonly string[]>(() => {
-		const fromProject = (project()?.metadata.packDependencies ?? []).map(
-			(dependency) => dependency.packId,
-		);
-		return [...new Set([...fromProject, ...sessionPackIds()])];
-	});
+	const addedPackIds = createMemo(() =>
+		model.addedPackIds(project(), sessionPackIds()),
+	);
 
 	// A fresh audition engine per panel mount, built off the shared runtime the
 	// first time each opening browses. `LibraryBrowser`'s `useLibraryBrowser`
@@ -131,34 +119,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		);
 	};
 
-	const playheadLabel = createMemo(() => {
-		const bbs = formatBarsBeatsSixteenths(audio.positionTicks());
-		// Show a 1-based bar:beat for a musician, dropping the sixteenth fraction.
-		const [bars, beats] = bbs.split(":");
-		return `${Number(bars) + 1}.${Number(beats) + 1}`;
-	});
+	const playheadLabel = createMemo(() =>
+		model.playheadLabel(audio.positionTicks()),
+	);
 
-	const track = createMemo(() => project()?.song.tracks[0] ?? null);
-	// The first drum-machine track, if any, gets its instrument panel. The
-	// `FND-009` starter is sampler-only; this surfaces the `LOOP-005` drum
-	// machine wherever a project has one (e.g. the drum-machine fixture).
-	const drumTrack = createMemo(
-		() =>
-			project()?.song.tracks.find(
-				(candidate) => candidate.instrument?.kind === "drumMachine",
-			) ?? null,
-	);
-	const sampleAssets = createMemo(() =>
-		(project()?.song.assets ?? []).filter((asset) => asset.kind === "sample"),
-	);
-	const clip = createMemo(() => {
-		const currentProject = project();
-		const currentTrack = track();
-		if (!currentProject || !currentTrack) return null;
-		return (
-			currentProject.clips.find((c) => c.trackId === currentTrack.id) ?? null
-		);
-	});
+	const track = createMemo(() => model.editedTrack(project()));
+	const drumTrack = createMemo(() => model.drumTrack(project()));
+	const sampleAssets = createMemo(() => model.sampleAssets(project()));
+	const clip = createMemo(() => model.editedClip(project()));
 
 	// The step editor's live playback-step indicator (CLP-02): which 16th step of
 	// the edited clip the playhead is currently passing, wrapped within the clip's
@@ -180,30 +148,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		setSelectedNoteIds([]);
 	}
 
-	// Every tempo-labelled loop clip in the project, paired with its resolved
-	// asset (or null when the asset is missing) — LOOP-006 renders one loop-info
-	// panel per loop so a user can tell a tempo-following loop from a pitched
-	// one-shot and read the alpha's stretch behaviour honestly.
-	const loopClips = createMemo(() => {
-		const currentProject = project();
-		if (!currentProject) return [];
-		return currentProject.clips.flatMap((c) => {
-			if (c.content.kind !== "audioLoop") return [];
-			const assetId = c.content.assetId;
-			const asset =
-				currentProject.song.assets.find((a) => a.id === assetId) ?? null;
-			return [{ clip: c, asset }];
-		});
-	});
-	// The instrument of the slice's first track, and the audition note it plays.
-	const instrument = createMemo(() => track()?.instrument ?? null);
-	// A synth track holding a note clip gets the CLP-03 piano roll instead of the
-	// FND-009 step grid: pitched notes want two dimensions (pitch x time), which
-	// the 16-step grid cannot show.
-	const showPianoRoll = createMemo(() => {
-		const c = clip();
-		return instrument()?.kind === "synth" && c?.content.kind === "notes";
-	});
+	const loopClips = createMemo(() => model.loopClips(project()));
+	const instrument = createMemo(() => model.editedInstrument(project()));
+	const showPianoRoll = createMemo(() => model.showPianoRoll(project()));
 
 	const { shortcuts, editorContexts, keyHint } = useEditorShortcuts({
 		audio,
@@ -217,14 +164,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		packBrowserOpen,
 	});
 
-	// The track id, only when it carries an instrument this slice renders a panel
-	// for (sampler or synth). The drum machine's panel lands with LOOP-005.
-	const instrumentPanelTrackId = createMemo(() => {
-		const kind = instrument()?.kind;
-		return kind === "sampler" || kind === "synth"
-			? (track()?.id ?? null)
-			: null;
-	});
+	const instrumentPanelTrackId = createMemo(() =>
+		model.instrumentPanelTrackId(project()),
+	);
 	const AUDITION_PITCH = 60; // Middle C
 	const AUDITION_DURATION_TICKS = TICKS_PER_QUARTER;
 	function auditionInstrument(): void {
@@ -244,27 +186,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		);
 	}
 
-	// Samples the sampler panel can swap to: every `sample`-kind asset the
-	// project already carries. A richer, genre-filtered browser lands with
-	// LOOP-013; here it is a straight list of the project's own samples.
-	const sampleName = createMemo(() => {
-		const current = instrument();
-		if (current?.kind !== "sampler" || !current.assetId) return null;
-		return (
-			project()?.song.assets.find((asset) => asset.id === current.assetId)
-				?.name ?? null
-		);
-	});
-	const replacementOptions = createMemo<readonly SampleChoice[]>(() =>
-		(project()?.song.assets ?? [])
-			.filter((asset) => asset.kind === "sample")
-			.map((asset) => ({ assetId: asset.id, name: asset.name })),
+	const sampleName = createMemo(() => model.sampleName(project()));
+	const replacementOptions = createMemo(() =>
+		model.replacementOptions(project()),
 	);
-
-	const packDependencyLabel = createMemo(() => {
-		const dependency = project()?.metadata.packDependencies[0];
-		return dependency ? `${dependency.packId} @ ${dependency.version}` : null;
-	});
+	const packDependencyLabel = createMemo(() =>
+		model.packDependencyLabel(project()),
+	);
 
 	const saveStatus = createMemo(() => session.state.saveStatus);
 
