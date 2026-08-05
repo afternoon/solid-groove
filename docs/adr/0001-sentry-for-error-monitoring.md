@@ -2,10 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted |
+| Status | Accepted; decision 4 superseded by [ADR 0002](./0002-sentry-session-replay.md) |
 | Date | 2026-07-25 |
 | Decides | PRD section 9.1 stack row "Error monitoring"; PRD `OPS-03` |
 | Supersedes | The Cloud Functions sink into Cloud Logging described in the first draft of `OPS-03` |
+| Superseded by | [ADR 0002](./0002-sentry-session-replay.md), for decision 4 only — the rest of this ADR stands |
 | Affects | `FND-001b`, `FND-001c`, `HARD-003`, `DEC-009` |
 
 ## Context
@@ -31,7 +32,7 @@ Specifically:
 1. **The reporting boundary stays ours.** The global `error`/`unhandledrejection` handlers and Solid error boundaries specified by `OPS-03` remain the single place errors are captured. Sentry is the transport and backend behind that boundary, not a replacement for it. Application code does not call the Sentry SDK directly.
 2. **Sentry is the diagnostic system of record**: grouping, deduplication, release tracking, source-map symbolication, alerting, triage, and crash-free session rate via the `BrowserSession` integration and Release Health.
 3. **Google Analytics keeps the `exception` counter event** (`fatal`, `area`, `error_code`) from `OPS-02`. The section 11 measures continue to compute in one place from one catalog; Sentry is where an engineer goes to debug a specific error, not where the product dashboard is assembled.
-4. **Session Replay is not enabled**, in the alpha or later, without a new ADR. It would capture the arrangement, clip names, and assistant conversation on screen.
+4. ~~**Session Replay is not enabled**, in the alpha or later, without a new ADR. It would capture the arrangement, clip names, and assistant conversation on screen.~~ **Superseded by [ADR 0002](./0002-sentry-session-replay.md)**, which is that new ADR: Session Replay is enabled to understand how the product is used, under mask-by-default capture that keeps the arrangement, clip names, and assistant conversation out of the payload, and under the analytics opt-out.
 5. **Sentry may also instrument the Cloud Functions gateway** (`AI-001`) through `@sentry/node`, giving one system across client and server. Sentry's tracing does **not** displace Firebase Performance Monitoring or the section 9.3 lab measurement of arrangement frame budgets; that is a separate decision and is not made here.
 6. **Self-hosting is out of scope** for the alpha. Sentry's SaaS free tier covers the cohort; running the self-hosted stack is more operational surface than a private alpha justifies.
 
@@ -52,7 +53,7 @@ Specifically:
   - `sendDefaultPii` stays `false`.
   - `beforeSend` and `beforeBreadcrumb` scrub before transmission; console breadcrumbs are disabled rather than filtered.
   - The `OPS-02` "no project content" test extends to cover the Sentry payload, exercising the scrubbing functions directly, so it also covers events and breadcrumbs added later.
-  - Session Replay stays off (decision 4 above).
+  - Session Replay stays off (decision 4 above) — until [ADR 0002](./0002-sentry-session-replay.md), which enables it for product understanding and carries the masking, opt-out, and payload-test conditions that keep this bullet's promise true.
 - **Bundle size** works against the section 10 three-second-interactive budget. The SDK is initialized lazily after first paint with a minimal integration set, and is not loaded on the marketing landing page (`LOOP-001b`).
 - **Ad and tracker blockers block `sentry.io`.** The `OPS-02` fail-open rule applies unchanged: a blocked or failing reporter never affects playback, editing, saving, or export. We do not tunnel reports through our own domain in the alpha — it would reintroduce the Cloud Function this ADR removes. The resulting undercount is documented; note that a blocked SDK loses the session *and* its errors, so the crash-free **ratio** is less biased than the absolute counts.
 - **`@sentry/solidstart` is beta.** Its API is stable but behavior may shift in minor releases. The version is pinned, and the framework wrapper is a convenience over the core browser SDK — if it misbehaves we drop to `@sentry/browser` behind the same unchanged boundary.
