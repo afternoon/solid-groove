@@ -1,4 +1,5 @@
 import { createMemo, For, type JSX, Show } from "solid-js";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { LibraryAssetType } from "./manifest";
 import type { PackKind } from "./search";
 import type { useLibraryBrowser } from "./useLibraryBrowser";
@@ -42,9 +43,10 @@ export function FacetBar(props: {
 	});
 	return (
 		<div class="library-facets">
+			{/* What the user typed (ADR 0002 decision 2). */}
 			<input
 				type="search"
-				class="library-search"
+				class={`library-search ${MASK_CONTENT}`}
 				placeholder="Search sounds"
 				aria-label="Search sounds"
 				value={browser.filter().query}

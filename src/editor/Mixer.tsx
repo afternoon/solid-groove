@@ -47,6 +47,7 @@ import {
 import type { TrackId } from "../domain/ids";
 import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import "./Mixer.css";
 
 /**
@@ -230,7 +231,13 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 	const panValue = () => props.track.mixer.pan;
 
 	return (
-		<div class="mixer-strip" classList={{ muted: props.track.mixer.muted }}>
+		/* Masked whole rather than at the name input alone: every button in this
+		   strip interpolates the track's name into its `aria-label`, which is the
+		   accessible name a replay reads (ADR 0002 decision 2). */
+		<div
+			class={`mixer-strip ${MASK_CONTENT}`}
+			classList={{ muted: props.track.mixer.muted }}
+		>
 			<div class="mixer-strip-head">
 				<span
 					class="mixer-strip-chip"

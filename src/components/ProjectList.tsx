@@ -7,6 +7,7 @@ import {
 } from "solid-icons/hi";
 import { createSignal, For, type JSX, Show } from "solid-js";
 import type { ProjectMetadata } from "../domain/entities";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import ConfirmDialog from "./ConfirmDialog";
 
 /** The outcome of a row action, for inline per-row error display. */
@@ -121,7 +122,10 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 			>
 				<For each={props.projects}>
 					{(project) => (
-						<div class="project-card">
+						/* The whole card is masked rather than just the title: the rename
+						   input, the delete confirmation, and every aria-label in here
+						   interpolate the project's name (ADR 0002 decision 2). */
+						<div class={`project-card ${MASK_CONTENT}`}>
 							<Show
 								when={renamingId() === project.id}
 								fallback={

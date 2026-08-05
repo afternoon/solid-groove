@@ -21,6 +21,7 @@ import type {
 import type { Project } from "../domain/entities";
 import { createIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import { BLOCK_CONTENT, MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import {
 	type ArrangementShell,
@@ -498,8 +499,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				/>
 			</Show>
 			<div class="arrangement-body">
+				{/* Track names, and the aria-labels built from them. */}
 				<div
-					class="arrangement-headers"
+					class={`arrangement-headers ${MASK_CONTENT}`}
 					style={{ width: `${HEADER_WIDTH_PX}px` }}
 				>
 					<div class="arrangement-headers-ruler-spacer" />
@@ -541,7 +543,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
 					<div class="arrangement-spacer" style={spacerStyle()} />
-					<div class="arrangement-canvas-stack">
+					{/* Blocked, not masked: these pixels *are* the arrangement — clip
+					    names and waveforms are drawn into them, and masking only
+					    touches DOM text. Canvas capture is off globally in
+					    `sentrySink.ts`; this is the marking that still holds if that
+					    is ever turned on (ADR 0002 decision 2). */}
+					<div class={`arrangement-canvas-stack ${BLOCK_CONTENT}`}>
 						<canvas class="arrangement-layer" ref={backgroundCanvas} />
 						<canvas class="arrangement-layer" ref={contentCanvas} />
 						<canvas
@@ -565,8 +572,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				</div>
 			</div>
 			{/* Accessible mirror: the visible tracks and the current selection as
-			    real DOM, so assistive tech never has to read canvas pixels. */}
-			<div class="visually-hidden">
+			    real DOM, so assistive tech never has to read canvas pixels. Being
+			    visually hidden is not being un-captured — this is real text in the
+			    DOM and it carries track names, so it is masked like any other. */}
+			<div class={`visually-hidden ${MASK_CONTENT}`}>
 				<p aria-live="polite" data-testid="arrangement-selection-live">
 					<Show when={selectionSummary()} fallback="No selection">
 						{(summary) =>
