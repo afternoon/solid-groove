@@ -4,12 +4,7 @@ import {
 	analytics as defaultAnalytics,
 } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
-import type {
-	Gesture,
-	GestureOptions,
-	NoteChanges,
-	RawCommandInput,
-} from "../commands";
+import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
 import {
 	addNotes,
 	duplicateNotes,
@@ -19,26 +14,35 @@ import {
 import type { Clip, NoteEvent, Project } from "../domain/entities";
 import { createFactoryContext, createNoteEvent } from "../domain/factories";
 import type { EventId } from "../domain/ids";
-import { NOTE_VELOCITY } from "../domain/parameters";
-import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH, toTicks } from "../domain/time";
+import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import PianoRollNote from "./PianoRollNote";
+import PianoRollToolbar from "./PianoRollToolbar";
 import {
 	clientXToTick,
 	clientYToPitch,
-	MAX_PITCH,
-	MIN_PITCH,
-	noteIntersectsRect,
 	noteRect,
 	type PianoRollViewport,
 	pitchToContentY,
-	snapTicks,
 	snapTicksFloor,
 	tickToContentX,
 } from "./pianoRollGeometry";
 import {
+	marqueeRect,
+	moveUpdates,
+	noteEvents,
+	notesInRect,
+	pitchDeltaOf,
+	pitchOf,
+	resizeUpdates,
+	selectAll as selectAllOf,
+	selectOnly as selectOnlyOf,
+	tickDeltaOf,
+	toggleSelected as toggleSelectedOf,
+} from "./pianoRollGestures";
+import {
 	isBlackKey,
 	isPitchInKey,
 	type KeyGuide,
-	PITCH_CLASS_NAMES,
 	type PitchClass,
 	pitchLabel,
 	type ScaleMode,
@@ -120,14 +124,6 @@ interface VelocityGestureState {
 	moved: boolean;
 }
 
-function noteEvents(clip: Clip): readonly NoteEvent[] {
-	return clip.content.kind === "notes" ? clip.content.events : [];
-}
-
-function pitchOf(note: NoteEvent): number {
-	return note.trigger.kind === "pitch" ? note.trigger.pitch : 60;
-}
-
 /**
  * The CLP-03 piano roll: create, move, resize, group-select, duplicate,
  * delete, and set velocity on a synth clip's pitched notes, with 16th-note
@@ -138,8 +134,12 @@ function pitchOf(note: NoteEvent): number {
  * mutation (PRD section 9.6). A continuous drag (move or resize) is one undo
  * transaction: it opens a gesture, applies each frame immediately so the UI
  * stays live, and commits once on pointer-up (PRD section 8). Pixel <-> tick /
- * pitch geometry lives in the pure `pianoRollGeometry` module so it stays
- * correct under scroll and zoom.
+ * pitch geometry lives in the pure `pianoRollGeometry` module, and the
+ * clip-and-viewport maths behind move, resize, selection, and the marquee in
+ * the pure `pianoRollGestures` module, so both stay correct under scroll and
+ * zoom. The toolbar (`PianoRollToolbar`) and each note (`PianoRollNote`) are
+ * presentational; this component keeps the grid surface, the keyboard gutter,
+ * and all of the pointer/gesture/dispatch wiring.
  */
 export default function PianoRoll(props: PianoRollProps): JSX.Element {
 	const analytics = () => props.analytics ?? defaultAnalytics;
@@ -229,16 +229,11 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 	}
 
 	function selectOnly(id: EventId): void {
-		setSelection(new Set([id]));
+		setSelection(selectOnlyOf(id));
 	}
 
 	function toggleSelected(id: EventId): void {
-		setSelection((current) => {
-			const next = new Set(current);
-			if (next.has(id)) next.delete(id);
-			else next.add(id);
-			return next;
-		});
+		setSelection((current) => toggleSelectedOf(current, id));
 	}
 
 	// --- Create ------------------------------------------------------------
@@ -301,67 +296,22 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 		const state = drag();
 		if (!state) return;
 		const view = viewport();
-		const deltaTicks =
-			(event.clientX - state.pointerStartX) / view.pixelsPerTick;
+		const deltaTicks = tickDeltaOf(
+			state.pointerStartX,
+			event.clientX,
+			view.pixelsPerTick,
+		);
 		const updates =
 			state.kind === "move"
-				? moveUpdates(state, event, view, deltaTicks)
-				: resizeUpdates(state, deltaTicks);
+				? moveUpdates(
+						state.originals,
+						deltaTicks,
+						pitchDeltaOf(state.pointerStartY, event.clientY, view.rowHeight),
+						props.clip.lengthTicks,
+					)
+				: resizeUpdates(state.originals, deltaTicks, props.clip.lengthTicks);
 		state.gesture.apply(updateNotes(props.clip.id, updates));
 		state.moved = true;
-	}
-
-	function moveUpdates(
-		state: DragState,
-		event: PointerEvent,
-		view: PianoRollViewport,
-		deltaTicks: number,
-	): { eventId: EventId; changes: NoteChanges }[] {
-		const pitchDelta = Math.round(
-			(state.pointerStartY - event.clientY) / view.rowHeight,
-		);
-		return state.originals.map((original) => ({
-			eventId: original.id,
-			changes: {
-				startTicks: toTicks(
-					clampStart(
-						snapTicks(original.startTicks + deltaTicks),
-						original.durationTicks,
-					),
-				),
-				trigger: {
-					kind: "pitch" as const,
-					pitch: clampPitch(pitchOf(original) + pitchDelta),
-				},
-			},
-		}));
-	}
-
-	function resizeUpdates(
-		state: DragState,
-		deltaTicks: number,
-	): { eventId: EventId; changes: NoteChanges }[] {
-		return state.originals.map((original) => {
-			const snapped = Math.max(
-				TICKS_PER_SIXTEENTH,
-				snapTicks(original.durationTicks + deltaTicks),
-			);
-			const maxDuration = props.clip.lengthTicks - original.startTicks;
-			return {
-				eventId: original.id,
-				changes: {
-					durationTicks: toTicks(
-						Math.max(TICKS_PER_SIXTEENTH, Math.min(snapped, maxDuration)),
-					),
-				},
-			};
-		});
-	}
-
-	/** Keeps a moved note inside the clip: start >= 0, and it never spills past the end. */
-	function clampStart(startTicks: number, durationTicks: number): number {
-		const maxStart = Math.max(0, props.clip.lengthTicks - durationTicks);
-		return Math.min(Math.max(0, startTicks), maxStart);
 	}
 
 	function endDrag(): void {
@@ -374,6 +324,19 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 		} else {
 			state.gesture.cancel();
 		}
+	}
+
+	/** Routes a press on a note to a resize (right edge) or a move (elsewhere). */
+	function beginNoteDrag(note: NoteEvent, event: PointerEvent): void {
+		if ((event.button ?? 0) !== 0) return;
+		if (event.shiftKey) {
+			event.stopPropagation();
+			toggleSelected(note.id);
+			return;
+		}
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		const nearRightEdge = event.clientX >= rect.right - RESIZE_HANDLE_PX;
+		beginDrag(nearRightEdge ? "resize" : "move", note, event);
 	}
 
 	// --- Marquee group-select ---------------------------------------------
@@ -397,30 +360,8 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 		if (!state) return;
 		const { x, y } = contentPoint(event);
 		setMarquee({ ...state, x, y });
-		const rect = {
-			left: Math.min(state.startX, x),
-			right: Math.max(state.startX, x),
-			top: Math.min(state.startY, y),
-			bottom: Math.max(state.startY, y),
-		};
-		const view = viewport();
-		const swept = new Set<EventId>();
-		for (const note of noteEvents(props.clip)) {
-			if (
-				noteIntersectsRect(
-					view,
-					{
-						startTicks: note.startTicks,
-						durationTicks: note.durationTicks,
-						pitch: pitchOf(note),
-					},
-					rect,
-				)
-			) {
-				swept.add(note.id);
-			}
-		}
-		setSelection(swept);
+		const rect = marqueeRect(state.startX, state.startY, x, y);
+		setSelection(notesInRect(props.clip, viewport(), rect));
 	}
 
 	function endMarquee(): void {
@@ -508,7 +449,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 	}
 
 	function selectAll(): void {
-		setSelection(new Set(noteEvents(props.clip).map((note) => note.id)));
+		setSelection(selectAllOf(props.clip));
 	}
 
 	// --- Keyboard actions ---------------------------------------------------
@@ -579,92 +520,19 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 
 	return (
 		<section class="piano-roll" aria-label={`Piano roll: ${props.clip.name}`}>
-			<div class="piano-roll-toolbar">
-				<button
-					type="button"
-					class="pr-tool"
-					onClick={duplicateSelection}
-					disabled={selection().size === 0}
-					aria-label="Duplicate selected notes"
-					title="Duplicate (Ctrl/Cmd+D)"
-				>
-					Duplicate
-				</button>
-				<button
-					type="button"
-					class="pr-tool"
-					onClick={deleteSelection}
-					disabled={selection().size === 0}
-					aria-label="Delete selected notes"
-					title="Delete (Del)"
-				>
-					Delete
-				</button>
-				<span class="pr-selection-count" aria-live="polite">
-					{selection().size} selected
-				</span>
-				<label class="pr-key-guide">
-					<input
-						type="checkbox"
-						checked={keyGuideEnabled()}
-						onChange={(event) =>
-							setKeyGuideEnabled(event.currentTarget.checked)
-						}
-					/>
-					<span>In-key guide</span>
-				</label>
-				<Show when={keyGuideEnabled()}>
-					<label class="visually-hidden" for="pr-key-root">
-						Key root
-					</label>
-					<select
-						id="pr-key-root"
-						class="pr-key-select"
-						value={String(keyRoot())}
-						onChange={(event) =>
-							setKeyRoot(Number(event.currentTarget.value) as PitchClass)
-						}
-					>
-						<For each={PITCH_CLASS_NAMES}>
-							{(name, index) => <option value={String(index())}>{name}</option>}
-						</For>
-					</select>
-					<label class="visually-hidden" for="pr-key-mode">
-						Key mode
-					</label>
-					<select
-						id="pr-key-mode"
-						class="pr-key-select"
-						value={keyMode()}
-						onChange={(event) =>
-							setKeyMode(event.currentTarget.value as ScaleMode)
-						}
-					>
-						<option value="major">Major</option>
-						<option value="minor">Minor</option>
-					</select>
-				</Show>
-				<span class="pr-zoom">
-					<button
-						type="button"
-						class="pr-tool"
-						onClick={zoomOut}
-						aria-label="Zoom out"
-						title="Zoom out"
-					>
-						−
-					</button>
-					<button
-						type="button"
-						class="pr-tool"
-						onClick={zoomIn}
-						aria-label="Zoom in"
-						title="Zoom in"
-					>
-						+
-					</button>
-				</span>
-			</div>
+			<PianoRollToolbar
+				selectionCount={selection().size}
+				duplicateSelection={duplicateSelection}
+				deleteSelection={deleteSelection}
+				keyGuideEnabled={keyGuideEnabled()}
+				setKeyGuideEnabled={setKeyGuideEnabled}
+				keyRoot={keyRoot()}
+				setKeyRoot={setKeyRoot}
+				keyMode={keyMode()}
+				setKeyMode={setKeyMode}
+				zoomIn={zoomIn}
+				zoomOut={zoomOut}
+			/>
 
 			<div class="piano-roll-body">
 				<div class="piano-roll-keys" style={{ height: `${contentHeight()}px` }}>
@@ -734,54 +602,20 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 
 					<For each={noteEvents(props.clip)}>
 						{(note) => (
-							<div
-								class="pr-note"
-								classList={{ selected: isSelected(note) }}
+							<PianoRollNote
+								note={note}
+								selected={isSelected(note)}
 								style={noteStyle(note)}
-								data-event-id={note.id}
-								title={`Note ${pitchLabel(pitchOf(note))}`}
-								onPointerDown={(event) => {
-									if ((event.button ?? 0) !== 0) return;
-									if (event.shiftKey) {
-										event.stopPropagation();
-										toggleSelected(note.id);
-										return;
-									}
-									const rect = (
-										event.currentTarget as HTMLElement
-									).getBoundingClientRect();
-									const nearRightEdge =
-										event.clientX >= rect.right - RESIZE_HANDLE_PX;
-									beginDrag(nearRightEdge ? "resize" : "move", note, event);
-								}}
+								onPointerDown={beginNoteDrag}
 								onPointerMove={(event) => {
 									if (drag()) updateDrag(event);
 								}}
 								onPointerUp={() => {
 									if (drag()) endDrag();
 								}}
-							>
-								<span class="pr-note-resize" aria-hidden="true" />
-								<input
-									class="pr-note-velocity"
-									type="range"
-									min={NOTE_VELOCITY.min}
-									max={NOTE_VELOCITY.max}
-									step={0.01}
-									value={note.velocity}
-									aria-label={`Velocity of ${pitchLabel(pitchOf(note))}`}
-									onPointerDown={(event) => event.stopPropagation()}
-									onInput={(event) =>
-										applyVelocity(note, event.currentTarget.valueAsNumber)
-									}
-									// `change` fires once the drag (or keyboard nudge) settles;
-									// pointer-up/cancel cover the mouse path. All commit the one
-									// open gesture — extra calls are a safe no-op.
-									onChange={() => commitVelocity()}
-									onPointerUp={() => commitVelocity()}
-									onPointerCancel={() => commitVelocity()}
-								/>
-							</div>
+								applyVelocity={applyVelocity}
+								commitVelocity={commitVelocity}
+							/>
 						)}
 					</For>
 
@@ -801,10 +635,4 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 			</div>
 		</section>
 	);
-}
-
-function clampPitch(pitch: number): number {
-	if (pitch < MIN_PITCH) return MIN_PITCH;
-	if (pitch > MAX_PITCH) return MAX_PITCH;
-	return pitch;
 }
