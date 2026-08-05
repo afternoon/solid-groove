@@ -774,6 +774,7 @@ The `Owning task` column names the task that must ship the event with the featur
 | `clip_edited` | A step-editor or piano-roll editing gesture completes | `editor` (`step`, `piano_roll`), `event_count_bucket` | 1 / `LOOP-010`, `LOOP-011` |
 | `shortcut_used` | A registered keyboard shortcut fires | `action_id` | 1 / `LOOP-014` |
 | `undo_used` | Undo or redo is invoked | `direction`, `actor` (`user`, `assistant`) | 1 / `LOOP-002` |
+| `placement_duplicated` | An arrangement placement is duplicated | `mode` (`linked`, `independent`) | 2 / `ARR-002` |
 | `section_created` | A song section marker is created | `origin` (`manual`, `template`, `assistant`) | 2 / `ARR-003` |
 | `arrangement_outline_created` | A loop-to-song outline is applied | `template_id`, `section_count` | 2 / `ARR-003` |
 | `automation_lane_created` | An automation lane gets its first breakpoint | `target_kind` | 2 / `ARR-004` |
@@ -1287,7 +1288,7 @@ Exit criteria: a user can create, process, save, reopen, and reliably play an or
 
 - Timeline placements, section markers, clip reuse/variation, focused automation, selection tools, and manual structure templates.
 - Arrangement scheduling, master limiter, offline stereo WAV render, and aligned multitrack stem packaging.
-- The arrangement and export events in the OPS-02 catalog: `section_created`, `arrangement_outline_created`, `automation_lane_created`, `arrangement_milestone`, `export_started`, `export_completed`, and `export_failed`. `arrangement_milestone` is what makes the section 11 primary measure computable, so it ships with the sections work rather than at hardening.
+- The arrangement and export events in the OPS-02 catalog: `placement_duplicated`, `section_created`, `arrangement_outline_created`, `automation_lane_created`, `arrangement_milestone`, `export_started`, `export_completed`, and `export_failed`. `arrangement_milestone` is what makes the section 11 primary measure computable, so it ships with the sections work rather than at hardening.
 
 Exit criteria: a user can manually build arrangements from two through ten minutes, export a stereo mix, and import the exported stem package into another DAW with every track aligned.
 
