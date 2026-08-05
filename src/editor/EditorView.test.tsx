@@ -163,10 +163,10 @@ describe("EditorView", () => {
 		expect(
 			await screen.findByRole("region", { name: /Piano roll/ }),
 		).toBeInTheDocument();
-		// The FND-009 step grid is a two-dimensional pitch editor's poor fit, so a
+		// The step editor is a two-dimensional pitch editor's poor fit, so a
 		// synth note clip shows the piano roll instead.
 		expect(
-			screen.queryByRole("group", { name: "16-step sequence" }),
+			screen.queryByRole("region", { name: "Step editor" }),
 		).not.toBeInTheDocument();
 	});
 
