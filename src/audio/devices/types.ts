@@ -55,6 +55,15 @@ export interface DeviceCore {
 	 */
 	gainReductionDb?(): number;
 	/**
+	 * The delay time this device last resolved to, in seconds. Only the delay
+	 * implements it. A panel reads it to show the time a *synced* delay currently
+	 * works out to, which the stored parameters alone do not say — the answer
+	 * depends on the song tempo. Reading the live `delayTime` param instead would
+	 * report the wrong value mid-edit, since a parameter change is ramped rather
+	 * than stepped.
+	 */
+	resolvedDelaySeconds?(): number;
+	/**
 	 * Resolves once any asynchronously-built resource the device needs is in
 	 * place. Only the reverb implements it, because its impulse response is
 	 * generated off the audio thread. Live playback never awaits it — the node

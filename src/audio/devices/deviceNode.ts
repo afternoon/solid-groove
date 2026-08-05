@@ -97,6 +97,7 @@ export function buildDeviceNode(
 			output.dispose();
 		},
 		gainReductionDb: core.gainReductionDb?.bind(core),
+		resolvedDelaySeconds: core.resolvedDelaySeconds?.bind(core),
 		ready: core.ready?.bind(core),
 	};
 }
