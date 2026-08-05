@@ -79,7 +79,11 @@ export function resolveBucketName(explicit) {
 		null;
 	if (!name) {
 		throw new Error(
-			"no storage bucket configured: pass --bucket, or set FIREBASE_STORAGE_BUCKET (see .env.example)",
+			"no storage bucket configured: pass --bucket, or set FIREBASE_STORAGE_BUCKET " +
+				"(see .env.example).\n" +
+				"`.env` is loaded relative to the current directory, so run this from the " +
+				"repository root -- a git worktree without its own `.env` will not see the " +
+				"one in your main checkout.",
 		);
 	}
 	// Accept the `gs://` form people paste out of the console.
