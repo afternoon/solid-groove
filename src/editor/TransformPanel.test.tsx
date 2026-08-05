@@ -112,7 +112,14 @@ describe("TransformPanel (CLP-04)", () => {
 		setOption("Semitones", "24");
 		for (let index = 0; index < 4; index += 1) clickTransform("Transpose");
 
-		expect(screen.getByRole("alert").textContent).not.toBe("");
+		const alert = screen.getByRole("alert").textContent ?? "";
+		expect(alert).not.toBe("");
+		// The command layer's own issue text names clip/event IDs and raw ticks.
+		// That is right for a log and wrong for a person, so the panel says what
+		// to change instead of echoing it.
+		expect(alert).not.toMatch(/\b(clp|evt|trk)_/);
+		expect(alert).toMatch(/semitones/i);
+
 		// The refused transformation left every note where the last accepted one
 		// put it: nothing was clamped to the edge of the range.
 		expect(pitches(session).every((pitch) => pitch <= 127)).toBe(true);
