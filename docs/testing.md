@@ -342,19 +342,37 @@ Check GA4's *automatic* collection too, not just the custom events: it is a sepa
 **4. No source map is public.** Fetch a bundle and its would-be map directly:
 
 ```sh
-curl -sI "https://<project-id>.web.app/_build/assets/<chunk>.js"      # 200
-curl -sI "https://<project-id>.web.app/_build/assets/<chunk>.js.map"  # not 200
+curl -s "https://<project-id>.web.app/_build/assets/<chunk>.js" | head -c 60
+curl -s "https://<project-id>.web.app/_build/assets/<chunk>.js.map" | head -c 60
 ```
 
-The first must succeed and the second must not. A 200 with map contents means the `hosting.ignore` rule is not doing its job and the deploy should be treated as a leak.
+The first must return JavaScript. The second must return the SPA shell — `<!DOCTYPE html>...` — and **not** JSON beginning `{"version":3,...`.
 
-### What has not been verified
+**Do not test this with `curl -sI` and a status code.** `firebase.json` rewrites `**` to `/index.html`, so *every* path that does not exist on Hosting returns `200 text/html`, including `/nope-does-not-exist.map`. A 200 here is therefore expected and proves nothing either way; only the body distinguishes a served map from the catch-all. An earlier version of this check compared status codes, and would have reported a leak on every correct deploy. If the body really is a source map, `hosting.ignore` (`**/*.map`) is not doing its job and the deploy should be treated as a leak.
 
-The whole of "Verifying analytics and errors against a deployed build" above is a written procedure, not a recorded result. `FND-001c` provisions no Firebase project, GA4 property, or Sentry organization, so no event, error, release, or source-map upload in this section has been observed actually happening. The same caveat applies to the deploy pipeline itself (see "Post-deploy smoke test"), and for the same reason.
+### What has been verified against the hosted environment
 
-**When this gets closed.** Executing it is task `OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)), scheduled immediately after Alpha Milestone 2 (PRD section 12, "After Alpha Milestone 2"), following [`docs/runbooks/alpha-milestone-0.md`](./runbooks/alpha-milestone-0.md). It was originally expected during Alpha Milestone 0; it was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once. The criteria are unchanged and still block the `HARD-005` cohort invitation.
+`OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`). What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
 
-Until then, treat every statement in that section as untested, and do not cite it as evidence in a task's closing comment. Whoever provisions the accounts runs the procedure once and replaces this section with what they actually observed, including the date and the release SHA.
+**Verified.**
+
+- **Deploy from CI on merge to `main`** — [run 31007337948](https://github.com/afternoon/solid-groove/actions/runs/31007337948) shipped Hosting, Firestore rules and indexes, and Storage rules in one `firebase deploy`. Every step green. The site loads and its `ReleaseBadge` shows the deployed commit SHA.
+- **Post-deploy smoke test** — passed against the hosted URL in that same run: app load, anonymous session start, project open, and audio start after a user gesture. It has also been shown to *fail* a deploy for real: [run 31000409583](https://github.com/afternoon/solid-groove/actions/runs/31000409583) went red when release `d65077c` shipped without its Firebase client config, which is what caught that defect (fixed in #169).
+- **Rollback drill, performed** — rolled back to Hosting version `ed1256`, confirmed with the smoke test while rolled back, then rolled forward to version `53042d`. The `firestore.rules` revision restored alongside it was commit `8336d9d2`.
+- **Analytics opt-out, both directions** — collection toggled off in the Privacy disclosure (no further events observed in GA4), then back on (collection resumed). The toggle is symmetric in practice, not just by construction.
+- **OPS-02 events arriving from the deployed build** — `session_start`, `first_visit`, `page_view`, `feature_first_use`, and `clip_edited` observed in GA4 with their expected parameters.
+- **No source map is publicly fetchable** — confirmed by request against the deployed chunks. Note the check must compare response *bodies*, not status codes; see "4. No source map is public" above for why a `200` here proves nothing.
+
+**Outstanding — do not treat as verified.**
+
+- **Error monitoring does not initialize on the deployed build.** A deliberately triggered uncaught error produces no Sentry issue. On `/dashboard` with consent granted, `window.__SENTRY__` is undefined, no `@sentry` vendor chunk is fetched, and no request reaches `ingest.us.sentry.io` — even though the DSN is present in the bundle and the sink code is deployed. Both documented gates (consent granted, non-landing surface reached) pass, so the cause is elsewhere and is not yet isolated; `startMonitoring`'s `catch {}` and `SentrySink.startInner`'s `if (!dsn) return false` both fail silently, which is part of why. Tracked as a defect against `FND-001c` ([issue #174](https://github.com/afternoon/solid-groove/issues/174)). Until it is fixed, **the alpha has no working error monitoring**, and the OPS-03 criteria that depend on it — symbolicated traces, release tagging, redaction, one-issue-per-error — are unverifiable rather than merely unverified.
+- **Internal-traffic exclusion** — `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded from the section 11 measures.
+
+**Descoped.**
+
+- **Computing the section 11 primary measure from real events** is deferred to post-alpha (`DEC-011`, PRD sections 11 and 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
+
+**Gate `G4.5: Hosted environment verified` remains closed** on the error-monitoring defect above. Deploy, rollback, and the analytics path are verified and can be relied on; error monitoring cannot. `HARD-005` invites the cohort on the strength of this gate, so it should not open while a crash in front of a real user would go unreported.
 
 ## Test helpers
 

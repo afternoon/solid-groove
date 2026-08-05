@@ -281,18 +281,32 @@ results:
 | `FND-001c` | A deliberately triggered error arrives in Sentry with its SHA and a symbolicated trace | Part 5 |
 | `FND-009` | The vertical slice exercised on the hosted environment, and its events observed there | Parts 4 and 5 |
 | `LOOP-016` | Every Alpha Milestone 1 OPS-02 event observed from the deployed build | Part 5 |
-| `REL-001` | Every Alpha Milestone 2 OPS-02 event observed, and the primary measure computed from real events | Part 5 |
+| `REL-001` | Every Alpha Milestone 2 OPS-02 event observed | Part 5 |
+
+Computing the section 11 primary measure from real events was originally part of
+that last row. It is **deferred to post-alpha** (`DEC-011`, PRD sections 11 and
+16): the events still fire and are still covered by automated tests, but the
+measure's thresholds and definition need more consideration than the alpha can
+give them. Do not tick anything here for it, and do not treat its absence as an
+outstanding defect.
 
 Parts 4 and 5 now cover more than they did when this runbook was written for
 Alpha Milestone 0: the deployed build contains the whole Alpha Milestone 0-2
 feature set, so the event list to confirm in part 5 is every Alpha Milestone 0,
 1, and 2 event in the OPS-02 catalog, not only the six Alpha Milestone 0 ones.
 
-- [ ] Update `docs/testing.md`'s "What has not been verified" section to record
+- [x] Update `docs/testing.md`'s "What has not been verified" section to record
       what you actually observed, with the date and the release SHA. That section
       exists because a procedure nobody has run is not evidence; leaving it
       standing after you have run it is the same failure in the other direction.
-- [ ] Mark **G4.5: Hosted environment verified** open.
+      **Done 2026-08-05** against release `8336d9d`; the section is now
+      "What has been verified against the hosted environment".
+- [ ] Mark **G4.5: Hosted environment verified** open. **Still closed** — error
+      monitoring does not initialize on the deployed build (a deliberately
+      triggered error reaches no Sentry issue), so the OPS-03 criteria cannot be
+      met. Deploy, rollback, and analytics are verified. Open this gate once the
+      `FND-001c` monitoring defect ([#174](https://github.com/afternoon/solid-groove/issues/174)) is fixed and a real error has been observed
+      arriving with its release SHA and a symbolicated trace.
 
 ## Out of scope
 
