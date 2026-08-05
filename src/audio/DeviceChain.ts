@@ -37,16 +37,21 @@ export interface DeviceNode {
 	ready?(): Promise<void>;
 }
 
-export type DeviceNodeFactory = (device: Device) => DeviceNode;
+/**
+ * Builds the node for one device. Returning `undefined` means "this `type` has
+ * no DSP behind it", and the chain substitutes an inert passthrough — see
+ * {@link createPassthroughDeviceNode}.
+ */
+export type DeviceNodeFactory = (device: Device) => DeviceNode | undefined;
 
 /**
- * Schema v1 defines the generic `Device` shape (id, type, order, bypass,
- * parameters) but no concrete processors — filter/EQ, overdrive, compression,
- * delay, and reverb are authored with their devices in Alpha Milestone 1 (PRD section
- * 7.3). Until a factory is registered for a `device.type`, the chain gives it
- * an inert passthrough node instead of refusing to build the graph, so
- * topology — insertion, removal, and reordering — is fully provable ahead of
- * any real DSP.
+ * The node a `device.type` with no registered core gets: an inert passthrough,
+ * rather than a refusal to build the graph at all.
+ *
+ * That matters in two situations. It let LOOP-008 prove chain topology —
+ * insertion, removal, reordering — before LOOP-009 authored any real DSP; and
+ * it means a project referencing a device type this build does not know (one
+ * saved by a later build, say) still loads and plays the rest of its chain.
  */
 export function createPassthroughDeviceNode(device: Device): DeviceNode {
 	const node = new Tone.Gain(1);
@@ -138,7 +143,8 @@ export class DeviceChain {
 			if (existing) {
 				existing.node.update(device);
 			} else {
-				const node = this.createNode(device);
+				const node =
+					this.createNode(device) ?? createPassthroughDeviceNode(device);
 				const handle = this.scope.register("node", () => node.dispose());
 				this.nodes.set(device.id, { node, handle });
 				compositionChanged = true;
