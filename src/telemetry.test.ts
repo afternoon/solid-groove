@@ -551,6 +551,25 @@ describe("afterFirstPaint", () => {
 		afterFirstPaint(after);
 		await vi.waitFor(() => expect(after).toHaveBeenCalled());
 	});
+
+	// `FND-001c` (#174): a background tab never paints, so
+	// `requestAnimationFrame` is not called until it is foregrounded -- which
+	// may be never. Gating monitoring on a frame meant a session opened in a
+	// background tab (a restored window, a middle-click, a deep link opened
+	// behind the current page) loaded no SDK at all and reported no crash.
+	// The idle callback is what must still get there.
+	it("runs the task in a tab that never paints", async () => {
+		const rafSpy = vi
+			.spyOn(globalThis, "requestAnimationFrame")
+			.mockImplementation(() => 0);
+		try {
+			const task = vi.fn();
+			afterFirstPaint(task);
+			await vi.waitFor(() => expect(task).toHaveBeenCalled());
+		} finally {
+			rafSpy.mockRestore();
+		}
+	});
 });
 
 // ---------------------------------------------------------------------------

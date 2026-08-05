@@ -238,6 +238,31 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 }
 
 /**
+ * Why monitoring is not running, recorded on the page for diagnosis.
+ *
+ * `FND-001c` (#174): the three ways this can fail — no DSN, a vendor import
+ * that never resolves, an `init()` that throws — all failed *silently and
+ * identically*, so a deployed build that was not reporting errors could not be
+ * told apart from one that had nothing to report. That indistinguishability is
+ * what made the original defect take a full investigation to place.
+ *
+ * It must still fail *open*: a blocked SDK is an expected, correct outcome for
+ * some sessions (ADR 0001), so this records a status rather than surfacing
+ * anything to the user or reporting anywhere. It carries no user data — only
+ * which branch was taken.
+ */
+type MonitoringStatus = "started" | "no-dsn" | "load-failed";
+
+function recordMonitoringStatus(status: MonitoringStatus): void {
+	try {
+		(globalThis as { __sgMonitoring?: MonitoringStatus }).__sgMonitoring =
+			status;
+	} catch {
+		// Diagnosis is best-effort and must never be the thing that breaks startup.
+	}
+}
+
+/**
  * Loads the Sentry sink and attaches it to the reporting boundary.
  *
  * The dynamic `import()` is what keeps the SDK out of the entry chunk, so it
@@ -255,8 +280,14 @@ async function startMonitoring(
 		const { SentrySink } = await import("./monitoring/sentrySink");
 		const sink = new SentrySink({ release: RELEASE_SHA });
 		const started = await sink.start();
-		if (!started) return async () => {};
+		if (!started) {
+			// `SentrySink.start()` resolves false only when no DSN is configured;
+			// every other failure throws and lands in the catch below.
+			recordMonitoringStatus("no-dsn");
+			return async () => {};
+		}
 		reporter.addSink(sink);
+		recordMonitoringStatus("started");
 		return async () => {
 			reporter.removeSink(sink);
 			await sink.stop();
@@ -265,6 +296,7 @@ async function startMonitoring(
 		// A blocked or failed SDK load is expected for some sessions (ADR 0001:
 		// "Ad and tracker blockers block sentry.io"). Errors still reach the GA4
 		// `exception` counter, and the resulting undercount is documented.
+		recordMonitoringStatus("load-failed");
 		return async () => {};
 	}
 }
@@ -275,13 +307,49 @@ async function startMonitoring(
  * Two nested `requestAnimationFrame` callbacks land after the first paint has
  * been committed; `requestIdleCallback` then waits for the main thread to be
  * free, with a timeout so a permanently busy thread does not starve it.
+ *
+ * ## A tab that never paints must still get there (`FND-001c`, #174)
+ *
+ * `requestAnimationFrame` does not fire while a document is hidden, and a tab
+ * can start that way and stay that way indefinitely — a restored window, a
+ * middle-clicked link, a deep link opened behind the current page. Waiting on
+ * a frame alone meant such a session loaded no monitoring SDK *at all*: the
+ * sink chunk was never even fetched, so a crash in front of a real user went
+ * unreported, and the whole thing looked like a configuration failure from
+ * outside because every documented gate had passed.
+ *
+ * So the frame path is *raced* against an idle deadline rather than trusted as
+ * the only route. Whichever arrives first wins and the other is ignored; on a
+ * visible tab that is still the frame path, so the "after first paint" budget
+ * (PRD section 10) is unchanged for the sessions it was written for.
  */
 export function afterFirstPaint(task: () => void): void {
+	let done = false;
 	const run = () => {
+		if (done) return;
+		done = true;
 		try {
 			task();
 		} catch {
 			// Telemetry startup must never break the app that just painted.
+		}
+	};
+
+	const idle = (
+		globalThis as {
+			requestIdleCallback?: (
+				cb: () => void,
+				options?: { timeout: number },
+			) => number;
+		}
+	).requestIdleCallback;
+
+	/** Waits for a free main thread, but never longer than the timeout. */
+	const whenIdle = () => {
+		if (typeof idle === "function") {
+			idle(run, { timeout: 3_000 });
+		} else {
+			setTimeout(run, 0);
 		}
 	};
 
@@ -291,22 +359,14 @@ export function afterFirstPaint(task: () => void): void {
 	}
 
 	requestAnimationFrame(() => {
-		requestAnimationFrame(() => {
-			const idle = (
-				globalThis as {
-					requestIdleCallback?: (
-						cb: () => void,
-						options?: { timeout: number },
-					) => number;
-				}
-			).requestIdleCallback;
-			if (typeof idle === "function") {
-				idle(run, { timeout: 3_000 });
-			} else {
-				setTimeout(run, 0);
-			}
-		});
+		requestAnimationFrame(whenIdle);
 	});
+
+	// The backstop for a document that is hidden now or becomes hidden before
+	// the second frame lands. Deliberately not a `visibilitychange` listener:
+	// the tab may never be foregrounded, and monitoring that only starts if the
+	// user happens to look at the page is not monitoring.
+	whenIdle();
 }
 
 /** Maps a pathname onto the surface it belongs to. */
