@@ -5,7 +5,7 @@
 //   - From Node (unit, component/jsdom, and Firebase Emulator suites all run
 //     under Node) by reading the file straight off disk.
 //   - From a real browser (a Playwright page, or client code bundled with
-//     `VITE_MOCK_BACKEND=true`) by fetching it as a static asset at
+//     `VITE_DEV_BACKEND=mock`) by fetching it as a static asset at
 //     `/fixtures/...`, exactly like `public/samples/...` already is.
 //
 // `loadFixtureJson` picks the right strategy at call time rather than at

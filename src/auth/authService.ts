@@ -1,4 +1,5 @@
 import type { Auth, User } from "firebase/auth";
+import { isMockBackend } from "../devBackend";
 
 export interface AuthService {
 	signInWithGoogle(): Promise<void>;
@@ -195,7 +196,7 @@ class MockAuthService implements AuthService {
 
 // Factory function to create the appropriate auth service
 export function createAuthService(): AuthService {
-	if (import.meta.env.VITE_MOCK_BACKEND === "true") {
+	if (isMockBackend) {
 		return new MockAuthService();
 	} else {
 		return new FirebaseAuthService();

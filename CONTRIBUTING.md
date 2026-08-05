@@ -22,9 +22,10 @@ This project uses **Bun** as its package manager and runtime. Never run
 `npm install` — `package-lock.json` conflicts with Bun's resolution and is
 gitignored for that reason.
 
-What you put in `.env` depends on which backend you want; see the next section.
-`bun run dev` regenerates the starter sound library first (via `predev`), so the
-first run is slower than later ones.
+For everyday UI work you need nothing in `.env` at all — `bun run dev:mock`
+supplies its own placeholders. What you put there matters only for the real
+project; see the next section. Every `dev` script regenerates the starter sound
+library first, so the first run is slower than later ones.
 
 ### Prerequisites by task
 
@@ -91,21 +92,25 @@ for what is actually known about that failure.
 
 ## Running the app
 
-There are three backends you can run against. They are selected entirely by
-environment variables — the application code is identical in all three.
+There are three backends you can run against. One environment variable,
+`VITE_DEV_BACKEND`, selects between them; the application code is identical in
+all three.
 
-| Mode | Backend | Use it for |
-| --- | --- | --- |
-| **Mock** | In-memory fake, never touches the Firebase SDK | Everyday UI work. No Firebase project, no emulator, no JDK. |
-| **Emulator** | The *real* Firebase SDK against a local Firestore + Auth emulator | Anything touching persistence, auth, or security rules |
-| **Real project** | A Firebase project you own | Rarely needed; the alpha's only hosted environment is production |
+| `VITE_DEV_BACKEND` | Backend | Use it for | Command |
+| --- | --- | --- | --- |
+| `mock` | In-memory fake, never touches the Firebase SDK | Everyday UI work. No Firebase project, no emulator, no JDK. | `bun run dev:mock` |
+| `emulator` | The *real* Firebase SDK against a local Firestore + Auth emulator | Anything touching persistence, auth, or security rules | `bun run dev:emulator` |
+| unset | The Firebase project configured in `.env` | Rarely needed; the alpha's only hosted environment is production | `bun run dev` |
+
+Unset means the real project, not a fake — a missing value must never silently
+redirect a deployment at an in-memory store. A value that is set but
+unrecognized (`VITE_DEV_BACKEND=mocks`) fails loudly at startup rather than
+falling back, since the fallback would be "run against production credentials".
 
 ### Mock backend (the default for UI work)
 
-Set `VITE_MOCK_BACKEND=true` in `.env`, then:
-
 ```sh
-bun run dev     # http://localhost:3000
+bun run dev:mock      # http://localhost:3000
 ```
 
 Every page load gets a fresh, empty store, so this mode **cannot** show you
@@ -113,50 +118,47 @@ anything about persistence — a reload always starts over. That is the one thin
 it is structurally unable to prove, and the reason the emulator mode below
 exists.
 
+Setting `VITE_DEV_BACKEND=mock` in `.env` makes plain `bun run dev` do the same
+thing, if that is what you want most days.
+
 ### Running against the Firebase Emulator
 
 This points the real Firebase SDK at a local Firestore + Auth emulator, so a
 genuine page reload round-trips through real persistence and real security
-rules. It is distinct from `VITE_MOCK_BACKEND`, which swaps in a fake instead.
+rules — which is exactly what the mock backend cannot do.
 
-Start the emulator in one terminal and leave it running:
+Two terminals. First the emulator, which you leave running:
 
 ```sh
-firebase emulators:start --only firestore,auth --project demo-solid-groove
+bun run firebase:emulator
 ```
 
-The `demo-` project-ID prefix is Firebase's convention for emulator-only work:
-no real GCP project, no login, and no credentials are involved, and the CLI
-refuses to reach any non-emulated service for it.
-
-Then start the dev server in a second terminal, pointed at it:
+Then the dev server:
 
 ```sh
-VITE_FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
-VITE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
-VITE_FIREBASE_PROJECT_ID=demo-solid-groove \
-VITE_FIREBASE_API_KEY=demo-key \
-VITE_FIREBASE_APP_ID=demo-app \
-bun run dev
+bun run dev:emulator
 ```
 
 Open <http://localhost:3000>, click "Start in your browser", and you are an
 anonymous Firebase user in the emulator. Create a project, edit it, and reload
 the page — the edit comes back from Firestore.
 
-Some notes on the recipe, each of which is a real trap:
+`dev:emulator` needs no other configuration: emulator mode implies
+`firebase.json`'s host and port for both emulators, and supplies the placeholder
+Firebase credentials the SDK insists on but the emulator never validates. Set
+`VITE_FIRESTORE_EMULATOR_HOST` / `VITE_AUTH_EMULATOR_HOST` only to point at an
+emulator running somewhere else.
 
-- **`VITE_MOCK_BACKEND` must not be `true`.** Leave it unset or set it to
-  anything else; the code tests for the exact string `"true"`. If you have it
-  set in `.env` for everyday work, override it on the command line.
-- **The three `VITE_FIREBASE_*` values are required, and their contents do not
-  matter.** `src/firebaseConfig.ts` only substitutes placeholder values in mock
-  mode, so outside it `initializeApp` receives `undefined` and fails. Any
-  non-empty strings work against an emulator.
-- **Use `127.0.0.1`, not `localhost`.** Both emulators listen on `127.0.0.1`
-  only, so on a host where `localhost` resolves to `::1` first the connection is
-  refused. This is also the form `firebase.json` and the Playwright emulator
-  config use.
+`bun run firebase:emulator` uses the project ID `demo-solid-groove`. The `demo-`
+prefix is Firebase's convention for emulator-only work: no real GCP project, no
+login, and no credentials are involved, and the CLI refuses to reach any
+non-emulated service for it.
+
+Some notes, each of which is a real trap:
+
+- **Use `127.0.0.1`, not `localhost`,** in anything you point at the emulator by
+  hand. Both emulators listen on `127.0.0.1` only, so on a host where
+  `localhost` resolves to `::1` first the connection is refused.
 - **The Emulator UI is off.** `firebase.json` sets `emulators.ui.enabled` to
   `false`. To browse the data, either flip that flag or query the emulator's
   REST API directly with the owner bearer token, which bypasses security rules:
@@ -179,7 +181,8 @@ Some notes on the recipe, each of which is a real trap:
 ### Against a real Firebase project
 
 Fill in the `VITE_FIREBASE_*` values in `.env` from the Firebase console
-(Project Settings → General → Your apps) and run `bun run dev`. You rarely want
+(Project Settings → General → Your apps), leave `VITE_DEV_BACKEND` unset, and
+run `bun run dev`. You rarely want
 this: the alpha's only hosted environment is production, deployment runs from CI
 rather than a developer machine, and the automated suites must never write to it
 (PRD `OPS-01`). Prefer the emulator.
@@ -187,7 +190,7 @@ rather than a developer machine, and the automated suites must never write to it
 ## The day-to-day loop
 
 ```sh
-bun run dev            # dev server
+bun run dev:mock       # dev server, in-memory backend
 bun run test:watch     # unit + component tests, watching
 ```
 
@@ -212,8 +215,8 @@ bun run test:browser:emulator  # Playwright against a real (emulated) backend
 ```
 
 Both emulator suites start and stop their own emulator via
-`firebase emulators:exec`, so do **not** have one already running on those ports
-when you launch them. [`docs/testing.md`](./docs/testing.md) is the reference for
+`firebase emulators:exec`, so do **not** have `bun run firebase:emulator`
+already running on those ports when you launch them. [`docs/testing.md`](./docs/testing.md) is the reference for
 what each suite covers and how CI gates on them.
 
 ### Other commands

@@ -323,7 +323,7 @@
       <li><b>CommandHistory.execute()</b> (via EditorSession) runs the transaction: pure <code>apply</code> on a working copy, all domain invariants checked, pack dependencies recomputed.</li>
       <li>A <b>new immutable revision</b> replaces the store; undo gets the generated inverse command.</li>
       <li><b>ProjectAutosave</b> coalesces the edit and queues only the changed tier — a note edit writes one clip document, never song structure.</li>
-      <li><b>ProjectRepository</b> performs the revision-checked write to Firestore (or the in-memory store under <code>VITE_MOCK_BACKEND</code>).</li>
+      <li><b>ProjectRepository</b> performs the revision-checked write to Firestore (or the in-memory store under <code>VITE_DEV_BACKEND=mock</code>).</li>
       <li><b>watchProject</b> delivers remote snapshots; <code>applyRemote()</code> ignores echoes at or below the local revision, and components update reactively.</li>
       <li>In parallel, <b>useProjectAudio</b> rebuilds the audio projection (reusing unchanged entries) and <b>ProjectAudioGraph</b> reconciles only the touched subgraph.</li>
     </ol>

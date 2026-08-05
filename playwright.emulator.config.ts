@@ -54,17 +54,14 @@ export default defineConfig({
 		stdout: "pipe",
 		stderr: "pipe",
 		env: {
-			VITE_MOCK_BACKEND: "false",
+			VITE_DEV_BACKEND: "emulator",
+			// Emulator mode already implies `firebase.json`'s default ports, but
+			// `emulators:exec` is the authority on where it actually bound, so pass
+			// the real values through as the documented override (see
+			// `src/devBackend.ts`). Placeholder Firebase credentials come from
+			// emulator mode itself — the emulator validates none of them.
 			VITE_FIRESTORE_EMULATOR_HOST: firestoreEmulatorHost,
 			VITE_AUTH_EMULATOR_HOST: authEmulatorHost,
-			// Emulator-only, fake-by-design values (the Firebase-documented
-			// `demo-*` convention — see `docs/testing.md`'s Firebase Emulator
-			// suite section): the emulator does not validate them against a real
-			// project, and they are never used against production.
-			VITE_FIREBASE_PROJECT_ID: "demo-solid-groove",
-			VITE_FIREBASE_API_KEY: "demo-api-key",
-			VITE_FIREBASE_AUTH_DOMAIN: "demo-solid-groove.firebaseapp.com",
-			VITE_FIREBASE_APP_ID: "demo-app-id",
 		},
 	},
 	// Each gating browser gets a warm-up project plus the real suite that depends
