@@ -559,6 +559,16 @@ export const ANALYTICS_EVENTS = {
 		},
 	},
 
+	placement_duplicated: {
+		phase: 2,
+		owners: ["ARR-002"],
+		// CLP-01 requires duplicating a placement to be able to either reuse the
+		// source clip or fork an independent variation, with the UI saying which
+		// will happen. `mode` is how we learn whether producers actually reach for
+		// reuse — the whole point of clips being reusable — or always fork.
+		params: { mode: enumParam(["linked", "independent"]) },
+	},
+
 	section_created: {
 		phase: 2,
 		owners: ["ARR-003"],
