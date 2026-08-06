@@ -532,6 +532,48 @@ describe("EditorView keyboard shortcuts", () => {
 			screen.getByRole("button", { name: "Keyboard shortcuts" }),
 		).toHaveAttribute("title", "Keyboard shortcuts (?)");
 	});
+
+	it("deletes a selected arrangement placement from the keyboard (ARR-002)", async () => {
+		const project = await renderSlice();
+		const placementId = project.song.placements[0].id;
+
+		// Select the fixture's one placement (tick 0..TICKS_PER_BAR, row 0) by
+		// pointer, the same way a user would, then delete it with the KEY-01
+		// mapping — not by calling the controller directly, so this proves the
+		// arrangement shortcut context actually reaches the command layer.
+		const canvas = document.querySelector(".arrangement-layer-interactive");
+		if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+		const PIXELS_PER_TICK = 0.08;
+		const RULER_HEIGHT_PX = 22;
+		const ROW_HEIGHT_PX = 28;
+		const TICKS_PER_BAR = 768;
+		const down = new MouseEvent("pointerdown", {
+			bubbles: true,
+			cancelable: true,
+			button: 0,
+			clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+			clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+		});
+		Object.defineProperty(down, "pointerId", { value: 1 });
+		fireEvent(canvas, down);
+		const up = new MouseEvent("pointerup", { bubbles: true, cancelable: true });
+		Object.defineProperty(up, "pointerId", { value: 1 });
+		fireEvent(canvas, up);
+		await waitFor(() => {
+			expect(
+				document.querySelector(`[data-selected-placement="${placementId}"]`),
+			).not.toBeNull();
+		});
+
+		fireEvent.keyDown(window, { key: "Delete" });
+		await screen.findByText("Saved", {}, { timeout: 3_000 });
+
+		const loaded = await repository.loadProject(project.metadata.id);
+		if (!loaded.ok) throw new Error("expected the project to load");
+		expect(
+			loaded.value.song.placements.find((p) => p.id === placementId),
+		).toBeUndefined();
+	});
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */

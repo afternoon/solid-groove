@@ -269,9 +269,9 @@ report can name exactly which release was live before and after.
 ## Part 7 — close the gate
 
 These acceptance criteria are the ones no amount of implementation work could
-close, because they each require a real environment. They are why `G4.5` is not
-yet open. Tick them on [issue #68 (`OPS-001`)](https://github.com/afternoon/solid-groove/issues/68) only from observed
-results:
+close, because they each require a real environment. They are what `G4.5` waited
+on; it opened on 2026-08-06. Tick them on [issue #68 (`OPS-001`)](https://github.com/afternoon/solid-groove/issues/68) only from observed
+results — except the two deferred by `DEC-012`, noted below:
 
 | Task | Criterion | Closed by |
 | --- | --- | --- |
@@ -301,12 +301,23 @@ feature set, so the event list to confirm in part 5 is every Alpha Milestone 0,
       standing after you have run it is the same failure in the other direction.
       **Done 2026-08-05** against release `8336d9d`; the section is now
       "What has been verified against the hosted environment".
-- [ ] Mark **G4.5: Hosted environment verified** open. **Still closed** — error
-      monitoring does not initialize on the deployed build (a deliberately
-      triggered error reaches no Sentry issue), so the OPS-03 criteria cannot be
-      met. Deploy, rollback, and analytics are verified. Open this gate once the
-      `FND-001c` monitoring defect ([#174](https://github.com/afternoon/solid-groove/issues/174)) is fixed and a real error has been observed
-      arriving with its release SHA and a symbolicated trace.
+- [x] Mark **G4.5: Hosted environment verified** open. **Open 2026-08-06.**
+      Deploy, rollback, analytics, and error monitoring are each verified
+      against the hosted environment; the monitoring defect that originally held
+      the gate ([#174](https://github.com/afternoon/solid-groove/issues/174)) is
+      fixed, and on release `e15ce13` a deliberately triggered error reaches
+      Sentry's ingest endpoint with HTTP 200.
+
+      Two console-inspection checks are **deferred to post-alpha by decision**
+      (`DEC-012`, PRD section 16) rather than left outstanding: **(a)** opening
+      the Sentry issue an error produces to confirm its release SHA,
+      symbolicated `src/` trace, tags, redacted message, single-issue grouping,
+      and crash-free session rate; **(b)** confirming the `internal` user
+      property in GA4 and that internal traffic is excluded from the section 11
+      measures. Neither affects a cohort session, both are covered by automated
+      tests against a fake SDK, and source-map upload with matching debug IDs is
+      independently confirmed. Re-run both once the alpha is built —
+      `docs/testing.md` records the residual risk each carries.
 
 ## Out of scope
 

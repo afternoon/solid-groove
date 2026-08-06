@@ -65,7 +65,14 @@ const TelemetryDisclosure: Component<{
 		onCleanup(() => setInlineCount((count) => count - 1));
 	});
 
-	const enabled = () => state().productAnalytics || state().errorMonitoring;
+	// Any collection at all shows as "on", so the single control never reads as
+	// off while something is still being collected. `optOut()` turns all three
+	// off in one action (ADR 0002 decision 4), which is the whole control the
+	// user has; the flags stay separable for `DEC-009`, not for the UI.
+	const enabled = () =>
+		state().productAnalytics ||
+		state().errorMonitoring ||
+		state().sessionReplay;
 
 	const toggle = () => {
 		if (enabled()) {
@@ -88,12 +95,27 @@ const TelemetryDisclosure: Component<{
 				<p>
 					Solid Groove records which features are used and reports errors, so we
 					can tell what works and fix what breaks. Two processors receive this:
-					Google Analytics for product events and Sentry for error reports.
+					Google Analytics for product events and Sentry for error reports and
+					Session Replay.
 				</p>
 				<p>
-					Your music never leaves your project. Event and error reports carry no
-					project, track, clip, or section names, no notes or audio, no
-					assistant messages, and no text you type.
+					Session Replay records a small sample of sessions — which controls you
+					click and how you move around — so we can see where people get stuck
+					and fix it. Those recordings include your arrangement and piano roll,
+					which means the musical work itself: the clips, the notes, and the
+					names you give sections. We record them because that is where the
+					problems we need to see actually happen.
+				</p>
+				<p>
+					Names and typed text stay hidden. Event reports, error reports, and
+					replays carry no project, track, or clip names, no audio, no assistant
+					messages, and no text you type.
+				</p>
+				<p>
+					Your conversations with the assistant are stored with your project so
+					we can tell whether it is helping. They stay with us — never sent to
+					Google Analytics or Sentry — and deleting a project deletes its
+					conversations.
 				</p>
 				<label class="telemetry-disclosure-toggle">
 					<input

@@ -4,6 +4,7 @@ import {
 	createMemo,
 	createSignal,
 	For,
+	onCleanup,
 	onMount,
 	Show,
 } from "solid-js";
@@ -11,8 +12,16 @@ import {
 	type Analytics,
 	analytics as defaultAnalytics,
 } from "../analytics/analytics";
+import type {
+	Gesture,
+	GestureOptions,
+	RawCommandInput,
+	TransactionResult,
+} from "../commands";
 import type { Project } from "../domain/entities";
+import { createIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import {
 	type ArrangementShell,
@@ -24,12 +33,22 @@ import {
 	RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import type { RowMetrics, Viewport } from "./geometry";
+import { PlacementToolbar } from "./PlacementToolbar";
+import {
+	createPlacementEditing,
+	type EditingGesture,
+	type PlacementEditing,
+} from "./placementEditingController";
 import {
 	type ArrangementProjection,
 	buildArrangementProjection,
 } from "./projection";
 import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
+
+/** The placement-editing operations `EditorView` wires into the KEY-01
+ * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`. */
+export type PlacementEditingActions = PlacementEditing;
 
 /**
  * The production arrangement editor shell (`ARR-001`; PRD ARR-01, section 9.3).
@@ -73,6 +92,20 @@ export interface ArrangementViewProps {
 	/** Whether the transport is playing, so the playhead follows only then. */
 	readonly isPlaying?: Accessor<boolean>;
 	readonly analytics?: Analytics;
+	/**
+	 * The shared command layer (`ARR-002`). Optional so existing callers/tests
+	 * that only exercise the ARR-001 shell keep working; placement editing is
+	 * inert without it.
+	 */
+	readonly dispatch?: (
+		commands: RawCommandInput | readonly RawCommandInput[],
+	) => TransactionResult | undefined;
+	readonly beginGesture?: (options?: GestureOptions) => Gesture | undefined;
+	/** Called once with the placement-editing operations, so `EditorView` can
+	 * wire them into the KEY-01 registry, mirroring `registerPianoRollActions`. */
+	readonly onEditingActionsReady?: (
+		actions: PlacementEditingActions | null,
+	) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -95,6 +128,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
 	const waveformCache = createArrangementWaveformCache();
 	let shell: ArrangementShell | null = null;
 	let firstUseLogged = false;
+	let editing: PlacementEditing | null = null;
+	// Minted once for this component instance, like `waveformCache` above — an
+	// `IdFactory` is a plain closure, not reactive state, and must persist
+	// across renders rather than being rebuilt inside one.
+	const ids = createIdFactory();
+	// The placement drag in flight, if any: which pointer owns it, so a stray
+	// move/up from another pointer is ignored.
+	let activePointerId: number | null = null;
 
 	function initialViewport(): Viewport {
 		return {
@@ -112,6 +153,28 @@ export default function ArrangementView(props: ArrangementViewProps) {
 			playheadTicks: state?.playheadTicks ?? null,
 			selection: state?.selection ?? null,
 			hoverPlacementId: state?.hoverPlacementId ?? null,
+			selectedPlacementIds: new Set(editing?.getSelection() ?? []),
+		};
+	}
+
+	// --- Placement editing (ARR-002) adapters ---------------------------------
+	//
+	// `createPlacementEditing` wants a `dispatch` with no return value and a
+	// `beginGesture` returning its own `EditingGesture` shape, which differs
+	// from `UseEditorSessionResult`'s `Gesture`/`dispatch` (see
+	// `useEditorSession.ts`). These adapters translate without adding a second
+	// mutation path: every command still flows through `props.dispatch`/
+	// `props.beginGesture`, i.e. the shared command layer.
+
+	function adaptGesture(gesture: Gesture): EditingGesture {
+		return {
+			apply: (commands) => {
+				gesture.apply(commands);
+			},
+			commit: (summary) => {
+				gesture.commit(summary);
+			},
+			cancel: () => gesture.cancel(),
 		};
 	}
 
@@ -149,6 +212,27 @@ export default function ArrangementView(props: ArrangementViewProps) {
 			onDirty: () => canvas.scheduleDraw(),
 		});
 
+		if (props.dispatch) {
+			const dispatch = props.dispatch;
+			editing = createPlacementEditing({
+				getProject: () => props.project,
+				dispatch: (commands) => {
+					dispatch(commands);
+				},
+				beginGesture: (summary) => {
+					const gesture = props.beginGesture?.({ summary });
+					return gesture && adaptGesture(gesture);
+				},
+				ids,
+				analytics: analytics(),
+				onChange: () => {
+					shell?.markDirty("interaction");
+					bumpState();
+				},
+			});
+			props.onEditingActionsReady?.(editing);
+		}
+
 		canvas.observeViewport(scrollEl, bumpState);
 
 		// Prime the initial size and paint every layer once.
@@ -161,14 +245,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		bumpState();
 	});
 
+	onCleanup(() => {
+		props.onEditingActionsReady?.(null);
+	});
+
 	// Project identity / structure changed: everything is dirty, scroll bounds
 	// re-clamp. The projection memo makes this reactive to any project change,
 	// but an unrelated edit still only re-runs the cheap projection build, and a
 	// no-op reconcile (same object) means the shell re-clamps to unchanged
-	// bounds and redraws once.
+	// bounds and redraws once. An undo/redo or remote edit can also remove a
+	// selected placement out from under the controller, so it drops any
+	// selected ID the project no longer contains (see `reconcile`'s doc comment).
 	createEffect(() => {
 		projection();
 		shell?.invalidateAll();
+		editing?.reconcile();
 		syncSpacer();
 		bumpState();
 	});
@@ -260,6 +351,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
 	function handlePointerMove(event: PointerEvent): void {
 		if (!shell) return;
+		if (editing?.isDragging() && event.pointerId === activePointerId) {
+			const { x, y } = localPoint(event);
+			const { tick } = shell.pointToArrangement(x, y);
+			editing.updateDrag(tick);
+			return;
+		}
 		const { x, y } = localPoint(event);
 		if (y < 0) {
 			shell.clearHover();
@@ -272,9 +369,34 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		if (!shell) return;
 		const { x, y } = localPoint(event);
 		if (y < 0) return;
+
+		// A placement hit starts a drag (move or resize) instead of the shell's
+		// own bar-range selection; anything else falls through to the existing
+		// behavior unchanged.
+		if (editing && (event.button ?? 0) === 0) {
+			const hit = shell.hitTestAt(x, y);
+			if (hit.kind === "placement") {
+				const { tick } = shell.pointToArrangement(x, y);
+				editing.beginDrag(hit.placementId, hit.handle, tick);
+				activePointerId = event.pointerId;
+				(event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+				bumpState();
+				noteFirstUse();
+				return;
+			}
+		}
+
 		const selection = shell.handlePointerDown(x, y);
 		bumpState();
 		if (selection) noteFirstUse();
+	}
+
+	function endActiveDrag(event: PointerEvent): void {
+		if (!editing?.isDragging() || event.pointerId !== activePointerId) return;
+		editing.endDrag();
+		activePointerId = null;
+		(event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+		bumpState();
 	}
 
 	// --- Named DOM actions (also the keyboard/accessibility equivalents) ------
@@ -352,6 +474,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		return { trackName: track?.name ?? "track", startBar, endBar };
 	});
 
+	/** The placement-editing selection (CLP-01), for the duplicate-mode toolbar
+	 * and the accessible mirror below — canvas pixels are never the sole
+	 * representation of which placements are selected. */
+	const placementSelection = createMemo(() => {
+		stateVersion();
+		return editing?.getSelection() ?? [];
+	});
+
 	return (
 		<div class="arrangement-view" data-testid="arrangement-view-ready">
 			<ArrangementToolbar
@@ -361,6 +491,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				onScrollToPlayhead={scrollToPlayhead}
 				hasSelection={selectionSummary() !== null}
 			/>
+			<Show when={props.dispatch}>
+				<PlacementToolbar
+					selectionCount={placementSelection().length}
+					onDuplicateLinked={() => editing?.duplicate("linked")}
+					onDuplicateIndependent={() => editing?.duplicate("independent")}
+				/>
+			</Show>
 			<div class="arrangement-body">
 				<div
 					class="arrangement-headers"
@@ -389,7 +526,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 										class="arrangement-header-swatch"
 										style={{ background: track.color }}
 									/>
-									<span class="arrangement-header-name">{track.name}</span>
+									{/* The track's name, chosen by the user. The row around it
+									    stays visible, so a replay still shows which track was
+									    clicked (ADR 0002 decision 2). */}
+									<span class={`arrangement-header-name ${MASK_CONTENT}`}>
+										{track.name}
+									</span>
 								</li>
 							)}
 						</For>
@@ -405,6 +547,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
 					<div class="arrangement-spacer" style={spacerStyle()} />
+					{/* Not blocked, and — since ADR 0003 — deliberately recorded. Canvas
+					    capture is on, so clip blocks, notes, waveforms, and the section
+					    names drawn here all reach the payload. That is the decision, not
+					    an oversight: dragging a clip edge and placing a note are the
+					    interactions replay exists to show, and blocking this stack is
+					    what made the arrangement a grey box. Masking does not reach
+					    inside a canvas, so nothing here is half-protected — the
+					    disclosure says so instead. */}
 					<div class="arrangement-canvas-stack">
 						<canvas class="arrangement-layer" ref={backgroundCanvas} />
 						<canvas class="arrangement-layer" ref={contentCanvas} />
@@ -413,22 +563,38 @@ export default function ArrangementView(props: ArrangementViewProps) {
 							ref={interactionCanvas}
 							onPointerMove={handlePointerMove}
 							onPointerDown={handlePointerDown}
-							onPointerLeave={() => shell?.clearHover()}
+							onPointerUp={endActiveDrag}
+							onPointerCancel={endActiveDrag}
+							onPointerLeave={(event) => {
+								if (
+									editing?.isDragging() &&
+									event.pointerId === activePointerId
+								) {
+									return;
+								}
+								shell?.clearHover();
+							}}
 						/>
 					</div>
 				</div>
 			</div>
 			{/* Accessible mirror: the visible tracks and the current selection as
-			    real DOM, so assistive tech never has to read canvas pixels. */}
+			    real DOM, so assistive tech never has to read canvas pixels. Both
+			    lists below are made entirely of track names — visually hidden is not
+			    un-captured, so they are masked like any other name. */}
 			<div class="visually-hidden">
-				<p aria-live="polite" data-testid="arrangement-selection-live">
+				<p
+					class={MASK_CONTENT}
+					aria-live="polite"
+					data-testid="arrangement-selection-live"
+				>
 					<Show when={selectionSummary()} fallback="No selection">
 						{(summary) =>
 							`Selected ${summary().trackName}, bars ${summary().startBar} to ${summary().endBar}`
 						}
 					</Show>
 				</p>
-				<ul aria-label="Arrangement tracks">
+				<ul class={MASK_CONTENT} aria-label="Arrangement tracks">
 					<For each={headerRows()}>
 						{(track) => (
 							<li>
@@ -441,6 +607,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
 								</button>
 							</li>
 						)}
+					</For>
+				</ul>
+				{/* The placement-editing selection (ARR-002), as real DOM rather than
+				    canvas pixels — see the module doc comment on why. */}
+				<ul aria-label="Selected placements" data-testid="placement-selection">
+					<For each={placementSelection()}>
+						{(placementId) => <li data-selected-placement={placementId} />}
 					</For>
 				</ul>
 			</div>

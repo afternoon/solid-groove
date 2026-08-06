@@ -8,7 +8,9 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
-import ArrangementView from "../arrangement/ArrangementView";
+import ArrangementView, {
+	type PlacementEditingActions,
+} from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
@@ -19,6 +21,7 @@ import { TICKS_PER_QUARTER } from "../domain/time";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { getProjectRepository } from "../projectRepositoryClient";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
@@ -70,6 +73,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	// handlers below can call them.
 	const [pianoRollActions, setPianoRollActions] =
 		createSignal<PianoRollActions | null>(null);
+	// The arrangement's placement-editing controller (ARR-002), lifted here the
+	// same way so the KEY-01 registry — not the arrangement view — dispatches
+	// cut/copy/paste/delete/duplicate.
+	const [arrangementEditingActions, setArrangementEditingActions] =
+		createSignal<PlacementEditingActions | null>(null);
 	// The step editor's note selection, lifted here so the `edit.delete` shortcut
 	// can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
 	const [selectedNoteIds, setSelectedNoteIds] = createSignal<
@@ -152,6 +160,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const instrument = createMemo(() => model.editedInstrument(project()));
 	const showPianoRoll = createMemo(() => model.showPianoRoll(project()));
 
+	// Plain function, not a memo: `hasSelection()` reads the controller's
+	// internal (non-signal) state, so this must be re-evaluated live on every
+	// call — the same reason `pianoRollActions()?.hasSelection()` is called
+	// directly rather than memoized elsewhere in this file.
+	const hasArrangementSelection = (): boolean =>
+		!showPianoRoll() && (arrangementEditingActions()?.hasSelection() ?? false);
+
 	const { shortcuts, editorContexts, keyHint } = useEditorShortcuts({
 		audio,
 		session,
@@ -162,6 +177,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		guideOpen,
 		setGuideOpen,
 		packBrowserOpen,
+		arrangementEditingActions,
+		hasArrangementSelection,
 	});
 
 	const instrumentPanelTrackId = createMemo(() =>
@@ -245,6 +262,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									project={currentProject()}
 									playheadTicks={audio.positionTicks}
 									isPlaying={audio.isPlaying}
+									dispatch={session.dispatch}
+									beginGesture={session.beginGesture}
+									onEditingActionsReady={setArrangementEditingActions}
 								/>
 							</div>
 							<div class="editor-body">
@@ -286,7 +306,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										{(drum) => (
 											<div class="drum-machine-editor">
 												<div class="track-info">
-													<span class="track-name">{drum().name}</span>
+													<span class={`track-name ${MASK_CONTENT}`}>
+														{drum().name}
+													</span>
 												</div>
 												<DrumMachinePanel
 													track={drum()}

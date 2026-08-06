@@ -1,5 +1,6 @@
 import { HiSolidCheckCircle } from "solid-icons/hi";
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { KIND_LABELS } from "./LibraryFacets";
 import type { LibraryPackSummary } from "./manifest";
 import { EMPTY_PACK_FILTER, filterPacks, type PackKind } from "./search";
@@ -46,9 +47,10 @@ export default function PackList(props: {
 
 	return (
 		<nav class="pack-browser-list" aria-label="Packs">
+			{/* What the user typed (ADR 0002 decision 2). */}
 			<input
 				type="search"
-				class="pack-browser-search"
+				class={`pack-browser-search ${MASK_CONTENT}`}
 				placeholder="Search packs"
 				aria-label="Search packs"
 				value={packFilter().query}

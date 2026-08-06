@@ -324,10 +324,20 @@ setTimeout(() => { throw new Error("solid-groove deploy verification"); });
 
 Use `Promise.reject(new Error("solid-groove deploy verification"))` to exercise the `unhandledrejection` handler instead. This needs no application code: adding a "throw a test error" control to the product would be a permanent user-facing surface in exchange for a one-off check.
 
+**The `setTimeout` wrapper is load-bearing — do not simplify it to a bare `throw`.** Typing `throw new Error("...")` straight at the DevTools prompt prints a red "Uncaught Error" but dispatches **no** `window` `error` event: the REPL catches it as the evaluation's completion value. Our global handler never sees it, nothing is reported, and the console output is indistinguishable from a working throw that Sentry dropped. Deferring the throw makes it escape to the real `window.onerror`, which is the path a genuine error takes.
+
+**Allow ~30 seconds** for the issue to appear, and sort the feed by *Last Seen*. Measured against the production project on 2026-08-06, latency from throw to visible was around half a minute. Both of these traps were hit for real on 2026-08-06 and each, on its own, looks exactly like broken monitoring — check the throw form and wait out the latency before concluding anything was dropped.
+
 In Sentry, the issue should show:
 
 - the **release** equal to the deployed commit SHA, and *Deploys* listing the `alpha` deploy for it;
 - a **symbolicated stack trace** naming `src/` files and real line numbers — if frames are minified, the source-map upload did not run (check `SENTRY_AUTH_TOKEN` in the deploy log) or the debug IDs did not match;
+  - **A console throw cannot prove this.** Its stack is `<anonymous>:1:7` — there are no bundled frames, so there is nothing to symbolicate, and the issue will show no `src/` files however healthy the maps are. That is not a symbolication failure. To get real frames, trigger the error from *inside* deployed app code, so the stack passes through a bundled chunk. **Do not add a "throw" Easter egg to the product for this** — it would be a permanent user-reachable path shipped for a one-off check, could fire accidentally and pollute real crash data, and is the same trade-off rejected above.
+  - **Check the artifacts directly instead**, which needs no error at all and answers the same question:
+    ```sh
+    bunx sentry-cli releases files "<release-sha>" list --org "$SENTRY_ORG" --project "$SENTRY_PROJECT"
+    ```
+    Or read the `deploy` job log: `[sentry-vite-plugin] Info: Successfully uploaded source maps to Sentry`, preceded by a *Source Map Upload Report* pairing each `.js` with its `.map` and a shared **debug id**. Matching debug IDs are what symbolication actually resolves on — URLs and release names are not consulted. Verified present for release `9e109fee` in [run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815).
 - `area`, `error_code`, `fatal`, and `browser_*` tags, and a **redacted** message;
 - **no** `request`, `user`, `extra`, or `server_name`, and no console breadcrumbs.
 
@@ -352,7 +362,7 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 
 ### What has been verified against the hosted environment
 
-`OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`). What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
+`OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`), and the error-monitoring items were re-checked the same day against release **`e15ce13`** once [#174](https://github.com/afternoon/solid-groove/issues/174) was fixed. What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
 
 **Verified.**
 
@@ -362,17 +372,21 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 - **Analytics opt-out, both directions** — collection toggled off in the Privacy disclosure (no further events observed in GA4), then back on (collection resumed). The toggle is symmetric in practice, not just by construction.
 - **OPS-02 events arriving from the deployed build** — `session_start`, `first_visit`, `page_view`, `feature_first_use`, and `clip_edited` observed in GA4 with their expected parameters.
 - **No source map is publicly fetchable** — confirmed by request against the deployed chunks. Note the check must compare response *bodies*, not status codes; see "4. No source map is public" above for why a `200` here proves nothing.
-
-**Outstanding — do not treat as verified.**
-
-- **Error monitoring does not initialize on the deployed build.** A deliberately triggered uncaught error produces no Sentry issue. On `/dashboard` with consent granted, `window.__SENTRY__` is undefined, no `@sentry` vendor chunk is fetched, and no request reaches `ingest.us.sentry.io` — even though the DSN is present in the bundle and the sink code is deployed. Both documented gates (consent granted, non-landing surface reached) pass, so the cause is elsewhere and is not yet isolated; `startMonitoring`'s `catch {}` and `SentrySink.startInner`'s `if (!dsn) return false` both fail silently, which is part of why. Tracked as a defect against `FND-001c` ([issue #174](https://github.com/afternoon/solid-groove/issues/174)). Until it is fixed, **the alpha has no working error monitoring**, and the OPS-03 criteria that depend on it — symbolicated traces, release tagging, redaction, one-issue-per-error — are unverifiable rather than merely unverified.
-- **Internal-traffic exclusion** — `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded from the section 11 measures.
+- **Error monitoring initializes and delivers from the deployed build** — on release `e15ce13`, an uncaught error dispatched through the app's own global handler reached Sentry's ingest endpoint with **HTTP 200**, alongside the Release Health session envelope. Checked in a *hidden* tab specifically, which is where it used to fail: `window.__SENTRY__` is live, the `sentrySink-*` chunk is fetched, and `globalThis.__sgMonitoring` reads `"started"`. This supersedes the [#174](https://github.com/afternoon/solid-groove/issues/174) defect recorded here against `8336d9d`, whose cause was `afterFirstPaint` waiting on a `requestAnimationFrame` that a hidden document never fires (fixed in [#176](https://github.com/afternoon/solid-groove/pull/176)).
 
 **Descoped.**
 
 - **Computing the section 11 primary measure from real events** is deferred to post-alpha (`DEC-011`, PRD sections 11 and 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
+- **Inspecting a delivered error in the Sentry UI** is deferred to post-alpha (`DEC-012`). Delivery itself is verified above: an uncaught error reaches ingest with HTTP 200 from the deployed build, so a crash in front of a real user *is* reported. What is deferred is confirming what the resulting issue looks like — the release SHA on it, a **symbolicated** stack naming `src/` files, the expected tags, a redacted message, one-issue-per-error, and a crash-free session rate under *Releases → Health*. Each is a property of the Sentry console rather than of the app, and every one is already covered by unit tests against a fake SDK (`src/monitoring/sentrySink.test.ts`, `scrub.test.ts`).
+  - The half that fails silently in CI *is* confirmed: source maps uploaded for release `9e109fee` with debug IDs paired to every chunk ([run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815)). Symbolication resolves on those debug IDs, so the remaining risk is narrow.
+  - **The residual risk, stated plainly:** if scrubbing were misconfigured in a way the unit tests do not model, a real error could carry user content into Sentry before anyone notices. That is the one item here worth revisiting early, and it is why this is recorded as accepted rather than dismissed.
+- **Internal-traffic exclusion** is deferred to post-alpha (`DEC-012`). `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded. The effect is that alpha-period measures may be inflated by the team's own sessions — which matters for *reading* the numbers, not for whether the product works, and the primary measure those numbers feed is itself deferred (`DEC-011`). Re-verify alongside it.
 
-**Gate `G4.5: Hosted environment verified` remains closed** on the error-monitoring defect above. Deploy, rollback, and the analytics path are verified and can be relied on; error monitoring cannot. `HARD-005` invites the cohort on the strength of this gate, so it should not open while a crash in front of a real user would go unreported.
+Both deferrals are the same call: these are operator-console checks that were absorbing attention better spent building the core product experience, and both are cheap to run once the alpha is built. Neither blocks the cohort, and neither is a defect — see PRD section 16 (`DEC-012`).
+
+**Gate `G4.5: Hosted environment verified` is open** (2026-08-06). Everything the gate exists to protect has been observed against the hosted environment: the app deploys from CI, rolls back and forward, serves no source maps, collects analytics with a working opt-out, and reports uncaught errors to Sentry. `HARD-005` invites the cohort on the strength of this gate, and each of those is what a real alpha user depends on.
+
+The two remaining checks are deferred by decision (`DEC-012`), not left unfinished, and neither affects a cohort session: one is how a delivered error *renders* in the Sentry console, the other is whose traffic the measures count. Both are recorded above with their residual risk.
 
 ## Test helpers
 

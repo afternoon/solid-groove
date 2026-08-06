@@ -16,6 +16,7 @@ import {
 } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import AssetRow from "./AssetRow";
 import type { PreviewEngine } from "./audition";
 import type { LibraryClient } from "./libraryClient";
@@ -120,9 +121,11 @@ export default function LibraryBrowser(
 		<section class="library-browser" aria-label="Library">
 			<header class="library-browser-header">
 				<h2 class="library-browser-title">Library</h2>
+				{/* What the user typed (ADR 0002 decision 2; PRD OPS-03 forbids a
+				    user-entered string in a payload). */}
 				<input
 					type="search"
-					class="library-search"
+					class={`library-search ${MASK_CONTENT}`}
 					placeholder="Search sounds"
 					aria-label="Search sounds"
 					value={browser.treeQuery()}

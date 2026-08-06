@@ -23,9 +23,11 @@ const ROW_METRICS = { trackHeightPx: 28, headerHeightPx: 28 };
  */
 function fakeContext(): CanvasRenderingContext2D & {
 	fillRectCalls: number;
+	strokeRectCalls: number;
 	moveToXs: number[];
 } {
 	const fillRectSpy = vi.fn();
+	const strokeRectSpy = vi.fn();
 	const moveToXs: number[] = [];
 	const ctx = {
 		setTransform: vi.fn(),
@@ -33,7 +35,9 @@ function fakeContext(): CanvasRenderingContext2D & {
 		fillRect: (x: number, _y: number, _w: number, _h: number) => {
 			fillRectSpy(x);
 		},
-		strokeRect: vi.fn(),
+		strokeRect: (x: number, _y: number, _w: number, _h: number) => {
+			strokeRectSpy(x);
+		},
 		beginPath: vi.fn(),
 		moveTo: (x: number) => {
 			moveToXs.push(x);
@@ -50,10 +54,14 @@ function fakeContext(): CanvasRenderingContext2D & {
 		get fillRectCalls() {
 			return fillRectSpy.mock.calls.length;
 		},
+		get strokeRectCalls() {
+			return strokeRectSpy.mock.calls.length;
+		},
 		moveToXs,
 	};
 	return ctx as unknown as CanvasRenderingContext2D & {
 		fillRectCalls: number;
+		strokeRectCalls: number;
 		moveToXs: number[];
 	};
 }
@@ -129,6 +137,7 @@ describe("drawInteractionLayer", () => {
 			playheadTicks: TICKS_PER_BAR * 2,
 			selection: null,
 			hoverPlacementId: null,
+			selectedPlacementIds: new Set(),
 		});
 		// The playhead moveTo x is the tick converted to a pixel (0.08 px/tick).
 		const expectedX = Math.round(TICKS_PER_BAR * 2 * 0.08) + 0.5;
@@ -141,8 +150,23 @@ describe("drawInteractionLayer", () => {
 			playheadTicks: null,
 			selection: null,
 			hoverPlacementId: null,
+			selectedPlacementIds: new Set(),
 		});
 		expect(env.ctx.clearRect).toHaveBeenCalledTimes(1);
 		expect(env.ctx.fillRectCalls).toBe(0);
+	});
+
+	it("draws a filled, thick-bordered highlight for a selected placement (ARR-002)", () => {
+		const env = envFor(baseViewport());
+		const [placementId] = env.projection.placementsById.keys();
+		if (!placementId) throw new Error("fixture has no placement");
+		drawInteractionLayer(env, {
+			playheadTicks: null,
+			selection: null,
+			hoverPlacementId: null,
+			selectedPlacementIds: new Set([placementId]),
+		});
+		expect(env.ctx.fillRectCalls).toBeGreaterThan(0);
+		expect(env.ctx.strokeRectCalls).toBeGreaterThan(0);
 	});
 });

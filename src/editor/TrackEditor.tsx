@@ -8,6 +8,7 @@ import type {
 import type { Clip, Instrument, Project } from "../domain/entities";
 import type { EventId, TrackId } from "../domain/ids";
 import type { SampleChoice } from "../instrument/SamplerPanel";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import InstrumentPanel from "./InstrumentPanel";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepEditor from "./StepEditor";
@@ -58,7 +59,8 @@ export default function TrackEditor(props: TrackEditorProps) {
 	return (
 		<div class="track-editor">
 			<div class="track-info">
-				<span class="track-name">{props.trackName}</span>
+				{/* The track's name, chosen by the user (ADR 0002 decision 2). */}
+				<span class={`track-name ${MASK_CONTENT}`}>{props.trackName}</span>
 				<Show when={props.packDependencyLabel}>
 					<span class="pack-dependency">Pack: {props.packDependencyLabel}</span>
 				</Show>
