@@ -18,7 +18,6 @@ import {
 	SAMPLER_SAMPLE_END,
 	SAMPLER_SAMPLE_START,
 } from "../domain/parameters";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import FillSlider from "./FillSlider";
 import { formatInstrumentValue } from "./formatValue";
 import "./InstrumentPanel.css";
@@ -92,9 +91,7 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 	return (
 		<section class="instrument-panel sampler-panel" aria-label="Sampler">
 			<div class="instrument-panel-groups">
-				{/* The loaded sample's name and the whole picker of names it could be
-				    replaced with — project-derived either way (ADR 0002 decision 2). */}
-				<div class={`instrument-panel-group ${MASK_CONTENT}`}>
+				<div class="instrument-panel-group">
 					<h3 class="instrument-panel-heading">Sample</h3>
 					<p class="sampler-sample-name">
 						{props.sampleName ?? "No sample loaded"}

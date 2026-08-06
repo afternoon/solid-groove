@@ -122,14 +122,14 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 			>
 				<For each={props.projects}>
 					{(project) => (
-						/* The whole card is masked rather than just the title: the rename
-						   input, the delete confirmation, and every aria-label in here
-						   interpolate the project's name (ADR 0002 decision 2). */
-						<div class={`project-card ${MASK_CONTENT}`}>
+						<div class="project-card">
 							<Show
 								when={renamingId() === project.id}
 								fallback={
-									<p class="project-title">
+									/* The project's name, chosen by the user. The card around
+									   it — dates, badges, actions — stays legible (ADR 0002
+									   decision 2). */
+									<p class={`project-title ${MASK_CONTENT}`}>
 										<A href={`/projects/${project.id}`}>{project.name}</A>
 									</p>
 								}
@@ -141,8 +141,9 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 										void saveRename(project.id);
 									}}
 								>
+									{/* The name being typed (ADR 0002 decision 2). */}
 									<input
-										class="project-rename-input"
+										class={`project-rename-input ${MASK_CONTENT}`}
 										type="text"
 										value={draftName()}
 										maxLength={120}

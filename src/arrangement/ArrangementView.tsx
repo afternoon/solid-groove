@@ -21,7 +21,7 @@ import type {
 import type { Project } from "../domain/entities";
 import { createIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
-import { BLOCK_CONTENT, MASK_CONTENT } from "../monitoring/replayPrivacy";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import {
 	type ArrangementShell,
@@ -499,9 +499,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				/>
 			</Show>
 			<div class="arrangement-body">
-				{/* Track names, and the aria-labels built from them. */}
 				<div
-					class={`arrangement-headers ${MASK_CONTENT}`}
+					class="arrangement-headers"
 					style={{ width: `${HEADER_WIDTH_PX}px` }}
 				>
 					<div class="arrangement-headers-ruler-spacer" />
@@ -527,7 +526,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 										class="arrangement-header-swatch"
 										style={{ background: track.color }}
 									/>
-									<span class="arrangement-header-name">{track.name}</span>
+									{/* The track's name, chosen by the user. The row around it
+									    stays visible, so a replay still shows which track was
+									    clicked (ADR 0002 decision 2). */}
+									<span class={`arrangement-header-name ${MASK_CONTENT}`}>
+										{track.name}
+									</span>
 								</li>
 							)}
 						</For>
@@ -543,12 +547,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
 					<div class="arrangement-spacer" style={spacerStyle()} />
-					{/* Blocked, not masked: these pixels *are* the arrangement — clip
-					    names and waveforms are drawn into them, and masking only
-					    touches DOM text. Canvas capture is off globally in
-					    `sentrySink.ts`; this is the marking that still holds if that
-					    is ever turned on (ADR 0002 decision 2). */}
-					<div class={`arrangement-canvas-stack ${BLOCK_CONTENT}`}>
+					{/* Not blocked. Clip names and waveforms are drawn here, but canvas
+					    capture is off globally in `sentrySink.ts`, which is what keeps
+					    those pixels out of the payload. Blocking as well would buy
+					    nothing and would replace the arrangement with a grey box. */}
+					<div class="arrangement-canvas-stack">
 						<canvas class="arrangement-layer" ref={backgroundCanvas} />
 						<canvas class="arrangement-layer" ref={contentCanvas} />
 						<canvas
@@ -572,18 +575,22 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				</div>
 			</div>
 			{/* Accessible mirror: the visible tracks and the current selection as
-			    real DOM, so assistive tech never has to read canvas pixels. Being
-			    visually hidden is not being un-captured — this is real text in the
-			    DOM and it carries track names, so it is masked like any other. */}
-			<div class={`visually-hidden ${MASK_CONTENT}`}>
-				<p aria-live="polite" data-testid="arrangement-selection-live">
+			    real DOM, so assistive tech never has to read canvas pixels. Both
+			    lists below are made entirely of track names — visually hidden is not
+			    un-captured, so they are masked like any other name. */}
+			<div class="visually-hidden">
+				<p
+					class={MASK_CONTENT}
+					aria-live="polite"
+					data-testid="arrangement-selection-live"
+				>
 					<Show when={selectionSummary()} fallback="No selection">
 						{(summary) =>
 							`Selected ${summary().trackName}, bars ${summary().startBar} to ${summary().endBar}`
 						}
 					</Show>
 				</p>
-				<ul aria-label="Arrangement tracks">
+				<ul class={MASK_CONTENT} aria-label="Arrangement tracks">
 					<For each={headerRows()}>
 						{(track) => (
 							<li>

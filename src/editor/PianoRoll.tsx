@@ -22,7 +22,6 @@ import type { Clip, NoteEvent, Project } from "../domain/entities";
 import { createFactoryContext, createNoteEvent } from "../domain/factories";
 import type { EventId } from "../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import PianoRollNote from "./PianoRollNote";
 import PianoRollToolbar from "./PianoRollToolbar";
 import {
@@ -542,12 +541,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 	}
 
 	return (
-		/* The clip's name is in this section's own accessible name, and the notes
-		   inside it are the user's music rendered as DOM (ADR 0002 decision 2). */
-		<section
-			class={`piano-roll ${MASK_CONTENT}`}
-			aria-label={`Piano roll: ${props.clip.name}`}
-		>
+		<section class="piano-roll" aria-label={`Piano roll: ${props.clip.name}`}>
 			<PianoRollToolbar
 				selectionCount={selection().size}
 				duplicateSelection={duplicateSelection}

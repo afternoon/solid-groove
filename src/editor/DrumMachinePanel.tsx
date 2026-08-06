@@ -13,7 +13,6 @@ import {
 import type { Asset, DrumPad, Track } from "../domain/entities";
 import type { AssetId, PadId } from "../domain/ids";
 import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import "./DrumMachinePanel.css";
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
@@ -108,8 +107,7 @@ export default function DrumMachinePanel(
 							<span class="pad-name">{pad.name}</span>
 						</button>
 
-						{/* Every asset name the pad could load (ADR 0002 decision 2). */}
-						<label class={`pad-control pad-sample ${MASK_CONTENT}`}>
+						<label class="pad-control pad-sample">
 							<span class="pad-control-label">Sample</span>
 							<select
 								value={pad.assetId ?? ""}

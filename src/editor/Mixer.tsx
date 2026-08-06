@@ -231,13 +231,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 	const panValue = () => props.track.mixer.pan;
 
 	return (
-		/* Masked whole rather than at the name input alone: every button in this
-		   strip interpolates the track's name into its `aria-label`, which is the
-		   accessible name a replay reads (ADR 0002 decision 2). */
-		<div
-			class={`mixer-strip ${MASK_CONTENT}`}
-			classList={{ muted: props.track.mixer.muted }}
-		>
+		<div class="mixer-strip" classList={{ muted: props.track.mixer.muted }}>
 			<div class="mixer-strip-head">
 				<span
 					class="mixer-strip-chip"
@@ -247,9 +241,11 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				<label class="visually-hidden" for={`track-name-${props.track.id}`}>
 					Track name
 				</label>
+				{/* The track's name, typed here (ADR 0002 decision 2). The rest of the
+				    strip stays visible — that is the mixing replay exists to observe. */}
 				<input
 					id={`track-name-${props.track.id}`}
-					class="mixer-strip-name"
+					class={`mixer-strip-name ${MASK_CONTENT}`}
 					type="text"
 					value={props.track.name}
 					onChange={(event) => {

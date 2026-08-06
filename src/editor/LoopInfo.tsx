@@ -2,7 +2,6 @@ import { HiSolidArrowsRightLeft, HiSolidMusicalNote } from "solid-icons/hi";
 import { type JSX, Show } from "solid-js";
 import type { Asset, Clip } from "../domain/entities";
 import { ticksToBars } from "../domain/time";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import "./LoopInfo.css";
 
 export interface LoopInfoProps {
@@ -80,12 +79,7 @@ export default function LoopInfo(props: LoopInfoProps): JSX.Element {
 									</span>
 								}
 							>
-								{/* The asset this project resolved to (ADR 0002 decision 2). */}
-								{(asset) => (
-									<span class={`loop-asset ${MASK_CONTENT}`}>
-										{asset().name}
-									</span>
-								)}
+								{(asset) => <span class="loop-asset">{asset().name}</span>}
 							</Show>
 						</div>
 						<dl class="loop-info-facts">

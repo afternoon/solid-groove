@@ -23,7 +23,6 @@ import { createFactoryContext } from "../domain/factories";
 import type { EventId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
 	barCount,
 	isBarStart,
@@ -277,12 +276,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 			>
 				<For each={lanes()}>
 					{(lane) => (
-						/* Lane names come from the track's drum pads or its asset, which
-						   are project-derived (ADR 0002 decision 2). */
-						<fieldset
-							class={`step-lane ${MASK_CONTENT}`}
-							aria-label={`Lane ${lane.name}`}
-						>
+						<fieldset class="step-lane" aria-label={`Lane ${lane.name}`}>
 							<div class="step-lane-name" title={lane.name}>
 								{lane.name}
 							</div>
