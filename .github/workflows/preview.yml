@@ -1,0 +1,218 @@
+name: PR preview
+
+# Opt-in, per-pull-request preview deploys onto a Firebase Hosting *preview
+# channel* (see docs/testing.md, "Per-PR preview deploys").
+#
+# A preview channel is an extra Hosting release inside the *same* Firebase
+# project, served from its own URL
+# (`https://<project-id>--pr-<n>-<hash>.web.app`) and expiring on its own. Only
+# Hosting is per-channel: Firestore, Authentication, and Storage are
+# project-level, so a preview runs against the **live production backend**.
+# That is the point -- a reviewer sees the branch against real data -- and it is
+# also the whole risk surface, which is why this is deliberately not automatic:
+#
+#  - It is gated on the `deploy-preview` label, so a PR previews only when a
+#    maintainer asks for one. This workflow, not `ci.yml`, owns that label so
+#    that adding it does not cancel and restart the whole CI matrix (`ci.yml`
+#    cancels superseded runs per ref).
+#  - Labelling a PR runs *its* code with the production deploy credential in
+#    scope. Read the diff before labelling; that review is the only control
+#    here, exactly as it is for anything else that reaches production.
+#  - Rules and indexes are **not** deployed -- a preview always runs against
+#    production's current `firestore.rules` and `storage.rules`. A PR that
+#    changes rules cannot be proven this way; that is the emulator suite's job
+#    (`bun run test:emulator`), and keeping rules out of here is deliberate:
+#    an unreviewed branch must not be able to relax production's access rules.
+#
+# Deliberately separate from `ci.yml`: this workflow deploys, and the two have
+# different triggers, different concurrency, and different failure meanings.
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Build the PR and publish it to the channel `pr-<number>`. Re-runs on every
+  # push while the label is on, reusing the same channel and therefore the same
+  # URL, so a review thread's link never goes stale.
+  preview:
+    name: deploy preview channel
+    if: >-
+      github.event.action != 'closed' &&
+      contains(github.event.pull_request.labels.*.name, 'deploy-preview')
+    runs-on: ubuntu-latest
+    # The production Firebase project is what a preview channel lives in, so
+    # this job needs exactly the values `ci.yml`'s `deploy` job reads, from the
+    # same GitHub environment. Nothing new to configure beyond the service
+    # account's Authentication permission (see docs/testing.md). If `prod` ever
+    # gains protection rules, previews queue for approval too -- which is a
+    # reasonable place to want a second pair of eyes, not a problem to work
+    # around.
+    environment: prod
+    # Per PR, and cancellable: unlike a production deploy, a superseded preview
+    # has no value and the next push is about to replace it.
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Same handling as the `deploy` job: runner-local for the life of the
+      # job, never committed, never logged.
+      - name: Write the deploy service account credential
+        run: printf '%s' "$FIREBASE_DEPLOY_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-deploy-service-account.json"
+        env:
+          FIREBASE_DEPLOY_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_DEPLOY_SERVICE_ACCOUNT }}
+
+      # Not `bun run deploy`: that command ships Hosting *and* rules to the live
+      # channel. The `predeploy` hook's three steps are spelled out here instead,
+      # because npm lifecycle hooks only fire for the script they are attached
+      # to, and a preview that skipped `verify:client-config` would deploy the
+      # `auth/invalid-api-key` failure that check exists to catch.
+      #
+      # `VITE_RELEASE_SHA` is the PR head commit rather than `github.sha`, which
+      # on a `pull_request` event is the ephemeral merge commit and identifies
+      # nothing a reviewer can check out.
+      #
+      # Two build inputs the `deploy` job sets are deliberately omitted:
+      # `VITE_FIREBASE_MEASUREMENT_ID` and `VITE_SENTRY_DSN`. With them unset,
+      # `loadAnalytics()` resolves `null` and `sentrySink.start()` resolves
+      # false, so a preview reports no GA4 events and no Sentry errors instead
+      # of mixing unreviewed branch traffic into production's product analytics
+      # and error budget. The three `SENTRY_*` build-time values are omitted for
+      # the same reason: a preview must not register a Sentry release.
+      - name: Build and verify
+        run: bun run build && bun run verify:bundle && bun run verify:client-config
+        env:
+          VITE_RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_PROJECT_ID }}.firebaseapp.com
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_PROJECT_ID }}.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+
+      # `hosting:channel:deploy` publishes the Hosting output and nothing else --
+      # there is no rules or index step to opt out of -- which is what keeps
+      # production's rules and indexes untouched by an unreviewed branch.
+      #
+      # The CLI also syncs the new channel URL into Firebase Authentication's
+      # authorized-domain list, which is what lets `signInWithPopup` work on a
+      # preview. That sync needs the Authentication permission on the deploy
+      # service account (docs/testing.md); without it the deploy still succeeds
+      # and anonymous start -- the app's own entry path -- still works, so it is
+      # not gated on here.
+      - name: Deploy to the preview channel
+        id: channel
+        run: |
+          set -euo pipefail
+          bunx firebase hosting:channel:deploy "pr-${PR_NUMBER}" \
+            --expires 7d \
+            --project "$FIREBASE_PROJECT_ID" \
+            --non-interactive \
+            --json > "$RUNNER_TEMP/channel.json"
+          # The result object is keyed by site (`{"result":{"hosting:<site>":
+          # {"url":...}}}`), so pull the first `url` anywhere in it rather than
+          # pinning this to one CLI version's exact JSON shape.
+          url="$(jq -r 'first(.. | objects | .url? | strings) // empty' "$RUNNER_TEMP/channel.json")"
+          if [ -z "$url" ]; then
+            echo "Could not read a preview URL out of the deploy result:" >&2
+            cat "$RUNNER_TEMP/channel.json" >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Preview: $url" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-deploy-service-account.json
+
+      # Before the smoke test, so a reviewer gets the URL even when the smoke
+      # test then fails -- a broken preview is still worth looking at. Edits the
+      # previous comment where there is one, so a long-lived PR collects one
+      # comment rather than one per push.
+      - name: Comment the preview URL on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          URL: ${{ steps.channel.outputs.url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          body=$(cat <<EOF
+          ### Preview deploy
+
+          $URL
+
+          Firebase Hosting preview channel \`pr-$PR_NUMBER\`, built from \`$HEAD_SHA\`, expires in 7 days.
+
+          It runs against the **live production** Firestore, Authentication, and Storage: anything you create in it is real data in the real project. Security rules and indexes are production's current ones, not this branch's — a rules change cannot be reviewed here.
+          EOF
+          )
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --edit-last --body "$body" \
+            || gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+
+      - name: Install Playwright browser (chromium) for the preview smoke test
+        run: bunx playwright install --with-deps chromium
+      # The same PRD OPS-01 smoke test the `deploy` job runs, pointed at the
+      # channel URL: it is the only check that the preview actually starts a
+      # session and plays audio, which no build-time verification can prove.
+      # It signs in anonymously and creates a project, so each preview deploy
+      # leaves one real anonymous project in the production database -- the
+      # same cost the production deploy already pays per merge, and the reason
+      # previews are opt-in rather than automatic.
+      - name: Smoke test the preview URL
+        run: bun run smoke:hosted
+        env:
+          SMOKE_URL: ${{ steps.channel.outputs.url }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: preview-smoke-test-report
+          path: playwright-report/
+          retention-days: 7
+
+  # Channels expire on their own, but a merged or abandoned PR should not leave
+  # a live URL serving code that no longer exists for up to a week -- especially
+  # one wired to the production backend.
+  cleanup:
+    name: delete the preview channel
+    if: >-
+      github.event.action == 'closed' &&
+      contains(github.event.pull_request.labels.*.name, 'deploy-preview')
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Write the deploy service account credential
+        run: printf '%s' "$FIREBASE_DEPLOY_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-deploy-service-account.json"
+        env:
+          FIREBASE_DEPLOY_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_DEPLOY_SERVICE_ACCOUNT }}
+      # Non-fatal: the channel may already have expired, or the label may have
+      # been applied without a preview ever being deployed. Neither is a
+      # failure, but both should stay visible in the run rather than be
+      # swallowed by a `|| true`.
+      - name: Delete the channel
+        continue-on-error: true
+        run: |
+          bunx firebase hosting:channel:delete "pr-${PR_NUMBER}" \
+            --force \
+            --project "$FIREBASE_PROJECT_ID" \
+            --non-interactive
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-deploy-service-account.json

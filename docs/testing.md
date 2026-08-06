@@ -168,6 +168,8 @@ bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gat
 5. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
 6. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops.
 
+`.github/workflows/preview.yml` is a second, separate workflow: it publishes a PR to a Firebase Hosting preview channel, but only when that PR carries the `deploy-preview` label. See "Per-PR preview deploys" under "Deploy" below.
+
 None of `checks`, `browser`, `browser-emulator`, or `emulator` touch the production Firebase project: `browser` drives the in-memory mock backend (`VITE_DEV_BACKEND=mock`, see "Browser E2E suite" above), and `browser-emulator`/`emulator` each drive their own local, disposable Firestore (+ Auth) instance. That separation is structural, not a convention to remember — neither job is ever given the production project's credentials, so there is nothing for them to write to even by mistake (PRD `OPS-01`: "Local development and every automated suite continue to run against the Firebase Emulator suite ... the test suites must not write to it").
 
 ## Deploy
@@ -182,6 +184,8 @@ Related: [PRD `OPS-01`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 
 ### The single hosted environment
 
 The alpha has exactly one hosted environment: the **production** Firebase project. This is a deliberate PRD decision (section 16), not a gap — there is no separate staging/preview project, so every merge to `main` that reaches the `deploy` job ships straight to the environment the invited cohort uses. That is also why the deploy pipeline runs entirely from CI credentials rather than ever being something a developer machine can trigger (PRD OPS-01: "Deployment does not depend on a developer's local machine state").
+
+The per-PR previews below do not change that. A preview channel is an extra Hosting release *inside the same production project*, not a second environment: it has its own URL and its own expiry, but its Firestore, Authentication, and Storage are production's. So PRD section 16's open question — when the alpha stops deploying only to production, and what triggers a separate staging or preview *environment* — is still open, and previews are not an answer to it.
 
 ### One documented command
 
@@ -219,6 +223,23 @@ Required GitHub Actions configuration, all of it scoped to the **`prod` environm
 | `SENTRY_ORG` | Environment **variable** | Sentry organization slug. Not sensitive. |
 | `SENTRY_PROJECT` | Environment **variable** | Sentry project slug. Not sensitive. |
 | `SENTRY_AUTH_TOKEN` | Environment **secret** | Creates releases and uploads source maps (`project:releases`, `org:read`). This is the one genuinely secret Sentry value — it can rewrite what your error data says. **CI only**: it never belongs in a developer `.env`, and `verify:bundle` fails the build if it ever appears in the output. |
+
+### Per-PR preview deploys
+
+`.github/workflows/preview.yml` publishes a pull request to a **Firebase Hosting preview channel** — an extra Hosting release inside the same production project, served from `https://<project-id>--pr-<n>-<hash>.web.app` and expiring after 7 days. It is a separate workflow from `ci.yml` because it deploys, and because owning the `labeled` trigger there would make adding any label cancel and restart the whole CI matrix.
+
+**It is opt-in.** Add the `deploy-preview` label to a PR and it deploys; push again with the label on and the same channel is reused, so the URL in the review thread never goes stale. Remove the label (or never add it) and nothing happens. Closing the PR deletes the channel.
+
+**What a preview shares with production, and what it doesn't.** Only Hosting is per-channel. Firestore, Authentication, and Storage are project-level, so a preview runs against the **live production backend** — which is the point (a reviewer sees the branch against real data) and also the entire risk surface:
+
+- **It writes real data.** Anything created in a preview is a real document in the production database, owned by whoever signed in. Rules are owner-scoped so the blast radius is that account, but a PR that changes a persistence or migration path is writing schema-v1 documents the cohort will later read. Previewing `src/persistence` changes deserves more thought than previewing a panel's styling.
+- **Rules and indexes are not deployed.** `hosting:channel:deploy` ships static files only, so a preview always runs against production's current `firestore.rules` and `storage.rules`, never the branch's. That is deliberate in both directions: an unreviewed branch must not be able to relax production's access rules, and a PR whose feature *needs* new rules cannot be proven this way — that stays the emulator suite's job (`bun run test:emulator`).
+- **Labelling runs the PR's code with the production deploy credential in scope.** Reading the diff before labelling is the only control, exactly as it is for anything else that reaches production. Treat the label as a deploy approval, not a convenience.
+- **It reports no analytics and no errors.** The job deliberately omits `VITE_FIREBASE_MEASUREMENT_ID`, `VITE_SENTRY_DSN`, and the three `SENTRY_*` build values, so `loadAnalytics()` resolves `null` and `sentrySink.start()` resolves false. Unreviewed branch traffic never lands in production's product analytics or error budget, and a preview never registers a Sentry release. The trade-off is the obvious one: a preview cannot be used to verify OPS-02/OPS-03 wiring — that is `OPS-001`'s job against a real deploy.
+
+The job runs `bun run build && bun run verify:bundle && bun run verify:client-config` explicitly rather than `bun run deploy`, because `predeploy` only fires for the script it is attached to and `bun run deploy` would ship rules to the live channel. It then runs the same `smoke:hosted` suite against the channel URL — the only check that the preview actually starts a session and plays audio. That smoke test creates one anonymous project in the production database per preview deploy, the same cost a production deploy already pays per merge.
+
+**Configuration.** The job declares `environment: prod` and reads exactly the values the `deploy` job already needs (table above) — there is nothing new to add. Two one-time steps: create the `deploy-preview` label on the repository (Issues → Labels), since a label that does not exist cannot be applied; and grant the IAM role below. One IAM note: the Firebase CLI also syncs each new channel URL into Firebase Authentication's authorized-domain list, which is what makes `signInWithPopup` (Google sign-in) work on a preview. That sync needs the deploy service account to hold Firebase Authentication admin permission in addition to its Hosting/rules permissions. Without it the deploy still succeeds and anonymous start — the app's own entry path — still works, so it is not gated on; Google sign-in on the preview URL is what breaks.
 
 ### Release SHA
 

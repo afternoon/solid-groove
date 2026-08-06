@@ -84,6 +84,12 @@ an omission.
       part 4 as the real check, and read the failure rather than guessing if it
       is short. `roles/firebase.developAdmin` is the broader fallback if you would
       rather not tune it during an outage.
+- [ ] Add `roles/firebaseauth.admin` if per-PR preview channels are in use
+      (`.github/workflows/preview.yml`). The Firebase CLI syncs each new channel
+      URL into Authentication's authorized-domain list, which is what makes
+      Google sign-in work on a preview URL; without this role the preview still
+      deploys and anonymous start still works, and only `signInWithPopup` fails
+      there. Not needed for the production `deploy` job itself.
 - [ ] Create a JSON key for it and keep it somewhere you can paste from once.
       It goes into a GitHub secret in part 3 and nowhere else — never into a
       developer `.env`, never into the repo. `.gitignore` already covers the
@@ -329,4 +335,9 @@ feature set, so the event list to confirm in part 5 is every Alpha Milestone 0,
   disclosure hook either way, but the cohort must not be invited (`HARD-005`)
   before it is settled.
 - **A staging environment.** There isn't one, on purpose (PRD section 16). If
-  that decision changes, it changes the PRD first.
+  that decision changes, it changes the PRD first. Per-PR Hosting *preview
+  channels* (`.github/workflows/preview.yml`) are not one: they are extra
+  Hosting releases inside this same project, sharing its live Firestore, Auth,
+  and Storage. They need no extra provisioning here beyond the
+  `roles/firebaseauth.admin` grant noted under "The deploy service account" —
+  see [`docs/testing.md`](../testing.md), "Per-PR preview deploys".
