@@ -466,19 +466,26 @@ describe("Mixer track selection (#228)", () => {
 		).toContain("selected");
 	});
 
-	it("selects a track when any of its controls is pressed", () => {
+	it("leaves every other control on the strip working", () => {
+		// Selection used to be a `pointerdown` handler on the whole strip. WebKit
+		// fires no click at all when mousedown and mouseup land on different
+		// elements, so the re-render that handler caused swallowed the delete
+		// button's own click (`e2e/mixer.spec.ts`, WebKit only). Nothing on the
+		// strip may cost a control its press.
 		const { history, selected } = renderMixer(
 			createDrumMachineFixtureProject(),
 		);
-		const breakTrack = history.project.song.tracks[1];
+		const withClips = history.project.song.tracks[0];
 
-		// A fader drag selects before it moves, so the panel you are about to
-		// adjust is already the one on screen.
-		fireEvent.pointerDown(
-			screen.getByLabelText(`Volume for ${breakTrack.name}`),
-		);
+		const del = screen.getByRole("button", {
+			name: `Delete ${withClips.name}`,
+		});
+		fireEvent.pointerDown(del);
+		fireEvent.click(del);
 
-		expect(selected).toEqual([breakTrack.id]);
+		expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+		// ...and pressing it selected nothing: only the Edit control does that.
+		expect(selected).toEqual([]);
 	});
 
 	it("counts selecting a track as mixer use, with no event of its own", () => {

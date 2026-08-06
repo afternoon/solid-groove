@@ -293,13 +293,9 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 	const panValue = () => props.track.mixer.pan;
 
 	return (
-		// Touching a strip anywhere — its fader, its mute, its name — is working
-		// on that track, so it points the editor there too (#228). `pointerdown`
-		// rather than `click`, so a fader drag selects before it moves.
 		<div
 			class="mixer-strip"
 			classList={{ muted: props.track.mixer.muted, selected: props.selected }}
-			onPointerDown={() => props.onSelect()}
 		>
 			<div class="mixer-strip-head">
 				{/* The colour chip is also the keyboard route to selecting a track:
@@ -309,11 +305,20 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				    for selecting a bar range, and two controls with one name would
 				    leave a screen reader — and `CF-002`, which clicks it by that
 				    name — unable to tell them apart. */}
+				{/* Selecting a track is this one control, next to its name, rather
+				    than a click anywhere on the strip. A container-level handler
+				    reads nicer but has to fire on `pointerdown` to beat a fader
+				    drag, and WebKit fires no click at all when mousedown and
+				    mouseup land on different elements — so a re-render from that
+				    handler swallowed the delete button's own click
+				    (`e2e/mixer.spec.ts`). A real focusable control costs one
+				    deliberate click and breaks nothing under it. */}
 				<button
 					type="button"
 					class="mixer-strip-select"
 					aria-pressed={props.selected}
 					aria-label={`Edit ${props.track.name}`}
+					title={`Edit ${props.track.name}`}
 					onClick={() => props.onSelect()}
 				>
 					<span

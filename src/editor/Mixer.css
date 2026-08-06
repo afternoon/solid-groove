@@ -109,13 +109,21 @@
 	flex: 0 0 auto;
 	align-items: center;
 	justify-content: center;
-	padding: 2px;
+	/* Chip-sized plus a pointer-sized margin around it: the chip is 8px, which
+	   is a fine mark and a poor target. */
+	width: 18px;
+	height: 18px;
+	padding: 0;
 	border-radius: 0;
 	background-color: transparent;
 }
 
 .mixer-strip-select:hover {
 	background-color: var(--color-background-hover);
+}
+
+.mixer-strip-select[aria-pressed="true"] {
+	background-color: var(--color-accent, #20c8e8);
 }
 
 .mixer-strip-chip {
