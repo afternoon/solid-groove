@@ -170,17 +170,28 @@ const MASKED_NAMES: readonly {
 		anchor: "pack-browser-search",
 		renders: "the pack search the user typed",
 	},
+	{
+		file: "components/ConfirmDialog.tsx",
+		anchor: "confirm-dialog-title",
+		renders: "a project or track name in a delete confirmation",
+	},
 ];
 
 /**
  * Surfaces that stay unmarked, pinned so masking cannot creep back over them.
  *
  * Each is a container whose *contents* are the product — the arrangement's
- * clips, a mixer strip's faders, the piano roll's notes. None renders a
+ * clips, a mixer strip's faders, the piano roll's notes. Most render no
  * user-authored name directly; where one is nested inside, it carries its own
  * marking above. The literal `class="…"` is the assertion: re-broadening
  * masking to one of these means turning it into a template literal, and this
  * fails on that.
+ *
+ * `arrangement-canvas-stack` is the exception worth stating plainly. It *does*
+ * carry user-authored section names, drawn into the canvas by
+ * `arrangement/canvasRenderer.ts`, and ADR 0003 turns canvas capture on — so
+ * those names are recorded. Masking cannot reach inside a canvas anyway; the
+ * disclosure covers it instead of a mark that would do nothing.
  */
 const DELIBERATELY_UNMARKED: readonly {
 	readonly file: string;
@@ -221,6 +232,12 @@ const DELIBERATELY_UNMARKED: readonly {
 	{
 		file: "instrument/SamplerPanel.tsx",
 		literal: 'class="instrument-panel-group"',
+	},
+	// The title beside it *is* masked (see MASKED_NAMES). The message is fixed
+	// explanatory copy, and a delete confirmation is friction worth observing.
+	{
+		file: "components/ConfirmDialog.tsx",
+		literal: 'class="confirm-dialog-message"',
 	},
 ];
 

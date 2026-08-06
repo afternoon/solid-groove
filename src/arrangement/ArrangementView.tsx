@@ -547,10 +547,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
 					<div class="arrangement-spacer" style={spacerStyle()} />
-					{/* Not blocked. Clip names and waveforms are drawn here, but canvas
-					    capture is off globally in `sentrySink.ts`, which is what keeps
-					    those pixels out of the payload. Blocking as well would buy
-					    nothing and would replace the arrangement with a grey box. */}
+					{/* Not blocked, and — since ADR 0003 — deliberately recorded. Canvas
+					    capture is on, so clip blocks, notes, waveforms, and the section
+					    names drawn here all reach the payload. That is the decision, not
+					    an oversight: dragging a clip edge and placing a note are the
+					    interactions replay exists to show, and blocking this stack is
+					    what made the arrangement a grey box. Masking does not reach
+					    inside a canvas, so nothing here is half-protected — the
+					    disclosure says so instead. */}
 					<div class="arrangement-canvas-stack">
 						<canvas class="arrangement-layer" ref={backgroundCanvas} />
 						<canvas class="arrangement-layer" ref={contentCanvas} />
