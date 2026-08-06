@@ -99,10 +99,15 @@ Two mechanics make this work, and neither belongs in a test:
   the revision this repo's pin asks for, so Playwright's own lookup misses a
   binary that is sitting right there. Unset — CI, and any normal machine — the
   configs are unchanged.
-- **`.claude/hooks/session-start.sh`** sets it, installs dependencies, and
-  configures the null ALSA device, so an agent session starts with a working
-  Chromium rather than diagnosing three environment failures that all look like
-  code defects.
+- **`.claude/hooks/session-start.sh`** sets it and configures the null ALSA
+  device, so an agent session starts with a working Chromium rather than
+  diagnosing three environment failures that all look like code defects. It is
+  synchronous because both steps are ordering-sensitive — `$CLAUDE_ENV_FILE` is
+  read as the session starts, and an agent may run `bun run test` a second
+  later. Both cost milliseconds. `.claude/hooks/session-start-deps.sh` runs
+  `bun install` asynchronously, since that is the only slow step and nothing
+  races it except a command run in the session's first seconds; the synchronous
+  hook prints a notice saying to wait and retry if one does.
 
 If you need Firefox locally to *debug* a Firefox-only CI failure, that is the
 case where the blocked CDN genuinely hurts — push-and-read-the-report is a poor

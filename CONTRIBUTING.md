@@ -83,10 +83,15 @@ these steps.
 
 In Claude Code on the web this is already done for you:
 `.claude/hooks/session-start.sh` writes the file at session start (only when the
-host has no `/dev/snd` and no ALSA config of its own), alongside `bun install`
-and the Playwright Chromium path. If an audio suite still fails this way, run
-the hook by hand — `CLAUDE_CODE_REMOTE=true ./.claude/hooks/session-start.sh` —
-rather than working around it.
+host has no `/dev/snd` and no ALSA config of its own), alongside the Playwright
+Chromium path. If an audio suite still fails this way, run the hook by hand —
+`CLAUDE_CODE_REMOTE=true ./.claude/hooks/session-start.sh` — rather than working
+around it.
+
+`bun install` is the one startup step that costs real time, so it runs
+asynchronously in `.claude/hooks/session-start-deps.sh` and the session does not
+wait for it. A `bun`/`tsc` command that fails on missing modules in the first
+minute is that install still running, not a broken checkout.
 
 **This applies to `bun run test` only — not to the browser suites.** The problem
 is specific to `node-web-audio-api` under Node, whose `cpal` backend refuses to
