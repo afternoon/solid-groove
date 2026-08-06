@@ -324,6 +324,8 @@ setTimeout(() => { throw new Error("solid-groove deploy verification"); });
 
 Use `Promise.reject(new Error("solid-groove deploy verification"))` to exercise the `unhandledrejection` handler instead. This needs no application code: adding a "throw a test error" control to the product would be a permanent user-facing surface in exchange for a one-off check.
 
+**The `setTimeout` wrapper is load-bearing — do not simplify it to a bare `throw`.** Typing `throw new Error("...")` straight at the DevTools prompt prints a red "Uncaught Error" in the console but dispatches **no** `window` `error` event: the REPL catches it as the evaluation's completion value. Our global handler therefore never sees it, nothing is reported, and the console output looks identical to a working throw that Sentry dropped. Deferring the throw with `setTimeout` makes it escape to the real `window.onerror`, which is the path a genuine error takes. This cost a full debugging session on 2026-08-06 — a bare console `throw` was read as "error monitoring is broken on the deployed build" and filed as a defect ([issue #174](https://github.com/afternoon/solid-groove/issues/174), closed as not-a-bug) before the same build was shown to report correctly. If a test error does not arrive, check the throw form *before* suspecting the pipeline.
+
 In Sentry, the issue should show:
 
 - the **release** equal to the deployed commit SHA, and *Deploys* listing the `alpha` deploy for it;
@@ -362,17 +364,17 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 - **Analytics opt-out, both directions** — collection toggled off in the Privacy disclosure (no further events observed in GA4), then back on (collection resumed). The toggle is symmetric in practice, not just by construction.
 - **OPS-02 events arriving from the deployed build** — `session_start`, `first_visit`, `page_view`, `feature_first_use`, and `clip_edited` observed in GA4 with their expected parameters.
 - **No source map is publicly fetchable** — confirmed by request against the deployed chunks. Note the check must compare response *bodies*, not status codes; see "4. No source map is public" above for why a `200` here proves nothing.
+- **Error monitoring, end to end** (verified 2026-08-06 against release `9e109fee`). On a project page with consent granted, the lazy `sentrySink` chunk is fetched, the SDK (`sentry.javascript.solidstart` 10.68.0) loads, and the app binds its own client with the deployed commit SHA as `release`, `environment: alpha`, the configured DSN, and the ADR 0001 integration set (`BrowserSession`, `Dedupe`, `Breadcrumbs`). An uncaught error thrown via `setTimeout` reaches the global handler, survives `beforeSend` scrubbing, and produces exactly one `POST` to `ingest.us.sentry.io` returning `200`; the resulting issue appears in Sentry tagged **Unhandled**. Confirmed independently from a second browser outside the automation.
 
 **Outstanding — do not treat as verified.**
 
-- **Error monitoring does not initialize on the deployed build.** A deliberately triggered uncaught error produces no Sentry issue. On `/dashboard` with consent granted, `window.__SENTRY__` is undefined, no `@sentry` vendor chunk is fetched, and no request reaches `ingest.us.sentry.io` — even though the DSN is present in the bundle and the sink code is deployed. Both documented gates (consent granted, non-landing surface reached) pass, so the cause is elsewhere and is not yet isolated; `startMonitoring`'s `catch {}` and `SentrySink.startInner`'s `if (!dsn) return false` both fail silently, which is part of why. Tracked as a defect against `FND-001c` ([issue #174](https://github.com/afternoon/solid-groove/issues/174)). Until it is fixed, **the alpha has no working error monitoring**, and the OPS-03 criteria that depend on it — symbolicated traces, release tagging, redaction, one-issue-per-error — are unverifiable rather than merely unverified.
 - **Internal-traffic exclusion** — `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded from the section 11 measures.
 
 **Descoped.**
 
 - **Computing the section 11 primary measure from real events** is deferred to post-alpha (`DEC-011`, PRD sections 11 and 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
 
-**Gate `G4.5: Hosted environment verified` remains closed** on the error-monitoring defect above. Deploy, rollback, and the analytics path are verified and can be relied on; error monitoring cannot. `HARD-005` invites the cohort on the strength of this gate, so it should not open while a crash in front of a real user would go unreported.
+**Gate `G4.5: Hosted environment verified` is open.** Deploy, rollback, analytics, and error monitoring have each been observed working against the hosted environment. The one outstanding item — internal-traffic exclusion — affects the accuracy of the section 11 measures, not whether the alpha cohort's sessions work or their crashes are reported, so it does not hold the gate.
 
 ## Test helpers
 
