@@ -295,7 +295,9 @@ Report the same structured result as the original implementation, describing the
 
 const prPrompt = (t, impl) => `Open a pull request for branch ${impl.branch} into ${BASE_BRANCH}.
 
-Check the repository for a PR template and mirror its structure if one exists. Title it "${t.id} - ${t.title}". In the body, describe the change, link the task's PRD requirements, list the acceptance checkboxes met, and state that the branch passed an Opus review round in the implementation workflow.${
+Check the repository for a PR template and mirror its structure if one exists. Title it ${
+  t.issue ? `"Implement #${t.issue} (1/1): ${t.title}"` : `"Implement ${t.id} (1/1): ${t.title}"`
+} — that exact form, including the brackets and the colon; a task that ships as a single PR is still numbered \`(1/1)\`. In the body, describe the change, link the task's PRD requirements, list the acceptance checkboxes met, and state that the branch passed an Opus review round in the implementation workflow.${
   t.issue ? `\n\nInclude \`Closes #${t.issue}\` in the body so merging closes the task's issue.` : ''
 }
 

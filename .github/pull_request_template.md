@@ -1,4 +1,11 @@
 <!--
+  Title this PR "$ACTION #<issue> (i/N): Title" — $ACTION is Implement for a
+  feature task or Fix for a bug fix, #<issue> is the GitHub issue, and (i/N) is
+  this PR's 1-based position in its stack out of N (a single PR is (1/1)):
+
+      Implement #123 (2/3): Wire the step grid onto note commands
+      Fix #456 (1/1): Metronome fires a bar early after seek
+
   Fill in every section. Delete a section only when it genuinely does not apply
   (and say why). See CLAUDE.md "Task tracking and landing work" for the PR conventions.
 -->

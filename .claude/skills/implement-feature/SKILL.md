@@ -131,8 +131,12 @@ self-report is a claim.
    `main`. Confirm with `gh pr view <n> --json baseRefName,headRefName` for each.
 2. **Issue references.** Every PR body says `Refs #<n>` **except the last**,
    which says `Closes #<n>`. Exactly one PR closes the issue.
-3. **Stack position.** Each title ends with its position as `(i/n)` — `(1/3)`,
-   `(2/3)`, `(3/3)` — and each body names its place ("2/3, builds on #NNN").
+3. **Title format.** Every title reads `Implement #<issue> (i/N): Title` — the
+   action word, the issue number with its `#`, the PR's 1-based position in the
+   stack out of `N`, a colon, then what that slice does. A three-PR stack for
+   issue 123 runs `Implement #123 (1/3): ...` through `Implement #123 (3/3): ...`;
+   a single-PR task is `(1/1)`. `gh pr view <n> --json title`. Each body also
+   names its place ("2/3, builds on #NNN").
 4. **Size.** Each PR is ≤400 changed lines, excluding generated files, lockfiles
    and vendored assets. `gh pr view <n> --json additions,deletions`. Report any
    PR over the ceiling — that is a re-slice, and the human's call.
@@ -201,6 +205,8 @@ self-report is a claim.
 
 - a wrong base branch (`gh pr edit <n> --base <branch>`)
 - a missing or wrong `Refs`/`Closes` line, or a missing stack position
+- a title that does not read `Implement #<issue> (i/N): Title`
+  (`gh pr edit <n> --title`)
 - a missing `deploy-preview` label on the closing PR, **only** once CI is green
   and only if the stack does not touch `firestore.rules` or `storage.rules`
 - a walkthrough that failed to publish: re-run `bun run walkthrough:capture` and
