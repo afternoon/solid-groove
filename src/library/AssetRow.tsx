@@ -1,5 +1,6 @@
 import { HiSolidPlay, HiSolidPlus, HiSolidStop } from "solid-icons/hi";
 import { type JSX, Show } from "solid-js";
+import { writeLibrarySampleDrag } from "./assetDrag";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset } from "./manifest";
 // `.library-row`, `.library-audition` and `.library-insert` are defined in the
@@ -9,7 +10,14 @@ import type { LibraryAsset } from "./manifest";
 // names, rather than relied on from whichever view happened to mount first.
 import "./LibraryBrowser.css";
 
-/** One auditionable sound. Shared by the panel tree and the pack browser. */
+/**
+ * One auditionable sound. Shared by the panel tree and the pack browser.
+ *
+ * The row is the drag handle: dragging it onto an instrument loads it (#225).
+ * Dragging is a pointer gesture, so it is never the only way in (PRD 9.3) — the
+ * "Insert" button does the same thing from the keyboard, on whichever track the
+ * surface hosting this panel is editing.
+ */
 export default function AssetRow(props: {
 	asset: LibraryAsset;
 	active: boolean;
@@ -26,6 +34,15 @@ export default function AssetRow(props: {
 			classList={{
 				"library-row-active": props.active,
 				"library-row-error": props.error !== null,
+			}}
+			draggable="true"
+			onDragStart={(event) => {
+				// A sound with no master audio (a preset) carries nothing an
+				// instrument can load, so its row starts no drag at all rather than
+				// one that has to be refused when it lands.
+				if (!writeLibrarySampleDrag(event.dataTransfer, props.asset)) {
+					event.preventDefault();
+				}
 			}}
 		>
 			<button

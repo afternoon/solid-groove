@@ -15,6 +15,7 @@ import {
 	FIXTURE_PACK_INDEX_DOC,
 	fixtureFetcher,
 } from "./__fixtures__/fixtures";
+import { readLibrarySampleDrag } from "./assetDrag";
 import LibraryBrowser from "./LibraryBrowser";
 import { FetchClassifiedError, LibraryClient } from "./libraryClient";
 
@@ -217,6 +218,35 @@ describe("audition", () => {
 		fireEvent.click(screen.getAllByRole("button", { name: /^Insert / })[0]);
 		expect(onInsert).toHaveBeenCalledTimes(1);
 		expect(onInsert.mock.calls[0][0]).toHaveProperty("packSlug");
+	});
+
+	it("puts the sound on the drag when a row is dragged (#225)", async () => {
+		renderBrowser();
+		await openFirstGroup();
+		const audition = screen.getAllByRole("button", { name: /^Audition / })[0];
+		const name = (audition.getAttribute("aria-label") ?? "").replace(
+			"Audition ",
+			"",
+		);
+		const row = audition.closest("li");
+		if (!row) throw new Error("expected the sound's row");
+		expect(row.getAttribute("draggable")).toBe("true");
+
+		const data = new Map<string, string>();
+		const dataTransfer = {
+			get types() {
+				return [...data.keys()];
+			},
+			getData: (format: string) => data.get(format) ?? "",
+			setData: (format: string, value: string) => {
+				data.set(format, value);
+			},
+		};
+		fireEvent.dragStart(row, { dataTransfer });
+
+		const sample = readLibrarySampleDrag(dataTransfer);
+		expect(sample?.name).toBe(name);
+		expect(sample?.packId).toMatch(/^pak_/);
 	});
 });
 
