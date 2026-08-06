@@ -47,6 +47,7 @@ import {
 import type { TrackId } from "../domain/ids";
 import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import "./Mixer.css";
 
 /**
@@ -240,9 +241,11 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				<label class="visually-hidden" for={`track-name-${props.track.id}`}>
 					Track name
 				</label>
+				{/* The track's name, typed here (ADR 0002 decision 2). The rest of the
+				    strip stays visible — that is the mixing replay exists to observe. */}
 				<input
 					id={`track-name-${props.track.id}`}
-					class="mixer-strip-name"
+					class={`mixer-strip-name ${MASK_CONTENT}`}
 					type="text"
 					value={props.track.name}
 					onChange={(event) => {

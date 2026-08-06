@@ -2,10 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted |
+| Status | Accepted, partly superseded |
 | Date | 2026-08-05 |
 | Decides | Whether PRD `OPS-03` permits Sentry Session Replay |
 | Supersedes | [ADR 0001](./0001-sentry-for-error-monitoring.md) decision 4 ("Session Replay is not enabled") |
+| Superseded by | [ADR 0003](./0003-replay-canvas-capture-and-assistant-conversation-retention.md) — decision 2's "canvas capture stays off" is reversed, and decision 5's requirement that "Your music never leaves your project" stay literally true is replaced by a corrected disclosure. Everything else here stands, including mask-by-default text capture. |
 | Affects | `OPS-03`, `DEC-009`, `HARD-003`, `OPS-001`, `FND-001c`'s consent mechanism and disclosure copy |
 
 ## Context

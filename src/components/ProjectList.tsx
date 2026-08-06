@@ -7,6 +7,7 @@ import {
 } from "solid-icons/hi";
 import { createSignal, For, type JSX, Show } from "solid-js";
 import type { ProjectMetadata } from "../domain/entities";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import ConfirmDialog from "./ConfirmDialog";
 
 /** The outcome of a row action, for inline per-row error display. */
@@ -125,7 +126,10 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 							<Show
 								when={renamingId() === project.id}
 								fallback={
-									<p class="project-title">
+									/* The project's name, chosen by the user. The card around
+									   it — dates, badges, actions — stays legible (ADR 0002
+									   decision 2). */
+									<p class={`project-title ${MASK_CONTENT}`}>
 										<A href={`/projects/${project.id}`}>{project.name}</A>
 									</p>
 								}
@@ -137,8 +141,9 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 										void saveRename(project.id);
 									}}
 								>
+									{/* The name being typed (ADR 0002 decision 2). */}
 									<input
-										class="project-rename-input"
+										class={`project-rename-input ${MASK_CONTENT}`}
 										type="text"
 										value={draftName()}
 										maxLength={120}
