@@ -12,7 +12,8 @@ export interface OptionGroupProps<V extends string | number> {
 	/** Accessible group name, e.g. "Waveform". */
 	readonly legend: string;
 	readonly options: readonly OptionGroupOption<V>[];
-	readonly value: V;
+	/** The selected value, or null when the group has no selection yet. */
+	readonly value: V | null;
 	onSelect(value: V): void;
 }
 

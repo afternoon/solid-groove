@@ -7,6 +7,7 @@ import type {
 } from "../commands";
 import type { Clip, Instrument, Project } from "../domain/entities";
 import type { EventId, TrackId } from "../domain/ids";
+import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
 import type { SampleChoice } from "../instrument/SamplerPanel";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import InstrumentPanel from "./InstrumentPanel";
@@ -31,7 +32,7 @@ export interface TrackEditorProps {
 	readonly project: Project;
 	readonly playheadTicks: number;
 	readonly registerPianoRollActions: (actions: PianoRollActions) => void;
-	/** Present only when the instrument gets a panel (sampler or synth). */
+	/** The edited track, when there is one; null while no project is open. */
 	readonly instrumentPanelTrackId: TrackId | null;
 	readonly sampleName: string | null;
 	readonly replacementOptions: readonly SampleChoice[];
@@ -106,6 +107,23 @@ export default function TrackEditor(props: TrackEditorProps) {
 				dispatch={props.dispatch}
 				editor={props.showPianoRoll() ? "piano_roll" : "step"}
 			/>
+			{/*
+			 * The kind picker leads the track's instrument controls (#224). It sits
+			 * outside `InstrumentPanel` because that component is the switch
+			 * *between* instrument panels and the picker is what chooses which one —
+			 * it must also show for a drum machine and for a track with no
+			 * instrument, neither of which reaches that switch.
+			 */}
+			<Show when={props.instrumentPanelTrackId}>
+				{(trackId) => (
+					<InstrumentKindPicker
+						trackId={trackId()}
+						project={props.project}
+						instrument={props.instrument}
+						dispatch={props.dispatch}
+					/>
+				)}
+			</Show>
 			<Show when={props.instrumentPanelTrackId}>
 				{(trackId) => (
 					<InstrumentPanel

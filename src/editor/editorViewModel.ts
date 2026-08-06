@@ -159,14 +159,13 @@ export function showPianoRoll(project: Project | null): boolean {
 }
 
 /**
- * The track id, only when it carries an instrument this slice renders a panel
- * for (sampler or synth). The drum machine's panel lands with LOOP-005.
+ * The track the instrument panel edits — whatever instrument it carries, or
+ * none at all. The panel leads with the kind picker (#224), so gating this on
+ * the kinds that have a sub-panel would leave a drum-machine track (whose own
+ * panel `EditorView` mounts separately) with no way back off the drum machine.
  */
 export function instrumentPanelTrackId(
 	project: Project | null,
 ): TrackId | null {
-	const kind = editedInstrument(project)?.kind;
-	return kind === "sampler" || kind === "synth"
-		? (editedTrack(project)?.id ?? null)
-		: null;
+	return editedTrack(project)?.id ?? null;
 }
