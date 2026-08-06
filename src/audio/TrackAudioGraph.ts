@@ -1,13 +1,17 @@
 import * as Tone from "tone";
 import type { NoteTrigger, Send } from "../domain/entities";
-import type { AssetId, ReturnId, TrackId } from "../domain/ids";
+import type { AssetId, DeviceId, ReturnId, TrackId } from "../domain/ids";
 import type {
 	AudioAssetProjection,
 	AudioTrackProjection,
 } from "../projection/audioProjection";
 import type { AudioBufferCache } from "./AudioBufferCache";
 import type { AudioProjectScope } from "./AudioRuntime";
-import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
+import {
+	DeviceChain,
+	type DeviceNode,
+	type DeviceNodeFactory,
+} from "./DeviceChain";
 import {
 	createInstrumentNode,
 	type InstrumentNode,
@@ -108,6 +112,12 @@ export class TrackAudioGraph {
 		return this.panVol.mute;
 	}
 
+	/** The live node for one of this track's devices, for a panel readout (gain
+	 * reduction, a synced delay's resolved time) or a test. */
+	deviceNode(id: DeviceId): DeviceNode | undefined {
+		return this.deviceChain.deviceNode(id);
+	}
+
 	/** The pre-fader tap point: after devices, before pan/volume/mute. */
 	private get preFaderTap(): Tone.ToneAudioNode {
 		return this.deviceChain.output;
@@ -128,15 +138,28 @@ export class TrackAudioGraph {
 	 * project-wide mute/solo rule (mute wins; any soloed track silences every
 	 * non-soloed one) and is re-applied every pass since it depends on every
 	 * other track's solo state, not just this track's own projection.
+	 *
+	 * `reapplyDevices` is likewise re-applied every pass regardless of the
+	 * reference short-circuit below, for the same reason: it reports that state
+	 * *outside* this track's projection moved (the song tempo, which a synced
+	 * delay resolves its division against). A tempo-only edit leaves this track's
+	 * projection reference-identical, so without this the early return would
+	 * swallow it and the delay would never leave the old grid.
 	 */
-	reconcile(next: AudioTrackProjection, effectiveMuted: boolean): void {
+	reconcile(
+		next: AudioTrackProjection,
+		effectiveMuted: boolean,
+		reapplyDevices = false,
+	): void {
 		if (this.lastProjection !== next) {
 			this.reconcileInstrument(next.instrument);
-			this.deviceChain.reconcile(next.devices);
+			this.deviceChain.reconcile(next.devices, reapplyDevices);
 			this.reconcileSends(next.sendConfig);
 			this.panVol.volume.rampTo(next.mixer.volume, MIXER_SMOOTHING_SECONDS);
 			this.panVol.pan.rampTo(next.mixer.pan, MIXER_SMOOTHING_SECONDS);
 			this.lastProjection = next;
+		} else if (reapplyDevices) {
+			this.deviceChain.reconcile(next.devices, true);
 		}
 		this.panVol.mute = effectiveMuted;
 	}

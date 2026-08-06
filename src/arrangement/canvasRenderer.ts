@@ -42,6 +42,9 @@ export interface InteractionState {
 		readonly endTick: number;
 	} | null;
 	readonly hoverPlacementId: PlacementId | null;
+	/** Placement-editing selection (`ARR-002`; PRD CLP-01) — entities selected
+	 * by ID, distinct from `selection`'s bar range. */
+	readonly selectedPlacementIds: ReadonlySet<PlacementId>;
 }
 
 const COLORS = {
@@ -56,6 +59,7 @@ const COLORS = {
 	selection: "rgba(32, 200, 232, 0.18)",
 	selectionBorder: "#20c8e8",
 	hover: "#e6e6e6",
+	placementSelection: "rgba(32, 200, 232, 0.28)",
 };
 
 /** Rows begin below the ruler; the ruler is a fixed strip that does not scroll. */
@@ -314,6 +318,28 @@ export function drawInteractionLayer(
 				projection.rowMetrics.trackHeightPx,
 			);
 		}
+	}
+
+	// Selected placements (ARR-002): a thicker, filled border so the highlight
+	// reads as distinct from the plain hover outline below even when a
+	// placement is both selected and hovered at once.
+	for (const placementId of interaction.selectedPlacementIds) {
+		const placement = projection.placementsById.get(placementId);
+		if (!placement) continue;
+		const left = screenX(placement.startTicks, viewport);
+		const right = screenX(placement.endTicks, viewport);
+		const top = rowTop(placement.rowIndex, projection) - viewport.scrollTop;
+		const height = projection.rowMetrics.trackHeightPx;
+		ctx.fillStyle = COLORS.placementSelection;
+		ctx.fillRect(left, top, Math.max(1, right - left), height);
+		ctx.strokeStyle = COLORS.selectionBorder;
+		ctx.lineWidth = 3;
+		ctx.strokeRect(
+			left + 1.5,
+			top + 1.5,
+			Math.max(1, right - left - 3),
+			height - 3,
+		);
 	}
 
 	if (interaction.hoverPlacementId) {

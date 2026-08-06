@@ -217,6 +217,69 @@ const COMPRESSOR_MAKEUP = deviceParameter("compressor", {
 
 // --- Delay -----------------------------------------------------------------
 
+/**
+ * Free (0) or tempo-synced (1) timing (FX-01: "Delay supports synced and free
+ * timing"). A discrete mode, so it is stepped, `reject`-clamped, and not
+ * automatable — the same treatment `filter.mode` gets. When synced, the audio
+ * layer derives the delay time from the song tempo and {@link DELAY_DIVISION}
+ * and ignores {@link DELAY_TIME}; when free, `delay.time` is the delay in
+ * seconds regardless of tempo.
+ */
+const DELAY_SYNC = deviceParameter("delay", {
+	id: "sync",
+	label: "Sync",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 1,
+	step: 1,
+	clampPolicy: "reject",
+	automatable: false,
+});
+
+/**
+ * The synced note division, as an index into {@link DELAY_DIVISIONS}. Stored as
+ * a number because schema v1's `Device.parameters` is a numeric map; the audio
+ * layer resolves the index to a note value through `delayDivision()`.
+ */
+const DELAY_DIVISION = deviceParameter("delay", {
+	id: "division",
+	label: "Division",
+	unit: "normalized",
+	min: 0,
+	max: 6,
+	defaultValue: 3,
+	step: 1,
+	clampPolicy: "reject",
+	automatable: false,
+});
+
+/**
+ * Each synced division as a fraction of a whole note, so the audio layer can
+ * turn one into seconds with `(240 / tempo) * fraction` without repeating the
+ * table. Dotted and triplet feels are included because they are what makes a
+ * synced delay musical rather than merely on-grid.
+ */
+export const DELAY_DIVISIONS = [
+	{ id: "1/16", label: "1/16", wholeNotes: 1 / 16 },
+	{ id: "1/16.", label: "1/16 dotted", wholeNotes: 1.5 / 16 },
+	{ id: "1/8t", label: "1/8 triplet", wholeNotes: 1 / 12 },
+	{ id: "1/8", label: "1/8", wholeNotes: 1 / 8 },
+	{ id: "1/8.", label: "1/8 dotted", wholeNotes: 1.5 / 8 },
+	{ id: "1/4", label: "1/4", wholeNotes: 1 / 4 },
+	{ id: "1/2", label: "1/2", wholeNotes: 1 / 2 },
+] as const;
+export type DelayDivision = (typeof DELAY_DIVISIONS)[number];
+
+/** Resolves a stored `delay.division` index to its division, clamped into range. */
+export function delayDivision(index: number): DelayDivision {
+	const i = Math.min(
+		DELAY_DIVISIONS.length - 1,
+		Math.max(0, Math.round(index)),
+	);
+	return DELAY_DIVISIONS[i];
+}
+
 const DELAY_TIME = deviceParameter("delay", {
 	id: "time",
 	label: "Time",
@@ -250,7 +313,36 @@ const DELAY_FILTER = deviceParameter("delay", {
 	scale: "logarithmic",
 });
 
+/**
+ * Stereo behavior (FX-01: "stereo behavior"), as the offset between the two
+ * channels' delay times: 0 is a mono-centred delay, 1 offsets the right channel
+ * by a full division for a wide ping-pong. Automatable, since sweeping the
+ * width during a build is a normal move.
+ */
+const DELAY_SPREAD = deviceParameter("delay", {
+	id: "spread",
+	label: "Spread",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 0,
+});
+
 // --- Reverb ----------------------------------------------------------------
+
+/**
+ * Room size, distinct from decay (FX-01: "decay/size"). It scales the early
+ * reflection spread — a small bright box versus a large hall — while `decay`
+ * governs how long the tail lasts, so the two are independently useful.
+ */
+const REVERB_SIZE = deviceParameter("reverb", {
+	id: "size",
+	label: "Size",
+	unit: "normalized",
+	min: 0,
+	max: 1,
+	defaultValue: 0.5,
+});
 
 const REVERB_DECAY = deviceParameter("reverb", {
 	id: "decay",
@@ -319,15 +411,21 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
 			COMPRESSOR_ATTACK,
 			COMPRESSOR_RELEASE,
 			COMPRESSOR_MAKEUP,
+			// Wet/dry makes parallel ("New York") compression reachable without a
+			// second track, which is why FX-01 lists it for applicable devices.
+			wetParameter("compressor"),
 		],
 	},
 	{
 		type: "delay",
 		label: "Delay",
 		parameters: [
+			DELAY_SYNC,
+			DELAY_DIVISION,
 			DELAY_TIME,
 			DELAY_FEEDBACK,
 			DELAY_FILTER,
+			DELAY_SPREAD,
 			wetParameter("delay"),
 			outputTrimParameter("delay"),
 		],
@@ -336,6 +434,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
 		type: "reverb",
 		label: "Reverb",
 		parameters: [
+			REVERB_SIZE,
 			REVERB_DECAY,
 			REVERB_PREDELAY,
 			REVERB_FILTER,

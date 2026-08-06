@@ -1,4 +1,4 @@
-import { type Accessor, Show } from "solid-js";
+import { type Accessor, createSignal, Show } from "solid-js";
 import type {
 	Gesture,
 	GestureOptions,
@@ -11,6 +11,7 @@ import type { SampleChoice } from "../instrument/SamplerPanel";
 import InstrumentPanel from "./InstrumentPanel";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepEditor from "./StepEditor";
+import TransformPanel from "./TransformPanel";
 
 export interface TrackEditorProps {
 	readonly clip: Clip;
@@ -45,6 +46,15 @@ export interface TrackEditorProps {
  * pure structural move.
  */
 export default function TrackEditor(props: TrackEditorProps) {
+	// The piano roll owns its own selection (the step editor's is lifted into
+	// `EditorView`), so the roll mirrors it out here for the transformation
+	// panel. Which of the two feeds the panel follows the editor on screen.
+	const [rollSelection, setRollSelection] = createSignal<readonly EventId[]>(
+		[],
+	);
+	const transformSelection = () =>
+		props.showPianoRoll() ? rollSelection() : props.selectedNoteIds();
+
 	return (
 		<div class="track-editor">
 			<div class="track-info">
@@ -79,8 +89,21 @@ export default function TrackEditor(props: TrackEditorProps) {
 					beginGesture={props.beginGesture}
 					playheadTicks={props.playheadTicks}
 					registerActions={props.registerPianoRollActions}
+					onSelectionChange={setRollSelection}
 				/>
 			</Show>
+			{/*
+			 * CLP-04's transformations sit below whichever editor is on screen and
+			 * act on that editor's selection, so one panel serves both rather than
+			 * each editor growing its own copy.
+			 */}
+			<TransformPanel
+				clip={props.clip}
+				project={props.project}
+				selectedIds={transformSelection()}
+				dispatch={props.dispatch}
+				editor={props.showPianoRoll() ? "piano_roll" : "step"}
+			/>
 			<Show when={props.instrumentPanelTrackId}>
 				{(trackId) => (
 					<InstrumentPanel

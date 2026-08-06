@@ -1,0 +1,71 @@
+.transform-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	margin-top: 12px;
+	background-color: var(--color-background-secondary);
+	border-left: 3px solid var(--color-accent, #20c8e8);
+}
+
+.transform-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.transform-button,
+.transform-option input {
+	font-family: inherit;
+	font-size: var(--font-size-small);
+	color: var(--color-text);
+	background-color: var(--color-background-tertiary);
+	border: 1px solid var(--color-background-hover);
+}
+
+.transform-button {
+	padding: 4px 10px;
+	cursor: pointer;
+}
+
+.transform-button:hover:not(:disabled) {
+	background-color: var(--color-background-hover);
+}
+
+.transform-button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.transform-button:focus-visible {
+	outline: 2px solid var(--color-foreground-bright);
+	outline-offset: 1px;
+}
+
+.transform-option {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+}
+
+.transform-option input {
+	width: 6rem;
+	padding: 2px 4px;
+}
+
+.transform-scope,
+.transform-error {
+	margin: 0;
+	font-size: var(--font-size-small);
+}
+
+.transform-scope {
+	color: var(--color-text-secondary);
+}
+
+.transform-error:not(:empty) {
+	color: var(--color-warning, #e8a020);
+}

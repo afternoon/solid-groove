@@ -1,4 +1,11 @@
-import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	type JSX,
+	Show,
+} from "solid-js";
 import {
 	type Analytics,
 	analytics as defaultAnalytics,
@@ -83,6 +90,13 @@ export interface PianoRollProps {
 	 * the shortcut registry (`edit.delete`, `edit.duplicate`, `edit.select_all`).
 	 */
 	registerActions?(actions: PianoRollActions): void;
+	/**
+	 * Reports the roll's selection outward whenever it changes, so a host can
+	 * act on the same notes the roll has highlighted (the CLP-04 transformation
+	 * panel). The roll stays the owner — this is a read-only mirror, not a
+	 * controlled prop, so no host can desynchronise the roll's own state.
+	 */
+	onSelectionChange?(ids: readonly EventId[]): void;
 	/** Opens a continuous gesture so a drag is one undo entry / one revision. */
 	beginGesture(options?: GestureOptions): Gesture | undefined;
 	/** The current project, needed to build the `notes.duplicate` payload. */
@@ -223,6 +237,14 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 	function selectedIds(): readonly EventId[] {
 		return [...selection()];
 	}
+
+	// Mirrors the selection outward for the transformation panel. Tracking
+	// `selection()` alone keeps this to one call per selection change, and the
+	// roll never reads back what it published, so there is no feedback loop.
+	createEffect(() => {
+		const ids = [...selection()];
+		props.onSelectionChange?.(ids);
+	});
 
 	function isSelected(note: NoteEvent): boolean {
 		return selection().has(note.id);

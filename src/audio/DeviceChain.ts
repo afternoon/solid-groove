@@ -21,18 +21,44 @@ export interface DeviceNode {
 	readonly output: Tone.ToneAudioNode;
 	update(device: Device): void;
 	dispose(): void;
+	/**
+	 * How much gain the device is removing right now, in dB (0 when it is not
+	 * reducing). Only a dynamics device implements it; a panel polls it for a
+	 * gain-reduction meter (PRD FX-01) and it is never the source of an
+	 * analytics event, so metering adds no per-frame telemetry.
+	 */
+	gainReductionDb?(): number;
+	/**
+	 * The delay time this device last resolved to, in seconds. Only the delay
+	 * implements it; a panel reads it to show what a *synced* delay currently
+	 * works out to, which depends on the song tempo and so is not derivable from
+	 * the stored parameters alone.
+	 */
+	resolvedDelaySeconds?(): number;
+	/**
+	 * Resolves once any asynchronously-built resource this device needs is in
+	 * place. Only the reverb implements it (its impulse response is generated
+	 * off the audio thread). Live playback never awaits it — a node keeps its
+	 * previous impulse until the new one lands — but an offline render must.
+	 */
+	ready?(): Promise<void>;
 }
 
-export type DeviceNodeFactory = (device: Device) => DeviceNode;
+/**
+ * Builds the node for one device. Returning `undefined` means "this `type` has
+ * no DSP behind it", and the chain substitutes an inert passthrough — see
+ * {@link createPassthroughDeviceNode}.
+ */
+export type DeviceNodeFactory = (device: Device) => DeviceNode | undefined;
 
 /**
- * Schema v1 defines the generic `Device` shape (id, type, order, bypass,
- * parameters) but no concrete processors — filter/EQ, overdrive, compression,
- * delay, and reverb are authored with their devices in Alpha Milestone 1 (PRD section
- * 7.3). Until a factory is registered for a `device.type`, the chain gives it
- * an inert passthrough node instead of refusing to build the graph, so
- * topology — insertion, removal, and reordering — is fully provable ahead of
- * any real DSP.
+ * The node a `device.type` with no registered core gets: an inert passthrough,
+ * rather than a refusal to build the graph at all.
+ *
+ * That matters in two situations. It let LOOP-008 prove chain topology —
+ * insertion, removal, reordering — before LOOP-009 authored any real DSP; and
+ * it means a project referencing a device type this build does not know (one
+ * saved by a later build, say) still loads and plays the rest of its chain.
  */
 export function createPassthroughDeviceNode(device: Device): DeviceNode {
 	const node = new Tone.Gain(1);
@@ -81,6 +107,10 @@ export class DeviceChain {
 	readonly output: Tone.Gain;
 	private readonly nodes = new Map<DeviceId, TrackedDevice>();
 	private order: DeviceId[] = [];
+	/** The exact `Device` object each node was last applied from, so a forced
+	 * re-apply (see `reconcile`'s `reapplyExisting`) is the only thing that
+	 * re-runs `update()` for a device whose own object did not change. */
+	private readonly lastDevices = new Map<DeviceId, Device>();
 	private readonly chainHandle: ReturnType<AudioProjectScope["register"]>;
 	/** True once the signal path has been wired at least once. Guards the very
 	 * first `relink()` (empty -> initial topology) so it connects directly at
@@ -106,8 +136,26 @@ export class DeviceChain {
 		});
 	}
 
-	/** Reconciles this chain's devices, ordered by chain position (`order`). */
-	reconcile(devices: readonly Device[]): void {
+	/** The live node for a device id, for a panel readout (gain reduction, a
+	 * synced delay's resolved time) or a test. Read access only — the chain owns
+	 * every node's lifetime. */
+	deviceNode(id: DeviceId): DeviceNode | undefined {
+		return this.nodes.get(id)?.node;
+	}
+
+	/**
+	 * Reconciles this chain's devices, ordered by chain position (`order`).
+	 *
+	 * `reapplyExisting` forces `update()` on every already-present node even when
+	 * its `Device` object is unchanged. A device parameter can depend on state
+	 * that lives *outside* its own `Device` — the tempo-synced delay resolves its
+	 * division against the song tempo — and a tempo-only edit changes no device,
+	 * no track, and no projection entry, so nothing here would otherwise re-run
+	 * `apply()` and the delay would stay on the old grid forever. The owning graph
+	 * sets this when such shared state moved; a routine edit leaves it false and
+	 * the chain behaves exactly as before.
+	 */
+	reconcile(devices: readonly Device[], reapplyExisting = false): void {
 		const nextIds = devices.map((device) => device.id);
 		const nextIdSet = new Set(nextIds);
 
@@ -115,6 +163,7 @@ export class DeviceChain {
 			if (!nextIdSet.has(id)) {
 				void this.scope.release(tracked.handle);
 				this.nodes.delete(id);
+				this.lastDevices.delete(id);
 			}
 		}
 
@@ -122,13 +171,17 @@ export class DeviceChain {
 		for (const device of devices) {
 			const existing = this.nodes.get(device.id);
 			if (existing) {
-				existing.node.update(device);
+				if (reapplyExisting || this.lastDevices.get(device.id) !== device) {
+					existing.node.update(device);
+				}
 			} else {
-				const node = this.createNode(device);
+				const node =
+					this.createNode(device) ?? createPassthroughDeviceNode(device);
 				const handle = this.scope.register("node", () => node.dispose());
 				this.nodes.set(device.id, { node, handle });
 				compositionChanged = true;
 			}
+			this.lastDevices.set(device.id, device);
 		}
 
 		const orderChanged =
@@ -212,6 +265,7 @@ export class DeviceChain {
 			void this.scope.release(tracked.handle);
 		}
 		this.nodes.clear();
+		this.lastDevices.clear();
 		this.order = [];
 		void this.scope.release(this.chainHandle);
 	}
