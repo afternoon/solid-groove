@@ -22,16 +22,27 @@
 //   PRD section 11 crash-free session rate comes from rather than a hand-built
 //   derivation.
 //
-// ## Session Replay (ADR 0002)
+// ## Session Replay (ADR 0002, revised by ADR 0003)
 //
 // ADR 0002 supersedes ADR 0001 decision 4 and enables replay *for product
 // understanding*, under conditions that are all enforced here:
 //
-// - **Mask by default** (decision 2): `maskAllText` and `blockAllMedia` on,
-//   canvas capture off. Masking happens at capture in the browser, so masked
+// - **Mask text by default** (ADR 0002 decision 2): `maskAllText` and
+//   `blockAllMedia` on. Masking happens at capture in the browser, so masked
 //   text is never serialized into the payload and therefore never transmitted.
 //   Components mark themselves as well (`src/monitoring/replayPrivacy.ts`), so
-//   a content surface is masked twice over.
+//   a content surface is masked twice over, and `maskAttributes` covers the
+//   names that reach the DOM as attributes rather than text nodes.
+// - **Canvas capture is on** (ADR 0003 decision 1, reversing ADR 0002's "canvas
+//   capture stays off"). With it off, replay showed a pointer moving across a
+//   grey page and a placeholder box where the arrangement should be — useless
+//   for the surfaces it exists to observe, since in a DAW the arrangement and
+//   piano roll *are* the application. On means sampled recordings include the
+//   user's musical work, including the section names the arrangement renderer
+//   draws into the canvas: masking does not reach inside a canvas, so nothing
+//   there is half-protected. That is a deliberate expansion, disclosed to the
+//   user (`TelemetryDisclosure.tsx`) rather than mitigated by a measure that
+//   would not work. Reversing it is one flag.
 // - **Low session sampling, no error replay** (decision 6):
 //   `replaysSessionSampleRate` at `REPLAY_SESSION_SAMPLE_RATE`,
 //   `replaysOnErrorSampleRate` at 0. Error-triggered replay is the debugging
@@ -54,7 +65,7 @@
 // lives in CI only. See `.env.example` and `docs/testing.md`.
 
 import type { ErrorReport, ErrorSink } from "./errorReporting";
-import { BLOCK_CONTENT, MASK_CONTENT } from "./replayPrivacy";
+import { MASK_ATTRIBUTES, MASK_CONTENT } from "./replayPrivacy";
 import {
 	type ScrubbableBreadcrumb,
 	type ScrubbableEvent,
@@ -95,21 +106,31 @@ const MAX_BUFFERED_REPORTS = 20;
 export const REPLAY_SESSION_SAMPLE_RATE = 0.1;
 
 /**
- * ADR 0002 decision 2, the whole privacy position of replay in one object.
+ * ADR 0002 decision 2 as revised by ADR 0003, the whole privacy position of
+ * replay in one object.
  *
  * Exported so `sentrySink.test.ts` asserts against the same value the SDK is
  * handed, rather than against a copy that can drift from it.
  *
  * `maskAllText` and `blockAllMedia` mask at capture in the browser: the
  * characters are replaced before serialization, so they never enter the replay
- * payload and are never transmitted. `block`/`mask` name the classes
+ * payload and are never transmitted. `mask` names the class
  * `src/monitoring/replayPrivacy.ts` puts on content surfaces, so a component's
  * own markup masks it as well as the default does.
  *
- * There is no `unmask`/`unblock` entry. Decision 2 permits unmasking only
+ * `maskAttributes` covers the other route a name takes into the DOM. Class
+ * marking reaches text nodes and input values, not attributes, and an
+ * `aria-label={`Mute ${track.name}`}` carries a name whether or not its
+ * element is marked. The SDK *replaces* its default list rather than extending
+ * it, so `MASK_ATTRIBUTES` names `title` and `placeholder` too — passing only
+ * `aria-label` would quietly unmask two attributes in the course of masking
+ * one.
+ *
+ * There is no `unmask`/`unblock` entry, and no `block` entry either: ADR 0003
+ * removed the one blocked surface (the arrangement canvas stack) because
+ * blocking it is what made replay useless. Unmasking is permitted only for
  * stable, non-user-authored chrome by an explicit named selector; until a
- * specific surface proves unreadable there is nothing to name, and the absence
- * is the safe state.
+ * specific surface proves unreadable there is nothing to name.
  */
 export const REPLAY_PRIVACY = {
 	/** Every text node is masked at capture unless explicitly named otherwise. */
@@ -118,21 +139,30 @@ export const REPLAY_PRIVACY = {
 	blockAllMedia: true,
 	/** Text inputs are masked; typed text is user content by definition. */
 	maskAllInputs: true,
-	/** The classes a component marks itself with. */
+	/** The class a component marks itself with. */
 	mask: [`.${MASK_CONTENT}`],
-	block: [`.${BLOCK_CONTENT}`],
+	/** Names also reach the DOM as attributes; class marking does not cover those. */
+	maskAttributes: [...MASK_ATTRIBUTES],
 };
 
 /**
- * ADR 0002 decision 2: "Canvas capture stays off, which keeps the arrangement
- * renderer, the piano roll, and waveform displays out of the payload entirely."
+ * ADR 0003 decision 1: canvas capture is **on**, reversing ADR 0002 decision
+ * 2's "canvas capture stays off".
  *
  * Canvas is not a flag on the replay integration — it is a *second*
  * integration, `replayCanvasIntegration`, which the SDK only records canvas for
- * when it is present. So "off" is the absence of that integration from the
- * `integrations` array, and this is the name a test asserts is absent. Naming
+ * when it is present. So "on" is the presence of that integration in the
+ * `integrations` array, and this is the name a test asserts is present. Naming
  * it here rather than in the test means the assertion cannot pass by matching
  * a string that stopped being the SDK's export name.
+ *
+ * What this records: the arrangement's clip blocks and waveforms, the piano
+ * roll's notes, and the user-authored section names the renderer draws into the
+ * content layer. Masking has no reach inside a canvas, so this is all-or-
+ * nothing and it is deliberately "all" — the disclosure states it plainly. It
+ * is also the larger share of replay's bandwidth and quota cost, which is why
+ * `OPS-001` measures consumption with canvas on before the session sample rate
+ * is trusted.
  */
 export const REPLAY_CANVAS_INTEGRATION = "replayCanvasIntegration";
 
@@ -215,7 +245,14 @@ export class SentrySink implements ErrorSink {
 					history: true,
 					sentry: false,
 				}),
-				...(replayEnabled ? [sentry.replayIntegration(REPLAY_PRIVACY)] : []),
+				// Both or neither: the canvas integration records nothing on its own,
+				// and replay without it is the grey-box replay ADR 0003 rejected.
+				...(replayEnabled
+					? [
+							sentry.replayIntegration(REPLAY_PRIVACY),
+							sentry.replayCanvasIntegration(),
+						]
+					: []),
 			],
 
 			// --- Scrubbing ------------------------------------------------------

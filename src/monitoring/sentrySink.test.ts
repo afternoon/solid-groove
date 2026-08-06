@@ -1,14 +1,15 @@
 // The Sentry SDK is never loaded here. Every test injects a fake module
 // through `SentrySinkOptions.load`, which is what lets this file assert the
-// ADR 0001 and ADR 0002 configuration decisions — `sendDefaultPii` off, console
-// breadcrumbs disabled rather than filtered, Session Replay present with
-// masking on, media blocked, canvas off, and error-triggered replay at 0 — as
-// facts about the options object rather than as comments nobody checks.
+// ADR 0001, ADR 0002, and ADR 0003 configuration decisions — `sendDefaultPii`
+// off, console breadcrumbs disabled rather than filtered, Session Replay
+// present with text masking on, attributes masked, media blocked, canvas
+// recording on, and error-triggered replay at 0 — as facts about the options
+// object rather than as comments nobody checks.
 
 import { describe, expect, it, vi } from "vitest";
 import { UNKNOWN_BROWSER } from "./browserInfo";
 import type { ErrorReport } from "./errorReporting";
-import { BLOCK_CONTENT, MASK_CONTENT } from "./replayPrivacy";
+import { MASK_ATTRIBUTES, MASK_CONTENT } from "./replayPrivacy";
 import {
 	REPLAY_CANVAS_INTEGRATION,
 	REPLAY_SESSION_SAMPLE_RATE,
@@ -37,6 +38,7 @@ function fakeSentry() {
 			dedupeIntegration: integration("Dedupe"),
 			breadcrumbsIntegration: integration("Breadcrumbs"),
 			replayIntegration: integration("Replay"),
+			replayCanvasIntegration: integration("ReplayCanvas"),
 		},
 		inits,
 		captures,
@@ -112,7 +114,13 @@ describe("privacy configuration (ADR 0001)", () => {
 			integrations(options)
 				.map((i) => i.name)
 				.sort(),
-		).toEqual(["Breadcrumbs", "BrowserSession", "Dedupe", "Replay"]);
+		).toEqual([
+			"Breadcrumbs",
+			"BrowserSession",
+			"Dedupe",
+			"Replay",
+			"ReplayCanvas",
+		]);
 	});
 
 	it("enables the session integration Release Health needs", async () => {
@@ -180,15 +188,36 @@ describe("Session Replay configuration (ADR 0002)", () => {
 		// this checks the SDK is actually told to look for it.
 		expect(await replay(true)).toMatchObject({
 			mask: [`.${MASK_CONTENT}`],
-			block: [`.${BLOCK_CONTENT}`],
 		});
 	});
 
-	it("leaves canvas capture off, keeping the arrangement and piano roll out entirely", async () => {
-		// Canvas is a *separate* integration in the SDK, so "off" is its absence
-		// from the integration list rather than a flag on the replay options.
+	it("masks the attributes names reach the DOM through, not just text nodes", async () => {
+		// Class marking covers text nodes and input values. An `aria-label` with a
+		// track name in it is neither, and the SDK *replaces* its default
+		// attribute list rather than extending it — so this asserts the whole
+		// list, not just that `aria-label` is somewhere in it.
+		expect(await replay(true)).toMatchObject({
+			maskAttributes: [...MASK_ATTRIBUTES],
+		});
+	});
+
+	it("records canvas, so the arrangement and piano roll are actually visible", async () => {
+		// ADR 0003 decision 1, reversing ADR 0002. Canvas is a *separate*
+		// integration in the SDK, so "on" is its presence in the integration list
+		// rather than a flag on the replay options. With it absent, replay showed
+		// a pointer moving over a grey page — useless for the surfaces that are
+		// the whole reason replay is enabled.
 		const { options } = await started({ sessionReplay: true });
-		expect(integrations(options).map((i) => i.name)).not.toContain("Canvas");
+		expect(integrations(options).map((i) => i.name)).toContain("ReplayCanvas");
+	});
+
+	it("does not record canvas when replay itself is off", async () => {
+		// The canvas integration is inert without replay, but constructing it
+		// anyway would mean an opted-out user carries replay machinery.
+		const { options } = await started({ sessionReplay: false });
+		expect(integrations(options).map((i) => i.name)).not.toContain(
+			"ReplayCanvas",
+		);
 		expect(JSON.stringify(options)).not.toContain(REPLAY_CANVAS_INTEGRATION);
 	});
 
