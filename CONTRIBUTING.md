@@ -259,9 +259,18 @@ before starting a task, not after. In short:
 - A PR is **one reviewable unit of purpose** and at most **400 changed lines**.
   A larger task ships as a stack of such PRs.
 - Tests for a slice ship **in the same PR** as that slice.
-- Any change that alters the UI includes a **walkthrough** in the PR body; see
-  [`.github/pull_request_template.md`](./.github/pull_request_template.md).
-- Don't edit `docs/prd.md` unless the task genuinely revises product behavior.
+- A feature's **core flows** ([`docs/core-flows.md`](./docs/core-flows.md)) are
+  written as `test.fixme` Playwright specs in the *first* PR of its stack, and
+  frozen from then on; the PR that closes the issue removes the markers in the
+  same diff that makes them pass.
+- Any change that alters the UI includes a **walkthrough** in the body of the PR
+  that closes the issue — captured from those passing flows with
+  `bun run walkthrough:capture` and `walkthrough:publish`, not assembled by hand.
+  See [`.github/pull_request_template.md`](./.github/pull_request_template.md)
+  and [`docs/testing.md`](./docs/testing.md#walkthrough-screenshots).
+- Don't edit `docs/prd.md` or `docs/core-flows.md` unless the task genuinely
+  revises product behavior — and if you are an agent implementing a task, don't
+  edit them at all.
 
 The full definition of done, including the analytics and privacy requirements
 every user-facing change carries, is in

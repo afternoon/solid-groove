@@ -15,6 +15,11 @@ app.config.timestamp_*.js
 test-results/
 playwright-report/
 blob-report/
+# Core-flow walkthrough screenshots. `bun run walkthrough:capture` writes them
+# here and `bun run walkthrough:publish` pushes them to the `claude/walkthroughs`
+# orphan branch — they are review artefacts and must never enter `main`'s
+# history or a feature branch's 400-line diff (see docs/core-flows.md).
+walkthroughs/
 playwright/.cache/
 *-debug.log
 .firebase/
