@@ -56,7 +56,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { BLOCK_CONTENT, MASK_CONTENT } from "./replayPrivacy";
+import { MASK_CONTENT } from "./replayPrivacy";
 
 const sourceRoot = join(process.cwd(), "src");
 
@@ -129,10 +129,12 @@ const MEDIA_TAGS = [
 /**
  * What the recorder would serialize for this tree, under our configuration.
  *
- * Models the capture-time rules ADR 0002 decision 2 rests on:
+ * Models the capture-time rules ADR 0002 decision 2 rests on, as revised by
+ * ADR 0003:
  *
- * - an element carrying `BLOCK_CONTENT`, or matching `blockAllMedia`'s
- *   selectors, is replaced by a placeholder box: no children, no attributes;
+ * - an element matching `blockAllMedia`'s selectors is replaced by a
+ *   placeholder box: no children, no attributes. `BLOCK_CONTENT` is gone —
+ *   ADR 0003 removed the one blocked subtree, so media is the only block now;
  * - `maskAllText` masks every text node — the default is masked, and nothing in
  *   `REPLAY_PRIVACY` names an unmasked exception;
  * - `maskAllInputs` masks an input's `value`;
@@ -142,11 +144,18 @@ const MEDIA_TAGS = [
  *
  * The last rule is the one that makes this test able to find a leak instead of
  * papering over it.
+ *
+ * What this model deliberately does **not** cover: `<canvas>` pixels. ADR 0003
+ * turns canvas capture on, and no masking rule reaches inside a canvas — the
+ * arrangement's clips, notes, waveforms, and section names are recorded as
+ * drawn. That is the decision, not a leak, so the assertions below are about
+ * the DOM payload only. `canvasRecordsUnmasked` pins it explicitly rather than
+ * leaving the omission to be read as an oversight.
  */
 function serializeUnderMasking(root: Element): string {
 	const node = (element: Element): unknown => {
 		const tag = element.tagName.toLowerCase();
-		if (element.classList.contains(BLOCK_CONTENT) || MEDIA_TAGS.includes(tag)) {
+		if (MEDIA_TAGS.includes(tag)) {
 			// Blocked: a placeholder box, carrying neither children nor attributes.
 			return { tag, blocked: true };
 		}
@@ -221,14 +230,17 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
 		expectNoForbiddenContent(serializeUnderMasking(surface));
 	});
 
-	it("keeps it out of a blocked subtree, which is not recorded at all", () => {
-		// The arrangement and the waveform displays, whose *pixels* are the
-		// content. Canvas capture is off globally as well; blocking the container
-		// is the marking that survives someone turning canvas capture on.
+	// ADR 0003 removed the one blocked subtree — the arrangement canvas stack —
+	// because blocking it is what made replay useless. So the arrangement's
+	// *DOM* is now recorded like any other, and the rule that keeps content out
+	// of it is masking, not blocking. This is the replacement for the old
+	// "blocked subtree" case, and it is a stricter test: the content has to
+	// survive masking rather than being skipped wholesale.
+	it("keeps it out of the arrangement's DOM, which is no longer blocked", () => {
 		const surface = html(`
-			<div class="${BLOCK_CONTENT}" aria-label="${FORBIDDEN.projectName}">
-				<canvas data-clip="${FORBIDDEN.clipName}"></canvas>
-				<span>${FORBIDDEN.trackName}</span>
+			<div class="arrangement-canvas-stack" aria-label="${FORBIDDEN.projectName}">
+				<span class="${MASK_CONTENT}">${FORBIDDEN.trackName}</span>
+				<p>${FORBIDDEN.assistantText}</p>
 			</div>
 		`);
 
@@ -260,6 +272,25 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
 		`);
 
 		expectNoForbiddenContent(serializeUnderMasking(surface));
+	});
+
+	// ADR 0003 decision 1, stated as a checked fact rather than left as an
+	// absence. Canvas capture is on and masking has no reach inside a canvas, so
+	// what the arrangement renderer draws — clips, notes, waveforms, and the
+	// user-authored section names at `canvasRenderer.ts` — is recorded as drawn.
+	// This suite models the DOM payload and cannot see those pixels, which is
+	// exactly why the limit is written down here: a reader must not take "the
+	// payload tests pass" as "no project content reaches Sentry".
+	it("does not claim to cover canvas pixels, which are recorded unmasked", () => {
+		const surface = html(
+			`<canvas class="${MASK_CONTENT}" data-testid="arrangement-layer"></canvas>`,
+		);
+
+		// The DOM node masks like anything else — and says nothing at all about
+		// the pixels inside it, which the canvas integration records verbatim.
+		const serialized = serializeUnderMasking(surface);
+		expect(serialized).toContain("canvas");
+		expect(serialized).not.toContain(FORBIDDEN.clipName);
 	});
 
 	it("fails when a surface puts content in a data attribute", () => {
