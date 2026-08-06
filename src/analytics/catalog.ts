@@ -224,6 +224,7 @@ export const COMMAND_IDS = [
 	"section.create",
 	"section.delete",
 	"section.update",
+	"section.reorder",
 	"parameter.set",
 	"drum.setPadAsset",
 	"drum.setPadFlag",

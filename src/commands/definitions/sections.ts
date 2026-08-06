@@ -10,6 +10,7 @@ import {
 	type RegisteredCommand,
 	rejected,
 } from "../types";
+import { applyLayout, layoutReorder, sectionsInOrder } from "./sectionLayout";
 
 /**
  * Song-section commands (`ARR-003`; PRD ARR-02).
@@ -18,11 +19,12 @@ import {
  * ever creates, copies, or deletes a clip, and deleting a section leaves every
  * placement it labelled exactly where it was. Sections are stored unordered in
  * `song.sections`; their order *is* their `startTicks`, which is why `add`,
- * `rename`, `resize`, and `color` are all this module needs — reordering is a
- * timeline operation rather than an array shuffle, and lands next as
- * `section.reorder`. These commands are the one mutation path the section UI, a
- * template, and the assistant all share (ARR-02: "Templates and the assistant
- * can create section markers through the shared command API").
+ * `rename`, `resize`, and `color` are plain field edits, while `reorder` is a
+ * timeline re-layout that carries the placements inside each section with it
+ * (`sectionLayout.ts` owns that arithmetic). These commands are the one mutation
+ * path the section UI, a template, and the assistant all share (ARR-02:
+ * "Templates and the assistant can create section markers through the shared
+ * command API").
  */
 
 export const sectionCreatePayloadSchema = z.strictObject({
@@ -53,6 +55,13 @@ export const sectionUpdatePayloadSchema = z.strictObject({
 	changes: sectionChangesSchema,
 });
 export type SectionUpdatePayload = z.infer<typeof sectionUpdatePayloadSchema>;
+
+export const sectionReorderPayloadSchema = z.strictObject({
+	sectionId: sectionIdSchema,
+	/** Destination index in timeline order (0 is first on the timeline). */
+	toIndex: z.int().min(0),
+});
+export type SectionReorderPayload = z.infer<typeof sectionReorderPayloadSchema>;
 
 export function findSection(
 	sections: readonly Section[],
@@ -179,6 +188,43 @@ export const sectionUpdateCommand = defineCommand<SectionUpdatePayload>({
 	},
 });
 
+export const sectionReorderCommand = defineCommand<SectionReorderPayload>({
+	type: "section.reorder",
+	version: 1,
+	schema: sectionReorderPayloadSchema,
+	summarize(payload, project) {
+		const section = findSection(project.song.sections, payload.sectionId);
+		const label = section ? quoted(section.name) : "a section";
+		return `Move section ${label} to position ${payload.toIndex + 1}`;
+	},
+	apply(project, payload) {
+		const layout = layoutReorder(
+			project.song.sections,
+			payload.sectionId,
+			payload.toIndex,
+		);
+		if (!layout) {
+			return findSection(project.song.sections, payload.sectionId)
+				? rejected("Section is already at that position")
+				: rejected(`Section ${payload.sectionId} does not exist`);
+		}
+		return applied(withSong(project, applyLayout(project.song, layout)));
+	},
+	// The inverse is a single reorder back to the original index. Because the
+	// layout is a pure function of the section run, reordering back reproduces
+	// the original starts and therefore reverses every placement shift by
+	// construction — undo cannot restore the sections while stranding the clips.
+	invert(payload, before) {
+		const ordered = sectionsInOrder(before.song.sections);
+		const fromIndex = ordered.findIndex(
+			(section) => section.id === payload.sectionId,
+		);
+		return fromIndex === -1
+			? []
+			: [reorderSection(payload.sectionId, fromIndex)];
+	},
+});
+
 // --- Typed builders -------------------------------------------------------
 
 export function addSection(
@@ -200,9 +246,17 @@ export function updateSection(
 	return { type: sectionUpdateCommand.type, payload: { sectionId, changes } };
 }
 
+export function reorderSection(
+	sectionId: SectionId,
+	toIndex: number,
+): CommandInput<SectionReorderPayload> {
+	return { type: sectionReorderCommand.type, payload: { sectionId, toIndex } };
+}
+
 /** Registered, payload-erased commands from this module. */
 export const sectionCommands: readonly RegisteredCommand[] = [
 	eraseCommand(sectionCreateCommand),
 	eraseCommand(sectionDeleteCommand),
 	eraseCommand(sectionUpdateCommand),
+	eraseCommand(sectionReorderCommand),
 ];

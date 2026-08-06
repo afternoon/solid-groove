@@ -42,6 +42,7 @@ import {
 	removeTrack,
 	reorderDevice,
 	reorderPad,
+	reorderSection,
 	reorderTrack,
 	resetDevice,
 	scaleNoteVelocity,
@@ -256,6 +257,12 @@ const cases: InverseCase[] = [
 				name: "Build",
 				durationTicks: bars(2),
 			}),
+	},
+	{
+		// The reorder that carries placements with it: undoing it must restore the
+		// sections *and* the clips they moved, in one step.
+		type: "section.reorder",
+		build: (fixture) => reorderSection(fixture.sectionIds[0], 1),
 	},
 	{
 		type: "parameter.set",

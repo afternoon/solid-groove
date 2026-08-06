@@ -38,6 +38,7 @@ const EXPECTED_COMMANDS = [
 	"section.create",
 	"section.delete",
 	"section.update",
+	"section.reorder",
 	"parameter.set",
 	"drum.setPadAsset",
 	"drum.setPadFlag",
