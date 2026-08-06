@@ -110,3 +110,40 @@
 	border: 1px solid #303030;
 	background: none;
 }
+
+/* ARR-03 outline picker, rendered as the panel's child. */
+.section-panel-outline {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding-top: 8px;
+	border-top: 1px solid #262626;
+}
+
+.section-panel-subtitle {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #9a9a9a;
+}
+
+.section-panel-field {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: #8a8a8a;
+}
+
+.section-panel-field select {
+	background: #0e0e0e;
+	border: 1px solid #303030;
+	color: #e6e6e6;
+	font: inherit;
+	padding: 2px 4px;
+}
+
+.section-panel-error {
+	color: #f0a020;
+}

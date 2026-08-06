@@ -23,6 +23,7 @@ import { createIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
+import type { OutlineRefusal } from "./arrangementOutline";
 import {
 	type ArrangementShell,
 	createArrangementShell,
@@ -33,6 +34,7 @@ import {
 	RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import type { RowMetrics, Viewport } from "./geometry";
+import { OutlinePicker } from "./OutlinePicker";
 import { PlacementToolbar } from "./PlacementToolbar";
 import {
 	createPlacementEditing,
@@ -43,6 +45,11 @@ import {
 	type ArrangementProjection,
 	buildArrangementProjection,
 } from "./projection";
+import { SectionPanel } from "./SectionPanel";
+import {
+	createSectionEditing,
+	type SectionEditing,
+} from "./sectionEditingController";
 import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
 
@@ -84,6 +91,14 @@ export const ROW_METRICS: RowMetrics = {
 
 const HEADER_WIDTH_PX = 160;
 const INITIAL_PIXELS_PER_TICK = 0.08;
+
+/** Why an outline was refused, in the user's words (ARR-03's empty states). */
+const OUTLINE_MESSAGES: Record<OutlineRefusal, string> = {
+	empty_loop: "Select at least one bar to build an outline from.",
+	no_placements_in_loop: "The selected range has no clips in it.",
+	exceeds_arrangement_bound:
+		"That outline would run past the ten minutes the alpha guarantees.",
+};
 
 export interface ArrangementViewProps {
 	readonly project: Project;
@@ -129,6 +144,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
 	let shell: ArrangementShell | null = null;
 	let firstUseLogged = false;
 	let editing: PlacementEditing | null = null;
+	let sections: SectionEditing | null = null;
+	const [outlineMessage, setOutlineMessage] = createSignal<string | null>(null);
 	// Minted once for this component instance, like `waveformCache` above — an
 	// `IdFactory` is a plain closure, not reactive state, and must persist
 	// across renders rather than being rebuilt inside one.
@@ -231,6 +248,16 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				},
 			});
 			props.onEditingActionsReady?.(editing);
+
+			// Section editing (ARR-003) shares the same dispatch, so a section edit
+			// is one transaction like any other and its analytics stay in one place.
+			sections = createSectionEditing({
+				getProject: () => props.project,
+				dispatch: (commands) => dispatch(commands)?.ok ?? false,
+				ids,
+				analytics: analytics(),
+				onChange: bumpState,
+			});
 		}
 
 		canvas.observeViewport(scrollEl, bumpState);
@@ -464,6 +491,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		return shell?.getViewport().scrollTop ?? 0;
 	});
 
+	/** The ARR-01 bar-range selection, which is also ARR-03's loop range. */
+	const barSelection = createMemo(() => {
+		stateVersion();
+		return shell?.getState().selection ?? null;
+	});
+
 	const selectionSummary = createMemo(() => {
 		stateVersion();
 		const selection = shell?.getState().selection;
@@ -497,6 +530,30 @@ export default function ArrangementView(props: ArrangementViewProps) {
 					onDuplicateLinked={() => editing?.duplicate("linked")}
 					onDuplicateIndependent={() => editing?.duplicate("independent")}
 				/>
+				<SectionPanel
+					sections={props.project.song.sections}
+					onAdd={() => sections?.add(barSelection()?.startTick ?? 0)}
+					onRename={(id, name) => sections?.rename(id, name)}
+					onResize={(id, bars) => sections?.resize(id, bars)}
+					onRecolor={(id, color) => sections?.recolor(id, color)}
+					onReorder={(id, index) => sections?.reorder(id, index)}
+				>
+					<OutlinePicker
+						hasLoopRange={barSelection() !== null}
+						message={outlineMessage()}
+						onCreate={(template, mode) => {
+							const range = barSelection();
+							if (!range) return;
+							const refusal = sections?.createOutline(
+								template,
+								mode,
+								range.startTick,
+								range.endTick,
+							);
+							setOutlineMessage(refusal ? OUTLINE_MESSAGES[refusal] : null);
+						}}
+					/>
+				</SectionPanel>
 			</Show>
 			<div class="arrangement-body">
 				<div
