@@ -301,12 +301,18 @@ feature set, so the event list to confirm in part 5 is every Alpha Milestone 0,
       standing after you have run it is the same failure in the other direction.
       **Done 2026-08-05** against release `8336d9d`; the section is now
       "What has been verified against the hosted environment".
-- [ ] Mark **G4.5: Hosted environment verified** open. **Still closed** — error
-      monitoring does not initialize on the deployed build (a deliberately
-      triggered error reaches no Sentry issue), so the OPS-03 criteria cannot be
-      met. Deploy, rollback, and analytics are verified. Open this gate once the
-      `FND-001c` monitoring defect ([#174](https://github.com/afternoon/solid-groove/issues/174)) is fixed and a real error has been observed
-      arriving with its release SHA and a symbolicated trace.
+- [ ] Mark **G4.5: Hosted environment verified** open. **Still closed**, though
+      the monitoring defect that originally held it
+      ([#174](https://github.com/afternoon/solid-groove/issues/174)) is fixed:
+      on release `e15ce13` a deliberately triggered error reaches Sentry's
+      ingest endpoint with HTTP 200. Deploy, rollback, and analytics are
+      verified. Two operator checks remain, both needing a console rather than
+      code: **(a)** open the Sentry issue that error produced and confirm its
+      release SHA, symbolicated `src/` trace, tags, redacted message, that it is
+      exactly one issue, and a crash-free session rate under *Releases →
+      Health*; **(b)** confirm the `internal` user property in GA4 from the
+      deployed build and that internal traffic is excluded from the section 11
+      measures. Open this gate once both are observed.
 
 ## Out of scope
 

@@ -352,7 +352,7 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 
 ### What has been verified against the hosted environment
 
-`OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`). What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
+`OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`), and the error-monitoring items were re-checked the same day against release **`e15ce13`** once [#174](https://github.com/afternoon/solid-groove/issues/174) was fixed. What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
 
 **Verified.**
 
@@ -362,17 +362,18 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 - **Analytics opt-out, both directions** — collection toggled off in the Privacy disclosure (no further events observed in GA4), then back on (collection resumed). The toggle is symmetric in practice, not just by construction.
 - **OPS-02 events arriving from the deployed build** — `session_start`, `first_visit`, `page_view`, `feature_first_use`, and `clip_edited` observed in GA4 with their expected parameters.
 - **No source map is publicly fetchable** — confirmed by request against the deployed chunks. Note the check must compare response *bodies*, not status codes; see "4. No source map is public" above for why a `200` here proves nothing.
+- **Error monitoring initializes and delivers from the deployed build** — on release `e15ce13`, an uncaught error dispatched through the app's own global handler reached Sentry's ingest endpoint with **HTTP 200**, alongside the Release Health session envelope. Checked in a *hidden* tab specifically, which is where it used to fail: `window.__SENTRY__` is live, the `sentrySink-*` chunk is fetched, and `globalThis.__sgMonitoring` reads `"started"`. This supersedes the [#174](https://github.com/afternoon/solid-groove/issues/174) defect recorded here against `8336d9d`, whose cause was `afterFirstPaint` waiting on a `requestAnimationFrame` that a hidden document never fires (fixed in [#176](https://github.com/afternoon/solid-groove/pull/176)).
 
 **Outstanding — do not treat as verified.**
 
-- **Error monitoring does not initialize on the deployed build.** A deliberately triggered uncaught error produces no Sentry issue. On `/dashboard` with consent granted, `window.__SENTRY__` is undefined, no `@sentry` vendor chunk is fetched, and no request reaches `ingest.us.sentry.io` — even though the DSN is present in the bundle and the sink code is deployed. Both documented gates (consent granted, non-landing surface reached) pass, so the cause is elsewhere and is not yet isolated; `startMonitoring`'s `catch {}` and `SentrySink.startInner`'s `if (!dsn) return false` both fail silently, which is part of why. Tracked as a defect against `FND-001c` ([issue #174](https://github.com/afternoon/solid-groove/issues/174)). Until it is fixed, **the alpha has no working error monitoring**, and the OPS-03 criteria that depend on it — symbolicated traces, release tagging, redaction, one-issue-per-error — are unverifiable rather than merely unverified.
+- **What a delivered error looks like in Sentry.** Delivery is confirmed above, but the OPS-03 criteria are about the resulting *issue*, and nobody has opened the Sentry UI since the fix landed. Still unobserved: the release SHA on the issue, a **symbolicated** stack naming `src/` files, the expected tags, a redacted message with no PII, that one error produces exactly **one** issue, and a crash-free session rate under *Releases → Health*. These were unverifiable while monitoring was broken; they are now merely unverified, and the procedure in "2. A deliberately triggered error" above is the one to re-run.
 - **Internal-traffic exclusion** — `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded from the section 11 measures.
 
 **Descoped.**
 
 - **Computing the section 11 primary measure from real events** is deferred to post-alpha (`DEC-011`, PRD sections 11 and 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
 
-**Gate `G4.5: Hosted environment verified` remains closed** on the error-monitoring defect above. Deploy, rollback, and the analytics path are verified and can be relied on; error monitoring cannot. `HARD-005` invites the cohort on the strength of this gate, so it should not open while a crash in front of a real user would go unreported.
+**Gate `G4.5: Hosted environment verified` remains closed**, but no longer on the original grounds: the error-monitoring defect that held it is fixed, and a crash in front of a real user is now reported. What is left is the two outstanding items above — confirming what a delivered error looks like in Sentry, and internal-traffic exclusion in GA4. Both need operator credentials rather than code, and `HARD-005` invites the cohort on the strength of this gate, so it stays closed until they are observed rather than opening on the fix alone.
 
 ## Test helpers
 
