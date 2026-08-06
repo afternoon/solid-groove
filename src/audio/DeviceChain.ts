@@ -29,6 +29,13 @@ export interface DeviceNode {
 	 */
 	gainReductionDb?(): number;
 	/**
+	 * The delay time this device last resolved to, in seconds. Only the delay
+	 * implements it; a panel reads it to show what a *synced* delay currently
+	 * works out to, which depends on the song tempo and so is not derivable from
+	 * the stored parameters alone.
+	 */
+	resolvedDelaySeconds?(): number;
+	/**
 	 * Resolves once any asynchronously-built resource this device needs is in
 	 * place. Only the reverb implements it (its impulse response is generated
 	 * off the audio thread). Live playback never awaits it — a node keeps its
@@ -100,6 +107,10 @@ export class DeviceChain {
 	readonly output: Tone.Gain;
 	private readonly nodes = new Map<DeviceId, TrackedDevice>();
 	private order: DeviceId[] = [];
+	/** The exact `Device` object each node was last applied from, so a forced
+	 * re-apply (see `reconcile`'s `reapplyExisting`) is the only thing that
+	 * re-runs `update()` for a device whose own object did not change. */
+	private readonly lastDevices = new Map<DeviceId, Device>();
 	private readonly chainHandle: ReturnType<AudioProjectScope["register"]>;
 	/** True once the signal path has been wired at least once. Guards the very
 	 * first `relink()` (empty -> initial topology) so it connects directly at
@@ -125,8 +136,26 @@ export class DeviceChain {
 		});
 	}
 
-	/** Reconciles this chain's devices, ordered by chain position (`order`). */
-	reconcile(devices: readonly Device[]): void {
+	/** The live node for a device id, for a panel readout (gain reduction, a
+	 * synced delay's resolved time) or a test. Read access only — the chain owns
+	 * every node's lifetime. */
+	deviceNode(id: DeviceId): DeviceNode | undefined {
+		return this.nodes.get(id)?.node;
+	}
+
+	/**
+	 * Reconciles this chain's devices, ordered by chain position (`order`).
+	 *
+	 * `reapplyExisting` forces `update()` on every already-present node even when
+	 * its `Device` object is unchanged. A device parameter can depend on state
+	 * that lives *outside* its own `Device` — the tempo-synced delay resolves its
+	 * division against the song tempo — and a tempo-only edit changes no device,
+	 * no track, and no projection entry, so nothing here would otherwise re-run
+	 * `apply()` and the delay would stay on the old grid forever. The owning graph
+	 * sets this when such shared state moved; a routine edit leaves it false and
+	 * the chain behaves exactly as before.
+	 */
+	reconcile(devices: readonly Device[], reapplyExisting = false): void {
 		const nextIds = devices.map((device) => device.id);
 		const nextIdSet = new Set(nextIds);
 
@@ -134,6 +163,7 @@ export class DeviceChain {
 			if (!nextIdSet.has(id)) {
 				void this.scope.release(tracked.handle);
 				this.nodes.delete(id);
+				this.lastDevices.delete(id);
 			}
 		}
 
@@ -141,7 +171,9 @@ export class DeviceChain {
 		for (const device of devices) {
 			const existing = this.nodes.get(device.id);
 			if (existing) {
-				existing.node.update(device);
+				if (reapplyExisting || this.lastDevices.get(device.id) !== device) {
+					existing.node.update(device);
+				}
 			} else {
 				const node =
 					this.createNode(device) ?? createPassthroughDeviceNode(device);
@@ -149,6 +181,7 @@ export class DeviceChain {
 				this.nodes.set(device.id, { node, handle });
 				compositionChanged = true;
 			}
+			this.lastDevices.set(device.id, device);
 		}
 
 		const orderChanged =
@@ -232,6 +265,7 @@ export class DeviceChain {
 			void this.scope.release(tracked.handle);
 		}
 		this.nodes.clear();
+		this.lastDevices.clear();
 		this.order = [];
 		void this.scope.release(this.chainHandle);
 	}

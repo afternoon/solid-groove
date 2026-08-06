@@ -42,9 +42,18 @@ export class ReturnAudioGraph {
 		return this.deviceChain.input;
 	}
 
-	reconcile(next: AudioReturnProjection): void {
-		if (this.lastProjection === next) return;
-		this.deviceChain.reconcile(next.devices);
+	/**
+	 * `reapplyDevices` reports that state outside this return's projection moved
+	 * (the song tempo, which a synced delay resolves against) and so must survive
+	 * the reference short-circuit — otherwise a tempo-only edit, which leaves this
+	 * projection reference-identical, would never reach the device chain.
+	 */
+	reconcile(next: AudioReturnProjection, reapplyDevices = false): void {
+		if (this.lastProjection === next) {
+			if (reapplyDevices) this.deviceChain.reconcile(next.devices, true);
+			return;
+		}
+		this.deviceChain.reconcile(next.devices, reapplyDevices);
 		this.panVol.volume.rampTo(next.mixer.volume, 0.02);
 		this.panVol.pan.rampTo(next.mixer.pan, 0.02);
 		this.panVol.mute = next.mixer.muted;

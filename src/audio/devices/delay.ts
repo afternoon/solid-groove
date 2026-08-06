@@ -93,11 +93,22 @@ export const createDelayCore: DeviceCoreFactory = (): DeviceCore => {
 	feedbackLimit.connect(input);
 	merger.connect(output);
 
+	/**
+	 * The delay time this core last resolved, in seconds. Kept because the live
+	 * `delayTime` param is a *ramp target* on an edit, not an instantaneous
+	 * value, so reading the node mid-ramp reports the old grid however correct
+	 * the wiring is. `resolvedDelaySeconds()` is what a panel readout and the
+	 * graph-level tempo test both need: the value the device is heading to.
+	 */
+	let resolved = 0;
+
 	return {
 		input,
 		output,
+		resolvedDelaySeconds: () => resolved,
 		apply(values, ctx, initial) {
 			const base = delaySeconds(values, ctx.tempo());
+			resolved = base;
 			setOrRamp(left.delayTime, base, initial);
 			// The right channel trails by up to one more division's worth, still
 			// inside the allocated line.

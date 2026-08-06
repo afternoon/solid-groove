@@ -148,6 +148,18 @@ export class ProjectAudioGraph {
 	 */
 	private readonly assetsById = new Map<AssetId, AudioAssetProjection>();
 	private lastProjection: AudioSongProjection | null = null;
+	/**
+	 * The tempo of the projection currently being reconciled, set at the *top* of
+	 * `reconcile()` — before any child graph runs — so a device reading it during
+	 * `apply()` sees the tempo it is being reconciled *to*.
+	 *
+	 * Deliberately not derived from `lastProjection`: that is only assigned at the
+	 * end of `reconcile()`, so a device built or updated mid-pass would read the
+	 * *previous* pass's tempo, and the very first pass would read nothing at all
+	 * and fall back to the 120 BPM default — silently building every synced delay
+	 * in a 90 BPM project on a 120 BPM grid.
+	 */
+	private currentTempo: number = SONG_TEMPO.defaultValue;
 	private disposed = false;
 
 	constructor(
@@ -164,14 +176,15 @@ export class ProjectAudioGraph {
 		this.createInstrument = options.createInstrument;
 		// The six core processing devices (PRD FX-01, LOOP-009). A test may
 		// substitute its own factory; production always gets the real DSP. The
-		// tempo reader is read *at apply time* from the latest projection, so a
-		// tempo-synced delay follows a tempo change without the graph rebuilding
-		// anything.
+		// tempo reader returns the tempo of the projection being reconciled right
+		// now (see `currentTempo`), and `reconcile` forces a device re-apply when
+		// the tempo moved, so a tempo-synced delay follows a tempo change without
+		// the graph rebuilding anything.
 		this.createDeviceNode =
 			options.createDeviceNode ??
 			createDeviceNodeFactory({
 				scope: this.scope,
-				tempo: () => this.lastProjection?.tempo ?? SONG_TEMPO.defaultValue,
+				tempo: () => this.currentTempo,
 			});
 		this.underrunMonitor = options.underrunMonitor;
 		this.now = options.now ?? audioClockNow;
@@ -270,11 +283,20 @@ export class ProjectAudioGraph {
 
 		this.transport.bpm.value = next.tempo;
 
-		this.master.reconcile(next.master);
-		this.syncReturns(next);
+		// Tempo must be visible to every device built or updated below *before*
+		// any of them run, and a tempo change has to survive the per-entity
+		// reference short-circuits: a tempo-only edit leaves every track, return,
+		// and master projection reference-identical, so nothing else in this pass
+		// would reach a synced delay's `apply()` (PRD FX-01).
+		const tempoChanged =
+			this.lastProjection !== null && this.lastProjection.tempo !== next.tempo;
+		this.currentTempo = next.tempo;
+
+		this.master.reconcile(next.master, tempoChanged);
+		this.syncReturns(next, tempoChanged);
 
 		const anySolo = next.tracks.some((track) => track.mixer.soloed);
-		this.syncTracks(next, anySolo);
+		this.syncTracks(next, anySolo, tempoChanged);
 
 		// Returns no longer referenced are only safe to dispose once no track
 		// send still targets them — i.e. after `syncTracks` above.
@@ -306,7 +328,7 @@ export class ProjectAudioGraph {
 		);
 	}
 
-	private syncReturns(next: AudioSongProjection): void {
+	private syncReturns(next: AudioSongProjection, tempoChanged: boolean): void {
 		for (const returnProjection of next.returns) {
 			let graph = this.returns.get(returnProjection.id);
 			if (!graph) {
@@ -318,7 +340,7 @@ export class ProjectAudioGraph {
 				);
 				this.returns.set(returnProjection.id, graph);
 			}
-			graph.reconcile(returnProjection);
+			graph.reconcile(returnProjection, tempoChanged);
 		}
 	}
 
@@ -331,7 +353,11 @@ export class ProjectAudioGraph {
 		}
 	}
 
-	private syncTracks(next: AudioSongProjection, anySolo: boolean): void {
+	private syncTracks(
+		next: AudioSongProjection,
+		anySolo: boolean,
+		tempoChanged: boolean,
+	): void {
 		for (const [id, graph] of this.tracks) {
 			if (!next.tracksById.has(id)) {
 				graph.dispose();
@@ -359,7 +385,7 @@ export class ProjectAudioGraph {
 			const effectiveMuted =
 				trackProjection.mixer.muted ||
 				(anySolo && !trackProjection.mixer.soloed);
-			graph.reconcile(trackProjection, effectiveMuted);
+			graph.reconcile(trackProjection, effectiveMuted, tempoChanged);
 		}
 	}
 
