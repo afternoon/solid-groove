@@ -76,6 +76,7 @@ function harness() {
 				playheadTicks: 0,
 				selection: null,
 				hoverPlacementId: null,
+				selectedPlacementIds: new Set(),
 			}),
 			waveformCache: createArrangementWaveformCache(),
 		});
