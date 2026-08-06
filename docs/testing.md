@@ -21,6 +21,66 @@ This document is the map of "which suite do I run, and how." It does not restate
 
 Each suite is isolated on purpose: `bun run test` never needs a browser or an emulator running, so it stays fast enough to run on every save. `test:emulator` and `test:browser` are heavier and are meant for CI and pre-push checks. `smoke:hosted` is the odd one out — it is the only suite that touches the production project, and it only ever runs post-deploy (see "Deploy").
 
+## Core flows
+
+A **core flow** is one user journey that must work end to end when a feature is
+finished, registered in [`docs/core-flows.md`](./core-flows.md) with a stable ID
+(`CF-001`, …). Flows are not a fourth suite: they live *inside* the two browser
+suites, in `e2e/flows/` and `e2e-emulator/flows/`, one spec per flow named for
+its ID. What makes them different is their role, not their runner —
+
+- they are written **before** the implementation, from the register, and reviewed
+  on their own as the first PR in a feature's stack;
+- they start at an entrypoint a person actually arrives at, never a deep link
+  into seeded state; and
+- they are **frozen** once merged, so the implementation is measured against a
+  contract that cannot move.
+
+`bun run verify:core-flows` (part of CI's `checks` job) enforces that every
+registered flow has exactly one spec and vice versa, and reports any flow still
+marked `test.fixme`. A flow spec that is skipped is green, which is why nothing
+else catches it. See `CLAUDE.md`, "Core flows are the acceptance contract", for
+how they sequence a feature's PRs.
+
+### Walkthrough screenshots
+
+The screenshot walkthrough a reviewer reads on a pull request is a **byproduct of
+the flow spec**, not a separate errand: `e2e/support/walkthrough.ts` takes one
+screenshot per `step()` call, so the images cannot drift from what shipped and
+always start where the flow starts.
+
+```sh
+bun run walkthrough:capture                  # e2e/flows, Chromium, one worker
+bun run walkthrough:capture:emulator         # e2e-emulator/flows
+bun run walkthrough:publish -- --issue 123   # push the images, print the Markdown
+```
+
+Capture is off unless `CAPTURE_WALKTHROUGH=1`, which those scripts set, so the
+gating runs pay nothing for it. It only produces images for specs that **pass**,
+so a flow still at `test.fixme` captures nothing — that is the intended signal,
+not a tooling failure.
+
+`walkthrough:publish` exists because **images cannot be attached to a pull
+request body through the GitHub API**: the media-upload endpoint behind
+drag-and-drop in the web UI is not part of the REST API and `gh` has no command
+for it. So the script pushes the PNGs to the `claude/walkthroughs` orphan branch
+and prints `![…](https://raw.githubusercontent.com/…)` links against it. An
+orphan branch, and not the feature branch, because these are review artefacts:
+they have no business in `main`'s history or in a diff capped at 400 lines.
+`walkthroughs/` is gitignored for the same reason.
+
+This works because the repository is **public**. GitHub renders a Markdown image
+by proxying its URL anonymously, and `raw.githubusercontent.com` refuses
+anonymous reads of a private repo, so making this repository private would turn
+every published walkthrough into a broken-image icon. There is no workaround from
+the command line — the only host whose images render for a private repo is
+GitHub's own attachment store, which nothing but the web UI can upload to.
+
+Note what a screenshot cannot show: this is a music tool, and no still image — nor
+any video, since Playwright records no audio track — is evidence that a sound
+reached a speaker. A walkthrough proves the UI reached the state the flow
+asserts. Audible behavior is checked by hand on the preview channel.
+
 ## Unit and component tests
 
 ```sh

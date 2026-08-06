@@ -41,6 +41,12 @@ jobs:
         run: bun run typecheck
       - name: Lint and format check (non-mutating)
         run: bun run check:ci
+      - name: Check the core-flow register against its specs
+        # Cheap, no-dependency drift guard: every flow in docs/core-flows.md has
+        # exactly one spec and vice versa. A flow nobody wrote a test for, or a
+        # spec for a flow the register no longer describes, fails no other suite
+        # here — a missing test is not a red test. See scripts/check-core-flows.mjs.
+        run: bun run verify:core-flows
       - name: Configure a null ALSA output device
         # ubuntu-latest has no /dev/snd, so Tone.js's real (non-offline) global
         # AudioContext — created as a side effect of importing "tone" in

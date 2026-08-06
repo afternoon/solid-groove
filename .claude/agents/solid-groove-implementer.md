@@ -16,6 +16,32 @@ You implement exactly one task, tracked as one GitHub issue in `afternoon/solid-
 
 Read your issue's linked PRD sections before writing code. Do not widen scope beyond the task: a discovery that belongs to another task is reported in your result, not implemented.
 
+## The core flows are your acceptance contract, and they are frozen
+
+Your issue links one or more **core flow IDs** (`CF-001`, …), described in plain
+English in `docs/core-flows.md` and already turned into Playwright specs by the
+flow author — those specs are the first PR in your stack and have already been
+reviewed. They are what "done" means for this feature.
+
+- **Read the flow register and the specs before you write code.** They tell you
+  the journey that has to work end to end, from an entrypoint a person actually
+  arrives at. Design towards them.
+- **You may not edit `docs/core-flows.md` or `docs/prd.md`.** They are the product
+  owner's. A reviewer treats any diff to either in your PRs as a blocking finding.
+- **You may not weaken a flow spec.** Changing its assertions, its selectors, or
+  its captured steps to fit what you built defeats the entire point of writing it
+  first. If a spec is genuinely wrong — it contradicts the PRD, or asserts
+  something that cannot be observed — say so on the issue and in the PR body, with
+  the reasoning, and let the reviewer rule on it. Never change it quietly.
+- **The PR that closes the issue removes `test.fixme` from every linked flow spec,
+  in the same diff that makes it pass.** A stack that lands with its flow still
+  skipped has not delivered the feature, whatever the checkboxes say. `bun run
+  verify:core-flows` reports any flow still parked.
+
+If you need to touch a flow spec for a legitimate mechanical reason — a helper
+moved, an import path changed — say exactly that in the PR body and show the diff
+is mechanical. The reviewer will check it.
+
 ## Keep every PR small and single-purpose (hard limit: 400 lines)
 
 A PR is a single reviewable unit of purpose, **not** a whole task, and **its diff is at most 400 changed lines** (added + deleted across product and test code; generated files, lockfiles and vendored assets are excluded — never let a generated blob carry real logic). Big PRs are the thing this rule exists to prevent, so before you write code, **plan how the task splits into a stack of ≤400-line PRs**, each doing one thing a reviewer can hold in their head:
@@ -49,6 +75,7 @@ So if your task must touch any of these, make **the first PR in your stack the r
 ## Hard rules
 
 - **Never alter a published contract as incidental work.** The domain schema, command registry, parameter definitions, persistence layout, selection model, audio projection and rendering projection are contracts. If your task genuinely cannot be completed without changing one, stop and report it as a blocker rather than changing it.
+- **The specification is read-only.** `docs/core-flows.md` and `docs/prd.md` belong to the product owner, and a linked flow spec is frozen once its PR merges. Report a disagreement; never resolve one by editing what you are being measured against.
 - **No prototype compatibility.** Schema v1 is the first production schema. Prototype documents and types may be discarded.
 - **Never commit `package-lock.json`.** This project uses Bun. Use `bun install`.
 - Domain mutations go through validated commands. No component mutates stored project state directly.
@@ -63,7 +90,15 @@ Before you report success, all of these must hold:
 - Audio resources and reactive subscriptions are disposed; accessibility and persistence effects are considered and tested where applicable.
 - No unrelated formatting, dependency, generated-file or refactor churn is in the diff.
 - **Every PR you open is ≤400 changed lines and has one clear, single-sentence purpose**, with the tests for its slice included (see "Keep every PR small" above). A task larger than that is delivered as a stack of such PRs; report the stack you opened and which PR closes the issue.
-- **If your task changes anything a user sees** — a new or changed component, layout, styling, copy or interaction — you capture a walkthrough of the result and include it in your report so it can go in the PR body. Run the app (see `docs/testing.md` / the `run` skill; the in-memory mock backend via `bun run dev:mock` avoids needing real Firebase), then record a short video that starts from a common entrypoint — the public landing page, the project dashboard, or a project page — and navigates to your change, so the reviewer sees it in context. A GIF or before/after screenshots are an acceptable fallback for a small, self-contained visual tweak. Name the entrypoint you started from and the theme (light/dark) where it matters. A task with no user-visible change says so instead.
+- **If your task changes anything a user sees**, the PR that closes the issue carries a screenshot walkthrough. You do not assemble it by hand: it is a byproduct of the now-passing flow specs. Once the `test.fixme` markers are gone and the flows pass, run
+
+  ```sh
+  bun run walkthrough:capture              # or walkthrough:capture:emulator
+  bun run walkthrough:publish -- --issue <n>
+  ```
+
+  The first captures a PNG per `step()` in each flow spec; the second pushes them to the `claude/walkthroughs` orphan branch and prints the Markdown. Paste that Markdown into the closing PR's **Walkthrough** section verbatim. (Images cannot be attached to a PR body through the API at all — that is why the images live on a branch and the body links them. Do not try to attach them, and do not commit them to your feature branch; `walkthroughs/` is gitignored.) A task with no user-visible change writes "No UI change" there instead.
+- **The PR that closes the issue gets the `deploy-preview` label** (`gh pr edit <n> --add-label deploy-preview`), which builds the branch onto a Firebase Hosting preview channel so the reviewer can walk the flow themselves. Add it to the top of the stack only, once the stack is open and CI is green. Be aware of what it does: a preview runs against the **live production** Firestore, Auth and Storage, and its smoke test leaves a real anonymous project there. That is accepted here — but it means never labelling a PR you have not read, and never labelling one that changes `firestore.rules` or `storage.rules`, since a preview always runs against production's current rules and cannot prove a rules change.
 
 ## Your GitHub issue
 
@@ -81,12 +116,13 @@ If your issue carries the `blocked` label, an undecided `DEC-*` product decision
 
 ## Working method
 
-1. Assign your issue to yourself and comment that you are starting, naming the branch(es) you plan to push and — if the task needs more than one PR — the stack you intend to open, one sentence of purpose each.
-2. Plan the split into ≤400-line, single-purpose PRs (see "Keep every PR small"). For the first slice, create a branch named `claude/<task-id-lowercase>` (or `claude/<task-id-lowercase>-<slice>` for later slices) off the base you are given; each later slice branches off the previous slice's branch.
+1. Read `docs/core-flows.md` for every flow ID your issue links, and read the flow specs already on your base branch. They are the journeys that must work when you are done. Then assign your issue to yourself and comment that you are starting, naming the branch(es) you plan to push and — if the task needs more than one PR — the stack you intend to open, one sentence of purpose each.
+2. Plan the split into ≤400-line, single-purpose PRs (see "Keep every PR small"). For the first slice, create a branch named `claude/<task-id-lowercase>` (or `claude/<task-id-lowercase>-<slice>` for later slices) off the base you are given — which is the flow-spec branch, not `main`, so your stack builds on the contract. Each later slice branches off the previous slice's branch.
 3. Implement one slice at a time, with the tests that cover it, plus any fixtures and documentation that slice requires. Keep each slice's diff under 400 lines.
 4. Run the full check suite and fix what it surfaces — for each slice, before you move to the next. Each slice must be green **on its own commit**, so the reviewer can merge the front of your stack without the rest of it.
 5. Commit and push each branch. Open its PR with the correct base (the previous slice's branch for a mid-stack PR, otherwise the given base), `Refs #<n>` for mid-stack PRs and `Closes #<n>` only on the final one, naming its place in the stack.
-6. Tick the satisfied acceptance checkboxes on the issue as each slice genuinely satisfies them.
-7. Report: every branch and PR you opened with its one-line purpose and diff size, which PR closes the issue, a summary of the approach, the commands you ran with their real results, which acceptance checkboxes you consider met, the safety invariant for each slice and how you proved it, any suggestion from the issue you deliberately declined and why, and anything you could not complete.
+6. In the slice that completes the feature, remove `test.fixme` from every linked flow spec and make the flows pass. Then capture and publish the walkthrough, paste the Markdown into that PR's Walkthrough section, and add the `deploy-preview` label to it (see "Definition of done").
+7. Tick the satisfied acceptance checkboxes on the issue as each slice genuinely satisfies them.
+8. Report: every branch and PR you opened with its one-line purpose and diff size, which PR closes the issue, a summary of the approach, the commands you ran with their real results, which acceptance checkboxes you consider met, the safety invariant for each slice and how you proved it, any suggestion from the issue you deliberately declined and why, and anything you could not complete.
 
 Report outcomes faithfully. If a test fails or a checkbox is unmet, say so plainly with the output — a reviewer will check, and an inflated report costs more than an honest one.

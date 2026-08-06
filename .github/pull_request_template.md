@@ -9,19 +9,42 @@
 
 Closes #<!-- issue number -->
 
+## Core flows
+
+<!--
+  The core flow IDs (CF-001, ...) this PR delivers or specs, from
+  docs/core-flows.md. Say which state they are in:
+
+    - specced (test.fixme, this is the first PR in the stack)
+    - live (this PR removes the fixme markers and the flows pass)
+    - untouched (a mid-stack slice that neither specs nor completes a flow)
+
+  If this PR's stack touched a flow spec for any reason other than removing a
+  fixme marker, say exactly what changed and why. A reviewer treats a modified
+  assertion as blocking unless it is justified here — the spec is the contract
+  the whole stack is measured against.
+
+  If this task has no core flows, write "None" and say why.
+-->
+
 ## Walkthrough
 
 <!--
-  REQUIRED for any change that alters the UI (new/changed component, layout,
-  styling, copy, or interaction).
+  REQUIRED on the PR that closes the issue, for any change that alters the UI
+  (new/changed component, layout, styling, copy, or interaction).
 
-  Prefer a short video walkthrough that starts from a common entrypoint — the
-  public landing page, the project dashboard, or a project page — and navigates
-  to the change, so a reviewer sees it in context rather than in isolation.
-  A GIF or before/after screenshots are an acceptable fallback for a small,
-  self-contained visual tweak. Drag the file into this box on GitHub, or paste a
-  Markdown image link. Name the entrypoint you started from and the theme
-  (light/dark) where it matters.
+  Do not assemble this by hand — it is a byproduct of the now-passing core-flow
+  specs, so it cannot drift from what shipped. Once the fixme markers are gone
+  and the flows pass:
+
+      bun run walkthrough:capture              # or walkthrough:capture:emulator
+      bun run walkthrough:publish -- --issue <n>
+
+  Paste the printed Markdown here verbatim, then check the images render.
+
+  Images cannot be attached to a PR body through the GitHub API, which is why
+  walkthrough:publish pushes them to the claude/walkthroughs branch and links
+  them instead. Don't commit them to this branch — walkthroughs/ is gitignored.
 
   If this PR changes nothing a user sees, write "No UI change" here instead.
 -->

@@ -136,7 +136,10 @@ src/
 └── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
 
 e2e/                    # Playwright browser E2E suite (in-memory mock backend)
+├── flows/              # One spec per core flow (docs/core-flows.md), named for its CF- id
+└── support/            # walkthrough.ts — the screenshot capture a flow spec drives
 e2e-emulator/           # Playwright browser E2E suite against the Firestore/Auth emulator (FND-009)
+└── flows/              # Core flows whose outcome needs a real backend (saving, reload, sign-in)
 tests/emulator/         # Firebase Emulator suite (Firestore rules, etc.)
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 ```
@@ -150,10 +153,55 @@ Implementation work is tracked entirely in **GitHub issues** in `afternoon/solid
 - **The issue is the live record** — its state and labels are status, its assignee is ownership, and its comments carry progress, blockers, and discoveries. Alpha Milestone 0 tasks `FND-001`–`FND-008` and `CNT-000` predate this convention and are recorded in git history instead; they have no issue.
 - **Readiness is the issue's native `blocked_by` graph — nothing else.** A task is ready to start when every issue in its `blocked_by` graph is closed (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`, edited directly on GitHub). **Ignore any "Dependencies" field or dependency prose written into an issue body**: that text is descriptive only, is not kept in sync, and never gates readiness — the `blocked_by` graph is the authority. Keep the graph correct so the body never has to be consulted. The `blocked` label marks a task gated on an undecided `DEC-*` product decision. Milestones group tasks by Alpha Milestone; Projects v2 **Status** (Todo / In Progress / Done) drives the orchestrator.
 
+### Core flows are the acceptance contract
+
+A **core flow** is one user journey that must work end to end when a feature is
+finished, written in plain English *before* any code exists. They live in
+[`docs/core-flows.md`](./docs/core-flows.md), each with a stable ID (`CF-001`, …)
+that an issue links to, a Playwright spec is named after, and a screenshot
+walkthrough is captured from. Read that file for the format and the lifecycle;
+what matters here is how the flows shape the work:
+
+1. **The product owner writes the flows and links them from the issue.** A flow
+   that depends on work which does not exist yet gets that dependency broken out
+   as its own issue first.
+2. **The first PR in a feature's stack is the flow specs alone** —
+   `e2e/flows/<ID>.spec.ts` (or `e2e-emulator/flows/<ID>.spec.ts`), marked
+   `test.fixme` because the implementation does not exist. It is reviewed on its
+   own, before anything is built, because it is the contract everything else is
+   measured against. `test.fixme` is what keeps it honest *and* mergeable: a
+   skipped test is green, so the slice satisfies the same "green on its own
+   commit" rule as every other PR, and a deliberately red PR 1 would either block
+   the stack or redden `main` for every parallel task. The red→green evidence
+   belongs in the run log, not in a merge.
+3. **From then on the spec is frozen.** A later PR that changes its assertions
+   must say so in its body and justify it; a reviewer treats an unexplained
+   change as blocking. If the implementer can edit the test, the test proves
+   nothing.
+4. **`docs/core-flows.md` and `docs/prd.md` are read-only to implementers and
+   reviewers.** A flow that is ambiguous, impossible, or contradicted by the PRD
+   is reported on the issue, never edited to match what was built.
+5. **The PR that closes the issue removes every `test.fixme` marker in the same
+   diff that makes the flows pass**, and carries the walkthrough captured from
+   that passing run. `bun run verify:core-flows` enforces the 1:1 mapping between
+   registered flows and specs, and reports any flow still parked.
+
+`.claude/workflows/solid-groove-feature.js` runs this pipeline for one issue —
+spec → spec review → implement → review → land → walkthrough. Invoke it through
+the **`/implement-feature #123`** skill (`.claude/skills/implement-feature/`),
+from a terminal, claude.ai/code, or the mobile app: the skill verifies the
+prework first (the issue links flows, every flow is registered and complete, the
+`blocked_by` graph is closed), runs the workflow, and then verifies the resulting
+stack — bases, `Refs`/`Closes`, PR size, an untouched specification, no flow left
+at `test.fixme`, and that the walkthrough images actually return `200` rather
+than rendering as broken icons. The workflow and agent definitions are
+human-approved: an agent running the skill reports a problem with them and never
+edits them.
+
 ### Landing work
 
 1. **A PR is a single reviewable unit of purpose, not a whole task.** Each agent works in its own git worktree so parallel implementations do not collide on the filesystem, and a broken PR never blocks review of an unrelated one. One PR does one thing a reviewer can hold in their head at once — "introduce the *X* commands", "add the *Y* domain entity and its schema", "wire the *Z* panel UI onto existing commands". A task that cannot be delivered as one such unit is **split into several stacked PRs**, sequenced so each builds on the last (see item 5).
-2. **A PR's diff is at most 400 lines changed** (added + deleted in product and test code; generated files, lockfiles, and vendored assets do not count — and never let a generated blob smuggle real logic past this). This is a hard ceiling, not a target: if the honest slice does not fit, the slice is wrong — cut it smaller, do not shave tests to squeeze under. Keep each PR vertical and self-contained *for its purpose*: the product code for that slice, **the tests that cover it in the same PR** (a UI PR that leans on commands from an earlier PR in the stack re-tests the behavior it newly exposes; splitting must never drop coverage or defer it to a later PR), and any fixtures/docs that slice needs. The PR body links its issue (`Refs #<n>` for a mid-stack PR, `Closes #<n>` only on the PR that completes the task), names its place in the stack ("2 of 3, builds on #<prev>"), and states the evidence. **Any change that alters the UI includes a walkthrough** in the PR body — ideally a short video that starts from a common entrypoint (the public landing page, the project dashboard, or a project page) and navigates to the change; a GIF or before/after screenshots are an acceptable fallback for a small, self-contained visual tweak. Name the entrypoint and the theme. A PR with no user-visible change says so instead. The PR template (`.github/pull_request_template.md`) has the section.
+2. **A PR's diff is at most 400 lines changed** (added + deleted in product and test code; generated files, lockfiles, and vendored assets do not count — and never let a generated blob smuggle real logic past this). This is a hard ceiling, not a target: if the honest slice does not fit, the slice is wrong — cut it smaller, do not shave tests to squeeze under. Keep each PR vertical and self-contained *for its purpose*: the product code for that slice, **the tests that cover it in the same PR** (a UI PR that leans on commands from an earlier PR in the stack re-tests the behavior it newly exposes; splitting must never drop coverage or defer it to a later PR), and any fixtures/docs that slice needs. The PR body links its issue (`Refs #<n>` for a mid-stack PR, `Closes #<n>` only on the PR that completes the task), names its place in the stack ("2 of 3, builds on #<prev>"), and states the evidence. **Any change that alters the UI includes a walkthrough** in the body of the PR that closes the issue: a sequence of captioned screenshots starting from a common entrypoint (the public landing page, the project dashboard, or a project page) and walking to the change. It is not assembled by hand — `bun run walkthrough:capture` takes one screenshot per `step()` in the now-passing core-flow specs and `bun run walkthrough:publish -- --issue <n>` pushes them to the `claude/walkthroughs` orphan branch and prints the Markdown to paste in. That is deliberate: the walkthrough is a byproduct of the test that proves the flow, so it cannot drift from what shipped, and it always starts where a person actually arrives. (Images cannot be attached to a PR body through the GitHub API at all, which is why they live on a branch and the body links them.) A PR with no user-visible change says so instead. The PR template (`.github/pull_request_template.md`) has the section.
 3. **Land the central-registration edits first, as their own tiny PR.** A few files are shared registration points that every parallel feature appends to — `src/analytics/catalog.ts` (event keys), `src/commands/registry.ts` and `src/commands/index.ts` (command IDs), `src/domain/parse.ts` (invariants), and `src/editor/EditorView.tsx` (where a panel mounts). Two features editing the same one collide on merge even when their real code is disjoint, and that collision surfaces late — after review, when the first of the pair lands. So when a task must touch one of these, the **first PR in its stack is the registration alone**: add the catalog keys, register the command ID, add the invariant, reserve the panel slot — nothing else. Keep it to a few lines so it reviews in seconds (a phone-sized review) and merges immediately, shrinking the window in which a sibling can clash with it. The bulky feature PR that follows then touches only its own new files. This does not apply to a task that adds no central registration; do not manufacture a trivial PR where there is nothing shared to land.
 4. **Do not edit `docs/prd.md` unless the task strictly requires it.** The PRD is authoritative for product behavior, every parallel task reads it, and it merge-conflicts as badly as any registry. A task references PRD requirements; it does not restate or amend them. Change it only when the task's own definition genuinely revises product behavior, and then in the smallest possible edit — never incidental wording, reformatting, or "while I'm here" additions.
 5. Do not start a task until every `blocked_by` issue is closed, unless the task explicitly permits parallel discovery work. **Stacked PRs within one task** branch each next PR off the previous PR's branch (not off `main`), so each PR's diff shows only its own slice; set that PR's base to the previous branch (`gh pr create --base <prev-branch>`). When an earlier PR in the stack merges, retarget the next one's base to `main` (`gh pr edit <n> --base main`) and rebase it so its diff stays clean. A later PR in a stack may open while an earlier one is still in review — that is the point — but it must not be *merged* ahead of the PR it builds on.
@@ -166,6 +214,8 @@ Implementation work is tracked entirely in **GitHub issues** in `afternoon/solid
 ### Definition of done for every task
 
 - The task's linked PRD acceptance criteria pass, including failure and empty states relevant to the slice.
+- **Every core flow the issue links passes**, with its `test.fixme` marker removed by the PR that closes the issue, and neither `docs/core-flows.md`, `docs/prd.md`, nor the flow spec's assertions changed along the way. `bun run verify:core-flows` passes and reports no parked flow.
+- **The closing PR carries the captured walkthrough** and, once CI is green, the `deploy-preview` label so the change can be walked on a preview channel. A preview runs against the **live production** backend with production's current security rules — never label a stack that changes `firestore.rules` or `storage.rules`, since a preview cannot prove a rules change and an unreviewed branch must not reach production's access rules.
 - New behavior is reachable through shared commands and boundaries rather than a feature-specific mutation path.
 - Tests fail before the implementation and pass afterward at the lowest useful layer.
 - `bun run typecheck`, `bun run test`, and `bun run check` pass. Tasks that touch browser, Firebase, audio, performance, or export behavior also run their task-specific suites.
@@ -203,6 +253,12 @@ bun run test:browser:emulator  # Browser E2E suite against a local Firestore/Aut
 bun run test:browser:chromium           # Chromium-only pre-flight for the two suites above
 bun run test:browser:emulator:chromium  # (see "Which browsers run where" in docs/testing.md)
 bun run test:browser:install  # One-time: download Playwright's browser binaries
+
+# Core flows and PR walkthroughs
+bun run verify:core-flows                    # Every flow in docs/core-flows.md has exactly one spec, and vice versa
+bun run walkthrough:capture                  # Screenshot each step() of the passing e2e/flows specs
+bun run walkthrough:capture:emulator         # The same, for e2e-emulator/flows
+bun run walkthrough:publish -- --issue <n>   # Push the images and print the Markdown for the PR body
 ```
 
 An environment that cannot reach `cdn.playwright.dev` — Claude Code on the web
