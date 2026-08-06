@@ -165,15 +165,19 @@ what matters here is how the flows shape the work:
 1. **The product owner writes the flows and links them from the issue.** A flow
    that depends on work which does not exist yet gets that dependency broken out
    as its own issue first.
-2. **The first PR in a feature's stack is the flow specs alone** —
-   `e2e/flows/<ID>.spec.ts` (or `e2e-emulator/flows/<ID>.spec.ts`), marked
-   `test.fixme` because the implementation does not exist. It is reviewed on its
-   own, before anything is built, because it is the contract everything else is
-   measured against. `test.fixme` is what keeps it honest *and* mergeable: a
-   skipped test is green, so the slice satisfies the same "green on its own
-   commit" rule as every other PR, and a deliberately red PR 1 would either block
-   the stack or redden `main` for every parallel task. The red→green evidence
-   belongs in the run log, not in a merge.
+2. **The flow and its spec land together, before implementation starts** —
+   the entry in `docs/core-flows.md` and `e2e/flows/<ID>.spec.ts` (or
+   `e2e-emulator/flows/<ID>.spec.ts`) in one PR, marked `test.fixme` because the
+   implementation does not exist. That PR is the product owner's, and it is
+   reviewed on its own, before anything is built, because it is the contract
+   everything else is measured against — which is exactly why the implementation
+   pipeline does not write it. `test.fixme` is what keeps it honest *and*
+   mergeable: a skipped test is green, so the slice satisfies the same "green on
+   its own commit" rule as every other PR, and a deliberately red PR would either
+   block the work or redden `main` for every parallel task. The red→green
+   evidence belongs in the run log, not in a merge. It also has to land as one
+   PR: `bun run verify:core-flows` fails a registered flow that has no spec, so
+   a register edit on its own cannot merge green.
 3. **From then on the spec is frozen.** A later PR that changes its assertions
    must say so in its body and justify it; a reviewer treats an unexplained
    change as blocking. If the implementer can edit the test, the test proves
@@ -186,15 +190,17 @@ what matters here is how the flows shape the work:
    that passing run. `bun run verify:core-flows` enforces the 1:1 mapping between
    registered flows and specs, and reports any flow still parked.
 
-`.claude/workflows/solid-groove-feature.js` runs this pipeline for one issue —
-spec → spec review → implement → review → land → walkthrough. Invoke it through
-the **`/implement-feature #123`** skill (`.claude/skills/implement-feature/`),
-from a terminal, claude.ai/code, or the mobile app: the skill verifies the
-prework first (the issue links flows, every flow is registered and complete, the
+`.claude/workflows/solid-groove-feature.js` runs the rest of the pipeline for
+one issue — verify the contract → implement → review → land → walkthrough. It
+never writes a flow spec: if a linked flow is not registered and specced on
+`main`, it stops without building anything. Invoke it through the
+**`/implement-feature #123`** skill (`.claude/skills/implement-feature/`), from a
+terminal, claude.ai/code, or the mobile app: the skill verifies the prework first
+(the issue links flows, every flow is registered, complete, and specced, the
 `blocked_by` graph is closed), runs the workflow, and then verifies the resulting
-stack — bases, `Refs`/`Closes`, PR size, an untouched specification, no flow left
-at `test.fixme`, and that the walkthrough images actually return `200` rather
-than rendering as broken icons. The workflow and agent definitions are
+stack — bases, `(i/n)` titles, `Refs`/`Closes`, PR size, an untouched
+specification, no flow left at `test.fixme`, and that the walkthrough images
+actually return `200` rather than rendering as broken icons. The workflow and agent definitions are
 human-approved: an agent running the skill reports a problem with them and never
 edits them.
 
