@@ -274,4 +274,49 @@ describe("placement editing wiring (ARR-002)", () => {
 		holder.current?.select(placementId);
 		expect(holder.current?.hasSelection()).toBe(true);
 	});
+
+	it("shows the CLP-01 duplicate-mode choice only once a placement is selected, and disables it otherwise", async () => {
+		const { renderView } = await setUpEditing();
+		renderView();
+		const linked = screen
+			.getByTestId("placement-toolbar")
+			.querySelector('[data-action="duplicate-linked"]') as HTMLButtonElement;
+		const independent = screen
+			.getByTestId("placement-toolbar")
+			.querySelector(
+				'[data-action="duplicate-independent"]',
+			) as HTMLButtonElement;
+		expect(linked.disabled).toBe(true);
+		expect(independent.disabled).toBe(true);
+		expect(linked.textContent).toMatch(/linked copy/);
+		expect(independent.textContent).toMatch(/independent copy/);
+	});
+
+	it("linked duplicate reuses the source clip; independent duplicate forks a new one", async () => {
+		const { session, renderView, placementId } = await setUpEditing();
+		const { container } = renderView();
+		const canvas = interactionCanvasOf(container);
+		firePointer(canvas, "pointerdown", {
+			clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+			clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+		});
+		firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
+
+		const originalClipCount = session.project.clips.length;
+		const sourcePlacement = session.project.song.placements.find(
+			(p) => p.id === placementId,
+		);
+
+		fireEvent.click(screen.getByText(/Duplicate as a linked copy/));
+		expect(session.project.clips.length).toBe(originalClipCount);
+		expect(session.project.song.placements.length).toBe(2);
+		const linkedCopy = session.project.song.placements.find(
+			(p) => p.id !== placementId,
+		);
+		expect(linkedCopy?.clipId).toBe(sourcePlacement?.clipId);
+
+		fireEvent.click(screen.getByText(/Duplicate as an independent copy/));
+		expect(session.project.clips.length).toBe(originalClipCount + 1);
+		expect(session.project.song.placements.length).toBe(3);
+	});
 });
