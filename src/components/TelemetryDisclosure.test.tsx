@@ -17,7 +17,8 @@ function setup() {
 describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", () => {
 	it("names both processors, so the user is told what is collected", () => {
 		setup();
-		const body = screen.getByText(/Google Analytics/).textContent ?? "";
+		const body =
+			screen.getByText(/Two processors receive this/).textContent ?? "";
 		expect(body).toContain("Google Analytics");
 		expect(body).toContain("Sentry");
 	});
@@ -25,8 +26,88 @@ describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", ()
 	it("states that no project content or typed text is collected", () => {
 		setup();
 		expect(
-			screen.getByText(/no project, track, clip, or section names/),
+			screen.getByText(/no project, track, or clip names/),
 		).toBeInTheDocument();
+	});
+
+	// ADR 0002 decision 5 as revised by ADR 0003 decision 5: "The user is told,
+	// before it happens." Replay is a real expansion of collection, so the
+	// disclosure names it, says what it is for, and — since canvas capture is on
+	// — says plainly that recordings include the user's musical work. Each
+	// assertion is separate so a copy edit that drops one fails on that one.
+	describe("Session Replay (ADR 0002 decision 5, ADR 0003 decision 5)", () => {
+		it("names Session Replay specifically", () => {
+			setup();
+			expect(screen.getByText(/Session Replay records/)).toBeInTheDocument();
+		});
+
+		it("states its purpose: seeing where people get stuck", () => {
+			setup();
+			expect(screen.getByText(/where people get stuck/)).toBeInTheDocument();
+		});
+
+		// The heart of ADR 0003 decision 5. Canvas capture records the arrangement
+		// and piano roll, so the disclosure must say the musical work is in the
+		// recording. Anything softer would be false.
+		it("says recordings include the arrangement, the notes, and section names", () => {
+			setup();
+			const body = screen.getByText(/Session Replay records/).textContent ?? "";
+			expect(body).toContain("arrangement and piano roll");
+			expect(body).toContain("the musical work itself");
+			expect(body).toContain("names you give sections");
+		});
+
+		// ADR 0002 decision 5 required "Your music never leaves your project" stay
+		// literally true; ADR 0003 decision 1 ends that, so the sentence must be
+		// gone rather than merely contradicted elsewhere in the copy.
+		it("does not repeat the superseded promise that music never leaves the project", () => {
+			setup();
+			expect(screen.queryByText(/never leaves your project/)).toBeNull();
+			expect(
+				screen.queryByText(/masked out as the recording is made/),
+			).toBeNull();
+		});
+
+		// ADR 0003 decision 2: retained first-party, never sent to a third-party
+		// processor, and deletion follows the project.
+		it("discloses that assistant conversations are stored, and stay with us", () => {
+			setup();
+			const body =
+				screen.getByText(/conversations with the assistant are stored/)
+					.textContent ?? "";
+			expect(body).toContain("never sent to Google Analytics or Sentry");
+			expect(body).toContain("deleting a project deletes its conversations");
+		});
+
+		it("turns replay off with the same single control (ADR 0002 decision 4)", async () => {
+			const { store } = setup();
+			const toggle = screen.getByRole("checkbox", {
+				name: /Share usage and error reports/,
+			});
+
+			await userEvent.click(toggle);
+
+			expect(store.sessionReplayAllowed).toBe(false);
+			expect(store.analyticsAllowed).toBe(false);
+			expect(store.errorMonitoringAllowed).toBe(false);
+		});
+
+		it("still reads as on while replay alone is being collected", () => {
+			// Otherwise the control would show "off" for a state in which session
+			// recordings are still being made.
+			const store = new ConsentStore(memoryStorage());
+			store.set({
+				productAnalytics: false,
+				errorMonitoring: false,
+				sessionReplay: true,
+			});
+			render(() => <TelemetryDisclosure store={store} />);
+			expect(
+				screen.getByRole("checkbox", {
+					name: /Share usage and error reports/,
+				}),
+			).toBeChecked();
+		});
 	});
 
 	it("promises that opting out costs no capability", () => {
