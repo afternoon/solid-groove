@@ -27,19 +27,94 @@ import { packIdSchema } from "../domain/ids";
 // ---------------------------------------------------------------------------
 
 /**
- * The served root the generator writes under (`scripts/starter-library/`'s
- * `RUNTIME_AUDIO_PREFIX` and delivery layout). Assets, the pack index, and pack
- * manifests all live below it, so one prefix resolves every library URL and no
- * caller hand-writes a path (sample-library principle 10).
+ * The bucket prefix every library object lives under, matching
+ * `scripts/starter-library/upload.mjs`'s `STORAGE_PREFIX` — and the one path
+ * `storage.rules` opens for unauthenticated reads.
+ */
+export const STORAGE_PREFIX = "library";
+
+/**
+ * The same-origin root `bun run library:build` renders into
+ * (`public/samples/starter-library`), used when no bucket is configured.
+ *
+ * The two layouts are identical below their root — build.mjs mirrors the bucket
+ * "exactly, so `upload.mjs` is a straight copy" — so a delivery key is the same
+ * string either way and only the origin in front of it differs.
  */
 export const LIBRARY_ROOT = "samples/starter-library";
 
 /** The compact pack index a client fetches before any pack manifest. */
-export const PACK_INDEX_PATH = `${LIBRARY_ROOT}/packs/index.json`;
+export const PACK_INDEX_KEY = "packs/index.json";
+
+/**
+ * The bucket the library is delivered from, or `null` for same-origin delivery.
+ *
+ * Production reads the library out of Cloud Storage (sample-library section 12,
+ * "Store the complete alpha library in Cloud Storage for Firebase"): that is
+ * where `bun run library:upload` publishes it, and the only path
+ * `storage.rules` makes publicly readable. Same-origin is the fallback for
+ * local development, the mock backend, and the browser suites, which serve
+ * `library:build`'s output out of `public/` and have no bucket at all.
+ *
+ * Falling back rather than throwing is deliberate: every non-production mode
+ * legitimately has no bucket, and `VITE_DEV_BACKEND` already owns the "which
+ * backend" decision loudly. What must not happen is the reverse — a deployed
+ * build silently fetching a library that was never rendered into its own
+ * Hosting artefact, which is what issue #226 reported.
+ */
+export function resolveLibraryBucket(
+	raw: string | undefined = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+): string | null {
+	const bucket = raw?.trim();
+	return bucket ? bucket : null;
+}
+
+/** The bucket this page load delivers the library from. */
+export const libraryBucket: string | null = resolveLibraryBucket();
+
+/**
+ * Normalize a delivered path to a key relative to the library root.
+ *
+ * A manifest states its own paths, and the two publishers state them
+ * differently: `build.mjs` writes them root-relative (`packs/…`) while
+ * `upload.mjs` rewrites them to bucket object keys (`library/packs/…`). Both
+ * name the same object, so both are normalized here rather than at each call
+ * site.
+ */
+export function libraryKey(path: string): string {
+	const trimmed = path.replace(/^\/+/, "");
+	for (const prefix of [`${STORAGE_PREFIX}/`, `${LIBRARY_ROOT}/`])
+		if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length);
+	return trimmed;
+}
+
+/**
+ * The URL one library key is fetched from — the single place either delivery
+ * origin is written down, so no caller hand-writes a path (sample-library
+ * principle 10).
+ *
+ * The bucket form is Firebase Storage's download endpoint rather than
+ * `storage.googleapis.com`, because it is `storage.rules` — not GCS IAM — that
+ * makes `library/` publicly readable, and only this endpoint enforces those
+ * rules. The object path is a single encoded path segment, so its slashes are
+ * escaped.
+ */
+export function libraryUrl(
+	key: string,
+	bucket: string | null = libraryBucket,
+): string {
+	const normalized = libraryKey(key);
+	if (!bucket) return `/${LIBRARY_ROOT}/${normalized}`;
+	const object = encodeURIComponent(`${STORAGE_PREFIX}/${normalized}`);
+	return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${object}?alt=media`;
+}
+
+/** The pack index URL for this page load's delivery origin. */
+export const PACK_INDEX_PATH = libraryUrl(PACK_INDEX_KEY);
 
 /** The immutable manifest URL for one pack version. */
 export function packManifestPath(slug: string, version: string): string {
-	return `${LIBRARY_ROOT}/packs/${slug}/v${version}.json`;
+	return libraryUrl(`packs/${slug}/v${version}.json`);
 }
 
 /**
@@ -48,7 +123,7 @@ export function packManifestPath(slug: string, version: string): string {
  * library root, mirroring the bucket exactly.
  */
 export function assetAudioUrl(storageKey: string): string {
-	return `/${LIBRARY_ROOT}/audio/${storageKey}`;
+	return libraryUrl(`audio/${storageKey}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -218,11 +293,11 @@ export function packSummaries(index: PackIndex): LibraryPackSummary[] {
 		kind: entry.kind,
 		description: entry.description,
 		assetCount: entry.assetCount,
-		// The index states `manifestPath` relative to the library root
-		// (`packs/<slug>/v...`); resolve it to a served-root path so the client
-		// fetches `samples/starter-library/packs/...` rather than `/packs/...`,
-		// which a SPA dev server would answer with `index.html` (a "corrupt"
-		// non-JSON body).
+		// The index states `manifestPath` in its publisher's own terms — root
+		// relative from `build.mjs`, a `library/…` object key from `upload.mjs` —
+		// so resolve it to a full delivery URL here. Fetching it verbatim would
+		// ask a SPA server for `/packs/...` and get `index.html` back: a 200 with
+		// a non-JSON body, reported as "corrupt" (issue #226).
 		manifestPath: resolveManifestPath(
 			entry.manifestPath,
 			entry.slug,
@@ -232,10 +307,9 @@ export function packSummaries(index: PackIndex): LibraryPackSummary[] {
 }
 
 /**
- * Resolve an index row's `manifestPath` to a served-root path. Accepts either a
- * library-root-relative path (`packs/...`, the delivery layout) or an already
- * absolute/rooted one, and falls back to the canonical layout when the index
- * omits it.
+ * Resolve an index row's `manifestPath` to a full delivery URL. Accepts any of
+ * the forms a publisher writes — root-relative, bucket-object-keyed, or already
+ * rooted — and falls back to the canonical layout when the index omits it.
  */
 function resolveManifestPath(
 	manifestPath: string | undefined,
@@ -243,10 +317,7 @@ function resolveManifestPath(
 	version: string,
 ): string {
 	if (!manifestPath) return packManifestPath(slug, version);
-	if (manifestPath.startsWith(`${LIBRARY_ROOT}/`)) return manifestPath;
-	if (manifestPath.startsWith("packs/"))
-		return `${LIBRARY_ROOT}/${manifestPath}`;
-	return manifestPath;
+	return libraryUrl(manifestPath);
 }
 
 /** Parse a fetched pack manifest, throwing when it is malformed. */

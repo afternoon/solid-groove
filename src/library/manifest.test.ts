@@ -6,25 +6,102 @@ import {
 import {
 	assetAudioUrl,
 	LIBRARY_ROOT,
+	libraryKey,
+	libraryUrl,
 	PACK_INDEX_PATH,
 	packAssets,
 	packManifestPath,
 	packSummaries,
 	parsePackIndex,
 	parsePackManifest,
+	resolveLibraryBucket,
+	STORAGE_PREFIX,
 } from "./manifest";
+
+const BUCKET = "groove-test.firebasestorage.app";
 
 describe("delivery layout", () => {
 	it("resolves the pack index and a manifest under the one library root", () => {
-		expect(PACK_INDEX_PATH).toBe(`${LIBRARY_ROOT}/packs/index.json`);
+		expect(PACK_INDEX_PATH).toBe(`/${LIBRARY_ROOT}/packs/index.json`);
 		expect(packManifestPath("core-electronic-drums", "1.0.0")).toBe(
-			`${LIBRARY_ROOT}/packs/core-electronic-drums/v1.0.0.json`,
+			`/${LIBRARY_ROOT}/packs/core-electronic-drums/v1.0.0.json`,
 		);
 	});
 
 	it("builds an asset audio URL from its storage key", () => {
 		expect(assetAudioUrl("sha256/ab/cd/abcd.wav")).toBe(
 			`/${LIBRARY_ROOT}/audio/sha256/ab/cd/abcd.wav`,
+		);
+	});
+});
+
+describe("delivery origin (issue #226)", () => {
+	it("reads the configured bucket, treating unset and blank as no bucket", () => {
+		expect(resolveLibraryBucket(BUCKET)).toBe(BUCKET);
+		expect(resolveLibraryBucket(undefined)).toBeNull();
+		expect(resolveLibraryBucket("")).toBeNull();
+		expect(resolveLibraryBucket("  ")).toBeNull();
+	});
+
+	it("serves from Cloud Storage when a bucket is configured", () => {
+		// `storage.rules` — not GCS IAM — is what opens `library/`, so the URL
+		// must be the endpoint that enforces those rules, with the object path
+		// encoded as one segment.
+		expect(libraryUrl("packs/index.json", BUCKET)).toBe(
+			`https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/` +
+				`${encodeURIComponent(`${STORAGE_PREFIX}/packs/index.json`)}?alt=media`,
+		);
+		expect(libraryUrl("audio/sha256/ab/cd/abcd.wav", BUCKET)).toContain(
+			encodeURIComponent(`${STORAGE_PREFIX}/audio/sha256/ab/cd/abcd.wav`),
+		);
+	});
+
+	it("falls back to same-origin so local development keeps working", () => {
+		expect(libraryUrl("packs/index.json", null)).toBe(
+			`/${LIBRARY_ROOT}/packs/index.json`,
+		);
+	});
+
+	it("normalizes the path forms the two publishers write", () => {
+		// build.mjs states them root-relative; upload.mjs rewrites them to bucket
+		// object keys. Both name the same object.
+		expect(libraryKey("packs/x/v1.0.0.json")).toBe("packs/x/v1.0.0.json");
+		expect(libraryKey(`${STORAGE_PREFIX}/packs/x/v1.0.0.json`)).toBe(
+			"packs/x/v1.0.0.json",
+		);
+		expect(libraryKey(`/${LIBRARY_ROOT}/packs/x/v1.0.0.json`)).toBe(
+			"packs/x/v1.0.0.json",
+		);
+	});
+
+	it("resolves an uploaded index's bucket-keyed manifestPath onto the bucket", () => {
+		const summaries = packSummaries(
+			parsePackIndex({
+				schemaVersion: 1,
+				generatedAt: "2026-01-01T00:00:00.000Z",
+				packs: [
+					{
+						id: "pak_SdlN_OazweXrwury0j27Y",
+						slug: "core-electronic-drums",
+						name: "Core Electronic Drums",
+						version: "1.0.0",
+						publisher: "Solid Groove",
+						kind: "factory",
+						description: "",
+						assetCount: 1,
+						// The form `upload.mjs:202` publishes.
+						manifestPath: `${STORAGE_PREFIX}/packs/core-electronic-drums/v1.0.0.json`,
+					},
+				],
+			}),
+		);
+		expect(summaries[0].manifestPath).toBe(
+			libraryUrl("packs/core-electronic-drums/v1.0.0.json"),
+		);
+		// Never the raw object key: fetching that verbatim is what a SPA server
+		// answers with `index.html`.
+		expect(summaries[0].manifestPath).not.toBe(
+			`${STORAGE_PREFIX}/packs/core-electronic-drums/v1.0.0.json`,
 		);
 	});
 });
