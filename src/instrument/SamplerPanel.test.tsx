@@ -7,18 +7,12 @@ import type { RawCommandInput, TransactionResult } from "../commands";
 import type { Instrument } from "../domain/entities";
 import type { AssetId, TrackId } from "../domain/ids";
 import { memoryStorage } from "../testing/storage";
-import SamplerPanel, { type SampleChoice } from "./SamplerPanel";
+import SamplerPanel from "./SamplerPanel";
 
 afterEach(() => cleanup());
 
 const TRACK_ID = "trk_sampler" as TrackId;
 const ASSET_A = "ast_a" as AssetId;
-const ASSET_B = "ast_b" as AssetId;
-
-const OPTIONS: SampleChoice[] = [
-	{ assetId: ASSET_A, name: "Clap" },
-	{ assetId: ASSET_B, name: "Snare" },
-];
 
 function renderPanel(
 	instrument: Extract<Instrument, { kind: "sampler" }> = {
@@ -26,6 +20,7 @@ function renderPanel(
 		assetId: ASSET_A,
 		parameters: {},
 	},
+	sampleName: string | null = "Clap",
 ) {
 	const dispatch = vi.fn<
 		(
@@ -45,8 +40,7 @@ function renderPanel(
 		<SamplerPanel
 			trackId={TRACK_ID}
 			instrument={instrument}
-			sampleName="Clap"
-			replacementOptions={OPTIONS}
+			sampleName={sampleName}
 			dispatch={dispatch}
 			audition={audition}
 			analytics={analytics}
@@ -65,6 +59,14 @@ describe("SamplerPanel", () => {
 		expect(screen.getByLabelText("Attack")).toBeInTheDocument();
 	});
 
+	it("says so when it is holding nothing, and how to fill it", () => {
+		renderPanel({ kind: "sampler", assetId: null, parameters: {} }, null);
+		expect(screen.getByText("No sample loaded")).toBeInTheDocument();
+		expect(
+			screen.getByText("Drag a sound here from the library"),
+		).toBeInTheDocument();
+	});
+
 	it("dispatches an instrument parameter.set once when a slider commits", () => {
 		const { dispatch, transport } = renderPanel();
 		const pitch = screen.getByLabelText("Pitch") as HTMLInputElement;
@@ -80,59 +82,6 @@ describe("SamplerPanel", () => {
 		expect(command.payload.target.scope).toBe("instrument");
 		expect(command.payload.target.parameterId).toBe("pitch");
 		// No instrument_changed for a plain parameter edit.
-		expect(transport.named("instrument_changed")).toHaveLength(0);
-	});
-
-	it("replacing the sample dispatches instrument.setSample and emits instrument_changed once", () => {
-		const { dispatch, transport } = renderPanel();
-		const select = screen.getByRole("combobox") as HTMLSelectElement;
-		fireEvent.change(select, { target: { value: ASSET_B } });
-
-		const command = dispatch.mock.calls.at(-1)?.[0] as {
-			type: string;
-			payload: { assetId: string };
-		};
-		expect(command.type).toBe("instrument.setSample");
-		expect(command.payload.assetId).toBe(ASSET_B);
-
-		const changed = transport.named("instrument_changed");
-		expect(changed).toHaveLength(1);
-		expect(changed[0].params.instrument_type).toBe("sampler");
-		expect(
-			transport
-				.named("feature_first_use")
-				.filter((e) => e.params.feature === "sampler"),
-		).toHaveLength(1);
-	});
-
-	it("does not emit instrument_changed when the sample swap is rejected", () => {
-		const dispatch = vi.fn<
-			(
-				commands: RawCommandInput | readonly RawCommandInput[],
-			) => TransactionResult | undefined
-		>(() => ({ ok: false, issues: [] }) as unknown as TransactionResult);
-		const transport = createRecordingTransport();
-		const consent = new ConsentStore(memoryStorage());
-		const analytics = new Analytics({
-			transport,
-			consent,
-			storage: memoryStorage(),
-		});
-		analytics.setAccountType("anonymous");
-		render(() => (
-			<SamplerPanel
-				trackId={TRACK_ID}
-				instrument={{ kind: "sampler", assetId: ASSET_A, parameters: {} }}
-				sampleName="Clap"
-				replacementOptions={OPTIONS}
-				dispatch={dispatch}
-				audition={vi.fn()}
-				analytics={analytics}
-			/>
-		));
-		fireEvent.change(screen.getByRole("combobox"), {
-			target: { value: ASSET_B },
-		});
 		expect(transport.named("instrument_changed")).toHaveLength(0);
 	});
 
