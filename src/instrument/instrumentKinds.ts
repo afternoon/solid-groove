@@ -1,3 +1,4 @@
+import type { InstrumentTypeKey } from "../analytics/catalog";
 import type { Instrument, Project } from "../domain/entities";
 import {
 	createDrumMachineInstrument,
@@ -9,76 +10,85 @@ import {
 import type { ClipId, EventId, TrackId } from "../domain/ids";
 
 /**
- * The pure half of changing a track's instrument (#224).
+ * The instrument kinds the app offers, and what moving a track between them
+ * costs (#224, #223).
  *
- * A track's instrument is replaced by the existing `instrument.change` command,
- * which takes the whole replacement instrument in its payload — so the choice
- * of *what* to install, and what a switch costs the track's clips, is decided
- * here rather than in the command layer. Both answers are plain functions of
- * the project, so `InstrumentKindPicker` stays a thin dispatch surface.
+ * Two surfaces choose an instrument kind — creating a track (`trackCreation`)
+ * and changing an existing track's (`InstrumentKindPicker`) — and they were
+ * written in parallel, each with its own copy of these facts. That divergence
+ * was visible: a track *created* as a drum machine opened with different pads
+ * from one *switched* to a drum machine. So the kind, its label, the
+ * `instrument_type` it reports, and the instrument it mints are declared once,
+ * here, and both surfaces read them.
+ *
+ * Nothing here mutates a project. `createInstrumentOfKind` builds the
+ * instrument an `instrument.change` (or `track.add`) payload carries, so the
+ * command layer stays the one mutation path (PRD section 9.6).
  */
 
 export type InstrumentKind = Instrument["kind"];
 
-export interface InstrumentKindChoice {
+export interface InstrumentKindSpec {
 	readonly kind: InstrumentKind;
+	/** The control's visible text. */
 	readonly label: string;
+	/** This kind's `instrument_type` in the OPS-02 catalog. */
+	readonly analyticsType: InstrumentTypeKey;
 }
 
-/** The instrument kinds a track can be switched to, in panel order. */
-export const INSTRUMENT_KIND_CHOICES: readonly InstrumentKindChoice[] = [
-	{ kind: "sampler", label: "Sampler" },
-	{ kind: "synth", label: "Synth" },
-	{ kind: "drumMachine", label: "Drum machine" },
-];
-
 /**
- * The pads a track gets when it becomes a drum machine. A machine with no pads
- * has nothing to load a sample into and no lane to program — and no UI adds a
- * pad yet (`drum.addPad` exists, `DrumMachinePanel` does not expose it) — so a
- * switch that produced an empty machine would be a dead end. Four named,
- * sample-less pads give the user somewhere to drop sounds immediately.
+ * Every kind, in the order both surfaces offer them. Sampler leads because it
+ * is what the starter project arrives with and what a loop is usually built
+ * from.
  */
-export const DEFAULT_DRUM_PAD_NAMES: readonly string[] = [
-	"Kick",
-	"Snare",
-	"Hat",
-	"Clap",
+export const INSTRUMENT_KINDS: readonly InstrumentKindSpec[] = [
+	{ kind: "sampler", label: "Sampler", analyticsType: "sampler" },
+	{ kind: "drumMachine", label: "Drum machine", analyticsType: "drum_machine" },
+	{ kind: "synth", label: "Synth", analyticsType: "synth" },
 ];
 
-/** The OPS-02 `instrument_type` (and `feature_first_use`) key for a kind. */
+export function instrumentKindSpec(kind: InstrumentKind): InstrumentKindSpec {
+	const spec = INSTRUMENT_KINDS.find((candidate) => candidate.kind === kind);
+	if (!spec) throw new TypeError(`Unknown instrument kind "${kind}"`);
+	return spec;
+}
+
+/** The `instrument_type` an existing track reports, or undefined if it has none. */
 export function instrumentTypeKey(
-	kind: InstrumentKind,
-): "sampler" | "synth" | "drum_machine" {
-	switch (kind) {
-		case "sampler":
-			return "sampler";
-		case "synth":
-			return "synth";
-		case "drumMachine":
-			return "drum_machine";
-	}
+	instrument: Instrument | null,
+): InstrumentTypeKey | undefined {
+	if (!instrument) return undefined;
+	return INSTRUMENT_KINDS.find((spec) => spec.kind === instrument.kind)
+		?.analyticsType;
 }
 
 /**
- * A fresh instrument of `kind`, at its defaults: an empty sampler, a synth, or
- * a drum machine with {@link DEFAULT_DRUM_PAD_NAMES}. Every ID it needs is
- * minted here, so the command payload carries them explicitly and a replay,
- * redo, or assistant preview reproduces the same project.
+ * The lanes a new drum machine opens with: the four voices a beat is built
+ * from. Each starts empty — a pad's sample is chosen in the drum panel, the
+ * same way an existing kit's is (PRD INS-01). A machine with no pads at all
+ * would be a dead end, since no surface exposes `drum.addPad` yet.
+ */
+const DEFAULT_PAD_NAMES = ["BD", "SD", "HH", "CP"] as const;
+
+/**
+ * A fresh instrument of `kind`, at its defaults. Every ID it needs is minted
+ * here, so the command payload carries them explicitly and a replay, redo, or
+ * assistant preview reproduces the same project.
  */
 export function createInstrumentOfKind(
-	kind: InstrumentKind,
 	context: DomainFactoryContext,
+	kind: InstrumentKind,
 ): Instrument {
 	switch (kind) {
 		case "sampler":
-			return createSamplerInstrument(null);
-		case "synth":
-			return createSynthInstrument();
+			// No sample yet: one is loaded from the library or the sampler panel.
+			return createSamplerInstrument();
 		case "drumMachine":
 			return createDrumMachineInstrument(
-				DEFAULT_DRUM_PAD_NAMES.map((name) => createDrumPad(context, { name })),
+				DEFAULT_PAD_NAMES.map((name) => createDrumPad(context, { name })),
 			);
+		case "synth":
+			return createSynthInstrument();
 	}
 }
 

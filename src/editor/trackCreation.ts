@@ -1,77 +1,55 @@
-import type { InstrumentTypeKey } from "../analytics/catalog";
-import type { Clip, Instrument, Placement, Track } from "../domain/entities";
+import type { Clip, Placement, Track } from "../domain/entities";
 import {
-	createDrumMachineInstrument,
-	createDrumPad,
 	createNoteClip,
 	createPlacement,
-	createSamplerInstrument,
-	createSynthInstrument,
 	createTrack,
 	type DomainFactoryContext,
 } from "../domain/factories";
 import { TICKS_PER_BAR } from "../domain/time";
+import {
+	createInstrumentOfKind,
+	INSTRUMENT_KINDS,
+	type InstrumentKind,
+	type InstrumentKindSpec,
+} from "../instrument/instrumentKinds";
 
 /**
  * What creating a track produces, and the kinds it can be created as (#223).
  *
  * Track creation used to mint a synth and nothing else, so a sampler or a drum
- * machine could only ever arrive with the starter project or a fixture. The
- * kinds live in one table here — framework-free and testable without rendering
- * the mixer — so the affordance that offers them, the instrument each mints,
- * and the analytics value each reports cannot drift apart.
+ * machine could only ever arrive with the starter project or a fixture. Which
+ * kinds exist, what each is called, what instrument each mints, and what each
+ * reports to analytics are `src/instrument/instrumentKinds.ts`'s to say — the
+ * instrument panel's kind picker chooses from the same set, and the two had
+ * begun to disagree. What is track creation's alone stays here: the button's
+ * accessible name, and the clip and placement a new track opens with.
  *
  * Nothing here mutates a project: it builds the entities a `track.add` command
  * carries, so the mixer's dispatch stays the one mutation path (PRD 9.6).
  */
 
 /** The instrument kinds a new track can be created with. */
-export type NewTrackKind = "sampler" | "drumMachine" | "synth";
+export type NewTrackKind = InstrumentKind;
 
-export interface NewTrackKindSpec {
-	readonly kind: NewTrackKind;
-	/** The button's visible text. */
-	readonly label: string;
+export interface NewTrackKindSpec extends InstrumentKindSpec {
 	/**
-	 * The button's accessible name. It contains {@link label} so the visible
-	 * text is a prefix of what a speech-input user has to say (WCAG 2.5.3).
+	 * The button's accessible name. It contains {@link InstrumentKindSpec.label}
+	 * so the visible text is a prefix of what a speech-input user has to say
+	 * (WCAG 2.5.3), which is why it is derived from the label rather than
+	 * written out beside it.
 	 */
 	readonly actionLabel: string;
-	/** `track_added`'s `instrument_type` for a track of this kind (PRD OPS-02). */
-	readonly analyticsType: InstrumentTypeKey;
 }
 
 /**
- * The kinds offered, in the order they are offered. Sampler leads because it is
- * what the starter project arrives with and what a loop is usually built from.
+ * The kinds offered, in the order they are offered — the shared order, so the
+ * mixer's buttons and the instrument panel's picker read the same way.
  */
-export const NEW_TRACK_KINDS: readonly NewTrackKindSpec[] = [
-	{
-		kind: "sampler",
-		label: "Sampler",
-		actionLabel: "Add sampler track",
-		analyticsType: "sampler",
-	},
-	{
-		kind: "drumMachine",
-		label: "Drum machine",
-		actionLabel: "Add drum machine track",
-		analyticsType: "drum_machine",
-	},
-	{
-		kind: "synth",
-		label: "Synth",
-		actionLabel: "Add synth track",
-		analyticsType: "synth",
-	},
-];
-
-/**
- * The lanes a new drum machine opens with: the four voices a beat is built
- * from. Each starts empty — a pad's sample is chosen in the drum panel, the
- * same way an existing kit's is (PRD INS-01).
- */
-const DEFAULT_PAD_NAMES = ["BD", "SD", "HH", "CP"] as const;
+export const NEW_TRACK_KINDS: readonly NewTrackKindSpec[] =
+	INSTRUMENT_KINDS.map((spec) => ({
+		...spec,
+		actionLabel: `Add ${spec.label.toLowerCase()} track`,
+	}));
 
 export interface NewTrack {
 	readonly track: Track;
@@ -106,7 +84,7 @@ export function createNewTrack(
 		name,
 		order: options.order,
 		type: "instrument",
-		instrument: createInstrument(context, options.kind),
+		instrument: createInstrumentOfKind(context, options.kind),
 	});
 	const clip = createNoteClip(context, {
 		trackId: track.id,
@@ -129,36 +107,12 @@ export function newTrackKindSpec(kind: NewTrackKind): NewTrackKindSpec {
 	return spec;
 }
 
-/** The `instrument_type` an existing track reports, or undefined if it has none. */
-export function instrumentTypeKey(
-	instrument: Instrument | null,
-): InstrumentTypeKey | undefined {
-	if (!instrument) return undefined;
-	return newTrackKindSpecFor(instrument.kind)?.analyticsType;
-}
-
-function newTrackKindSpecFor(kind: string): NewTrackKindSpec | undefined {
-	return NEW_TRACK_KINDS.find((candidate) => candidate.kind === kind);
-}
-
-function createInstrument(
-	context: DomainFactoryContext,
-	kind: NewTrackKind,
-): Instrument {
-	switch (kind) {
-		case "sampler":
-			// No sample yet: one is loaded from the library or the sampler panel.
-			return createSamplerInstrument();
-		case "drumMachine":
-			return createDrumMachineInstrument(
-				DEFAULT_PAD_NAMES.map((padName) =>
-					createDrumPad(context, { name: padName }),
-				),
-			);
-		case "synth":
-			return createSynthInstrument();
-	}
-}
+/**
+ * The `instrument_type` an existing track reports. Re-exported so a caller
+ * working in track terms need not reach past this module for it; the value set
+ * itself belongs to the shared kind table.
+ */
+export { instrumentTypeKey } from "../instrument/instrumentKinds";
 
 /**
  * `Sampler`, then `Sampler 2`, `Sampler 3`, ... Numbering by collision rather

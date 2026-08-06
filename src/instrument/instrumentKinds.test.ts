@@ -8,12 +8,13 @@ import {
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
+import { createNewTrack, NEW_TRACK_KINDS } from "../editor/trackCreation";
 import { createManualClock } from "../shared/clock";
 import {
 	countPadTriggeredHits,
 	createInstrumentOfKind,
-	DEFAULT_DRUM_PAD_NAMES,
-	INSTRUMENT_KIND_CHOICES,
+	INSTRUMENT_KINDS,
+	instrumentKindSpec,
 	instrumentTypeKey,
 	padTriggeredHits,
 } from "./instrumentKinds";
@@ -21,39 +22,66 @@ import {
 const context = () =>
 	createFactoryContext({ ids: createSeededIdFactory(224), now: 0 });
 
-describe("instrumentTypeKey", () => {
-	it("maps every offered kind to its OPS-02 analytics key", () => {
-		expect(INSTRUMENT_KIND_CHOICES.map((choice) => choice.kind)).toEqual([
+describe("the shared instrument-kind table", () => {
+	it("covers every kind the domain has, each with its OPS-02 value", () => {
+		expect(INSTRUMENT_KINDS.map((spec) => spec.kind)).toEqual([
 			"sampler",
-			"synth",
 			"drumMachine",
+			"synth",
 		]);
-		expect(instrumentTypeKey("sampler")).toBe("sampler");
-		expect(instrumentTypeKey("synth")).toBe("synth");
-		expect(instrumentTypeKey("drumMachine")).toBe("drum_machine");
+		expect(instrumentKindSpec("sampler").analyticsType).toBe("sampler");
+		expect(instrumentKindSpec("synth").analyticsType).toBe("synth");
+		expect(instrumentKindSpec("drumMachine").analyticsType).toBe(
+			"drum_machine",
+		);
+	});
+
+	it("reads an existing instrument's analytics value from the same table", () => {
+		for (const spec of INSTRUMENT_KINDS) {
+			const instrument = createInstrumentOfKind(context(), spec.kind);
+			expect(instrumentTypeKey(instrument), spec.kind).toBe(spec.analyticsType);
+		}
+		expect(instrumentTypeKey(null)).toBeUndefined();
+	});
+
+	/**
+	 * The regression this table exists to prevent: creating a track and
+	 * switching an existing one used to build their instruments from separate
+	 * copies of these facts, so a created drum machine and a switched-to drum
+	 * machine opened with different pads.
+	 */
+	it("gives a created track and a switched track the same instrument", () => {
+		for (const spec of NEW_TRACK_KINDS) {
+			const created = createNewTrack(context(), {
+				kind: spec.kind,
+				order: 0,
+				existingNames: [],
+			}).track.instrument;
+			const switched = createInstrumentOfKind(context(), spec.kind);
+			expect(created, spec.kind).toEqual(switched);
+		}
 	});
 });
 
 describe("createInstrumentOfKind", () => {
 	it("builds an empty sampler and a default synth", () => {
-		expect(createInstrumentOfKind("sampler", context())).toEqual({
+		expect(createInstrumentOfKind(context(), "sampler")).toEqual({
 			kind: "sampler",
 			assetId: null,
 			parameters: {},
 		});
-		expect(createInstrumentOfKind("synth", context())).toEqual({
+		expect(createInstrumentOfKind(context(), "synth")).toEqual({
 			kind: "synth",
 			parameters: {},
 		});
 	});
 
 	it("builds a drum machine with named, sample-less, uniquely identified pads", () => {
-		const instrument = createInstrumentOfKind("drumMachine", context());
+		const instrument = createInstrumentOfKind(context(), "drumMachine");
 		if (instrument.kind !== "drumMachine")
 			throw new Error("expected a machine");
-		expect(instrument.pads.map((pad) => pad.name)).toEqual([
-			...DEFAULT_DRUM_PAD_NAMES,
-		]);
+		expect(instrument.pads.length).toBeGreaterThan(0);
+		expect(instrument.pads.every((pad) => pad.name.length > 0)).toBe(true);
 		expect(instrument.pads.every((pad) => pad.assetId === null)).toBe(true);
 		expect(new Set(instrument.pads.map((pad) => pad.id)).size).toBe(
 			instrument.pads.length,
@@ -110,7 +138,7 @@ describe("changing a track's instrument through the command kernel", () => {
 		const result = execute(project, [
 			changeInstrument(
 				trackId,
-				createInstrumentOfKind("drumMachine", context()),
+				createInstrumentOfKind(context(), "drumMachine"),
 			),
 		]);
 		expect(result.ok).toBe(true);
@@ -119,7 +147,7 @@ describe("changing a track's instrument through the command kernel", () => {
 	it("rejects leaving a drum machine until its hits go with it", () => {
 		const project = createDrumMachineFixtureProject();
 		const trackId = project.song.tracks[0].id;
-		const synth = () => createInstrumentOfKind("synth", context());
+		const synth = () => createInstrumentOfKind(context(), "synth");
 
 		expect(execute(project, [changeInstrument(trackId, synth())]).ok).toBe(
 			false,
