@@ -65,7 +65,14 @@ const TelemetryDisclosure: Component<{
 		onCleanup(() => setInlineCount((count) => count - 1));
 	});
 
-	const enabled = () => state().productAnalytics || state().errorMonitoring;
+	// Any collection at all shows as "on", so the single control never reads as
+	// off while something is still being collected. `optOut()` turns all three
+	// off in one action (ADR 0002 decision 4), which is the whole control the
+	// user has; the flags stay separable for `DEC-009`, not for the UI.
+	const enabled = () =>
+		state().productAnalytics ||
+		state().errorMonitoring ||
+		state().sessionReplay;
 
 	const toggle = () => {
 		if (enabled()) {
@@ -88,12 +95,20 @@ const TelemetryDisclosure: Component<{
 				<p>
 					Solid Groove records which features are used and reports errors, so we
 					can tell what works and fix what breaks. Two processors receive this:
-					Google Analytics for product events and Sentry for error reports.
+					Google Analytics for product events and Sentry for error reports and
+					Session Replay.
 				</p>
 				<p>
-					Your music never leaves your project. Event and error reports carry no
-					project, track, clip, or section names, no notes or audio, no
-					assistant messages, and no text you type.
+					Session Replay records how the app is used — which controls you click
+					and how you move around — so we can understand how people make music
+					with Solid Groove and improve it. It is not used to access your music
+					or anything else private: your project content is masked out as the
+					recording is made, so it never reaches Sentry at all.
+				</p>
+				<p>
+					Your music never leaves your project. Event reports, error reports,
+					and replays carry no project, track, clip, or section names, no notes
+					or audio, no assistant messages, and no text you type.
 				</p>
 				<label class="telemetry-disclosure-toggle">
 					<input
