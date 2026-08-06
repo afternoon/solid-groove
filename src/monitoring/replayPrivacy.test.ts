@@ -17,15 +17,23 @@
 // structural, the answer must cover surfaces a later task adds, and rendering
 // these panels would need a project fixture, an audio runtime, and a router.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative as relativeTo } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MASK_CONTENT, UNMASK_CONTENT } from "./replayPrivacy";
+import { MASK_ATTRIBUTES, MASK_CONTENT, UNMASK_CONTENT } from "./replayPrivacy";
 
 const sourceRoot = join(process.cwd(), "src");
 
 function read(relative: string): string {
 	return readFileSync(join(sourceRoot, relative), "utf8");
+}
+
+function componentFiles(directory: string = sourceRoot): string[] {
+	return readdirSync(directory).flatMap((entry) => {
+		const path = join(directory, entry);
+		if (statSync(path).isDirectory()) return componentFiles(path);
+		return path.endsWith(".tsx") ? [path] : [];
+	});
 }
 
 /**
@@ -257,6 +265,78 @@ describe("the interface stays visible (ADR 0002 decision 1)", () => {
 			).toContain(surface.literal);
 		});
 	}
+});
+
+/**
+ * Every dynamic attribute on a *DOM* element whose value interpolates a
+ * `.name`, across `src/**\/*.tsx`.
+ *
+ * A JSX attribute on a capitalised tag is a component prop, not an attribute —
+ * `<ConfirmDialog message={...}>` becomes text, `<FillSlider ariaLabel={...}>`
+ * becomes an `aria-label` on the DOM element the slider renders, and that
+ * element is caught here in its own right. Only a lower-case tag puts the
+ * attribute into the recording under the name written here.
+ */
+function nameBearingAttributes(): { attribute: string; where: string }[] {
+	const attribute =
+		/([A-Za-z][A-Za-z-]*)=\{((?:[^{}`]|`[^`]*`|\{[^{}]*\})*)\}/g;
+	const found: { attribute: string; where: string }[] = [];
+	for (const path of componentFiles()) {
+		const source = readFileSync(path, "utf8");
+		for (const match of source.matchAll(attribute)) {
+			if (!/\.name\b/.test(match[2])) continue;
+			const tagAt = source.lastIndexOf("<", match.index);
+			const tag = source.slice(tagAt + 1).match(/^[A-Za-z][\w.]*/)?.[0] ?? "";
+			if (!/^[a-z]/.test(tag)) continue;
+			found.push({
+				attribute: match[1],
+				where: `<${tag} ${match[1]}> in ${relativeTo(sourceRoot, path)}`,
+			});
+		}
+	}
+	return found;
+}
+
+/**
+ * `value` on an input is a name — the mixer's rename field — and is not in
+ * `MASK_ATTRIBUTES` because `maskAllInputs` already covers an input's value at
+ * capture. Listing it as an attribute as well would be a second name for the
+ * same protection.
+ */
+const MASKED_ELSEWHERE = ["value"];
+
+describe("names in attributes are masked (ADR 0002 decision 2)", () => {
+	it("masks aria-label, which is where names reach the DOM", () => {
+		expect(MASK_ATTRIBUTES).toContain("aria-label");
+	});
+
+	it("keeps the SDK's own defaults, which this list replaces", () => {
+		// `maskAttributes` overrides rather than extends, so adding one attribute
+		// without these would unmask two.
+		expect(MASK_ATTRIBUTES).toContain("title");
+		expect(MASK_ATTRIBUTES).toContain("placeholder");
+	});
+
+	it("covers every attribute a name is interpolated into", () => {
+		const uncovered = nameBearingAttributes().filter(
+			(hit) =>
+				!MASK_ATTRIBUTES.includes(hit.attribute) &&
+				!MASKED_ELSEWHERE.includes(hit.attribute),
+		);
+		expect(
+			uncovered.map((hit) => hit.where),
+			"These attributes are built from a name and are recorded verbatim: " +
+				"attribute masking is by attribute name, so no class on the element " +
+				"covers them. Add the attribute to MASK_ATTRIBUTES, or build the " +
+				"value without the name.",
+		).toEqual([]);
+	});
+
+	it("finds the attributes it is scanning for", () => {
+		// The scan is a regex over source; if it silently matched nothing, the
+		// check above would pass by finding no work to do.
+		expect(nameBearingAttributes().length).toBeGreaterThan(10);
+	});
 });
 
 describe("nothing unmasks itself (ADR 0002 decision 2)", () => {

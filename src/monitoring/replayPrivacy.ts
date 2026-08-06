@@ -30,13 +30,18 @@
 //   - **Structural containers** (a mixer strip, a project card, a panel): the
 //     name inside is marked instead, so the controls around it stay legible.
 //
-// ## A limit worth knowing
+// ## Attributes are a separate lever
 //
-// These classes mask text nodes and input values, not attributes: Sentry masks
-// only `title` and `placeholder` by default, so an `aria-label` built from a
-// track name is recorded whether or not its element carries `sentry-mask`.
-// Marking a whole subtree never fixed that; the fix is `maskAttributes` in the
-// SDK configuration, which belongs to the sink slice.
+// A class marks text nodes and input values. It does not touch attributes, and
+// in this codebase the attributes are where the names actually leak: accessible
+// names are built by interpolation — `aria-label={`Mute ${track.name}`}` on a
+// mixer button, `Piano roll: ${clip.name}` on the roll — so a track or clip
+// name reaches the recording through an element whose *text* holds nothing
+// private at all. Marking the surrounding subtree never fixed that, and could
+// not: the element would have to be blocked, which is the grey-box outcome
+// decision 1 rules out. `MASK_ATTRIBUTES` below is the fix, and it is the
+// better one — it applies to every element rather than the ones someone
+// remembered to mark.
 //
 // The class names are plain strings rather than a Sentry import, so
 // `sentrySink.ts` stays the only module importing `@sentry/*` (ADR 0001
@@ -55,3 +60,28 @@ export const MASK_CONTENT = "sentry-mask";
  * deciding for itself that its own content is safe.
  */
 export const UNMASK_CONTENT = "sentry-unmask";
+
+/**
+ * Attribute names whose values are masked at capture, on every element.
+ *
+ * `sentrySink.ts` hands this to `replayIntegration({ maskAttributes })` when it
+ * configures replay — the sink is the only module that may import `@sentry/*`,
+ * so the list lives here with the rest of the vocabulary and is consumed there.
+ * The SDK replaces each value's non-whitespace characters before serialization, so
+ * a masked attribute never enters the payload — and it does so regardless of
+ * `maskAllText` or of any class the element carries, which is what makes this
+ * survive an unmask selector added later to make a replay readable.
+ *
+ * `aria-label` is here because it is where a track, clip, or project name
+ * reaches the DOM in this codebase (`replayPrivacy.test.ts` scans for that and
+ * fails on a name interpolated into any attribute this list does not cover).
+ *
+ * `title` and `placeholder` are here because this list *replaces* the SDK's
+ * default rather than extending it. Passing only `aria-label` would quietly
+ * unmask two attributes in the course of masking one.
+ */
+export const MASK_ATTRIBUTES: readonly string[] = [
+	"title",
+	"placeholder",
+	"aria-label",
+];
