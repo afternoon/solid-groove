@@ -324,10 +324,20 @@ setTimeout(() => { throw new Error("solid-groove deploy verification"); });
 
 Use `Promise.reject(new Error("solid-groove deploy verification"))` to exercise the `unhandledrejection` handler instead. This needs no application code: adding a "throw a test error" control to the product would be a permanent user-facing surface in exchange for a one-off check.
 
+**The `setTimeout` wrapper is load-bearing — do not simplify it to a bare `throw`.** Typing `throw new Error("...")` straight at the DevTools prompt prints a red "Uncaught Error" but dispatches **no** `window` `error` event: the REPL catches it as the evaluation's completion value. Our global handler never sees it, nothing is reported, and the console output is indistinguishable from a working throw that Sentry dropped. Deferring the throw makes it escape to the real `window.onerror`, which is the path a genuine error takes.
+
+**Allow ~30 seconds** for the issue to appear, and sort the feed by *Last Seen*. Measured against the production project on 2026-08-06, latency from throw to visible was around half a minute. Both of these traps were hit for real on 2026-08-06 and each, on its own, looks exactly like broken monitoring — check the throw form and wait out the latency before concluding anything was dropped.
+
 In Sentry, the issue should show:
 
 - the **release** equal to the deployed commit SHA, and *Deploys* listing the `alpha` deploy for it;
 - a **symbolicated stack trace** naming `src/` files and real line numbers — if frames are minified, the source-map upload did not run (check `SENTRY_AUTH_TOKEN` in the deploy log) or the debug IDs did not match;
+  - **A console throw cannot prove this.** Its stack is `<anonymous>:1:7` — there are no bundled frames, so there is nothing to symbolicate, and the issue will show no `src/` files however healthy the maps are. That is not a symbolication failure. To get real frames, trigger the error from *inside* deployed app code, so the stack passes through a bundled chunk. **Do not add a "throw" Easter egg to the product for this** — it would be a permanent user-reachable path shipped for a one-off check, could fire accidentally and pollute real crash data, and is the same trade-off rejected above.
+  - **Check the artifacts directly instead**, which needs no error at all and answers the same question:
+    ```sh
+    bunx sentry-cli releases files "<release-sha>" list --org "$SENTRY_ORG" --project "$SENTRY_PROJECT"
+    ```
+    Or read the `deploy` job log: `[sentry-vite-plugin] Info: Successfully uploaded source maps to Sentry`, preceded by a *Source Map Upload Report* pairing each `.js` with its `.map` and a shared **debug id**. Matching debug IDs are what symbolication actually resolves on — URLs and release names are not consulted. Verified present for release `9e109fee` in [run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815).
 - `area`, `error_code`, `fatal`, and `browser_*` tags, and a **redacted** message;
 - **no** `request`, `user`, `extra`, or `server_name`, and no console breadcrumbs.
 
@@ -367,6 +377,7 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 **Outstanding — do not treat as verified.**
 
 - **What a delivered error looks like in Sentry.** Delivery is confirmed above, but the OPS-03 criteria are about the resulting *issue*, and nobody has opened the Sentry UI since the fix landed. Still unobserved: the release SHA on the issue, a **symbolicated** stack naming `src/` files, the expected tags, a redacted message with no PII, that one error produces exactly **one** issue, and a crash-free session rate under *Releases → Health*. These were unverifiable while monitoring was broken; they are now merely unverified, and the procedure in "2. A deliberately triggered error" above is the one to re-run.
+  - One input to symbolication *is* confirmed: source maps uploaded for release `9e109fee` with debug IDs paired to every chunk ([run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815)). That is the half that fails silently in CI. What remains is observing a symbolicated stack in the Sentry UI — and note a console throw cannot show one, since it has no bundled frames; see step 2.
 - **Internal-traffic exclusion** — `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded from the section 11 measures.
 
 **Descoped.**
