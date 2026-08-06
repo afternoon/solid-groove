@@ -1,0 +1,112 @@
+/* ARR-003 section panel. Same design DNA as the arrangement shell beside it:
+   flat surfaces, square corners, one cyan accent — not a second language. */
+
+.section-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 8px;
+	background: #181818;
+	border-top: 1px solid #262626;
+	color: #e6e6e6;
+	font-family: system-ui, -apple-system, sans-serif;
+	font-size: 12px;
+}
+
+.section-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.section-panel-title {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: #9a9a9a;
+}
+
+.section-panel-empty,
+.section-panel-hint {
+	margin: 0;
+	color: #8a8a8a;
+}
+
+.section-panel-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.section-panel-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px;
+	background: #141414;
+	border: 1px solid #262626;
+}
+
+.section-panel-swatch {
+	width: 10px;
+	height: 18px;
+	flex-shrink: 0;
+}
+
+.section-panel-name,
+.section-panel-name-input {
+	flex: 1;
+	min-width: 0;
+	color: inherit;
+	font: inherit;
+	padding: 2px 4px;
+	text-align: left;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.section-panel-name {
+	appearance: none;
+	background: none;
+	border: none;
+	cursor: text;
+}
+
+.section-panel-bars,
+.section-panel-color {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	color: #8a8a8a;
+}
+
+.section-panel-name-input,
+.section-panel-bars input {
+	background: #0e0e0e;
+	border: 1px solid #303030;
+	color: #e6e6e6;
+	font: inherit;
+	padding: 2px 4px;
+}
+
+.section-panel-name-input {
+	border-color: #20c8e8;
+}
+
+.section-panel-bars input {
+	width: 48px;
+}
+
+.section-panel-color input {
+	width: 24px;
+	height: 20px;
+	padding: 0;
+	border: 1px solid #303030;
+	background: none;
+}
