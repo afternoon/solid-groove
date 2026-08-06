@@ -200,6 +200,23 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
  * exactly, so adding a command without deciding how it appears in analytics
  * fails the suite.
  */
+/**
+ * Arrangement outline templates, as `arrangement_outline_created`'s
+ * `template_id` (PRD ARR-03).
+ *
+ * Pinned here for the same reason as `COMMAND_IDS`: an analytics parameter's
+ * value set is a published contract, so adding a template means deciding how it
+ * appears in a report in the same change. `outlineTemplates.test.ts` asserts
+ * this list equals `OUTLINE_TEMPLATES`' IDs exactly. A template's *label* may be
+ * reworded freely; its ID may not, because renaming one splits a metric.
+ */
+export const OUTLINE_TEMPLATE_IDS = [
+	"basic_song",
+	"electronic_build",
+	"aaba",
+] as const;
+export type OutlineTemplateId = (typeof OUTLINE_TEMPLATE_IDS)[number];
+
 export const COMMAND_IDS = [
 	"note.add",
 	"note.remove",
@@ -583,7 +600,7 @@ export const ANALYTICS_EVENTS = {
 		phase: 2,
 		owners: ["ARR-003"],
 		params: {
-			template_id: enumParam(UNCLAIMED),
+			template_id: enumParam(OUTLINE_TEMPLATE_IDS),
 			section_count: countParam(64),
 		},
 	},
