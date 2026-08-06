@@ -7,6 +7,7 @@ import type {
 	ReturnId,
 	TrackId,
 } from "../domain/ids";
+import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type {
 	AudioAssetProjection,
@@ -24,6 +25,7 @@ import {
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
 import { playAudioLoop } from "./audioLoopPlayer";
 import type { DeviceNodeFactory } from "./DeviceChain";
+import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
@@ -160,7 +162,17 @@ export class ProjectAudioGraph {
 			{ onLoadFailure: options.onAssetLoadFailure },
 		);
 		this.createInstrument = options.createInstrument;
-		this.createDeviceNode = options.createDeviceNode;
+		// The six core processing devices (PRD FX-01, LOOP-009). A test may
+		// substitute its own factory; production always gets the real DSP. The
+		// tempo reader is read *at apply time* from the latest projection, so a
+		// tempo-synced delay follows a tempo change without the graph rebuilding
+		// anything.
+		this.createDeviceNode =
+			options.createDeviceNode ??
+			createDeviceNodeFactory({
+				scope: this.scope,
+				tempo: () => this.lastProjection?.tempo ?? SONG_TEMPO.defaultValue,
+			});
 		this.underrunMonitor = options.underrunMonitor;
 		this.now = options.now ?? audioClockNow;
 		this.master = new MasterAudioGraph(
