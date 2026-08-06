@@ -270,6 +270,182 @@ describe("consent (PRD OPS-02 opt-out)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Session Replay consent, honoured at the source (ADR 0002 decision 4)
+// ---------------------------------------------------------------------------
+
+describe("Session Replay consent (ADR 0002 decision 4)", () => {
+	/**
+	 * A sink whose replay stop is observable *separately* from its teardown.
+	 *
+	 * That separation is the whole point: withdrawing replay alone must end the
+	 * recording without stopping error monitoring, so a test that could only see
+	 * one combined stopper could not tell the required behaviour from the wrong
+	 * one.
+	 */
+	function replayableSink() {
+		const stopReplay = vi.fn(async () => {});
+		const stop = vi.fn(async () => {});
+		const built: { sessionReplay: boolean }[] = [];
+		const startErrorSink: StartErrorSink = async (_release, options) => {
+			built.push(options);
+			return { stop, stopReplay };
+		};
+		return { startErrorSink, built, stopReplay, stop };
+	}
+
+	function start(consent: ConsentStore, startErrorSink: StartErrorSink) {
+		const paint = deferredPaint();
+		const telemetry = initTelemetry({
+			surface: "editor",
+			consent,
+			target: fakeTarget(),
+			afterPaint: paint.schedule,
+			startErrorSink,
+			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
+		});
+		paint.flush();
+		return { paint, telemetry };
+	}
+
+	it("builds the SDK with replay on when consent allows it", async () => {
+		// The value is passed at *construction*, which is what makes declining a
+		// property of the SDK rather than a filter on what it sends.
+		const consent = new ConsentStore(memoryStorage());
+		const sink = replayableSink();
+		start(consent, sink.startErrorSink);
+		await tick();
+
+		expect(sink.built).toEqual([{ sessionReplay: true }]);
+	});
+
+	it("builds it with replay off for a user who has declined", async () => {
+		const consent = new ConsentStore(memoryStorage());
+		consent.set({ sessionReplay: false });
+		const sink = replayableSink();
+		start(consent, sink.startErrorSink);
+		await tick();
+
+		expect(sink.built).toEqual([{ sessionReplay: false }]);
+	});
+
+	it("reads replay consent when the SDK is built, not when the start is scheduled", async () => {
+		// The window between scheduling and resolution is two animation frames
+		// plus an idle callback, and the disclosure is reachable throughout it.
+		// Reading the flag at schedule time would construct a recording SDK for a
+		// user who declined during that window.
+		const consent = new ConsentStore(memoryStorage());
+		const sink = replayableSink();
+		const paint = deferredPaint();
+		initTelemetry({
+			surface: "editor",
+			consent,
+			target: fakeTarget(),
+			afterPaint: paint.schedule,
+			startErrorSink: sink.startErrorSink,
+			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
+		});
+		consent.set({ sessionReplay: false });
+		paint.flush();
+		await tick();
+
+		expect(sink.built).toEqual([{ sessionReplay: false }]);
+	});
+
+	it("keeps error monitoring running when replay alone is declined", async () => {
+		// The two consents are separate. Declining replay must not cost the
+		// crash-free session rate.
+		const consent = new ConsentStore(memoryStorage());
+		consent.set({ sessionReplay: false });
+		const sink = replayableSink();
+		start(consent, sink.startErrorSink);
+		await tick();
+
+		expect(sink.built).toHaveLength(1);
+		expect(sink.stop).not.toHaveBeenCalled();
+	});
+
+	it("stops the in-flight recording when replay is withdrawn mid-session", async () => {
+		// "Opting out mid-session stops an in-flight recording rather than merely
+		// dropping it before send." The recording was already sampled in and is
+		// buffering in the page; only telling it to stop ends it.
+		const consent = new ConsentStore(memoryStorage());
+		const sink = replayableSink();
+		start(consent, sink.startErrorSink);
+		await tick();
+		expect(sink.stopReplay).not.toHaveBeenCalled();
+
+		consent.set({ sessionReplay: false });
+
+		await vi.waitFor(() => expect(sink.stopReplay).toHaveBeenCalledTimes(1));
+	});
+
+	it("leaves error monitoring attached when only replay is withdrawn", async () => {
+		const consent = new ConsentStore(memoryStorage());
+		const sink = replayableSink();
+		const { telemetry } = start(consent, sink.startErrorSink);
+		await tick();
+
+		consent.set({ sessionReplay: false });
+		await tick();
+
+		expect(sink.stop).not.toHaveBeenCalled();
+		// And it is still the disposer's to stop, so nothing has leaked.
+		await telemetry.dispose();
+		expect(sink.stop).toHaveBeenCalledTimes(1);
+	});
+
+	it("stops the recording that arrives after the withdrawal it missed", async () => {
+		// Replay declined while the SDK was still resolving: the consent
+		// subscription had no sink to call, so the resolution path has to stop it
+		// itself. Otherwise the session records for the rest of its life.
+		const consent = new ConsentStore(memoryStorage());
+		const sink = replayableSink();
+		const paint = deferredPaint();
+		let finishLoading: () => void = () => {};
+		const loaded = new Promise<void>((resolve) => {
+			finishLoading = resolve;
+		});
+		initTelemetry({
+			surface: "editor",
+			consent,
+			target: fakeTarget(),
+			afterPaint: paint.schedule,
+			startErrorSink: async (release, options) => {
+				await loaded;
+				return sink.startErrorSink(release, options);
+			},
+			createAnalyticsTransport: createRecordingTransport,
+			setVendorAnalyticsCollection: () => {},
+		});
+		paint.flush();
+
+		consent.set({ sessionReplay: false });
+		finishLoading();
+
+		await vi.waitFor(() => expect(sink.stopReplay).toHaveBeenCalledTimes(1));
+		// Error monitoring was never withdrawn, so the sink itself stays.
+		expect(sink.stop).not.toHaveBeenCalled();
+	});
+
+	it("withdrawing everything stops the recording and the sink", async () => {
+		// The single user-facing control turns all three off in one action.
+		const consent = new ConsentStore(memoryStorage());
+		const sink = replayableSink();
+		start(consent, sink.startErrorSink);
+		await tick();
+
+		consent.optOut();
+
+		await vi.waitFor(() => {
+			expect(sink.stopReplay).toHaveBeenCalledTimes(1);
+			expect(sink.stop).toHaveBeenCalledTimes(1);
+		});
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Consent governs collection on every path, not just at the initial URL
 // ---------------------------------------------------------------------------
 
@@ -586,6 +762,17 @@ describe("the core journey is identical with both transports failing", () => {
 	async function journey(mode: "working" | "broken") {
 		const consent = new ConsentStore(memoryStorage());
 		if (mode === "broken") consent.optOut();
+		// The "broken" run has every flag off, replay included: ADR 0002 decision
+		// 4 requires that turning replay off costs no capability, exactly as
+		// `OPS-02` requires of analytics. Asserted here rather than assumed, so a
+		// later flag added to `optOut()` without being turned off is caught.
+		if (mode === "broken") {
+			expect(consent.current).toEqual({
+				productAnalytics: false,
+				errorMonitoring: false,
+				sessionReplay: false,
+			});
+		}
 
 		const analyticsBoundary = new Analytics({
 			transport:
