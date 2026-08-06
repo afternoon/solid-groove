@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
 	bars,
+	createAsset,
 	createDevice,
 	createDrumPad,
 	createNoteClip,
 	createNoteEvent,
+	createPack,
 	createPlacement,
 	createSeededIdFactory,
 	createSynthInstrument,
@@ -17,6 +19,7 @@ import {
 	toTicks,
 } from "../domain";
 import {
+	addAsset,
 	addClip,
 	addDevice,
 	addNotes,
@@ -30,6 +33,7 @@ import {
 	duplicateNotes,
 	insertChain,
 	quantizeNotes,
+	removeAsset,
 	removeClip,
 	removeDevice,
 	removeNotes,
@@ -317,6 +321,18 @@ const cases: InverseCase[] = [
 		signature: shelfSignature,
 	},
 	{
+		type: "asset.add",
+		// A sound from a pack the fixture does not use, so the round trip also
+		// covers the dependency list the transaction derives from `song.assets`.
+		build: () => addAsset(buildInverseAsset()),
+	},
+	{
+		type: "asset.remove",
+		// The fixture's carried-but-unloaded asset; removing a loaded one is
+		// refused, and this proves the undo puts it back where it was.
+		build: (fixture) => removeAsset(fixture.assetIds.unused),
+	},
+	{
 		type: "device.add",
 		build: (fixture) =>
 			addDevice(
@@ -374,6 +390,16 @@ const cases: InverseCase[] = [
 /** A stable pack ID for the add case, independent of the fixture's IDs. */
 function createPackId(seed: string) {
 	return createSeededIdFactory(seed)("pack");
+}
+
+/** The `asset.add` case's sound, from a pack the fixture does not carry. */
+function buildInverseAsset() {
+	const context = createTestFactoryContext("inverse-asset");
+	return createAsset(context, {
+		pack: createPack(context, { name: "Inverse Extras" }),
+		name: "Rimshot",
+		storageRef: "samples/house/drums/rs/909-rs.wav",
+	});
 }
 
 describe("generated inverses", () => {
