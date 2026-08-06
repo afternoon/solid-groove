@@ -267,7 +267,9 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
 			await userEvent.click(screen.getByText("Privacy"));
 
-			expect(screen.getByText(/Google Analytics/)).toHaveTextContent(/Sentry/);
+			expect(screen.getByText(/Two processors receive this/)).toHaveTextContent(
+				/Sentry/,
+			);
 			expect(
 				screen.getByRole("checkbox", {
 					name: /share usage and error reports/i,

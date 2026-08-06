@@ -99,16 +99,23 @@ const TelemetryDisclosure: Component<{
 					Session Replay.
 				</p>
 				<p>
-					Session Replay records how the app is used — which controls you click
-					and how you move around — so we can understand how people make music
-					with Solid Groove and improve it. It is not used to access your music
-					or anything else private: your project content is masked out as the
-					recording is made, so it never reaches Sentry at all.
+					Session Replay records a small sample of sessions — which controls you
+					click and how you move around — so we can see where people get stuck
+					and fix it. Those recordings include your arrangement and piano roll,
+					which means the musical work itself: the clips, the notes, and the
+					names you give sections. We record them because that is where the
+					problems we need to see actually happen.
 				</p>
 				<p>
-					Your music never leaves your project. Event reports, error reports,
-					and replays carry no project, track, clip, or section names, no notes
-					or audio, no assistant messages, and no text you type.
+					Names and typed text stay hidden. Event reports, error reports, and
+					replays carry no project, track, or clip names, no audio, no assistant
+					messages, and no text you type.
+				</p>
+				<p>
+					Your conversations with the assistant are stored with your project so
+					we can tell whether it is helping. They stay with us — never sent to
+					Google Analytics or Sentry — and deleting a project deletes its
+					conversations.
 				</p>
 				<label class="telemetry-disclosure-toggle">
 					<input

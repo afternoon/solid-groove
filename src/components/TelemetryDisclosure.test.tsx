@@ -17,7 +17,8 @@ function setup() {
 describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", () => {
 	it("names both processors, so the user is told what is collected", () => {
 		setup();
-		const body = screen.getByText(/Google Analytics/).textContent ?? "";
+		const body =
+			screen.getByText(/Two processors receive this/).textContent ?? "";
 		expect(body).toContain("Google Analytics");
 		expect(body).toContain("Sentry");
 	});
@@ -25,57 +26,57 @@ describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", ()
 	it("states that no project content or typed text is collected", () => {
 		setup();
 		expect(
-			screen.getByText(/no project, track, clip, or section names/),
+			screen.getByText(/no project, track, or clip names/),
 		).toBeInTheDocument();
 	});
 
-	// ADR 0002 decision 5: "The user is told, before it happens." Replay is a
-	// real expansion of collection, so the disclosure has to name it, say what
-	// it is for, and say what it is not for. These four assertions are the four
-	// things that sentence requires, checked separately so a copy edit that
-	// drops one of them fails on that one.
-	describe("Session Replay (ADR 0002 decision 5)", () => {
+	// ADR 0002 decision 5 as revised by ADR 0003 decision 5: "The user is told,
+	// before it happens." Replay is a real expansion of collection, so the
+	// disclosure names it, says what it is for, and — since canvas capture is on
+	// — says plainly that recordings include the user's musical work. Each
+	// assertion is separate so a copy edit that drops one fails on that one.
+	describe("Session Replay (ADR 0002 decision 5, ADR 0003 decision 5)", () => {
 		it("names Session Replay specifically", () => {
 			setup();
 			expect(screen.getByText(/Session Replay records/)).toBeInTheDocument();
 		});
 
-		it("states its purpose: understanding how people use the app", () => {
+		it("states its purpose: seeing where people get stuck", () => {
 			setup();
-			expect(
-				screen.getByText(/understand how people make music with Solid Groove/),
-			).toBeInTheDocument();
+			expect(screen.getByText(/where people get stuck/)).toBeInTheDocument();
 		});
 
-		it("states that it is not used to access the user's music or private information", () => {
+		// The heart of ADR 0003 decision 5. Canvas capture records the arrangement
+		// and piano roll, so the disclosure must say the musical work is in the
+		// recording. Anything softer would be false.
+		it("says recordings include the arrangement, the notes, and section names", () => {
 			setup();
-			expect(
-				screen.getByText(
-					/not used to access your music or anything else private/,
-				),
-			).toBeInTheDocument();
+			const body = screen.getByText(/Session Replay records/).textContent ?? "";
+			expect(body).toContain("arrangement and piano roll");
+			expect(body).toContain("the musical work itself");
+			expect(body).toContain("names you give sections");
 		});
 
-		it("states that project content is masked out as the recording is made", () => {
-			// "Masked out at capture, so it never reaches Sentry at all" is the
-			// claim decision 2 makes true. If the masking could not support it, the
-			// masking would be wrong — not this sentence.
+		// ADR 0002 decision 5 required "Your music never leaves your project" stay
+		// literally true; ADR 0003 decision 1 ends that, so the sentence must be
+		// gone rather than merely contradicted elsewhere in the copy.
+		it("does not repeat the superseded promise that music never leaves the project", () => {
 			setup();
+			expect(screen.queryByText(/never leaves your project/)).toBeNull();
 			expect(
-				screen.getByText(/masked out as the recording is made/),
-			).toBeInTheDocument();
-			expect(
-				screen.getByText(/never reaches Sentry at all/),
-			).toBeInTheDocument();
+				screen.queryByText(/masked out as the recording is made/),
+			).toBeNull();
 		});
 
-		it("keeps the promise that the user's music never leaves their project", () => {
-			// Unchanged from before replay, and it must stay literally true with
-			// replay on. The replay payload is covered in `scrub.test.ts`.
+		// ADR 0003 decision 2: retained first-party, never sent to a third-party
+		// processor, and deletion follows the project.
+		it("discloses that assistant conversations are stored, and stay with us", () => {
 			setup();
-			expect(
-				screen.getByText(/Your music never leaves your project/),
-			).toBeInTheDocument();
+			const body =
+				screen.getByText(/conversations with the assistant are stored/)
+					.textContent ?? "";
+			expect(body).toContain("never sent to Google Analytics or Sentry");
+			expect(body).toContain("deleting a project deletes its conversations");
 		});
 
 		it("turns replay off with the same single control (ADR 0002 decision 4)", async () => {
