@@ -7,16 +7,29 @@ import {
 } from "./types";
 
 /**
+ * How far below a ceiling of exactly 0 {@link applyParam} keeps a value. A
+ * millionth of a decibel is not a different threshold to any ear or any meter;
+ * it exists only to keep the value off the one number Tone treats specially.
+ */
+const ZERO_CEILING_EPSILON = 1e-6;
+
+/**
  * Applies one `DynamicsCompressorNode` param through the shared
  * {@link setOrRamp}, first clamping into the range the node itself accepts.
  *
  * The clamp is this device's own concern: the registered ranges sit inside the
  * node's, but a stored value from a future range change must not reach it out
- * of bounds. `setOrRamp` also guarantees a *linear* ramp, which matters
- * specifically here — Tone picks an exponential curve for a decibel param, and
- * an exponential ramp cannot reach 0, so a threshold of 0 dB (the legitimate
- * top of the registered range, meaning "do not compress") threw `RangeError`
- * rather than applying.
+ * of bounds.
+ *
+ * Zero gets clamped away from a ceiling of 0 for a narrower reason. Tone's
+ * ramps refuse to *start* from exactly zero — `Param.setRampPoint` pins the
+ * param's current value and substitutes its `_minOutput` (1e-7) for a zero,
+ * because an exponential ramp can never leave zero. For the threshold, whose
+ * accepted range tops out at 0 dB, that substituted 1e-7 is itself out of
+ * range, so a value of 0 dB applies fine and then throws `RangeError` on the
+ * *next* edit that ramps away from it. Since 0 dB is the legitimate top of the
+ * registered range ("do not compress"), the fix is to never store the literal
+ * zero: -1e-6 dB behaves identically and every later ramp stays in range.
  */
 function applyParam(
 	param: RampableParam & {
@@ -26,11 +39,8 @@ function applyParam(
 	value: number,
 	initial: boolean,
 ): void {
-	setOrRamp(
-		param,
-		Math.min(param.maxValue, Math.max(param.minValue, value)),
-		initial,
-	);
+	const ceiling = param.maxValue === 0 ? -ZERO_CEILING_EPSILON : param.maxValue;
+	setOrRamp(param, Math.min(ceiling, Math.max(param.minValue, value)), initial);
 }
 
 /**
