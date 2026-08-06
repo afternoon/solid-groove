@@ -147,6 +147,72 @@ a sound reached a speaker. Playback is asserted in Chromium only — see
 and issue #43. It also does not prove persistence: this flow runs against the
 mock backend, which is empty again on the next page load.
 
+### CF-002 — A producer turns a loop into a song outline
+
+**Issue:** #61 · **Suite:** `e2e/flows/CF-002.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in as a guest with no projects — where CF-001 ends.
+Building the loop in steps 2-5 depends on #223 (creating a sampler track) and
+#225 (loading a library sound onto a sampler); until both land, this flow cannot
+be walked by hand.
+
+1. Create a new project. It opens on the step editor with the starter kick,
+   four on the floor.
+2. Add a sampler track, load a closed hat onto it from the library, and put the
+   hat on every offbeat.
+3. Add a sampler track with a clap, on beats 2 and 4.
+4. Add a sampler track with a chord stab, on steps 1, 4, 7, 10, 13 and 16.
+5. Add a sampler track with a bass, following the kick.
+6. Play the loop — five parts, one bar, tight.
+7. Select the loop's bar range in the arrangement.
+8. Apply the structure template. The arrangement fills out: named, coloured
+   sections along the ruler, each carrying its own copy of all five tracks.
+9. Delete the hats and the claps from the "Intro", so the song opens on the
+   chord stab and the bass.
+10. Play from the top — the drums arrive at the section boundary.
+11. Undo twice.
+
+**Outcome:** a five-part loop became a multi-section song that opens quietly and
+lands its drums where the producer chose, and two undos put it back to the loop
+it started from.
+
+**Out of scope:** that any of it is *audible* — as in CF-001, a headless browser
+records no audio, so this proves the transport runs and the arrangement changed,
+not that a sound reached a speaker. It also does not prove that the source clips
+survive the outline untouched, which is asserted at the command layer; nor
+automation across the new sections (`ARR-004`); nor persistence, since this runs
+against the mock backend.
+
+Note that steps 1-6 exercise track management, the library browser, and the step
+editor before the flow reaches its own subject. That is deliberate — a loop-to-song
+outline stamped onto a single-track project demonstrates nothing — but it does
+mean a break in any of those surfaces will surface here as an `ARR-003` failure.
+
+### CF-003 — A producer names and rearranges the parts of their song
+
+**Issue:** #61 · **Suite:** `e2e/flows/CF-003.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in as a guest with no projects.
+
+1. Create a new project and duplicate its placement further along the timeline,
+   so there are two distinct parts to label.
+2. Add a section over the first part and name it "Intro".
+3. Add a section over the second part, name it "Drop", and give it a different
+   colour.
+4. Move "Drop" ahead of "Intro".
+5. The two sections swap places on the ruler, and the placements inside each one
+   travel with it.
+6. Undo once.
+
+**Outcome:** the producer has labelled the parts of their song and reordered one,
+its clips moving with it, and a single undo puts the order back.
+
+**Out of scope:** the template-driven path, which is CF-002; section-aware
+automation (`ARR-004`); and whether sections survive a reload, which would belong
+to a flow in `e2e-emulator/flows/`.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
