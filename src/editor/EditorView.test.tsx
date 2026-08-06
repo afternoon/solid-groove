@@ -63,6 +63,24 @@ function paintStep(name: string): void {
 	fireEvent.pointerUp(cell);
 }
 
+/**
+ * The header's save-status group. Save-failure assertions are scoped to it
+ * rather than queried across the document: the library panel is open from the
+ * first paint (#221) and reports its own failed load — with the same "Check
+ * your connection." wording and its own Retry button — whenever its manifest
+ * fetch fails, which it always does under jsdom.
+ */
+function saveStatusGroup(): HTMLElement {
+	const group = document.querySelector<HTMLElement>(".save-status-group");
+	if (!group) throw new Error("expected the header's save-status group");
+	return group;
+}
+
+/** Null when the save state offers no retry: non-retryable, or not failed. */
+function saveRetryButton(): HTMLElement | null {
+	return within(saveStatusGroup()).queryByRole("button", { name: "Retry" });
+}
+
 // EditorView links back to the dashboard with <A>, which needs a matched Route
 // context to resolve against — a bare MemoryRouter isn't enough.
 function renderEditor(
@@ -285,16 +303,17 @@ describe("EditorView", () => {
 		paintStep("Notes, step 2, off");
 
 		await screen.findByText("Save failed", {}, { timeout: 3_000 });
-		expect(screen.getByText("Check your connection.")).toBeInTheDocument();
-		const retryButton = await screen.findByRole("button", { name: "Retry" });
+		expect(
+			within(saveStatusGroup()).getByText("Check your connection."),
+		).toBeInTheDocument();
+		const retryButton = saveRetryButton();
+		expect(retryButton).not.toBeNull();
 
-		fireEvent.click(retryButton);
+		fireEvent.click(retryButton as HTMLElement);
 
 		await screen.findByText("Saved", {}, { timeout: 3_000 });
 		expect(screen.queryByText("Save failed")).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: "Retry" }),
-		).not.toBeInTheDocument();
+		expect(saveRetryButton()).toBeNull();
 
 		const loaded = await repository.loadProject(project.metadata.id);
 		if (!loaded.ok) throw new Error("expected the project to load");
@@ -332,9 +351,7 @@ describe("EditorView", () => {
 		expect(
 			screen.getByText("This project changed in another tab or session."),
 		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: "Retry" }),
-		).not.toBeInTheDocument();
+		expect(saveRetryButton()).toBeNull();
 	});
 });
 
@@ -371,8 +388,8 @@ describe("EditorView library audition engine lifecycle", () => {
 	it("builds a fresh, live engine on each open and disposes the closed one", async () => {
 		const { engines } = await renderWithLibrary();
 
-		// First open builds one engine.
-		toggleLibrary();
+		// The panel is open from the first paint (#221), so mounting the editor is
+		// itself the first open and builds one engine.
 		await screen.findByRole("complementary", { name: "Library" });
 		expect(engines).toHaveLength(1);
 		expect(engines[0].disposed()).toBe(false);
@@ -389,7 +406,8 @@ describe("EditorView library audition engine lifecycle", () => {
 		// Reopening builds a second, distinct, undisposed engine — never the dead
 		// first one. Under the old cached-singleton bug this would still be
 		// engines[0], now disposed, and audition would fail for the rest of the
-		// session.
+		// session. Opening by default does not change that: the toggle still
+		// unmounts and remounts the panel.
 		toggleLibrary();
 		await screen.findByRole("complementary", { name: "Library" });
 		expect(engines).toHaveLength(2);
@@ -402,6 +420,77 @@ describe("EditorView library audition engine lifecycle", () => {
 				sync: false,
 			}),
 		).resolves.toBeDefined();
+	});
+});
+
+/**
+ * Where the library sits and whether it is there to begin with (#221). A sound
+ * browser is the first thing a new project needs, so it is open on arrival, and
+ * it is a column to the left of the arrangement rather than a band under it.
+ */
+describe("EditorView library panel placement", () => {
+	async function renderSlice() {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+		renderEditor(project.metadata.id, {
+			createAuditionEngine: () => fakePreviewEngine(),
+		});
+		await screen.findByRole("region", { name: "Step editor" });
+	}
+
+	it("shows the library without anyone touching the toggle", async () => {
+		await renderSlice();
+
+		expect(
+			await screen.findByRole("complementary", { name: "Library" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Library" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+	});
+
+	it("puts the library beside the arrangement, not above or below it", async () => {
+		await renderSlice();
+		const library = await screen.findByRole("complementary", {
+			name: "Library",
+		});
+		const arrangement = screen.getByTestId("arrangement-view-ready");
+
+		// Siblings in the same row: the library's parent is the flex row that also
+		// holds the column the arrangement lives in. If the arrangement were still
+		// stacked above the library, the two would not share a row — the library
+		// would sit inside a container that follows the arrangement's own.
+		const row = library.parentElement;
+		expect(row).not.toBeNull();
+		expect(row).toHaveClass("editor-body");
+		const arrangementColumn = row?.querySelector(".editor-main");
+		expect(arrangementColumn).not.toBeNull();
+		expect(arrangementColumn?.contains(arrangement)).toBe(true);
+		// To the left: the library comes first among that row's children.
+		expect(row?.firstElementChild).toBe(library);
+	});
+
+	it("still closes and reopens from the header toggle", async () => {
+		await renderSlice();
+		const toggle = screen.getByRole("button", { name: "Library" });
+
+		fireEvent.click(toggle);
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("complementary", { name: "Library" }),
+			).not.toBeInTheDocument(),
+		);
+		expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+		fireEvent.click(toggle);
+
+		expect(
+			await screen.findByRole("complementary", { name: "Library" }),
+		).toBeInTheDocument();
 	});
 });
 
@@ -493,8 +582,8 @@ describe("EditorView keyboard shortcuts", () => {
 		await renderSlice();
 
 		// The pack browser is a modal surface like the guide, so it takes the
-		// keyboard the same way (PRD KEY-02).
-		fireEvent.click(screen.getByRole("button", { name: "Library" }));
+		// keyboard the same way (PRD KEY-02). The library panel it opens from is
+		// already on screen — it starts open (#221).
 		fireEvent.click(
 			await screen.findByRole("button", { name: /Browse packs/ }),
 		);
