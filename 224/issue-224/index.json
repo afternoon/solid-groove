@@ -1,22 +1,22 @@
 {
-	"id": "issue-224",
-	"title": "Change a track's instrument",
-	"steps": [
-		{
-			"file": "01-open-a-project-the-track-s-instrument-is-a-sampler.png",
-			"caption": "Open a project: the track's instrument is a sampler"
-		},
-		{
-			"file": "02-pick-synth-the-synth-panel-replaces-the-sampler-s.png",
-			"caption": "Pick Synth: the synth panel replaces the sampler's"
-		},
-		{
-			"file": "03-pick-drum-machine-it-arrives-with-pads-ready-for-sounds.png",
-			"caption": "Pick Drum machine: it arrives with pads ready for sounds"
-		},
-		{
-			"file": "04-undo-returns-the-drum-machine-one-switch-at-a-time.png",
-			"caption": "Undo returns the drum machine, one switch at a time"
-		}
-	]
+  "id": "issue-224",
+  "title": "Change a track's instrument",
+  "steps": [
+    {
+      "file": "01-open-a-project-the-track-s-instrument-is-a-sampler.png",
+      "caption": "Open a project: the track's instrument is a sampler"
+    },
+    {
+      "file": "02-pick-synth-the-synth-panel-replaces-the-sampler-s.png",
+      "caption": "Pick Synth: the synth panel replaces the sampler's"
+    },
+    {
+      "file": "03-pick-drum-machine-it-arrives-with-pads-ready-for-sounds.png",
+      "caption": "Pick Drum machine: it arrives with pads ready for sounds"
+    },
+    {
+      "file": "04-undo-returns-the-drum-machine-one-switch-at-a-time.png",
+      "caption": "Undo returns the drum machine, one switch at a time"
+    }
+  ]
 }
