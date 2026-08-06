@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { walkthrough } from "./support/walkthrough";
 
 // `LOOP-007`: the mixer's continuous controls are the shared fill slider
 // (`src/instrument/FillSlider.tsx`, design mock `06c-slider`) — a real range
@@ -149,5 +150,62 @@ test.describe("mixer", () => {
 		await solo.hover();
 		await page.waitForTimeout(600);
 		expect(await brightness()).toBeGreaterThan(200);
+	});
+
+	// Creating a track of a chosen instrument (#223). Asserted in a real browser
+	// because the affordance's job is only done when the new track is *reachable*
+	// — a strip in the mixer and a bar-1 clip in the arrangement — and both of
+	// those live outside the component a jsdom test renders.
+	test("creates a track of the instrument the button names", async ({
+		page,
+	}) => {
+		const step = walkthrough(page, {
+			id: "mixer-add-track",
+			title: "Add a sampler, a drum machine or a synth track",
+		});
+
+		await page.goto("/dashboard");
+		await page.getByRole("button", { name: "New Project" }).click();
+		await expect(page).toHaveURL(/\/projects\/prj_/);
+
+		const mixer = page.getByRole("region", { name: "Mixer" });
+		await mixer.scrollIntoViewIfNeeded();
+		await expect(mixer).toContainText("1 track");
+		await step("A new project opens with one track: the starter kick");
+
+		await page.getByRole("button", { name: "Add sampler track" }).click();
+		await expect(mixer).toContainText("2 tracks");
+		await expect(
+			page.getByRole("button", { name: "Mute Sampler" }),
+		).toBeVisible();
+		await step("Add a sampler track — a strip for it appears in the mixer");
+
+		await page.getByRole("button", { name: "Add drum machine track" }).click();
+		await expect(mixer).toContainText("3 tracks");
+		await expect(
+			page.getByRole("button", { name: "Mute Drum machine" }),
+		).toBeVisible();
+		await step("Add a drum machine track beside it");
+
+		// The new track arrives with a clip at bar 1, so there is something to
+		// program rather than an empty strip. The arrangement's track list is the
+		// DOM mirror of a canvas (`ArrangementView.tsx`) and so is visually hidden
+		// — dispatched rather than clicked, because a pointer cannot reach a
+		// clipped element and `force` would only paper over that.
+		await page
+			.getByRole("button", { name: "Select Sampler" })
+			.dispatchEvent("click");
+		await expect(page.getByTestId("arrangement-selection-live")).toContainText(
+			"Selected Sampler",
+		);
+		await step("Each new track arrives with an empty one-bar clip at bar 1");
+
+		// That clip is real, not a projection artefact: deleting the track warns
+		// that it would take one with it (PRD TRK-01).
+		await page.getByRole("button", { name: "Delete Sampler" }).click();
+		await expect(page.getByRole("alertdialog")).toContainText(
+			"This track has 1 clip",
+		);
+		await page.getByRole("button", { name: "Cancel" }).click();
 	});
 });

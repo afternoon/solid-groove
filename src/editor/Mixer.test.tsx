@@ -15,6 +15,7 @@ import {
 	createDrumMachineFixtureProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
+import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 import Mixer from "./Mixer";
 
@@ -89,7 +90,7 @@ describe("Mixer track management (TRK-01)", () => {
 		const { history, transport } = renderMixer();
 		const before = history.project.song.tracks.length;
 
-		fireEvent.click(screen.getByRole("button", { name: "Add track" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add synth track" }));
 
 		expect(history.project.song.tracks.length).toBe(before + 1);
 		const added = transport.events.filter((e) => e.name === "track_added");
@@ -104,8 +105,8 @@ describe("Mixer track management (TRK-01)", () => {
 
 	it("emits the mixer feature key at most once across several adds", () => {
 		const { transport } = renderMixer();
-		fireEvent.click(screen.getByRole("button", { name: "Add track" }));
-		fireEvent.click(screen.getByRole("button", { name: "Add track" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add synth track" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
 		expect(
 			transport.events.filter((e) => e.name === "feature_first_use"),
 		).toHaveLength(1);
@@ -113,6 +114,89 @@ describe("Mixer track management (TRK-01)", () => {
 		expect(
 			transport.events.filter((e) => e.name === "track_added"),
 		).toHaveLength(2);
+	});
+
+	it("creates a track of the instrument the user asked for (#223)", () => {
+		const { history, transport } = renderMixer();
+
+		for (const [button, kind, analyticsType] of [
+			["Add sampler track", "sampler", "sampler"],
+			["Add drum machine track", "drumMachine", "drum_machine"],
+			["Add synth track", "synth", "synth"],
+		] as const) {
+			fireEvent.click(screen.getByRole("button", { name: button }));
+			const added = history.project.song.tracks.at(-1);
+			expect(added?.instrument?.kind, button).toBe(kind);
+			expect(
+				transport.events.filter((e) => e.name === "track_added").at(-1)?.params
+					.instrument_type,
+			).toBe(analyticsType);
+		}
+	});
+
+	it("gives a new track an empty one-bar clip to program, in one transaction", () => {
+		const { history } = renderMixer();
+		const revisionBefore = history.project.metadata.revision;
+
+		fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
+
+		const track = history.project.song.tracks.at(-1);
+		const clip = history.project.clips.find((c) => c.trackId === track?.id);
+		expect(clip?.content).toEqual({ kind: "notes", events: [] });
+		expect(clip?.lengthTicks).toBe(TICKS_PER_BAR);
+		const placement = history.project.song.placements.find(
+			(p) => p.clipId === clip?.id,
+		);
+		expect(placement?.startTicks).toBe(0);
+		expect(placement?.durationTicks).toBe(TICKS_PER_BAR);
+
+		// Track, clip and placement arrive together: one revision, one undo.
+		expect(history.project.metadata.revision).toBe(revisionBefore + 1);
+		history.undo();
+		expect(history.project.song.tracks).toHaveLength(1);
+		expect(history.project.clips.some((c) => c.id === clip?.id)).toBe(false);
+	});
+
+	it("opens a new drum machine with a kit of empty pads", () => {
+		const { history } = renderMixer();
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Add drum machine track" }),
+		);
+
+		const instrument = history.project.song.tracks.at(-1)?.instrument;
+		expect(instrument?.kind === "drumMachine" && instrument.pads).toMatchObject(
+			[
+				{ name: "BD", assetId: null },
+				{ name: "SD", assetId: null },
+				{ name: "HH", assetId: null },
+				{ name: "CP", assetId: null },
+			],
+		);
+	});
+
+	it("names each new track for its instrument, without repeating a name", () => {
+		const { history } = renderMixer();
+
+		fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
+		fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
+
+		expect(history.project.song.tracks.map((track) => track.name)).toEqual([
+			"BD",
+			"Sampler",
+			"Sampler 2",
+		]);
+	});
+
+	it("reports the duplicated track's own instrument on track_added", () => {
+		const { transport } = renderMixer(createDrumMachineFixtureProject());
+
+		fireEvent.click(screen.getAllByRole("button", { name: /^Duplicate / })[0]);
+
+		expect(
+			transport.events.filter((e) => e.name === "track_added").at(-1)?.params
+				.instrument_type,
+		).toBe("drum_machine");
 	});
 
 	it("renames a track through a command", () => {
