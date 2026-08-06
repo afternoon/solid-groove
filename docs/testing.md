@@ -60,6 +60,62 @@ Two suites run here:
 
 Requires a JDK (the emulator runs on the JVM); `.github/workflows/ci.yml` installs Temurin 21.
 
+## Which browsers run where
+
+The two browser suites below run three browsers, but not every environment can
+install three browsers. The split is deliberate, and knowing which half you are
+in is the difference between a useful pre-flight and a false claim of
+cross-browser coverage.
+
+| Environment | Browsers it runs | What a green run proves |
+| --- | --- | --- |
+| CI (`.github/workflows/ci.yml`) | chromium, firefox, webkit | **The gate.** Chromium and Firefox are P0 and block; WebKit is `continue-on-error` signal |
+| A local machine | whatever `bun run test:browser:install` fetched — normally all three | The same as CI, if all three installed |
+| A container that cannot reach `cdn.playwright.dev` (Claude Code on the web) | chromium only | A pre-flight. Says nothing about Firefox or WebKit |
+
+CI runs on `push` to `main` and `claude/**` as well as on `pull_request`, and
+installs only the browser its matrix job is testing. So a branch gets the full
+matrix *when it is pushed*, before a PR exists — the cross-browser signal is one
+push away, not one review cycle away. That is what makes the Chromium-only tier
+safe: nothing merges on it.
+
+In a Chromium-only environment, run the pre-flight explicitly:
+
+```sh
+bun run test:browser:chromium            # e2e/, chromium only
+bun run test:browser:emulator:chromium   # e2e-emulator/, chromium only
+```
+
+Use those rather than `bun run test:browser --project=chromium`, so the command
+in the log names its own scope. **A green Chromium-only run is not the PRD
+section 10 gating evidence** — the definition of done asks for the gating
+browsers, and one of them has not run. Push the branch and read CI.
+
+Two mechanics make this work, and neither belongs in a test:
+
+- **`PW_CHROMIUM_PATH`** (see `playwright.chromium.ts`) points the Chromium
+  projects at a browser the environment already supplies. A container may
+  preinstall Chromium at whatever revision *its* Playwright wanted, which is not
+  the revision this repo's pin asks for, so Playwright's own lookup misses a
+  binary that is sitting right there. Unset — CI, and any normal machine — the
+  configs are unchanged.
+- **`.claude/hooks/session-start.sh`** sets it and configures the null ALSA
+  device, so an agent session starts with a working Chromium rather than
+  diagnosing three environment failures that all look like code defects. It is
+  synchronous because both steps are ordering-sensitive — `$CLAUDE_ENV_FILE` is
+  read as the session starts, and an agent may run `bun run test` a second
+  later. Both cost milliseconds. `.claude/hooks/session-start-deps.sh` runs
+  `bun install` asynchronously, since that is the only slow step and nothing
+  races it except a command run in the session's first seconds; the synchronous
+  hook prints a notice saying to wait and retry if one does.
+
+If you need Firefox locally to *debug* a Firefox-only CI failure, that is the
+case where the blocked CDN genuinely hurts — push-and-read-the-report is a poor
+substitute for instrumenting the browser, and `LOOP-003` records what guessing
+instead cost. Allowlist `cdn.playwright.dev` (and its fallback
+`playwright.download.prss.microsoft.com`) on the environment and run
+`bun run test:browser:install`.
+
 ## Browser E2E suite
 
 ```sh
@@ -142,7 +198,7 @@ Note for anyone extending this suite: do not wait on `networkidle`. The app hold
 
 Three projects run: `chromium`, `firefox`, `webkit`. Per the PRD section 10 supported-environment policy, Chromium and Firefox are P0-gating; WebKit runs alongside them as a signal only (`.github/workflows/ci.yml` marks the WebKit job `continue-on-error`) — WebKit passing is evidence, not proof, about real Safari.
 
-`bun run test:browser:install` (`playwright install --with-deps chromium firefox webkit`) downloads browser binaries from Playwright's CDN. That download needs outbound access to `cdn.playwright.dev`; a locked-down sandbox that blocks that host cannot run this suite even though the config and tests are otherwise valid (verify with `bunx playwright test --list`, which does not need the binaries).
+`bun run test:browser:install` (`playwright install --with-deps chromium firefox webkit`) downloads browser binaries from Playwright's CDN. That download needs outbound access to `cdn.playwright.dev`; a locked-down sandbox that blocks that host cannot install Firefox or WebKit even though the config and tests are otherwise valid (verify with `bunx playwright test --list`, which does not need the binaries). That is not a reason to stop testing there — see "Which browsers run where" above for the Chromium-only pre-flight and why CI is the browser gate.
 
 ## Arrangement renderer measurement harness (none currently)
 

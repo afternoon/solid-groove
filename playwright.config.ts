@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { chromiumLaunchOptions } from "./playwright.chromium";
 
 const PORT = 3000;
 const baseURL = `http://127.0.0.1:${PORT}`;
@@ -55,8 +56,19 @@ export default defineConfig({
 			VITE_DEV_BACKEND: "mock",
 		},
 	},
+	// Running one browser is a legitimate thing to do — `bun run
+	// test:browser:chromium` is the pre-flight in an environment that can only
+	// install Chromium — but it is a pre-flight, not this suite. Firefox is
+	// gating and only CI runs all three. See docs/testing.md, "Which browsers
+	// run where".
 	projects: [
-		{ name: "chromium", use: { ...devices["Desktop Chrome"] } },
+		{
+			name: "chromium",
+			use: {
+				...devices["Desktop Chrome"],
+				launchOptions: chromiumLaunchOptions,
+			},
+		},
 		{ name: "firefox", use: { ...devices["Desktop Firefox"] } },
 		{ name: "webkit", use: { ...devices["Desktop Safari"] } },
 	],

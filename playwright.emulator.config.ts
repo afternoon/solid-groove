@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { chromiumLaunchOptions } from "./playwright.chromium";
 
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
@@ -80,12 +81,18 @@ export default defineConfig({
 		{
 			name: "warmup:chromium",
 			testMatch: /warmDevServer\.setup\.ts/,
-			use: { ...devices["Desktop Chrome"] },
+			use: {
+				...devices["Desktop Chrome"],
+				launchOptions: chromiumLaunchOptions,
+			},
 		},
 		{
 			name: "chromium",
 			testIgnore: /warmDevServer\.setup\.ts/,
-			use: { ...devices["Desktop Chrome"] },
+			use: {
+				...devices["Desktop Chrome"],
+				launchOptions: chromiumLaunchOptions,
+			},
 			dependencies: ["warmup:chromium"],
 		},
 		{

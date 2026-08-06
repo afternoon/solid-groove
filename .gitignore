@@ -39,10 +39,14 @@ tmp/
 .DS_Store
 
 # misc config
-# Shared agent and workflow definitions are checked in; local settings are not.
+# Shared agent, workflow, and session-hook definitions are checked in, as is the
+# settings.json that registers them — a hook only runs for other people if it is
+# in the repo. Personal overrides (.claude/settings.local.json) stay ignored.
 .claude/*
 !.claude/agents/
 !.claude/workflows/
+!.claude/hooks/
+!.claude/settings.json
 
 # big fat blobs
 public/samples
