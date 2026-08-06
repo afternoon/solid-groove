@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Project } from "../domain/entities";
 import {
 	createDenseStepFixtureProject,
 	createDrumMachineFixtureProject,
@@ -6,12 +7,14 @@ import {
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
+import { emptySelection, selectOnly } from "../selection";
 import {
 	addedPackIds,
 	drumTrack,
 	editedClip,
 	editedInstrument,
 	editedTrack,
+	focusedTrackId,
 	instrumentPanelTrackId,
 	loopClips,
 	packDependencyLabel,
@@ -72,28 +75,66 @@ describe("playheadLabel", () => {
 	});
 });
 
-describe("editedTrack", () => {
-	it("is the project's first track", () => {
-		const project = createSliceFixtureProject();
-		expect(editedTrack(project)?.id).toBe(project.song.tracks[0].id);
-		expect(editedTrack(project)?.name).toBe("BD");
+describe("focusedTrackId", () => {
+	it("is the focused track scope's id", () => {
+		const trackId = createSliceFixtureProject().song.tracks[0].id;
+		expect(focusedTrackId(selectOnly({ kind: "track", id: trackId }))).toBe(
+			trackId,
+		);
 	});
 
-	it("is null with no project open", () => {
-		expect(editedTrack(null)).toBeNull();
+	it("is null for an empty selection or a focus that is not a track", () => {
+		expect(focusedTrackId(emptySelection())).toBeNull();
+		const clipId = createSliceFixtureProject().clips[0].id;
+		expect(focusedTrackId(selectOnly({ kind: "clip", id: clipId }))).toBeNull();
+	});
+});
+
+describe("editedTrack", () => {
+	it("is the selected track", () => {
+		const project = createDrumMachineFixtureProject();
+		const second = project.song.tracks[1];
+		expect(editedTrack(project, second.id)?.id).toBe(second.id);
+		expect(editedTrack(project, second.id)?.name).toBe("Break");
+	});
+
+	it("falls back to the first track with nothing selected", () => {
+		const project = createSliceFixtureProject();
+		expect(editedTrack(project, null)?.id).toBe(project.song.tracks[0].id);
+		expect(editedTrack(project, null)?.name).toBe("BD");
+	});
+
+	it("falls back to the first track when the selected one is gone", () => {
+		const project = createSliceFixtureProject();
+		const removed = createDrumMachineFixtureProject().song.tracks[0].id;
+		expect(editedTrack(project, removed)?.id).toBe(project.song.tracks[0].id);
+	});
+
+	it("is null with no project open, and for a project with no tracks", () => {
+		expect(editedTrack(null, null)).toBeNull();
+		const project = createSliceFixtureProject();
+		const empty = { ...project, song: { ...project.song, tracks: [] } };
+		expect(editedTrack(empty, null)).toBeNull();
 	});
 });
 
 describe("drumTrack", () => {
-	it("finds the first drum-machine track", () => {
+	it("is the edited track when it is a drum machine", () => {
 		const project = createDrumMachineFixtureProject();
-		const found = drumTrack(project);
+		const found = drumTrack(editedTrack(project, null));
 		expect(found?.instrument?.kind).toBe("drumMachine");
 		expect(found?.name).toBe("Drums");
 	});
 
-	it("is null for a sampler-only project and with no project open", () => {
-		expect(drumTrack(createSliceFixtureProject())).toBeNull();
+	it("is null when the edited track is not a drum machine", () => {
+		const project = createDrumMachineFixtureProject();
+		// The fixture's second track is an audio track; selecting it must not
+		// leave the first track's pads on screen (#228).
+		const audioTrack = project.song.tracks[1];
+		expect(drumTrack(editedTrack(project, audioTrack.id))).toBeNull();
+		expect(
+			drumTrack(editedTrack(createSliceFixtureProject(), null)),
+		).toBeNull();
 		expect(drumTrack(null)).toBeNull();
 	});
 });
@@ -118,35 +159,38 @@ describe("sampleAssets", () => {
 describe("editedClip", () => {
 	it("is the clip on the edited track", () => {
 		const project = createSliceFixtureProject();
-		const clip = editedClip(project);
+		const clip = editedClip(project, editedTrack(project, null));
 		expect(clip?.id).toBe(project.clips[0].id);
 		expect(clip?.trackId).toBe(project.song.tracks[0].id);
 	});
 
-	it("picks the drum track's clip, not the audio track's loop", () => {
+	it("follows the selection: the audio track's loop, not the drum clip", () => {
 		const project = createDrumMachineFixtureProject();
-		const clip = editedClip(project);
-		expect(clip?.content.kind).toBe("notes");
-		expect(clip?.trackId).toBe(project.song.tracks[0].id);
+		const audioTrack = project.song.tracks[1];
+		const clip = editedClip(project, editedTrack(project, audioTrack.id));
+		expect(clip?.content.kind).toBe("audioLoop");
+		expect(clip?.trackId).toBe(audioTrack.id);
 	});
 
-	it("is null with no project open", () => {
-		expect(editedClip(null)).toBeNull();
+	it("is null with no project open, and for a track with no clip", () => {
+		expect(editedClip(null, null)).toBeNull();
+		const project = createSliceFixtureProject();
+		expect(
+			editedClip({ ...project, clips: [] }, editedTrack(project, null)),
+		).toBeNull();
 	});
 });
 
 describe("editedInstrument", () => {
-	it("is the first track's instrument", () => {
-		expect(editedInstrument(createSliceFixtureProject())?.kind).toBe("sampler");
-		expect(editedInstrument(createDrumMachineFixtureProject())?.kind).toBe(
-			"drumMachine",
-		);
-		expect(editedInstrument(createPianoRollFixtureProject())?.kind).toBe(
-			"synth",
-		);
+	it("is the edited track's instrument", () => {
+		const kindOf = (project: Project) =>
+			editedInstrument(editedTrack(project, null))?.kind;
+		expect(kindOf(createSliceFixtureProject())).toBe("sampler");
+		expect(kindOf(createDrumMachineFixtureProject())).toBe("drumMachine");
+		expect(kindOf(createPianoRollFixtureProject())).toBe("synth");
 	});
 
-	it("is null with no project open", () => {
+	it("is null with no track edited", () => {
 		expect(editedInstrument(null)).toBeNull();
 	});
 });
@@ -178,13 +222,18 @@ describe("loopClips", () => {
 
 describe("sampleName", () => {
 	it("names the sample the edited sampler is loaded with", () => {
-		expect(sampleName(createSliceFixtureProject())).toBe("909 Bass Drum");
+		const project = createSliceFixtureProject();
+		expect(sampleName(project, editedTrack(project, null))).toBe(
+			"909 Bass Drum",
+		);
 	});
 
 	it("is null when the edited instrument is not a sampler", () => {
-		expect(sampleName(createDrumMachineFixtureProject())).toBeNull();
-		expect(sampleName(createPianoRollFixtureProject())).toBeNull();
-		expect(sampleName(null)).toBeNull();
+		const drums = createDrumMachineFixtureProject();
+		expect(sampleName(drums, editedTrack(drums, null))).toBeNull();
+		const synth = createPianoRollFixtureProject();
+		expect(sampleName(synth, editedTrack(synth, null))).toBeNull();
+		expect(sampleName(null, null)).toBeNull();
 	});
 });
 
@@ -233,39 +282,48 @@ describe("packDependencyLabel", () => {
 });
 
 describe("showPianoRoll", () => {
+	const forProject = (project: Project) =>
+		showPianoRoll(project, editedTrack(project, null));
+
 	it("is true for a synth track holding a note clip", () => {
-		expect(showPianoRoll(createPianoRollFixtureProject())).toBe(true);
+		expect(forProject(createPianoRollFixtureProject())).toBe(true);
 	});
 
 	it("is false for a sampler or drum-machine note clip, which get the step grid", () => {
-		expect(showPianoRoll(createSliceFixtureProject())).toBe(false);
-		expect(showPianoRoll(createDrumMachineFixtureProject())).toBe(false);
+		expect(forProject(createSliceFixtureProject())).toBe(false);
+		expect(forProject(createDrumMachineFixtureProject())).toBe(false);
 	});
 
 	it("is false for a synth track with no clip", () => {
 		const project = createPianoRollFixtureProject();
-		expect(showPianoRoll({ ...project, clips: [] })).toBe(false);
+		expect(forProject({ ...project, clips: [] })).toBe(false);
 	});
 
 	it("is false with no project open", () => {
-		expect(showPianoRoll(null)).toBe(false);
+		expect(showPianoRoll(null, null)).toBe(false);
 	});
 });
 
 describe("instrumentPanelTrackId", () => {
-	it("names the track for a sampler or a synth", () => {
+	it("names the edited track, whatever instrument it carries", () => {
 		const sampler = createSliceFixtureProject();
-		expect(instrumentPanelTrackId(sampler)).toBe(sampler.song.tracks[0].id);
+		expect(instrumentPanelTrackId(editedTrack(sampler, null))).toBe(
+			sampler.song.tracks[0].id,
+		);
 		const synth = createPianoRollFixtureProject();
-		expect(instrumentPanelTrackId(synth)).toBe(synth.song.tracks[0].id);
+		expect(instrumentPanelTrackId(editedTrack(synth, null))).toBe(
+			synth.song.tracks[0].id,
+		);
 	});
 
 	it("names a drum-machine track too, so the kind picker can leave it (#224)", () => {
 		const drums = createDrumMachineFixtureProject();
-		expect(instrumentPanelTrackId(drums)).toBe(drums.song.tracks[0].id);
+		expect(instrumentPanelTrackId(editedTrack(drums, null))).toBe(
+			drums.song.tracks[0].id,
+		);
 	});
 
-	it("is null with no project open", () => {
+	it("is null with no track edited", () => {
 		expect(instrumentPanelTrackId(null)).toBeNull();
 	});
 });
