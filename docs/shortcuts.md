@@ -23,12 +23,12 @@ open dialog receives normal typing and nothing fires underneath it.
 | `transport.metronome` | Toggle metronome | `O` | `O` | Transport | editor | Solid Groove addition — no single-key Live equivalent is claimed |
 | `edit.undo` | Undo | `Cmd+Z` | `Ctrl+Z` | Global Editing | global | Follows Live (`Cmd/Ctrl+Z`) |
 | `edit.redo` | Redo | `Cmd+Shift+Z` | `Ctrl+Y / Ctrl+Shift+Z` | Global Editing | global | Follows Live (`Cmd+Shift+Z / Ctrl+Y`) |
-| `edit.cut` | Cut | `Cmd+X` | `Ctrl+X` | Global Editing | selection | Follows Live (`Cmd/Ctrl+X`) |
-| `edit.copy` | Copy | `Cmd+C` | `Ctrl+C` | Global Editing | selection | Follows Live (`Cmd/Ctrl+C`) |
-| `edit.paste` | Paste | `Cmd+V` | `Ctrl+V` | Global Editing | selection | Follows Live (`Cmd/Ctrl+V`) |
+| `edit.cut` | Cut | `Cmd+X` | `Ctrl+X` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+X`) |
+| `edit.copy` | Copy | `Cmd+C` | `Ctrl+C` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+C`) |
+| `edit.paste` | Paste | `Cmd+V` | `Ctrl+V` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+V`) |
 | `edit.select_all` | Select all | `Cmd+A` | `Ctrl+A` | Global Editing | selection | Follows Live (`Cmd/Ctrl+A`) |
 | `edit.delete` | Delete selection | `Delete / Backspace` | `Delete / Backspace` | Global Editing | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`Delete / Backspace`) |
-| `edit.duplicate` | Duplicate selection | `Cmd+D` | `Ctrl+D` | Global Editing | selection | Follows Live (`Cmd/Ctrl+D`) |
+| `edit.duplicate` | Duplicate selection | `Cmd+D` | `Ctrl+D` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+D`) |
 | `arrangement.split_clip` | Split clip | `E` | `E` | Arrangement | arrangement | Differs from Live's `Cmd/Ctrl+E` |
 | `arrangement.toggle_loop` | Toggle arrangement loop | `L` | `L` | Arrangement | arrangement | Differs from Live's `Cmd/Ctrl+L` |
 | `arrangement.toggle_automation_view` | Toggle automation view | `A` | `A` | Automation | arrangement | Follows Live (`A`) |
