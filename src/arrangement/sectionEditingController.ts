@@ -11,8 +11,8 @@
  * ARR-003's OPS-02 obligations are emitted from this one place, so a second
  * surface reaching the same operation cannot double-count or miss:
  * `section_created` (once per created section, `origin` naming which affordance
- * made it), the `sections` `feature_first_use` key (on the first section
- * operation of any kind), and
+ * made it), `arrangement_outline_created` (once per outline), the `sections`
+ * `feature_first_use` key (on the first section operation of any kind), and
  * `arrangement_milestone` — the PRD section 11 primary measure, the first time a
  * project reaches at least three *named* sections and two minutes. The milestone
  * is keyed by project ID through `logOnce`, so it fires exactly once per project
@@ -37,6 +37,12 @@ import type { RawCommandInput } from "../commands/types";
 import type { Project, Section } from "../domain/entities";
 import type { IdFactory, SectionId } from "../domain/ids";
 import { TICKS_PER_BAR, ticksToSeconds, toTicks } from "../domain/time";
+import {
+	buildOutline,
+	type OutlineMode,
+	type OutlineRefusal,
+} from "./arrangementOutline";
+import type { OutlineTemplate } from "./outlineTemplates";
 import { clampTick, snapToBar } from "./placementGeometry";
 
 /** Where a created section came from, as `section_created`'s `origin`. */
@@ -181,12 +187,48 @@ export function createSectionEditing(options: SectionEditingOptions) {
 	const reorder = (sectionId: SectionId, toIndex: number): boolean =>
 		edited(reorderSection(sectionId, toIndex));
 
+	/** ARR-03's loop-to-song action. Every section the outline creates reports
+	 * `section_created` with `origin: "template"`, and the outline itself reports
+	 * `arrangement_outline_created` once — both only after it landed, so a
+	 * refused outline logs nothing at all. */
+	function createOutline(
+		template: OutlineTemplate,
+		mode: OutlineMode,
+		loopStartTicks: number,
+		loopEndTicks: number,
+	): OutlineRefusal | null {
+		const current = project();
+		if (!current) return "no_placements_in_loop";
+		const result = buildOutline({
+			project: current,
+			template,
+			mode,
+			loopStartTicks,
+			loopEndTicks,
+			ids: options.ids,
+		});
+		if (result.refusal) return result.refusal;
+		if (!run(result.commands)) return "no_placements_in_loop";
+
+		noteFirstUse();
+		for (let index = 0; index < result.sectionCount; index += 1) {
+			analytics()?.log("section_created", { origin: "template" });
+		}
+		analytics()?.log("arrangement_outline_created", {
+			template_id: template.id,
+			section_count: result.sectionCount,
+		});
+		checkMilestone();
+		return null;
+	}
+
 	return {
 		add,
 		rename,
 		resize,
 		recolor,
 		reorder,
+		createOutline,
 		/** Re-evaluate the milestone after a transaction this controller did not
 		 * run — a clip drag can push a project past two minutes on its own. */
 		checkMilestone,
