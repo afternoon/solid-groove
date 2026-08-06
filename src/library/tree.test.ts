@@ -22,6 +22,7 @@ function asset(
 		sampleRate: 48000,
 		channelCount: 1,
 		bpm: null,
+		licence: "solid-groove-owned",
 		...overrides,
 	};
 }
