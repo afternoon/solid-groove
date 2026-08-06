@@ -240,6 +240,8 @@ export const COMMAND_IDS = [
 	"instrument.setSample",
 	"pack.add",
 	"pack.remove",
+	"asset.add",
+	"asset.remove",
 	"device.add",
 	"device.remove",
 	"device.reorder",
