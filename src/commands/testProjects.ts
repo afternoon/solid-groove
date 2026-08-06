@@ -28,6 +28,7 @@ import {
 	createProjectMetadata,
 	createReturnBus,
 	createSamplerInstrument,
+	createSection,
 	createSeededIdFactory,
 	createSend,
 	createTrack,
@@ -40,6 +41,7 @@ import {
 	type PlacementId,
 	type Project,
 	type ReturnId,
+	type SectionId,
 	type Song,
 	serializeProject,
 	TICKS_PER_BAR,
@@ -65,6 +67,9 @@ export interface CommandTestProject {
 	device2Id: DeviceId;
 	returnId: ReturnId;
 	placementAId: PlacementId;
+	placementBId: PlacementId;
+	/** Two back-to-back one-bar sections, each containing one placement. */
+	sectionIds: [SectionId, SectionId];
 	padIds: PadId[];
 	/** The sampler asset on track A, and the clap asset the kick pad uses. */
 	assetIds: { sampler: AssetId; pad: AssetId };
@@ -180,10 +185,23 @@ export function createCommandTestProject(
 		startTicks: 0,
 		durationTicks: bars(1),
 	});
+	// Bar 2, so the two sections below each contain exactly one placement and a
+	// section reorder has something real to carry with it (ARR-02).
 	const placementB = createPlacement(context, {
 		clipId: clipB.id,
 		trackId: trackB.id,
+		startTicks: bars(1),
+		durationTicks: bars(1),
+	});
+
+	const sectionA = createSection(context, {
+		name: "Intro",
 		startTicks: 0,
+		durationTicks: bars(1),
+	});
+	const sectionB = createSection(context, {
+		name: "Drop",
+		startTicks: bars(1),
 		durationTicks: bars(1),
 	});
 
@@ -192,6 +210,7 @@ export function createCommandTestProject(
 		assets: [asset, padAsset],
 		tracks: [trackA, trackB],
 		returns: [returnBus],
+		sections: [sectionA, sectionB],
 		placements: [placementA, placementB],
 		automation: [
 			{
@@ -236,6 +255,8 @@ export function createCommandTestProject(
 		device2Id: device2.id,
 		returnId: returnBus.id,
 		placementAId: placementA.id,
+		placementBId: placementB.id,
+		sectionIds: [sectionA.id, sectionB.id],
 		padIds: [kick.id, clap.id],
 		assetIds: { sampler: asset.id, pad: padAsset.id },
 		packs: [drumsPack, bassPack],
@@ -258,6 +279,7 @@ export const ABSENT_IDS = {
 	clip: `clp_${ABSENT_SUFFIX}` as ClipId,
 	event: `evt_${ABSENT_SUFFIX}` as EventId,
 	placement: `plc_${ABSENT_SUFFIX}` as PlacementId,
+	section: `sec_${ABSENT_SUFFIX}` as SectionId,
 	device: `dev_${ABSENT_SUFFIX}` as DeviceId,
 	return: `ret_${ABSENT_SUFFIX}` as ReturnId,
 	pad: `pad_${ABSENT_SUFFIX}` as PadId,

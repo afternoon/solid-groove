@@ -6,6 +6,7 @@ import {
 	createNoteClip,
 	createNoteEvent,
 	createPlacement,
+	createSection,
 	createSeededIdFactory,
 	createSynthInstrument,
 	createTrack as createTrackEntity,
@@ -23,6 +24,7 @@ import {
 	addPack,
 	addPad,
 	addPlacement,
+	addSection,
 	addTrack,
 	changeInstrument,
 	clearNotes,
@@ -36,6 +38,7 @@ import {
 	removePack,
 	removePad,
 	removePlacement,
+	removeSection,
 	removeTrack,
 	reorderDevice,
 	reorderPad,
@@ -54,6 +57,7 @@ import {
 	updateClip,
 	updateNote,
 	updatePlacement,
+	updateSection,
 	updateTrack,
 	varyNotes,
 } from ".";
@@ -228,6 +232,29 @@ const cases: InverseCase[] = [
 			updatePlacement(fixture.placementAId, {
 				startTicks: bars(2),
 				looped: true,
+			}),
+	},
+	{
+		type: "section.create",
+		build: () =>
+			addSection(
+				createSection(createTestFactoryContext("inverse-section"), {
+					name: "Breakdown",
+					startTicks: bars(2),
+					durationTicks: bars(1),
+				}),
+			),
+	},
+	{
+		type: "section.delete",
+		build: (fixture) => removeSection(fixture.sectionIds[1]),
+	},
+	{
+		type: "section.update",
+		build: (fixture) =>
+			updateSection(fixture.sectionIds[0], {
+				name: "Build",
+				durationTicks: bars(2),
 			}),
 	},
 	{
