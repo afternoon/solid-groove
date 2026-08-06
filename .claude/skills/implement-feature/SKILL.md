@@ -65,11 +65,12 @@ one item at a time.
 | 3 | It links **at least one** core flow ID matching `CF-\d{3}` | search the body |
 | 4 | **Every** linked flow is registered in `docs/core-flows.md` on the **current `main`** | `git fetch origin main` first, then read the file at `origin/main` — not your working copy, which may be stale or carry local edits |
 | 5 | Each registered flow entry is **complete**, not a stub: it names an entrypoint, has numbered steps, and states an outcome | read the entries, per the anatomy in `docs/core-flows.md` |
+| 5a | Each linked flow has a **spec file on `main`** — `e2e/flows/<ID>.spec.ts` or `e2e-emulator/flows/<ID>.spec.ts` | the workflow does not write specs; it refuses to start without them, so this is where a missing one surfaces early |
 | 6 | The issue has acceptance criteria (checkboxes) | search the body |
 | 7 | Every issue in its `blocked_by` graph is **closed** | `gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by --paginate`, then each blocker's state |
 | 8 | It is **not** labelled `human-input-required` | that label marks a decision only a human resolves |
 | 9 | No open PR already references or closes it | `gh pr list --search "<n>" --state open` |
-| 10 | `bun run verify:core-flows` passes at `origin/main` | a register already out of sync with its specs will only get worse |
+| 10 | `bun run verify:core-flows` passes at `origin/main` | a register already out of sync with its specs will only get worse — and since the workflow no longer authors specs, this check is what guarantees the contract exists at all |
 
 Two soft signals worth reporting but not blocking on: the issue carrying the
 `blocked` label with an open `DEC-*` blocker (the workflow handles it — the
@@ -93,18 +94,24 @@ Invoke the approved workflow, unmodified:
 - **Workflow name:** `solid-groove-feature`
 - **Args:** `{ "issue": <n> }`
 
-That is the whole of this stage. The workflow writes the flow specs, has them
-reviewed before any implementation exists, implements, reviews for up to two
-rounds, opens the stack, captures the walkthrough and requests the preview
-deploy. It runs in the background and takes a long time — a real feature is
+That is the whole of this stage. The workflow verifies that every linked flow is
+registered and specced on `main`, implements against that frozen contract,
+reviews for up to two rounds, opens the stack, captures the walkthrough and
+requests the preview deploy.
+
+It does **not** write the flow specs. The product owner lands the flow entry and
+its `test.fixme` spec together in their own reviewed PR before this runs, which
+is why preflight checks 4, 5, 5a and 10 are the gate they are. If a linked flow
+has no spec on `main`, the workflow returns `blocked-on-missing-contract` without
+building anything. It runs in the background and takes a long time — a real feature is
 tens of minutes, not seconds.
 
 While it runs: **do not** start your own agents to "help", do not begin
 implementing anything, and do not poll it in a loop. Wait for the completion
 notification.
 
-If the workflow returns a `status` of `blocked-on-spec` or `blocked-on-review`,
-it stopped on purpose. Skip Stage 3, report the blocking findings it returned
+If the workflow returns a `status` of `blocked-on-missing-contract` or
+`blocked-on-review`, it stopped on purpose. Skip Stage 3, report the blocking findings it returned
 verbatim, name the branch it left open, and stop. Do not implement the fixes
 yourself and do not re-run the workflow hoping for a different outcome.
 
@@ -118,12 +125,14 @@ self-report is a claim.
 
 ### The stack
 
-1. **Ordering and bases.** PR 1 (the flow specs) has base `main`. Every later
-   PR's base is the **previous PR's branch**, not `main`. Confirm with
-   `gh pr view <n> --json baseRefName,headRefName` for each.
+1. **Ordering and bases.** PR 1 is the first implementation slice and has base
+   `main` — the flow specs are not part of this stack, having merged separately
+   before the run. Every later PR's base is the **previous PR's branch**, not
+   `main`. Confirm with `gh pr view <n> --json baseRefName,headRefName` for each.
 2. **Issue references.** Every PR body says `Refs #<n>` **except the last**,
    which says `Closes #<n>`. Exactly one PR closes the issue.
-3. **Stack position.** Each body names its place ("2 of 4, builds on #NNN").
+3. **Stack position.** Each title ends with its position as `(i/n)` — `(1/3)`,
+   `(2/3)`, `(3/3)` — and each body names its place ("2/3, builds on #NNN").
 4. **Size.** Each PR is ≤400 changed lines, excluding generated files, lockfiles
    and vendored assets. `gh pr view <n> --json additions,deletions`. Report any
    PR over the ceiling — that is a re-slice, and the human's call.
@@ -140,11 +149,12 @@ self-report is a claim.
    report it loudly and do not paper over it.
 7. **The flows are live.** On the top branch, `bun run verify:core-flows` passes
    and reports **no** flow still at `test.fixme` for the issue's flow IDs.
-8. **The specs were not weakened.**
+8. **The specs were not weakened, or added to.**
    `git diff origin/main..<top-branch> -- e2e/flows e2e-emulator/flows` shows
    only removed `test.fixme` markers, plus any mechanical change the PR body
    explicitly called out and justified. A changed assertion that the body does
-   not mention is a failure.
+   not mention is a failure — and so is a **new** flow spec file, since the
+   contract is written before the run, never during it.
 
 ### The walkthrough
 
