@@ -260,10 +260,9 @@ describe("instrumentPanelTrackId", () => {
 		expect(instrumentPanelTrackId(synth)).toBe(synth.song.tracks[0].id);
 	});
 
-	it("is null for a drum machine, whose panel is DrumMachinePanel", () => {
-		expect(
-			instrumentPanelTrackId(createDrumMachineFixtureProject()),
-		).toBeNull();
+	it("names a drum-machine track too, so the kind picker can leave it (#224)", () => {
+		const drums = createDrumMachineFixtureProject();
+		expect(instrumentPanelTrackId(drums)).toBe(drums.song.tracks[0].id);
 	});
 
 	it("is null with no project open", () => {
