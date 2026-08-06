@@ -159,19 +159,20 @@ be walked by hand.
 
 1. Create a new project. It opens on the step editor with the starter kick,
    four on the floor.
-2. Add a sampler track, load a closed hat onto it from the library, and put the
-   hat on every offbeat.
-3. Add a sampler track with a clap, on beats 2 and 4.
-4. Add a sampler track with a chord stab, on steps 1, 4, 7, 10, 13 and 16.
-5. Add a sampler track with a bass, following the kick.
+2. Add a sampler track named "Hats", load a closed hat onto it from the library,
+   and put the hat on every offbeat.
+3. Add a sampler track named "Claps", with a clap on beats 2 and 4.
+4. Add a sampler track named "Chords", with a chord stab on steps 1, 4, 7, 10,
+   13 and 16.
+5. Add a sampler track named "Bass", following the kick.
 6. Play the loop — five parts, one bar, tight.
 7. Select the loop's bar range in the arrangement.
 8. Apply the structure template. The arrangement fills out: named, coloured
    sections along the ruler, each carrying its own copy of all five tracks.
-9. Delete the hats and the claps from the "Intro", so the song opens on the
-   chord stab and the bass.
+9. Select the hats and the claps in the "Intro" and delete them together, so the
+   song opens on the chord stab and the bass.
 10. Play from the top — the drums arrive at the section boundary.
-11. Undo twice.
+11. Undo twice: the drums come back, and then the outline collapses to the loop.
 
 **Outcome:** a five-part loop became a multi-section song that opens quietly and
 lands its drums where the producer chose, and two undos put it back to the loop
