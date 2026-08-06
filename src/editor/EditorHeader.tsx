@@ -13,6 +13,7 @@ import {
 import { type Accessor, Show } from "solid-js";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import type { TimeSignature } from "../domain/entities";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { SaveStatus as SaveStatusValue } from "../persistence/autosave";
 import type { shortcutLabel } from "../shortcuts";
 import SaveStatus from "./SaveStatus";
@@ -62,7 +63,8 @@ export default function EditorHeader(props: EditorHeaderProps) {
 			>
 				<HiSolidSquares2x2 size={18} />
 			</A>
-			<h1 class="project-name">{props.projectName}</h1>
+			{/* The project's name, chosen by the user (ADR 0002 decision 2). */}
+			<h1 class={`project-name ${MASK_CONTENT}`}>{props.projectName}</h1>
 			<div class="transport-controls">
 				<button
 					type="button"

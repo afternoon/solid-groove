@@ -94,10 +94,35 @@ export interface Telemetry {
 /** Detaches a started error sink and shuts its vendor transport down. */
 export type StopErrorSink = () => Promise<void>;
 
-/** A test's stand-in for the real dynamic import, optionally returning a stopper. */
+/**
+ * A running sink's teardown handles.
+ *
+ * `stopReplay` is separate from `stop` because the two consents are separate:
+ * withdrawing replay alone must stop the in-flight recording (ADR 0002
+ * decision 4) while error monitoring keeps running, so tearing the whole sink
+ * down is the wrong action for it.
+ */
+export interface RunningSink {
+	stop: StopErrorSink;
+	stopReplay: () => Promise<void>;
+}
+
+/**
+ * A test's stand-in for the real dynamic import.
+ *
+ * May resolve to nothing, to a bare stopper, or to a whole `RunningSink` — the
+ * last of which is what lets a test observe the replay stop *separately* from
+ * the sink teardown, which is the distinction ADR 0002 decision 4 turns on.
+ */
+// biome-ignore-start lint/suspicious/noConfusingVoidType: `void` rather than
+// `undefined` so an override can be written `async () => {}`, which most of
+// them are — the "returns nothing" case is the common one here, and `undefined`
+// would force every such override to return it explicitly.
 export type StartErrorSink = (
 	release: string,
-) => Promise<void> | Promise<StopErrorSink>;
+	options: { sessionReplay: boolean },
+) => Promise<void | StopErrorSink | RunningSink>;
+// biome-ignore-end lint/suspicious/noConfusingVoidType: see above.
 
 /**
  * Wires telemetry for one app load. Returns a disposer.
@@ -125,8 +150,8 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 	/** Whether a monitored (non-landing) surface has been reached this load. */
 	let monitoredSurfaceReached = false;
 	let appOpenedLogged = false;
-	/** The running sink's stopper, or `null` when nothing is attached. */
-	let stopSink: StopErrorSink | null = null;
+	/** The running sink's teardown handles, or `null` when nothing is attached. */
+	let sink: RunningSink | null = null;
 	/** A start is scheduled or in flight, so `stopSink` is not yet meaningful. */
 	let sinkStarting = false;
 	let disposed = false;
@@ -137,19 +162,31 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 	 * The start lands two animation frames plus an idle callback after it was
 	 * scheduled, and `TelemetryDisclosure` is reachable throughout. Neither the
 	 * consent subscription nor `dispose` can see a sink during that window —
-	 * `stopSink` is still null — so this is the only place that can stop one
-	 * that arrives too late. Without it, `sentry.init()` and its Release Health
+	 * `sink` is still null — so this is the only place that can stop one that
+	 * arrives too late. Without it, `sentry.init()` and its Release Health
 	 * session envelope stay attached for a user who has already declined or for
 	 * a page that has already torn telemetry down.
+	 *
+	 * Replay consent is read here rather than at schedule time, because it is
+	 * the value the SDK is *constructed* with (ADR 0002 decision 4) and the user
+	 * can change it anywhere in that window. Withdrawing it after the sink
+	 * resolves is handled by the consent subscription below, which stops the
+	 * in-flight recording.
 	 */
 	const attachSink = async (): Promise<void> => {
 		try {
-			const stop = await startMonitoring(reporter, options.startErrorSink);
+			const started = await startMonitoring(reporter, {
+				sessionReplay: consent.sessionReplayAllowed,
+				override: options.startErrorSink,
+			});
 			if (disposed || !consent.errorMonitoringAllowed) {
-				void stop();
+				void started.stop();
 				return;
 			}
-			stopSink = stop;
+			sink = started;
+			// Replay consent withdrawn while the SDK was resolving: the
+			// subscription below could not see this sink to stop it.
+			if (!consent.sessionReplayAllowed) void started.stopReplay();
 		} finally {
 			sinkStarting = false;
 		}
@@ -157,7 +194,7 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 
 	const startMonitoringIfAllowed = (): void => {
 		if (disposed || !monitoredSurfaceReached) return;
-		if (stopSink !== null || sinkStarting) return;
+		if (sink !== null || sinkStarting) return;
 		if (!consent.errorMonitoringAllowed) return;
 		sinkStarting = true;
 		afterPaint(() => {
@@ -194,12 +231,25 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 	// state, and again on every change. Symmetric in both directions: a grant
 	// rebuilds exactly what a withdrawal tore down.
 	const unsubscribeConsent = consent.subscribe((state) => {
+		// ADR 0002 decision 4: withdrawing replay stops the in-flight recording
+		// rather than merely dropping it before send. Done *first*, and
+		// unconditionally on the replay flag, so it happens whether replay alone
+		// was withdrawn or the single control turned everything off — the sink
+		// teardown below would otherwise take the handle away before we got here.
+		//
+		// A later re-grant does not resume *this* session's recording: replay is
+		// configured when the SDK is constructed, so it takes effect on the next
+		// load. That is the safe direction to be asymmetric in.
+		if (!state.sessionReplay && sink) {
+			void sink.stopReplay();
+		}
+
 		if (state.errorMonitoring) {
 			startMonitoringIfAllowed();
-		} else if (stopSink) {
-			const stop = stopSink;
-			stopSink = null;
-			void stop();
+		} else if (sink) {
+			const running = sink;
+			sink = null;
+			void running.stop();
 		}
 
 		if (state.productAnalytics) {
@@ -230,9 +280,9 @@ export function initTelemetry(options: InitTelemetryOptions): Telemetry {
 			disposed = true;
 			unsubscribeConsent();
 			uninstallHandlers();
-			const stop = stopSink;
-			stopSink = null;
-			if (stop) await stop();
+			const running = sink;
+			sink = null;
+			if (running) await running.stop();
 		},
 	};
 }
@@ -270,34 +320,51 @@ function recordMonitoringStatus(status: MonitoringStatus): void {
  */
 async function startMonitoring(
 	reporter: ErrorReporter,
-	override?: StartErrorSink,
-): Promise<StopErrorSink> {
-	if (override) {
-		const stop = await override(RELEASE_SHA).catch(() => undefined);
-		return typeof stop === "function" ? stop : async () => {};
+	config: { sessionReplay: boolean; override?: StartErrorSink },
+): Promise<RunningSink> {
+	const inert: RunningSink = {
+		stop: async () => {},
+		stopReplay: async () => {},
+	};
+	if (config.override) {
+		const result = await config
+			.override(RELEASE_SHA, { sessionReplay: config.sessionReplay })
+			.catch(() => undefined);
+		if (typeof result === "function") return { ...inert, stop: result };
+		return result && typeof result.stop === "function"
+			? { stop: result.stop, stopReplay: result.stopReplay ?? inert.stopReplay }
+			: inert;
 	}
 	try {
 		const { SentrySink } = await import("./monitoring/sentrySink");
-		const sink = new SentrySink({ release: RELEASE_SHA });
+		const sink = new SentrySink({
+			release: RELEASE_SHA,
+			// ADR 0002 decision 4, honoured at the source: `false` here means the
+			// replay integration is never constructed for this session.
+			sessionReplay: config.sessionReplay,
+		});
 		const started = await sink.start();
 		if (!started) {
 			// `SentrySink.start()` resolves false only when no DSN is configured;
 			// every other failure throws and lands in the catch below.
 			recordMonitoringStatus("no-dsn");
-			return async () => {};
+			return inert;
 		}
 		reporter.addSink(sink);
 		recordMonitoringStatus("started");
-		return async () => {
-			reporter.removeSink(sink);
-			await sink.stop();
+		return {
+			stop: async () => {
+				reporter.removeSink(sink);
+				await sink.stop();
+			},
+			stopReplay: () => sink.stopReplay(),
 		};
 	} catch {
 		// A blocked or failed SDK load is expected for some sessions (ADR 0001:
 		// "Ad and tracker blockers block sentry.io"). Errors still reach the GA4
 		// `exception` counter, and the resulting undercount is documented.
 		recordMonitoringStatus("load-failed");
-		return async () => {};
+		return inert;
 	}
 }
 

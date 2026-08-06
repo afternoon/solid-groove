@@ -21,6 +21,7 @@ import type {
 import type { Project } from "../domain/entities";
 import { createIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import {
 	type ArrangementShell,
@@ -525,7 +526,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 										class="arrangement-header-swatch"
 										style={{ background: track.color }}
 									/>
-									<span class="arrangement-header-name">{track.name}</span>
+									{/* The track's name, chosen by the user. The row around it
+									    stays visible, so a replay still shows which track was
+									    clicked (ADR 0002 decision 2). */}
+									<span class={`arrangement-header-name ${MASK_CONTENT}`}>
+										{track.name}
+									</span>
 								</li>
 							)}
 						</For>
@@ -541,6 +547,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
 					<div class="arrangement-spacer" style={spacerStyle()} />
+					{/* Not blocked, and — since ADR 0003 — deliberately recorded. Canvas
+					    capture is on, so clip blocks, notes, waveforms, and the section
+					    names drawn here all reach the payload. That is the decision, not
+					    an oversight: dragging a clip edge and placing a note are the
+					    interactions replay exists to show, and blocking this stack is
+					    what made the arrangement a grey box. Masking does not reach
+					    inside a canvas, so nothing here is half-protected — the
+					    disclosure says so instead. */}
 					<div class="arrangement-canvas-stack">
 						<canvas class="arrangement-layer" ref={backgroundCanvas} />
 						<canvas class="arrangement-layer" ref={contentCanvas} />
@@ -565,16 +579,22 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				</div>
 			</div>
 			{/* Accessible mirror: the visible tracks and the current selection as
-			    real DOM, so assistive tech never has to read canvas pixels. */}
+			    real DOM, so assistive tech never has to read canvas pixels. Both
+			    lists below are made entirely of track names — visually hidden is not
+			    un-captured, so they are masked like any other name. */}
 			<div class="visually-hidden">
-				<p aria-live="polite" data-testid="arrangement-selection-live">
+				<p
+					class={MASK_CONTENT}
+					aria-live="polite"
+					data-testid="arrangement-selection-live"
+				>
 					<Show when={selectionSummary()} fallback="No selection">
 						{(summary) =>
 							`Selected ${summary().trackName}, bars ${summary().startBar} to ${summary().endBar}`
 						}
 					</Show>
 				</p>
-				<ul aria-label="Arrangement tracks">
+				<ul class={MASK_CONTENT} aria-label="Arrangement tracks">
 					<For each={headerRows()}>
 						{(track) => (
 							<li>

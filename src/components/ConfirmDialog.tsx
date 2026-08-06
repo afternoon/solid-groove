@@ -1,4 +1,5 @@
 import type { JSX } from "solid-js";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { useShortcuts } from "../shortcuts";
 import "./ConfirmDialog.css";
@@ -53,7 +54,14 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
 				aria-modal="true"
 				aria-label={props.title}
 			>
-				<p class="confirm-dialog-title">{props.title}</p>
+				{/* The title interpolates a name a user typed — `Delete "…"?` from the
+				    mixer, a project name from the dashboard — so it is masked. The
+				    message below is not: it is fixed explanatory copy, and a delete
+				    confirmation is exactly the friction replay exists to show, so
+				    greying the whole dialog would cost the observation and protect
+				    nothing extra. `aria-label` above carries the same name and is
+				    covered by `MASK_ATTRIBUTES` (ADR 0003). */}
+				<p class={`confirm-dialog-title ${MASK_CONTENT}`}>{props.title}</p>
 				<p class="confirm-dialog-message">{props.message}</p>
 				<div class="confirm-dialog-actions">
 					<button

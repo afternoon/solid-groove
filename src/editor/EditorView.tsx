@@ -21,6 +21,7 @@ import { TICKS_PER_QUARTER } from "../domain/time";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { getProjectRepository } from "../projectRepositoryClient";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
@@ -305,7 +306,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										{(drum) => (
 											<div class="drum-machine-editor">
 												<div class="track-info">
-													<span class="track-name">{drum().name}</span>
+													<span class={`track-name ${MASK_CONTENT}`}>
+														{drum().name}
+													</span>
 												</div>
 												<DrumMachinePanel
 													track={drum()}
