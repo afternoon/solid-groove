@@ -381,6 +381,11 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
 			// PRD section 9.4 prefixed IDs. Opaque by construction.
 			"props.note.id",
 			"track.id",
+			// The `PlacementId`s of the placement-editing selection (ARR-002), in
+			// the arrangement's accessible mirror. A prefixed ID like the two above
+			// — the placement's *name* is never bound here, and the mirror's own
+			// track names are text inside `MASK_CONTENT`.
+			"placementId",
 			// A save state enum and its integer revision.
 			"props.saveStatus()?.state",
 			"props.saveStatus()?.revision",
