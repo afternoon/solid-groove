@@ -8,7 +8,6 @@ import type {
 import type { Clip, Instrument, Project } from "../domain/entities";
 import type { EventId, TrackId } from "../domain/ids";
 import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
-import type { SampleChoice } from "../instrument/SamplerPanel";
 import type { LibrarySample } from "../library/assetDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import InstrumentArea from "./InstrumentArea";
@@ -38,7 +37,6 @@ export interface TrackEditorProps {
 	/** The edited track, when there is one; null while no project is open. */
 	readonly instrumentPanelTrackId: TrackId | null;
 	readonly sampleName: string | null;
-	readonly replacementOptions: readonly SampleChoice[];
 	/** Loads a sound dropped from the library onto this track's sampler (#225). */
 	readonly loadSample: (sample: LibrarySample) => void;
 	readonly auditionInstrument: () => void;
@@ -159,7 +157,6 @@ export default function TrackEditor(props: TrackEditorProps) {
 							trackId={trackId()}
 							instrument={props.instrument}
 							sampleName={props.sampleName}
-							replacementOptions={props.replacementOptions}
 							dispatch={props.dispatch}
 							audition={props.auditionInstrument}
 						/>

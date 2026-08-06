@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../domain/entities";
 import {
-	createDenseStepFixtureProject,
 	createDrumMachineFixtureProject,
 	createPianoRollFixtureProject,
 	createSliceFixtureProject,
@@ -19,7 +18,6 @@ import {
 	loopClips,
 	packDependencyLabel,
 	playheadLabel,
-	replacementOptions,
 	sampleAssets,
 	sampleName,
 	samplerTrackId,
@@ -239,7 +237,7 @@ describe("sampleName", () => {
 });
 
 describe("samplerTrackId", () => {
-	it("names the track a dropped sound loads onto", () => {
+	it("names the track a dropped or inserted sound loads onto", () => {
 		const project = createSliceFixtureProject();
 		expect(samplerTrackId(editedTrack(project, null))).toBe(
 			project.song.tracks[0].id,
@@ -258,31 +256,6 @@ describe("samplerTrackId", () => {
 		expect(samplerTrackId(editedTrack(drums, null))).toBeNull();
 		expect(samplerTrackId(editedTrack(synth, null))).toBeNull();
 		expect(samplerTrackId(null)).toBeNull();
-	});
-});
-
-describe("replacementOptions", () => {
-	it("offers every `sample`-kind asset as an id/name choice", () => {
-		const project = createDenseStepFixtureProject();
-		expect(replacementOptions(project).map((choice) => choice.name)).toEqual([
-			"909 Bass Drum",
-			"909 Snare",
-			"909 Closed Hat",
-		]);
-		expect(replacementOptions(project)[0].assetId).toBe(
-			project.song.assets[0].id,
-		);
-	});
-
-	it("excludes loop assets, matching sampleAssets", () => {
-		const project = createDrumMachineFixtureProject();
-		expect(replacementOptions(project)).toHaveLength(
-			sampleAssets(project).length,
-		);
-	});
-
-	it("is empty with no project open", () => {
-		expect(replacementOptions(null)).toEqual([]);
 	});
 });
 

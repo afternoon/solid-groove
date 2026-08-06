@@ -26,8 +26,9 @@ import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
-import { loadSampleCommands } from "../library/insertion";
+import { loadSampleCommands, toLibrarySample } from "../library/insertion";
 import LibraryBrowser from "../library/LibraryBrowser";
+import type { LibraryClient } from "../library/libraryClient";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -61,6 +62,8 @@ export interface EditorViewProps {
 	 * per-mount lifecycle can be exercised without Web Audio.
 	 */
 	readonly createAuditionEngine?: () => PreviewEngine;
+	/** Injected in tests; the browser fetches the delivered manifests otherwise. */
+	readonly libraryClient?: LibraryClient;
 	/** Injected in tests; the shared catalog-backed instance otherwise. */
 	readonly analytics?: Analytics;
 }
@@ -249,14 +252,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	}
 
 	const sampleName = createMemo(() => model.sampleName(project(), track()));
-	const replacementOptions = createMemo(() =>
-		model.replacementOptions(project()),
-	);
 
 	/**
-	 * Loads a library sound onto the edited track's sampler, from a drop on its
-	 * instrument panel (#225). The browser's keyboard-reachable "Insert" joins
-	 * this same path in the next PR in the stack.
+	 * Loads a library sound onto the edited track's sampler — the one path both
+	 * the drag onto the instrument panel and the browser's "Insert" button take,
+	 * so the pointer gesture and its keyboard equivalent produce the same
+	 * transaction (PRD 9.3) and log the same event once (#225).
 	 *
 	 * `loadSampleCommands` carries the asset and points the sampler at it in one
 	 * transaction, so this is one revision and one undo. It is refused — leaving
@@ -344,7 +345,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 									 */}
 									<aside class="library-panel" aria-label="Library">
 										<LibraryBrowser
+											client={props.libraryClient}
 											previewEngine={createAuditionEngine()}
+											analytics={props.analytics}
+											/*
+											 * The keyboard-reachable half of the drag (PRD 9.3):
+											 * "Insert" loads the sound onto the track being
+											 * edited, through the same path a drop takes.
+											 */
+											onInsert={(asset) => {
+												const sample = toLibrarySample(asset);
+												if (sample) loadLibrarySample(sample);
+											}}
 											addedPackIds={addedPackIds()}
 											onAddPack={(pack) =>
 												setSessionPackIds((previous) =>
@@ -434,7 +446,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 													registerPianoRollActions={setPianoRollActions}
 													instrumentPanelTrackId={instrumentPanelTrackId()}
 													sampleName={sampleName()}
-													replacementOptions={replacementOptions()}
 													loadSample={loadLibrarySample}
 													auditionInstrument={auditionInstrument}
 												/>

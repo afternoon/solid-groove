@@ -2,7 +2,7 @@ import { Match, Switch } from "solid-js";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
-import SamplerPanel, { type SampleChoice } from "../instrument/SamplerPanel";
+import SamplerPanel from "../instrument/SamplerPanel";
 import SynthPanel from "../instrument/SynthPanel";
 
 export interface InstrumentPanelProps {
@@ -10,8 +10,6 @@ export interface InstrumentPanelProps {
 	readonly instrument: Instrument | null;
 	/** Display name of the currently loaded sample, or null when empty. */
 	readonly sampleName: string | null;
-	/** Samples the sampler panel can swap to; retired in the next PR. */
-	readonly replacementOptions: readonly SampleChoice[];
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
@@ -42,7 +40,6 @@ export default function InstrumentPanel(props: InstrumentPanelProps) {
 						trackId={props.trackId}
 						instrument={sampler()}
 						sampleName={props.sampleName}
-						replacementOptions={props.replacementOptions}
 						dispatch={props.dispatch}
 						audition={props.audition}
 					/>
