@@ -88,11 +88,36 @@
 .arrangement-header-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	padding: 0 8px;
 	font-size: 12px;
 	box-sizing: border-box;
 	border-bottom: 1px solid #1e1e1e;
+}
+
+/* The whole row is the select control (#228): it fills the header cell and
+   carries no chrome of its own, so the column still reads as a list of tracks
+   rather than a column of buttons. The row whose track the editor is showing
+   takes the accent edge the mixer's selected strip does. */
+.arrangement-header-select {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	height: 100%;
+	padding: 0 8px;
+	border-radius: 0;
+	font: inherit;
+	text-align: left;
+	background-color: transparent;
+	color: inherit;
+}
+
+.arrangement-header-select:hover {
+	background-color: #232323;
+}
+
+.arrangement-header-select[aria-pressed="true"] {
+	background-color: #232323;
+	box-shadow: inset 2px 0 0 var(--color-accent, #20c8e8);
 }
 
 .arrangement-header-swatch {

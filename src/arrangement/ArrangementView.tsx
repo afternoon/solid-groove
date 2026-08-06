@@ -19,7 +19,7 @@ import type {
 	TransactionResult,
 } from "../commands";
 import type { Project } from "../domain/entities";
-import { createIdFactory } from "../domain/ids";
+import { createIdFactory, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
@@ -106,6 +106,15 @@ export interface ArrangementViewProps {
 	readonly onEditingActionsReady?: (
 		actions: PlacementEditingActions | null,
 	) => void;
+	/**
+	 * The track the editor is showing, marked in the header column (#228).
+	 * Optional, like `onSelectTrack`: without them the arrangement still works,
+	 * it just marks no row and moves nothing when one is clicked.
+	 */
+	readonly selectedTrackId?: TrackId | null;
+	/** Called with the track a clicked row belongs to, so the editor can follow
+	 * it — the arrangement holds no selection state of its own. */
+	readonly onSelectTrack?: (trackId: TrackId) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -203,6 +212,24 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
 	function bumpState(): void {
 		setStateVersion((value) => value + 1);
+	}
+
+	/**
+	 * Point the editor at a track (#228). Clicking a row is how you say "this
+	 * one" here, exactly as clicking a strip is in the mixer; the arrangement
+	 * reports it and the host decides, so this surface keeps no selected-track
+	 * state of its own.
+	 */
+	function selectTrack(trackId: TrackId): void {
+		props.onSelectTrack?.(trackId);
+		noteFirstUse();
+	}
+
+	/** The track under a viewport-local point, or null above/below the rows. */
+	function trackAt(localX: number, localY: number): TrackId | null {
+		if (!shell) return null;
+		const { rowIndex } = shell.pointToArrangement(localX, localY);
+		return projection().tracks[rowIndex]?.id ?? null;
 	}
 
 	onMount(() => {
@@ -370,6 +397,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 		const { x, y } = localPoint(event);
 		if (y < 0) return;
 
+		// Whatever the click turns out to do — start a placement drag, select a
+		// bar range — it happened on a row, and that row's track is now the one
+		// being worked on (#228).
+		const trackId = trackAt(x, y);
+		if (trackId) selectTrack(trackId);
+
 		// A placement hit starts a drag (move or resize) instead of the shell's
 		// own bar-range selection; anything else falls through to the existing
 		// behavior unchanged.
@@ -441,8 +474,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
 			startTick: 0,
 			endTick: TICKS_PER_BAR,
 		});
+		// The same click a pointer makes on the row: it selects the bar range
+		// *and* points the editor at the track (#228).
+		selectTrack(track.id);
 		bumpState();
-		noteFirstUse();
 	}
 
 	// The visible window of track rows, recomputed from the shell's row range.
@@ -514,7 +549,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
 							{(track) => (
 								<li
 									class="arrangement-header-row"
-									aria-label={`${track.name}${track.muted ? " (muted)" : ""}`}
 									style={{
 										position: "absolute",
 										top: `${track.rowIndex * ROW_METRICS.headerHeightPx}px`,
@@ -522,16 +556,29 @@ export default function ArrangementView(props: ArrangementViewProps) {
 										width: "100%",
 									}}
 								>
-									<span
-										class="arrangement-header-swatch"
-										style={{ background: track.color }}
-									/>
-									{/* The track's name, chosen by the user. The row around it
-									    stays visible, so a replay still shows which track was
-									    clicked (ADR 0002 decision 2). */}
-									<span class={`arrangement-header-name ${MASK_CONTENT}`}>
-										{track.name}
-									</span>
+									{/* The row is the control: clicking a track header points the
+									    editor at that track (#228), and a keyboard reaches the
+									    same thing by tabbing the header column. "Edit", not
+									    "Select": `Select <track>` is the accessible list's name
+									    for selecting that track's first bar range, below. */}
+									<button
+										type="button"
+										class="arrangement-header-select"
+										aria-pressed={props.selectedTrackId === track.id}
+										aria-label={`Edit ${track.name}${track.muted ? " (muted)" : ""}`}
+										onClick={() => selectTrack(track.id)}
+									>
+										<span
+											class="arrangement-header-swatch"
+											style={{ background: track.color }}
+										/>
+										{/* The track's name, chosen by the user. The row around it
+										    stays visible, so a replay still shows which track was
+										    clicked (ADR 0002 decision 2). */}
+										<span class={`arrangement-header-name ${MASK_CONTENT}`}>
+											{track.name}
+										</span>
+									</button>
 								</li>
 							)}
 						</For>
