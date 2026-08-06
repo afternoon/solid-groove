@@ -83,7 +83,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const [selectedNoteIds, setSelectedNoteIds] = createSignal<
 		readonly EventId[]
 	>([]);
-	const [libraryOpen, setLibraryOpen] = createSignal(false);
+	// The library is a browser you keep open while you work, so it starts open
+	// (#221) — a new project's first move is picking a sound, and having to find
+	// the header toggle first hid the library from anyone who had not met it.
+	// The header toggle still closes it for the session.
+	const [libraryOpen, setLibraryOpen] = createSignal(true);
 	const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
 
 	// The packs this editing session has added on top of the project's own
@@ -257,16 +261,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 								saveStatus={saveStatus}
 								onRetrySave={() => void session.retry()}
 							/>
-							<div class="arrangement-panel">
-								<ArrangementView
-									project={currentProject()}
-									playheadTicks={audio.positionTicks}
-									isPlaying={audio.isPlaying}
-									dispatch={session.dispatch}
-									beginGesture={session.beginGesture}
-									onEditingActionsReady={setArrangementEditingActions}
-								/>
-							</div>
 							<div class="editor-body">
 								<Show when={libraryOpen()}>
 									{/*
@@ -292,72 +286,89 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 										/>
 									</aside>
 								</Show>
-								<div class="workspace">
-									<For each={loopClips()}>
-										{(entry) => (
-											<LoopInfo
-												clip={entry.clip}
-												asset={entry.asset}
-												songTempo={tempo()}
-											/>
-										)}
-									</For>
-									<Show when={drumTrack()}>
-										{(drum) => (
-											<div class="drum-machine-editor">
-												<div class="track-info">
-													<span class={`track-name ${MASK_CONTENT}`}>
-														{drum().name}
-													</span>
-												</div>
-												<DrumMachinePanel
-													track={drum()}
-													assets={sampleAssets()}
-													dispatch={session.dispatch}
-													audition={(padId) =>
-														void audio.auditionPad(drum().id, padId)
-													}
+								{/*
+								 * Arrangement and workspace stack vertically to the right of the
+								 * library, so the library is a full-height column beside them
+								 * rather than a band beneath the arrangement (#221).
+								 */}
+								<div class="editor-main">
+									<div class="arrangement-panel">
+										<ArrangementView
+											project={currentProject()}
+											playheadTicks={audio.positionTicks}
+											isPlaying={audio.isPlaying}
+											dispatch={session.dispatch}
+											beginGesture={session.beginGesture}
+											onEditingActionsReady={setArrangementEditingActions}
+										/>
+									</div>
+									<div class="workspace">
+										<For each={loopClips()}>
+											{(entry) => (
+												<LoopInfo
+													clip={entry.clip}
+													asset={entry.asset}
+													songTempo={tempo()}
 												/>
-											</div>
-										)}
-									</Show>
-									<Show
-										when={clip()}
-										fallback={
-											<p class="no-track">
-												This project has no sampler track yet.
-											</p>
-										}
-									>
-										{(currentClip) => (
-											<TrackEditor
-												clip={currentClip()}
-												trackName={track()?.name}
-												packDependencyLabel={packDependencyLabel()}
-												showPianoRoll={showPianoRoll}
-												instrument={instrument()}
-												dispatch={session.dispatch}
-												beginGesture={session.beginGesture}
-												editorPlaybackStep={editorPlaybackStep}
-												selectedNoteIds={selectedNoteIds}
-												setSelectedNoteIds={setSelectedNoteIds}
-												project={currentProject()}
-												playheadTicks={audio.positionTicks()}
-												registerPianoRollActions={setPianoRollActions}
-												instrumentPanelTrackId={instrumentPanelTrackId()}
-												sampleName={sampleName()}
-												replacementOptions={replacementOptions()}
-												auditionInstrument={auditionInstrument}
-											/>
-										)}
-									</Show>
-									<Mixer
-										project={currentProject()}
-										dispatch={session.dispatch}
-										beginGesture={session.beginGesture}
-										trackLevelDb={audio.trackLevelDb}
-										isPlaying={audio.isPlaying}
-									/>
+											)}
+										</For>
+										<Show when={drumTrack()}>
+											{(drum) => (
+												<div class="drum-machine-editor">
+													<div class="track-info">
+														<span class={`track-name ${MASK_CONTENT}`}>
+															{drum().name}
+														</span>
+													</div>
+													<DrumMachinePanel
+														track={drum()}
+														assets={sampleAssets()}
+														dispatch={session.dispatch}
+														audition={(padId) =>
+															void audio.auditionPad(drum().id, padId)
+														}
+													/>
+												</div>
+											)}
+										</Show>
+										<Show
+											when={clip()}
+											fallback={
+												<p class="no-track">
+													This project has no sampler track yet.
+												</p>
+											}
+										>
+											{(currentClip) => (
+												<TrackEditor
+													clip={currentClip()}
+													trackName={track()?.name}
+													packDependencyLabel={packDependencyLabel()}
+													showPianoRoll={showPianoRoll}
+													instrument={instrument()}
+													dispatch={session.dispatch}
+													beginGesture={session.beginGesture}
+													editorPlaybackStep={editorPlaybackStep}
+													selectedNoteIds={selectedNoteIds}
+													setSelectedNoteIds={setSelectedNoteIds}
+													project={currentProject()}
+													playheadTicks={audio.positionTicks()}
+													registerPianoRollActions={setPianoRollActions}
+													instrumentPanelTrackId={instrumentPanelTrackId()}
+													sampleName={sampleName()}
+													replacementOptions={replacementOptions()}
+													auditionInstrument={auditionInstrument}
+												/>
+											)}
+										</Show>
+										<Mixer
+											project={currentProject()}
+											dispatch={session.dispatch}
+											beginGesture={session.beginGesture}
+											trackLevelDb={audio.trackLevelDb}
+											isPlaying={audio.isPlaying}
+										/>
+									</div>
 								</div>
 							</div>
 							<Show when={guideOpen()}>

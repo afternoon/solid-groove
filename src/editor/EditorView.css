@@ -186,6 +186,21 @@
 	opacity: 0.75;
 }
 
+/*
+ * Arrangement over workspace, as one column to the right of the library panel
+ * (#221). The arrangement is a fixed strip at the top of this column and the
+ * workspace takes the rest, so the library stays a full-height column beside
+ * both rather than sitting under the arrangement.
+ */
+.editor-main {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-divider);
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+}
+
 .arrangement-panel {
 	box-sizing: border-box;
 	/* A bounded height so the arrangement's own native scroll container owns
@@ -231,8 +246,9 @@
 }
 
 /*
- * The library panel (LOOP-013). Opened from the header toggle, it is a narrow
- * left-hand column beside the workspace rather than a band beneath it: a
+ * The library panel (LOOP-013). Open by default and closed from the header
+ * toggle, it is a narrow left-hand column running the full height of the editor
+ * beside the arrangement and the workspace, rather than a band beneath them: a
  * browser is something you keep open while you work, and a fixed-height band
  * had to be tall enough to be useful, which cost the editor its vertical room.
  *
@@ -254,7 +270,7 @@
 }
 
 /* The workspace takes the page's old job: it is what scrolls, inside itself. */
-.editor-body .workspace {
+.editor-main .workspace {
 	flex: 1 1 auto;
 	min-width: 0;
 	min-height: 0;
