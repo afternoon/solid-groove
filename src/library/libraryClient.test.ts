@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { fixtureFetcher } from "./__fixtures__/fixtures";
 import {
 	FetchClassifiedError,
+	httpJsonFetcher,
 	type JsonFetcher,
 	LibraryClient,
 	type LibraryIndexError,
 } from "./libraryClient";
-import { type LibraryPackSummary, PACK_INDEX_PATH } from "./manifest";
+import {
+	type LibraryPackSummary,
+	libraryUrl,
+	PACK_INDEX_PATH,
+} from "./manifest";
 
 async function loadedClient(): Promise<{
 	client: LibraryClient;
@@ -16,6 +21,40 @@ async function loadedClient(): Promise<{
 	const packs = await client.loadIndex();
 	return { client, packs };
 }
+
+describe("the default fetcher (issue #226)", () => {
+	it("requests the resolved delivery URL verbatim", async () => {
+		// The URL already carries its origin. Prefixing it here — as this did
+		// while the library was same-origin only — turns a Cloud Storage URL into
+		// a same-origin path that a SPA server answers with `index.html`.
+		const url = libraryUrl(
+			"packs/index.json",
+			"groove-test.firebasestorage.app",
+		);
+		const fetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(Response.json({ ok: true }));
+		try {
+			await httpJsonFetcher(url);
+			expect(fetch).toHaveBeenCalledWith(url);
+		} finally {
+			fetch.mockRestore();
+		}
+	});
+
+	it("classifies a 404 as not_found rather than corrupt", async () => {
+		const fetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValue(new Response("", { status: 404 }));
+		try {
+			await expect(httpJsonFetcher("/x.json")).rejects.toMatchObject({
+				reason: "not_found",
+			});
+		} finally {
+			fetch.mockRestore();
+		}
+	});
+});
 
 describe("lazy loading (sample-library section 12)", () => {
 	it("fetches the pack index and no manifest to open", async () => {

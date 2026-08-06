@@ -25,8 +25,8 @@ import {
  * delivery, the mock backend, and a unit test.
  */
 
-/** Fetches a JSON document by served-root-relative path. Injected for tests. */
-export type JsonFetcher = (path: string) => Promise<unknown>;
+/** Fetches a JSON document by delivery URL. Injected for tests. */
+export type JsonFetcher = (url: string) => Promise<unknown>;
 
 /** Why a pack (or the index) could not be loaded — mapped to an analytics code. */
 export type LibraryLoadReason = "network" | "not_found" | "corrupt" | "timeout";
@@ -54,14 +54,18 @@ export type PackLoadResult =
 	| { readonly ok: false; readonly error: PackLoadError };
 
 /**
- * The default fetcher: a same-origin GET of a static delivery file.
+ * The default fetcher: a GET of a static delivery document.
+ *
+ * The URL is already resolved against the delivery origin by `manifest.ts` —
+ * Cloud Storage in a deployed build, same-origin `public/` in local
+ * development — so this never builds a path of its own.
  *
  * Classifies the failure so the browser can report an actionable, non-leaking
  * reason (and the analytics `error_code`) without the caller re-inspecting the
  * `Response`.
  */
-export function httpJsonFetcher(path: string): Promise<unknown> {
-	return fetch(`/${path}`).then(
+export function httpJsonFetcher(url: string): Promise<unknown> {
+	return fetch(url).then(
 		async (response) => {
 			if (!response.ok) {
 				const reason: LibraryLoadReason =
