@@ -159,33 +159,37 @@ workflow's agents report their own work, and a self-report is a claim.
 
 5. **Base and state.** Base is `main` (or the previous branch, for a stack), and
    the PR is **ready for review, not draft**. `gh pr view <n> --json baseRefName,isDraft,headRefName`
-6. **Issue reference.** The body says `Closes #<n>` — exactly once, on the PR that
+6. **Title format.** The title reads `Fix #<n> (i/N): Title` — the action word,
+   the issue number with its `#`, the PR's 1-based position in the stack out of
+   `N`, a colon, then what was broken, not which file changed. A lone PR is still
+   numbered `Fix #<n> (1/1): ...`. `gh pr view <n> --json title`.
+7. **Issue reference.** The body says `Closes #<n>` — exactly once, on the PR that
    completes the fix. A stack uses `Refs #<n>` on the earlier PRs.
-7. **Size and purpose.** ≤400 changed lines excluding generated files, lockfiles
+8. **Size and purpose.** ≤400 changed lines excluding generated files, lockfiles
    and vendored assets (`gh pr view <n> --json additions,deletions`), doing one
    thing. A bug fix over the ceiling has usually grown a refactor — report it as a
    re-slice, which is the human's call.
-8. **Template sections.** **What & why**, **Core flows**, **Walkthrough**,
+9. **Template sections.** **What & why**, **Core flows**, **Walkthrough**,
    **Evidence**, **Acceptance criteria met**, all filled in. An empty section or a
    leftover `<!-- walkthrough pending -->` placeholder is a failure.
 
 ### The specification
 
-9. **Nothing frozen was touched.**
-   `git diff origin/main..<branch> -- docs/prd.md docs/core-flows.md e2e/flows e2e-emulator/flows`
-   must be **empty**. A bug fix does not edit the specification and does not remove
-   a `test.fixme` marker — that belongs to the feature delivering the flow. If it
-   is not empty, that is the most serious thing you can find here: report it
-   loudly and do not paper over it.
-10. **`bun run verify:core-flows` passes** on the branch, with no flow newly
+10. **Nothing frozen was touched.**
+    `git diff origin/main..<branch> -- docs/prd.md docs/core-flows.md e2e/flows e2e-emulator/flows`
+    must be **empty**. A bug fix does not edit the specification and does not remove
+    a `test.fixme` marker — that belongs to the feature delivering the flow. If it
+    is not empty, that is the most serious thing you can find here: report it
+    loudly and do not paper over it.
+11. **`bun run verify:core-flows` passes** on the branch, with no flow newly
     parked.
 
 ### The walkthrough
 
-11. **Present if the fix changes anything a user sees.** If it does not, the
+12. **Present if the fix changes anything a user sees.** If it does not, the
     section says "No UI change" — check that claim against the diff rather than
     accepting it, since it is the cheap way out of this check.
-12. **The images render.** A broken `raw.githubusercontent.com` link shows as a
+13. **The images render.** A broken `raw.githubusercontent.com` link shows as a
     broken-image icon and looks, at a glance, like a walkthrough. Extract every
     image URL from the body and fetch each:
 
@@ -198,7 +202,7 @@ workflow's agents report their own work, and a self-report is a claim.
 
 ### CI
 
-13. Check CI (`gh pr checks <n>`) and report what is red. Only Chromium runs in
+14. Check CI (`gh pr checks <n>`) and report what is red. Only Chromium runs in
     an agent container, so CI is the cross-browser gate and its result is the real
     evidence — a green local run is a pre-flight, never gating evidence.
 
@@ -211,6 +215,7 @@ workflow's agents report their own work, and a self-report is a claim.
 - a PR left as a draft (`gh pr ready <n>`)
 - a wrong base branch (`gh pr edit <n> --base <branch>`)
 - a missing or wrong `Refs`/`Closes` line
+- a title that does not read `Fix #<issue> (i/N): Title` (`gh pr edit <n> --title`)
 - a missing `deploy-preview` label, **only** once CI is green and only if the
   branch does not touch `firestore.rules` or `storage.rules`
 - a walkthrough that failed to publish: re-run `bun run walkthrough:capture` and

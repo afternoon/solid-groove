@@ -198,7 +198,7 @@ never writes a flow spec: if a linked flow is not registered and specced on
 terminal, claude.ai/code, or the mobile app: the skill verifies the prework first
 (the issue links flows, every flow is registered, complete, and specced, the
 `blocked_by` graph is closed), runs the workflow, and then verifies the resulting
-stack — bases, `(i/n)` titles, `Refs`/`Closes`, PR size, an untouched
+stack — bases, `Implement #<issue> (i/N): Title` titles, `Refs`/`Closes`, PR size, an untouched
 specification, no flow left at `test.fixme`, and that the walkthrough images
 actually return `200` rather than rendering as broken icons. The workflow and agent definitions are
 human-approved: an agent running the skill reports a problem with them and never
@@ -231,6 +231,28 @@ spec — including removing a `test.fixme` marker, which belongs to the feature
 that delivers the flow.
 
 ### Landing work
+
+**Every PR title uses one format**, so a list of open PRs reads as the work it
+is and its stack order is obvious at a glance:
+
+```
+$ACTION #<issue> (i/N): Title
+```
+
+- **`$ACTION`** is `Implement` for a feature task, `Fix` for a bug fix. Those
+  are the only two values — a PR is one or the other.
+- **`#<issue>`** is the GitHub issue the PR belongs to, so the title carries the
+  task even where GitHub does not render the body's `Refs`/`Closes` link.
+- **`(i/N)`** is the PR's 1-based position in its stack out of `N` total. A task
+  that ships as a single PR is `(1/1)`; a three-PR stack is `(1/3)`, `(2/3)`,
+  `(3/3)`. `N` counts only the PRs in that stack — the core-flow spec PR lands
+  separately, before the work begins, and is numbered on its own.
+- **`Title`** names what that slice does, in a few words. On a stack it is the
+  slice's purpose, not the whole task's; on a fix it says what was broken, not
+  which file changed.
+
+Examples: `Implement #123 (2/3): Wire the step grid onto note commands`,
+`Fix #456 (1/1): Metronome fires a bar early after seek`.
 
 1. **A PR is a single reviewable unit of purpose, not a whole task.** Each agent works in its own git worktree so parallel implementations do not collide on the filesystem, and a broken PR never blocks review of an unrelated one. One PR does one thing a reviewer can hold in their head at once — "introduce the *X* commands", "add the *Y* domain entity and its schema", "wire the *Z* panel UI onto existing commands". A task that cannot be delivered as one such unit is **split into several stacked PRs**, sequenced so each builds on the last (see item 5).
 2. **A PR's diff is at most 400 lines changed** (added + deleted in product and test code; generated files, lockfiles, and vendored assets do not count — and never let a generated blob smuggle real logic past this). This is a hard ceiling, not a target: if the honest slice does not fit, the slice is wrong — cut it smaller, do not shave tests to squeeze under. Keep each PR vertical and self-contained *for its purpose*: the product code for that slice, **the tests that cover it in the same PR** (a UI PR that leans on commands from an earlier PR in the stack re-tests the behavior it newly exposes; splitting must never drop coverage or defer it to a later PR), and any fixtures/docs that slice needs. The PR body links its issue (`Refs #<n>` for a mid-stack PR, `Closes #<n>` only on the PR that completes the task), names its place in the stack ("2 of 3, builds on #<prev>"), and states the evidence. **Any change that alters the UI includes a walkthrough** in the body of the PR that closes the issue: a sequence of captioned screenshots starting from a common entrypoint (the public landing page, the project dashboard, or a project page) and walking to the change. It is not assembled by hand — `bun run walkthrough:capture` takes one screenshot per `step()` in the now-passing core-flow specs and `bun run walkthrough:publish -- --issue <n>` pushes them to the `claude/walkthroughs` orphan branch and prints the Markdown to paste in. That is deliberate: the walkthrough is a byproduct of the test that proves the flow, so it cannot drift from what shipped, and it always starts where a person actually arrives. (Images cannot be attached to a PR body through the GitHub API at all, which is why they live on a branch and the body links them.) A PR with no user-visible change says so instead. The PR template (`.github/pull_request_template.md`) has the section.
