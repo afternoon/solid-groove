@@ -160,6 +160,14 @@ describe("parsing a pack manifest", () => {
 		}
 	});
 
+	it("carries the rights position a project records as provenance", async () => {
+		const raw = await fixtureFetcher()(
+			"samples/starter-library/packs/core-electronic-drums/x.json",
+		);
+		const assets = packAssets(parsePackManifest(raw));
+		expect(assets.every((asset) => asset.licence !== null)).toBe(true);
+	});
+
 	it("carries the tags a filter needs", async () => {
 		const raw = await fixtureFetcher()(
 			"samples/starter-library/packs/core-electronic-drums/x.json",
