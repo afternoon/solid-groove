@@ -18,12 +18,32 @@
 // - Console breadcrumbs are *disabled*, not filtered.
 // - Network and DOM breadcrumbs are scrubbed in `beforeBreadcrumb`, and the
 //   whole event again in `beforeSend`.
-// - **Session Replay is not enabled.** It would capture the arrangement, clip
-//   names, and assistant conversation on screen. Turning it on requires a
-//   superseding ADR (ADR 0001 decision 4).
 // - `browserSessionIntegration` provides Release Health, which is where the
 //   PRD section 11 crash-free session rate comes from rather than a hand-built
 //   derivation.
+//
+// ## Session Replay (ADR 0002)
+//
+// ADR 0002 supersedes ADR 0001 decision 4 and enables replay *for product
+// understanding*, under conditions that are all enforced here:
+//
+// - **Mask by default** (decision 2): `maskAllText` and `blockAllMedia` on,
+//   canvas capture off. Masking happens at capture in the browser, so masked
+//   text is never serialized into the payload and therefore never transmitted.
+//   Components mark themselves as well (`src/monitoring/replayPrivacy.ts`), so
+//   a content surface is masked twice over.
+// - **Low session sampling, no error replay** (decision 6):
+//   `replaysSessionSampleRate` at `REPLAY_SESSION_SAMPLE_RATE`,
+//   `replaysOnErrorSampleRate` at 0. Error-triggered replay is the debugging
+//   use ADR 0001 weighed and rejected; nothing here revisits it.
+// - **Consent is honoured at the source** (decision 4): when replay consent is
+//   absent the integration is *never constructed*, so nothing is captured in
+//   the first place rather than being captured and dropped before send.
+//   `stopReplay()` stops an in-flight recording when consent is withdrawn
+//   mid-session.
+// - **Nothing before first paint** (decision 8): replay rides the same lazy
+//   import as the rest of the SDK and is not loaded on the landing page at all,
+//   which `src/telemetry.ts` and `scripts/verify-bundle-budget.mjs` enforce.
 //
 // ## The DSN is public by design
 //
@@ -34,6 +54,7 @@
 // lives in CI only. See `.env.example` and `docs/testing.md`.
 
 import type { ErrorReport, ErrorSink } from "./errorReporting";
+import { BLOCK_CONTENT, MASK_CONTENT } from "./replayPrivacy";
 import {
 	type ScrubbableBreadcrumb,
 	type ScrubbableEvent,
@@ -49,10 +70,71 @@ export interface SentrySinkOptions {
 	environment?: string;
 	/** Injectable for tests, so no test ever loads or initializes the real SDK. */
 	load?: () => Promise<SentryModule>;
+	/**
+	 * Whether Session Replay may capture (ADR 0002 decision 4).
+	 *
+	 * Read once, at `start()`, and honoured at the source: `false` means the
+	 * replay integration is never constructed and `replaysSessionSampleRate` is
+	 * 0, so this session records nothing at all. Defaults to `false` so a caller
+	 * that has not consulted consent gets the safe outcome.
+	 */
+	sessionReplay?: boolean;
 }
 
 /** Reports buffered while the SDK is still loading. */
 const MAX_BUFFERED_REPORTS = 20;
+
+/**
+ * ADR 0002 decision 6: "set low (start at 0.1 and adjust against the free-tier
+ * quota)".
+ *
+ * Replay is a sampled qualitative instrument, not a measure any release gate
+ * depends on, so an undercount costs nothing structural. The rate is revisited
+ * against observed quota during `OPS-001`.
+ */
+export const REPLAY_SESSION_SAMPLE_RATE = 0.1;
+
+/**
+ * ADR 0002 decision 2, the whole privacy position of replay in one object.
+ *
+ * Exported so `sentrySink.test.ts` asserts against the same value the SDK is
+ * handed, rather than against a copy that can drift from it.
+ *
+ * `maskAllText` and `blockAllMedia` mask at capture in the browser: the
+ * characters are replaced before serialization, so they never enter the replay
+ * payload and are never transmitted. `block`/`mask` name the classes
+ * `src/monitoring/replayPrivacy.ts` puts on content surfaces, so a component's
+ * own markup masks it as well as the default does.
+ *
+ * There is no `unmask`/`unblock` entry. Decision 2 permits unmasking only
+ * stable, non-user-authored chrome by an explicit named selector; until a
+ * specific surface proves unreadable there is nothing to name, and the absence
+ * is the safe state.
+ */
+export const REPLAY_PRIVACY = {
+	/** Every text node is masked at capture unless explicitly named otherwise. */
+	maskAllText: true,
+	/** Images, video, and audio elements are not recorded. */
+	blockAllMedia: true,
+	/** Text inputs are masked; typed text is user content by definition. */
+	maskAllInputs: true,
+	/** The classes a component marks itself with. */
+	mask: [`.${MASK_CONTENT}`],
+	block: [`.${BLOCK_CONTENT}`],
+};
+
+/**
+ * ADR 0002 decision 2: "Canvas capture stays off, which keeps the arrangement
+ * renderer, the piano roll, and waveform displays out of the payload entirely."
+ *
+ * Canvas is not a flag on the replay integration — it is a *second*
+ * integration, `replayCanvasIntegration`, which the SDK only records canvas for
+ * when it is present. So "off" is the absence of that integration from the
+ * `integrations` array, and this is the name a test asserts is absent. Naming
+ * it here rather than in the test means the assertion cannot pass by matching
+ * a string that stopped being the SDK's export name.
+ */
+export const REPLAY_CANVAS_INTEGRATION = "replayCanvasIntegration";
 
 /**
  * A sink that loads and initializes the Sentry SDK on first use.
@@ -66,6 +148,7 @@ export class SentrySink implements ErrorSink {
 	private sentry: SentryModule | null = null;
 	private starting: Promise<boolean> | null = null;
 	private stopped = false;
+	private replayEnabled = false;
 	private readonly buffered: ErrorReport[] = [];
 
 	constructor(private readonly options: SentrySinkOptions = {}) {}
@@ -93,6 +176,12 @@ export class SentrySink implements ErrorSink {
 		const load = this.options.load ?? (() => import("@sentry/solidstart"));
 		const sentry = await load();
 
+		// ADR 0002 decision 4: consent is honoured at the source. A declined
+		// session constructs no replay integration, so there is nothing to filter
+		// on send because there is nothing captured.
+		const replayEnabled = this.options.sessionReplay === true;
+		this.replayEnabled = replayEnabled;
+
 		sentry.init({
 			dsn,
 			release: this.options.release,
@@ -100,9 +189,11 @@ export class SentrySink implements ErrorSink {
 
 			// --- Privacy (ADR 0001) -------------------------------------------
 			sendDefaultPii: false,
-			// Session Replay: not enabled. Left explicit so that a future reader
-			// sees a decision rather than an omission.
-			replaysSessionSampleRate: 0,
+			// ADR 0002 decision 6. A declined session samples nothing as well as
+			// constructing no integration, so neither alone is load-bearing.
+			replaysSessionSampleRate: replayEnabled ? REPLAY_SESSION_SAMPLE_RATE : 0,
+			// Stays 0 unconditionally: error-triggered replay is the debugging use
+			// ADR 0001 rejected, and ADR 0002 explicitly does not revisit it.
 			replaysOnErrorSampleRate: 0,
 			// No performance tracing. ADR 0001 leaves that to a separate decision.
 			tracesSampleRate: 0,
@@ -124,6 +215,7 @@ export class SentrySink implements ErrorSink {
 					history: true,
 					sentry: false,
 				}),
+				...(replayEnabled ? [sentry.replayIntegration(REPLAY_PRIVACY)] : []),
 			],
 
 			// --- Scrubbing ------------------------------------------------------
@@ -187,6 +279,30 @@ export class SentrySink implements ErrorSink {
 	}
 
 	/**
+	 * Stops an in-flight Session Replay recording (ADR 0002 decision 4).
+	 *
+	 * "Opting out mid-session stops an in-flight recording rather than merely
+	 * dropping it before send." Closing the client is not enough on its own:
+	 * replay buffers in the page and a session already sampled in keeps
+	 * recording until it is told to stop, so this is called *before* the close
+	 * and separately from it, for the case where replay consent is withdrawn
+	 * while error monitoring is still allowed.
+	 *
+	 * Idempotent and non-throwing. Safe to call when replay was never enabled,
+	 * where it does nothing.
+	 */
+	async stopReplay(): Promise<void> {
+		if (!this.replayEnabled) return;
+		this.replayEnabled = false;
+		try {
+			await this.sentry?.getReplay?.()?.stop();
+		} catch {
+			// A recording we cannot stop must not become an exception on the
+			// consent path. The client close below is the backstop.
+		}
+	}
+
+	/**
 	 * Stops sending. Used when the user withdraws consent mid-session: our
 	 * boundary already stops forwarding, but `browserSessionIntegration` emits
 	 * session updates on its own, so the client itself has to be closed.
@@ -194,6 +310,9 @@ export class SentrySink implements ErrorSink {
 	async stop(): Promise<void> {
 		this.stopped = true;
 		this.buffered.length = 0;
+		// Before the close, so a sampled-in recording is told to stop rather than
+		// left to the client teardown (ADR 0002 decision 4).
+		await this.stopReplay();
 		try {
 			await this.sentry?.getClient()?.close();
 		} catch {
