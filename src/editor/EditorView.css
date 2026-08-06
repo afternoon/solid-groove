@@ -245,6 +245,16 @@
 	color: var(--color-text-secondary);
 }
 
+/* Where the step editor or piano roll would be for a track that has no clip
+   yet. Set in the panel's own body text rather than shouted, because the track
+   is fine — there is simply nothing to program on it. */
+.track-editor .no-clip {
+	margin: 0;
+	padding: 12px 0;
+	font-size: var(--font-size-small);
+	color: var(--color-text-secondary);
+}
+
 /*
  * The library panel (LOOP-013). Open by default and closed from the header
  * toggle, it is a narrow left-hand column running the full height of the editor

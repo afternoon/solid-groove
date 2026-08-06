@@ -76,6 +76,14 @@ function saveStatusGroup(): HTMLElement {
 	return group;
 }
 
+/** The mixer's "edit this track" control for one strip. */
+function mixerSelect(trackName: string): HTMLElement {
+	return within(screen.getByRole("region", { name: "Mixer" })).getByRole(
+		"button",
+		{ name: `Edit ${trackName}` },
+	);
+}
+
 /** Null when the save state offers no retry: non-retryable, or not failed. */
 function saveRetryButton(): HTMLElement | null {
 	return within(saveStatusGroup()).queryByRole("button", { name: "Retry" });
@@ -205,6 +213,72 @@ describe("EditorView", () => {
 		expect(screen.getByLabelText("End")).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "Audition" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows a track's instrument panel even before it has a clip (#228)", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		// A track added from the mixer arrives with an instrument and no clip.
+		// Its controls are the reason to select it, so the editor must not wait
+		// for a clip before showing them.
+		const fixture = createPianoRollFixtureProject();
+		const project = {
+			...fixture,
+			clips: [],
+			song: { ...fixture.song, placements: [] },
+		};
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		expect(
+			await screen.findByRole("region", { name: "Synth voice" }),
+		).toBeInTheDocument();
+		expect(screen.getByText("This track has no clip yet.")).toBeInTheDocument();
+		// Neither clip editor is on screen: there is no clip to program.
+		expect(
+			screen.queryByRole("region", { name: "Step editor" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("region", { name: /Piano roll/ }),
+		).not.toBeInTheDocument();
+	});
+
+	it("switches the editor to a track selected in the mixer (#228)", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		// The drum fixture's two tracks: a drum machine, then an audio track.
+		const project = createDrumMachineFixtureProject();
+		const [drums, breakTrack] = project.song.tracks;
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+
+		// It opens on the first track: the drum machine's pads.
+		expect(
+			await screen.findByRole("region", {
+				name: `Drum machine: ${drums.name}`,
+			}),
+		).toBeInTheDocument();
+
+		fireEvent.click(mixerSelect(breakTrack.name));
+
+		// The editor follows: the second track's name, and no drum pads, because
+		// the pads belong to a track that is no longer the one being edited.
+		const trackEditor = document.querySelector(".track-editor");
+		expect(trackEditor).not.toBeNull();
+		expect(
+			within(trackEditor as HTMLElement).getByText(breakTrack.name),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
+		).not.toBeInTheDocument();
+
+		// And back, from the same control on the other strip.
+		fireEvent.click(mixerSelect(drums.name));
+		expect(
+			screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
 		).toBeInTheDocument();
 	});
 

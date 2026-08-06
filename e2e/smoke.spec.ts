@@ -219,8 +219,12 @@ test.describe("dashboard project management", () => {
 		await page.getByRole("button", { name: "Blank Project" }).click();
 
 		await expect(page).toHaveURL(/\/projects\/prj_/);
+		// A blank project has no tracks at all. The editor says so and points at
+		// the mixer, rather than reporting the absence of a sampler track — since
+		// #228 the editor follows a selected track of any kind, so "no sampler
+		// track" was never what an empty project was short of.
 		await expect(
-			page.getByText("This project has no sampler track yet."),
+			page.getByText("This project has no tracks yet. Add one in the mixer."),
 		).toBeVisible();
 	});
 

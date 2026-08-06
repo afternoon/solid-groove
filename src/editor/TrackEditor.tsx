@@ -16,7 +16,8 @@ import StepEditor from "./StepEditor";
 import TransformPanel from "./TransformPanel";
 
 export interface TrackEditorProps {
-	readonly clip: Clip;
+	/** The edited track's clip, or null when it has none yet (#228). */
+	readonly clip: Clip | null;
 	readonly trackName: string | undefined;
 	readonly packDependencyLabel: string | null;
 	/** A synth track's note clip gets the CLP-03 piano roll instead of the grid. */
@@ -67,52 +68,69 @@ export default function TrackEditor(props: TrackEditorProps) {
 				</Show>
 			</div>
 			{/*
-			 * A synth track's note clip gets the CLP-03 piano roll; everything
-			 * else stays on LOOP-010's CLP-02 step editor. Pitched notes want two
-			 * dimensions (pitch x time), which a one-row-per-step grid cannot show.
+			 * A track carries no clip until one is placed on it — a track added
+			 * from the mixer starts empty (#228). Its instrument panel below still
+			 * renders: the clip editor is what has nothing to show, not the track.
 			 */}
 			<Show
-				when={props.showPianoRoll()}
-				fallback={
-					<StepEditor
-						clip={props.clip}
-						instrument={props.instrument}
-						dispatch={props.dispatch}
-						beginGesture={props.beginGesture}
-						playbackStep={props.editorPlaybackStep}
-						selectedIds={props.selectedNoteIds}
-						setSelectedIds={props.setSelectedNoteIds}
-					/>
-				}
+				when={props.clip}
+				fallback={<p class="no-clip">This track has no clip yet.</p>}
 			>
-				<PianoRoll
-					clip={props.clip}
-					project={props.project}
-					dispatch={props.dispatch}
-					beginGesture={props.beginGesture}
-					playheadTicks={props.playheadTicks}
-					registerActions={props.registerPianoRollActions}
-					onSelectionChange={setRollSelection}
-				/>
+				{(clip) => (
+					<>
+						{/*
+						 * A synth track's note clip gets the CLP-03 piano roll; everything
+						 * else stays on LOOP-010's CLP-02 step editor. Pitched notes want
+						 * two dimensions (pitch x time), which a one-row-per-step grid
+						 * cannot show.
+						 */}
+						<Show
+							when={props.showPianoRoll()}
+							fallback={
+								<StepEditor
+									clip={clip()}
+									instrument={props.instrument}
+									dispatch={props.dispatch}
+									beginGesture={props.beginGesture}
+									playbackStep={props.editorPlaybackStep}
+									selectedIds={props.selectedNoteIds}
+									setSelectedIds={props.setSelectedNoteIds}
+								/>
+							}
+						>
+							<PianoRoll
+								clip={clip()}
+								project={props.project}
+								dispatch={props.dispatch}
+								beginGesture={props.beginGesture}
+								playheadTicks={props.playheadTicks}
+								registerActions={props.registerPianoRollActions}
+								onSelectionChange={setRollSelection}
+							/>
+						</Show>
+						{/*
+						 * CLP-04's transformations sit below whichever editor is on screen
+						 * and act on that editor's selection, so one panel serves both
+						 * rather than each editor growing its own copy.
+						 */}
+						<TransformPanel
+							clip={clip()}
+							project={props.project}
+							selectedIds={transformSelection()}
+							dispatch={props.dispatch}
+							editor={props.showPianoRoll() ? "piano_roll" : "step"}
+						/>
+					</>
+				)}
 			</Show>
-			{/*
-			 * CLP-04's transformations sit below whichever editor is on screen and
-			 * act on that editor's selection, so one panel serves both rather than
-			 * each editor growing its own copy.
-			 */}
-			<TransformPanel
-				clip={props.clip}
-				project={props.project}
-				selectedIds={transformSelection()}
-				dispatch={props.dispatch}
-				editor={props.showPianoRoll() ? "piano_roll" : "step"}
-			/>
 			{/*
 			 * The kind picker leads the track's instrument controls (#224). It sits
 			 * outside `InstrumentPanel` because that component is the switch
 			 * *between* instrument panels and the picker is what chooses which one —
 			 * it must also show for a drum machine and for a track with no
-			 * instrument, neither of which reaches that switch.
+			 * instrument, neither of which reaches that switch. Outside the clip
+			 * `Show` above, too: a track with no clip still has an instrument to
+			 * choose (#228).
 			 */}
 			<Show when={props.instrumentPanelTrackId}>
 				{(trackId) => (
