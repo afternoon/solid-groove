@@ -18,6 +18,7 @@ import {
 	SAMPLER_SAMPLE_END,
 	SAMPLER_SAMPLE_START,
 } from "../domain/parameters";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import FillSlider from "./FillSlider";
 import { formatInstrumentValue } from "./formatValue";
 import "./InstrumentPanel.css";
@@ -33,7 +34,7 @@ export interface SamplerPanelProps {
 	readonly instrument: Extract<Instrument, { kind: "sampler" }>;
 	/** Display name of the currently loaded sample, or null when empty. */
 	readonly sampleName: string | null;
-	/** Samples the user can swap to (a real browser lands with LOOP-013). */
+	/** Samples the user can swap to; retired for the drop in the next PR. */
 	readonly replacementOptions: readonly SampleChoice[];
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
@@ -59,6 +60,11 @@ const ENVELOPE_SLIDERS = [
  * The reusable one-shot sampler panel (PRD INS-01, mock `05b-sampler`): sample
  * selection + audition, and fill-sliders for pitch, sample start/end, and the
  * amp envelope (ADSR).
+ *
+ * A sound is loaded by dragging it here from the library (#225), but this panel
+ * owns none of that: the drop target is the surrounding `InstrumentArea`, which
+ * is named for its track so a drop lands on a particular one and which catches a
+ * drop anywhere in the track's instrument controls. This panel stays a panel.
  *
  * Parameter edits dispatch a validated `parameter.set` in the `instrument`
  * scope; a sample swap dispatches `instrument.setSample`, whose inverse restores
@@ -93,7 +99,10 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 			<div class="instrument-panel-groups">
 				<div class="instrument-panel-group">
 					<h3 class="instrument-panel-heading">Sample</h3>
-					<p class="sampler-sample-name">
+					{/* The sound's name, which is library copy rather than anything the
+					    user typed — masked all the same, since a user-recorded sample
+					    lands in the same slot (ADR 0002 decision 2). */}
+					<p class={`sampler-sample-name ${MASK_CONTENT}`}>
 						{props.sampleName ?? "No sample loaded"}
 					</p>
 					<Show when={props.replacementOptions.length > 0}>
