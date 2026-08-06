@@ -10,7 +10,7 @@ export interface InstrumentPanelProps {
 	readonly instrument: Instrument | null;
 	/** Display name of the currently loaded sample, or null when empty. */
 	readonly sampleName: string | null;
-	/** Samples the sampler panel can swap to (a real browser lands with LOOP-013). */
+	/** Samples the sampler panel can swap to; retired in the next PR. */
 	readonly replacementOptions: readonly SampleChoice[];
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],

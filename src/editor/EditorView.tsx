@@ -9,6 +9,10 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import {
+	type Analytics,
+	analytics as defaultAnalytics,
+} from "../analytics/analytics";
 import ArrangementView, {
 	type PlacementEditingActions,
 } from "../arrangement/ArrangementView";
@@ -16,10 +20,13 @@ import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
+import { createFactoryContext } from "../domain/factories";
 import type { EventId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
+import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
+import { loadSampleCommands } from "../library/insertion";
 import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -54,6 +61,8 @@ export interface EditorViewProps {
 	 * per-mount lifecycle can be exercised without Web Audio.
 	 */
 	readonly createAuditionEngine?: () => PreviewEngine;
+	/** Injected in tests; the shared catalog-backed instance otherwise. */
+	readonly analytics?: Analytics;
 }
 
 /**
@@ -243,6 +252,36 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	const replacementOptions = createMemo(() =>
 		model.replacementOptions(project()),
 	);
+
+	/**
+	 * Loads a library sound onto the edited track's sampler, from a drop on its
+	 * instrument panel (#225). The browser's keyboard-reachable "Insert" joins
+	 * this same path in the next PR in the stack.
+	 *
+	 * `loadSampleCommands` carries the asset and points the sampler at it in one
+	 * transaction, so this is one revision and one undo. It is refused — leaving
+	 * the project untouched — when the edited track has no sampler to load into.
+	 */
+	function loadLibrarySample(sample: LibrarySample): void {
+		const currentProject = project();
+		// The track the editor is pointed at (#228), not the project's first —
+		// so a drop lands on whichever track the user selected.
+		const trackId = model.samplerTrackId(track());
+		if (!currentProject || !trackId) return;
+		const result = session.dispatch(
+			loadSampleCommands(
+				currentProject,
+				trackId,
+				sample,
+				createFactoryContext(),
+			),
+		);
+		if (!result?.ok) return;
+		const analytics = props.analytics ?? defaultAnalytics;
+		analytics.log("instrument_changed", { instrument_type: "sampler" });
+		analytics.logFeatureFirstUse("sampler");
+	}
+
 	const packDependencyLabel = createMemo(() =>
 		model.packDependencyLabel(project()),
 	);
@@ -396,6 +435,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 													instrumentPanelTrackId={instrumentPanelTrackId()}
 													sampleName={sampleName()}
 													replacementOptions={replacementOptions()}
+													loadSample={loadLibrarySample}
 													auditionInstrument={auditionInstrument}
 												/>
 											)}

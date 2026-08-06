@@ -46,6 +46,20 @@
 	color: var(--color-text);
 }
 
+/* One track's instrument controls: the kind picker and its panel, together,
+   so the whole area is one drop target (#225). */
+.instrument-area {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+/* A sound is being dragged over the area and this track's sampler will take it. */
+.instrument-panel-drop-target {
+	outline: 2px solid var(--color-accent, #20c8e8);
+	outline-offset: -2px;
+}
+
 .sampler-load-select,
 .instrument-panel-audition {
 	height: 30px;
