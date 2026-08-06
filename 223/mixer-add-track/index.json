@@ -1,0 +1,22 @@
+{
+  "id": "mixer-add-track",
+  "title": "Add a sampler, a drum machine or a synth track",
+  "steps": [
+    {
+      "file": "01-a-new-project-opens-with-one-track-the-starter-kick.png",
+      "caption": "A new project opens with one track: the starter kick"
+    },
+    {
+      "file": "02-add-a-sampler-track-a-strip-for-it-appears-in-the-mixer.png",
+      "caption": "Add a sampler track — a strip for it appears in the mixer"
+    },
+    {
+      "file": "03-add-a-drum-machine-track-beside-it.png",
+      "caption": "Add a drum machine track beside it"
+    },
+    {
+      "file": "04-each-new-track-arrives-with-an-empty-one-bar-clip-at-bar-1.png",
+      "caption": "Each new track arrives with an empty one-bar clip at bar 1"
+    }
+  ]
+}
