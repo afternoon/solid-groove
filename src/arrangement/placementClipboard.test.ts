@@ -3,7 +3,8 @@ import { executeTransaction } from "../commands/execute";
 import type { Clip, Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory, type PlacementId } from "../domain/ids";
-import { TICKS_PER_BAR } from "../domain/time";
+import { SONG_TEMPO } from "../domain/parameters";
+import { minutesToTicks, TICKS_PER_BAR } from "../domain/time";
 import {
 	copyPlacements,
 	createPlacementAt,
@@ -11,6 +12,7 @@ import {
 	pastePlacements,
 } from "./placementClipboard";
 import { duplicatePlacement } from "./placementDuplication";
+import { floorToBar } from "./placementGeometry";
 
 function fixture(): {
 	project: Project;
@@ -122,6 +124,26 @@ describe("clipboard: copy, cut, paste, delete (ARR-01)", () => {
 		expect(
 			pastePlacements(project, [], 0, createSeededIdFactory("empty")),
 		).toEqual([]);
+	});
+
+	it("pastes at minute nine, inside ARR-01's ten-minute guarantee", () => {
+		// pastePlacements silently skips an entry that would run past
+		// MAX_ARRANGEMENT_TICKS, so a bound derived from the wrong end of the
+		// tempo range turns paste into a no-op well inside the guarantee.
+		const { project, placementId } = fixture();
+		const clipboard = copyPlacements(project, [placementId]);
+		const target = floorToBar(minutesToTicks(9, SONG_TEMPO.defaultValue));
+		const commands = pastePlacements(
+			project,
+			clipboard,
+			target,
+			createSeededIdFactory("minute-nine"),
+		);
+		expect(commands).toHaveLength(1);
+		const next = apply(project, commands);
+		const pasted = next.song.placements.filter((p) => p.id !== placementId);
+		expect(pasted).toHaveLength(1);
+		expect(pasted[0].startTicks).toBe(target);
 	});
 });
 

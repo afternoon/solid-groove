@@ -23,18 +23,39 @@ import {
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Placement, Project } from "../domain/entities";
 import type { PlacementId, TrackId } from "../domain/ids";
-import { TICKS_PER_BAR, type Ticks, toTicks } from "../domain/time";
+import { SONG_TEMPO } from "../domain/parameters";
+import {
+	minutesToTicks,
+	TICKS_PER_BAR,
+	type Ticks,
+	toTicks,
+} from "../domain/time";
+
+/** The arrangement length PRD ARR-01 guarantees, in minutes. */
+export const GUARANTEED_ARRANGEMENT_MINUTES = 10;
 
 /**
  * The longest arrangement position the alpha guarantees, in ticks (PRD ARR-01's
- * 10:00 floor). It is a *tick* bound derived from the slowest supported tempo:
- * ten minutes at 40 BPM (the bottom of the AUD-02 range) is the largest tick
- * position ten minutes can reach at any higher tempo, so clamping here never
- * truncates an arrangement that is legal at some supported tempo. Editing
- * clamps to it so a drag at extreme zoom-out cannot fling a placement to tick
- * 10^9; longer arrangements may still work, they are simply not guaranteed.
+ * 10:00 floor).
+ *
+ * ARR-01 promises ten minutes *at any supported tempo*, and this is a bound in
+ * ticks rather than seconds, so it must be derived from the **fastest**
+ * supported tempo, not the slowest. Ticks elapsed per unit of wall-clock time
+ * scale up with tempo, so a given duration reaches its largest tick position at
+ * the highest tempo; deriving from the slowest tempo instead caps the
+ * arrangement below 10:00 at every tempo above it. `SONG_TEMPO.max` is the
+ * ceiling on what a project may legally store, so ten minutes there is the
+ * largest tick position 10:00 can reach for any tempo the domain admits and
+ * clamping here truncates nothing legal.
+ *
+ * Editing still clamps to it so a drag at extreme zoom-out cannot fling a
+ * placement to tick 10^9; longer arrangements may still work, they are simply
+ * not guaranteed.
  */
-export const MAX_ARRANGEMENT_TICKS = (10 * 40 * TICKS_PER_BAR) / 4;
+export const MAX_ARRANGEMENT_TICKS = minutesToTicks(
+	GUARANTEED_ARRANGEMENT_MINUTES,
+	SONG_TEMPO.max,
+);
 
 /** Snaps a tick to the nearest bar line — ARR-01's default snapping. */
 export function snapToBar(ticks: number): Ticks {
