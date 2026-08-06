@@ -164,6 +164,13 @@ export const ACCOUNT_TYPES = ["anonymous", "registered", "unknown"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 /**
+ * The instruments a track can carry, as reported by `instrument_changed` and
+ * by `track_added` when the added track is created with one.
+ */
+export const INSTRUMENT_TYPES = ["synth", "sampler", "drum_machine"] as const;
+export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
+
+/**
  * `feature_first_use` keys (PRD `OPS-02`). One low-cardinality key rather than
  * an event name per feature, so first-use is comparable across features in one
  * report and the catalog stays well inside GA4's distinct-event-name limit.
@@ -474,14 +481,21 @@ export const ANALYTICS_EVENTS = {
 	track_added: {
 		phase: 1,
 		owners: ["LOOP-007"],
-		params: { track_type: enumParam(["instrument", "audio", "return"]) },
+		params: {
+			track_type: enumParam(["instrument", "audio", "return"]),
+			// Which instrument the new track was created with. Optional because a
+			// track need not carry one (an audio track, a return); `track_type`
+			// alone cannot separate a sampler from a synth, and choosing between
+			// them is the whole point of the affordance that adds a track (#223).
+			instrument_type: optionalEnumParam(INSTRUMENT_TYPES),
+		},
 	},
 
 	instrument_changed: {
 		phase: 1,
 		owners: ["LOOP-004", "LOOP-005"],
 		params: {
-			instrument_type: enumParam(["synth", "sampler", "drum_machine"]),
+			instrument_type: enumParam(INSTRUMENT_TYPES),
 		},
 	},
 
