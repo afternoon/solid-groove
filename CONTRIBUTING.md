@@ -35,6 +35,7 @@ library first, so the first run is slower than later ones.
 | Anything with the Firebase Emulator | A JDK (the emulator runs on the JVM) — CI installs Temurin 21 |
 | Browser E2E suites | `bun run test:browser:install` once, and outbound access to `cdn.playwright.dev` |
 | `bun run test` on a machine with no audio hardware | A null ALSA output device — see below |
+| Browser E2E where that CDN is blocked | Nothing extra — run the Chromium-only pre-flight and let CI gate Firefox/WebKit ([docs/testing.md](./docs/testing.md#which-browsers-run-where)) |
 
 On macOS, `brew install openjdk@21` installs a JDK without needing `sudo`
 (unlike the Temurin cask). It is keg-only, so put it on your `PATH` for the
@@ -79,6 +80,13 @@ Use `/etc/asound.conf` (same contents) when the suite runs as a different user
 than the one whose `$HOME` you wrote to. A machine with real audio hardware
 needs none of this, and `.github/workflows/ci.yml`'s `checks` job runs exactly
 these steps.
+
+In Claude Code on the web this is already done for you:
+`.claude/hooks/session-start.sh` writes the file at session start (only when the
+host has no `/dev/snd` and no ALSA config of its own), alongside `bun install`
+and the Playwright Chromium path. If an audio suite still fails this way, run
+the hook by hand — `CLAUDE_CODE_REMOTE=true ./.claude/hooks/session-start.sh` —
+rather than working around it.
 
 **This applies to `bun run test` only — not to the browser suites.** The problem
 is specific to `node-web-audio-api` under Node, whose `cpal` backend refuses to

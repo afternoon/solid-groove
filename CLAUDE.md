@@ -200,8 +200,17 @@ bun run test:ui           # Unit + component tests, Vitest UI
 bun run test:emulator     # Firebase Emulator suite (Firestore rules, etc.)
 bun run test:browser      # Browser E2E suite (Playwright: Chromium/Firefox/WebKit; in-memory mock backend)
 bun run test:browser:emulator  # Browser E2E suite against a local Firestore/Auth emulator (chromium/firefox)
+bun run test:browser:chromium           # Chromium-only pre-flight for the two suites above
+bun run test:browser:emulator:chromium  # (see "Which browsers run where" in docs/testing.md)
 bun run test:browser:install  # One-time: download Playwright's browser binaries
 ```
+
+An environment that cannot reach `cdn.playwright.dev` — Claude Code on the web
+included — can only install Chromium. Run the `:chromium` pre-flights there and
+let CI gate Firefox and WebKit: it runs the full matrix on every push to
+`main` and `claude/**`, so pushing your branch *is* the cross-browser check. A
+green Chromium-only run is not the PRD section 10 gating evidence and must not
+be reported as one.
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends the app can run against (mock, Firebase Emulator, real project), and the day-to-day loop; [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI gates on them, and the shared test helpers (`src/shared/id.ts`, `src/shared/clock.ts`, `src/testing/fixtures.ts`).
 

@@ -61,14 +61,15 @@ You are in a git worktree, not the main checkout. Two things follow:
 
 ## Environment setup, before your first test run
 
-Both of these have already cost a run. Do them once, up front:
+Each of these has already cost a run. Do them once, up front:
 
 - **\`bun install\` in your worktree.** A fresh worktree has no \`node_modules\`, and the failure does not look like a missing install: \`bun run typecheck\` reports \`TS2688: Cannot find type definition file for '@testing-library/jest-dom'\` (and \`vinxi/types/client\`, \`vitest/globals\`), which reads like a broken tsconfig. It is not. Run \`bun install\` and it goes away. Never "fix" it by editing \`tsconfig.json\`'s \`types\` array.
-- **Audio tests need a default ALSA device.** This container has no \`/dev/snd\`, so importing \`tone\` throws \`InvalidStateError: cpal backend error during default_output_config: DeviceUnavailable\` and fails ~8 suites under \`src/audio/\` at load time, before any assertion. A \`~/.asoundrc\` declaring a \`null\` default PCM should already exist (CI does the same thing — see the "Configure a null ALSA output device" step in \`.github/workflows/ci.yml\`). If those suites fail that way, recreate it:
+- **Audio tests need a default ALSA device.** This container has no \`/dev/snd\`, so importing \`tone\` throws \`InvalidStateError: cpal backend error during default_output_config: DeviceUnavailable\` and fails ~8 suites under \`src/audio/\` at load time, before any assertion. A \`~/.asoundrc\` declaring a \`null\` default PCM should already exist — \`.claude/hooks/session-start.sh\` writes it at session start, and CI does the same thing (see the "Configure a null ALSA output device" step in \`.github/workflows/ci.yml\`). If those suites fail that way, recreate it:
   \`\`\`sh
   printf 'pcm.!default {\\n    type null\\n}\\nctl.!default {\\n    type null\\n}\\n' > ~/.asoundrc
   \`\`\`
   This is an environment gap, never a defect in the code under test. Do not skip, delete, or weaken an audio suite to get a green run, and do not report these as failures you fixed.
+- **Only Chromium runs here; CI is the browser gate.** This container cannot reach Playwright's CDN, so Firefox and WebKit cannot be installed and \`bun run test:browser\` finds no binary for them. Run the Chromium-only pre-flights instead — \`bun run test:browser:chromium\` and \`bun run test:browser:emulator:chromium\` — which use the Chromium the image already provides. CI runs the full chromium/firefox/webkit matrix on every push to \`${BASE_BRANCH}\` and \`claude/**\`, so **pushing your branch is the cross-browser check**, and it reports before your PR is reviewed. Two things follow: a green Chromium-only run is a pre-flight, never the PRD section 10 gating evidence, so do not report it as cross-browser coverage; and after you push, read the browser jobs rather than assuming they pass. See \`docs/testing.md\`, "Which browsers run where".
 
 `
 
