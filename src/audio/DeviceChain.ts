@@ -21,6 +21,20 @@ export interface DeviceNode {
 	readonly output: Tone.ToneAudioNode;
 	update(device: Device): void;
 	dispose(): void;
+	/**
+	 * How much gain the device is removing right now, in dB (0 when it is not
+	 * reducing). Only a dynamics device implements it; a panel polls it for a
+	 * gain-reduction meter (PRD FX-01) and it is never the source of an
+	 * analytics event, so metering adds no per-frame telemetry.
+	 */
+	gainReductionDb?(): number;
+	/**
+	 * Resolves once any asynchronously-built resource this device needs is in
+	 * place. Only the reverb implements it (its impulse response is generated
+	 * off the audio thread). Live playback never awaits it — a node keeps its
+	 * previous impulse until the new one lands — but an offline render must.
+	 */
+	ready?(): Promise<void>;
 }
 
 export type DeviceNodeFactory = (device: Device) => DeviceNode;
