@@ -69,6 +69,13 @@ orphan branch, and not the feature branch, because these are review artefacts:
 they have no business in `main`'s history or in a diff capped at 400 lines.
 `walkthroughs/` is gitignored for the same reason.
 
+This works because the repository is **public**. GitHub renders a Markdown image
+by proxying its URL anonymously, and `raw.githubusercontent.com` refuses
+anonymous reads of a private repo, so making this repository private would turn
+every published walkthrough into a broken-image icon. There is no workaround from
+the command line — the only host whose images render for a private repo is
+GitHub's own attachment store, which nothing but the web UI can upload to.
+
 Note what a screenshot cannot show: this is a music tool, and no still image — nor
 any video, since Playwright records no audio track — is evidence that a sound
 reached a speaker. A walkthrough proves the UI reached the state the flow

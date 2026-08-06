@@ -187,8 +187,16 @@ what matters here is how the flows shape the work:
    registered flows and specs, and reports any flow still parked.
 
 `.claude/workflows/solid-groove-feature.js` runs this pipeline for one issue —
-spec → spec review → implement → review → land → walkthrough. Invoke it from a
-Claude Code session with the issue number.
+spec → spec review → implement → review → land → walkthrough. Invoke it through
+the **`/implement-feature #123`** skill (`.claude/skills/implement-feature/`),
+from a terminal, claude.ai/code, or the mobile app: the skill verifies the
+prework first (the issue links flows, every flow is registered and complete, the
+`blocked_by` graph is closed), runs the workflow, and then verifies the resulting
+stack — bases, `Refs`/`Closes`, PR size, an untouched specification, no flow left
+at `test.fixme`, and that the walkthrough images actually return `200` rather
+than rendering as broken icons. The workflow and agent definitions are
+human-approved: an agent running the skill reports a problem with them and never
+edits them.
 
 ### Landing work
 

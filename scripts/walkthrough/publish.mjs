@@ -17,6 +17,15 @@
  * the `claude/`-prefixed namespace that cloud sessions are always allowed to
  * push to.
  *
+ * This depends on `afternoon/solid-groove` being a **public** repository.
+ * GitHub renders a Markdown image by proxying the URL anonymously, and
+ * `raw.githubusercontent.com` refuses anonymous reads of a private repo — so if
+ * this repository is ever made private, every published walkthrough silently
+ * becomes a broken-image icon in the PR body. There is no fix from here: the
+ * only host whose images render for a private repo is GitHub's own attachment
+ * store, and nothing but the web UI can upload to it. Raise it rather than
+ * working around it.
+ *
  * Usage:
  *   bun run walkthrough:publish -- --issue 123
  *   bun run walkthrough:publish -- --issue 123 --dry-run

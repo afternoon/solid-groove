@@ -49,6 +49,7 @@ tmp/
 # in the repo. Personal overrides (.claude/settings.local.json) stay ignored.
 .claude/*
 !.claude/agents/
+!.claude/skills/
 !.claude/workflows/
 !.claude/hooks/
 !.claude/settings.json
