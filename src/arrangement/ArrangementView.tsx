@@ -32,6 +32,7 @@ import {
 	RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import type { RowMetrics, Viewport } from "./geometry";
+import { PlacementToolbar } from "./PlacementToolbar";
 import {
 	createPlacementEditing,
 	type EditingGesture,
@@ -489,6 +490,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
 				onScrollToPlayhead={scrollToPlayhead}
 				hasSelection={selectionSummary() !== null}
 			/>
+			<Show when={props.dispatch}>
+				<PlacementToolbar
+					selectionCount={placementSelection().length}
+					onDuplicateLinked={() => editing?.duplicate("linked")}
+					onDuplicateIndependent={() => editing?.duplicate("independent")}
+				/>
+			</Show>
 			<div class="arrangement-body">
 				<div
 					class="arrangement-headers"
