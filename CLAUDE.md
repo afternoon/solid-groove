@@ -204,6 +204,32 @@ actually return `200` rather than rendering as broken icons. The workflow and ag
 human-approved: an agent running the skill reports a problem with them and never
 edits them.
 
+### Fixing a bug
+
+A bug is not a small feature, and it runs through its own pipeline:
+`.claude/workflows/solid-groove-fix.js`, invoked as **`/fix #123`**
+(`.claude/skills/fix/`). The difference is where the contract comes from. A
+feature is measured against core-flow specs written before it; a bug is measured
+against a **regression test written during the fix**, so the pipeline is built
+around making that test trustworthy: the fixer reproduces the bug and keeps the
+verbatim failure output from before the fix existed, and the reviewer
+independently reverts the source change and confirms the test goes red for the
+reported symptom. A test that turns out to pass without the fix is blocking, and
+an approval that could not confirm the red is not an approval.
+
+Two outcomes short of a PR are first-class, because both are cheaper than the
+alternative. The pipeline **stops before building anything** when the issue is
+ambiguous — the symptom is not identifiable, the correct behavior is neither
+stated nor derivable from the PRD, the "bug" is a feature request, or an open
+`DEC-*` gates the answer — rather than inventing the expected behavior and
+shipping a regression test that defends it. It stops again if the bug cannot be
+reproduced at any layer, rather than writing a speculative fix that closes the
+issue without addressing anything. If the review still requests changes after two
+fix rounds it leaves the branch open, opens no PR, and comments the findings on
+the issue. A bug fix never edits `docs/prd.md`, `docs/core-flows.md`, or a flow
+spec — including removing a `test.fixme` marker, which belongs to the feature
+that delivers the flow.
+
 ### Landing work
 
 1. **A PR is a single reviewable unit of purpose, not a whole task.** Each agent works in its own git worktree so parallel implementations do not collide on the filesystem, and a broken PR never blocks review of an unrelated one. One PR does one thing a reviewer can hold in their head at once — "introduce the *X* commands", "add the *Y* domain entity and its schema", "wire the *Z* panel UI onto existing commands". A task that cannot be delivered as one such unit is **split into several stacked PRs**, sequenced so each builds on the last (see item 5).
