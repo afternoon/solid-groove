@@ -1,7 +1,12 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import { onTestFinished as onTestCleanup } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
-import { createRecordingTransport } from "../analytics/transport";
+import {
+	createRecordingTransport,
+	type RecordingTransport,
+} from "../analytics/transport";
 import { noteEventsOf } from "../commands";
 import type { NoteEvent } from "../domain/entities";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
@@ -46,11 +51,19 @@ export async function setUpTransformPanel(
 	});
 	panelAnalytics.setAccountType("anonymous");
 
+	// The panel's props must track the session the way `EditorView` does, or a
+	// test cannot see anything that depends on the project changing underneath
+	// (an undo, a remote edit). `session.subscribe` is the same signal the real
+	// editor re-renders from.
+	const [live, setLive] = createSignal(session.project);
+	const unsubscribe = session.subscribe(() => setLive(session.project));
+	onTestCleanup(unsubscribe);
+
 	function renderPanel(selectedIds: readonly EventId[] = []) {
 		return render(() => (
 			<TransformPanel
-				clip={session.project.clips[0]}
-				project={session.project}
+				clip={live().clips[0]}
+				project={live()}
 				selectedIds={selectedIds}
 				dispatch={session.dispatch.bind(session)}
 				editor="piano_roll"
@@ -74,6 +87,18 @@ export function pitches(session: EditorSession): number[] {
 	return currentNotes(session)
 		.map(pitchOf)
 		.sort((a, b) => a - b);
+}
+
+/** The `(startTicks, velocity)` pairs a seeded-variation assertion compares. */
+export function rhythmOf(session: EditorSession): [number, number][] {
+	return currentNotes(session).map((event) => [
+		event.startTicks,
+		event.velocity,
+	]);
+}
+
+export function clipEdited(transport: RecordingTransport) {
+	return transport.events.filter((event) => event.name === "clip_edited");
 }
 
 /** Clicks the panel button whose visible label is `label`. */

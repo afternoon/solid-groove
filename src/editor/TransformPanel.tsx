@@ -1,4 +1,11 @@
-import { createMemo, createSignal, For, type JSX } from "solid-js";
+import {
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	type JSX,
+	on,
+} from "solid-js";
 import {
 	type Analytics,
 	analytics as defaultAnalytics,
@@ -19,6 +26,7 @@ import {
 	type TransformOptions,
 	transformedEventCount,
 } from "./transformModel";
+import "./TransformPanel.css";
 
 /** Mints event IDs for the copies `notes.duplicate` creates (see StepEditor). */
 const factoryContext = createFactoryContext();
@@ -65,6 +73,17 @@ export default function TransformPanel(
 	);
 	const enabled = createMemo(() => canTransform(scope()));
 
+	// A refusal describes the clip as it was when the user clicked. Once the clip
+	// changes underneath — another transformation, an undo, a remote edit — the
+	// message may no longer be true, so it is dropped rather than left to mislead.
+	createEffect(
+		on(
+			() => props.clip,
+			() => setError(null),
+			{ defer: true },
+		),
+	);
+
 	function scopeLabel(): string {
 		const { count, isWholeClip } = scope();
 		if (count === 0) return "no notes";
@@ -92,8 +111,8 @@ export default function TransformPanel(
 		const result = props.dispatch(command as RawCommandInput);
 		if (result && !result.ok) {
 			// A rejected transformation changed nothing, so it is not an edit and
-			// emits no `clip_edited`. The reason comes from the command layer.
-			setError(result.issues.map((issue) => issue.message).join("; "));
+			// emits no `clip_edited`.
+			setError(rejectionMessage(kind));
 			return;
 		}
 		setError(null);
@@ -161,6 +180,24 @@ export default function TransformPanel(
 			</p>
 		</section>
 	);
+}
+
+/**
+ * Why a transformation was refused, in the user's terms.
+ *
+ * The command layer's own issue text names entity IDs and raw tick counts —
+ * right for a log or an assistant, wrong for a person looking at a grid. The
+ * refusals are few and known, so each gets a sentence that says what to change.
+ */
+function rejectionMessage(kind: TransformKind): string {
+	switch (kind) {
+		case "transpose":
+			return "That would move a note outside the playable pitch range. Try fewer semitones.";
+		case "duplicate":
+			return "The copies would not fit inside this clip. Make the clip longer first.";
+		default:
+			return "That transformation could not be applied to this clip.";
+	}
 }
 
 /** One labelled numeric option. Non-numeric input is ignored, never coerced. */
