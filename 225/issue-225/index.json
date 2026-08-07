@@ -1,26 +1,26 @@
 {
-	"id": "issue-225",
-	"title": "A producer loads a library sound onto a sampler",
-	"steps": [
-		{
-			"file": "01-a-new-project-opens-with-the-library-beside-it-on-the-starte.png",
-			"caption": "A new project opens with the library beside it, on the starter kick"
-		},
-		{
-			"file": "02-search-the-library-for-a-clap.png",
-			"caption": "Search the library for a clap"
-		},
-		{
-			"file": "03-drag-it-onto-the-sampler-the-panel-names-what-it-is-now-hold.png",
-			"caption": "Drag it onto the sampler — the panel names what it is now holding"
-		},
-		{
-			"file": "04-one-undo-takes-the-whole-drop-back-the-asset-and-the-load-to.png",
-			"caption": "One undo takes the whole drop back — the asset and the load together"
-		},
-		{
-			"file": "05-the-same-load-from-the-keyboard-with-the-row-s-insert-button.png",
-			"caption": "The same load from the keyboard, with the row's Insert button"
-		}
-	]
+  "id": "issue-225",
+  "title": "A producer loads a library sound onto a sampler",
+  "steps": [
+    {
+      "file": "01-new-project-on-the-starter-kick.png",
+      "caption": "New project, on the starter kick"
+    },
+    {
+      "file": "02-search-for-a-clap.png",
+      "caption": "Search for a clap"
+    },
+    {
+      "file": "03-drop-it-on-the-sampler.png",
+      "caption": "Drop it on the sampler"
+    },
+    {
+      "file": "04-one-undo-takes-it-back.png",
+      "caption": "One undo takes it back"
+    },
+    {
+      "file": "05-insert-from-the-keyboard.png",
+      "caption": "Insert from the keyboard"
+    }
+  ]
 }
