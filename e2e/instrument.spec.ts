@@ -38,13 +38,12 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 	).toBeEnabled();
 	await step("Pick Synth: the synth panel replaces the sampler's");
 
-	// ...and on to the drum machine, which arrives with pads to load.
+	// ...and on to the drum machine, which arrives with the same pads a track
+	// created as a drum machine gets (BD/SD/HH/CP, from the shared kind table).
 	await picker.getByText("Drum machine", { exact: true }).click();
-	await expect(
-		page.getByRole("button", { name: "Audition Kick" }),
-	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Audition BD" })).toBeVisible();
 	await show(/^Drum machine/);
-	await step("Pick Drum machine: it arrives with pads ready for sounds");
+	await step("Pick Drum machine: it arrives with pads to load");
 
 	// The route back off a drum machine — the direction that had no UI at all,
 	// since the drum machine's own panel is mounted elsewhere.
@@ -53,9 +52,7 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 
 	// Each switch is one history entry, so undo walks back a step at a time.
 	await page.getByRole("button", { name: /^Undo/ }).click();
-	await expect(
-		page.getByRole("button", { name: "Audition Kick" }),
-	).toBeVisible();
+	await expect(page.getByRole("button", { name: "Audition BD" })).toBeVisible();
 	await show(/^Drum machine/);
 	await step("Undo returns the drum machine, one switch at a time");
 });

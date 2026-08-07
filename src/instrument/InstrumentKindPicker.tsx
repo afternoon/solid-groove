@@ -16,9 +16,9 @@ import "./InstrumentPanel.css";
 import {
 	countPadTriggeredHits,
 	createInstrumentOfKind,
-	INSTRUMENT_KIND_CHOICES,
+	INSTRUMENT_KINDS,
 	type InstrumentKind,
-	instrumentTypeKey,
+	instrumentKindSpec,
 	type PadTriggeredHits,
 	padTriggeredHits,
 } from "./instrumentKinds";
@@ -90,11 +90,11 @@ export default function InstrumentKindPicker(
 			...hits.map((hit) => removeNotes(hit.clipId, hit.eventIds)),
 			changeInstrument(
 				props.trackId,
-				createInstrumentOfKind(kind, factoryContext()),
+				createInstrumentOfKind(factoryContext(), kind),
 			),
 		]);
 		if (!result?.ok) return;
-		const type = instrumentTypeKey(kind);
+		const type = instrumentKindSpec(kind).analyticsType;
 		analytics().log("instrument_changed", { instrument_type: type });
 		analytics().logFeatureFirstUse(type);
 	}
@@ -106,9 +106,10 @@ export default function InstrumentKindPicker(
 		change(kind, strandedHits(kind));
 	}
 
-	const pendingLabel = () =>
-		INSTRUMENT_KIND_CHOICES.find((choice) => choice.kind === pendingKind())
-			?.label ?? "";
+	const pendingLabel = () => {
+		const kind = pendingKind();
+		return kind ? instrumentKindSpec(kind).label : "";
+	};
 	const pendingHitCount = () => {
 		const kind = pendingKind();
 		return kind ? countPadTriggeredHits(strandedHits(kind)) : 0;
@@ -121,9 +122,9 @@ export default function InstrumentKindPicker(
 				<OptionGroup
 					legend="Instrument type"
 					value={props.instrument?.kind ?? null}
-					options={INSTRUMENT_KIND_CHOICES.map((choice) => ({
-						value: choice.kind,
-						label: choice.label,
+					options={INSTRUMENT_KINDS.map((spec) => ({
+						value: spec.kind,
+						label: spec.label,
 					}))}
 					onSelect={select}
 				/>
