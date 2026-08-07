@@ -135,10 +135,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		model.playheadLabel(audio.positionTicks()),
 	);
 
-	const track = createMemo(() => model.editedTrack(project()));
-	const drumTrack = createMemo(() => model.drumTrack(project()));
+	// The track the editor is pointed at. Selecting one lands with the mixer and
+	// arrangement wiring (#228); until then this is the project's first track,
+	// which is what `model.editedTrack` falls back to.
+	const track = createMemo(() => model.editedTrack(project(), null));
+	const drumTrack = createMemo(() => model.drumTrack(track()));
 	const sampleAssets = createMemo(() => model.sampleAssets(project()));
-	const clip = createMemo(() => model.editedClip(project()));
+	const clip = createMemo(() => model.editedClip(project(), track()));
 
 	// The step editor's live playback-step indicator (CLP-02): which 16th step of
 	// the edited clip the playhead is currently passing, wrapped within the clip's
@@ -161,8 +164,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	}
 
 	const loopClips = createMemo(() => model.loopClips(project()));
-	const instrument = createMemo(() => model.editedInstrument(project()));
-	const showPianoRoll = createMemo(() => model.showPianoRoll(project()));
+	const instrument = createMemo(() => model.editedInstrument(track()));
+	const showPianoRoll = createMemo(() =>
+		model.showPianoRoll(project(), track()),
+	);
 
 	// Plain function, not a memo: `hasSelection()` reads the controller's
 	// internal (non-signal) state, so this must be re-evaluated live on every
@@ -186,7 +191,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 	});
 
 	const instrumentPanelTrackId = createMemo(() =>
-		model.instrumentPanelTrackId(project()),
+		model.instrumentPanelTrackId(track()),
 	);
 	const AUDITION_PITCH = 60; // Middle C
 	const AUDITION_DURATION_TICKS = TICKS_PER_QUARTER;
@@ -207,7 +212,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		);
 	}
 
-	const sampleName = createMemo(() => model.sampleName(project()));
+	const sampleName = createMemo(() => model.sampleName(project(), track()));
 	const replacementOptions = createMemo(() =>
 		model.replacementOptions(project()),
 	);

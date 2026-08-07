@@ -8,6 +8,7 @@ import type {
 import type { TrackId } from "../domain/ids";
 import { formatBarsBeatsSixteenths } from "../domain/time";
 import type { SampleChoice } from "../instrument/SamplerPanel";
+import type { SelectionState } from "../selection";
 
 /**
  * Pure, framework-free derivations behind `EditorView`.
@@ -62,22 +63,49 @@ export function playheadLabel(positionTicks: number): string {
 	return `${Number(bars) + 1}.${Number(beats) + 1}`;
 }
 
-/** The track this slice edits: the project's first. */
-export function editedTrack(project: Project | null): Track | null {
-	return project?.song.tracks[0] ?? null;
+/**
+ * The focused track in the editor's `SelectionState`, or null when focus is
+ * something other than a track (or nothing at all).
+ *
+ * Track selection is UI-only state held in the shared PRD 9.2 selection model,
+ * never in the project: `reconcileSelection` drops a track the project no
+ * longer has, and {@link editedTrack} falls back to the first track from there.
+ */
+export function focusedTrackId(selection: SelectionState): TrackId | null {
+	return selection.focus?.kind === "track" ? selection.focus.id : null;
 }
 
 /**
- * The first drum-machine track, if any, gets its instrument panel. The
- * `FND-009` starter is sampler-only; this surfaces the `LOOP-005` drum
- * machine wherever a project has one (e.g. the drum-machine fixture).
+ * The track the editor is pointed at: the one selected in the mixer or the
+ * arrangement, falling back to the project's first track when nothing is
+ * selected yet — or when the selection names a track the project no longer has
+ * (#228).
+ *
+ * The fallback is what makes every derivation below total: the editor always
+ * edits *some* track while the project has one, so opening a project needs no
+ * selection gesture first.
  */
-export function drumTrack(project: Project | null): Track | null {
+export function editedTrack(
+	project: Project | null,
+	selectedTrackId: TrackId | null,
+): Track | null {
+	const tracks = project?.song.tracks ?? [];
 	return (
-		project?.song.tracks.find(
-			(candidate) => candidate.instrument?.kind === "drumMachine",
-		) ?? null
+		tracks.find((candidate) => candidate.id === selectedTrackId) ??
+		tracks[0] ??
+		null
 	);
+}
+
+/**
+ * The edited track when it is a drum machine, which gets the `LOOP-005` pad
+ * panel instead of the sampler/synth panel. Following the selection rather
+ * than searching the project for the first drum-machine track is the point of
+ * #228: a project can hold several, and the one on screen is the one you
+ * clicked.
+ */
+export function drumTrack(track: Track | null): Track | null {
+	return track?.instrument?.kind === "drumMachine" ? track : null;
 }
 
 /** Every `sample`-kind asset the project carries. */
@@ -88,15 +116,17 @@ export function sampleAssets(project: Project | null): readonly Asset[] {
 }
 
 /** The clip on the edited track, if it has one. */
-export function editedClip(project: Project | null): Clip | null {
-	const track = editedTrack(project);
+export function editedClip(
+	project: Project | null,
+	track: Track | null,
+): Clip | null {
 	if (!project || !track) return null;
 	return project.clips.find((c) => c.trackId === track.id) ?? null;
 }
 
-/** The instrument of the slice's first track, and the audition note it plays. */
-export function editedInstrument(project: Project | null): Instrument | null {
-	return editedTrack(project)?.instrument ?? null;
+/** The edited track's instrument, and the audition note it plays. */
+export function editedInstrument(track: Track | null): Instrument | null {
+	return track?.instrument ?? null;
 }
 
 /**
@@ -116,8 +146,11 @@ export function loopClips(project: Project | null): readonly LoopClipEntry[] {
 }
 
 /** The name of the sample the edited track's sampler is loaded with. */
-export function sampleName(project: Project | null): string | null {
-	const current = editedInstrument(project);
+export function sampleName(
+	project: Project | null,
+	track: Track | null,
+): string | null {
+	const current = editedInstrument(track);
 	if (current?.kind !== "sampler" || !current.assetId) return null;
 	return (
 		project?.song.assets.find((asset) => asset.id === current.assetId)?.name ??
@@ -150,11 +183,13 @@ export function packDependencyLabel(project: Project | null): string | null {
  * FND-009 step grid: pitched notes want two dimensions (pitch x time), which
  * the 16-step grid cannot show.
  */
-export function showPianoRoll(project: Project | null): boolean {
-	const clip = editedClip(project);
+export function showPianoRoll(
+	project: Project | null,
+	track: Track | null,
+): boolean {
+	const clip = editedClip(project, track);
 	return (
-		editedInstrument(project)?.kind === "synth" &&
-		clip?.content.kind === "notes"
+		editedInstrument(track)?.kind === "synth" && clip?.content.kind === "notes"
 	);
 }
 
@@ -164,8 +199,6 @@ export function showPianoRoll(project: Project | null): boolean {
  * the kinds that have a sub-panel would leave a drum-machine track (whose own
  * panel `EditorView` mounts separately) with no way back off the drum machine.
  */
-export function instrumentPanelTrackId(
-	project: Project | null,
-): TrackId | null {
-	return editedTrack(project)?.id ?? null;
+export function instrumentPanelTrackId(track: Track | null): TrackId | null {
+	return track?.id ?? null;
 }
