@@ -1,3 +1,4 @@
+import { assetCommands } from "./definitions/assets";
 import { clipCommands } from "./definitions/clips";
 import { deviceCommands } from "./definitions/devices";
 import { drumCommands } from "./definitions/drum";
@@ -33,6 +34,7 @@ const ALL_DEFINITIONS: readonly RegisteredCommand[] = [
 	...drumCommands,
 	...instrumentCommands,
 	...packCommands,
+	...assetCommands,
 	...deviceCommands,
 ];
 

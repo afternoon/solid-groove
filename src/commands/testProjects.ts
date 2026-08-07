@@ -66,8 +66,12 @@ export interface CommandTestProject {
 	returnId: ReturnId;
 	placementAId: PlacementId;
 	padIds: PadId[];
-	/** The sampler asset on track A, and the clap asset the kick pad uses. */
-	assetIds: { sampler: AssetId; pad: AssetId };
+	/**
+	 * The sampler asset on track A, the clap asset the kick pad uses, and one
+	 * nothing loads — the state an `asset.remove` must be able to act on, since
+	 * removing an asset a track still resolves is refused.
+	 */
+	assetIds: { sampler: AssetId; pad: AssetId; unused: AssetId };
 	/** The two packs the fixture's assets resolve from, in dependency order. */
 	packs: [Pack, Pack];
 	/** A pack on the shelf that no asset uses — a `pack.remove` target (LIB-08). */
@@ -109,6 +113,13 @@ export function createCommandTestProject(
 		pack: drumsPack,
 		name: "909 Clap",
 		storageRef: "samples/house/drums/cp/909-cp.wav",
+	});
+	// From a pack the fixture already depends on, so carrying it changes which
+	// assets the project holds without changing which packs it needs.
+	const unusedAsset = createAsset(context, {
+		pack: bassPack,
+		name: "909 Rimshot",
+		storageRef: "samples/house/drums/rs/909-rs.wav",
 	});
 
 	const device: Device = {
@@ -189,7 +200,7 @@ export function createCommandTestProject(
 
 	const song: Song = {
 		...createEmptySong(120),
-		assets: [asset, padAsset],
+		assets: [asset, padAsset, unusedAsset],
 		tracks: [trackA, trackB],
 		returns: [returnBus],
 		placements: [placementA, placementB],
@@ -237,7 +248,11 @@ export function createCommandTestProject(
 		returnId: returnBus.id,
 		placementAId: placementA.id,
 		padIds: [kick.id, clap.id],
-		assetIds: { sampler: asset.id, pad: padAsset.id },
+		assetIds: {
+			sampler: asset.id,
+			pad: padAsset.id,
+			unused: unusedAsset.id,
+		},
 		packs: [drumsPack, bassPack],
 		shelfOnlyPack,
 		eventIds:
