@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	within,
+} from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -7,6 +14,7 @@ import {
 	createLargeArrangementProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
+import type { TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { EditorSession } from "../editor/EditorSession";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
@@ -318,5 +326,87 @@ describe("placement editing wiring (ARR-002)", () => {
 		fireEvent.click(screen.getByText(/Duplicate as an independent copy/));
 		expect(session.project.clips.length).toBe(originalClipCount + 1);
 		expect(session.project.song.placements.length).toBe(3);
+	});
+});
+
+describe("arrangement track selection (#228)", () => {
+	/** The view with a host holding the selected track, as `EditorView` does. */
+	function renderSelectable() {
+		const { analytics, transport } = analyticsAllowing();
+		const project = createLargeArrangementProject(20);
+		const selected: string[] = [];
+		const [selectedTrackId, setSelectedTrackId] = createSignal<TrackId | null>(
+			null,
+		);
+		const result = render(() => (
+			<ArrangementView
+				project={project}
+				analytics={analytics}
+				selectedTrackId={selectedTrackId()}
+				onSelectTrack={(trackId) => {
+					selected.push(trackId);
+					setSelectedTrackId(trackId);
+				}}
+			/>
+		));
+		return { ...result, project, selected, transport };
+	}
+
+	function headerButton(trackName: string): HTMLElement {
+		return within(screen.getByLabelText("Tracks")).getByRole("button", {
+			name: `Edit ${trackName}`,
+		});
+	}
+
+	it("selects a track from its header row, and marks the selected one", () => {
+		const { project, selected } = renderSelectable();
+		const second = project.song.tracks[1];
+
+		expect(headerButton(second.name)).toHaveAttribute("aria-pressed", "false");
+		fireEvent.click(headerButton(second.name));
+
+		expect(selected).toEqual([second.id]);
+		expect(headerButton(second.name)).toHaveAttribute("aria-pressed", "true");
+		expect(headerButton(project.song.tracks[0].name)).toHaveAttribute(
+			"aria-pressed",
+			"false",
+		);
+	});
+
+	it("selects the track of the row a pointer lands on in the timeline", () => {
+		const { container, project, selected } = renderSelectable();
+
+		// Row 1 (the second track), a bar in and clear of the ruler.
+		firePointer(interactionCanvasOf(container), "pointerdown", {
+			clientX: TICKS_PER_BAR * PIXELS_PER_TICK,
+			clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+		});
+
+		expect(selected).toEqual([project.song.tracks[1].id]);
+	});
+
+	it("selects the track from the accessible list too, alongside its bar range", () => {
+		const { project, selected } = renderSelectable();
+		const list = screen.getByLabelText("Arrangement tracks");
+		const buttons = list.querySelectorAll<HTMLButtonElement>(
+			"button[data-track-select]",
+		);
+
+		fireEvent.click(buttons[1]);
+
+		expect(selected).toEqual([project.song.tracks[1].id]);
+		// The bar-range selection it already made is unchanged.
+		expect(
+			screen.getByTestId("arrangement-selection-live").textContent,
+		).toMatch(/bars 1 to/);
+	});
+
+	it("counts selecting a track as arrangement use, with no event of its own", () => {
+		const { project, transport } = renderSelectable();
+
+		fireEvent.click(headerButton(project.song.tracks[1].name));
+
+		expect(featureUses(transport)).toEqual(["arrangement"]);
+		expect(transport.events).toHaveLength(1);
 	});
 });

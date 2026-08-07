@@ -332,6 +332,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 											dispatch={session.dispatch}
 											beginGesture={session.beginGesture}
 											onEditingActionsReady={setArrangementEditingActions}
+											selectedTrackId={track()?.id ?? null}
+											onSelectTrack={selectTrack}
 										/>
 									</div>
 									<div class="workspace">

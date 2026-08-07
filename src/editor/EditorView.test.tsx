@@ -76,7 +76,11 @@ function saveStatusGroup(): HTMLElement {
 	return group;
 }
 
-/** The mixer's "edit this track" control for one strip. */
+/**
+ * The mixer's "edit this track" control for one strip. Scoped to the mixer:
+ * the arrangement's header column offers the identically named control for the
+ * same track, which is the point — either surface selects it.
+ */
 function mixerSelect(trackName: string): HTMLElement {
 	return within(screen.getByRole("region", { name: "Mixer" })).getByRole(
 		"button",
@@ -280,6 +284,36 @@ describe("EditorView", () => {
 		expect(
 			screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
 		).toBeInTheDocument();
+	});
+
+	it("switches the editor to a track selected in the arrangement (#228)", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createDrumMachineFixtureProject();
+		const [drums, breakTrack] = project.song.tracks;
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id);
+		await screen.findByRole("region", {
+			name: `Drum machine: ${drums.name}`,
+		});
+
+		// The arrangement's track header column: the same click a pointer makes
+		// on a row, from the DOM side of the hybrid surface.
+		fireEvent.click(
+			within(screen.getByLabelText("Tracks")).getByRole("button", {
+				name: `Edit ${breakTrack.name}`,
+			}),
+		);
+
+		expect(
+			screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
+		).not.toBeInTheDocument();
+		// Both surfaces agree on which track is selected: the mixer marks it too.
+		expect(mixerSelect(breakTrack.name)).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
 	});
 
 	it("toggling a step enables undo, and undo reverts it", async () => {
