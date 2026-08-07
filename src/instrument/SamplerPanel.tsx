@@ -1,12 +1,12 @@
-import { For, type JSX, Show } from "solid-js";
+import { For, type JSX } from "solid-js";
 import {
 	type Analytics,
 	analytics as defaultAnalytics,
 } from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
-import { setParameter, setSample } from "../commands";
+import { setParameter } from "../commands";
 import type { Instrument } from "../domain/entities";
-import type { AssetId, TrackId } from "../domain/ids";
+import type { TrackId } from "../domain/ids";
 import {
 	bareParameterId,
 	readInstrumentParameter,
@@ -23,19 +23,11 @@ import FillSlider from "./FillSlider";
 import { formatInstrumentValue } from "./formatValue";
 import "./InstrumentPanel.css";
 
-/** A sample the user can load into the sampler (from the project's assets). */
-export interface SampleChoice {
-	readonly assetId: AssetId;
-	readonly name: string;
-}
-
 export interface SamplerPanelProps {
 	readonly trackId: TrackId;
 	readonly instrument: Extract<Instrument, { kind: "sampler" }>;
 	/** Display name of the currently loaded sample, or null when empty. */
 	readonly sampleName: string | null;
-	/** Samples the user can swap to; retired for the drop in the next PR. */
-	readonly replacementOptions: readonly SampleChoice[];
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
@@ -57,21 +49,20 @@ const ENVELOPE_SLIDERS = [
 ];
 
 /**
- * The reusable one-shot sampler panel (PRD INS-01, mock `05b-sampler`): sample
- * selection + audition, and fill-sliders for pitch, sample start/end, and the
+ * The reusable one-shot sampler panel (PRD INS-01, mock `05b-sampler`): the
+ * loaded sample, audition, and fill-sliders for pitch, sample start/end, and the
  * amp envelope (ADSR).
  *
- * A sound is loaded by dragging it here from the library (#225), but this panel
- * owns none of that: the drop target is the surrounding `InstrumentArea`, which
- * is named for its track so a drop lands on a particular one and which catches a
- * drop anywhere in the track's instrument controls. This panel stays a panel.
+ * A sound is chosen by dragging it here from the library (#225), which is why
+ * the panel names the loaded sample rather than offering a list to swap
+ * between: that list could only ever offer sounds the project already carried,
+ * which for a new project is the one it started with. The drop itself belongs
+ * to the surrounding `InstrumentArea`, named for its track so a drop lands on a
+ * particular one; this panel stays a panel.
  *
  * Parameter edits dispatch a validated `parameter.set` in the `instrument`
- * scope; a sample swap dispatches `instrument.setSample`, whose inverse restores
- * the previous asset so replacement is undoable and preserves the rest of the
- * sampler's settings. Replacing the sample emits `instrument_changed`
- * (`sampler`) and the `sampler` `feature_first_use` key. A continuous slider
- * commits once per gesture, so a drag is one command and emits nothing per tick.
+ * scope; a continuous slider commits once per gesture, so a drag is one command
+ * and emits nothing per tick.
  */
 export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 	const analytics = () => props.analytics ?? defaultAnalytics;
@@ -86,14 +77,6 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 		analytics().logFeatureFirstUse("sampler");
 	}
 
-	function replaceSample(assetId: AssetId): void {
-		if (assetId === props.instrument.assetId) return;
-		const result = props.dispatch(setSample(props.trackId, assetId));
-		if (!result?.ok) return;
-		analytics().log("instrument_changed", { instrument_type: "sampler" });
-		analytics().logFeatureFirstUse("sampler");
-	}
-
 	return (
 		<section class="instrument-panel sampler-panel" aria-label="Sampler">
 			<div class="instrument-panel-groups">
@@ -105,28 +88,7 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 					<p class={`sampler-sample-name ${MASK_CONTENT}`}>
 						{props.sampleName ?? "No sample loaded"}
 					</p>
-					<Show when={props.replacementOptions.length > 0}>
-						<label class="sampler-load">
-							<span class="visually-hidden">Load sample</span>
-							<select
-								class="sampler-load-select"
-								value={props.instrument.assetId ?? ""}
-								onChange={(event) => {
-									const value = event.currentTarget.value;
-									if (value) replaceSample(value as AssetId);
-								}}
-							>
-								<option value="" disabled>
-									Load…
-								</option>
-								<For each={props.replacementOptions}>
-									{(choice) => (
-										<option value={choice.assetId}>{choice.name}</option>
-									)}
-								</For>
-							</select>
-						</label>
-					</Show>
+					<p class="sampler-load-hint">Drag a sound here from the library</p>
 				</div>
 				<div class="instrument-panel-group instrument-panel-sliders">
 					<h3 class="instrument-panel-heading">Playback</h3>

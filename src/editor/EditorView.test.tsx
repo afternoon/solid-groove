@@ -18,8 +18,10 @@ import {
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
+import { fixtureFetcher } from "../library/__fixtures__/fixtures";
 import { LIBRARY_SAMPLE_MIME } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
+import { LibraryClient } from "../library/libraryClient";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { memoryStorage } from "../testing/storage";
@@ -104,6 +106,7 @@ function renderEditor(
 	projectId: string,
 	options: {
 		createAuditionEngine?: () => PreviewEngine;
+		libraryClient?: LibraryClient;
 		analytics?: Analytics;
 	} = {},
 ) {
@@ -116,6 +119,7 @@ function renderEditor(
 					<EditorView
 						projectId={projectId}
 						createAuditionEngine={options.createAuditionEngine}
+						libraryClient={options.libraryClient}
 						analytics={options.analytics}
 					/>
 				)}
@@ -265,12 +269,11 @@ describe("EditorView", () => {
 		expect(
 			screen.getByRole("button", { name: "Audition" }),
 		).toBeInTheDocument();
-		// Scoped to the name paragraph: the swap list this PR leaves in place
-		// carries the same name in an <option>.
+		// It says what it is holding rather than offering a list of the project's
+		// own samples to swap between (#225).
 		const panel = screen.getByRole("region", { name: "BD instrument" });
-		expect(
-			within(panel).getByText("909 Bass Drum", { selector: "p" }),
-		).toBeInTheDocument();
+		expect(within(panel).getByText("909 Bass Drum")).toBeInTheDocument();
+		expect(within(panel).queryByRole("combobox")).not.toBeInTheDocument();
 	});
 
 	it("loads a sound dropped from the library onto the sampler, undoably", async () => {
@@ -290,9 +293,7 @@ describe("EditorView", () => {
 		fireEvent.drop(panel, { dataTransfer: transferCarrying(DROPPED_HAT) });
 
 		// The sampler names the dropped sound, and the project now carries it.
-		expect(
-			await within(panel).findByText(DROPPED_HAT.name, { selector: "p" }),
-		).toBeInTheDocument();
+		expect(await screen.findByText(DROPPED_HAT.name)).toBeInTheDocument();
 		const changed = transport.named("instrument_changed");
 		expect(changed).toHaveLength(1);
 		expect(changed[0].params.instrument_type).toBe("sampler");
@@ -300,9 +301,42 @@ describe("EditorView", () => {
 		// Carrying the asset and pointing the sampler at it is one transaction, so
 		// one undo takes the whole drop back.
 		fireEvent.click(await screen.findByRole("button", { name: /^Undo/ }));
-		expect(
-			await within(panel).findByText("909 Bass Drum", { selector: "p" }),
-		).toBeInTheDocument();
+		expect(await screen.findByText("909 Bass Drum")).toBeInTheDocument();
+	});
+
+	it("inserts from the keyboard onto the same track a drop would reach", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+
+		renderEditor(project.metadata.id, {
+			libraryClient: new LibraryClient(fixtureFetcher()),
+		});
+
+		// The project's own pack is a fixture pack with no delivered manifest, so
+		// reach a real sound the way a user does with an empty shelf: the pack
+		// browser.
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Browse packs" }),
+		);
+		const dialog = await screen.findByRole("dialog");
+		fireEvent.click(
+			await within(dialog).findByRole("button", {
+				name: /Core Electronic Drums/,
+			}),
+		);
+		const insert = (
+			await within(dialog).findAllByRole("button", { name: /^Insert / })
+		)[0];
+		const name = (insert.getAttribute("aria-label") ?? "").replace(
+			"Insert ",
+			"",
+		);
+		fireEvent.click(insert);
+
+		const panel = await screen.findByRole("region", { name: "BD instrument" });
+		expect(await within(panel).findByText(name)).toBeInTheDocument();
 	});
 
 	it("shows a track's instrument panel even before it has a clip (#228)", async () => {

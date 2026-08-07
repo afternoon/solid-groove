@@ -7,7 +7,6 @@ import type {
 } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import { formatBarsBeatsSixteenths } from "../domain/time";
-import type { SampleChoice } from "../instrument/SamplerPanel";
 import type { SelectionState } from "../selection";
 
 /**
@@ -156,20 +155,6 @@ export function sampleName(
 		project?.song.assets.find((asset) => asset.id === current.assetId)?.name ??
 		null
 	);
-}
-
-/**
- * Samples the sampler panel can swap to: every `sample`-kind asset the
- * project already carries. A richer, genre-filtered browser lands with
- * LOOP-013; here it is a straight list of the project's own samples.
- */
-export function replacementOptions(
-	project: Project | null,
-): readonly SampleChoice[] {
-	return sampleAssets(project).map((asset) => ({
-		assetId: asset.id,
-		name: asset.name,
-	}));
 }
 
 /** The project's first pack dependency, labelled for display. */

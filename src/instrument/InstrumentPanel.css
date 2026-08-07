@@ -54,29 +54,25 @@
 	gap: 12px;
 }
 
+.sampler-load-hint {
+	margin: 0;
+	font-size: var(--font-size-tiny);
+	color: var(--color-foreground);
+}
+
 /* A sound is being dragged over the area and this track's sampler will take it. */
 .instrument-panel-drop-target {
 	outline: 2px solid var(--color-accent, #20c8e8);
 	outline-offset: -2px;
 }
 
-.sampler-load-select,
 .instrument-panel-audition {
 	height: 30px;
 	padding: 0 12px;
 	background-color: var(--color-background-tertiary);
-	color: var(--color-text);
 	border: none;
 	font-size: var(--font-size-small);
 	cursor: pointer;
-}
-
-.sampler-load-select:hover,
-.instrument-panel-audition:hover {
-	background-color: var(--color-background-hover);
-}
-
-.instrument-panel-audition {
 	align-self: flex-start;
 	color: var(--color-accent, #20c8e8);
 }
