@@ -8,6 +8,9 @@ import {
 	within,
 } from "@solidjs/testing-library";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { Analytics } from "../analytics/analytics";
+import { ConsentStore } from "../analytics/consent";
+import { createRecordingTransport } from "../analytics/transport";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
 	createDrumMachineFixtureProject,
@@ -15,9 +18,11 @@ import {
 	createSliceFixtureProject,
 } from "../domain/fixtures";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
+import { LIBRARY_SAMPLE_MIME } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
+import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
 
@@ -97,7 +102,10 @@ function saveRetryButton(): HTMLElement | null {
 // context to resolve against — a bare MemoryRouter isn't enough.
 function renderEditor(
 	projectId: string,
-	options: { createAuditionEngine?: () => PreviewEngine } = {},
+	options: {
+		createAuditionEngine?: () => PreviewEngine;
+		analytics?: Analytics;
+	} = {},
 ) {
 	const EditorView = EditorViewModule.default;
 	return render(() => (
@@ -108,11 +116,49 @@ function renderEditor(
 					<EditorView
 						projectId={projectId}
 						createAuditionEngine={options.createAuditionEngine}
+						analytics={options.analytics}
 					/>
 				)}
 			/>
 		</MemoryRouter>
 	));
+}
+
+/** A library sound as a drag hands it over, already in its wire form (#225). */
+const DROPPED_HAT = {
+	name: "Dropped Closed Hat",
+	packId: "pak_SdlN_OazweXrwury0j27Y",
+	packVersion: "1.0.0",
+	kind: "sample",
+	storageRef: "samples/starter-library/audio/sha256/ab/cd/abcd.wav",
+	url: "/samples/starter-library/audio/sha256/ab/cd/abcd.wav",
+	durationSeconds: 0.25,
+	sampleRate: 48000,
+	channelCount: 1,
+	licence: "solid-groove-owned",
+};
+
+/** jsdom implements no `DataTransfer`; this is the slice a drop reads. */
+function transferCarrying(sample: unknown) {
+	const payload = JSON.stringify(sample);
+	return {
+		types: [LIBRARY_SAMPLE_MIME],
+		getData: (format: string) =>
+			format === LIBRARY_SAMPLE_MIME ? payload : "",
+		setData: () => {},
+	};
+}
+
+function recordingAnalytics(
+	transport: ReturnType<typeof createRecordingTransport>,
+): Analytics {
+	const analytics = new Analytics({
+		transport,
+		consent: new ConsentStore(memoryStorage()),
+		storage: memoryStorage(),
+	});
+	analytics.setAccountType("anonymous");
+	return analytics;
 }
 
 describe("EditorView", () => {
@@ -208,8 +254,9 @@ describe("EditorView", () => {
 
 		renderEditor(project.metadata.id);
 
+		// Named for its track, because a drop has to land on a particular one.
 		expect(
-			await screen.findByRole("region", { name: "Sampler" }),
+			await screen.findByRole("region", { name: "BD instrument" }),
 		).toBeInTheDocument();
 		// The INS-01 sampler controls: pitch, sample start/end, amp envelope.
 		expect(screen.getByLabelText("Pitch")).toBeInTheDocument();
@@ -217,6 +264,44 @@ describe("EditorView", () => {
 		expect(screen.getByLabelText("End")).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "Audition" }),
+		).toBeInTheDocument();
+		// Scoped to the name paragraph: the swap list this PR leaves in place
+		// carries the same name in an <option>.
+		const panel = screen.getByRole("region", { name: "BD instrument" });
+		expect(
+			within(panel).getByText("909 Bass Drum", { selector: "p" }),
+		).toBeInTheDocument();
+	});
+
+	it("loads a sound dropped from the library onto the sampler, undoably", async () => {
+		repository = inMemoryModule.createInMemoryProjectRepository();
+		const project = createSliceFixtureProject();
+		const created = await repository.createProject(project);
+		if (!created.ok) throw new Error("fixture project failed to create");
+		const transport = createRecordingTransport();
+
+		renderEditor(project.metadata.id, {
+			analytics: recordingAnalytics(transport),
+		});
+		const panel = await screen.findByRole("region", {
+			name: "BD instrument",
+		});
+
+		fireEvent.drop(panel, { dataTransfer: transferCarrying(DROPPED_HAT) });
+
+		// The sampler names the dropped sound, and the project now carries it.
+		expect(
+			await within(panel).findByText(DROPPED_HAT.name, { selector: "p" }),
+		).toBeInTheDocument();
+		const changed = transport.named("instrument_changed");
+		expect(changed).toHaveLength(1);
+		expect(changed[0].params.instrument_type).toBe("sampler");
+
+		// Carrying the asset and pointing the sampler at it is one transaction, so
+		// one undo takes the whole drop back.
+		fireEvent.click(await screen.findByRole("button", { name: /^Undo/ }));
+		expect(
+			await within(panel).findByText("909 Bass Drum", { selector: "p" }),
 		).toBeInTheDocument();
 	});
 

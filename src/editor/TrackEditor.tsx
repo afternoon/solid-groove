@@ -9,7 +9,9 @@ import type { Clip, Instrument, Project } from "../domain/entities";
 import type { EventId, TrackId } from "../domain/ids";
 import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
 import type { SampleChoice } from "../instrument/SamplerPanel";
+import type { LibrarySample } from "../library/assetDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import InstrumentArea from "./InstrumentArea";
 import InstrumentPanel from "./InstrumentPanel";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepEditor from "./StepEditor";
@@ -37,6 +39,8 @@ export interface TrackEditorProps {
 	readonly instrumentPanelTrackId: TrackId | null;
 	readonly sampleName: string | null;
 	readonly replacementOptions: readonly SampleChoice[];
+	/** Loads a sound dropped from the library onto this track's sampler (#225). */
+	readonly loadSample: (sample: LibrarySample) => void;
 	readonly auditionInstrument: () => void;
 }
 
@@ -124,36 +128,44 @@ export default function TrackEditor(props: TrackEditorProps) {
 				)}
 			</Show>
 			{/*
-			 * The kind picker leads the track's instrument controls (#224). It sits
-			 * outside `InstrumentPanel` because that component is the switch
-			 * *between* instrument panels and the picker is what chooses which one —
-			 * it must also show for a drum machine and for a track with no
-			 * instrument, neither of which reaches that switch. Outside the clip
-			 * `Show` above, too: a track with no clip still has an instrument to
-			 * choose (#228).
+			 * The track's instrument controls, in one region named for the track so
+			 * a sound dragged from the library lands on a particular one (#225).
+			 *
+			 * The kind picker leads them (#224). It sits outside `InstrumentPanel`
+			 * because that component is the switch *between* instrument panels and
+			 * the picker is what chooses which one — it must also show for a drum
+			 * machine and for a track with no instrument, neither of which reaches
+			 * that switch. Outside the clip `Show` above, too: a track with no clip
+			 * still has an instrument to choose (#228).
 			 */}
-			<Show when={props.instrumentPanelTrackId}>
-				{(trackId) => (
-					<InstrumentKindPicker
-						trackId={trackId()}
-						project={props.project}
-						instrument={props.instrument}
-						dispatch={props.dispatch}
-					/>
-				)}
-			</Show>
-			<Show when={props.instrumentPanelTrackId}>
-				{(trackId) => (
-					<InstrumentPanel
-						trackId={trackId()}
-						instrument={props.instrument}
-						sampleName={props.sampleName}
-						replacementOptions={props.replacementOptions}
-						dispatch={props.dispatch}
-						audition={props.auditionInstrument}
-					/>
-				)}
-			</Show>
+			<InstrumentArea
+				trackName={props.trackName ?? "Track"}
+				instrument={props.instrument}
+				loadSample={props.loadSample}
+			>
+				<Show when={props.instrumentPanelTrackId}>
+					{(trackId) => (
+						<InstrumentKindPicker
+							trackId={trackId()}
+							project={props.project}
+							instrument={props.instrument}
+							dispatch={props.dispatch}
+						/>
+					)}
+				</Show>
+				<Show when={props.instrumentPanelTrackId}>
+					{(trackId) => (
+						<InstrumentPanel
+							trackId={trackId()}
+							instrument={props.instrument}
+							sampleName={props.sampleName}
+							replacementOptions={props.replacementOptions}
+							dispatch={props.dispatch}
+							audition={props.auditionInstrument}
+						/>
+					)}
+				</Show>
+			</InstrumentArea>
 		</div>
 	);
 }
