@@ -15,6 +15,7 @@ import {
 	createDrumMachineFixtureProject,
 	createSliceFixtureProject,
 } from "../domain/fixtures";
+import type { TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 import Mixer from "./Mixer";
@@ -69,6 +70,14 @@ function renderMixer(initial: Project = createSliceFixtureProject()) {
 	});
 	analytics.setAccountType("anonymous");
 
+	// Track selection is the host's state (`EditorView` holds it in the shared
+	// selection model); the harness plays that host, recording what the mixer
+	// asks for and feeding the answer back in.
+	const selected: TrackId[] = [];
+	const [selectedTrackId, setSelectedTrackId] = createSignal<TrackId | null>(
+		null,
+	);
+
 	render(() => (
 		<Mixer
 			project={project()}
@@ -79,10 +88,15 @@ function renderMixer(initial: Project = createSliceFixtureProject()) {
 			analytics={analytics}
 			requestFrame={() => 0}
 			cancelFrame={() => {}}
+			selectedTrackId={selectedTrackId()}
+			onSelectTrack={(trackId) => {
+				selected.push(trackId);
+				setSelectedTrackId(trackId);
+			}}
 		/>
 	));
 
-	return { history, project, transport };
+	return { history, project, transport, selected };
 }
 
 describe("Mixer track management (TRK-01)", () => {
@@ -197,6 +211,15 @@ describe("Mixer track management (TRK-01)", () => {
 			transport.events.filter((e) => e.name === "track_added").at(-1)?.params
 				.instrument_type,
 		).toBe("drum_machine");
+	});
+
+	it("selects the track it just added, so the editor follows it (#228)", () => {
+		const { history, selected } = renderMixer();
+
+		fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
+
+		const added = history.project.song.tracks.at(-1);
+		expect(selected).toEqual([added?.id]);
 	});
 
 	it("renames a track through a command", () => {
@@ -419,5 +442,68 @@ describe("Mixer controls (TRK-02)", () => {
 		const { history } = renderMixer(createDrumMachineFixtureProject());
 		const meters = screen.getAllByRole("meter");
 		expect(meters).toHaveLength(history.project.song.tracks.length);
+	});
+});
+
+describe("Mixer track selection (#228)", () => {
+	it("selects a track from its strip, and marks the selected one", () => {
+		const { history, selected } = renderMixer(
+			createDrumMachineFixtureProject(),
+		);
+		const [drums, breakTrack] = history.project.song.tracks;
+
+		const select = (name: string) =>
+			screen.getByRole("button", { name: `Edit ${name}` });
+		expect(select(drums.name)).toHaveAttribute("aria-pressed", "false");
+
+		fireEvent.click(select(breakTrack.name));
+
+		expect(selected).toEqual([breakTrack.id]);
+		expect(select(breakTrack.name)).toHaveAttribute("aria-pressed", "true");
+		expect(select(drums.name)).toHaveAttribute("aria-pressed", "false");
+		expect(
+			select(breakTrack.name).closest(".mixer-strip")?.classList,
+		).toContain("selected");
+	});
+
+	it("leaves every other control on the strip working", () => {
+		// Selection used to be a `pointerdown` handler on the whole strip. WebKit
+		// fires no click at all when mousedown and mouseup land on different
+		// elements, so the re-render that handler caused swallowed the delete
+		// button's own click (`e2e/mixer.spec.ts`, WebKit only). Nothing on the
+		// strip may cost a control its press.
+		const { history, selected } = renderMixer(
+			createDrumMachineFixtureProject(),
+		);
+		const withClips = history.project.song.tracks[0];
+
+		const del = screen.getByRole("button", {
+			name: `Delete ${withClips.name}`,
+		});
+		fireEvent.pointerDown(del);
+		fireEvent.click(del);
+
+		expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+		// ...and pressing it selected nothing: only the Edit control does that.
+		expect(selected).toEqual([]);
+	});
+
+	it("counts selecting a track as mixer use, with no event of its own", () => {
+		const { history, transport } = renderMixer(
+			createDrumMachineFixtureProject(),
+		);
+		const breakTrack = history.project.song.tracks[1];
+
+		fireEvent.click(
+			screen.getByRole("button", { name: `Edit ${breakTrack.name}` }),
+		);
+
+		const events = transport.events.filter(
+			(event) => event.name === "feature_first_use",
+		);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.params.feature).toBe("mixer");
+		// Selection is not a tracked action of its own: nothing else is logged.
+		expect(transport.events).toHaveLength(1);
 	});
 });

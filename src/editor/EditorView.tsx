@@ -1,4 +1,5 @@
 import {
+	createEffect,
 	createMemo,
 	createResource,
 	createSignal,
@@ -15,7 +16,7 @@ import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
-import type { EventId } from "../domain/ids";
+import type { EventId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type { PreviewEngine } from "../library/audition";
@@ -23,6 +24,12 @@ import LibraryBrowser from "../library/LibraryBrowser";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { getProjectRepository } from "../projectRepositoryClient";
+import {
+	emptySelection,
+	reconcileSelection,
+	type SelectionState,
+	selectOnly,
+} from "../selection";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
@@ -135,10 +142,30 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 		model.playheadLabel(audio.positionTicks()),
 	);
 
-	// The track the editor is pointed at. Selecting one lands with the mixer and
-	// arrangement wiring (#228); until then this is the project's first track,
-	// which is what `model.editedTrack` falls back to.
-	const track = createMemo(() => model.editedTrack(project(), null));
+	// Which track the editor is pointed at (#228). UI-only state held in the
+	// shared PRD 9.2 selection model — never in the project — so one click moves
+	// the clip editor, the instrument panel, and (once it lands) the device
+	// chain together. Nothing is selected on arrival; `model.editedTrack` then
+	// falls back to the project's first track.
+	const [selection, setSelection] = createSignal<SelectionState>(
+		emptySelection(),
+	);
+	// A track deleted by this session, an undo, or a remote edit must not leave
+	// the editor pointed at it: `reconcileSelection` drops the dead scope, and
+	// the fallback picks up from there.
+	createEffect(() => {
+		const current = project();
+		if (!current) return;
+		setSelection((state) => reconcileSelection(state, current));
+	});
+	function selectTrack(trackId: TrackId): void {
+		setSelection(selectOnly({ kind: "track", id: trackId }));
+	}
+	const selectedTrackId = createMemo(() => model.focusedTrackId(selection()));
+
+	const track = createMemo(() =>
+		model.editedTrack(project(), selectedTrackId()),
+	);
 	const drumTrack = createMemo(() => model.drumTrack(track()));
 	const sampleAssets = createMemo(() => model.sampleAssets(project()));
 	const clip = createMemo(() => model.editedClip(project(), track()));
@@ -336,18 +363,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 												</div>
 											)}
 										</Show>
+										{/*
+										 * The *selected* track's editor (#228), not the project's
+										 * first. A track with no clip still gets one: its
+										 * instrument is the reason to select it.
+										 */}
 										<Show
-											when={clip()}
+											when={track()}
 											fallback={
 												<p class="no-track">
-													This project has no sampler track yet.
+													This project has no tracks yet. Add one in the mixer.
 												</p>
 											}
 										>
-											{(currentClip) => (
+											{(currentTrack) => (
 												<TrackEditor
-													clip={currentClip()}
-													trackName={track()?.name}
+													clip={clip()}
+													trackName={currentTrack().name}
 													packDependencyLabel={packDependencyLabel()}
 													showPianoRoll={showPianoRoll}
 													instrument={instrument()}
@@ -372,6 +404,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 											beginGesture={session.beginGesture}
 											trackLevelDb={audio.trackLevelDb}
 											isPlaying={audio.isPlaying}
+											selectedTrackId={track()?.id ?? null}
+											onSelectTrack={selectTrack}
 										/>
 									</div>
 								</div>

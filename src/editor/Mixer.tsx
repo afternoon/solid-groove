@@ -79,6 +79,14 @@ export interface MixerProps {
 	trackLevelDb(trackId: string): number | null;
 	/** Whether playback is running — the meter only polls while it is. */
 	isPlaying(): boolean;
+	/**
+	 * The track the editor is showing, marked as selected here (#228). Optional,
+	 * like `onSelectTrack`: a mixer rendered without them still mixes, it just
+	 * marks no strip and moves nothing when one is clicked.
+	 */
+	readonly selectedTrackId?: TrackId | null;
+	/** Called with the track a strip belongs to when the user clicks it. */
+	onSelectTrack?(trackId: TrackId): void;
 	/** Defaults to the application singleton; injectable for tests. */
 	readonly analytics?: Analytics;
 	/** Overrides the meter poll scheduler; injectable for tests. */
@@ -136,6 +144,20 @@ export default function Mixer(props: MixerProps): JSX.Element {
 			track_type: "instrument",
 			instrument_type: spec.analyticsType,
 		});
+		analytics().logFeatureFirstUse("mixer");
+		// A track you just added is the one you want to set up, so the editor
+		// follows it rather than staying on whatever was on screen (#228).
+		selectTrack(added.track.id);
+	}
+
+	/**
+	 * Point the editor at a track (#228). Selection is the host's state, not the
+	 * mixer's, so this reports rather than decides; it counts as mixer use for
+	 * the OPS-02 `feature_first_use` measure, like every other strip interaction.
+	 */
+	function selectTrack(trackId: TrackId): void {
+		if (!props.onSelectTrack) return;
+		props.onSelectTrack(trackId);
 		analytics().logFeatureFirstUse("mixer");
 	}
 
@@ -214,6 +236,8 @@ export default function Mixer(props: MixerProps): JSX.Element {
 										index={index()}
 										trackCount={trackIds().length}
 										clipCount={clipCount(id)}
+										selected={props.selectedTrackId === id}
+										onSelect={() => selectTrack(id)}
 										dispatch={props.dispatch}
 										beginGesture={props.beginGesture}
 										trackLevelDb={props.trackLevelDb}
@@ -249,6 +273,9 @@ interface TrackStripProps {
 	readonly index: number;
 	readonly trackCount: number;
 	readonly clipCount: number;
+	/** Whether this strip's track is the one the editor is showing (#228). */
+	readonly selected: boolean;
+	onSelect(): void;
 	dispatch(
 		commands: RawCommandInput | readonly RawCommandInput[],
 	): TransactionResult | undefined;
@@ -266,13 +293,40 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 	const panValue = () => props.track.mixer.pan;
 
 	return (
-		<div class="mixer-strip" classList={{ muted: props.track.mixer.muted }}>
+		<div
+			class="mixer-strip"
+			classList={{ muted: props.track.mixer.muted, selected: props.selected }}
+		>
 			<div class="mixer-strip-head">
-				<span
-					class="mixer-strip-chip"
-					style={{ "background-color": props.track.color }}
-					aria-hidden="true"
-				/>
+				{/* The colour chip is also the keyboard route to selecting a track:
+				    a pointer has the whole strip, a keyboard needs one focusable
+				    control that says what it does. "Edit", not "Select": the
+				    arrangement's accessible track list already owns `Select <track>`
+				    for selecting a bar range, and two controls with one name would
+				    leave a screen reader — and `CF-002`, which clicks it by that
+				    name — unable to tell them apart. */}
+				{/* Selecting a track is this one control, next to its name, rather
+				    than a click anywhere on the strip. A container-level handler
+				    reads nicer but has to fire on `pointerdown` to beat a fader
+				    drag, and WebKit fires no click at all when mousedown and
+				    mouseup land on different elements — so a re-render from that
+				    handler swallowed the delete button's own click
+				    (`e2e/mixer.spec.ts`). A real focusable control costs one
+				    deliberate click and breaks nothing under it. */}
+				<button
+					type="button"
+					class="mixer-strip-select"
+					aria-pressed={props.selected}
+					aria-label={`Edit ${props.track.name}`}
+					title={`Edit ${props.track.name}`}
+					onClick={() => props.onSelect()}
+				>
+					<span
+						class="mixer-strip-chip"
+						style={{ "background-color": props.track.color }}
+						aria-hidden="true"
+					/>
+				</button>
 				<label class="visually-hidden" for={`track-name-${props.track.id}`}>
 					Track name
 				</label>

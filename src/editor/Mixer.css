@@ -92,8 +92,40 @@
 	min-width: 0;
 }
 
+/* The strip whose track the editor is showing (#228). The accent runs down the
+   left edge and the strip lifts a shade: enough to find at a glance across a
+   row of strips, without recolouring a control or the track's own chip. */
+.mixer-strip.selected {
+	background-color: var(--color-background-tertiary);
+	box-shadow: inset 2px 0 0 var(--color-accent, #20c8e8);
+}
+
 /* Track identity, the way the mocks mark it: a small square colour chip beside
-   the name (mock 01's "INSTRUMENT ■ Clap"), not a tinted control. */
+   the name (mock 01's "INSTRUMENT ■ Clap"), not a tinted control. The chip is
+   wrapped in the select button, which is chip-sized and carries no chrome of
+   its own — the strip's own selected state is the feedback. */
+.mixer-strip-select {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	/* Chip-sized plus a pointer-sized margin around it: the chip is 8px, which
+	   is a fine mark and a poor target. */
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border-radius: 0;
+	background-color: transparent;
+}
+
+.mixer-strip-select:hover {
+	background-color: var(--color-background-hover);
+}
+
+.mixer-strip-select[aria-pressed="true"] {
+	background-color: var(--color-accent, #20c8e8);
+}
+
 .mixer-strip-chip {
 	flex: 0 0 auto;
 	width: 8px;
