@@ -118,10 +118,24 @@ export function packManifestPath(slug: string, version: string): string {
 }
 
 /**
- * The absolute URL for an asset's master audio, from the `storageKey` a
- * manifest records. The delivery layout is `audio/<storageKey>` under the
- * library root, mirroring the bucket exactly.
+ * The library-root-relative path of an asset's master audio, from the
+ * `storageKey` a manifest records. The delivery layout is `audio/<storageKey>`
+ * under the library root, mirroring the bucket exactly.
+ *
+ * This is what a project stores as an asset's `storageRef` (invariant 8: the
+ * reference is delivery, never identity), which is why it is stated once here
+ * rather than at each caller — the generated factory manifest emits the same
+ * shape for the assets the app ships with.
+ *
+ * Deliberately *not* a URL: a `storageRef` is stable across delivery origins,
+ * while {@link assetAudioUrl} resolves against whichever origin this page load
+ * reads the library from. The two coincide only under same-origin delivery.
  */
+export function assetStorageRef(storageKey: string): string {
+	return `${LIBRARY_ROOT}/audio/${storageKey}`;
+}
+
+/** The URL an asset's master audio is fetched from, for this page load. */
 export function assetAudioUrl(storageKey: string): string {
 	return libraryUrl(`audio/${storageKey}`);
 }
@@ -190,6 +204,11 @@ const manifestAssetSchema = z.object({
 				.nullish(),
 		})
 		.nullish(),
+	// The rights position the asset was delivered under. A project that carries
+	// this sound records it as the asset's provenance licence, so what a producer
+	// may do with an exported track is answerable from the project alone rather
+	// than by re-reading the manifest it came from (LIB-05).
+	license: z.object({ id: z.string().min(1) }).nullish(),
 	// A preset carries no audio of its own, so `audio` is `null` for it — accept
 	// null as readily as absent so a preset does not fail the whole manifest.
 	audio: z
@@ -243,6 +262,8 @@ export interface LibraryAsset {
 	/** Absolute audio URL, or `null` when the manifest carried no master file. */
 	readonly url: string | null;
 	readonly storageKey: string | null;
+	/** Delivered rights position, or `null` when the manifest stated none. */
+	readonly licence: string | null;
 	readonly durationSeconds: number | null;
 	readonly sampleRate: number | null;
 	readonly channelCount: number | null;
@@ -344,6 +365,7 @@ export function packAssets(manifest: PackManifest): LibraryAsset[] {
 			packVersion: pack.version,
 			url: storageKey ? assetAudioUrl(storageKey) : null,
 			storageKey,
+			licence: asset.license?.id ?? null,
 			durationSeconds: asset.audio?.durationSeconds ?? null,
 			sampleRate: asset.audio?.sampleRate ?? null,
 			channelCount: asset.audio?.channels ?? null,
