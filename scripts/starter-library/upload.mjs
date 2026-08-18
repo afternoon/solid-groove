@@ -95,7 +95,10 @@ export function projectIdFromBucket(bucket) {
 	return bucket.replace(/\.(firebasestorage\.app|appspot\.com)$/, "");
 }
 
-/** Read the checked-in CORS policy and bind it to a concrete project. */
+/**
+ * Read the checked-in CORS policy, binding any `{{PROJECT_ID}}` placeholder to
+ * a concrete project and dropping the `_comment` key the API rejects.
+ */
 export function corsConfigFor(
 	projectId,
 	{ path = join(REPO_ROOT, "storage.cors.json") } = {},
@@ -105,6 +108,27 @@ export function corsConfigFor(
 		projectId,
 	);
 	return JSON.parse(raw).map(({ _comment, ...rule }) => rule);
+}
+
+/**
+ * Whether a CORS policy lets `origin` read the bucket, by Cloud Storage's own
+ * matching rule: an entry matches when its `origin` list holds the request's
+ * origin verbatim or the wildcard `*`, and its `method` list holds the method.
+ *
+ * There is no subdomain pattern in between -- which is the whole reason this
+ * exists. A Firebase Hosting preview channel is served from
+ * `https://<project-id>--pr-<n>-<hash>.web.app` with a hash minted at deploy
+ * time, so no enumerable list can name it, and a policy that tries answers a
+ * preview's library fetch with no `Access-Control-Allow-Origin` header at all.
+ * The browser then discards a 200 response and `fetch` rejects, which surfaced
+ * as "the library JSON will not load" (issue #259).
+ */
+export function corsAllowsOrigin(rules, origin, method = "GET") {
+	return rules.some(
+		(rule) =>
+			(rule.origin.includes("*") || rule.origin.includes(origin)) &&
+			rule.method.includes(method),
+	);
 }
 
 /**
@@ -385,7 +409,9 @@ export async function upload({
 			// Web Audio has to be able to decode these cross-origin, and offline
 			// export re-reads them (docs/sample-library.md section 12).
 			await withRetry(() => bucket.setCorsConfiguration(cors));
-			log(`applied CORS for ${cors[0].origin.join(", ")}`);
+			log(
+				`applied CORS: ${cors[0].method.join("/")} from ${cors[0].origin.join(", ")}`,
+			);
 		}
 	}
 
