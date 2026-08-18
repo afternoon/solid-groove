@@ -58,3 +58,23 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 	await show(/^Drum machine/);
 	await step("Undo returns the drum machine, one switch at a time");
 });
+
+// #246 replaced the sampler's swap list with the loaded sample's name and a
+// "Drag a sound here from the library" hint. That hint sets the Sample group's
+// width from its own longest line, which pushed the three parameter groups past
+// the panel's content box: the amp envelope wrapped onto a second row and the
+// panel grew from 273px tall to 491px, with a wide empty gap beside the wrapped
+// group. The groups belong on one row.
+test("keeps the sampler's parameter groups on one row", async ({ page }) => {
+	await page.goto("/dashboard");
+	await page.getByRole("button", { name: "New Project" }).click();
+	await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
+
+	const groups = page.locator(".sampler-panel .instrument-panel-group");
+	await expect(groups).toHaveCount(3);
+	const tops = await groups.evaluateAll((elements) =>
+		elements.map((element) => Math.round(element.getBoundingClientRect().top)),
+	);
+	// One row: every group shares a top edge. A wrapped group sits a row lower.
+	expect(new Set(tops).size).toBe(1);
+});

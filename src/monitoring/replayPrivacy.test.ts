@@ -231,7 +231,11 @@ const DELIBERATELY_UNMARKED: readonly {
 	},
 	{
 		file: "instrument/SamplerPanel.tsx",
-		literal: 'class="instrument-panel-group"',
+		// The sample group carries a layout class of its own; the pin follows the
+		// markup so it keeps asserting what it is for — a plain, unmasked string
+		// literal, which turning masking back on would have to replace with a
+		// template literal.
+		literal: 'class="instrument-panel-group sampler-sample-group"',
 	},
 	// The title beside it *is* masked (see MASKED_NAMES). The message is fixed
 	// explanatory copy, and a delete confirmation is friction worth observing.

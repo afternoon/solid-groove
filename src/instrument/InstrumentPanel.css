@@ -54,6 +54,18 @@
 	gap: 12px;
 }
 
+/* The sample group holds prose — the loaded sound's name and the drag hint —
+   while its neighbours are slider rows of a fixed width. Prose sized to its own
+   longest line is what pushed the three groups past the panel and wrapped the
+   amp envelope onto a row of its own (#246). A zero flex-basis keeps it out of
+   the wrap calculation entirely: the slider groups take the width they need,
+   this one grows into whatever is left, and its text wraps inside that instead
+   of setting it. `min-width` lets it fall below the hint's own line length. */
+.sampler-sample-group {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
 .sampler-load-hint {
 	margin: 0;
 	font-size: var(--font-size-tiny);
