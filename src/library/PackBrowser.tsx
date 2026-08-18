@@ -293,15 +293,6 @@ function Results(props: {
 								active={browser.auditioningId() === asset.id}
 								error={browser.assetErrors().get(asset.id) ?? null}
 								showPack
-								/*
-								 * This dialog covers the editor, so the instrument a sound
-								 * would be dropped on is never reachable from here: a drag
-								 * started in the browser can only be abandoned. "Insert" puts
-								 * the sound on the edited track instead, and dragging stays
-								 * with the library panel, where the track is on screen beside
-								 * it.
-								 */
-								draggable={false}
 								onPlay={() => void browser.audition(asset)}
 								onStop={() => browser.stopAudition()}
 								onInsert={

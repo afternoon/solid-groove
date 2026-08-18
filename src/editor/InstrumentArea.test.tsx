@@ -115,6 +115,37 @@ describe("InstrumentArea", () => {
 		expect(loadSample).not.toHaveBeenCalled();
 	});
 
+	it("becomes a drop target the moment the drag arrives", () => {
+		renderArea();
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		// A browser decides what a drag may be dropped on from `dragenter` as
+		// well as `dragover` (the HTML drag-and-drop processing model): an
+		// uncancelled `dragenter` sends the pointer's target back to the body,
+		// and this element's `dragover` is then never consulted at all. Chromium
+		// is lenient about that first step and accepts the drop anyway; a browser
+		// that follows the model shows no affordance and takes no drop. So the
+		// arrival has to be claimed too. `fireEvent` returns false when a handler
+		// cancelled the event, which is what claiming it means.
+		const allowed = fireEvent.dragEnter(area(), {
+			dataTransfer: transfer,
+			cancelable: true,
+		});
+		expect(allowed).toBe(false);
+		expect(transfer.dropEffect).toBe("copy");
+		expect(isTarget()).toBe(true);
+	});
+
+	it("leaves an arriving drag it cannot take alone", () => {
+		renderArea(SYNTH);
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		const allowed = fireEvent.dragEnter(area(), {
+			dataTransfer: transfer,
+			cancelable: true,
+		});
+		expect(allowed).toBe(true);
+		expect(isTarget()).toBe(false);
+	});
+
 	it("marks itself a copy target only while a sound is over it", () => {
 		renderArea();
 		const transfer = transferCarrying(JSON.stringify(DROPPED));

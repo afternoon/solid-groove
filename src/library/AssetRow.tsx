@@ -13,11 +13,10 @@ import "./LibraryBrowser.css";
 /**
  * One auditionable sound. Shared by the panel tree and the pack browser.
  *
- * The row is the drag handle wherever the editor is visible behind it: dragging
- * it onto an instrument loads it (#225). Dragging is a pointer gesture, so it is
- * never the only way in (PRD 9.3) — the "Insert" button does the same thing from
- * the keyboard, on whichever track the surface hosting this panel is editing,
- * and it is the only way in from a surface that hides the editor (`draggable`).
+ * The row is the drag handle: dragging it onto an instrument loads it (#225).
+ * Dragging is a pointer gesture, so it is never the only way in (PRD 9.3) — the
+ * "Insert" button does the same thing from the keyboard, on whichever track the
+ * surface hosting this panel is editing.
  */
 export default function AssetRow(props: {
 	asset: LibraryAsset;
@@ -25,11 +24,6 @@ export default function AssetRow(props: {
 	error: string | null;
 	/** Shown in the pack browser, where a result can come from any pack. */
 	showPack?: boolean;
-	/**
-	 * Whether this row can be picked up. False on a surface that covers every
-	 * drop target, where a drag could only ever be started and then abandoned.
-	 */
-	draggable?: boolean;
 	onPlay: () => void;
 	onStop: () => void;
 	onInsert?: () => void;
@@ -41,16 +35,12 @@ export default function AssetRow(props: {
 				"library-row-active": props.active,
 				"library-row-error": props.error !== null,
 			}}
-			draggable={props.draggable === false ? "false" : "true"}
+			draggable="true"
 			onDragStart={(event) => {
 				// A sound with no master audio (a preset) carries nothing an
 				// instrument can load, so its row starts no drag at all rather than
-				// one that has to be refused when it lands. Neither does a row on a
-				// surface that covers every drop target.
-				if (
-					props.draggable === false ||
-					!writeLibrarySampleDrag(event.dataTransfer, props.asset)
-				) {
+				// one that has to be refused when it lands.
+				if (!writeLibrarySampleDrag(event.dataTransfer, props.asset)) {
 					event.preventDefault();
 				}
 			}}
