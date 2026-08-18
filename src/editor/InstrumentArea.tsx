@@ -55,7 +55,18 @@ export default function InstrumentArea(
 				if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
 				setDragOver(true);
 			}}
-			onDragLeave={() => setDragOver(false)}
+			onDragLeave={(event) => {
+				// `dragleave` bubbles, so every step from one panel inside the area
+				// to the next reports a leave the drag never made. Taking the
+				// affordance down on those blinks the outline off exactly while the
+				// user is steering towards the target. Only a move to somewhere
+				// outside the area — or off the window, which reports no related
+				// target at all — is a real departure.
+				const entering = event.relatedTarget;
+				if (entering instanceof Node && event.currentTarget.contains(entering))
+					return;
+				setDragOver(false);
+			}}
 			onDrop={(event) => {
 				setDragOver(false);
 				if (!takesSample()) return;

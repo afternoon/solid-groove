@@ -51,9 +51,30 @@ function renderArea(instrument: Instrument | null = SAMPLER) {
 			loadSample={loadSample}
 		>
 			<p>panel goes here</p>
+			<p>and another panel</p>
 		</InstrumentArea>
 	));
 	return { loadSample };
+}
+
+/**
+ * A `dragleave` that says where the pointer went next.
+ *
+ * jsdom implements no `DragEvent`, so `fireEvent.dragLeave` quietly drops
+ * `relatedTarget` — the one field that distinguishes stepping between the
+ * panels inside the area from leaving it. A `MouseEvent` of the same name
+ * carries it, and in a browser `DragEvent` inherits the field from `MouseEvent`
+ * anyway, so this dispatches exactly what the handler reads.
+ */
+function leaveTowards(from: HTMLElement, to: EventTarget | null): void {
+	fireEvent(
+		from,
+		new MouseEvent("dragleave", {
+			bubbles: true,
+			cancelable: true,
+			relatedTarget: to,
+		}),
+	);
 }
 
 /** The area, found the way a drag target is: by its accessible name. */
@@ -102,6 +123,31 @@ describe("InstrumentArea", () => {
 		expect(isTarget()).toBe(true);
 
 		fireEvent.dragLeave(area(), { dataTransfer: transfer });
+		expect(isTarget()).toBe(false);
+	});
+
+	it("keeps the affordance while the drag crosses its own contents", () => {
+		renderArea();
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		fireEvent.dragOver(area(), { dataTransfer: transfer });
+		expect(isTarget()).toBe(true);
+
+		// Moving from one panel to the next fires `dragleave` on the panel the
+		// pointer left, and that bubbles to the area — but the drag is still
+		// inside it, so the drop affordance must stay up. Anything else flickers
+		// the outline off exactly while the user is aiming at the target.
+		leaveTowards(
+			screen.getByText("panel goes here"),
+			screen.getByText("and another panel"),
+		);
+		expect(isTarget()).toBe(true);
+	});
+
+	it("drops the affordance once the drag really leaves", () => {
+		renderArea();
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		fireEvent.dragOver(area(), { dataTransfer: transfer });
+		leaveTowards(screen.getByText("panel goes here"), document.body);
 		expect(isTarget()).toBe(false);
 	});
 

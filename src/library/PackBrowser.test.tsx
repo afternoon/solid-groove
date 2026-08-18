@@ -171,6 +171,27 @@ describe("the pack detail view", () => {
 		await waitFor(() => expect(previewEngine.starts.length).toBe(1));
 	});
 
+	it("offers no drag, because its own dialog covers every drop target", async () => {
+		const { dialog } = await openPackBrowser({ onInsert: vi.fn() });
+		const rows = await waitFor(() => {
+			const found = within(dialog)
+				.getAllByRole("button", { name: /^Audition / })
+				.map((button) => button.closest("li"));
+			expect(found.length).toBeGreaterThan(0);
+			return found;
+		});
+		// The instrument a sound would be dropped on is behind this modal, so a
+		// row here can start a drag that nothing can ever receive: no drop target
+		// lights up and the release does nothing. "Insert" is the way in from the
+		// browser; dragging belongs to the panel, where the editor is visible.
+		for (const row of rows) {
+			expect(row).not.toHaveAttribute("draggable", "true");
+		}
+		expect(
+			within(dialog).getAllByRole("button", { name: /^Insert / }).length,
+		).toBeGreaterThan(0);
+	});
+
 	it("offers Add pack to project, and says so once the project has it", async () => {
 		const { analytics: a, transport } = analytics();
 		const { dialog, onAddPack } = await openPackBrowser({
