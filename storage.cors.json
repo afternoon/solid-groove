@@ -1,12 +1,7 @@
 [
 	{
-		"_comment": "CORS policy for the Cloud Storage bucket that serves the factory library. `{{PROJECT_ID}}` is substituted with the target project by scripts/starter-library/upload.mjs, so this file stays correct for any Firebase project. Apply it with `bun run library:upload -- --configure-bucket` (or `gcloud storage buckets update gs://BUCKET --cors-file=` once the placeholders are replaced). Reads only: nothing writes to this bucket from a browser (see storage.rules).",
-		"origin": [
-			"https://{{PROJECT_ID}}.web.app",
-			"https://{{PROJECT_ID}}.firebaseapp.com",
-			"http://localhost:3000",
-			"http://127.0.0.1:3000"
-		],
+		"_comment": "CORS policy for the Cloud Storage bucket that serves the factory library. Apply it with `bun run library:upload -- --configure-bucket`, or directly with `gcloud storage buckets update gs://BUCKET --cors-file=` once this `_comment` key is stripped (the API rejects it; scripts/starter-library/upload.mjs strips it for you). Any origin may read, because the origins that need to are not enumerable: a Firebase Hosting preview channel is served from `https://<project-id>--pr-<n>-<hash>.web.app`, whose hash is minted at deploy time, and Cloud Storage matches a CORS origin as an exact string with no subdomain wildcard -- so a named list silently blocks every preview (issue #259). That costs nothing: `storage.rules` makes `library/**` world-readable and denies every other path, these are GET/HEAD only, and the requests carry no credentials, so the same bytes are already public to any `curl`. The origins that do read this in practice are `https://<project-id>.web.app`, `https://<project-id>.firebaseapp.com`, its preview channels, and `localhost:3000` in development.",
+		"origin": ["*"],
 		"method": ["GET", "HEAD"],
 		"responseHeader": [
 			"Content-Type",

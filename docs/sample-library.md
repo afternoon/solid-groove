@@ -778,6 +778,8 @@ FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
   bun run library:upload -- --bucket demo-solid-groove.firebasestorage.app
 ```
 
+The policy admits any origin for GET/HEAD: `storage.rules` already makes `library/**` world-readable and denies every other path, and the origins that need it — Hosting preview channels, `https://<project-id>--pr-<n>-<hash>.web.app` — carry a hash minted at deploy time that no list can name, while Cloud Storage matches an origin exactly and supports no subdomain wildcard (issue #259).
+
 Bucket CORS is the one thing the emulator cannot exercise — it answers `setCorsConfiguration` with "Not Implemented" and serves permissive CORS regardless — so the script reports it as skipped rather than failing.
 
 ### 15.4 Delivery layout
