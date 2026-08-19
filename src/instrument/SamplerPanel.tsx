@@ -80,7 +80,7 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 	return (
 		<section class="instrument-panel sampler-panel" aria-label="Sampler">
 			<div class="instrument-panel-groups">
-				<div class="instrument-panel-group">
+				<div class="instrument-panel-group sampler-sample-group">
 					<h3 class="instrument-panel-heading">Sample</h3>
 					{/* The sound's name, which is library copy rather than anything the
 					    user typed — masked all the same, since a user-recorded sample
