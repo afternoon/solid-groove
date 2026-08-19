@@ -51,9 +51,30 @@ function renderArea(instrument: Instrument | null = SAMPLER) {
 			loadSample={loadSample}
 		>
 			<p>panel goes here</p>
+			<p>and another panel</p>
 		</InstrumentArea>
 	));
 	return { loadSample };
+}
+
+/**
+ * A `dragleave` that says where the pointer went next.
+ *
+ * jsdom implements no `DragEvent`, so `fireEvent.dragLeave` quietly drops
+ * `relatedTarget` — the one field that distinguishes stepping between the
+ * panels inside the area from leaving it. A `MouseEvent` of the same name
+ * carries it, and in a browser `DragEvent` inherits the field from `MouseEvent`
+ * anyway, so this dispatches exactly what the handler reads.
+ */
+function leaveTowards(from: HTMLElement, to: EventTarget | null): void {
+	fireEvent(
+		from,
+		new MouseEvent("dragleave", {
+			bubbles: true,
+			cancelable: true,
+			relatedTarget: to,
+		}),
+	);
 }
 
 /** The area, found the way a drag target is: by its accessible name. */
@@ -94,6 +115,37 @@ describe("InstrumentArea", () => {
 		expect(loadSample).not.toHaveBeenCalled();
 	});
 
+	it("becomes a drop target the moment the drag arrives", () => {
+		renderArea();
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		// A browser decides what a drag may be dropped on from `dragenter` as
+		// well as `dragover` (the HTML drag-and-drop processing model): an
+		// uncancelled `dragenter` sends the pointer's target back to the body,
+		// and this element's `dragover` is then never consulted at all. Chromium
+		// is lenient about that first step and accepts the drop anyway; a browser
+		// that follows the model shows no affordance and takes no drop. So the
+		// arrival has to be claimed too. `fireEvent` returns false when a handler
+		// cancelled the event, which is what claiming it means.
+		const allowed = fireEvent.dragEnter(area(), {
+			dataTransfer: transfer,
+			cancelable: true,
+		});
+		expect(allowed).toBe(false);
+		expect(transfer.dropEffect).toBe("copy");
+		expect(isTarget()).toBe(true);
+	});
+
+	it("leaves an arriving drag it cannot take alone", () => {
+		renderArea(SYNTH);
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		const allowed = fireEvent.dragEnter(area(), {
+			dataTransfer: transfer,
+			cancelable: true,
+		});
+		expect(allowed).toBe(true);
+		expect(isTarget()).toBe(false);
+	});
+
 	it("marks itself a copy target only while a sound is over it", () => {
 		renderArea();
 		const transfer = transferCarrying(JSON.stringify(DROPPED));
@@ -102,6 +154,31 @@ describe("InstrumentArea", () => {
 		expect(isTarget()).toBe(true);
 
 		fireEvent.dragLeave(area(), { dataTransfer: transfer });
+		expect(isTarget()).toBe(false);
+	});
+
+	it("keeps the affordance while the drag crosses its own contents", () => {
+		renderArea();
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		fireEvent.dragOver(area(), { dataTransfer: transfer });
+		expect(isTarget()).toBe(true);
+
+		// Moving from one panel to the next fires `dragleave` on the panel the
+		// pointer left, and that bubbles to the area — but the drag is still
+		// inside it, so the drop affordance must stay up. Anything else flickers
+		// the outline off exactly while the user is aiming at the target.
+		leaveTowards(
+			screen.getByText("panel goes here"),
+			screen.getByText("and another panel"),
+		);
+		expect(isTarget()).toBe(true);
+	});
+
+	it("drops the affordance once the drag really leaves", () => {
+		renderArea();
+		const transfer = transferCarrying(JSON.stringify(DROPPED));
+		fireEvent.dragOver(area(), { dataTransfer: transfer });
+		leaveTowards(screen.getByText("panel goes here"), document.body);
 		expect(isTarget()).toBe(false);
 	});
 

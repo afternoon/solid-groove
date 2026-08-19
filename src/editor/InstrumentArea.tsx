@@ -41,21 +41,45 @@ export default function InstrumentArea(
 	const [dragOver, setDragOver] = createSignal(false);
 	const takesSample = () => props.instrument?.kind === "sampler";
 
+	/**
+	 * Claims a drag this track can take. Cancelling the event is what marks the
+	 * element a drop target, so a drag it cannot take is left entirely alone —
+	 * no drop cursor, and the browser's own handling of it is undisturbed.
+	 */
+	function claim(event: DragEvent): void {
+		if (!takesSample() || !hasLibrarySampleDrag(event.dataTransfer)) return;
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+		setDragOver(true);
+	}
+
 	return (
 		<section
 			class="instrument-area"
 			classList={{ "instrument-panel-drop-target": dragOver() }}
 			aria-label={`${props.trackName} instrument`}
-			onDragOver={(event) => {
-				// Only claim a drag this track can actually take. Calling
-				// `preventDefault` is what marks the element as a drop target, so
-				// skipping it for anything else leaves the browser's own handling be.
-				if (!takesSample() || !hasLibrarySampleDrag(event.dataTransfer)) return;
-				event.preventDefault();
-				if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-				setDragOver(true);
+			// A drop target is claimed on arrival *and* on every move over it. Both
+			// matter: the drag-and-drop processing model picks the element a drag is
+			// pointing at from `dragenter`, and when that event goes uncancelled it
+			// hands the drag to the body element instead — after which this area's
+			// `dragover` is never fired at all, so nothing lights up and nothing can
+			// be dropped anywhere. Chromium is lenient and keeps firing `dragover`
+			// at the element under the pointer regardless, which is why cancelling
+			// only `dragover` looks correct there and fails everywhere else.
+			onDragEnter={(event) => claim(event)}
+			onDragOver={(event) => claim(event)}
+			onDragLeave={(event) => {
+				// `dragleave` bubbles, so every step from one panel inside the area
+				// to the next reports a leave the drag never made. Taking the
+				// affordance down on those blinks the outline off exactly while the
+				// user is steering towards the target. Only a move to somewhere
+				// outside the area — or off the window, which reports no related
+				// target at all — is a real departure.
+				const entering = event.relatedTarget;
+				if (entering instanceof Node && event.currentTarget.contains(entering))
+					return;
+				setDragOver(false);
 			}}
-			onDragLeave={() => setDragOver(false)}
 			onDrop={(event) => {
 				setDragOver(false);
 				if (!takesSample()) return;
