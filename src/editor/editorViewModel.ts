@@ -194,6 +194,17 @@ export function showPianoRoll(
 }
 
 /**
+/**
+ * The track a sound dropped from the library, or inserted with the keyboard,
+ * loads onto — the edited track, but only while it carries a sampler (#225).
+ * Null when there is nothing to load into, so the surface can decline rather
+ * than dispatch a transaction the command layer would refuse.
+ */
+export function samplerTrackId(track: Track | null): TrackId | null {
+	return track?.instrument?.kind === "sampler" ? track.id : null;
+}
+
+/**
  * The track the instrument panel edits — whatever instrument it carries, or
  * none at all. The panel leads with the kind picker (#224), so gating this on
  * the kinds that have a sub-panel would leave a drum-machine track (whose own

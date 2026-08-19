@@ -15,17 +15,19 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 	await page.getByRole("button", { name: "New Project" }).click();
 	await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
 
+	// `exact` because the track's instrument controls now sit in a region named
+	// "<track> instrument" (#225), which a substring match would also select.
+	const picker = page.getByRole("region", { name: "Instrument", exact: true });
 	// The workspace scrolls inside a viewport-height app, so each capture
 	// scrolls that container and then returns the page itself to the top —
 	// otherwise the shot is framed on empty page below the editor.
-	const picker = page.getByRole("region", { name: "Instrument" });
 	const show = async (name: string | RegExp): Promise<void> => {
 		await page.getByRole("region", { name }).scrollIntoViewIfNeeded();
 		await page.evaluate(() => window.scrollTo(0, 0));
 	};
 	// The starter track is a sampler, and the panel now says so out loud.
 	await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
-	await show("Instrument");
+	await show(/^Instrument$/);
 	await step("Open a project: the track's instrument is a sampler");
 
 	// Sampler -> synth, in one transaction the command layer can name.

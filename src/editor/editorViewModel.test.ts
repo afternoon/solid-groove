@@ -22,6 +22,7 @@ import {
 	replacementOptions,
 	sampleAssets,
 	sampleName,
+	samplerTrackId,
 	showPianoRoll,
 } from "./editorViewModel";
 
@@ -234,6 +235,29 @@ describe("sampleName", () => {
 		const synth = createPianoRollFixtureProject();
 		expect(sampleName(synth, editedTrack(synth, null))).toBeNull();
 		expect(sampleName(null, null)).toBeNull();
+	});
+});
+
+describe("samplerTrackId", () => {
+	it("names the track a dropped sound loads onto", () => {
+		const project = createSliceFixtureProject();
+		expect(samplerTrackId(editedTrack(project, null))).toBe(
+			project.song.tracks[0].id,
+		);
+	});
+
+	it("follows the selected track rather than the project's first (#228)", () => {
+		const project = createSliceFixtureProject();
+		const first = project.song.tracks[0];
+		expect(samplerTrackId(editedTrack(project, first.id))).toBe(first.id);
+	});
+
+	it("is null when the edited track has no sampler to load into", () => {
+		const drums = createDrumMachineFixtureProject();
+		const synth = createPianoRollFixtureProject();
+		expect(samplerTrackId(editedTrack(drums, null))).toBeNull();
+		expect(samplerTrackId(editedTrack(synth, null))).toBeNull();
+		expect(samplerTrackId(null)).toBeNull();
 	});
 });
 
