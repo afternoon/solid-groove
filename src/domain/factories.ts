@@ -419,8 +419,13 @@ export interface CreateAssetOptions {
 	 * The pack this asset resolves from. Required: an asset with no pack is not
 	 * representable (invariant 12), so a factory that defaulted it would be a way
 	 * to create one by accident.
+	 *
+	 * Only the identity and version are asked for, because that is all an asset
+	 * reference stores — and a caller resolving a sound from a *pack manifest*
+	 * holds exactly that, without the rights position or description a full
+	 * `Pack` record carries. A `Pack` satisfies it structurally.
 	 */
-	pack: Pack;
+	pack: Pick<Pack, "id" | "version">;
 	name: string;
 	storageRef: string;
 	kind?: Asset["kind"];
