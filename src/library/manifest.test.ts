@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "./__fixtures__/fixtures";
+import { FIXTURE_PACK_INDEX_DOC, fixturePackManifest } from "./__fixtures__/fixtures";
 import {
   assetAudioUrl,
   LIBRARY_ROOT,
   libraryKey,
   libraryUrl,
+  PACK_INDEX_KEY,
   PACK_INDEX_PATH,
   packAssets,
   packManifestPath,
@@ -17,9 +18,16 @@ import {
 
 const BUCKET = "groove-test.firebasestorage.app";
 
-describe("delivery layout", () => {
+// These three exercise the *same-origin* delivery layout, which is what the
+// suite runs under: `vitest.config.ts` pins `VITE_FIREBASE_STORAGE_BUCKET`
+// empty so no `.env` can move the module-level `libraryBucket` underneath
+// them. The configured-bucket form is covered below by passing the bucket in
+// explicitly, which is the only way to assert it without depending on the
+// ambient environment.
+describe("delivery layout (same-origin, no bucket configured)", () => {
   it("resolves the pack index and a manifest under the one library root", () => {
-    expect(PACK_INDEX_PATH).toBe(`/${LIBRARY_ROOT}/packs/index.json`);
+    expect(libraryUrl(PACK_INDEX_KEY, null)).toBe(`/${LIBRARY_ROOT}/packs/index.json`);
+    expect(PACK_INDEX_PATH).toBe(libraryUrl(PACK_INDEX_KEY, null));
     expect(packManifestPath("core-electronic-drums", "1.0.0")).toBe(
       `/${LIBRARY_ROOT}/packs/core-electronic-drums/v1.0.0.json`,
     );
@@ -27,6 +35,9 @@ describe("delivery layout", () => {
 
   it("builds an asset audio URL from its storage key", () => {
     expect(assetAudioUrl("sha256/ab/cd/abcd.wav")).toBe(
+      libraryUrl("audio/sha256/ab/cd/abcd.wav", null),
+    );
+    expect(libraryUrl("audio/sha256/ab/cd/abcd.wav", null)).toBe(
       `/${LIBRARY_ROOT}/audio/sha256/ab/cd/abcd.wav`,
     );
   });
@@ -141,8 +152,7 @@ describe("parsing the pack index", () => {
 
 describe("parsing a pack manifest", () => {
   it("resolves every asset against its owning pack, pack-qualified", async () => {
-    const fetch = fixtureFetcher();
-    const raw = await fetch("samples/starter-library/packs/core-electronic-drums/x.json");
+    const raw = fixturePackManifest("core-electronic-drums");
     const manifest = parsePackManifest(raw);
     const assets = packAssets(manifest);
     expect(assets.length).toBe(manifest.assets.length);
@@ -150,23 +160,27 @@ describe("parsing a pack manifest", () => {
       expect(asset.packId).toBe(manifest.pack.id);
       expect(asset.packVersion).toBe(manifest.pack.version);
       expect(asset.packSlug).toBe(manifest.pack.slug);
-      // A resolvable audio URL under the library root.
-      expect(asset.url).toMatch(new RegExp(`^/${LIBRARY_ROOT}/audio/`));
+      // A resolvable audio URL, in whichever delivery form this build uses:
+      // root-relative same-origin, or the encoded Cloud Storage object URL
+      // when a bucket is configured. Asserting only the first shape made this
+      // pass or fail on whether `.env` was populated. A preset carries no
+      // audio at all, so it legitimately has neither key nor URL.
+      if (asset.storageKey === null) {
+        expect(asset.url).toBeNull();
+      } else {
+        expect(asset.url).toBe(libraryUrl(`audio/${asset.storageKey}`));
+      }
     }
   });
 
   it("carries the rights position a project records as provenance", async () => {
-    const raw = await fixtureFetcher()(
-      "samples/starter-library/packs/core-electronic-drums/x.json",
-    );
+    const raw = fixturePackManifest("core-electronic-drums");
     const assets = packAssets(parsePackManifest(raw));
     expect(assets.every((asset) => asset.licence !== null)).toBe(true);
   });
 
   it("carries the tags a filter needs", async () => {
-    const raw = await fixtureFetcher()(
-      "samples/starter-library/packs/core-electronic-drums/x.json",
-    );
+    const raw = fixturePackManifest("core-electronic-drums");
     const assets = packAssets(parsePackManifest(raw));
     const withGenre = assets.find((asset) => asset.genres.length > 0);
     expect(withGenre).toBeDefined();
@@ -174,9 +188,7 @@ describe("parsing a pack manifest", () => {
   });
 
   it("maps the wire types onto the browser's three types", async () => {
-    const raw = await fixtureFetcher()(
-      "samples/starter-library/packs/core-electronic-drums/x.json",
-    );
+    const raw = fixturePackManifest("core-electronic-drums");
     const assets = packAssets(parsePackManifest(raw));
     for (const asset of assets) {
       expect(["one-shot", "loop", "preset"]).toContain(asset.type);
@@ -186,9 +198,7 @@ describe("parsing a pack manifest", () => {
   it("parses a preset asset that carries no audio", async () => {
     // A preset has `audio: null` and a JSON master rather than a WAV; it must
     // not fail the manifest — every other asset would be lost with it.
-    const raw = await fixtureFetcher()(
-      "samples/starter-library/packs/core-electronic-drums/x.json",
-    );
+    const raw = fixturePackManifest("core-electronic-drums");
     const assets = packAssets(parsePackManifest(raw));
     const preset = assets.find((asset) => asset.type === "preset");
     expect(preset).toBeDefined();

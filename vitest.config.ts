@@ -37,10 +37,42 @@ const exclude = [...configDefaults.exclude, "tests/**", ".claude/**"];
  * and, with it, the `test.server.deps` inlining of `solid-js` the plugin
  * applies alongside.
  */
+/**
+ * Deployment configuration the unit suite must never inherit.
+ *
+ * `src/library/manifest.ts`, `src/devBackend.ts`, and `src/release.ts` each
+ * resolve one of these into a **module-level const**, so the value is frozen at
+ * import time — before any `vi.stubEnv` in a test body can run. A developer
+ * with a populated `.env` therefore ran a different suite than CI, which sets
+ * none of them: `VITE_FIREBASE_STORAGE_BUCKET` switched `libraryUrl` to its
+ * percent-encoded Cloud Storage form, `VITE_DEV_BACKEND` moved
+ * `firebaseConfig` onto emulator placeholders, and `VITE_RELEASE_SHA` replaced
+ * the `"unknown"` sentinel. That is a suite whose result depends on deployment
+ * state, and it is how a non-terminating loop in `search.test.ts` sat
+ * undetected behind fixtures that silently resolved to zero assets.
+ *
+ * Pinning them empty here makes a local run reproduce CI exactly. It is not a
+ * substitute for covering the other branch: the configured-bucket form is
+ * asserted directly by passing the value in — `libraryUrl(key, BUCKET)` in
+ * `src/library/manifest.test.ts` — which is how these should be tested, rather
+ * than by reading whatever the ambient environment happens to hold.
+ */
+const hermeticEnv = {
+  VITE_FIREBASE_STORAGE_BUCKET: "",
+  VITE_DEV_BACKEND: "",
+  VITE_RELEASE_SHA: "",
+};
+
 const appProject = (name: string, include: string[]) => ({
   plugins: [solid()],
   resolve: { conditions: ["development", "browser"] },
-  test: { name, setupFiles: [jestDomSetupPath], exclude, include },
+  test: {
+    name,
+    setupFiles: [jestDomSetupPath],
+    exclude,
+    include,
+    env: hermeticEnv,
+  },
 });
 
 /**
@@ -123,6 +155,7 @@ export default defineConfig({
           environment: "node",
           exclude,
           include: ["scripts/**/*.test.mjs"],
+          env: hermeticEnv,
         },
       },
     ],

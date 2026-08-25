@@ -112,15 +112,19 @@ describe("facet values", () => {
 describe("responsiveness at the planned library size (section 12)", () => {
   it("filters 1,000 assets well under the 50 ms target", async () => {
     const base = await allAssets();
+    // The fan-out below is driven by this count, so state the premise rather
+    // than looping on it: with no fixture assets there is nothing to measure.
+    expect(base.length).toBeGreaterThan(0);
     // Fan the fixture assets out to the section 12 baseline of 1,000, with
-    // distinct ids so nothing is deduplicated away.
-    const many: LibraryAsset[] = [];
-    for (let i = 0; many.length < 1000; i++) {
-      for (const asset of base) {
-        many.push({ ...asset, id: `${asset.id}-${i}` });
-        if (many.length >= 1000) break;
-      }
-    }
+    // distinct ids so nothing is deduplicated away. Indexing a fixed range
+    // keeps the bound a function of TARGET alone -- an empty `base` could not
+    // make this loop fail to advance, only fail the assertion above.
+    const TARGET = 1000;
+    const many: LibraryAsset[] = Array.from({ length: TARGET }, (_, index) => {
+      const asset = base[index % base.length];
+      return { ...asset, id: `${asset.id}-${Math.floor(index / base.length)}` };
+    });
+    expect(many).toHaveLength(TARGET);
     const start = performance.now();
     const result = filterAssets(many, {
       ...EMPTY_FILTER,

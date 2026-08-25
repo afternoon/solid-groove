@@ -7,11 +7,18 @@ describe("RELEASE_SHA", () => {
     vi.resetModules();
   });
 
-  // Vitest never runs the `app.config.ts` build-time `define`, so under this
-  // suite `import.meta.env.VITE_RELEASE_SHA` is genuinely unset by default --
-  // exactly the "not stamped" case a broken CI pipeline would also produce.
-  it("falls back to the unknown sentinel when nothing was stamped", () => {
-    expect(RELEASE_SHA).toBe("unknown");
+  // Vitest never runs the `app.config.ts` build-time `define`, and
+  // `vitest.config.ts` additionally pins `VITE_RELEASE_SHA` empty so a
+  // populated `.env` cannot stamp one either -- exactly the "not stamped" case
+  // a broken CI pipeline would also produce. Stubbing it unset and
+  // re-importing states that premise rather than trusting the ambient
+  // environment: `RELEASE_SHA` is a module-level const, frozen at import,
+  // so a stub in a test body cannot reach the value imported at the top.
+  it("falls back to the unknown sentinel when nothing was stamped", async () => {
+    vi.stubEnv("VITE_RELEASE_SHA", "");
+    vi.resetModules();
+    const mod = await import("./release");
+    expect(mod.RELEASE_SHA).toBe("unknown");
   });
 
   it("falls back to the unknown sentinel for a blank/whitespace value", async () => {

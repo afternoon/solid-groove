@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fixtureFetcher } from "./__fixtures__/fixtures";
+import { fixturePackManifest } from "./__fixtures__/fixtures";
 import {
   hasLibrarySampleDrag,
   LIBRARY_SAMPLE_MIME,
@@ -30,7 +30,7 @@ function fakeTransfer(): LibraryDragTransfer & { data: Map<string, string> } {
 }
 
 async function libraryAssets(slug = "core-electronic-drums") {
-  const raw = await fixtureFetcher()(`samples/starter-library/packs/${slug}/x.json`);
+  const raw = fixturePackManifest(slug);
   return packAssets(parsePackManifest(raw));
 }
 

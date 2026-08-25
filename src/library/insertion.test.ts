@@ -3,7 +3,7 @@ import { executeTransaction } from "../commands";
 import { createFactoryContext } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
-import { fixtureFetcher } from "./__fixtures__/fixtures";
+import { fixturePackManifest } from "./__fixtures__/fixtures";
 import {
   carriedAsset,
   createLibraryAsset,
@@ -21,7 +21,7 @@ import { LIBRARY_ROOT, packAssets, parsePackManifest } from "./manifest";
  */
 
 async function libraryAssets(slug = "core-electronic-drums") {
-  const raw = await fixtureFetcher()(`samples/starter-library/packs/${slug}/x.json`);
+  const raw = fixturePackManifest(slug);
   return packAssets(parsePackManifest(raw));
 }
 
