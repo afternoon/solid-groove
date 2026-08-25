@@ -6,6 +6,7 @@
 			"!.claude",
 			"!.output",
 			"!.vinxi",
+			"!public",
 			"!docs/design",
 			"!playwright-report",
 			"!test-results",

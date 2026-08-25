@@ -294,8 +294,7 @@ bun run start        # Start production server
 bun run clean        # Delete build/dev caches and test output (see docs/testing.md)
 
 # Code quality
-bun run check        # Run Biome linting and formatting (auto-fix)
-bun run check:ci     # Same checks, non-mutating (CI gate; use `check` locally)
+bun run check        # Run Biome linting
 
 # Testing
 bun run test              # Unit + component tests, once (needs an audio output device — see Testing below)

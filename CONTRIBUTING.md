@@ -214,10 +214,6 @@ bun run check          # tsc --noEmit && biome check --write  (auto-fixes)
 bun run test           # unit + component suites
 ```
 
-`bun run check` is the local form; CI runs `check:ci`, which is the same checks
-without `--write` so a violation fails loudly instead of being silently
-rewritten in the runner.
-
 Run the heavier suites when your change touches what they cover — browser,
 Firebase, audio, performance, or export behavior:
 

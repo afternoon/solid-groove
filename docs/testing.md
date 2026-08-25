@@ -264,14 +264,13 @@ Three projects run: `chromium`, `firefox`, `webkit`. Per the PRD section 10 supp
 
 There is no arrangement performance suite today. `bun run bench:arrangement` and its `perf/` suite drove the `FND-008` renderer spike's unlinked `/spike/arrangement` route; both were removed with that spike once the production renderer (`src/arrangement/ArrangementView.tsx`) superseded it. See [`docs/arrangement-renderer-spike.md`](./arrangement-renderer-spike.md) for what the spike measured, why its checked-in baseline is retained as historical evidence, and what standing a harness back up against the production renderer would require. The PRD 9.3 frame budgets bind at `ARR-005` and `HARD-001`, so a harness must exist again before either is assessed.
 
-## `check` vs `check:ci`
+## `check`
+
+Use `bun run check` to check for type errors and lint the code. Check doesn't fix errors.
 
 ```sh
-bun run check     # tsc --noEmit && biome check --write   (local: auto-fixes)
-bun run check:ci  # tsc --noEmit && biome check            (CI: non-mutating gate)
+bun run check     # tsc --noEmit && biome check
 ```
-
-`check` is for local development, where auto-fixing formatting/lint issues is convenient. `check:ci` is the same checks without `--write`, so CI fails loudly on a violation instead of silently rewriting files in the runner and passing anyway.
 
 ## CI
 
