@@ -9,7 +9,14 @@ import LandingPage from "./LandingPage";
 
 afterEach(() => {
   cleanup();
-  vi.restoreAllMocks();
+  // `resetAllMocks`, not `restoreAllMocks`: the mocks here are module-level
+  // `vi.fn()`s (see the `vi.hoisted` block below), and from Vitest 4
+  // `restoreAllMocks` only restores spies created with `vi.spyOn` — it no
+  // longer clears a plain `vi.fn()`'s calls or implementation. There are no
+  // spies in this file, so it had become a no-op and call counts leaked from
+  // one test into the next. `resetAllMocks` clears both, which is what this
+  // teardown always meant.
+  vi.resetAllMocks();
 });
 
 const navigate = vi.fn();
