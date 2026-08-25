@@ -13,11 +13,58 @@ This document is the map of "which suite do I run, and how." It does not restate
 
 | Suite | Command | Runner | Environment | External services |
 | --- | --- | --- | --- | --- |
-| Unit + component | `bun run test` | Vitest (`vitest.config.ts`) | jsdom | None — Firebase and audio are mocked/faked |
+| Unit + component | `bun run test` (app) · `bun run test:all` (everything) | Vitest (`vitest.config.ts`, six named projects) | jsdom, plus a Node project for the library pipeline | None — Firebase and audio are mocked/faked |
 | Firebase Emulator | `bun run test:emulator` | Vitest (`tests/emulator/vitest.config.ts`), wrapped by `firebase emulators:exec` | Node | Local Firestore emulator only, started and torn down automatically |
 | Browser E2E | `bun run test:browser` | Playwright (`playwright.config.ts`) | Real browsers (Chromium, Firefox, WebKit) | A local dev server (`bun run dev`) against the in-memory mock backend |
 | Browser E2E against the emulator | `bun run test:browser:emulator` | Playwright (`tests/e2e/emulator/playwright.config.ts`), wrapped by `firebase emulators:exec` | Real browsers (Chromium, Firefox) | A local dev server against a local Firestore + Auth emulator, started and torn down automatically |
 | Post-deploy smoke test | `bun run smoke:hosted` | Playwright (`tests/e2e/hosted/playwright.config.ts`) | Real browser (Chromium) | The real deployed Hosting URL (`SMOKE_URL`), real Firebase Auth/Firestore — see "Deploy" below |
+
+### The unit suite's six projects
+
+`vitest.config.ts` splits the unit and component suite along the layers in
+[`architecture.html`](./architecture.html) using Vitest's `test.projects`.
+Nothing moved on disk — the split is include globs over the existing `src/`
+tree — and the projects together collect exactly the files one config collected
+before. What it buys is filtering and attribution: run one layer while working
+in it, and read a failure or a slowdown as belonging to a layer rather than to
+"the tests".
+
+| Project | Covers | Files |
+| --- | --- | --- |
+| `domain` | `src/domain`, `src/commands`, `src/projection`, `src/selection` | 38 |
+| `audio` | `src/audio` | 25 |
+| `ui` | `src/editor`, `src/components`, `src/instrument`, `src/arrangement` | 51 |
+| `data` | `src/persistence`, `src/library`, `src/auth` | 19 |
+| `platform` | `src/analytics`, `src/monitoring`, `src/shortcuts`, `src/shared`, `src/testing`, root `src/*.test.ts` | 25 |
+| `library-pipeline` | `scripts/` — the sample-library build tooling, not the app | 16 |
+
+```bash
+bun run test                     # the five application projects
+bun run test:all                 # every project, including library-pipeline
+bun run test:library             # library-pipeline alone
+bunx vitest run --project=audio  # one layer
+bunx vitest --project=ui         # one layer, watch mode
+```
+
+**`bun run test` deliberately omits `library-pipeline`.** That project is build
+tooling an engineer runs by hand, and it changes infrequently. The cost is real
+and worth stating plainly: a local `bun run test` goes green without having
+exercised `scripts/`. CI closes that gap by running `bun run test:all` (see
+`.github/workflows/ci.yml`), so nothing merges unexercised, but if you are
+editing the pipeline itself, run `bun run test:library` rather than trusting
+`test`.
+
+`bun run verify:test-projects` enforces the partition: every tracked test file
+is owned by exactly one project. A file matched by no project never runs and
+nothing else would say so; a file matched by two runs twice. Both fail the
+check, and CI runs it before the suite.
+
+**This needs Vitest 4.** The projects use the `test.projects` API. Under
+Vitest 3's `defineWorkspace`, `vite-plugin-solid` did not receive the client
+resolve conditions, `solid-js/web` resolved to its *server* build, and every
+component test failed with "Client-only API called on the server side" — the
+same config file passed via `--config` and failed as a project, which is what
+identified it as a workspace bug rather than a configuration error.
 
 Each suite is isolated on purpose: `bun run test` never needs a browser or an emulator running, so it stays fast enough to run on every save. `test:emulator` and `test:browser` are heavier and are meant for CI and pre-push checks. `smoke:hosted` is the odd one out — it is the only suite that touches the production project, and it only ever runs post-deploy (see "Deploy").
 

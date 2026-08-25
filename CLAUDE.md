@@ -305,9 +305,13 @@ bun run clean        # Delete build/dev caches and test output (see docs/testing
 bun run check        # Run Biome linting
 
 # Testing
-bun run test              # Unit + component tests, once (needs an audio output device — see Testing below)
-bun run test:watch        # Unit + component tests, watch mode
+bun run test              # Unit + component tests, the five application projects (needs an audio output device — see Testing below)
+bun run test:all          # Every project, including the slow library-pipeline one. What CI runs.
+bun run test:library      # The sample-library build pipeline alone (scripts/)
+bun run test:watch        # The five application projects, watch mode
 bun run test:ui           # Unit + component tests, Vitest UI
+bunx vitest run --project=audio   # One layer — see vitest.config.ts for the six projects
+bun run verify:test-projects      # Every test file is owned by exactly one project
 bun run test:emulator     # Firebase Emulator suite (Firestore rules, etc.)
 bun run test:browser      # Browser E2E suite (Playwright: Chromium/Firefox/WebKit; in-memory mock backend)
 bun run test:browser:emulator  # Browser E2E suite against a local Firestore/Auth emulator (chromium/firefox)

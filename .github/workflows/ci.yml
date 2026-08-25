@@ -67,8 +67,15 @@ jobs:
               type null
           }
           EOF
+      - name: Every test file belongs to exactly one project
+        run: bun run verify:test-projects
       - name: Unit and component tests
-        run: bun run test
+        # `test:all`, not `test`: the local `test` script leaves out the
+        # `library-pipeline` project (the sample-library build tooling, which
+        # is most of the suite's wall clock and changes infrequently). CI is
+        # where that project must still run, so nothing merges without it.
+        # `vitest.config.ts` defines the projects.
+        run: bun run test:all
       - name: Validate the starter sound library
         # Renders all 200 assets and runs the full manifest validation
         # (docs/sample-library.md section 9), including the collection-level
