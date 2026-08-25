@@ -25,11 +25,22 @@ import { storageKeyFor } from "./wav.mjs";
 // They pass this generous timeout so a busy machine can't flake them.
 const RENDER_TIMEOUT_MS = 30_000;
 
+// One entry per family, chosen so the set stays cheap to render: this file's
+// whole point is to *avoid* the ~20s full build, and a single expensive pick
+// silently gives most of that back. `tonal-chord-0001` used to hold the tonal
+// slot at ~1030ms against 6-40ms for every other sample here — the chord voice
+// sums up to 64 sine partials per sample across a long tail — and the five
+// `buildAsset` tests below re-render the set, so it cost ~11s of this file's
+// runtime on its own. `tonal-key-0001` carries the same contract the tonal
+// slot is here for (a `rootNote` of C3 and a `tuningCents` of 0, asserted in
+// "describes tonal and unpitched assets differently") for ~40ms. The chord
+// voice is still rendered and validated by `bun run library:validate`, which
+// builds the whole catalogue.
 const SAMPLE_IDS = [
   "sg-one-shot-drums-kick-0001",
   "sg-one-shot-drums-closed-hat-0002",
   "sg-one-shot-bass-sub-0001",
-  "sg-one-shot-tonal-chord-0001",
+  "sg-one-shot-tonal-key-0001",
   "sg-one-shot-fx-glitch-0001",
 ];
 
@@ -104,9 +115,9 @@ describe("buildAsset", () => {
   it(
     "describes tonal and unpitched assets differently",
     () => {
-      const chord = buildAsset(sampleEntries[3]).asset;
-      expect(chord.audio.rootNote).toBe("C3");
-      expect(chord.audio.tuningCents).toBe(0);
+      const tonal = buildAsset(sampleEntries[3]).asset;
+      expect(tonal.audio.rootNote).toBe("C3");
+      expect(tonal.audio.tuningCents).toBe(0);
       const glitch = buildAsset(sampleEntries[4]).asset;
       expect(glitch.audio.rootNote).toBeNull();
       expect(glitch.audio.tuningCents).toBeNull();
