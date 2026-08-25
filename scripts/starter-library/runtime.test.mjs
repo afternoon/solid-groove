@@ -13,13 +13,13 @@ import { CATALOG, LOOP_CATALOG } from "./catalog/index.mjs";
 import { createRng, seedFromString } from "./dsp.mjs";
 import { MODULE_PATH } from "./emitRuntime.mjs";
 import { buildAsset, buildLoop } from "./manifest.mjs";
-import { renderVoice } from "./voices.mjs";
 import {
   buildRuntimeLibrary,
   RUNTIME_SELECTION,
   renderRuntimeModule,
   runtimeStorageRef,
 } from "./runtime.mjs";
+import { renderVoice } from "./voices.mjs";
 
 const runtime = buildRuntimeLibrary();
 
