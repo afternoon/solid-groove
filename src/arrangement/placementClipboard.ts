@@ -21,13 +21,13 @@ import type { IdFactory, PlacementId, TrackId } from "../domain/ids";
 import { toTicks } from "../domain/time";
 import type { DuplicateResult } from "./placementDuplication";
 import {
-	clampDuration,
-	clampTick,
-	deletePlacements,
-	findClip,
-	findPlacement,
-	MAX_ARRANGEMENT_TICKS,
-	snapToBar,
+  clampDuration,
+  clampTick,
+  deletePlacements,
+  findClip,
+  findPlacement,
+  MAX_ARRANGEMENT_TICKS,
+  snapToBar,
 } from "./placementGeometry";
 
 /**
@@ -38,46 +38,46 @@ import {
  * rather than resurrecting content from a stale snapshot.
  */
 export interface PlacementClipboardEntry {
-	readonly clipId: Clip["id"];
-	readonly trackId: TrackId;
-	readonly startTicks: number;
-	readonly durationTicks: number;
-	readonly clipOffsetTicks: number;
-	readonly looped: boolean;
+  readonly clipId: Clip["id"];
+  readonly trackId: TrackId;
+  readonly startTicks: number;
+  readonly durationTicks: number;
+  readonly clipOffsetTicks: number;
+  readonly looped: boolean;
 }
 
 export function copyPlacements(
-	project: Project,
-	placementIds: readonly PlacementId[],
+  project: Project,
+  placementIds: readonly PlacementId[],
 ): PlacementClipboardEntry[] {
-	const entries: PlacementClipboardEntry[] = [];
-	for (const id of placementIds) {
-		const placement = findPlacement(project, id);
-		if (!placement) continue;
-		entries.push({
-			clipId: placement.clipId,
-			trackId: placement.trackId,
-			startTicks: placement.startTicks,
-			durationTicks: placement.durationTicks,
-			clipOffsetTicks: placement.clipOffsetTicks,
-			looped: placement.looped,
-		});
-	}
-	return entries;
+  const entries: PlacementClipboardEntry[] = [];
+  for (const id of placementIds) {
+    const placement = findPlacement(project, id);
+    if (!placement) continue;
+    entries.push({
+      clipId: placement.clipId,
+      trackId: placement.trackId,
+      startTicks: placement.startTicks,
+      durationTicks: placement.durationTicks,
+      clipOffsetTicks: placement.clipOffsetTicks,
+      looped: placement.looped,
+    });
+  }
+  return entries;
 }
 
 /** Copy-then-delete: the clipboard content plus the commands that remove them. */
 export function cutPlacements(
-	project: Project,
-	placementIds: readonly PlacementId[],
+  project: Project,
+  placementIds: readonly PlacementId[],
 ): {
-	readonly clipboard: PlacementClipboardEntry[];
-	readonly commands: RawCommandInput[];
+  readonly clipboard: PlacementClipboardEntry[];
+  readonly commands: RawCommandInput[];
 } {
-	return {
-		clipboard: copyPlacements(project, placementIds),
-		commands: deletePlacements(project, placementIds),
-	};
+  return {
+    clipboard: copyPlacements(project, placementIds),
+    commands: deletePlacements(project, placementIds),
+  };
 }
 
 /**
@@ -87,32 +87,32 @@ export function cutPlacements(
  * still can rather than failing the whole transaction or inventing content.
  */
 export function pastePlacements(
-	project: Project,
-	clipboard: readonly PlacementClipboardEntry[],
-	targetTicks: number,
-	ids: IdFactory,
+  project: Project,
+  clipboard: readonly PlacementClipboardEntry[],
+  targetTicks: number,
+  ids: IdFactory,
 ): RawCommandInput[] {
-	if (clipboard.length === 0) return [];
-	const anchor = Math.min(...clipboard.map((entry) => entry.startTicks));
-	const target = snapToBar(targetTicks);
-	const commands: RawCommandInput[] = [];
-	for (const entry of clipboard) {
-		if (!findClip(project, entry.clipId)) continue;
-		const startTicks = toTicks(clampTick(target + (entry.startTicks - anchor)));
-		if (startTicks + entry.durationTicks > MAX_ARRANGEMENT_TICKS) continue;
-		commands.push(
-			addPlacement({
-				id: ids("placement"),
-				clipId: entry.clipId,
-				trackId: entry.trackId,
-				startTicks,
-				durationTicks: toTicks(entry.durationTicks),
-				clipOffsetTicks: toTicks(entry.clipOffsetTicks),
-				looped: entry.looped,
-			}),
-		);
-	}
-	return commands;
+  if (clipboard.length === 0) return [];
+  const anchor = Math.min(...clipboard.map((entry) => entry.startTicks));
+  const target = snapToBar(targetTicks);
+  const commands: RawCommandInput[] = [];
+  for (const entry of clipboard) {
+    if (!findClip(project, entry.clipId)) continue;
+    const startTicks = toTicks(clampTick(target + (entry.startTicks - anchor)));
+    if (startTicks + entry.durationTicks > MAX_ARRANGEMENT_TICKS) continue;
+    commands.push(
+      addPlacement({
+        id: ids("placement"),
+        clipId: entry.clipId,
+        trackId: entry.trackId,
+        startTicks,
+        durationTicks: toTicks(entry.durationTicks),
+        clipOffsetTicks: toTicks(entry.clipOffsetTicks),
+        looped: entry.looped,
+      }),
+    );
+  }
+  return commands;
 }
 
 /**
@@ -120,31 +120,31 @@ export function pastePlacements(
  * "create a placement" gesture, e.g. double-clicking empty arrangement space.
  */
 export function createPlacementAt(
-	project: Project,
-	clipId: Clip["id"],
-	startTicks: number,
-	ids: IdFactory,
+  project: Project,
+  clipId: Clip["id"],
+  startTicks: number,
+  ids: IdFactory,
 ): DuplicateResult {
-	const clip = findClip(project, clipId);
-	if (!clip) return { commands: [], placementId: null };
-	const start = snapToBar(startTicks);
-	const durationTicks = clampDuration(start, clip.lengthTicks);
-	if (start + durationTicks > MAX_ARRANGEMENT_TICKS) {
-		return { commands: [], placementId: null };
-	}
-	const placementId = ids("placement");
-	return {
-		commands: [
-			addPlacement({
-				id: placementId,
-				clipId: clip.id,
-				trackId: clip.trackId,
-				startTicks: start,
-				durationTicks,
-				clipOffsetTicks: toTicks(0),
-				looped: false,
-			}),
-		],
-		placementId,
-	};
+  const clip = findClip(project, clipId);
+  if (!clip) return { commands: [], placementId: null };
+  const start = snapToBar(startTicks);
+  const durationTicks = clampDuration(start, clip.lengthTicks);
+  if (start + durationTicks > MAX_ARRANGEMENT_TICKS) {
+    return { commands: [], placementId: null };
+  }
+  const placementId = ids("placement");
+  return {
+    commands: [
+      addPlacement({
+        id: placementId,
+        clipId: clip.id,
+        trackId: clip.trackId,
+        startTicks: start,
+        durationTicks,
+        clipOffsetTicks: toTicks(0),
+        looped: false,
+      }),
+    ],
+    placementId,
+  };
 }

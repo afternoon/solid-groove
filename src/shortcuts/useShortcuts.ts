@@ -1,8 +1,5 @@
 import { onCleanup, onMount } from "solid-js";
-import {
-	ShortcutController,
-	type ShortcutControllerOptions,
-} from "./ShortcutController";
+import { ShortcutController, type ShortcutControllerOptions } from "./ShortcutController";
 
 /**
  * Installs one `ShortcutController` on the window for the lifetime of the
@@ -13,13 +10,11 @@ import {
  * controller's own context and text-entry rules decide whether it acts, so
  * "listens everywhere" never means "fires everywhere".
  */
-export function useShortcuts(
-	options: ShortcutControllerOptions,
-): ShortcutController {
-	const controller = new ShortcutController(options);
-	onMount(() => {
-		const detach = controller.attach(window);
-		onCleanup(detach);
-	});
-	return controller;
+export function useShortcuts(options: ShortcutControllerOptions): ShortcutController {
+  const controller = new ShortcutController(options);
+  onMount(() => {
+    const detach = controller.attach(window);
+    onCleanup(detach);
+  });
+  return controller;
 }

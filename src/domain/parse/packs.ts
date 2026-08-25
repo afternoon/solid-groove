@@ -2,31 +2,31 @@ import type { Project, ProjectMetadata } from "../entities";
 import { type DomainIssue, issue } from "./primitives";
 
 export function checkMetadata(metadata: ProjectMetadata): DomainIssue[] {
-	const issues: DomainIssue[] = [];
-	if (metadata.modifiedAt < metadata.createdAt) {
-		issues.push(
-			issue(
-				"invalid_metadata",
-				["metadata", "modifiedAt"],
-				"modifiedAt precedes createdAt",
-			),
-		);
-	}
-	const seen = new Set<string>();
-	metadata.collaboratorIds.forEach((collaboratorId, index) => {
-		if (seen.has(collaboratorId)) {
-			issues.push(
-				issue(
-					"duplicate_id",
-					["metadata", "collaboratorIds", index],
-					`Collaborator ${collaboratorId} is listed more than once`,
-				),
-			);
-		}
-		seen.add(collaboratorId);
-	});
-	issues.push(...checkPackDependencyList(metadata));
-	return issues;
+  const issues: DomainIssue[] = [];
+  if (metadata.modifiedAt < metadata.createdAt) {
+    issues.push(
+      issue(
+        "invalid_metadata",
+        ["metadata", "modifiedAt"],
+        "modifiedAt precedes createdAt",
+      ),
+    );
+  }
+  const seen = new Set<string>();
+  metadata.collaboratorIds.forEach((collaboratorId, index) => {
+    if (seen.has(collaboratorId)) {
+      issues.push(
+        issue(
+          "duplicate_id",
+          ["metadata", "collaboratorIds", index],
+          `Collaborator ${collaboratorId} is listed more than once`,
+        ),
+      );
+    }
+    seen.add(collaboratorId);
+  });
+  issues.push(...checkPackDependencyList(metadata));
+  return issues;
 }
 
 /**
@@ -37,34 +37,32 @@ export function checkMetadata(metadata: ProjectMetadata): DomainIssue[] {
  * would make "which audio does this project resolve?" ambiguous and is exactly
  * the silent substitution LIB-05 rules out.
  */
-export function checkPackDependencyList(
-	metadata: ProjectMetadata,
-): DomainIssue[] {
-	const issues: DomainIssue[] = [];
-	const versions = new Map<string, string>();
-	metadata.packDependencies.forEach((dependency, index) => {
-		const path = ["metadata", "packDependencies", index] as const;
-		const existing = versions.get(dependency.packId);
-		if (existing === dependency.version) {
-			issues.push(
-				issue(
-					"duplicate_id",
-					path,
-					`Pack ${dependency.packId} is listed more than once at version ${dependency.version}`,
-				),
-			);
-		} else if (existing !== undefined) {
-			issues.push(
-				issue(
-					"invalid_pack_reference",
-					path,
-					`Project depends on two versions of pack ${dependency.packId} (${existing} and ${dependency.version}); a project resolves one version per pack`,
-				),
-			);
-		}
-		versions.set(dependency.packId, dependency.version);
-	});
-	return issues;
+export function checkPackDependencyList(metadata: ProjectMetadata): DomainIssue[] {
+  const issues: DomainIssue[] = [];
+  const versions = new Map<string, string>();
+  metadata.packDependencies.forEach((dependency, index) => {
+    const path = ["metadata", "packDependencies", index] as const;
+    const existing = versions.get(dependency.packId);
+    if (existing === dependency.version) {
+      issues.push(
+        issue(
+          "duplicate_id",
+          path,
+          `Pack ${dependency.packId} is listed more than once at version ${dependency.version}`,
+        ),
+      );
+    } else if (existing !== undefined) {
+      issues.push(
+        issue(
+          "invalid_pack_reference",
+          path,
+          `Project depends on two versions of pack ${dependency.packId} (${existing} and ${dependency.version}); a project resolves one version per pack`,
+        ),
+      );
+    }
+    versions.set(dependency.packId, dependency.version);
+  });
+  return issues;
 }
 
 /**
@@ -78,54 +76,54 @@ export function checkPackDependencyList(
  * produce a valid one.
  */
 export function checkPackQualification(project: Project): DomainIssue[] {
-	const issues: DomainIssue[] = [];
-	const declared = new Map(
-		project.metadata.packDependencies.map((dependency) => [
-			dependency.packId as string,
-			dependency.version as string,
-		]),
-	);
-	const used = new Set<string>();
+  const issues: DomainIssue[] = [];
+  const declared = new Map(
+    project.metadata.packDependencies.map((dependency) => [
+      dependency.packId as string,
+      dependency.version as string,
+    ]),
+  );
+  const used = new Set<string>();
 
-	project.song.assets.forEach((asset, index) => {
-		const path = ["song", "assets", index] as const;
-		const declaredVersion = declared.get(asset.packId);
-		if (declaredVersion === undefined) {
-			issues.push(
-				issue(
-					"invalid_pack_reference",
-					[...path, "packId"],
-					`Asset ${asset.id} resolves from pack ${asset.packId}, which the project does not declare as a dependency`,
-				),
-			);
-			return;
-		}
-		if (declaredVersion !== asset.packVersion) {
-			issues.push(
-				issue(
-					"invalid_pack_reference",
-					[...path, "packVersion"],
-					`Asset ${asset.id} resolved from pack ${asset.packId} version ${asset.packVersion}, but the project declares version ${declaredVersion}`,
-				),
-			);
-			return;
-		}
-		used.add(asset.packId);
-	});
+  project.song.assets.forEach((asset, index) => {
+    const path = ["song", "assets", index] as const;
+    const declaredVersion = declared.get(asset.packId);
+    if (declaredVersion === undefined) {
+      issues.push(
+        issue(
+          "invalid_pack_reference",
+          [...path, "packId"],
+          `Asset ${asset.id} resolves from pack ${asset.packId}, which the project does not declare as a dependency`,
+        ),
+      );
+      return;
+    }
+    if (declaredVersion !== asset.packVersion) {
+      issues.push(
+        issue(
+          "invalid_pack_reference",
+          [...path, "packVersion"],
+          `Asset ${asset.id} resolved from pack ${asset.packId} version ${asset.packVersion}, but the project declares version ${declaredVersion}`,
+        ),
+      );
+      return;
+    }
+    used.add(asset.packId);
+  });
 
-	project.metadata.packDependencies.forEach((dependency, index) => {
-		if (!used.has(dependency.packId)) {
-			issues.push(
-				issue(
-					"invalid_metadata",
-					["metadata", "packDependencies", index],
-					`Pack ${dependency.packId} is declared as a dependency but no asset resolves from it; the dependency list is derived from project state, not maintained by hand`,
-				),
-			);
-		}
-	});
+  project.metadata.packDependencies.forEach((dependency, index) => {
+    if (!used.has(dependency.packId)) {
+      issues.push(
+        issue(
+          "invalid_metadata",
+          ["metadata", "packDependencies", index],
+          `Pack ${dependency.packId} is declared as a dependency but no asset resolves from it; the dependency list is derived from project state, not maintained by hand`,
+        ),
+      );
+    }
+  });
 
-	return issues;
+  return issues;
 }
 
 /**
@@ -147,51 +145,51 @@ export function checkPackQualification(project: Project): DomainIssue[] {
  *    check rejects rather than silently reconciling.
  */
 export function checkAddedPacks(project: Project): DomainIssue[] {
-	const issues: DomainIssue[] = [];
-	const shelved = new Map<string, string>();
-	project.metadata.addedPacks.forEach((entry, index) => {
-		const path = ["metadata", "addedPacks", index] as const;
-		const existing = shelved.get(entry.packId);
-		if (existing === entry.version) {
-			issues.push(
-				issue(
-					"duplicate_id",
-					path,
-					`Pack ${entry.packId} is on the shelf more than once at version ${entry.version}`,
-				),
-			);
-		} else if (existing !== undefined) {
-			issues.push(
-				issue(
-					"invalid_pack_reference",
-					path,
-					`The shelf holds two versions of pack ${entry.packId} (${existing} and ${entry.version}); a project shelves one version per pack`,
-				),
-			);
-		}
-		shelved.set(entry.packId, entry.version);
-	});
+  const issues: DomainIssue[] = [];
+  const shelved = new Map<string, string>();
+  project.metadata.addedPacks.forEach((entry, index) => {
+    const path = ["metadata", "addedPacks", index] as const;
+    const existing = shelved.get(entry.packId);
+    if (existing === entry.version) {
+      issues.push(
+        issue(
+          "duplicate_id",
+          path,
+          `Pack ${entry.packId} is on the shelf more than once at version ${entry.version}`,
+        ),
+      );
+    } else if (existing !== undefined) {
+      issues.push(
+        issue(
+          "invalid_pack_reference",
+          path,
+          `The shelf holds two versions of pack ${entry.packId} (${existing} and ${entry.version}); a project shelves one version per pack`,
+        ),
+      );
+    }
+    shelved.set(entry.packId, entry.version);
+  });
 
-	project.metadata.packDependencies.forEach((dependency, index) => {
-		const shelvedVersion = shelved.get(dependency.packId);
-		if (shelvedVersion === undefined) {
-			issues.push(
-				issue(
-					"invalid_metadata",
-					["metadata", "packDependencies", index],
-					`Pack ${dependency.packId} is a dependency but is not on the project's shelf (addedPacks); a used pack must be shelved so it cannot be removed from the panel while its sounds still play`,
-				),
-			);
-		} else if (shelvedVersion !== dependency.version) {
-			issues.push(
-				issue(
-					"invalid_pack_reference",
-					["metadata", "packDependencies", index],
-					`Pack ${dependency.packId} is used at version ${dependency.version} but shelved at version ${shelvedVersion}; the shelf must match the version the project resolves`,
-				),
-			);
-		}
-	});
+  project.metadata.packDependencies.forEach((dependency, index) => {
+    const shelvedVersion = shelved.get(dependency.packId);
+    if (shelvedVersion === undefined) {
+      issues.push(
+        issue(
+          "invalid_metadata",
+          ["metadata", "packDependencies", index],
+          `Pack ${dependency.packId} is a dependency but is not on the project's shelf (addedPacks); a used pack must be shelved so it cannot be removed from the panel while its sounds still play`,
+        ),
+      );
+    } else if (shelvedVersion !== dependency.version) {
+      issues.push(
+        issue(
+          "invalid_pack_reference",
+          ["metadata", "packDependencies", index],
+          `Pack ${dependency.packId} is used at version ${dependency.version} but shelved at version ${shelvedVersion}; the shelf must match the version the project resolves`,
+        ),
+      );
+    }
+  });
 
-	return issues;
+  return issues;
 }

@@ -12,8 +12,8 @@
 
 /** @param {object} manifest the merged library manifest */
 export function renderAuditionPage(manifest) {
-	const payload = JSON.stringify(manifest).replace(/</g, "\\u003c");
-	return `<!doctype html>
+  const payload = JSON.stringify(manifest).replace(/</g, "\\u003c");
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">

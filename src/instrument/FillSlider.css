@@ -3,77 +3,73 @@
    sequence horizontally and never stack. */
 
 .fill-slider {
-	/* A surface may shorten the track (the mixer packs more into a strip); the
+  /* A surface may shorten the track (the mixer packs more into a strip); the
 	   width is fixed by the mock and the input geometry follows both. */
-	--fill-slider-track-height: 120px;
-	--fill-slider-track-width: 22px;
+  --fill-slider-track-height: 120px;
+  --fill-slider-track-width: 22px;
 
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	width: 48px;
-	gap: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 48px;
+  gap: 6px;
 }
 
 .fill-slider-label {
-	font-size: var(--font-size-tiny);
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: var(--color-foreground);
-	white-space: nowrap;
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground);
+  white-space: nowrap;
 }
 
 .fill-slider-track {
-	position: relative;
-	width: var(--fill-slider-track-width);
-	height: var(--fill-slider-track-height);
-	background-color: var(--color-background);
-	overflow: hidden;
+  position: relative;
+  width: var(--fill-slider-track-width);
+  height: var(--fill-slider-track-height);
+  background-color: var(--color-background);
+  overflow: hidden;
 }
 
 /* The filled portion IS the value, growing from the bottom. Resting sliders use
    the muted accent; the touched (focused/hovered) one uses the bright accent. */
 .fill-slider-fill {
-	position: absolute;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	background-color: color-mix(
-		in srgb,
-		var(--color-accent, #20c8e8) 55%,
-		#1b6b7a
-	);
-	pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: color-mix(in srgb, var(--color-accent, #20c8e8) 55%, #1b6b7a);
+  pointer-events: none;
 }
 
 .fill-slider-track:hover .fill-slider-fill,
 .fill-slider-track:focus-within .fill-slider-fill {
-	background-color: var(--color-accent, #20c8e8);
+  background-color: var(--color-accent, #20c8e8);
 }
 
 /* The real range input, restyled to an invisible thumbless overlay so the fill
    div reads the value visually while the input carries keyboard + a11y. */
 .fill-slider-input {
-	position: absolute;
-	inset: 0;
-	width: var(--fill-slider-track-height);
-	height: var(--fill-slider-track-width);
-	/* Rotate a horizontal range so up = more, keeping native arrow-key semantics
+  position: absolute;
+  inset: 0;
+  width: var(--fill-slider-track-height);
+  height: var(--fill-slider-track-width);
+  /* Rotate a horizontal range so up = more, keeping native arrow-key semantics
 	   (Up/Right increases). Rotating -90deg about (h/2, h/2) — half the track's
 	   *height* on both axes — lands the rotated input exactly over the track, so
 	   the fill a user sees is the surface they can drag, at any track height.
 	   The border box has to be exactly the track's size for that to hold, which
 	   is what `box-sizing` and the zeroed padding are for: the app-wide `input`
 	   rule adds padding, and content-box would push the input off the track. */
-	box-sizing: border-box;
-	padding: 0;
-	transform: rotate(-90deg);
-	transform-origin: calc(var(--fill-slider-track-height) / 2)
-		calc(var(--fill-slider-track-height) / 2);
-	margin: 0;
-	cursor: ns-resize;
-	appearance: none;
-	-webkit-appearance: none;
+  box-sizing: border-box;
+  padding: 0;
+  transform: rotate(-90deg);
+  transform-origin: calc(var(--fill-slider-track-height) / 2)
+    calc(var(--fill-slider-track-height) / 2);
+  margin: 0;
+  cursor: ns-resize;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 /* The input sits *over* the fill it paints, so it has to stay invisible in
@@ -83,44 +79,44 @@
 .fill-slider-input,
 .fill-slider-input:hover,
 .fill-slider-input:focus {
-	background: transparent;
+  background: transparent;
 }
 
 .fill-slider-input:focus-visible {
-	outline: 2px solid var(--color-accent, #20c8e8);
-	outline-offset: 2px;
+  outline: 2px solid var(--color-accent, #20c8e8);
+  outline-offset: 2px;
 }
 
 .fill-slider-input::-webkit-slider-thumb {
-	appearance: none;
-	-webkit-appearance: none;
-	width: var(--fill-slider-track-width);
-	height: 6px;
-	background: transparent;
-	cursor: ns-resize;
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--fill-slider-track-width);
+  height: 6px;
+  background: transparent;
+  cursor: ns-resize;
 }
 
 .fill-slider-input::-moz-range-thumb {
-	width: var(--fill-slider-track-width);
-	height: 6px;
-	border: none;
-	background: transparent;
-	cursor: ns-resize;
+  width: var(--fill-slider-track-width);
+  height: 6px;
+  border: none;
+  background: transparent;
+  cursor: ns-resize;
 }
 
 .fill-slider-input::-webkit-slider-runnable-track {
-	background: transparent;
+  background: transparent;
 }
 
 .fill-slider-input::-moz-range-track {
-	background: transparent;
+  background: transparent;
 }
 
 .fill-slider-value {
-	font-size: var(--font-size-small);
-	color: var(--color-text);
-	white-space: nowrap;
-	font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-small);
+  color: var(--color-text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The same control on its side, for a value that already reads as a left-right
@@ -129,68 +125,68 @@
    the container rather than setting it — so it can never widen what holds it,
    and the row does not reflow as "C" becomes "L100". */
 .fill-slider.horizontal {
-	display: grid;
-	grid-template-columns: auto auto;
-	justify-content: space-between;
-	align-items: center;
-	width: 100%;
-	gap: 3px 6px;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 3px 6px;
 }
 
 /* Placed explicitly: the DOM order is label, track, value — the reading order
    for the vertical shape — and only the layout is rearranged here. */
 .fill-slider.horizontal .fill-slider-label {
-	grid-area: 1 / 1;
+  grid-area: 1 / 1;
 }
 
 .fill-slider.horizontal .fill-slider-value {
-	grid-area: 1 / 2;
-	justify-self: end;
+  grid-area: 1 / 2;
+  justify-self: end;
 }
 
 .fill-slider.horizontal .fill-slider-track {
-	grid-area: 2 / 1 / 2 / -1;
-	width: auto;
-	height: var(--fill-slider-track-thickness, 10px);
+  grid-area: 2 / 1 / 2 / -1;
+  width: auto;
+  height: var(--fill-slider-track-thickness, 10px);
 }
 
 .fill-slider.horizontal .fill-slider-fill {
-	top: 0;
-	right: auto;
-	/* A bipolar value at exact centre still shows where it is rather than
+  top: 0;
+  right: auto;
+  /* A bipolar value at exact centre still shows where it is rather than
 	   vanishing; 2px reads as a tick, not as an offset. */
-	min-width: 2px;
+  min-width: 2px;
 }
 
 /* Centre rest position, marked once so the pan's own fill is read against it. */
 .fill-slider.horizontal.bipolar .fill-slider-track::before {
-	content: "";
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: calc(50% - 1px);
-	width: 2px;
-	background-color: var(--color-background-hover);
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  background-color: var(--color-background-hover);
 }
 
 /* Horizontal is a range input's native orientation, so it needs no rotation —
    only to be stretched over the track it paints. */
 .fill-slider.horizontal .fill-slider-input {
-	width: 100%;
-	height: 100%;
-	transform: none;
-	transform-origin: 50% 50%;
-	cursor: ew-resize;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  transform-origin: 50% 50%;
+  cursor: ew-resize;
 }
 
 .fill-slider.horizontal .fill-slider-input::-webkit-slider-thumb {
-	width: 6px;
-	height: 100%;
-	cursor: ew-resize;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
 }
 
 .fill-slider.horizontal .fill-slider-input::-moz-range-thumb {
-	width: 6px;
-	height: 100%;
-	cursor: ew-resize;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
 }

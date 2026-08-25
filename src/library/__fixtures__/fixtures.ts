@@ -1,9 +1,6 @@
 import type { JsonFetcher } from "../libraryClient";
 import { PACK_INDEX_PATH } from "../manifest";
-import {
-	FIXTURE_PACK_INDEX,
-	FIXTURE_PACK_MANIFESTS,
-} from "./library.generated";
+import { FIXTURE_PACK_INDEX, FIXTURE_PACK_MANIFESTS } from "./library.generated";
 
 /**
  * A small, committed slice of the real delivered library, for deterministic
@@ -18,11 +15,11 @@ export const FIXTURE_PACK_INDEX_DOC = FIXTURE_PACK_INDEX;
 
 /** A {@link JsonFetcher} that serves the committed fixtures by delivery path. */
 export function fixtureFetcher(): JsonFetcher {
-	return async (path: string) => {
-		if (path === PACK_INDEX_PATH) return FIXTURE_PACK_INDEX;
-		for (const [slug, manifest] of Object.entries(FIXTURE_PACK_MANIFESTS)) {
-			if (path.includes(`/${slug}/`)) return manifest;
-		}
-		throw new Error(`No fixture for path "${path}"`);
-	};
+  return async (path: string) => {
+    if (path === PACK_INDEX_PATH) return FIXTURE_PACK_INDEX;
+    for (const [slug, manifest] of Object.entries(FIXTURE_PACK_MANIFESTS)) {
+      if (path.includes(`/${slug}/`)) return manifest;
+    }
+    throw new Error(`No fixture for path "${path}"`);
+  };
 }

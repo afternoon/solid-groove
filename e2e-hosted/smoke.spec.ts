@@ -13,33 +13,31 @@ import { expect, test } from "@playwright/test";
 // build can actually reach production Firebase Authentication, Firestore, and
 // security rules.
 test.describe("hosted alpha smoke test", () => {
-	test("loads, starts an anonymous session, opens a project, and starts audio after a gesture", async ({
-		page,
-	}) => {
-		await page.goto("/");
-		await expect(
-			page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
-		).toBeVisible();
+  test("loads, starts an anonymous session, opens a project, and starts audio after a gesture", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+    ).toBeVisible();
 
-		// Anonymous session start (Firebase Authentication, not the mock), through
-		// the PRD PRJ-06 landing page's primary call to action.
-		await page.getByRole("button", { name: "Start in your browser" }).click();
-		await expect(page).toHaveURL(/\/dashboard$/);
-		await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    // Anonymous session start (Firebase Authentication, not the mock), through
+    // the PRD PRJ-06 landing page's primary call to action.
+    await page.getByRole("button", { name: "Start in your browser" }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
-		// Project open. The hosted alpha has no seeded project for a fresh
-		// anonymous identity (that is Alpha Milestone 1's starter-template work), so the
-		// smoke test creates one -- this also proves the Firestore write path
-		// and security rules work end to end, not just the read path.
-		await page.getByRole("button", { name: "New Project" }).click();
-		await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+    // Project open. The hosted alpha has no seeded project for a fresh
+    // anonymous identity (that is Alpha Milestone 1's starter-template work), so the
+    // smoke test creates one -- this also proves the Firestore write path
+    // and security rules work end to end, not just the read path.
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/[^/]+$/);
 
-		// Audio start after a user gesture (autoplay policies require one).
-		const playButton = page.getByRole("button", { name: "Start playback" });
-		await expect(playButton).toBeVisible();
-		await playButton.click();
-		await expect(
-			page.getByRole("button", { name: "Stop playback" }),
-		).toBeVisible();
-	});
+    // Audio start after a user gesture (autoplay policies require one).
+    const playButton = page.getByRole("button", { name: "Start playback" });
+    await expect(playButton).toBeVisible();
+    await playButton.click();
+    await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+  });
 });

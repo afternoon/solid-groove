@@ -14,13 +14,13 @@ import "./ReleaseBadge.css";
  * exact revision without parsing the truncated display text.
  */
 const ReleaseBadge: Component = () => (
-	<footer
-		class="release-badge"
-		data-release-sha={RELEASE_SHA}
-		title={`Build ${RELEASE_SHA}`}
-	>
-		{shortReleaseSha()}
-	</footer>
+  <footer
+    class="release-badge"
+    data-release-sha={RELEASE_SHA}
+    title={`Build ${RELEASE_SHA}`}
+  >
+    {shortReleaseSha()}
+  </footer>
 );
 
 export default ReleaseBadge;

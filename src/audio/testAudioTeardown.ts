@@ -31,17 +31,17 @@ import * as nwaa from "node-web-audio-api";
  * from an event handler still propagates normally.
  */
 function isStaleEventDispatchTypeError(error: unknown): boolean {
-	// jsdom throws from its own realm, so a cross-realm `instanceof Error` is
-	// unreliable here — match structurally on `name`/`message` instead.
-	if (typeof error !== "object" || error === null) return false;
-	const { name, message } = error as { name?: unknown; message?: unknown };
-	if (name !== "TypeError" || typeof message !== "string") return false;
-	// jsdom words it "...parameter 1 is not of type 'Event'."; Node's native
-	// EventTarget words the same failure "...must be an instance of Event".
-	return (
-		(/dispatchEvent/.test(message) && /not of type 'Event'/.test(message)) ||
-		/must be an instance of Event/.test(message)
-	);
+  // jsdom throws from its own realm, so a cross-realm `instanceof Error` is
+  // unreliable here — match structurally on `name`/`message` instead.
+  if (typeof error !== "object" || error === null) return false;
+  const { name, message } = error as { name?: unknown; message?: unknown };
+  if (name !== "TypeError" || typeof message !== "string") return false;
+  // jsdom words it "...parameter 1 is not of type 'Event'."; Node's native
+  // EventTarget words the same failure "...must be an instance of Event".
+  return (
+    (/dispatchEvent/.test(message) && /not of type 'Event'/.test(message)) ||
+    /must be an instance of Event/.test(message)
+  );
 }
 
 let installed = false;
@@ -52,28 +52,27 @@ let installed = false;
  * leave the single wrapper in place.
  */
 export function installWebAudioTeardownGuard(): void {
-	if (installed) return;
-	const audioNode = (nwaa as unknown as { AudioNode?: { prototype: object } })
-		.AudioNode;
-	if (!audioNode?.prototype) return;
-	const proto = audioNode.prototype as {
-		dispatchEvent?: (event: Event) => boolean;
-	};
-	// The inherited (jsdom / native EventTarget) implementation.
-	const inherited = proto.dispatchEvent;
-	if (typeof inherited !== "function") return;
-	installed = true;
-	// An OWN property on node-web-audio-api's AudioNode.prototype, so the wrap is
-	// scoped to its nodes and never touches the global EventTarget itself.
-	proto.dispatchEvent = function guardedDispatchEvent(
-		this: object,
-		event: Event,
-	): boolean {
-		try {
-			return inherited.call(this, event);
-		} catch (error) {
-			if (isStaleEventDispatchTypeError(error)) return false;
-			throw error;
-		}
-	};
+  if (installed) return;
+  const audioNode = (nwaa as unknown as { AudioNode?: { prototype: object } }).AudioNode;
+  if (!audioNode?.prototype) return;
+  const proto = audioNode.prototype as {
+    dispatchEvent?: (event: Event) => boolean;
+  };
+  // The inherited (jsdom / native EventTarget) implementation.
+  const inherited = proto.dispatchEvent;
+  if (typeof inherited !== "function") return;
+  installed = true;
+  // An OWN property on node-web-audio-api's AudioNode.prototype, so the wrap is
+  // scoped to its nodes and never touches the global EventTarget itself.
+  proto.dispatchEvent = function guardedDispatchEvent(
+    this: object,
+    event: Event,
+  ): boolean {
+    try {
+      return inherited.call(this, event);
+    } catch (error) {
+      if (isStaleEventDispatchTypeError(error)) return false;
+      throw error;
+    }
+  };
 }

@@ -20,11 +20,11 @@ import type { ErrorArea } from "../analytics/errorCodes";
 import { type ErrorReporter, errorReporter } from "./errorReporting";
 
 export interface GlobalHandlerOptions {
-	reporter?: ErrorReporter;
-	/** Defaults to `window`; injectable so tests need no real global. */
-	target?: Pick<Window, "addEventListener" | "removeEventListener">;
-	/** Area attributed to errors with no better attribution. */
-	area?: ErrorArea;
+  reporter?: ErrorReporter;
+  /** Defaults to `window`; injectable so tests need no real global. */
+  target?: Pick<Window, "addEventListener" | "removeEventListener">;
+  /** Area attributed to errors with no better attribution. */
+  area?: ErrorArea;
 }
 
 /**
@@ -35,35 +35,34 @@ export interface GlobalHandlerOptions {
  * it does not intercept.
  */
 export function installGlobalErrorHandlers(
-	options: GlobalHandlerOptions = {},
+  options: GlobalHandlerOptions = {},
 ): () => void {
-	const reporter = options.reporter ?? errorReporter;
-	const area = options.area ?? "shell";
-	const target =
-		options.target ?? (typeof window === "undefined" ? undefined : window);
-	if (!target) return () => {};
+  const reporter = options.reporter ?? errorReporter;
+  const area = options.area ?? "shell";
+  const target = options.target ?? (typeof window === "undefined" ? undefined : window);
+  if (!target) return () => {};
 
-	const onError = (event: Event): void => {
-		// `error` is null for cross-origin script errors ("Script error."), where
-		// the browser withholds detail. Fall back to the message so the count is
-		// still right, even though the stack will not be useful.
-		const errorEvent = event as ErrorEvent;
-		const thrown = errorEvent.error ?? errorEvent.message ?? "unknown error";
-		safely(() => reporter.report(thrown, { area, fatal: true }));
-	};
+  const onError = (event: Event): void => {
+    // `error` is null for cross-origin script errors ("Script error."), where
+    // the browser withholds detail. Fall back to the message so the count is
+    // still right, even though the stack will not be useful.
+    const errorEvent = event as ErrorEvent;
+    const thrown = errorEvent.error ?? errorEvent.message ?? "unknown error";
+    safely(() => reporter.report(thrown, { area, fatal: true }));
+  };
 
-	const onRejection = (event: Event): void => {
-		const rejection = event as PromiseRejectionEvent;
-		safely(() => reporter.report(rejection.reason, { area, fatal: true }));
-	};
+  const onRejection = (event: Event): void => {
+    const rejection = event as PromiseRejectionEvent;
+    safely(() => reporter.report(rejection.reason, { area, fatal: true }));
+  };
 
-	target.addEventListener("error", onError);
-	target.addEventListener("unhandledrejection", onRejection);
+  target.addEventListener("error", onError);
+  target.addEventListener("unhandledrejection", onRejection);
 
-	return () => {
-		target.removeEventListener("error", onError);
-		target.removeEventListener("unhandledrejection", onRejection);
-	};
+  return () => {
+    target.removeEventListener("error", onError);
+    target.removeEventListener("unhandledrejection", onRejection);
+  };
 }
 
 /**
@@ -73,9 +72,9 @@ export function installGlobalErrorHandlers(
  * nothing and keeps the guarantee local to the handler as well.
  */
 function safely(action: () => void): void {
-	try {
-		action();
-	} catch {
-		// Nowhere to escalate to, by design.
-	}
+  try {
+    action();
+  } catch {
+    // Nowhere to escalate to, by design.
+  }
 }

@@ -19,11 +19,11 @@
 const OPENED_STORAGE_PREFIX = "sg_device_opened:";
 
 function safeStorage(): Storage | null {
-	try {
-		return typeof localStorage === "undefined" ? null : localStorage;
-	} catch {
-		return null;
-	}
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -35,34 +35,28 @@ function safeStorage(): Storage | null {
  * as a first open rather than throwing — the same fail-open posture PRD
  * `OPS-02` requires of analytics generally.
  */
-export function markProjectOpened(
-	projectId: string,
-	storage?: Storage | null,
-): boolean {
-	const store = storage === undefined ? safeStorage() : storage;
-	if (!store) return true;
-	const key = OPENED_STORAGE_PREFIX + projectId;
-	try {
-		if (store.getItem(key) !== null) return false;
-		store.setItem(key, "1");
-		return true;
-	} catch {
-		return true;
-	}
+export function markProjectOpened(projectId: string, storage?: Storage | null): boolean {
+  const store = storage === undefined ? safeStorage() : storage;
+  if (!store) return true;
+  const key = OPENED_STORAGE_PREFIX + projectId;
+  try {
+    if (store.getItem(key) !== null) return false;
+    store.setItem(key, "1");
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 /** Removes the device-local marker. Used when a project is deleted. */
-export function clearProjectOpened(
-	projectId: string,
-	storage?: Storage | null,
-): void {
-	const store = storage === undefined ? safeStorage() : storage;
-	if (!store) return;
-	try {
-		store.removeItem(OPENED_STORAGE_PREFIX + projectId);
-	} catch {
-		// Best-effort cleanup; a leaked marker just costs one stale "not first
-		// open" read if the project id is ever reused, which prefixed IDs make
-		// practically impossible.
-	}
+export function clearProjectOpened(projectId: string, storage?: Storage | null): void {
+  const store = storage === undefined ? safeStorage() : storage;
+  if (!store) return;
+  try {
+    store.removeItem(OPENED_STORAGE_PREFIX + projectId);
+  } catch {
+    // Best-effort cleanup; a leaked marker just costs one stale "not first
+    // open" read if the project id is ever reused, which prefixed IDs make
+    // practically impossible.
+  }
 }

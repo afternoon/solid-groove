@@ -10,40 +10,40 @@ import { describeDuplicate } from "./placementDuplication";
  * a keyboard shortcut cannot make honestly on its own.
  */
 export interface PlacementToolbarProps {
-	readonly selectionCount: number;
-	readonly onDuplicateLinked: () => void;
-	readonly onDuplicateIndependent: () => void;
+  readonly selectionCount: number;
+  readonly onDuplicateLinked: () => void;
+  readonly onDuplicateIndependent: () => void;
 }
 
 export function PlacementToolbar(props: PlacementToolbarProps) {
-	const disabled = () => props.selectionCount === 0;
-	return (
-		<div class="placement-toolbar" data-testid="placement-toolbar">
-			<span class="placement-toolbar-count">
-				{props.selectionCount > 0
-					? `${props.selectionCount} placement${props.selectionCount === 1 ? "" : "s"} selected`
-					: "No placement selected"}
-			</span>
-			<button
-				type="button"
-				class="arrangement-action"
-				data-action="duplicate-linked"
-				disabled={disabled()}
-				title={describeDuplicate("linked")}
-				onClick={() => props.onDuplicateLinked()}
-			>
-				{describeDuplicate("linked")}
-			</button>
-			<button
-				type="button"
-				class="arrangement-action"
-				data-action="duplicate-independent"
-				disabled={disabled()}
-				title={describeDuplicate("independent")}
-				onClick={() => props.onDuplicateIndependent()}
-			>
-				{describeDuplicate("independent")}
-			</button>
-		</div>
-	);
+  const disabled = () => props.selectionCount === 0;
+  return (
+    <div class="placement-toolbar" data-testid="placement-toolbar">
+      <span class="placement-toolbar-count">
+        {props.selectionCount > 0
+          ? `${props.selectionCount} placement${props.selectionCount === 1 ? "" : "s"} selected`
+          : "No placement selected"}
+      </span>
+      <button
+        type="button"
+        class="arrangement-action"
+        data-action="duplicate-linked"
+        disabled={disabled()}
+        title={describeDuplicate("linked")}
+        onClick={() => props.onDuplicateLinked()}
+      >
+        {describeDuplicate("linked")}
+      </button>
+      <button
+        type="button"
+        class="arrangement-action"
+        data-action="duplicate-independent"
+        disabled={disabled()}
+        title={describeDuplicate("independent")}
+        onClick={() => props.onDuplicateIndependent()}
+      >
+        {describeDuplicate("independent")}
+      </button>
+    </div>
+  );
 }

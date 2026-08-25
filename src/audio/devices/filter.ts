@@ -4,8 +4,8 @@ import { type DeviceCore, type DeviceCoreFactory, setOrRamp } from "./types";
 
 /** Resolves a stored `filter.mode` index to its `BiquadFilterNode` type. */
 function filterMode(index: number): (typeof FILTER_MODES)[number] {
-	const i = Math.min(FILTER_MODES.length - 1, Math.max(0, Math.round(index)));
-	return FILTER_MODES[i];
+  const i = Math.min(FILTER_MODES.length - 1, Math.max(0, Math.round(index)));
+  return FILTER_MODES[i];
 }
 
 /**
@@ -19,18 +19,18 @@ function filterMode(index: number): (typeof FILTER_MODES)[number] {
  * node, so `DeviceChain` never sees a composition change and never relinks.
  */
 export const createFilterCore: DeviceCoreFactory = (): DeviceCore => {
-	const filter = new Tone.Filter({ type: "lowpass" });
-	return {
-		input: filter,
-		output: filter,
-		apply(values, _context, initial) {
-			const mode = filterMode(values.mode);
-			if (filter.type !== mode) filter.type = mode;
-			setOrRamp(filter.frequency, values.cutoff, initial);
-			setOrRamp(filter.Q, values.resonance, initial);
-		},
-		dispose() {
-			filter.dispose();
-		},
-	};
+  const filter = new Tone.Filter({ type: "lowpass" });
+  return {
+    input: filter,
+    output: filter,
+    apply(values, _context, initial) {
+      const mode = filterMode(values.mode);
+      if (filter.type !== mode) filter.type = mode;
+      setOrRamp(filter.frequency, values.cutoff, initial);
+      setOrRamp(filter.Q, values.resonance, initial);
+    },
+    dispose() {
+      filter.dispose();
+    },
+  };
 };

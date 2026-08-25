@@ -27,44 +27,38 @@ export const MAX_PITCH = 127;
  * in pitch downward, the way a keyboard reads from high notes at the top.
  */
 export interface PianoRollViewport {
-	readonly pixelsPerTick: number;
-	readonly rowHeight: number;
-	/** Tick shown at the left edge of the content area. */
-	readonly scrollTicks: number;
-	/** Pixel scrolled past the top of the content area. */
-	readonly scrollTop: number;
-	/** Pitch of the topmost row (row index 0). */
-	readonly topPitch: number;
+  readonly pixelsPerTick: number;
+  readonly rowHeight: number;
+  /** Tick shown at the left edge of the content area. */
+  readonly scrollTicks: number;
+  /** Pixel scrolled past the top of the content area. */
+  readonly scrollTop: number;
+  /** Pitch of the topmost row (row index 0). */
+  readonly topPitch: number;
 }
 
 /** A rectangle in content pixels for one note, ready to position an element. */
 export interface NoteRect {
-	readonly left: number;
-	readonly top: number;
-	readonly width: number;
-	readonly height: number;
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 function clampPitch(pitch: number): number {
-	if (pitch < MIN_PITCH) return MIN_PITCH;
-	if (pitch > MAX_PITCH) return MAX_PITCH;
-	return pitch;
+  if (pitch < MIN_PITCH) return MIN_PITCH;
+  if (pitch > MAX_PITCH) return MAX_PITCH;
+  return pitch;
 }
 
 /** Content-x (pixels from the content's left edge, before scroll) for a tick. */
-export function tickToContentX(
-	viewport: PianoRollViewport,
-	ticks: number,
-): number {
-	return ticks * viewport.pixelsPerTick;
+export function tickToContentX(viewport: PianoRollViewport, ticks: number): number {
+  return ticks * viewport.pixelsPerTick;
 }
 
 /** Content-y (pixels from the content's top edge) for the top of a pitch row. */
-export function pitchToContentY(
-	viewport: PianoRollViewport,
-	pitch: number,
-): number {
-	return (viewport.topPitch - pitch) * viewport.rowHeight;
+export function pitchToContentY(viewport: PianoRollViewport, pitch: number): number {
+  return (viewport.topPitch - pitch) * viewport.rowHeight;
 }
 
 /**
@@ -74,13 +68,12 @@ export function pitchToContentY(
  * a wider tick span once zoomed out.
  */
 export function clientXToTick(
-	viewport: PianoRollViewport,
-	contentLeft: number,
-	clientX: number,
+  viewport: PianoRollViewport,
+  contentLeft: number,
+  clientX: number,
 ): number {
-	const contentX =
-		clientX - contentLeft + viewport.scrollTicks * viewport.pixelsPerTick;
-	return viewport.pixelsPerTick === 0 ? 0 : contentX / viewport.pixelsPerTick;
+  const contentX = clientX - contentLeft + viewport.scrollTicks * viewport.pixelsPerTick;
+  return viewport.pixelsPerTick === 0 ? 0 : contentX / viewport.pixelsPerTick;
 }
 
 /**
@@ -89,26 +82,26 @@ export function clientXToTick(
  * the roll is scrolled to a different octave.
  */
 export function clientYToPitch(
-	viewport: PianoRollViewport,
-	contentTop: number,
-	clientY: number,
+  viewport: PianoRollViewport,
+  contentTop: number,
+  clientY: number,
 ): number {
-	if (viewport.rowHeight === 0) return viewport.topPitch;
-	const contentY = clientY - contentTop + viewport.scrollTop;
-	const rowsDown = Math.floor(contentY / viewport.rowHeight);
-	return clampPitch(viewport.topPitch - rowsDown);
+  if (viewport.rowHeight === 0) return viewport.topPitch;
+  const contentY = clientY - contentTop + viewport.scrollTop;
+  const rowsDown = Math.floor(contentY / viewport.rowHeight);
+  return clampPitch(viewport.topPitch - rowsDown);
 }
 
 /** Snaps a tick to the nearest 16th-note grid line. Never negative. */
 export function snapTicks(ticks: number): number {
-	const snapped = Math.round(ticks / TICKS_PER_SIXTEENTH) * TICKS_PER_SIXTEENTH;
-	return Math.max(0, snapped);
+  const snapped = Math.round(ticks / TICKS_PER_SIXTEENTH) * TICKS_PER_SIXTEENTH;
+  return Math.max(0, snapped);
 }
 
 /** Snaps a tick *down* to the 16th grid line at or before it (a note start). */
 export function snapTicksFloor(ticks: number): number {
-	const snapped = Math.floor(ticks / TICKS_PER_SIXTEENTH) * TICKS_PER_SIXTEENTH;
-	return Math.max(0, snapped);
+  const snapped = Math.floor(ticks / TICKS_PER_SIXTEENTH) * TICKS_PER_SIXTEENTH;
+  return Math.max(0, snapped);
 }
 
 /**
@@ -116,15 +109,15 @@ export function snapTicksFloor(ticks: number): number {
  * short note stays clickable; height is exactly one row.
  */
 export function noteRect(
-	viewport: PianoRollViewport,
-	note: { startTicks: number; durationTicks: number; pitch: number },
+  viewport: PianoRollViewport,
+  note: { startTicks: number; durationTicks: number; pitch: number },
 ): NoteRect {
-	return {
-		left: tickToContentX(viewport, note.startTicks),
-		top: pitchToContentY(viewport, note.pitch),
-		width: Math.max(1, note.durationTicks * viewport.pixelsPerTick),
-		height: viewport.rowHeight,
-	};
+  return {
+    left: tickToContentX(viewport, note.startTicks),
+    top: pitchToContentY(viewport, note.pitch),
+    width: Math.max(1, note.durationTicks * viewport.pixelsPerTick),
+    height: viewport.rowHeight,
+  };
 }
 
 /**
@@ -133,21 +126,18 @@ export function noteRect(
  * so notes exactly touching the marquee's trailing edge are not swept in.
  */
 export function noteIntersectsRect(
-	viewport: PianoRollViewport,
-	note: { startTicks: number; durationTicks: number; pitch: number },
-	rect: { left: number; top: number; right: number; bottom: number },
+  viewport: PianoRollViewport,
+  note: { startTicks: number; durationTicks: number; pitch: number },
+  rect: { left: number; top: number; right: number; bottom: number },
 ): boolean {
-	const noteLeft = tickToContentX(viewport, note.startTicks);
-	const noteRight = tickToContentX(
-		viewport,
-		note.startTicks + note.durationTicks,
-	);
-	const noteTop = pitchToContentY(viewport, note.pitch);
-	const noteBottom = noteTop + viewport.rowHeight;
-	return (
-		noteLeft < rect.right &&
-		noteRight > rect.left &&
-		noteTop < rect.bottom &&
-		noteBottom > rect.top
-	);
+  const noteLeft = tickToContentX(viewport, note.startTicks);
+  const noteRight = tickToContentX(viewport, note.startTicks + note.durationTicks);
+  const noteTop = pitchToContentY(viewport, note.pitch);
+  const noteBottom = noteTop + viewport.rowHeight;
+  return (
+    noteLeft < rect.right &&
+    noteRight > rect.left &&
+    noteTop < rect.bottom &&
+    noteBottom > rect.top
+  );
 }

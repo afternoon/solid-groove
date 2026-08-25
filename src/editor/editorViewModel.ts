@@ -1,10 +1,4 @@
-import type {
-	Asset,
-	Clip,
-	Instrument,
-	Project,
-	Track,
-} from "../domain/entities";
+import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import { formatBarsBeatsSixteenths } from "../domain/time";
 import type { SelectionState } from "../selection";
@@ -26,8 +20,8 @@ import type { SelectionState } from "../selection";
 
 /** One tempo-labelled loop clip paired with the asset it resolves to. */
 export interface LoopClipEntry {
-	readonly clip: Clip;
-	readonly asset: Asset | null;
+  readonly clip: Clip;
+  readonly asset: Asset | null;
 }
 
 /**
@@ -43,13 +37,13 @@ export interface LoopClipEntry {
  * to show it and for the user to work out of it.
  */
 export function addedPackIds(
-	project: Project | null,
-	sessionPackIds: readonly string[],
+  project: Project | null,
+  sessionPackIds: readonly string[],
 ): readonly string[] {
-	const fromProject = (project?.metadata.packDependencies ?? []).map(
-		(dependency) => dependency.packId,
-	);
-	return [...new Set([...fromProject, ...sessionPackIds])];
+  const fromProject = (project?.metadata.packDependencies ?? []).map(
+    (dependency) => dependency.packId,
+  );
+  return [...new Set([...fromProject, ...sessionPackIds])];
 }
 
 /**
@@ -57,9 +51,9 @@ export function addedPackIds(
  * dropping the sixteenth fraction.
  */
 export function playheadLabel(positionTicks: number): string {
-	const bbs = formatBarsBeatsSixteenths(positionTicks);
-	const [bars, beats] = bbs.split(":");
-	return `${Number(bars) + 1}.${Number(beats) + 1}`;
+  const bbs = formatBarsBeatsSixteenths(positionTicks);
+  const [bars, beats] = bbs.split(":");
+  return `${Number(bars) + 1}.${Number(beats) + 1}`;
 }
 
 /**
@@ -71,7 +65,7 @@ export function playheadLabel(positionTicks: number): string {
  * longer has, and {@link editedTrack} falls back to the first track from there.
  */
 export function focusedTrackId(selection: SelectionState): TrackId | null {
-	return selection.focus?.kind === "track" ? selection.focus.id : null;
+  return selection.focus?.kind === "track" ? selection.focus.id : null;
 }
 
 /**
@@ -85,15 +79,13 @@ export function focusedTrackId(selection: SelectionState): TrackId | null {
  * selection gesture first.
  */
 export function editedTrack(
-	project: Project | null,
-	selectedTrackId: TrackId | null,
+  project: Project | null,
+  selectedTrackId: TrackId | null,
 ): Track | null {
-	const tracks = project?.song.tracks ?? [];
-	return (
-		tracks.find((candidate) => candidate.id === selectedTrackId) ??
-		tracks[0] ??
-		null
-	);
+  const tracks = project?.song.tracks ?? [];
+  return (
+    tracks.find((candidate) => candidate.id === selectedTrackId) ?? tracks[0] ?? null
+  );
 }
 
 /**
@@ -104,28 +96,23 @@ export function editedTrack(
  * clicked.
  */
 export function drumTrack(track: Track | null): Track | null {
-	return track?.instrument?.kind === "drumMachine" ? track : null;
+  return track?.instrument?.kind === "drumMachine" ? track : null;
 }
 
 /** Every `sample`-kind asset the project carries. */
 export function sampleAssets(project: Project | null): readonly Asset[] {
-	return (project?.song.assets ?? []).filter(
-		(asset) => asset.kind === "sample",
-	);
+  return (project?.song.assets ?? []).filter((asset) => asset.kind === "sample");
 }
 
 /** The clip on the edited track, if it has one. */
-export function editedClip(
-	project: Project | null,
-	track: Track | null,
-): Clip | null {
-	if (!project || !track) return null;
-	return project.clips.find((c) => c.trackId === track.id) ?? null;
+export function editedClip(project: Project | null, track: Track | null): Clip | null {
+  if (!project || !track) return null;
+  return project.clips.find((c) => c.trackId === track.id) ?? null;
 }
 
 /** The edited track's instrument, and the audition note it plays. */
 export function editedInstrument(track: Track | null): Instrument | null {
-	return track?.instrument ?? null;
+  return track?.instrument ?? null;
 }
 
 /**
@@ -135,32 +122,26 @@ export function editedInstrument(track: Track | null): Instrument | null {
  * one-shot and read the alpha's stretch behaviour honestly.
  */
 export function loopClips(project: Project | null): readonly LoopClipEntry[] {
-	if (!project) return [];
-	return project.clips.flatMap((c) => {
-		if (c.content.kind !== "audioLoop") return [];
-		const assetId = c.content.assetId;
-		const asset = project.song.assets.find((a) => a.id === assetId) ?? null;
-		return [{ clip: c, asset }];
-	});
+  if (!project) return [];
+  return project.clips.flatMap((c) => {
+    if (c.content.kind !== "audioLoop") return [];
+    const assetId = c.content.assetId;
+    const asset = project.song.assets.find((a) => a.id === assetId) ?? null;
+    return [{ clip: c, asset }];
+  });
 }
 
 /** The name of the sample the edited track's sampler is loaded with. */
-export function sampleName(
-	project: Project | null,
-	track: Track | null,
-): string | null {
-	const current = editedInstrument(track);
-	if (current?.kind !== "sampler" || !current.assetId) return null;
-	return (
-		project?.song.assets.find((asset) => asset.id === current.assetId)?.name ??
-		null
-	);
+export function sampleName(project: Project | null, track: Track | null): string | null {
+  const current = editedInstrument(track);
+  if (current?.kind !== "sampler" || !current.assetId) return null;
+  return project?.song.assets.find((asset) => asset.id === current.assetId)?.name ?? null;
 }
 
 /** The project's first pack dependency, labelled for display. */
 export function packDependencyLabel(project: Project | null): string | null {
-	const dependency = project?.metadata.packDependencies[0];
-	return dependency ? `${dependency.packId} @ ${dependency.version}` : null;
+  const dependency = project?.metadata.packDependencies[0];
+  return dependency ? `${dependency.packId} @ ${dependency.version}` : null;
 }
 
 /**
@@ -168,14 +149,9 @@ export function packDependencyLabel(project: Project | null): string | null {
  * FND-009 step grid: pitched notes want two dimensions (pitch x time), which
  * the 16-step grid cannot show.
  */
-export function showPianoRoll(
-	project: Project | null,
-	track: Track | null,
-): boolean {
-	const clip = editedClip(project, track);
-	return (
-		editedInstrument(track)?.kind === "synth" && clip?.content.kind === "notes"
-	);
+export function showPianoRoll(project: Project | null, track: Track | null): boolean {
+  const clip = editedClip(project, track);
+  return editedInstrument(track)?.kind === "synth" && clip?.content.kind === "notes";
 }
 
 /**
@@ -186,7 +162,7 @@ export function showPianoRoll(
  * than dispatch a transaction the command layer would refuse.
  */
 export function samplerTrackId(track: Track | null): TrackId | null {
-	return track?.instrument?.kind === "sampler" ? track.id : null;
+  return track?.instrument?.kind === "sampler" ? track.id : null;
 }
 
 /**
@@ -196,5 +172,5 @@ export function samplerTrackId(track: Track | null): TrackId | null {
  * panel `EditorView` mounts separately) with no way back off the drum machine.
  */
 export function instrumentPanelTrackId(track: Track | null): TrackId | null {
-	return track?.id ?? null;
+  return track?.id ?? null;
 }

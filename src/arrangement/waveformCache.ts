@@ -17,19 +17,19 @@
  */
 
 export interface PeakLevel {
-	/** Number of min/max buckets at this resolution. Higher = finer detail. */
-	readonly bucketCount: number;
-	readonly min: Float32Array;
-	readonly max: Float32Array;
+  /** Number of min/max buckets at this resolution. Higher = finer detail. */
+  readonly bucketCount: number;
+  readonly min: Float32Array;
+  readonly max: Float32Array;
 }
 
 export interface WaveformPeaks {
-	readonly assetId: string;
-	readonly revision: number;
-	readonly durationSeconds: number;
-	/** Finest resolution first. */
-	readonly levels: readonly PeakLevel[];
-	readonly byteLength: number;
+  readonly assetId: string;
+  readonly revision: number;
+  readonly durationSeconds: number;
+  /** Finest resolution first. */
+  readonly levels: readonly PeakLevel[];
+  readonly byteLength: number;
 }
 
 /** Bucket counts for each cached resolution, finest to coarsest. Matches the
@@ -40,123 +40,119 @@ const PEAK_LEVEL_BUCKET_COUNTS = [2048, 512, 128, 32] as const;
 export const WAVEFORM_CACHE_BUDGET_BYTES = 128 * 1024 * 1024;
 
 export interface WaveformCache {
-	/** Returns cached peaks for `(assetId, revision)`, generating and
-	 * inserting them on a miss, and evicting least-recently-used entries if
-	 * the budget is exceeded. */
-	get(
-		assetId: string,
-		revision: number,
-		durationSeconds: number,
-	): WaveformPeaks;
-	readonly bytesUsed: number;
-	readonly entryCount: number;
+  /** Returns cached peaks for `(assetId, revision)`, generating and
+   * inserting them on a miss, and evicting least-recently-used entries if
+   * the budget is exceeded. */
+  get(assetId: string, revision: number, durationSeconds: number): WaveformPeaks;
+  readonly bytesUsed: number;
+  readonly entryCount: number;
 }
 
 /** Picks the cached level whose bucket count is closest to `targetBucketCount`. */
 export function selectPeakLevel(
-	peaks: WaveformPeaks,
-	targetBucketCount: number,
+  peaks: WaveformPeaks,
+  targetBucketCount: number,
 ): PeakLevel {
-	let best = peaks.levels[0];
-	let bestDistance = Math.abs(best.bucketCount - targetBucketCount);
-	for (const level of peaks.levels) {
-		const distance = Math.abs(level.bucketCount - targetBucketCount);
-		if (distance < bestDistance) {
-			best = level;
-			bestDistance = distance;
-		}
-	}
-	return best;
+  let best = peaks.levels[0];
+  let bestDistance = Math.abs(best.bucketCount - targetBucketCount);
+  for (const level of peaks.levels) {
+    const distance = Math.abs(level.bucketCount - targetBucketCount);
+    if (distance < bestDistance) {
+      best = level;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 export function createWaveformCache(
-	budgetBytes: number = WAVEFORM_CACHE_BUDGET_BYTES,
+  budgetBytes: number = WAVEFORM_CACHE_BUDGET_BYTES,
 ): WaveformCache {
-	// `Map` preserves insertion order, and a hit re-inserts its key, so
-	// iteration order is always least-recently-used first — no separate
-	// linked-list bookkeeping needed for LRU eviction.
-	const entries = new Map<string, WaveformPeaks>();
-	let bytesUsed = 0;
+  // `Map` preserves insertion order, and a hit re-inserts its key, so
+  // iteration order is always least-recently-used first — no separate
+  // linked-list bookkeeping needed for LRU eviction.
+  const entries = new Map<string, WaveformPeaks>();
+  let bytesUsed = 0;
 
-	function evictUntilWithinBudget(): void {
-		for (const [key, value] of entries) {
-			if (bytesUsed <= budgetBytes) break;
-			entries.delete(key);
-			bytesUsed -= value.byteLength;
-		}
-	}
+  function evictUntilWithinBudget(): void {
+    for (const [key, value] of entries) {
+      if (bytesUsed <= budgetBytes) break;
+      entries.delete(key);
+      bytesUsed -= value.byteLength;
+    }
+  }
 
-	return {
-		get(assetId, revision, durationSeconds) {
-			const key = `${assetId}@${revision}`;
-			const cached = entries.get(key);
-			if (cached) {
-				entries.delete(key);
-				entries.set(key, cached);
-				return cached;
-			}
-			const peaks = generateSyntheticPeaks(assetId, revision, durationSeconds);
-			entries.set(key, peaks);
-			bytesUsed += peaks.byteLength;
-			evictUntilWithinBudget();
-			return peaks;
-		},
-		get bytesUsed() {
-			return bytesUsed;
-		},
-		get entryCount() {
-			return entries.size;
-		},
-	};
+  return {
+    get(assetId, revision, durationSeconds) {
+      const key = `${assetId}@${revision}`;
+      const cached = entries.get(key);
+      if (cached) {
+        entries.delete(key);
+        entries.set(key, cached);
+        return cached;
+      }
+      const peaks = generateSyntheticPeaks(assetId, revision, durationSeconds);
+      entries.set(key, peaks);
+      bytesUsed += peaks.byteLength;
+      evictUntilWithinBudget();
+      return peaks;
+    },
+    get bytesUsed() {
+      return bytesUsed;
+    },
+    get entryCount() {
+      return entries.size;
+    },
+  };
 }
 
 function generateSyntheticPeaks(
-	assetId: string,
-	revision: number,
-	durationSeconds: number,
+  assetId: string,
+  revision: number,
+  durationSeconds: number,
 ): WaveformPeaks {
-	const random = mulberry32(hashString(`${assetId}@${revision}`));
-	const levels: PeakLevel[] = PEAK_LEVEL_BUCKET_COUNTS.map((bucketCount) => {
-		const min = new Float32Array(bucketCount);
-		const max = new Float32Array(bucketCount);
-		let amplitude = 0.2;
-		for (let index = 0; index < bucketCount; index += 1) {
-			amplitude = clamp01(amplitude + (random() - 0.5) * 0.15);
-			max[index] = amplitude;
-			min[index] = -amplitude * (0.6 + random() * 0.4);
-		}
-		return { bucketCount, min, max };
-	});
-	const byteLength = levels.reduce(
-		(sum, level) => sum + level.min.byteLength + level.max.byteLength,
-		0,
-	);
-	return { assetId, revision, durationSeconds, levels, byteLength };
+  const random = mulberry32(hashString(`${assetId}@${revision}`));
+  const levels: PeakLevel[] = PEAK_LEVEL_BUCKET_COUNTS.map((bucketCount) => {
+    const min = new Float32Array(bucketCount);
+    const max = new Float32Array(bucketCount);
+    let amplitude = 0.2;
+    for (let index = 0; index < bucketCount; index += 1) {
+      amplitude = clamp01(amplitude + (random() - 0.5) * 0.15);
+      max[index] = amplitude;
+      min[index] = -amplitude * (0.6 + random() * 0.4);
+    }
+    return { bucketCount, min, max };
+  });
+  const byteLength = levels.reduce(
+    (sum, level) => sum + level.min.byteLength + level.max.byteLength,
+    0,
+  );
+  return { assetId, revision, durationSeconds, levels, byteLength };
 }
 
 function clamp01(value: number): number {
-	return Math.min(1, Math.max(0, value));
+  return Math.min(1, Math.max(0, value));
 }
 
 /** FNV-1a, matching the small stable hash already used for seeded IDs. */
 function hashString(value: string): number {
-	let hash = 0x811c9dc5;
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 0x01000193) >>> 0;
-	}
-	return hash === 0 ? 0x9e3779b9 : hash >>> 0;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash === 0 ? 0x9e3779b9 : hash >>> 0;
 }
 
 /** Mulberry32: small, fast, and stable across engines — same generator
  * `src/domain/ids.ts` uses for seeded IDs, reused here for the same reasons. */
 function mulberry32(seed: number): () => number {
-	let state = seed >>> 0;
-	return () => {
-		state = (state + 0x6d2b79f5) >>> 0;
-		let value = state;
-		value = Math.imul(value ^ (value >>> 15), value | 1);
-		value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-		return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-	};
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
 }

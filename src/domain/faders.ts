@@ -1,8 +1,4 @@
-import {
-	clampParameterValue,
-	type ParameterDefinition,
-	TRACK_PAN,
-} from "./parameters";
+import { clampParameterValue, type ParameterDefinition, TRACK_PAN } from "./parameters";
 
 /**
  * The perceptual mapping between a volume fader's screen position and the
@@ -38,42 +34,36 @@ const TAPER = 3;
  * outside the fader.
  */
 export function faderPositionToDb(
-	definition: ParameterDefinition,
-	position: number,
+  definition: ParameterDefinition,
+  position: number,
 ): number {
-	const clamped = clamp01(position);
-	const unity = unityDb(definition);
-	if (clamped >= UNITY_POSITION) {
-		const above = (clamped - UNITY_POSITION) / (1 - UNITY_POSITION);
-		return clampParameterValue(
-			definition,
-			unity + above * (definition.max - unity),
-		);
-	}
-	const below = clamped / UNITY_POSITION;
-	// exp taper: at below=1 → unity, at below=0 → definition.min.
-	const tapered = (Math.exp(TAPER * below) - 1) / (Math.exp(TAPER) - 1);
-	return clampParameterValue(
-		definition,
-		definition.min + tapered * (unity - definition.min),
-	);
+  const clamped = clamp01(position);
+  const unity = unityDb(definition);
+  if (clamped >= UNITY_POSITION) {
+    const above = (clamped - UNITY_POSITION) / (1 - UNITY_POSITION);
+    return clampParameterValue(definition, unity + above * (definition.max - unity));
+  }
+  const below = clamped / UNITY_POSITION;
+  // exp taper: at below=1 → unity, at below=0 → definition.min.
+  const tapered = (Math.exp(TAPER * below) - 1) / (Math.exp(TAPER) - 1);
+  return clampParameterValue(
+    definition,
+    definition.min + tapered * (unity - definition.min),
+  );
 }
 
 /** The fader position that shows a given decibel value. Inverse of {@link faderPositionToDb}. */
-export function dbToFaderPosition(
-	definition: ParameterDefinition,
-	db: number,
-): number {
-	const value = clampParameterValue(definition, db);
-	const unity = unityDb(definition);
-	if (value >= unity) {
-		const above =
-			definition.max === unity ? 0 : (value - unity) / (definition.max - unity);
-		return UNITY_POSITION + above * (1 - UNITY_POSITION);
-	}
-	const tapered = (value - definition.min) / (unity - definition.min);
-	const below = Math.log(tapered * (Math.exp(TAPER) - 1) + 1) / TAPER;
-	return clamp01(below * UNITY_POSITION);
+export function dbToFaderPosition(definition: ParameterDefinition, db: number): number {
+  const value = clampParameterValue(definition, db);
+  const unity = unityDb(definition);
+  if (value >= unity) {
+    const above =
+      definition.max === unity ? 0 : (value - unity) / (definition.max - unity);
+    return UNITY_POSITION + above * (1 - UNITY_POSITION);
+  }
+  const tapered = (value - definition.min) / (unity - definition.min);
+  const below = Math.log(tapered * (Math.exp(TAPER) - 1) + 1) / TAPER;
+  return clamp01(below * UNITY_POSITION);
 }
 
 /**
@@ -82,12 +72,12 @@ export function dbToFaderPosition(
  * musician can nudge back to exactly 0 dB.
  */
 export function formatDb(definition: ParameterDefinition, db: number): string {
-	const value = clampParameterValue(definition, db);
-	if (value <= definition.min) return "-∞ dB";
-	const rounded = Number(value.toFixed(1));
-	if (rounded === 0) return "0.0 dB";
-	const sign = rounded > 0 ? "+" : "";
-	return `${sign}${rounded.toFixed(1)} dB`;
+  const value = clampParameterValue(definition, db);
+  if (value <= definition.min) return "-∞ dB";
+  const rounded = Number(value.toFixed(1));
+  if (rounded === 0) return "0.0 dB";
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded.toFixed(1)} dB`;
 }
 
 /**
@@ -96,21 +86,19 @@ export function formatDb(definition: ParameterDefinition, db: number): string {
  * does rather than a bare signed number.
  */
 export function formatPan(pan: number): string {
-	const value = clampParameterValue(TRACK_PAN, pan);
-	const percent = Math.round(Math.abs(value) * 100);
-	if (percent === 0) return "C";
-	return value < 0 ? `L${percent}` : `R${percent}`;
+  const value = clampParameterValue(TRACK_PAN, pan);
+  const percent = Math.round(Math.abs(value) * 100);
+  if (percent === 0) return "C";
+  return value < 0 ? `L${percent}` : `R${percent}`;
 }
 
 function unityDb(definition: ParameterDefinition): number {
-	// Unity is 0 dB when the range straddles it (every volume parameter does);
-	// otherwise it degrades to the range's own default so the curve stays valid.
-	return definition.min <= 0 && definition.max >= 0
-		? 0
-		: definition.defaultValue;
+  // Unity is 0 dB when the range straddles it (every volume parameter does);
+  // otherwise it degrades to the range's own default so the curve stays valid.
+  return definition.min <= 0 && definition.max >= 0 ? 0 : definition.defaultValue;
 }
 
 function clamp01(value: number): number {
-	if (!Number.isFinite(value)) return 0;
-	return Math.min(1, Math.max(0, value));
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
 }

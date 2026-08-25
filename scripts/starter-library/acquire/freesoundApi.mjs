@@ -30,17 +30,17 @@ const SEARCH_ENDPOINT = "https://freesound.org/apiv2/search/text/";
 
 /** Fields we need to seed a candidate form; keep it small to stay well-behaved. */
 const FIELDS = [
-	"id",
-	"name",
-	"license",
-	"username",
-	"duration",
-	"channels",
-	"bitdepth",
-	"samplerate",
-	"tags",
-	"bpm",
-	"type",
+  "id",
+  "name",
+  "license",
+  "username",
+  "duration",
+  "channels",
+  "bitdepth",
+  "samplerate",
+  "tags",
+  "bpm",
+  "type",
 ].join(",");
 
 /**
@@ -54,24 +54,24 @@ const FIELDS = [
  * @param {{ pageSize?: number }} [opts]
  */
 export function buildSearchUrl(gap, { pageSize = 15 } = {}) {
-	const filters = [
-		`license:"${FREESOUND_CC0}"`,
-		// A one-shot or a short loop; keeps out long field recordings and mixes.
-		`duration:[${gap.minDuration ?? 0.05} TO ${gap.maxDuration ?? 12}]`,
-		// Section 3.3: no identifiable speech or performances in the first intake.
-		"-tag:speech",
-		"-tag:vocal",
-		"-tag:voice",
-		...(gap.extraFilters ?? []),
-	];
-	const params = new URLSearchParams({
-		query: gap.query,
-		filter: filters.join(" "),
-		fields: FIELDS,
-		sort: gap.sort ?? "score",
-		page_size: String(pageSize),
-	});
-	return `${SEARCH_ENDPOINT}?${params.toString()}`;
+  const filters = [
+    `license:"${FREESOUND_CC0}"`,
+    // A one-shot or a short loop; keeps out long field recordings and mixes.
+    `duration:[${gap.minDuration ?? 0.05} TO ${gap.maxDuration ?? 12}]`,
+    // Section 3.3: no identifiable speech or performances in the first intake.
+    "-tag:speech",
+    "-tag:vocal",
+    "-tag:voice",
+    ...(gap.extraFilters ?? []),
+  ];
+  const params = new URLSearchParams({
+    query: gap.query,
+    filter: filters.join(" "),
+    fields: FIELDS,
+    sort: gap.sort ?? "score",
+    page_size: String(pageSize),
+  });
+  return `${SEARCH_ENDPOINT}?${params.toString()}`;
 }
 
 /**
@@ -84,37 +84,32 @@ export function buildSearchUrl(gap, { pageSize = 15 } = {}) {
  *
  * @returns {Promise<{ ok: boolean, sounds: object[], error?: string }>}
  */
-export async function searchGap(
-	gap,
-	{ token, fetchImpl = fetch, pageSize = 15 } = {},
-) {
-	let url = buildSearchUrl(gap, { pageSize });
-	if (token) url += `&token=${encodeURIComponent(token)}`;
+export async function searchGap(gap, { token, fetchImpl = fetch, pageSize = 15 } = {}) {
+  let url = buildSearchUrl(gap, { pageSize });
+  if (token) url += `&token=${encodeURIComponent(token)}`;
 
-	let response;
-	try {
-		response = await fetchImpl(url);
-	} catch (error) {
-		return {
-			ok: false,
-			sounds: [],
-			error: error instanceof Error ? error.message : String(error),
-		};
-	}
-	if (!response.ok) {
-		const detail =
-			response.status === 401 || response.status === 429
-				? " (set FREESOUND_API_KEY — get a free token at https://freesound.org/apiv2/apply/)"
-				: "";
-		return {
-			ok: false,
-			sounds: [],
-			error: `HTTP ${response.status} for "${gap.query}"${detail}`,
-		};
-	}
-	const body = await response.json();
-	const sounds = (body.results ?? []).filter(
-		(sound) => sound.license === FREESOUND_CC0,
-	);
-	return { ok: true, sounds };
+  let response;
+  try {
+    response = await fetchImpl(url);
+  } catch (error) {
+    return {
+      ok: false,
+      sounds: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  if (!response.ok) {
+    const detail =
+      response.status === 401 || response.status === 429
+        ? " (set FREESOUND_API_KEY — get a free token at https://freesound.org/apiv2/apply/)"
+        : "";
+    return {
+      ok: false,
+      sounds: [],
+      error: `HTTP ${response.status} for "${gap.query}"${detail}`,
+    };
+  }
+  const body = await response.json();
+  const sounds = (body.results ?? []).filter((sound) => sound.license === FREESOUND_CC0);
+  return { ok: true, sounds };
 }

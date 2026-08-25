@@ -19,23 +19,23 @@
  * @param {object[]} options.packs      [{ slug, name }] destination packs (CNT-000b)
  */
 export function renderManagePage({
-	taxonomy,
-	genres,
-	characters,
-	intensities,
-	sourceTypes,
-	packs,
+  taxonomy,
+  genres,
+  characters,
+  intensities,
+  sourceTypes,
+  packs,
 }) {
-	const config = JSON.stringify({
-		taxonomy,
-		genres,
-		characters,
-		intensities,
-		sourceTypes,
-		packs,
-	}).replace(/</g, "\\u003c");
+  const config = JSON.stringify({
+    taxonomy,
+    genres,
+    characters,
+    intensities,
+    sourceTypes,
+    packs,
+  }).replace(/</g, "\\u003c");
 
-	return `<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">

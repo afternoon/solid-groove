@@ -5,151 +5,149 @@ import ConfirmDialog from "./ConfirmDialog";
 afterEach(() => cleanup());
 
 describe("ConfirmDialog", () => {
-	it("renders as an alertdialog with the given title and message", () => {
-		render(() => (
-			<ConfirmDialog
-				title="Delete this project?"
-				message="This cannot be undone."
-				onConfirm={() => {}}
-				onCancel={() => {}}
-			/>
-		));
+  it("renders as an alertdialog with the given title and message", () => {
+    render(() => (
+      <ConfirmDialog
+        title="Delete this project?"
+        message="This cannot be undone."
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    ));
 
-		expect(
-			screen.getByRole("alertdialog", { name: "Delete this project?" }),
-		).toBeInTheDocument();
-		expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
-	});
+    expect(
+      screen.getByRole("alertdialog", { name: "Delete this project?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("This cannot be undone.")).toBeInTheDocument();
+  });
 
-	it("calls onConfirm when the confirm button is clicked", () => {
-		const onConfirm = vi.fn();
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				onConfirm={onConfirm}
-				onCancel={() => {}}
-			/>
-		));
+  it("calls onConfirm when the confirm button is clicked", () => {
+    const onConfirm = vi.fn();
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      />
+    ));
 
-		fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-		expect(onConfirm).toHaveBeenCalledTimes(1);
-	});
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
 
-	it("calls onCancel when Cancel is clicked", () => {
-		const onCancel = vi.fn();
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				onConfirm={() => {}}
-				onCancel={onCancel}
-			/>
-		));
+  it("calls onCancel when Cancel is clicked", () => {
+    const onCancel = vi.fn();
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />
+    ));
 
-		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-		expect(onCancel).toHaveBeenCalledTimes(1);
-	});
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 
-	// Escape reaches this dialog through the KEY-01 registry's
-	// `view.close_surface`, not a listener of its own, so these cases are as
-	// much a test of the migration as of the dialog.
-	it("calls onCancel when Escape is pressed", () => {
-		const onCancel = vi.fn();
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				onConfirm={() => {}}
-				onCancel={onCancel}
-			/>
-		));
+  // Escape reaches this dialog through the KEY-01 registry's
+  // `view.close_surface`, not a listener of its own, so these cases are as
+  // much a test of the migration as of the dialog.
+  it("calls onCancel when Escape is pressed", () => {
+    const onCancel = vi.fn();
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />
+    ));
 
-		fireEvent.keyDown(document, { key: "Escape" });
-		expect(onCancel).toHaveBeenCalledTimes(1);
-	});
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 
-	it("ignores Escape while the confirmed action is in flight", () => {
-		const onCancel = vi.fn();
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				busy
-				onConfirm={() => {}}
-				onCancel={onCancel}
-			/>
-		));
+  it("ignores Escape while the confirmed action is in flight", () => {
+    const onCancel = vi.fn();
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        busy
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />
+    ));
 
-		fireEvent.keyDown(document, { key: "Escape" });
-		expect(onCancel).not.toHaveBeenCalled();
-	});
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 
-	it("stops listening for Escape once it unmounts", () => {
-		const onCancel = vi.fn();
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				onConfirm={() => {}}
-				onCancel={onCancel}
-			/>
-		));
+  it("stops listening for Escape once it unmounts", () => {
+    const onCancel = vi.fn();
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />
+    ));
 
-		cleanup();
-		fireEvent.keyDown(document, { key: "Escape" });
-		expect(onCancel).not.toHaveBeenCalled();
-	});
+    cleanup();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 
-	it("does not fire an editor shortcut such as Space while it is open", () => {
-		const onConfirm = vi.fn();
-		const onCancel = vi.fn();
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				onConfirm={onConfirm}
-				onCancel={onCancel}
-			/>
-		));
+  it("does not fire an editor shortcut such as Space while it is open", () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />
+    ));
 
-		// `dialog` suppresses every other context, so nothing behind the modal —
-		// playback included — can fire from the keyboard while it is up.
-		fireEvent.keyDown(document, { key: " " });
-		expect(onConfirm).not.toHaveBeenCalled();
-		expect(onCancel).not.toHaveBeenCalled();
-	});
+    // `dialog` suppresses every other context, so nothing behind the modal —
+    // playback included — can fire from the keyboard while it is up.
+    fireEvent.keyDown(document, { key: " " });
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 
-	it("disables both actions while busy", () => {
-		render(() => (
-			<ConfirmDialog
-				title="Delete?"
-				message="Sure?"
-				busy
-				onConfirm={() => {}}
-				onCancel={() => {}}
-			/>
-		));
+  it("disables both actions while busy", () => {
+    render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        busy
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    ));
 
-		expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
-	});
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  });
 
-	it("supports custom confirm/cancel labels", () => {
-		render(() => (
-			<ConfirmDialog
-				title="Discard changes?"
-				message="Sure?"
-				confirmLabel="Discard"
-				cancelLabel="Keep editing"
-				onConfirm={() => {}}
-				onCancel={() => {}}
-			/>
-		));
+  it("supports custom confirm/cancel labels", () => {
+    render(() => (
+      <ConfirmDialog
+        title="Discard changes?"
+        message="Sure?"
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    ));
 
-		expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Keep editing" }),
-		).toBeInTheDocument();
-	});
+    expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep editing" })).toBeInTheDocument();
+  });
 });

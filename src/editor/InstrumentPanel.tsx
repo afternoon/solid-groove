@@ -6,14 +6,14 @@ import SamplerPanel from "../instrument/SamplerPanel";
 import SynthPanel from "../instrument/SynthPanel";
 
 export interface InstrumentPanelProps {
-	readonly trackId: TrackId;
-	readonly instrument: Instrument | null;
-	/** Display name of the currently loaded sample, or null when empty. */
-	readonly sampleName: string | null;
-	dispatch(
-		commands: RawCommandInput | readonly RawCommandInput[],
-	): TransactionResult | undefined;
-	audition(): void;
+  readonly trackId: TrackId;
+  readonly instrument: Instrument | null;
+  /** Display name of the currently loaded sample, or null when empty. */
+  readonly sampleName: string | null;
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined;
+  audition(): void;
 }
 
 /**
@@ -27,39 +27,39 @@ export interface InstrumentPanelProps {
  * variant.
  */
 export default function InstrumentPanel(props: InstrumentPanelProps) {
-	return (
-		<Switch>
-			<Match
-				when={
-					props.instrument?.kind === "sampler" &&
-					(props.instrument as Extract<Instrument, { kind: "sampler" }>)
-				}
-			>
-				{(sampler) => (
-					<SamplerPanel
-						trackId={props.trackId}
-						instrument={sampler()}
-						sampleName={props.sampleName}
-						dispatch={props.dispatch}
-						audition={props.audition}
-					/>
-				)}
-			</Match>
-			<Match
-				when={
-					props.instrument?.kind === "synth" &&
-					(props.instrument as Extract<Instrument, { kind: "synth" }>)
-				}
-			>
-				{(synth) => (
-					<SynthPanel
-						trackId={props.trackId}
-						instrument={synth()}
-						dispatch={props.dispatch}
-						audition={props.audition}
-					/>
-				)}
-			</Match>
-		</Switch>
-	);
+  return (
+    <Switch>
+      <Match
+        when={
+          props.instrument?.kind === "sampler" &&
+          (props.instrument as Extract<Instrument, { kind: "sampler" }>)
+        }
+      >
+        {(sampler) => (
+          <SamplerPanel
+            trackId={props.trackId}
+            instrument={sampler()}
+            sampleName={props.sampleName}
+            dispatch={props.dispatch}
+            audition={props.audition}
+          />
+        )}
+      </Match>
+      <Match
+        when={
+          props.instrument?.kind === "synth" &&
+          (props.instrument as Extract<Instrument, { kind: "synth" }>)
+        }
+      >
+        {(synth) => (
+          <SynthPanel
+            trackId={props.trackId}
+            instrument={synth()}
+            dispatch={props.dispatch}
+            audition={props.audition}
+          />
+        )}
+      </Match>
+    </Switch>
+  );
 }

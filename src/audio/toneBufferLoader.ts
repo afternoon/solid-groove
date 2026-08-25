@@ -8,12 +8,12 @@ import type { AssetBufferLoader } from "./AudioBufferCache";
  * tested without any Web Audio globals installed.
  */
 export const toneBufferLoader: AssetBufferLoader<Tone.ToneAudioBuffer> = {
-	async load(asset) {
-		if (!asset.url) {
-			throw new Error(`Asset "${asset.id}" has no URL to decode`);
-		}
-		const buffer = new Tone.ToneAudioBuffer();
-		await buffer.load(asset.url);
-		return buffer;
-	},
+  async load(asset) {
+    if (!asset.url) {
+      throw new Error(`Asset "${asset.id}" has no URL to decode`);
+    }
+    const buffer = new Tone.ToneAudioBuffer();
+    await buffer.load(asset.url);
+    return buffer;
+  },
 };

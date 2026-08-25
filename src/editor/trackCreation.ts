@@ -1,16 +1,16 @@
 import type { Clip, Placement, Track } from "../domain/entities";
 import {
-	createNoteClip,
-	createPlacement,
-	createTrack,
-	type DomainFactoryContext,
+  createNoteClip,
+  createPlacement,
+  createTrack,
+  type DomainFactoryContext,
 } from "../domain/factories";
 import { TICKS_PER_BAR } from "../domain/time";
 import {
-	createInstrumentOfKind,
-	INSTRUMENT_KINDS,
-	type InstrumentKind,
-	type InstrumentKindSpec,
+  createInstrumentOfKind,
+  INSTRUMENT_KINDS,
+  type InstrumentKind,
+  type InstrumentKindSpec,
 } from "../instrument/instrumentKinds";
 
 /**
@@ -32,39 +32,40 @@ import {
 export type NewTrackKind = InstrumentKind;
 
 export interface NewTrackKindSpec extends InstrumentKindSpec {
-	/**
-	 * The button's accessible name. It contains {@link InstrumentKindSpec.label}
-	 * so the visible text is a prefix of what a speech-input user has to say
-	 * (WCAG 2.5.3), which is why it is derived from the label rather than
-	 * written out beside it.
-	 */
-	readonly actionLabel: string;
+  /**
+   * The button's accessible name. It contains {@link InstrumentKindSpec.label}
+   * so the visible text is a prefix of what a speech-input user has to say
+   * (WCAG 2.5.3), which is why it is derived from the label rather than
+   * written out beside it.
+   */
+  readonly actionLabel: string;
 }
 
 /**
  * The kinds offered, in the order they are offered — the shared order, so the
  * mixer's buttons and the instrument panel's picker read the same way.
  */
-export const NEW_TRACK_KINDS: readonly NewTrackKindSpec[] =
-	INSTRUMENT_KINDS.map((spec) => ({
-		...spec,
-		actionLabel: `Add ${spec.label.toLowerCase()} track`,
-	}));
+export const NEW_TRACK_KINDS: readonly NewTrackKindSpec[] = INSTRUMENT_KINDS.map(
+  (spec) => ({
+    ...spec,
+    actionLabel: `Add ${spec.label.toLowerCase()} track`,
+  }),
+);
 
 export interface NewTrack {
-	readonly track: Track;
-	/** An empty one-bar note clip, so the track can be programmed immediately. */
-	readonly clip: Clip;
-	/** That clip, placed at bar 1. */
-	readonly placement: Placement;
+  readonly track: Track;
+  /** An empty one-bar note clip, so the track can be programmed immediately. */
+  readonly clip: Clip;
+  /** That clip, placed at bar 1. */
+  readonly placement: Placement;
 }
 
 export interface NewTrackOptions {
-	readonly kind: NewTrackKind;
-	/** The new track's position: the number of tracks the song already has. */
-	readonly order: number;
-	/** Names already taken, so the new one is distinguishable in the mixer. */
-	readonly existingNames: readonly string[];
+  readonly kind: NewTrackKind;
+  /** The new track's position: the number of tracks the song already has. */
+  readonly order: number;
+  /** Names already taken, so the new one is distinguishable in the mixer. */
+  readonly existingNames: readonly string[];
 }
 
 /**
@@ -74,37 +75,37 @@ export interface NewTrackOptions {
  * cannot create a sampler" for "you can, and there is nothing to do with it".
  */
 export function createNewTrack(
-	context: DomainFactoryContext,
-	options: NewTrackOptions,
+  context: DomainFactoryContext,
+  options: NewTrackOptions,
 ): NewTrack {
-	const spec = newTrackKindSpec(options.kind);
-	const name = uniqueTrackName(spec.label, options.existingNames);
+  const spec = newTrackKindSpec(options.kind);
+  const name = uniqueTrackName(spec.label, options.existingNames);
 
-	const track = createTrack(context, {
-		name,
-		order: options.order,
-		type: "instrument",
-		instrument: createInstrumentOfKind(context, options.kind),
-	});
-	const clip = createNoteClip(context, {
-		trackId: track.id,
-		name,
-		lengthTicks: TICKS_PER_BAR,
-	});
-	const placement = createPlacement(context, {
-		clipId: clip.id,
-		trackId: track.id,
-		startTicks: 0,
-		durationTicks: TICKS_PER_BAR,
-	});
+  const track = createTrack(context, {
+    name,
+    order: options.order,
+    type: "instrument",
+    instrument: createInstrumentOfKind(context, options.kind),
+  });
+  const clip = createNoteClip(context, {
+    trackId: track.id,
+    name,
+    lengthTicks: TICKS_PER_BAR,
+  });
+  const placement = createPlacement(context, {
+    clipId: clip.id,
+    trackId: track.id,
+    startTicks: 0,
+    durationTicks: TICKS_PER_BAR,
+  });
 
-	return { track, clip, placement };
+  return { track, clip, placement };
 }
 
 export function newTrackKindSpec(kind: NewTrackKind): NewTrackKindSpec {
-	const spec = NEW_TRACK_KINDS.find((candidate) => candidate.kind === kind);
-	if (!spec) throw new TypeError(`Unknown track kind "${kind}"`);
-	return spec;
+  const spec = NEW_TRACK_KINDS.find((candidate) => candidate.kind === kind);
+  if (!spec) throw new TypeError(`Unknown track kind "${kind}"`);
+  return spec;
 }
 
 /**
@@ -120,9 +121,9 @@ export { instrumentTypeKey } from "../instrument/instrumentKinds";
  * make the next sampler reuse a name that is still on screen.
  */
 function uniqueTrackName(base: string, taken: readonly string[]): string {
-	if (!taken.includes(base)) return base;
-	for (let suffix = 2; ; suffix += 1) {
-		const candidate = `${base} ${suffix}`;
-		if (!taken.includes(candidate)) return candidate;
-	}
+  if (!taken.includes(base)) return base;
+  for (let suffix = 2; ; suffix += 1) {
+    const candidate = `${base} ${suffix}`;
+    if (!taken.includes(candidate)) return candidate;
+  }
 }

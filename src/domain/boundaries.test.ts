@@ -10,39 +10,30 @@ import { describe, expect, it } from "vitest";
 
 const domainDirectory = join(process.cwd(), "src", "domain");
 
-const FORBIDDEN_IMPORTS = [
-	"firebase",
-	"solid-js",
-	"@solidjs/",
-	"tone",
-	"vitest",
-];
+const FORBIDDEN_IMPORTS = ["firebase", "solid-js", "@solidjs/", "tone", "vitest"];
 
 function sourceFiles(): string[] {
-	return readdirSync(domainDirectory).filter(
-		(file) => file.endsWith(".ts") && !file.endsWith(".test.ts"),
-	);
+  return readdirSync(domainDirectory).filter(
+    (file) => file.endsWith(".ts") && !file.endsWith(".test.ts"),
+  );
 }
 
 describe("domain boundaries", () => {
-	it("has source files to check", () => {
-		expect(sourceFiles().length).toBeGreaterThan(5);
-	});
+  it("has source files to check", () => {
+    expect(sourceFiles().length).toBeGreaterThan(5);
+  });
 
-	it("imports no Firebase, Tone, Solid, or test-framework module", () => {
-		for (const file of sourceFiles()) {
-			const source = readFileSync(join(domainDirectory, file), "utf8");
-			const imports = [...source.matchAll(/from\s+"([^"]+)"/g)].map(
-				(match) => match[1],
-			);
-			for (const specifier of imports) {
-				for (const forbidden of FORBIDDEN_IMPORTS) {
-					expect(
-						specifier.startsWith(forbidden),
-						`${file} imports "${specifier}"`,
-					).toBe(false);
-				}
-			}
-		}
-	});
+  it("imports no Firebase, Tone, Solid, or test-framework module", () => {
+    for (const file of sourceFiles()) {
+      const source = readFileSync(join(domainDirectory, file), "utf8");
+      const imports = [...source.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]);
+      for (const specifier of imports) {
+        for (const forbidden of FORBIDDEN_IMPORTS) {
+          expect(specifier.startsWith(forbidden), `${file} imports "${specifier}"`).toBe(
+            false,
+          );
+        }
+      }
+    }
+  });
 });

@@ -20,16 +20,16 @@
 import { RELEASE_SHA } from "../release";
 import { isInternalTraffic } from "../shared/internalTraffic";
 import {
-	type AccountType,
-	ANALYTICS_EVENTS,
-	type AnalyticsEventName,
-	type AnalyticsParamValue,
-	AUTOMATIC_PARAMS,
-	type FeatureKey,
-	type LogArgs,
-	type Surface,
-	USER_PROPERTIES,
-	validateEventPayload,
+  type AccountType,
+  ANALYTICS_EVENTS,
+  type AnalyticsEventName,
+  type AnalyticsParamValue,
+  AUTOMATIC_PARAMS,
+  type FeatureKey,
+  type LogArgs,
+  type Surface,
+  USER_PROPERTIES,
+  validateEventPayload,
 } from "./catalog";
 import { type ConsentStore, consentStore } from "./consent";
 import { type AnalyticsTransport, noopTransport } from "./transport";
@@ -38,212 +38,208 @@ import { type AnalyticsTransport, noopTransport } from "./transport";
 export const ONCE_STORAGE_PREFIX = "sg_once:";
 
 export interface AnalyticsOptions {
-	transport?: AnalyticsTransport;
-	consent?: ConsentStore;
-	/** Defaults to the build's stamped SHA (PRD `OPS-01`). */
-	releaseSha?: string;
-	surface?: Surface;
-	/** Where once-only bookkeeping lives. `null` disables persistence. */
-	storage?: Storage | null;
-	/**
-	 * Called when an event is dropped. Never receives a rejected *value* — a
-	 * value rejected by the catalog may be exactly the project content that
-	 * must not travel. Defaults to a no-op.
-	 */
-	onIssue?: (issues: readonly string[]) => void;
+  transport?: AnalyticsTransport;
+  consent?: ConsentStore;
+  /** Defaults to the build's stamped SHA (PRD `OPS-01`). */
+  releaseSha?: string;
+  surface?: Surface;
+  /** Where once-only bookkeeping lives. `null` disables persistence. */
+  storage?: Storage | null;
+  /**
+   * Called when an event is dropped. Never receives a rejected *value* — a
+   * value rejected by the catalog may be exactly the project content that
+   * must not travel. Defaults to a no-op.
+   */
+  onIssue?: (issues: readonly string[]) => void;
 }
 
 export class Analytics {
-	private transport: AnalyticsTransport;
-	private readonly consent: ConsentStore;
-	private readonly releaseSha: string;
-	private readonly storage: Storage | null;
-	private readonly onIssue: (issues: readonly string[]) => void;
-	private surface: Surface;
-	private accountType: AccountType = "unknown";
-	private internal = false;
-	private userPropertiesSent = false;
-	/** Fallback for once-only events when storage is unavailable. */
-	private readonly onceMemory = new Set<string>();
+  private transport: AnalyticsTransport;
+  private readonly consent: ConsentStore;
+  private readonly releaseSha: string;
+  private readonly storage: Storage | null;
+  private readonly onIssue: (issues: readonly string[]) => void;
+  private surface: Surface;
+  private accountType: AccountType = "unknown";
+  private internal = false;
+  private userPropertiesSent = false;
+  /** Fallback for once-only events when storage is unavailable. */
+  private readonly onceMemory = new Set<string>();
 
-	constructor(options: AnalyticsOptions = {}) {
-		this.transport = options.transport ?? noopTransport;
-		this.consent = options.consent ?? consentStore;
-		this.releaseSha = options.releaseSha ?? RELEASE_SHA;
-		this.surface = options.surface ?? "dashboard";
-		this.storage =
-			options.storage === undefined ? safeStorage() : options.storage;
-		this.onIssue = options.onIssue ?? (() => {});
-	}
+  constructor(options: AnalyticsOptions = {}) {
+    this.transport = options.transport ?? noopTransport;
+    this.consent = options.consent ?? consentStore;
+    this.releaseSha = options.releaseSha ?? RELEASE_SHA;
+    this.surface = options.surface ?? "dashboard";
+    this.storage = options.storage === undefined ? safeStorage() : options.storage;
+    this.onIssue = options.onIssue ?? (() => {});
+  }
 
-	/**
-	 * Swaps in the real vendor transport once it has loaded.
-	 *
-	 * Analytics is usable from the first line of application code with the
-	 * no-op transport, so nothing has to wait for — or defensively null-check —
-	 * a vendor SDK that loads lazily.
-	 */
-	setTransport(transport: AnalyticsTransport): void {
-		this.transport = transport;
-		// The new transport has no idea who this user is yet.
-		this.userPropertiesSent = false;
-		this.flushUserProperties();
-	}
+  /**
+   * Swaps in the real vendor transport once it has loaded.
+   *
+   * Analytics is usable from the first line of application code with the
+   * no-op transport, so nothing has to wait for — or defensively null-check —
+   * a vendor SDK that loads lazily.
+   */
+  setTransport(transport: AnalyticsTransport): void {
+    this.transport = transport;
+    // The new transport has no idea who this user is yet.
+    this.userPropertiesSent = false;
+    this.flushUserProperties();
+  }
 
-	/** The surface attached to subsequent events. */
-	setSurface(surface: Surface): void {
-		this.surface = surface;
-	}
+  /** The surface attached to subsequent events. */
+  setSurface(surface: Surface): void {
+    this.surface = surface;
+  }
 
-	setAccountType(accountType: AccountType): void {
-		if (this.accountType === accountType) return;
-		this.accountType = accountType;
-		this.userPropertiesSent = false;
-		this.flushUserProperties();
-	}
+  setAccountType(accountType: AccountType): void {
+    if (this.accountType === accountType) return;
+    this.accountType = accountType;
+    this.userPropertiesSent = false;
+    this.flushUserProperties();
+  }
 
-	/** Re-reads the persisted internal-traffic flag set by `FND-001b`. */
-	refreshInternalTraffic(storage?: Storage): void {
-		const next = storage ? isInternalTraffic(storage) : safeIsInternal();
-		if (next === this.internal) return;
-		this.internal = next;
-		this.userPropertiesSent = false;
-		this.flushUserProperties();
-	}
+  /** Re-reads the persisted internal-traffic flag set by `FND-001b`. */
+  refreshInternalTraffic(storage?: Storage): void {
+    const next = storage ? isInternalTraffic(storage) : safeIsInternal();
+    if (next === this.internal) return;
+    this.internal = next;
+    this.userPropertiesSent = false;
+    this.flushUserProperties();
+  }
 
-	/**
-	 * Logs one catalogued event.
-	 *
-	 * The payload type comes from the catalog, so an unregistered event, an
-	 * unregistered parameter, or a value outside a parameter's declared set is
-	 * a compile error at the call site.
-	 */
-	log<N extends AnalyticsEventName>(name: N, ...args: LogArgs<N>): void {
-		const payload = (args[0] ?? {}) as Record<string, unknown>;
-		if (!this.consent.analyticsAllowed) return;
+  /**
+   * Logs one catalogued event.
+   *
+   * The payload type comes from the catalog, so an unregistered event, an
+   * unregistered parameter, or a value outside a parameter's declared set is
+   * a compile error at the call site.
+   */
+  log<N extends AnalyticsEventName>(name: N, ...args: LogArgs<N>): void {
+    const payload = (args[0] ?? {}) as Record<string, unknown>;
+    if (!this.consent.analyticsAllowed) return;
 
-		const { params, issues } = validateEventPayload(name, payload);
-		if (issues.length > 0) {
-			this.report(issues);
-			return;
-		}
+    const { params, issues } = validateEventPayload(name, payload);
+    if (issues.length > 0) {
+      this.report(issues);
+      return;
+    }
 
-		this.flushUserProperties();
-		this.send(name, {
-			...params,
-			[AUTOMATIC_PARAMS.release_sha]: this.releaseSha,
-			[AUTOMATIC_PARAMS.surface]: this.surface,
-		});
-	}
+    this.flushUserProperties();
+    this.send(name, {
+      ...params,
+      [AUTOMATIC_PARAMS.release_sha]: this.releaseSha,
+      [AUTOMATIC_PARAMS.surface]: this.surface,
+    });
+  }
 
-	/**
-	 * Logs an event at most once for `key`, across reloads.
-	 *
-	 * Returns whether it fired. The marker is written *before* the event is
-	 * sent: a "first use" that is double-counted is a worse failure than one
-	 * that is lost, because the section 11 first-use measures assume a single
-	 * observation per account.
-	 */
-	logOnce<N extends AnalyticsEventName>(
-		key: string,
-		name: N,
-		...args: LogArgs<N>
-	): boolean {
-		if (!this.consent.analyticsAllowed) return false;
-		if (this.hasFired(key)) return false;
-		this.markFired(key);
-		this.log(name, ...args);
-		return true;
-	}
+  /**
+   * Logs an event at most once for `key`, across reloads.
+   *
+   * Returns whether it fired. The marker is written *before* the event is
+   * sent: a "first use" that is double-counted is a worse failure than one
+   * that is lost, because the section 11 first-use measures assume a single
+   * observation per account.
+   */
+  logOnce<N extends AnalyticsEventName>(
+    key: string,
+    name: N,
+    ...args: LogArgs<N>
+  ): boolean {
+    if (!this.consent.analyticsAllowed) return false;
+    if (this.hasFired(key)) return false;
+    this.markFired(key);
+    this.log(name, ...args);
+    return true;
+  }
 
-	/** `feature_first_use`, once per account per browser (PRD `OPS-02`). */
-	logFeatureFirstUse(feature: FeatureKey): boolean {
-		return this.logOnce(`feature:${feature}`, "feature_first_use", { feature });
-	}
+  /** `feature_first_use`, once per account per browser (PRD `OPS-02`). */
+  logFeatureFirstUse(feature: FeatureKey): boolean {
+    return this.logOnce(`feature:${feature}`, "feature_first_use", { feature });
+  }
 
-	/** Whether a once-only key has already fired. */
-	hasFired(key: string): boolean {
-		if (this.onceMemory.has(key)) return true;
-		if (!this.storage) return false;
-		try {
-			return this.storage.getItem(ONCE_STORAGE_PREFIX + key) !== null;
-		} catch {
-			return false;
-		}
-	}
+  /** Whether a once-only key has already fired. */
+  hasFired(key: string): boolean {
+    if (this.onceMemory.has(key)) return true;
+    if (!this.storage) return false;
+    try {
+      return this.storage.getItem(ONCE_STORAGE_PREFIX + key) !== null;
+    } catch {
+      return false;
+    }
+  }
 
-	private markFired(key: string): void {
-		// Always recorded in memory, so a session whose storage is unavailable
-		// still gets once-per-session rather than once-per-call semantics.
-		this.onceMemory.add(key);
-		if (!this.storage) return;
-		try {
-			this.storage.setItem(ONCE_STORAGE_PREFIX + key, "1");
-		} catch {
-			// Private browsing or a full quota. Handled by `onceMemory` above.
-		}
-	}
+  private markFired(key: string): void {
+    // Always recorded in memory, so a session whose storage is unavailable
+    // still gets once-per-session rather than once-per-call semantics.
+    this.onceMemory.add(key);
+    if (!this.storage) return;
+    try {
+      this.storage.setItem(ONCE_STORAGE_PREFIX + key, "1");
+    } catch {
+      // Private browsing or a full quota. Handled by `onceMemory` above.
+    }
+  }
 
-	private flushUserProperties(): void {
-		if (this.userPropertiesSent || !this.consent.analyticsAllowed) return;
-		this.userPropertiesSent = true;
-		this.guard(() => {
-			this.transport.setUserProperties({
-				[USER_PROPERTIES.account_type]: this.accountType,
-				[USER_PROPERTIES.internal]: String(this.internal),
-			});
-		});
-	}
+  private flushUserProperties(): void {
+    if (this.userPropertiesSent || !this.consent.analyticsAllowed) return;
+    this.userPropertiesSent = true;
+    this.guard(() => {
+      this.transport.setUserProperties({
+        [USER_PROPERTIES.account_type]: this.accountType,
+        [USER_PROPERTIES.internal]: String(this.internal),
+      });
+    });
+  }
 
-	private send(
-		name: string,
-		params: Record<string, AnalyticsParamValue>,
-	): void {
-		this.guard(() => {
-			this.transport.logEvent(name, params);
-		});
-	}
+  private send(name: string, params: Record<string, AnalyticsParamValue>): void {
+    this.guard(() => {
+      this.transport.logEvent(name, params);
+    });
+  }
 
-	/**
-	 * Runs a transport call so that no failure can escape into the caller.
-	 *
-	 * The caller is playback, editing, or saving code. PRD `OPS-02` and
-	 * `OPS-03` both require that a blocked endpoint — an ad blocker is the
-	 * common case — is invisible to it.
-	 */
-	private guard(action: () => void): void {
-		try {
-			action();
-		} catch {
-			// Intentionally silent: reporting a failed *analytics* send through the
-			// error reporter (which itself logs an analytics event) is how a
-			// telemetry loop starts.
-		}
-	}
+  /**
+   * Runs a transport call so that no failure can escape into the caller.
+   *
+   * The caller is playback, editing, or saving code. PRD `OPS-02` and
+   * `OPS-03` both require that a blocked endpoint — an ad blocker is the
+   * common case — is invisible to it.
+   */
+  private guard(action: () => void): void {
+    try {
+      action();
+    } catch {
+      // Intentionally silent: reporting a failed *analytics* send through the
+      // error reporter (which itself logs an analytics event) is how a
+      // telemetry loop starts.
+    }
+  }
 
-	private report(issues: readonly string[]): void {
-		try {
-			this.onIssue(issues);
-		} catch {
-			// An issue handler must not be able to break the caller either.
-		}
-	}
+  private report(issues: readonly string[]): void {
+    try {
+      this.onIssue(issues);
+    } catch {
+      // An issue handler must not be able to break the caller either.
+    }
+  }
 }
 
 function safeStorage(): Storage | null {
-	try {
-		return typeof localStorage === "undefined" ? null : localStorage;
-	} catch {
-		return null;
-	}
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function safeIsInternal(): boolean {
-	try {
-		return typeof localStorage === "undefined" ? false : isInternalTraffic();
-	} catch {
-		return false;
-	}
+  try {
+    return typeof localStorage === "undefined" ? false : isInternalTraffic();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -257,5 +253,5 @@ export const analytics = new Analytics();
 
 /** Events declared in the catalog but not yet reachable from any call site. */
 export function isDeclaredEvent(name: string): name is AnalyticsEventName {
-	return Object.hasOwn(ANALYTICS_EVENTS, name);
+  return Object.hasOwn(ANALYTICS_EVENTS, name);
 }

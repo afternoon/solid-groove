@@ -16,20 +16,12 @@
  * by schema-v1 prefixed ID (PRD CLP-01, 9.6).
  */
 
-import {
-	removePlacement,
-	updatePlacement,
-} from "../commands/definitions/placements";
+import { removePlacement, updatePlacement } from "../commands/definitions/placements";
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Placement, Project } from "../domain/entities";
 import type { PlacementId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
-import {
-	minutesToTicks,
-	TICKS_PER_BAR,
-	type Ticks,
-	toTicks,
-} from "../domain/time";
+import { minutesToTicks, TICKS_PER_BAR, type Ticks, toTicks } from "../domain/time";
 
 /** The arrangement length PRD ARR-01 guarantees, in minutes. */
 export const GUARANTEED_ARRANGEMENT_MINUTES = 10;
@@ -53,55 +45,44 @@ export const GUARANTEED_ARRANGEMENT_MINUTES = 10;
  * not guaranteed.
  */
 export const MAX_ARRANGEMENT_TICKS = minutesToTicks(
-	GUARANTEED_ARRANGEMENT_MINUTES,
-	SONG_TEMPO.max,
+  GUARANTEED_ARRANGEMENT_MINUTES,
+  SONG_TEMPO.max,
 );
 
 /** Snaps a tick to the nearest bar line — ARR-01's default snapping. */
 export function snapToBar(ticks: number): Ticks {
-	const snapped = Math.round(ticks / TICKS_PER_BAR) * TICKS_PER_BAR;
-	return toTicks(clampTick(snapped));
+  const snapped = Math.round(ticks / TICKS_PER_BAR) * TICKS_PER_BAR;
+  return toTicks(clampTick(snapped));
 }
 
 /** Snaps down to the bar line at or before `ticks`. */
 export function floorToBar(ticks: number): Ticks {
-	const snapped = Math.floor(ticks / TICKS_PER_BAR) * TICKS_PER_BAR;
-	return toTicks(clampTick(snapped));
+  const snapped = Math.floor(ticks / TICKS_PER_BAR) * TICKS_PER_BAR;
+  return toTicks(clampTick(snapped));
 }
 
 /** Clamps a raw tick into `[0, MAX_ARRANGEMENT_TICKS]`, treating NaN as zero. */
 export function clampTick(ticks: number): number {
-	if (!Number.isFinite(ticks)) return 0;
-	return Math.max(0, Math.min(MAX_ARRANGEMENT_TICKS, Math.round(ticks)));
+  if (!Number.isFinite(ticks)) return 0;
+  return Math.max(0, Math.min(MAX_ARRANGEMENT_TICKS, Math.round(ticks)));
 }
 
 /** A duration is at least one bar and never runs past the guaranteed bound. */
-export function clampDuration(
-	startTicks: number,
-	durationTicks: number,
-): Ticks {
-	const maxDuration = Math.max(
-		TICKS_PER_BAR,
-		MAX_ARRANGEMENT_TICKS - startTicks,
-	);
-	const bars = Math.max(1, Math.round(durationTicks / TICKS_PER_BAR));
-	return toTicks(Math.min(bars * TICKS_PER_BAR, maxDuration));
+export function clampDuration(startTicks: number, durationTicks: number): Ticks {
+  const maxDuration = Math.max(TICKS_PER_BAR, MAX_ARRANGEMENT_TICKS - startTicks);
+  const bars = Math.max(1, Math.round(durationTicks / TICKS_PER_BAR));
+  return toTicks(Math.min(bars * TICKS_PER_BAR, maxDuration));
 }
 
 export function findPlacement(
-	project: Project,
-	placementId: PlacementId,
+  project: Project,
+  placementId: PlacementId,
 ): Placement | undefined {
-	return project.song.placements.find(
-		(placement) => placement.id === placementId,
-	);
+  return project.song.placements.find((placement) => placement.id === placementId);
 }
 
-export function findClip(
-	project: Project,
-	clipId: Clip["id"],
-): Clip | undefined {
-	return project.clips.find((clip) => clip.id === clipId);
+export function findClip(project: Project, clipId: Clip["id"]): Clip | undefined {
+  return project.clips.find((clip) => clip.id === clipId);
 }
 
 /**
@@ -113,41 +94,41 @@ export function findClip(
  * before offering the drop.
  */
 export function movePlacement(
-	project: Project,
-	placementId: PlacementId,
-	startTicks: number,
-	trackId?: TrackId,
+  project: Project,
+  placementId: PlacementId,
+  startTicks: number,
+  trackId?: TrackId,
 ): RawCommandInput[] {
-	const placement = findPlacement(project, placementId);
-	if (!placement) return [];
-	const nextStart = snapToBar(startTicks);
-	const nextTrackId = trackId ?? placement.trackId;
-	if (nextStart === placement.startTicks && nextTrackId === placement.trackId) {
-		return [];
-	}
-	if (
-		nextTrackId !== placement.trackId &&
-		!canMoveToTrack(project, placement, nextTrackId)
-	) {
-		return [];
-	}
-	return [
-		updatePlacement(placementId, {
-			startTicks: nextStart,
-			...(nextTrackId === placement.trackId ? {} : { trackId: nextTrackId }),
-		}),
-	];
+  const placement = findPlacement(project, placementId);
+  if (!placement) return [];
+  const nextStart = snapToBar(startTicks);
+  const nextTrackId = trackId ?? placement.trackId;
+  if (nextStart === placement.startTicks && nextTrackId === placement.trackId) {
+    return [];
+  }
+  if (
+    nextTrackId !== placement.trackId &&
+    !canMoveToTrack(project, placement, nextTrackId)
+  ) {
+    return [];
+  }
+  return [
+    updatePlacement(placementId, {
+      startTicks: nextStart,
+      ...(nextTrackId === placement.trackId ? {} : { trackId: nextTrackId }),
+    }),
+  ];
 }
 
 /** True when `track` already owns the placement's clip, so a move is legal. */
 export function canMoveToTrack(
-	project: Project,
-	placement: Placement,
-	trackId: TrackId,
+  project: Project,
+  placement: Placement,
+  trackId: TrackId,
 ): boolean {
-	if (placement.trackId === trackId) return true;
-	const clip = findClip(project, placement.clipId);
-	return clip?.trackId === trackId;
+  if (placement.trackId === trackId) return true;
+  const clip = findClip(project, placement.clipId);
+  return clip?.trackId === trackId;
 }
 
 /**
@@ -157,58 +138,55 @@ export function canMoveToTrack(
  * `clipOffsetTicks` in step so clip content does not slide out from under it.
  */
 export function resizePlacement(
-	project: Project,
-	placementId: PlacementId,
-	edge: "start" | "end",
-	ticks: number,
+  project: Project,
+  placementId: PlacementId,
+  edge: "start" | "end",
+  ticks: number,
 ): RawCommandInput[] {
-	const placement = findPlacement(project, placementId);
-	if (!placement) return [];
-	const endTicks = placement.startTicks + placement.durationTicks;
+  const placement = findPlacement(project, placementId);
+  if (!placement) return [];
+  const endTicks = placement.startTicks + placement.durationTicks;
 
-	if (edge === "end") {
-		const nextEnd = Math.max(
-			placement.startTicks + TICKS_PER_BAR,
-			snapToBar(ticks),
-		);
-		const durationTicks = clampDuration(
-			placement.startTicks,
-			nextEnd - placement.startTicks,
-		);
-		if (durationTicks === placement.durationTicks) return [];
-		return [updatePlacement(placementId, { durationTicks })];
-	}
+  if (edge === "end") {
+    const nextEnd = Math.max(placement.startTicks + TICKS_PER_BAR, snapToBar(ticks));
+    const durationTicks = clampDuration(
+      placement.startTicks,
+      nextEnd - placement.startTicks,
+    );
+    if (durationTicks === placement.durationTicks) return [];
+    return [updatePlacement(placementId, { durationTicks })];
+  }
 
-	const nextStart = Math.min(snapToBar(ticks), endTicks - TICKS_PER_BAR);
-	if (nextStart === placement.startTicks) return [];
-	const delta = nextStart - placement.startTicks;
-	return [
-		updatePlacement(placementId, {
-			startTicks: toTicks(clampTick(nextStart)),
-			durationTicks: clampDuration(nextStart, placement.durationTicks - delta),
-			// Trimming the head skips that much of the clip; extending it rewinds,
-			// never below the clip's own start.
-			clipOffsetTicks: toTicks(Math.max(0, placement.clipOffsetTicks + delta)),
-		}),
-	];
+  const nextStart = Math.min(snapToBar(ticks), endTicks - TICKS_PER_BAR);
+  if (nextStart === placement.startTicks) return [];
+  const delta = nextStart - placement.startTicks;
+  return [
+    updatePlacement(placementId, {
+      startTicks: toTicks(clampTick(nextStart)),
+      durationTicks: clampDuration(nextStart, placement.durationTicks - delta),
+      // Trimming the head skips that much of the clip; extending it rewinds,
+      // never below the clip's own start.
+      clipOffsetTicks: toTicks(Math.max(0, placement.clipOffsetTicks + delta)),
+    }),
+  ];
 }
 
 /** Toggle the loop flag (ARR-01 / KEY-01 `arrangement.toggle_loop`). */
 export function setPlacementLooped(
-	project: Project,
-	placementId: PlacementId,
-	looped: boolean,
+  project: Project,
+  placementId: PlacementId,
+  looped: boolean,
 ): RawCommandInput[] {
-	const placement = findPlacement(project, placementId);
-	if (!placement || placement.looped === looped) return [];
-	return [updatePlacement(placementId, { looped })];
+  const placement = findPlacement(project, placementId);
+  if (!placement || placement.looped === looped) return [];
+  return [updatePlacement(placementId, { looped })];
 }
 
 export function deletePlacements(
-	project: Project,
-	placementIds: readonly PlacementId[],
+  project: Project,
+  placementIds: readonly PlacementId[],
 ): RawCommandInput[] {
-	return placementIds
-		.filter((id) => findPlacement(project, id) !== undefined)
-		.map((id) => removePlacement(id));
+  return placementIds
+    .filter((id) => findPlacement(project, id) !== undefined)
+    .map((id) => removePlacement(id));
 }

@@ -2,56 +2,56 @@
    regions separate by elevation tint, not borders. */
 
 .instrument-panel {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	padding: 12px;
-	background-color: var(--color-background-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background-color: var(--color-background-secondary);
 }
 
 .instrument-panel-groups {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12px;
-	align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
 }
 
 .instrument-panel-group {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	padding: 10px;
-	background-color: var(--color-background-highlight);
-	min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background-color: var(--color-background-highlight);
+  min-width: 0;
 }
 
 .instrument-panel-heading {
-	margin: 0;
-	font-size: var(--font-size-tiny);
-	letter-spacing: 0.08em;
-	text-transform: uppercase;
-	color: var(--color-foreground);
-	font-weight: 600;
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-foreground);
+  font-weight: 600;
 }
 
 .instrument-panel-slider-row {
-	display: flex;
-	gap: 10px;
-	align-items: flex-end;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
 }
 
 .sampler-sample-name {
-	margin: 0;
-	font-size: var(--font-size-base);
-	color: var(--color-text);
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
 }
 
 /* One track's instrument controls: the kind picker and its panel, together,
    so the whole area is one drop target (#225). */
 .instrument-area {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* The sample group holds prose — the loaded sound's name and the drag hint —
@@ -62,34 +62,34 @@
    this one grows into whatever is left, and its text wraps inside that instead
    of setting it. `min-width` lets it fall below the hint's own line length. */
 .sampler-sample-group {
-	flex: 1 1 0;
-	min-width: 0;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .sampler-load-hint {
-	margin: 0;
-	font-size: var(--font-size-tiny);
-	color: var(--color-foreground);
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  color: var(--color-foreground);
 }
 
 /* A sound is being dragged over the area and this track's sampler will take it. */
 .instrument-panel-drop-target {
-	outline: 2px solid var(--color-accent, #20c8e8);
-	outline-offset: -2px;
+  outline: 2px solid var(--color-accent, #20c8e8);
+  outline-offset: -2px;
 }
 
 .instrument-panel-audition {
-	height: 30px;
-	padding: 0 12px;
-	background-color: var(--color-background-tertiary);
-	border: none;
-	font-size: var(--font-size-small);
-	cursor: pointer;
-	align-self: flex-start;
-	color: var(--color-accent, #20c8e8);
+  height: 30px;
+  padding: 0 12px;
+  background-color: var(--color-background-tertiary);
+  border: none;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+  align-self: flex-start;
+  color: var(--color-accent, #20c8e8);
 }
 
 .instrument-panel-audition:hover {
-	background-color: var(--color-accent, #20c8e8);
-	color: var(--color-background);
+  background-color: var(--color-accent, #20c8e8);
+  color: var(--color-background);
 }

@@ -37,12 +37,7 @@
  * whether an unrecognized pack is the user's own or a third party's, and
  * guessing would corrupt the very comparison the event exists to answer.
  */
-export const PACK_KINDS = [
-	"factory",
-	"third_party",
-	"user",
-	"unknown",
-] as const;
+export const PACK_KINDS = ["factory", "third_party", "user", "unknown"] as const;
 export type PackKind = (typeof PACK_KINDS)[number];
 
 /**
@@ -64,12 +59,12 @@ export const MAX_PACK_ID_LENGTH = 60;
 
 /** Is this a well-formed published pack slug (and not a reserved sentinel)? */
 export function isPublishedPackSlug(value: string): boolean {
-	return (
-		value.length > 0 &&
-		value.length <= MAX_PACK_ID_LENGTH &&
-		SLUG_PATTERN.test(value) &&
-		!(RESERVED_PACK_IDS as readonly string[]).includes(value)
-	);
+  return (
+    value.length > 0 &&
+    value.length <= MAX_PACK_ID_LENGTH &&
+    SLUG_PATTERN.test(value) &&
+    !(RESERVED_PACK_IDS as readonly string[]).includes(value)
+  );
 }
 
 /**
@@ -83,7 +78,7 @@ export function isPublishedPackSlug(value: string): boolean {
  */
 declare const publishedPackIdBrand: unique symbol;
 export type PublishedPackId = string & {
-	readonly [publishedPackIdBrand]: true;
+  readonly [publishedPackIdBrand]: true;
 };
 
 /** The library's own kind vocabulary, as the pack index declares it. */
@@ -91,17 +86,17 @@ export type PublishedPackKind = "factory" | "third-party" | "user";
 
 /** The facts {@link packAnalyticsIdentity} needs — a `LibraryPackSummary` has them. */
 export interface IdentifiablePack {
-	readonly slug: string;
-	readonly kind: PublishedPackKind;
+  readonly slug: string;
+  readonly kind: PublishedPackKind;
 }
 
 export interface PackAnalyticsIdentity {
-	readonly pack_id: PublishedPackId;
-	readonly pack_kind: PackKind;
+  readonly pack_id: PublishedPackId;
+  readonly pack_kind: PackKind;
 }
 
 function published(value: string): PublishedPackId {
-	return value as PublishedPackId;
+  return value as PublishedPackId;
 }
 
 /**
@@ -115,14 +110,12 @@ function published(value: string): PublishedPackId {
  * malformed slug) degrades to `"unknown"`; the value is never echoed back.
  */
 export function packAnalyticsIdentity(
-	pack: IdentifiablePack | undefined,
+  pack: IdentifiablePack | undefined,
 ): PackAnalyticsIdentity {
-	if (!pack) return { pack_id: published("unknown"), pack_kind: "unknown" };
-	if (pack.kind === "user")
-		return { pack_id: published("user"), pack_kind: "user" };
-	const pack_kind: PackKind =
-		pack.kind === "third-party" ? "third_party" : "factory";
-	return isPublishedPackSlug(pack.slug)
-		? { pack_id: published(pack.slug), pack_kind }
-		: { pack_id: published("unknown"), pack_kind };
+  if (!pack) return { pack_id: published("unknown"), pack_kind: "unknown" };
+  if (pack.kind === "user") return { pack_id: published("user"), pack_kind: "user" };
+  const pack_kind: PackKind = pack.kind === "third-party" ? "third_party" : "factory";
+  return isPublishedPackSlug(pack.slug)
+    ? { pack_id: published(pack.slug), pack_kind }
+    : { pack_id: published("unknown"), pack_kind };
 }

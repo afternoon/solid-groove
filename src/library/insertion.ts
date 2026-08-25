@@ -36,16 +36,16 @@ import { assetStorageRef, type LibraryAsset } from "./manifest";
  * project's, so they deliberately do not travel.
  */
 export const librarySampleSchema = z.strictObject({
-	name: z.string().min(1),
-	packId: packIdSchema,
-	packVersion: packVersionSchema,
-	kind: assetKindSchema,
-	storageRef: z.string().min(1),
-	url: z.string().min(1),
-	durationSeconds: z.number().min(0).nullable(),
-	sampleRate: z.int().min(1).nullable(),
-	channelCount: z.int().min(1).max(2).nullable(),
-	licence: z.string().min(1),
+  name: z.string().min(1),
+  packId: packIdSchema,
+  packVersion: packVersionSchema,
+  kind: assetKindSchema,
+  storageRef: z.string().min(1),
+  url: z.string().min(1),
+  durationSeconds: z.number().min(0).nullable(),
+  sampleRate: z.int().min(1).nullable(),
+  channelCount: z.int().min(1).max(2).nullable(),
+  licence: z.string().min(1),
 });
 export type LibrarySample = z.infer<typeof librarySampleSchema>;
 
@@ -61,56 +61,53 @@ const UNSTATED_LICENCE = "unstated";
  * dropped onto a sampler and becoming an asset whose buffer never resolves.
  */
 export function toLibrarySample(asset: LibraryAsset): LibrarySample | null {
-	if (!asset.storageKey || !asset.url) return null;
-	const parsed = librarySampleSchema.safeParse({
-		name: asset.name,
-		packId: asset.packId,
-		packVersion: asset.packVersion,
-		kind: asset.type === "loop" ? "loop" : "sample",
-		storageRef: assetStorageRef(asset.storageKey),
-		url: asset.url,
-		durationSeconds: asset.durationSeconds,
-		sampleRate: asset.sampleRate,
-		channelCount: asset.channelCount,
-		licence: asset.licence ?? UNSTATED_LICENCE,
-	});
-	return parsed.success ? parsed.data : null;
+  if (!asset.storageKey || !asset.url) return null;
+  const parsed = librarySampleSchema.safeParse({
+    name: asset.name,
+    packId: asset.packId,
+    packVersion: asset.packVersion,
+    kind: asset.type === "loop" ? "loop" : "sample",
+    storageRef: assetStorageRef(asset.storageKey),
+    url: asset.url,
+    durationSeconds: asset.durationSeconds,
+    sampleRate: asset.sampleRate,
+    channelCount: asset.channelCount,
+    licence: asset.licence ?? UNSTATED_LICENCE,
+  });
+  return parsed.success ? parsed.data : null;
 }
 
 /** The project's own reference to this delivery of this sound, if it has one. */
-export function carriedAsset(
-	project: Project,
-	sample: LibrarySample,
-): Asset | null {
-	return (
-		project.song.assets.find(
-			(asset) =>
-				asset.packId === sample.packId &&
-				asset.packVersion === sample.packVersion &&
-				asset.storageRef === sample.storageRef,
-		) ?? null
-	);
+export function carriedAsset(project: Project, sample: LibrarySample): Asset | null {
+  return (
+    project.song.assets.find(
+      (asset) =>
+        asset.packId === sample.packId &&
+        asset.packVersion === sample.packVersion &&
+        asset.storageRef === sample.storageRef,
+    ) ?? null
+  );
 }
 
 /** A fresh project-scoped reference to a library sound. */
 export function createLibraryAsset(
-	context: DomainFactoryContext,
-	sample: LibrarySample,
+  context: DomainFactoryContext,
+  sample: LibrarySample,
 ): Asset {
-	return createAsset(context, {
-		pack: { id: sample.packId, version: sample.packVersion },
-		name: sample.name,
-		kind: sample.kind,
-		storageRef: sample.storageRef,
-		url: sample.url,
-		durationSeconds: sample.durationSeconds,
-		sampleRate: sample.sampleRate,
-		channelCount: sample.channelCount,
-		// The sound came out of a pack manifest, not out of this project, and its
-		// rights position travels with it.
-		source: "library",
-		licence: sample.licence,
-	});
+  return createAsset(context, {
+    pack: { id: sample.packId, version: sample.packVersion },
+    name: sample.name,
+    kind: sample.kind,
+    storageRef: sample.storageRef,
+    url: sample.url,
+    durationSeconds: sample.durationSeconds,
+    sampleRate: sample.sampleRate,
+    channelCount: sample.channelCount,
+    // The sound came out of a pack manifest, not out of this project, and its
+    // rights position travels with it.
+    source: "library",
+    licence: sample.licence,
+  });
 }
 
 /**
@@ -124,15 +121,15 @@ export function createLibraryAsset(
  * sampler, which makes the whole transaction fail and the project unchanged.
  */
 export function loadSampleCommands(
-	project: Project,
-	trackId: TrackId,
-	sample: LibrarySample,
-	context: DomainFactoryContext,
+  project: Project,
+  trackId: TrackId,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
 ): readonly RawCommandInput[] {
-	const existing = carriedAsset(project, sample);
-	if (existing) {
-		return [setSample(trackId, existing.id)];
-	}
-	const asset = createLibraryAsset(context, sample);
-	return [addAsset(asset), setSample(trackId, asset.id)];
+  const existing = carriedAsset(project, sample);
+  if (existing) {
+    return [setSample(trackId, existing.id)];
+  }
+  const asset = createLibraryAsset(context, sample);
+  return [addAsset(asset), setSample(trackId, asset.id)];
 }

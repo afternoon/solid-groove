@@ -6,61 +6,61 @@
 // pull a component in. Components import it by name.
 
 export type {
-	ChordEvent,
-	KeyChord,
-	ShortcutPlatform,
+  ChordEvent,
+  KeyChord,
+  ShortcutPlatform,
 } from "./keys";
 export {
-	chordLabel,
-	detectPlatform,
-	isShiftAmbiguous,
-	keyLabel,
-	matchesChord,
-	normalizeKey,
-	parseChord,
-	specLabel,
+  chordLabel,
+  detectPlatform,
+  isShiftAmbiguous,
+  keyLabel,
+  matchesChord,
+  normalizeKey,
+  parseChord,
+  specLabel,
 } from "./keys";
 export type {
-	ShortcutActionId,
-	ShortcutDefinition,
-	ShortcutKeys,
-	ShortcutSection,
+  ShortcutActionId,
+  ShortcutDefinition,
+  ShortcutKeys,
+  ShortcutSection,
 } from "./registry";
 export {
-	chordsFor,
-	isInContext,
-	keySpecsFor,
-	matchShortcut,
-	RESERVED_CHORDS,
-	resolveContexts,
-	SHORTCUT_ACTION_IDS,
-	SHORTCUTS,
-	shortcutById,
-	shortcutLabel,
-	shortcutLabels,
-	shortcutSections,
-	shortcutsInContext,
+  chordsFor,
+  isInContext,
+  keySpecsFor,
+  matchShortcut,
+  RESERVED_CHORDS,
+  resolveContexts,
+  SHORTCUT_ACTION_IDS,
+  SHORTCUTS,
+  shortcutById,
+  shortcutLabel,
+  shortcutLabels,
+  shortcutSections,
+  shortcutsInContext,
 } from "./registry";
 export type {
-	ShortcutControllerOptions,
-	ShortcutDispatch,
-	ShortcutHandler,
-	ShortcutHandlers,
-	ShortcutRejection,
+  ShortcutControllerOptions,
+  ShortcutDispatch,
+  ShortcutHandler,
+  ShortcutHandlers,
+  ShortcutRejection,
 } from "./ShortcutController";
 export { ShortcutController } from "./ShortcutController";
 export { isTextEntry } from "./textEntry";
 export type {
-	AbletonParity,
-	BrowserConflict,
-	ShortcutContext,
-	ShortcutGroup,
+  AbletonParity,
+  BrowserConflict,
+  ShortcutContext,
+  ShortcutGroup,
 } from "./types";
 export {
-	AMBIENT_CONTEXT,
-	MODAL_CONTEXT,
-	SHORTCUT_CONTEXTS,
-	SHORTCUT_GROUP_LABELS,
-	SHORTCUT_GROUPS,
+  AMBIENT_CONTEXT,
+  MODAL_CONTEXT,
+  SHORTCUT_CONTEXTS,
+  SHORTCUT_GROUP_LABELS,
+  SHORTCUT_GROUPS,
 } from "./types";
 export { useShortcuts } from "./useShortcuts";

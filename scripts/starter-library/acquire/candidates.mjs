@@ -24,15 +24,15 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const CANDIDATES_PATH = resolve(join(HERE, "candidates.json"));
 
 const AUDIO_EXTENSIONS = [
-	".wav",
-	".flac",
-	".ogg",
-	".oga",
-	".mp3",
-	".m4a",
-	".aiff",
-	".aif",
-	".zip",
+  ".wav",
+  ".flac",
+  ".ogg",
+  ".oga",
+  ".mp3",
+  ".m4a",
+  ".aiff",
+  ".aif",
+  ".zip",
 ];
 
 /**
@@ -63,12 +63,12 @@ export const LICENSE_CONFIDENCE = ["verified-cc0", "likely-cc0", "unconfirmed"];
  */
 
 export function readCandidates(path = CANDIDATES_PATH) {
-	if (!existsSync(path)) return { version: 1, candidates: [] };
-	const parsed = JSON.parse(readFileSync(path, "utf8"));
-	if (!Array.isArray(parsed.candidates)) {
-		throw new Error(`${path}: "candidates" must be an array`);
-	}
-	return parsed;
+  if (!existsSync(path)) return { version: 1, candidates: [] };
+  const parsed = JSON.parse(readFileSync(path, "utf8"));
+  if (!Array.isArray(parsed.candidates)) {
+    throw new Error(`${path}: "candidates" must be an array`);
+  }
+  return parsed;
 }
 
 /**
@@ -78,48 +78,48 @@ export function readCandidates(path = CANDIDATES_PATH) {
  * candidates point at somewhere the reviewer is allowed to take from.
  */
 export function validateCandidates({ candidates }) {
-	const errors = [];
-	const seen = new Set();
-	for (const candidate of candidates) {
-		const where = candidate?.id ?? "<candidate with no id>";
-		if (!candidate?.id) errors.push(`${where}: id is required`);
-		if (seen.has(candidate?.id)) errors.push(`${where}: duplicate id`);
-		seen.add(candidate?.id);
+  const errors = [];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const where = candidate?.id ?? "<candidate with no id>";
+    if (!candidate?.id) errors.push(`${where}: id is required`);
+    if (seen.has(candidate?.id)) errors.push(`${where}: duplicate id`);
+    seen.add(candidate?.id);
 
-		const source = findSource(candidate?.sourceId);
-		if (!source) {
-			errors.push(
-				`${where}: unknown source "${candidate?.sourceId}" — add it to sources.mjs first`,
-			);
-		}
-		if (!candidate?.pageUrl?.startsWith("https://")) {
-			errors.push(`${where}: pageUrl must be an https URL`);
-		}
-		if (
-			candidate?.licenseConfidence &&
-			!LICENSE_CONFIDENCE.includes(candidate.licenseConfidence)
-		) {
-			errors.push(
-				`${where}: licenseConfidence must be one of ${LICENSE_CONFIDENCE.join(", ")}`,
-			);
-		}
-	}
-	return errors;
+    const source = findSource(candidate?.sourceId);
+    if (!source) {
+      errors.push(
+        `${where}: unknown source "${candidate?.sourceId}" — add it to sources.mjs first`,
+      );
+    }
+    if (!candidate?.pageUrl?.startsWith("https://")) {
+      errors.push(`${where}: pageUrl must be an https URL`);
+    }
+    if (
+      candidate?.licenseConfidence &&
+      !LICENSE_CONFIDENCE.includes(candidate.licenseConfidence)
+    ) {
+      errors.push(
+        `${where}: licenseConfidence must be one of ${LICENSE_CONFIDENCE.join(", ")}`,
+      );
+    }
+  }
+  return errors;
 }
 
 /** Resolve a possibly-relative URL against the page it was found on. */
 export function absoluteUrl(href, pageUrl) {
-	try {
-		return new URL(href, pageUrl).href;
-	} catch {
-		return null;
-	}
+  try {
+    return new URL(href, pageUrl).href;
+  } catch {
+    return null;
+  }
 }
 
 const looksLikeAudio = (url) =>
-	AUDIO_EXTENSIONS.some((extension) =>
-		url.split(/[?#]/)[0].toLowerCase().endsWith(extension),
-	);
+  AUDIO_EXTENSIONS.some((extension) =>
+    url.split(/[?#]/)[0].toLowerCase().endsWith(extension),
+  );
 
 /**
  * Pull every attribute value out of some HTML that could be a link to a file:
@@ -127,46 +127,44 @@ const looksLikeAudio = (url) =>
  * suggestion engine, not a parser, and the reviewer confirms the result.
  */
 function extractLinks(html, pageUrl) {
-	const urls = new Set();
-	for (const match of html.matchAll(
-		/(?:href|src|data-[\w-]*)\s*=\s*"([^"]+)"/gi,
-	)) {
-		const absolute = absoluteUrl(match[1], pageUrl);
-		if (absolute) urls.add(absolute);
-	}
-	// Also catch bare audio URLs printed in the page text (common on FreePats).
-	for (const match of html.matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
-		if (looksLikeAudio(match[0])) urls.add(match[0]);
-	}
-	return [...urls];
+  const urls = new Set();
+  for (const match of html.matchAll(/(?:href|src|data-[\w-]*)\s*=\s*"([^"]+)"/gi)) {
+    const absolute = absoluteUrl(match[1], pageUrl);
+    if (absolute) urls.add(absolute);
+  }
+  // Also catch bare audio URLs printed in the page text (common on FreePats).
+  for (const match of html.matchAll(/https?:\/\/[^\s"'<>]+/gi)) {
+    if (looksLikeAudio(match[0])) urls.add(match[0]);
+  }
+  return [...urls];
 }
 
 /** First non-empty capture from the first pattern that matches. */
 function firstMatch(html, patterns) {
-	for (const pattern of patterns) {
-		const match = html.match(pattern);
-		if (match?.[1]?.trim()) return decodeEntities(match[1].trim());
-	}
-	return null;
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]?.trim()) return decodeEntities(match[1].trim());
+  }
+  return null;
 }
 
 function decodeEntities(text) {
-	return text
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&quot;/g, '"')
-		.replace(/&#39;/g, "'")
-		.replace(/\s+/g, " ")
-		.trim();
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 const filenameOf = (url) => {
-	try {
-		return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
-	} catch {
-		return url.split(/[?#]/)[0].split("/").pop() ?? "";
-	}
+  try {
+    return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+  } catch {
+    return url.split(/[?#]/)[0].split("/").pop() ?? "";
+  }
 };
 
 /**
@@ -175,16 +173,14 @@ const filenameOf = (url) => {
  * captured evidence, never this string match.
  */
 function detectLicenseHint(html) {
-	const lowered = html.toLowerCase();
-	if (
-		/cc0|creativecommons\.org\/publicdomain\/zero|public\s*domain/.test(lowered)
-	) {
-		return "CC0-1.0";
-	}
-	if (/cc[-\s]?by[-\s]?nc/.test(lowered)) return "CC-BY-NC (not bundleable)";
-	if (/cc[-\s]?by[-\s]?sa/.test(lowered)) return "CC-BY-SA (not bundleable)";
-	if (/cc[-\s]?by/.test(lowered)) return "CC-BY (not bundleable)";
-	return null;
+  const lowered = html.toLowerCase();
+  if (/cc0|creativecommons\.org\/publicdomain\/zero|public\s*domain/.test(lowered)) {
+    return "CC0-1.0";
+  }
+  if (/cc[-\s]?by[-\s]?nc/.test(lowered)) return "CC-BY-NC (not bundleable)";
+  if (/cc[-\s]?by[-\s]?sa/.test(lowered)) return "CC-BY-SA (not bundleable)";
+  if (/cc[-\s]?by/.test(lowered)) return "CC-BY (not bundleable)";
+  return null;
 }
 
 /**
@@ -193,22 +189,22 @@ function detectLicenseHint(html) {
  * echoes the candidate's intended sound.
  */
 export function rankFileUrls(urls, { hint } = {}) {
-	const audio = urls.filter(looksLikeAudio);
-	// The hint is free text ("909 kick"); a filename is punctuated ("909-kick").
-	// Score by shared tokens rather than a substring so the two still line up.
-	const terms = (hint ?? "")
-		.toLowerCase()
-		.split(/[^a-z0-9]+/)
-		.filter((token) => token.length > 1);
-	return audio.sort((a, b) => score(b) - score(a));
+  const audio = urls.filter(looksLikeAudio);
+  // The hint is free text ("909 kick"); a filename is punctuated ("909-kick").
+  // Score by shared tokens rather than a substring so the two still line up.
+  const terms = (hint ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 1);
+  return audio.sort((a, b) => score(b) - score(a));
 
-	function score(url) {
-		const name = filenameOf(url).toLowerCase();
-		let value = 0;
-		if (!name.endsWith(".zip")) value += 2; // a loose file beats a pack
-		value += terms.filter((term) => name.includes(term)).length;
-		return value;
-	}
+  function score(url) {
+    const name = filenameOf(url).toLowerCase();
+    let value = 0;
+    if (!name.endsWith(".zip")) value += 2; // a loose file beats a pack
+    value += terms.filter((term) => name.includes(term)).length;
+    return value;
+  }
 }
 
 /**
@@ -218,56 +214,56 @@ export function rankFileUrls(urls, { hint } = {}) {
  * lets the reviewer fill the form in by hand.
  */
 export async function crawlCandidate(candidate, { fetchImpl } = {}) {
-	const source = findSource(candidate.sourceId);
-	const base = {
-		id: candidate.id,
-		sourceId: candidate.sourceId,
-		sourceName: source?.name ?? candidate.sourceId,
-		pageUrl: candidate.pageUrl,
-		note: candidate.note ?? null,
-		licenseConfidence: candidate.licenseConfidence ?? "unconfirmed",
-		seedAsset: candidate.asset ?? null,
-	};
+  const source = findSource(candidate.sourceId);
+  const base = {
+    id: candidate.id,
+    sourceId: candidate.sourceId,
+    sourceName: source?.name ?? candidate.sourceId,
+    pageUrl: candidate.pageUrl,
+    note: candidate.note ?? null,
+    licenseConfidence: candidate.licenseConfidence ?? "unconfirmed",
+    seedAsset: candidate.asset ?? null,
+  };
 
-	let html;
-	try {
-		const bytes = await download(candidate.pageUrl, { fetchImpl });
-		html = bytes.toString("utf8");
-	} catch (error) {
-		return {
-			...base,
-			ok: false,
-			error: error instanceof Error ? error.message : String(error),
-			fileUrls: [],
-			suggestedFileUrl: null,
-		};
-	}
+  let html;
+  try {
+    const bytes = await download(candidate.pageUrl, { fetchImpl });
+    html = bytes.toString("utf8");
+  } catch (error) {
+    return {
+      ...base,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      fileUrls: [],
+      suggestedFileUrl: null,
+    };
+  }
 
-	const hint = candidate.asset?.name ?? candidate.note ?? candidate.id;
-	const fileUrls = rankFileUrls(extractLinks(html, candidate.pageUrl), {
-		hint,
-	});
-	const suggestedFileUrl = fileUrls[0] ?? null;
+  const hint = candidate.asset?.name ?? candidate.note ?? candidate.id;
+  const fileUrls = rankFileUrls(extractLinks(html, candidate.pageUrl), {
+    hint,
+  });
+  const suggestedFileUrl = fileUrls[0] ?? null;
 
-	const title = firstMatch(html, [
-		/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
-		/<title[^>]*>([^<]+)<\/title>/i,
-		/<h1[^>]*>([^<]+)<\/h1>/i,
-	]);
-	const creator = firstMatch(html, [
-		/(?:author|creator|uploaded by|by)\s*[:>]?\s*<[^>]*>([^<]+)</i,
-		/<meta[^>]+name=["']author["'][^>]+content=["']([^"']+)["']/i,
-		/rel=["']author["'][^>]*>([^<]+)</i,
-	]);
+  const title = firstMatch(html, [
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+    /<title[^>]*>([^<]+)<\/title>/i,
+    /<h1[^>]*>([^<]+)<\/h1>/i,
+  ]);
+  const creator = firstMatch(html, [
+    /(?:author|creator|uploaded by|by)\s*[:>]?\s*<[^>]*>([^<]+)</i,
+    /<meta[^>]+name=["']author["'][^>]+content=["']([^"']+)["']/i,
+    /rel=["']author["'][^>]*>([^<]+)</i,
+  ]);
 
-	return {
-		...base,
-		ok: true,
-		fileUrls,
-		suggestedFileUrl,
-		suggestedFilename: suggestedFileUrl ? filenameOf(suggestedFileUrl) : null,
-		title,
-		creator,
-		licenseHint: detectLicenseHint(html),
-	};
+  return {
+    ...base,
+    ok: true,
+    fileUrls,
+    suggestedFileUrl,
+    suggestedFilename: suggestedFileUrl ? filenameOf(suggestedFileUrl) : null,
+    title,
+    creator,
+    licenseHint: detectLicenseHint(html),
+  };
 }

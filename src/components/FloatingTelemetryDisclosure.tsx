@@ -1,7 +1,5 @@
 import { Show } from "solid-js";
-import TelemetryDisclosure, {
-	inlineDisclosureMounted,
-} from "./TelemetryDisclosure";
+import TelemetryDisclosure, { inlineDisclosureMounted } from "./TelemetryDisclosure";
 
 /**
  * The app-chrome copy of the PRD `OPS-02` disclosure and opt-out.
@@ -27,9 +25,9 @@ import TelemetryDisclosure, {
  * disclosure has to settle on the rendered page first, not on the load.
  */
 export default function FloatingTelemetryDisclosure() {
-	return (
-		<Show when={!inlineDisclosureMounted()}>
-			<TelemetryDisclosure />
-		</Show>
-	);
+  return (
+    <Show when={!inlineDisclosureMounted()}>
+      <TelemetryDisclosure />
+    </Show>
+  );
 }

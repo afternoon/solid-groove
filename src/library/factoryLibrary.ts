@@ -20,43 +20,43 @@ import { FACTORY_LIBRARY } from "./factoryLibrary.generated";
  * which is `LOOP-013`'s scope, not a bundled payload.
  */
 export interface FactoryLibraryEntry {
-	/** The role this asset plays in the product, e.g. `starterKick`. */
-	key: string;
-	/** Stable library asset ID (`sg-<type>-<family>-<role>-NNNN`). */
-	assetId: string;
-	name: string;
-	type: string;
-	role: string;
-	/**
-	 * The pack record as the manifest states it — unbranded, because a generated
-	 * file cannot mint the domain's branded IDs. `factoryPack` parses it, which
-	 * makes a malformed emit a loud failure rather than a cast.
-	 */
-	pack: {
-		id: string;
-		name: string;
-		version: string;
-		publisher: string;
-		kind: string;
-		description: string;
-		rights: {
-			licence: string;
-			rawRedistribution: boolean;
-			attributionRequired: boolean;
-		};
-	};
-	/** Content-addressed delivery path, relative to the served root. */
-	storageRef: string;
-	sha256: string;
-	durationSeconds: number;
-	sampleRate: number;
-	channelCount: number;
-	licence: string;
+  /** The role this asset plays in the product, e.g. `starterKick`. */
+  key: string;
+  /** Stable library asset ID (`sg-<type>-<family>-<role>-NNNN`). */
+  assetId: string;
+  name: string;
+  type: string;
+  role: string;
+  /**
+   * The pack record as the manifest states it — unbranded, because a generated
+   * file cannot mint the domain's branded IDs. `factoryPack` parses it, which
+   * makes a malformed emit a loud failure rather than a cast.
+   */
+  pack: {
+    id: string;
+    name: string;
+    version: string;
+    publisher: string;
+    kind: string;
+    description: string;
+    rights: {
+      licence: string;
+      rawRedistribution: boolean;
+      attributionRequired: boolean;
+    };
+  };
+  /** Content-addressed delivery path, relative to the served root. */
+  storageRef: string;
+  sha256: string;
+  durationSeconds: number;
+  sampleRate: number;
+  channelCount: number;
+  licence: string;
 }
 
 /** Every entry the application ships with, in emit order. */
 export function factoryLibrary(): readonly FactoryLibraryEntry[] {
-	return FACTORY_LIBRARY;
+  return FACTORY_LIBRARY;
 }
 
 /**
@@ -67,13 +67,13 @@ export function factoryLibrary(): readonly FactoryLibraryEntry[] {
  * with no sensible runtime fallback.
  */
 export function factoryLibraryEntry(key: string): FactoryLibraryEntry {
-	const entry = FACTORY_LIBRARY.find((candidate) => candidate.key === key);
-	if (!entry) {
-		throw new Error(
-			`no factory library entry "${key}" — re-run \`bun run library:emit-runtime\``,
-		);
-	}
-	return entry;
+  const entry = FACTORY_LIBRARY.find((candidate) => candidate.key === key);
+  if (!entry) {
+    throw new Error(
+      `no factory library entry "${key}" — re-run \`bun run library:emit-runtime\``,
+    );
+  }
+  return entry;
 }
 
 /**
@@ -85,7 +85,7 @@ export function factoryLibraryEntry(key: string): FactoryLibraryEntry {
  * fails at the boundary instead of flowing into project state.
  */
 export function factoryPack(entry: FactoryLibraryEntry): Pack {
-	return packSchema.parse(entry.pack);
+  return packSchema.parse(entry.pack);
 }
 
 /**
@@ -96,20 +96,17 @@ export function factoryPack(entry: FactoryLibraryEntry): Pack {
  * caller would otherwise have had to know — the name, the URL, the audio
  * metadata, the licence — comes from the manifest.
  */
-export function createFactoryAsset(
-	context: DomainFactoryContext,
-	key: string,
-): Asset {
-	const entry = factoryLibraryEntry(key);
-	return createAsset(context, {
-		pack: factoryPack(entry),
-		name: entry.name,
-		kind: entry.type === "loop" ? "loop" : "sample",
-		storageRef: entry.storageRef,
-		url: `/${entry.storageRef}`,
-		durationSeconds: entry.durationSeconds,
-		sampleRate: entry.sampleRate,
-		channelCount: entry.channelCount,
-		licence: entry.licence,
-	});
+export function createFactoryAsset(context: DomainFactoryContext, key: string): Asset {
+  const entry = factoryLibraryEntry(key);
+  return createAsset(context, {
+    pack: factoryPack(entry),
+    name: entry.name,
+    kind: entry.type === "loop" ? "loop" : "sample",
+    storageRef: entry.storageRef,
+    url: `/${entry.storageRef}`,
+    durationSeconds: entry.durationSeconds,
+    sampleRate: entry.sampleRate,
+    channelCount: entry.channelCount,
+    licence: entry.licence,
+  });
 }

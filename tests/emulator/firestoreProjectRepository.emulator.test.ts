@@ -17,15 +17,15 @@ import { createTestEnvironment, emulatorProjectId } from "./setup";
 let testEnv: RulesTestEnvironment;
 
 beforeAll(async () => {
-	testEnv = await createTestEnvironment(emulatorProjectId("repository"));
+  testEnv = await createTestEnvironment(emulatorProjectId("repository"));
 });
 
 afterEach(async () => {
-	await testEnv.clearFirestore();
+  await testEnv.clearFirestore();
 });
 
 afterAll(async () => {
-	await testEnv.cleanup();
+  await testEnv.cleanup();
 });
 
 /**
@@ -34,80 +34,76 @@ afterAll(async () => {
  * rules rather than around them.
  */
 function repositoryFor(uid = "user_fixture"): FirestoreProjectRepository {
-	const db = testEnv
-		.authenticatedContext(uid)
-		.firestore() as unknown as Firestore;
-	return new FirestoreProjectRepository(db, {
-		clock: createManualClock(1_700_000_100_000),
-	});
+  const db = testEnv.authenticatedContext(uid).firestore() as unknown as Firestore;
+  return new FirestoreProjectRepository(db, {
+    clock: createManualClock(1_700_000_100_000),
+  });
 }
 
 describeProjectRepositoryContract("firestore", () => ({
-	repositoryFor,
-	reset: async () => testEnv.clearFirestore(),
+  repositoryFor,
+  reset: async () => testEnv.clearFirestore(),
 }));
 
 describe("FirestoreProjectRepository against the emulator", () => {
-	it("leaves the song document untouched when only a clip changes", async () => {
-		const repository = repositoryFor();
-		const project = createSliceFixtureProject();
-		await repository.createProject(project);
+  it("leaves the song document untouched when only a clip changes", async () => {
+    const repository = repositoryFor();
+    const project = createSliceFixtureProject();
+    await repository.createProject(project);
 
-		const songRef = doc(
-			testEnv.authenticatedContext("user_fixture").firestore(),
-			"projects",
-			project.metadata.id,
-			"song",
-			"current",
-		);
-		const before = (await getDoc(songRef)).data();
+    const songRef = doc(
+      testEnv.authenticatedContext("user_fixture").firestore(),
+      "projects",
+      project.metadata.id,
+      "song",
+      "current",
+    );
+    const before = (await getDoc(songRef)).data();
 
-		const saved = await repository.saveClip(
-			project.metadata.id,
-			project.clips[0],
-			project.metadata.revision,
-		);
-		expect(saved.ok).toBe(true);
+    const saved = await repository.saveClip(
+      project.metadata.id,
+      project.clips[0],
+      project.metadata.revision,
+    );
+    expect(saved.ok).toBe(true);
 
-		const after = (await getDoc(songRef)).data();
-		expect(after).toEqual(before);
-	});
+    const after = (await getDoc(songRef)).data();
+    expect(after).toEqual(before);
+  });
 
-	it("refuses to read or write another user's project", async () => {
-		const owner = repositoryFor();
-		const project = createSliceFixtureProject();
-		await owner.createProject(project);
+  it("refuses to read or write another user's project", async () => {
+    const owner = repositoryFor();
+    const project = createSliceFixtureProject();
+    await owner.createProject(project);
 
-		const stranger = repositoryFor("someone-else");
+    const stranger = repositoryFor("someone-else");
 
-		// Denied access is reported as not-found so the API never confirms that a
-		// project the caller may not see exists.
-		const loaded = await stranger.loadProject(project.metadata.id);
-		expect(loaded.ok).toBe(false);
-		if (loaded.ok) return;
-		expect(loaded.reason).toBe("not_found");
+    // Denied access is reported as not-found so the API never confirms that a
+    // project the caller may not see exists.
+    const loaded = await stranger.loadProject(project.metadata.id);
+    expect(loaded.ok).toBe(false);
+    if (loaded.ok) return;
+    expect(loaded.reason).toBe("not_found");
 
-		const saved = await stranger.saveMetadata(
-			project.metadata.id,
-			{ name: "Stolen" },
-			project.metadata.revision,
-		);
-		expect(saved.ok).toBe(false);
-		if (saved.ok) return;
-		expect(saved.retryable).toBe(false);
+    const saved = await stranger.saveMetadata(
+      project.metadata.id,
+      { name: "Stolen" },
+      project.metadata.revision,
+    );
+    expect(saved.ok).toBe(false);
+    if (saved.ok) return;
+    expect(saved.retryable).toBe(false);
 
-		const stillMine = await owner.loadProjectMetadata(project.metadata.id);
-		expect(stillMine.ok).toBe(true);
-		if (!stillMine.ok) return;
-		expect(stillMine.value.name).toBe(project.metadata.name);
-	});
+    const stillMine = await owner.loadProjectMetadata(project.metadata.id);
+    expect(stillMine.ok).toBe(true);
+    if (!stillMine.ok) return;
+    expect(stillMine.value.name).toBe(project.metadata.name);
+  });
 
-	it("does not list another user's projects", async () => {
-		const owner = repositoryFor();
-		await owner.createProject(createSliceFixtureProject());
+  it("does not list another user's projects", async () => {
+    const owner = repositoryFor();
+    await owner.createProject(createSliceFixtureProject());
 
-		expect(
-			await repositoryFor("someone-else").listProjects("user_fixture"),
-		).toEqual([]);
-	});
+    expect(await repositoryFor("someone-else").listProjects("user_fixture")).toEqual([]);
+  });
 });

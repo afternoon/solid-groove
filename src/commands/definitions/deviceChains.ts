@@ -1,9 +1,9 @@
 import { z } from "zod";
 import {
-	type ReturnId,
-	returnIdSchema,
-	type TrackId,
-	trackIdSchema,
+  type ReturnId,
+  returnIdSchema,
+  type TrackId,
+  trackIdSchema,
 } from "../../domain/ids";
 
 /**
@@ -15,20 +15,20 @@ import {
  * by every device command so the chain a device belongs to is expressed once.
  */
 export const chainTargetSchema = z.discriminatedUnion("chain", [
-	z.strictObject({ chain: z.literal("insert"), trackId: trackIdSchema }),
-	z.strictObject({ chain: z.literal("return"), returnId: returnIdSchema }),
-	z.strictObject({ chain: z.literal("master") }),
+  z.strictObject({ chain: z.literal("insert"), trackId: trackIdSchema }),
+  z.strictObject({ chain: z.literal("return"), returnId: returnIdSchema }),
+  z.strictObject({ chain: z.literal("master") }),
 ]);
 export type DeviceChainTarget = z.infer<typeof chainTargetSchema>;
 
 export const insertChain = (trackId: TrackId): DeviceChainTarget => ({
-	chain: "insert",
-	trackId,
+  chain: "insert",
+  trackId,
 });
 
 export const returnChain = (returnId: ReturnId): DeviceChainTarget => ({
-	chain: "return",
-	returnId,
+  chain: "return",
+  returnId,
 });
 
 export const masterChain: DeviceChainTarget = { chain: "master" };

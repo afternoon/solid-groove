@@ -33,14 +33,14 @@
 
 import { execFileSync } from "node:child_process";
 import {
-	cpSync,
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,66 +50,61 @@ const SOURCE_ROOT = process.env.WALKTHROUGH_DIR ?? "walkthroughs";
 const PUSH_ATTEMPTS = 3;
 
 const git = (args, options = {}) =>
-	execFileSync("git", args, {
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "pipe"],
-		...options,
-	}).trim();
+  execFileSync("git", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...options,
+  }).trim();
 
 const fail = (message) => {
-	console.error(`walkthrough:publish — ${message}`);
-	process.exit(1);
+  console.error(`walkthrough:publish — ${message}`);
+  process.exit(1);
 };
 
 function parseArgs(argv) {
-	const args = { issue: null, dryRun: false };
-	for (let i = 0; i < argv.length; i++) {
-		if (argv[i] === "--issue") args.issue = argv[++i];
-		else if (argv[i] === "--dry-run") args.dryRun = true;
-		else fail(`unknown argument ${argv[i]}`);
-	}
-	if (!args.issue || !/^\d+$/.test(args.issue))
-		fail(
-			"--issue <number> is required; it is the directory the images are filed under.",
-		);
-	return args;
+  const args = { issue: null, dryRun: false };
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--issue") args.issue = argv[++i];
+    else if (argv[i] === "--dry-run") args.dryRun = true;
+    else fail(`unknown argument ${argv[i]}`);
+  }
+  if (!args.issue || !/^\d+$/.test(args.issue))
+    fail("--issue <number> is required; it is the directory the images are filed under.");
+  return args;
 }
 
 /** `owner/repo`, from whatever form the origin remote takes (https or ssh). */
 function repoSlug() {
-	const url = git(["remote", "get-url", "origin"]);
-	const match = url.match(/[/:]([^/:]+)\/([^/]+?)(?:\.git)?$/);
-	if (!match)
-		fail(`could not parse an owner/repo out of the origin remote: ${url}`);
-	return `${match[1]}/${match[2]}`;
+  const url = git(["remote", "get-url", "origin"]);
+  const match = url.match(/[/:]([^/:]+)\/([^/]+?)(?:\.git)?$/);
+  if (!match) fail(`could not parse an owner/repo out of the origin remote: ${url}`);
+  return `${match[1]}/${match[2]}`;
 }
 
 /** Every flow directory that carries an `index.json` written by the capture helper. */
 function collectFlows() {
-	if (!existsSync(SOURCE_ROOT))
-		fail(
-			`no ${SOURCE_ROOT}/ directory — run \`bun run walkthrough:capture\` first.`,
-		);
+  if (!existsSync(SOURCE_ROOT))
+    fail(`no ${SOURCE_ROOT}/ directory — run \`bun run walkthrough:capture\` first.`);
 
-	const flows = readdirSync(SOURCE_ROOT, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => join(SOURCE_ROOT, entry.name))
-		.filter((directory) => existsSync(join(directory, "index.json")))
-		.map((directory) => ({
-			directory,
-			...JSON.parse(readFileSync(join(directory, "index.json"), "utf8")),
-		}));
+  const flows = readdirSync(SOURCE_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(SOURCE_ROOT, entry.name))
+    .filter((directory) => existsSync(join(directory, "index.json")))
+    .map((directory) => ({
+      directory,
+      ...JSON.parse(readFileSync(join(directory, "index.json"), "utf8")),
+    }));
 
-	if (flows.length === 0)
-		fail(
-			`no captured flows under ${SOURCE_ROOT}/. The capture run produced nothing — check that the spec calls \`walkthrough()\` and that CAPTURE_WALKTHROUGH=1 was set.`,
-		);
+  if (flows.length === 0)
+    fail(
+      `no captured flows under ${SOURCE_ROOT}/. The capture run produced nothing — check that the spec calls \`walkthrough()\` and that CAPTURE_WALKTHROUGH=1 was set.`,
+    );
 
-	for (const flow of flows)
-		if (!Array.isArray(flow.steps) || flow.steps.length === 0)
-			fail(`${flow.id ?? flow.directory} captured no steps.`);
+  for (const flow of flows)
+    if (!Array.isArray(flow.steps) || flow.steps.length === 0)
+      fail(`${flow.id ?? flow.directory} captured no steps.`);
 
-	return flows.sort((a, b) => a.id.localeCompare(b.id));
+  return flows.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**
@@ -118,99 +113,99 @@ function collectFlows() {
  * branch checked out with uncommitted work.
  */
 function checkoutBranch() {
-	const path = mkdtempSync(join(tmpdir(), "walkthroughs-"));
-	rmSync(path, { recursive: true, force: true });
+  const path = mkdtempSync(join(tmpdir(), "walkthroughs-"));
+  rmSync(path, { recursive: true, force: true });
 
-	const remoteExists = (() => {
-		try {
-			return git(["ls-remote", "--exit-code", "origin", BRANCH]).length > 0;
-		} catch {
-			return false;
-		}
-	})();
+  const remoteExists = (() => {
+    try {
+      return git(["ls-remote", "--exit-code", "origin", BRANCH]).length > 0;
+    } catch {
+      return false;
+    }
+  })();
 
-	if (remoteExists) {
-		git(["fetch", "origin", BRANCH]);
-		git(["worktree", "add", "-B", BRANCH, path, `origin/${BRANCH}`]);
-	} else {
-		git(["worktree", "add", "--detach", path, "HEAD"]);
-		git(["checkout", "--orphan", BRANCH], { cwd: path });
-		// The orphan checkout keeps HEAD's tree staged; the branch must start empty.
-		git(["rm", "-rf", "--quiet", "."], { cwd: path });
-	}
-	return { path, remoteExists };
+  if (remoteExists) {
+    git(["fetch", "origin", BRANCH]);
+    git(["worktree", "add", "-B", BRANCH, path, `origin/${BRANCH}`]);
+  } else {
+    git(["worktree", "add", "--detach", path, "HEAD"]);
+    git(["checkout", "--orphan", BRANCH], { cwd: path });
+    // The orphan checkout keeps HEAD's tree staged; the branch must start empty.
+    git(["rm", "-rf", "--quiet", "."], { cwd: path });
+  }
+  return { path, remoteExists };
 }
 
 function publish({ issue, dryRun }, flows) {
-	const worktree = checkoutBranch();
-	try {
-		for (const flow of flows) {
-			const destination = join(worktree.path, issue, flow.id);
-			rmSync(destination, { recursive: true, force: true });
-			mkdirSync(destination, { recursive: true });
-			cpSync(flow.directory, destination, { recursive: true });
-		}
+  const worktree = checkoutBranch();
+  try {
+    for (const flow of flows) {
+      const destination = join(worktree.path, issue, flow.id);
+      rmSync(destination, { recursive: true, force: true });
+      mkdirSync(destination, { recursive: true });
+      cpSync(flow.directory, destination, { recursive: true });
+    }
 
-		git(["add", "--all", issue], { cwd: worktree.path });
-		const staged = git(["status", "--porcelain"], { cwd: worktree.path });
-		if (!staged) {
-			console.error(
-				`walkthrough:publish — images are byte-identical to the published set; nothing to push.`,
-			);
-			return;
-		}
+    git(["add", "--all", issue], { cwd: worktree.path });
+    const staged = git(["status", "--porcelain"], { cwd: worktree.path });
+    if (!staged) {
+      console.error(
+        `walkthrough:publish — images are byte-identical to the published set; nothing to push.`,
+      );
+      return;
+    }
 
-		if (dryRun) {
-			console.error(
-				`walkthrough:publish — dry run, not committing. Would publish:\n${staged}`,
-			);
-			return;
-		}
+    if (dryRun) {
+      console.error(
+        `walkthrough:publish — dry run, not committing. Would publish:\n${staged}`,
+      );
+      return;
+    }
 
-		git(["commit", "--message", `Walkthrough screenshots for #${issue}`], {
-			cwd: worktree.path,
-		});
+    git(["commit", "--message", `Walkthrough screenshots for #${issue}`], {
+      cwd: worktree.path,
+    });
 
-		for (let attempt = 1; ; attempt++) {
-			try {
-				git(["push", "-u", "origin", BRANCH], { cwd: worktree.path });
-				break;
-			} catch (error) {
-				// A sibling agent published between our fetch and our push. The two
-				// commits touch different issue directories, so replaying ours on
-				// top is always the right resolution.
-				if (attempt >= PUSH_ATTEMPTS) throw error;
-				console.error(
-					`walkthrough:publish — push rejected (attempt ${attempt}); rebasing on the remote and retrying.`,
-				);
-				git(["fetch", "origin", BRANCH], { cwd: worktree.path });
-				git(["rebase", `origin/${BRANCH}`], { cwd: worktree.path });
-			}
-		}
-	} finally {
-		git(["worktree", "remove", "--force", worktree.path]);
-	}
+    for (let attempt = 1; ; attempt++) {
+      try {
+        git(["push", "-u", "origin", BRANCH], { cwd: worktree.path });
+        break;
+      } catch (error) {
+        // A sibling agent published between our fetch and our push. The two
+        // commits touch different issue directories, so replaying ours on
+        // top is always the right resolution.
+        if (attempt >= PUSH_ATTEMPTS) throw error;
+        console.error(
+          `walkthrough:publish — push rejected (attempt ${attempt}); rebasing on the remote and retrying.`,
+        );
+        git(["fetch", "origin", BRANCH], { cwd: worktree.path });
+        git(["rebase", `origin/${BRANCH}`], { cwd: worktree.path });
+      }
+    }
+  } finally {
+    git(["worktree", "remove", "--force", worktree.path]);
+  }
 }
 
 function markdown({ issue }, flows, slug) {
-	const lines = ["## Walkthrough", ""];
-	for (const flow of flows) {
-		lines.push(`### ${flow.id} — ${flow.title}`, "");
-		for (const [index, step] of flow.steps.entries()) {
-			const url = `https://raw.githubusercontent.com/${slug}/refs/heads/${BRANCH}/${issue}/${flow.id}/${step.file}`;
-			lines.push(
-				`**${index + 1}. ${step.caption}**`,
-				"",
-				`![${flow.id} step ${index + 1}](${url})`,
-				"",
-			);
-		}
-	}
-	lines.push(
-		`<sub>Captured by \`bun run walkthrough:capture\` from the core-flow specs, in Chromium. Flows are defined in [\`docs/core-flows.md\`](https://github.com/${slug}/blob/main/docs/core-flows.md).</sub>`,
-		"",
-	);
-	return lines.join("\n");
+  const lines = ["## Walkthrough", ""];
+  for (const flow of flows) {
+    lines.push(`### ${flow.id} — ${flow.title}`, "");
+    for (const [index, step] of flow.steps.entries()) {
+      const url = `https://raw.githubusercontent.com/${slug}/refs/heads/${BRANCH}/${issue}/${flow.id}/${step.file}`;
+      lines.push(
+        `**${index + 1}. ${step.caption}**`,
+        "",
+        `![${flow.id} step ${index + 1}](${url})`,
+        "",
+      );
+    }
+  }
+  lines.push(
+    `<sub>Captured by \`bun run walkthrough:capture\` from the core-flow specs, in Chromium. Flows are defined in [\`docs/core-flows.md\`](https://github.com/${slug}/blob/main/docs/core-flows.md).</sub>`,
+    "",
+  );
+  return lines.join("\n");
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -226,7 +221,7 @@ process.stdout.write(body);
 
 const screenshots = flows.reduce((total, flow) => total + flow.steps.length, 0);
 console.error(
-	args.dryRun
-		? `\nwalkthrough:publish — dry run: ${flows.length} flow(s), ${screenshots} screenshot(s) NOT pushed. The image links above are dead until you re-run without --dry-run.`
-		: `\nwalkthrough:publish — ${flows.length} flow(s), ${screenshots} screenshot(s) pushed to \`${BRANCH}\`. Markdown also written to ${outputPath}; paste it into the PR body's Walkthrough section.`,
+  args.dryRun
+    ? `\nwalkthrough:publish — dry run: ${flows.length} flow(s), ${screenshots} screenshot(s) NOT pushed. The image links above are dead until you re-run without --dry-run.`
+    : `\nwalkthrough:publish — ${flows.length} flow(s), ${screenshots} screenshot(s) pushed to \`${BRANCH}\`. Markdown also written to ${outputPath}; paste it into the PR body's Walkthrough section.`,
 );

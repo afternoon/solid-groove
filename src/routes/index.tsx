@@ -9,5 +9,5 @@ import LandingPage from "../components/LandingPage";
 // the auth service is reached through a dynamic `import()` on click, which
 // `src/components/landingBoundaries.test.ts` enforces.
 export default function IndexPage() {
-	return <LandingPage />;
+  return <LandingPage />;
 }

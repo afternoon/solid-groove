@@ -31,41 +31,40 @@ export const REDACTED = "[redacted]";
  * (tokens, emails) are matched before broader ones (quoted text, digits).
  */
 const REDACTIONS: readonly { pattern: RegExp; replacement: string }[] = [
-	// Any URL-ish scheme, including the ones an audio app produces for user
-	// assets (`blob:`, `data:`, `filesystem:`).
-	{
-		pattern:
-			/\b(?:https?|ftp|ws|wss|blob|data|file|filesystem):[^\s"'`)<>\]]+/gi,
-		replacement: "[url]",
-	},
-	// Protocol-relative and bare host/path references.
-	{
-		pattern: /\/\/[\w.-]+\.[a-z]{2,}(?:\/[^\s"'`)<>\]]*)?/gi,
-		replacement: "[url]",
-	},
-	{ pattern: /\b[\w.-]+@[\w.-]+\.[a-z]{2,}\b/gi, replacement: "[email]" },
-	// JWTs.
-	{
-		pattern: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g,
-		replacement: "[token]",
-	},
-	// Long opaque secrets: API keys, bearer tokens, session identifiers.
-	{ pattern: /\b[A-Za-z0-9_-]{32,}\b/g, replacement: "[token]" },
-	// Absolute filesystem paths (a dropped file's name lives here).
-	{
-		pattern: /(?:[A-Za-z]:)?[\\/](?:[\w .-]+[\\/]){2,}[\w .-]+/g,
-		replacement: "[path]",
-	},
-	// Quoted text. Error messages embed user-supplied values in quotes far more
-	// often than not, and nothing can distinguish `"My Demo Track"` from
-	// `"tracks"` at this layer, so quoted content always goes. This costs some
-	// diagnostic detail in exchange for a guarantee; the symbolicated stack
-	// trace is where the real diagnosis happens.
-	{ pattern: /"[^"]*"/g, replacement: `"${REDACTED}"` },
-	{ pattern: /'[^']*'/g, replacement: `'${REDACTED}'` },
-	{ pattern: /`[^`]*`/g, replacement: `\`${REDACTED}\`` },
-	// Long digit runs: phone numbers, account identifiers, precise timestamps.
-	{ pattern: /\b\d{7,}\b/g, replacement: "[n]" },
+  // Any URL-ish scheme, including the ones an audio app produces for user
+  // assets (`blob:`, `data:`, `filesystem:`).
+  {
+    pattern: /\b(?:https?|ftp|ws|wss|blob|data|file|filesystem):[^\s"'`)<>\]]+/gi,
+    replacement: "[url]",
+  },
+  // Protocol-relative and bare host/path references.
+  {
+    pattern: /\/\/[\w.-]+\.[a-z]{2,}(?:\/[^\s"'`)<>\]]*)?/gi,
+    replacement: "[url]",
+  },
+  { pattern: /\b[\w.-]+@[\w.-]+\.[a-z]{2,}\b/gi, replacement: "[email]" },
+  // JWTs.
+  {
+    pattern: /\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b/g,
+    replacement: "[token]",
+  },
+  // Long opaque secrets: API keys, bearer tokens, session identifiers.
+  { pattern: /\b[A-Za-z0-9_-]{32,}\b/g, replacement: "[token]" },
+  // Absolute filesystem paths (a dropped file's name lives here).
+  {
+    pattern: /(?:[A-Za-z]:)?[\\/](?:[\w .-]+[\\/]){2,}[\w .-]+/g,
+    replacement: "[path]",
+  },
+  // Quoted text. Error messages embed user-supplied values in quotes far more
+  // often than not, and nothing can distinguish `"My Demo Track"` from
+  // `"tracks"` at this layer, so quoted content always goes. This costs some
+  // diagnostic detail in exchange for a guarantee; the symbolicated stack
+  // trace is where the real diagnosis happens.
+  { pattern: /"[^"]*"/g, replacement: `"${REDACTED}"` },
+  { pattern: /'[^']*'/g, replacement: `'${REDACTED}'` },
+  { pattern: /`[^`]*`/g, replacement: `\`${REDACTED}\`` },
+  // Long digit runs: phone numbers, account identifiers, precise timestamps.
+  { pattern: /\b\d{7,}\b/g, replacement: "[n]" },
 ];
 
 /**
@@ -75,19 +74,19 @@ const REDACTIONS: readonly { pattern: RegExp; replacement: string }[] = [
  * fail in a way that costs the user their unsaved work.
  */
 export function redactText(value: unknown): string {
-	if (typeof value !== "string") {
-		// Never stringify an arbitrary object — its fields are exactly the
-		// project state this function exists to keep out of the payload.
-		return value === undefined || value === null ? "" : `[${typeof value}]`;
-	}
-	let result = value;
-	for (const { pattern, replacement } of REDACTIONS) {
-		result = result.replace(pattern, replacement);
-	}
-	result = result.trim();
-	return result.length > MAX_MESSAGE_LENGTH
-		? `${result.slice(0, MAX_MESSAGE_LENGTH)}…`
-		: result;
+  if (typeof value !== "string") {
+    // Never stringify an arbitrary object — its fields are exactly the
+    // project state this function exists to keep out of the payload.
+    return value === undefined || value === null ? "" : `[${typeof value}]`;
+  }
+  let result = value;
+  for (const { pattern, replacement } of REDACTIONS) {
+    result = result.replace(pattern, replacement);
+  }
+  result = result.trim();
+  return result.length > MAX_MESSAGE_LENGTH
+    ? `${result.slice(0, MAX_MESSAGE_LENGTH)}…`
+    : result;
 }
 
 /**
@@ -101,12 +100,12 @@ export function redactText(value: unknown): string {
  * Anything leaving this module URL-shaped goes through `scrubRoute`.
  */
 export function pathOnly(value: unknown): string {
-	if (typeof value !== "string" || value.length === 0) return "";
-	try {
-		return new URL(value, "https://placeholder.invalid").pathname;
-	} catch {
-		return "";
-	}
+  if (typeof value !== "string" || value.length === 0) return "";
+  try {
+    return new URL(value, "https://placeholder.invalid").pathname;
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -114,9 +113,9 @@ export function pathOnly(value: unknown): string {
  * matches source maps against. See the file banner for why this is kept.
  */
 export function scrubFramePath(value: unknown): string | undefined {
-	if (typeof value !== "string" || value.length === 0) return undefined;
-	const cut = value.search(/[?#]/);
-	return cut === -1 ? value : value.slice(0, cut);
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  const cut = value.search(/[?#]/);
+  return cut === -1 ? value : value.slice(0, cut);
 }
 
 /**
@@ -127,10 +126,10 @@ export function scrubFramePath(value: unknown): string | undefined {
  * fail in.
  */
 export const ALLOWED_ROUTE_SEGMENTS = [
-	"dashboard",
-	"projects",
-	"spike",
-	"arrangement",
+  "dashboard",
+  "projects",
+  "spike",
+  "arrangement",
 ] as const;
 
 /** A PRD section 9.4 prefixed ID (`prj_…`, `trk_…`), which carries no content. */
@@ -154,27 +153,25 @@ const PREFIXED_ID = /^[a-z]{2,5}_[A-Za-z0-9_-]{4,}$/;
  * their payload in the pathname, and every segment of it is `:param`.
  */
 export function scrubRoute(value: unknown): string | undefined {
-	if (typeof value !== "string" || value.length === 0) return undefined;
-	const path = pathOnly(value);
-	if (path === "") return undefined;
-	const segments = path.split("/").filter((segment) => segment.length > 0);
-	return segments.length === 0
-		? "/"
-		: `/${segments.map(routeSegment).join("/")}`;
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  const path = pathOnly(value);
+  if (path === "") return undefined;
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  return segments.length === 0 ? "/" : `/${segments.map(routeSegment).join("/")}`;
 }
 
 function routeSegment(segment: string): string {
-	let decoded = segment;
-	try {
-		decoded = decodeURIComponent(segment);
-	} catch {
-		// A malformed escape sequence stays as-is; it matches neither branch below
-		// and therefore becomes `:param`, which is the safe outcome anyway.
-	}
-	if ((ALLOWED_ROUTE_SEGMENTS as readonly string[]).includes(decoded)) {
-		return decoded;
-	}
-	return PREFIXED_ID.test(decoded) ? ":id" : ":param";
+  let decoded = segment;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    // A malformed escape sequence stays as-is; it matches neither branch below
+    // and therefore becomes `:param`, which is the safe outcome anyway.
+  }
+  if ((ALLOWED_ROUTE_SEGMENTS as readonly string[]).includes(decoded)) {
+    return decoded;
+  }
+  return PREFIXED_ID.test(decoded) ? ":id" : ":param";
 }
 
 /**
@@ -185,12 +182,12 @@ function routeSegment(segment: string): string {
  * track, or project name — so nothing but the element type survives.
  */
 export function scrubSelector(value: unknown): string | undefined {
-	if (typeof value !== "string") return undefined;
-	const tags = value
-		.split(/\s*>\s*|\s+/)
-		.map((segment) => /^[a-z][a-z0-9-]*/.exec(segment)?.[0])
-		.filter((tag): tag is string => Boolean(tag));
-	return tags.length > 0 ? tags.join(" > ") : undefined;
+  if (typeof value !== "string") return undefined;
+  const tags = value
+    .split(/\s*>\s*|\s+/)
+    .map((segment) => /^[a-z][a-z0-9-]*/.exec(segment)?.[0])
+    .filter((tag): tag is string => Boolean(tag));
+  return tags.length > 0 ? tags.join(" > ") : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,49 +199,49 @@ export function scrubSelector(value: unknown): string | undefined {
 // and survives an SDK swap (ADR 0001, "Exit cost is bounded").
 
 export interface ScrubbableBreadcrumb {
-	category?: string;
-	type?: string;
-	level?: string;
-	message?: string;
-	timestamp?: number;
-	data?: Record<string, unknown>;
+  category?: string;
+  type?: string;
+  level?: string;
+  message?: string;
+  timestamp?: number;
+  data?: Record<string, unknown>;
 }
 
 export interface ScrubbableFrame {
-	filename?: string;
-	abs_path?: string;
-	function?: string;
-	lineno?: number;
-	colno?: number;
-	in_app?: boolean;
-	// Source context lines are the *contents* of our bundle, not user data, but
-	// they are dropped anyway: Sentry re-derives them from the uploaded source
-	// map, so transmitting them adds payload for nothing.
-	pre_context?: string[];
-	context_line?: string;
-	post_context?: string[];
-	vars?: Record<string, unknown>;
+  filename?: string;
+  abs_path?: string;
+  function?: string;
+  lineno?: number;
+  colno?: number;
+  in_app?: boolean;
+  // Source context lines are the *contents* of our bundle, not user data, but
+  // they are dropped anyway: Sentry re-derives them from the uploaded source
+  // map, so transmitting them adds payload for nothing.
+  pre_context?: string[];
+  context_line?: string;
+  post_context?: string[];
+  vars?: Record<string, unknown>;
 }
 
 export interface ScrubbableException {
-	type?: string;
-	value?: string;
-	mechanism?: Record<string, unknown>;
-	stacktrace?: { frames?: ScrubbableFrame[] };
+  type?: string;
+  value?: string;
+  mechanism?: Record<string, unknown>;
+  stacktrace?: { frames?: ScrubbableFrame[] };
 }
 
 export interface ScrubbableEvent {
-	message?: string;
-	transaction?: string;
-	exception?: { values?: ScrubbableException[] };
-	breadcrumbs?: ScrubbableBreadcrumb[];
-	request?: unknown;
-	user?: unknown;
-	server_name?: string;
-	extra?: Record<string, unknown>;
-	contexts?: Record<string, unknown>;
-	tags?: Record<string, unknown>;
-	[key: string]: unknown;
+  message?: string;
+  transaction?: string;
+  exception?: { values?: ScrubbableException[] };
+  breadcrumbs?: ScrubbableBreadcrumb[];
+  request?: unknown;
+  user?: unknown;
+  server_name?: string;
+  extra?: Record<string, unknown>;
+  contexts?: Record<string, unknown>;
+  tags?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 /**
@@ -259,87 +256,86 @@ export const ALLOWED_CONTEXTS = ["browser", "os", "device", "trace"] as const;
  * unrecognized tag is dropped rather than trusted.
  */
 export const ALLOWED_TAGS = [
-	"area",
-	"error_code",
-	"fatal",
-	"surface",
-	"account_type",
-	"internal",
-	"browser_name",
-	"browser_version",
-	"engine_name",
-	"engine_version",
+  "area",
+  "error_code",
+  "fatal",
+  "surface",
+  "account_type",
+  "internal",
+  "browser_name",
+  "browser_version",
+  "engine_name",
+  "engine_version",
 ] as const;
 
 function allowlist(
-	source: Record<string, unknown> | undefined,
-	allowed: readonly string[],
+  source: Record<string, unknown> | undefined,
+  allowed: readonly string[],
 ): Record<string, unknown> | undefined {
-	if (!source) return undefined;
-	const result: Record<string, unknown> = {};
-	for (const key of allowed) {
-		if (source[key] !== undefined) result[key] = source[key];
-	}
-	return Object.keys(result).length > 0 ? result : undefined;
+  if (!source) return undefined;
+  const result: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (source[key] !== undefined) result[key] = source[key];
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /**
  * `beforeBreadcrumb`: scrubs one breadcrumb, or drops it by returning `null`.
  */
 export function scrubBreadcrumb(
-	breadcrumb: ScrubbableBreadcrumb,
+  breadcrumb: ScrubbableBreadcrumb,
 ): ScrubbableBreadcrumb | null {
-	const category = breadcrumb.category ?? "";
+  const category = breadcrumb.category ?? "";
 
-	// Console breadcrumbs are disabled at the integration level (ADR 0001:
-	// "console breadcrumbs are disabled rather than filtered"). Dropping them
-	// here too means a future integration change cannot quietly turn them on.
-	if (category === "console") return null;
+  // Console breadcrumbs are disabled at the integration level (ADR 0001:
+  // "console breadcrumbs are disabled rather than filtered"). Dropping them
+  // here too means a future integration change cannot quietly turn them on.
+  if (category === "console") return null;
 
-	const base: ScrubbableBreadcrumb = {
-		category: breadcrumb.category,
-		type: breadcrumb.type,
-		level: breadcrumb.level,
-		timestamp: breadcrumb.timestamp,
-	};
+  const base: ScrubbableBreadcrumb = {
+    category: breadcrumb.category,
+    type: breadcrumb.type,
+    level: breadcrumb.level,
+    timestamp: breadcrumb.timestamp,
+  };
 
-	if (category === "fetch" || category === "xhr") {
-		const data = breadcrumb.data ?? {};
-		return {
-			...base,
-			// The message is the request URL and is dropped outright. The request
-			// path survives only as a route *shape*: a request to our own asset
-			// endpoint carries a user-named file
-			// (`/o/users%2Fu1%2FMy Secret Sample.wav`), which `scrubRoute` reduces
-			// to `:param` while keeping the endpoint recognizable.
-			data: {
-				method: typeof data.method === "string" ? data.method : undefined,
-				status_code:
-					typeof data.status_code === "number" ? data.status_code : undefined,
-				url_path: scrubRoute(data.url),
-			},
-		};
-	}
+  if (category === "fetch" || category === "xhr") {
+    const data = breadcrumb.data ?? {};
+    return {
+      ...base,
+      // The message is the request URL and is dropped outright. The request
+      // path survives only as a route *shape*: a request to our own asset
+      // endpoint carries a user-named file
+      // (`/o/users%2Fu1%2FMy Secret Sample.wav`), which `scrubRoute` reduces
+      // to `:param` while keeping the endpoint recognizable.
+      data: {
+        method: typeof data.method === "string" ? data.method : undefined,
+        status_code: typeof data.status_code === "number" ? data.status_code : undefined,
+        url_path: scrubRoute(data.url),
+      },
+    };
+  }
 
-	if (category.startsWith("ui.")) {
-		const selector = scrubSelector(breadcrumb.message);
-		return selector ? { ...base, message: selector } : base;
-	}
+  if (category.startsWith("ui.")) {
+    const selector = scrubSelector(breadcrumb.message);
+    return selector ? { ...base, message: selector } : base;
+  }
 
-	if (category === "navigation") {
-		const data = breadcrumb.data ?? {};
-		return {
-			...base,
-			// A route can contain a name the user chose (`/projects/My Demo`), so
-			// both endpoints are reduced to a route shape rather than a raw path.
-			data: { from: scrubRoute(data.from), to: scrubRoute(data.to) },
-		};
-	}
+  if (category === "navigation") {
+    const data = breadcrumb.data ?? {};
+    return {
+      ...base,
+      // A route can contain a name the user chose (`/projects/My Demo`), so
+      // both endpoints are reduced to a route shape rather than a raw path.
+      data: { from: scrubRoute(data.from), to: scrubRoute(data.to) },
+    };
+  }
 
-	// Anything else — including breadcrumb categories a later task adds — gets
-	// its message redacted and its arbitrary data dropped.
-	const message = redactText(breadcrumb.message);
-	return message ? { ...base, message } : base;
+  // Anything else — including breadcrumb categories a later task adds — gets
+  // its message redacted and its arbitrary data dropped.
+  const message = redactText(breadcrumb.message);
+  return message ? { ...base, message } : base;
 }
 
 /**
@@ -350,64 +346,64 @@ export function scrubBreadcrumb(
  * dropped by default rather than transmitted by default.
  */
 export function scrubSentryEvent(event: ScrubbableEvent): ScrubbableEvent {
-	const scrubbed: ScrubbableEvent = { ...event };
+  const scrubbed: ScrubbableEvent = { ...event };
 
-	// Whole-field removals. `request` carries the page URL, headers, and
-	// cookies; `user` carries whatever identity the SDK inferred; `extra` is an
-	// arbitrary bag any integration can write to.
-	scrubbed.request = undefined;
-	scrubbed.user = undefined;
-	scrubbed.server_name = undefined;
-	scrubbed.extra = undefined;
+  // Whole-field removals. `request` carries the page URL, headers, and
+  // cookies; `user` carries whatever identity the SDK inferred; `extra` is an
+  // arbitrary bag any integration can write to.
+  scrubbed.request = undefined;
+  scrubbed.user = undefined;
+  scrubbed.server_name = undefined;
+  scrubbed.extra = undefined;
 
-	if (event.message !== undefined) {
-		scrubbed.message = redactText(event.message);
-	}
-	if (event.transaction !== undefined) {
-		scrubbed.transaction = scrubRoute(event.transaction);
-	}
+  if (event.message !== undefined) {
+    scrubbed.message = redactText(event.message);
+  }
+  if (event.transaction !== undefined) {
+    scrubbed.transaction = scrubRoute(event.transaction);
+  }
 
-	scrubbed.contexts = allowlist(event.contexts, ALLOWED_CONTEXTS);
-	scrubbed.tags = allowlist(event.tags, ALLOWED_TAGS);
+  scrubbed.contexts = allowlist(event.contexts, ALLOWED_CONTEXTS);
+  scrubbed.tags = allowlist(event.tags, ALLOWED_TAGS);
 
-	if (event.exception?.values) {
-		scrubbed.exception = {
-			values: event.exception.values.map(scrubException),
-		};
-	}
+  if (event.exception?.values) {
+    scrubbed.exception = {
+      values: event.exception.values.map(scrubException),
+    };
+  }
 
-	if (event.breadcrumbs) {
-		scrubbed.breadcrumbs = event.breadcrumbs
-			.map(scrubBreadcrumb)
-			.filter((crumb): crumb is ScrubbableBreadcrumb => crumb !== null);
-	}
+  if (event.breadcrumbs) {
+    scrubbed.breadcrumbs = event.breadcrumbs
+      .map(scrubBreadcrumb)
+      .filter((crumb): crumb is ScrubbableBreadcrumb => crumb !== null);
+  }
 
-	return scrubbed;
+  return scrubbed;
 }
 
 function scrubException(exception: ScrubbableException): ScrubbableException {
-	return {
-		// The error class name (`TypeError`, `RevisionConflictError`) is a code
-		// identifier, and it is what Sentry groups on.
-		type: exception.type,
-		value: redactText(exception.value),
-		mechanism: exception.mechanism,
-		stacktrace: exception.stacktrace
-			? { frames: (exception.stacktrace.frames ?? []).map(scrubFrame) }
-			: undefined,
-	};
+  return {
+    // The error class name (`TypeError`, `RevisionConflictError`) is a code
+    // identifier, and it is what Sentry groups on.
+    type: exception.type,
+    value: redactText(exception.value),
+    mechanism: exception.mechanism,
+    stacktrace: exception.stacktrace
+      ? { frames: (exception.stacktrace.frames ?? []).map(scrubFrame) }
+      : undefined,
+  };
 }
 
 function scrubFrame(frame: ScrubbableFrame): ScrubbableFrame {
-	return {
-		filename: scrubFramePath(frame.filename),
-		abs_path: scrubFramePath(frame.abs_path),
-		function: frame.function,
-		lineno: frame.lineno,
-		colno: frame.colno,
-		in_app: frame.in_app,
-		// `vars` and the context lines are dropped: local variables at the throw
-		// site are the single most likely place for a clip name or a note array
-		// to appear in a payload.
-	};
+  return {
+    filename: scrubFramePath(frame.filename),
+    abs_path: scrubFramePath(frame.abs_path),
+    function: frame.function,
+    lineno: frame.lineno,
+    colno: frame.colno,
+    in_app: frame.in_app,
+    // `vars` and the context lines are dropped: local variables at the throw
+    // site are the single most likely place for a clip name or a note array
+    // to appear in a payload.
+  };
 }

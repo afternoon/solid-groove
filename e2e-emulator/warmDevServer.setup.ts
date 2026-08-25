@@ -65,41 +65,41 @@ import { test } from "@playwright/test";
  * as does each test.
  */
 test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
-	const browserName = testInfo.project.use.defaultBrowserType ?? "unknown";
+  const browserName = testInfo.project.use.defaultBrowserType ?? "unknown";
 
-	try {
-		// No `waitForLoadState("networkidle")` anywhere here: the app holds an open
-		// Firestore listener, so the network never goes idle and the wait can only
-		// time out. Wait for real elements instead — those locators re-resolve
-		// across a reload, which is exactly the behaviour needed.
-		await page.goto("/dashboard", { waitUntil: "commit", timeout: 60_000 });
+  try {
+    // No `waitForLoadState("networkidle")` anywhere here: the app holds an open
+    // Firestore listener, so the network never goes idle and the wait can only
+    // time out. Wait for real elements instead — those locators re-resolve
+    // across a reload, which is exactly the behaviour needed.
+    await page.goto("/dashboard", { waitUntil: "commit", timeout: 60_000 });
 
-		const newProject = page.getByRole("button", { name: "New Project" });
-		await newProject.waitFor({ state: "visible", timeout: 90_000 });
-		await newProject.click();
+    const newProject = page.getByRole("button", { name: "New Project" });
+    await newProject.waitFor({ state: "visible", timeout: 90_000 });
+    await newProject.click();
 
-		// Reaching the grid means the editor mounted and `tone` has been pulled in
-		// and optimized. Re-check after a settle so that if this very navigation
-		// triggered the reload, the post-reload page is the one left warm.
-		const grid = page.getByRole("region", { name: "Step editor" });
-		await grid.waitFor({ state: "visible", timeout: 60_000 });
-		await page.waitForTimeout(2_000);
-		await grid.waitFor({ state: "visible", timeout: 60_000 });
+    // Reaching the grid means the editor mounted and `tone` has been pulled in
+    // and optimized. Re-check after a settle so that if this very navigation
+    // triggered the reload, the post-reload page is the one left warm.
+    const grid = page.getByRole("region", { name: "Step editor" });
+    await grid.waitFor({ state: "visible", timeout: 60_000 });
+    await page.waitForTimeout(2_000);
+    await grid.waitFor({ state: "visible", timeout: 60_000 });
 
-		console.log(
-			`[warmDevServer] editor reached in ${browserName}; dependency graph is warm`,
-		);
-	} catch (error) {
-		// Reaching the editor at all is what pulls in `tone`, so a failure here is
-		// often the last reload interrupting the final wait rather than a warm-up
-		// that achieved nothing. Say that precisely — "skipped" would imply the
-		// tests are running fully cold when they may well not be.
-		console.warn(
-			`[warmDevServer] did not confirm a warm editor in ${browserName}: ${
-				error instanceof Error ? error.message : error
-			}\n[warmDevServer] continuing anyway — this is an optimization, not an ` +
-				"assertion. If a test now fails on a lost interaction, suspect Vite's " +
-				"dependency optimization reload and check app.config.ts's optimizeDeps.include.",
-		);
-	}
+    console.log(
+      `[warmDevServer] editor reached in ${browserName}; dependency graph is warm`,
+    );
+  } catch (error) {
+    // Reaching the editor at all is what pulls in `tone`, so a failure here is
+    // often the last reload interrupting the final wait rather than a warm-up
+    // that achieved nothing. Say that precisely — "skipped" would imply the
+    // tests are running fully cold when they may well not be.
+    console.warn(
+      `[warmDevServer] did not confirm a warm editor in ${browserName}: ${
+        error instanceof Error ? error.message : error
+      }\n[warmDevServer] continuing anyway — this is an optimization, not an ` +
+        "assertion. If a test now fails on a lost interaction, suspect Vite's " +
+        "dependency optimization reload and check app.config.ts's optimizeDeps.include.",
+    );
+  }
 });

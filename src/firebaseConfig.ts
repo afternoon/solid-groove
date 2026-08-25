@@ -1,8 +1,8 @@
 import {
-	type Analytics,
-	getAnalytics,
-	isSupported,
-	setAnalyticsCollectionEnabled,
+  type Analytics,
+  getAnalytics,
+  isSupported,
+  setAnalyticsCollectionEnabled,
 } from "firebase/analytics";
 import { initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
@@ -17,16 +17,14 @@ import { placeholderFirebaseConfig, resolveEmulatorHosts } from "./devBackend";
 const placeholders = placeholderFirebaseConfig();
 
 const firebaseConfig = {
-	apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? placeholders?.apiKey,
-	authDomain:
-		import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? placeholders?.authDomain,
-	projectId:
-		import.meta.env.VITE_FIREBASE_PROJECT_ID ?? placeholders?.projectId,
-	databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-	storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-	messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-	appId: import.meta.env.VITE_FIREBASE_APP_ID ?? placeholders?.appId,
-	measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? placeholders?.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? placeholders?.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? placeholders?.projectId,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? placeholders?.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 export const app = initializeApp(firebaseConfig);
@@ -43,11 +41,11 @@ export const db = getFirestore(app);
 // `src/devBackend.ts`. Dev/test only; never set in a real deployment.
 const emulatorHosts = resolveEmulatorHosts();
 if (emulatorHosts) {
-	const [firestoreHost, firestorePort] = emulatorHosts.firestore.split(":");
-	connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));
-	connectAuthEmulator(auth, `http://${emulatorHosts.auth}`, {
-		disableWarnings: true,
-	});
+  const [firestoreHost, firestorePort] = emulatorHosts.firestore.split(":");
+  connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));
+  connectAuthEmulator(auth, `http://${emulatorHosts.auth}`, {
+    disableWarnings: true,
+  });
 }
 
 // Google Analytics (PRD `OPS-02`).
@@ -75,12 +73,12 @@ let analyticsInstance: Promise<Analytics | null> | null = null;
  * running without Firebase env vars configured must not break app startup.
  */
 export function loadAnalytics(): Promise<Analytics | null> {
-	analyticsInstance ??= isSupported()
-		.then((supported) =>
-			supported && firebaseConfig.measurementId ? getAnalytics(app) : null,
-		)
-		.catch(() => null);
-	return analyticsInstance;
+  analyticsInstance ??= isSupported()
+    .then((supported) =>
+      supported && firebaseConfig.measurementId ? getAnalytics(app) : null,
+    )
+    .catch(() => null);
+  return analyticsInstance;
 }
 
 /**
@@ -94,12 +92,12 @@ export function loadAnalytics(): Promise<Analytics | null> {
  * Never rejects. A consent preference is not a reason for the app to fail.
  */
 export async function setAnalyticsCollection(enabled: boolean): Promise<void> {
-	if (!enabled && analyticsInstance === null) return;
-	try {
-		const instance = await loadAnalytics();
-		if (instance) setAnalyticsCollectionEnabled(instance, enabled);
-	} catch {
-		// Unsupported environment, blocked SDK, or no measurementId. Collection
-		// that never started needs no switching off.
-	}
+  if (!enabled && analyticsInstance === null) return;
+  try {
+    const instance = await loadAnalytics();
+    if (instance) setAnalyticsCollectionEnabled(instance, enabled);
+  } catch {
+    // Unsupported environment, blocked SDK, or no measurementId. Collection
+    // that never started needs no switching off.
+  }
 }

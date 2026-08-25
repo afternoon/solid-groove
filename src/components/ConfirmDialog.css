@@ -1,61 +1,61 @@
 .confirm-dialog-backdrop {
-	position: fixed;
-	inset: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 24px;
-	background: rgba(0, 0, 0, 0.55);
-	z-index: 100;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 100;
 }
 
 .confirm-dialog {
-	width: 100%;
-	max-width: 360px;
-	padding: 20px;
-	border-radius: 12px;
-	background: var(--color-background-secondary);
-	border: 1px solid rgba(255, 255, 255, 0.12);
-	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  max-width: 360px;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
 .confirm-dialog-title {
-	margin: 0 0 8px;
-	font-size: var(--font-size-base);
-	font-weight: 600;
+  margin: 0 0 8px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
 }
 
 .confirm-dialog-message {
-	margin: 0 0 20px;
-	color: var(--color-foreground);
-	font-size: var(--font-size-small);
+  margin: 0 0 20px;
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
 }
 
 .confirm-dialog-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .confirm-dialog-actions button {
-	padding: 8px 14px;
-	border-radius: 8px;
-	cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .confirm-dialog-actions button:disabled {
-	opacity: 0.6;
-	cursor: default;
+  opacity: 0.6;
+  cursor: default;
 }
 
 .confirm-dialog-confirm {
-	background: #d64545;
-	color: #fff;
-	border: 1px solid #d64545;
+  background: #d64545;
+  color: #fff;
+  border: 1px solid #d64545;
 }
 
 .confirm-dialog-cancel {
-	background: transparent;
-	border: 1px solid rgba(255, 255, 255, 0.2);
-	color: var(--color-text);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-text);
 }

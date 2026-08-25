@@ -1,22 +1,22 @@
 .tape-loader {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	gap: 24px;
-	width: 100%;
-	height: 100%;
-	color: var(--color-text-secondary);
-	/* When rendered inside the .project grid loading state, span the whole grid
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  height: 100%;
+  color: var(--color-text-secondary);
+  /* When rendered inside the .project grid loading state, span the whole grid
 	   so the deck sits centred on the page rather than in one grid cell. */
-	grid-column: 1 / -1;
-	grid-row: 1 / -1;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
 }
 
 .tape-loader svg {
-	width: 260px;
-	height: auto;
-	display: block;
+  width: 260px;
+  height: auto;
+  display: block;
 }
 
 /* Reels spin. Left reel is the supply reel, right is the take-up reel.
@@ -25,50 +25,50 @@
    regardless of how the SVG is scaled. */
 .tape-loader .reel-left,
 .tape-loader .reel-right {
-	transform-box: fill-box;
-	transform-origin: center;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .tape-loader .reel-left {
-	animation: tape-spin 2.4s linear infinite;
+  animation: tape-spin 2.4s linear infinite;
 }
 
 .tape-loader .reel-right {
-	animation: tape-spin 1.9s linear infinite;
+  animation: tape-spin 1.9s linear infinite;
 }
 
 @keyframes tape-spin {
-	from {
-		transform: rotate(0deg);
-	}
-	to {
-		transform: rotate(360deg);
-	}
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .tape-loader .loader-label {
-	font-size: var(--font-size-base);
-	letter-spacing: 2px;
-	text-transform: uppercase;
-	color: var(--color-foreground);
-	animation: label-blink 1.6s ease-in-out infinite;
+  font-size: var(--font-size-base);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-foreground);
+  animation: label-blink 1.6s ease-in-out infinite;
 }
 
 @keyframes label-blink {
-	0%,
-	100% {
-		opacity: 0.5;
-	}
-	50% {
-		opacity: 1;
-	}
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Respect users who prefer reduced motion: freeze the mechanism. */
 @media (prefers-reduced-motion: reduce) {
-	.tape-loader .reel-left,
-	.tape-loader .reel-right,
-	.tape-loader .loader-label {
-		animation: none;
-	}
+  .tape-loader .reel-left,
+  .tape-loader .reel-right,
+  .tape-loader .loader-label {
+    animation: none;
+  }
 }

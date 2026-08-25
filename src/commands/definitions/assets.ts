@@ -3,12 +3,12 @@ import { type Asset, assetSchema, type Project } from "../../domain/entities";
 import { type AssetId, assetIdSchema } from "../../domain/ids";
 import { trackAssetIds } from "../../domain/packs";
 import {
-	applied,
-	type CommandInput,
-	defineCommand,
-	eraseCommand,
-	type RegisteredCommand,
-	rejected,
+  applied,
+  type CommandInput,
+  defineCommand,
+  eraseCommand,
+  type RegisteredCommand,
+  rejected,
 } from "../types";
 
 /**
@@ -37,15 +37,15 @@ import {
  */
 
 export const assetAddPayloadSchema = z.strictObject({
-	/** The asset to carry. Its ID is explicit so a replay lands the same asset. */
-	asset: assetSchema,
-	/** Position in `song.assets`; appended when omitted. */
-	index: z.int().min(0).optional(),
+  /** The asset to carry. Its ID is explicit so a replay lands the same asset. */
+  asset: assetSchema,
+  /** Position in `song.assets`; appended when omitted. */
+  index: z.int().min(0).optional(),
 });
 export type AssetAddPayload = z.infer<typeof assetAddPayloadSchema>;
 
 export const assetRemovePayloadSchema = z.strictObject({
-	assetId: assetIdSchema,
+  assetId: assetIdSchema,
 });
 export type AssetRemovePayload = z.infer<typeof assetRemovePayloadSchema>;
 
@@ -55,104 +55,98 @@ export type AssetRemovePayload = z.infer<typeof assetRemovePayloadSchema>;
  * to clear first rather than only that something did.
  */
 function holdersOf(project: Project, assetId: AssetId): string[] {
-	const holders = project.song.tracks
-		.filter((track) => trackAssetIds(track).includes(assetId))
-		.map((track) => `track ${track.id}`);
-	holders.push(
-		...project.clips
-			.filter(
-				(clip) =>
-					clip.content.kind === "audioLoop" && clip.content.assetId === assetId,
-			)
-			.map((clip) => `clip ${clip.id}`),
-	);
-	return holders;
+  const holders = project.song.tracks
+    .filter((track) => trackAssetIds(track).includes(assetId))
+    .map((track) => `track ${track.id}`);
+  holders.push(
+    ...project.clips
+      .filter(
+        (clip) => clip.content.kind === "audioLoop" && clip.content.assetId === assetId,
+      )
+      .map((clip) => `clip ${clip.id}`),
+  );
+  return holders;
 }
 
 export const assetAddCommand = defineCommand<AssetAddPayload>({
-	type: "asset.add",
-	version: 1,
-	schema: assetAddPayloadSchema,
-	summarize: (payload) => `Add ${payload.asset.name} to the project`,
-	apply(project, payload) {
-		const assets = project.song.assets;
-		if (assets.some((candidate) => candidate.id === payload.asset.id)) {
-			return rejected(`Asset ${payload.asset.id} is already in this project`);
-		}
-		const index = payload.index ?? assets.length;
-		if (index > assets.length) {
-			return rejected(
-				`Cannot add an asset at index ${index}; the project carries ${assets.length}`,
-			);
-		}
-		const next = [...assets];
-		next.splice(index, 0, payload.asset);
-		return applied({ ...project, song: { ...project.song, assets: next } });
-	},
-	invert: (payload) => [removeAsset(payload.asset.id)],
+  type: "asset.add",
+  version: 1,
+  schema: assetAddPayloadSchema,
+  summarize: (payload) => `Add ${payload.asset.name} to the project`,
+  apply(project, payload) {
+    const assets = project.song.assets;
+    if (assets.some((candidate) => candidate.id === payload.asset.id)) {
+      return rejected(`Asset ${payload.asset.id} is already in this project`);
+    }
+    const index = payload.index ?? assets.length;
+    if (index > assets.length) {
+      return rejected(
+        `Cannot add an asset at index ${index}; the project carries ${assets.length}`,
+      );
+    }
+    const next = [...assets];
+    next.splice(index, 0, payload.asset);
+    return applied({ ...project, song: { ...project.song, assets: next } });
+  },
+  invert: (payload) => [removeAsset(payload.asset.id)],
 });
 
 export const assetRemoveCommand = defineCommand<AssetRemovePayload>({
-	type: "asset.remove",
-	version: 1,
-	schema: assetRemovePayloadSchema,
-	summarize: (payload, project) =>
-		`Remove ${assetLabel(project.song.assets, payload.assetId)} from the project`,
-	apply(project, payload) {
-		const index = project.song.assets.findIndex(
-			(candidate) => candidate.id === payload.assetId,
-		);
-		if (index < 0) {
-			return rejected(`Asset ${payload.assetId} is not in this project`);
-		}
-		const holders = holdersOf(project, payload.assetId);
-		if (holders.length > 0) {
-			return rejected(
-				`Asset ${payload.assetId} is still loaded by ${holders.join(", ")}`,
-			);
-		}
-		return applied({
-			...project,
-			song: {
-				...project.song,
-				assets: project.song.assets.filter((_, position) => position !== index),
-			},
-		});
-	},
-	invert(payload, before) {
-		const index = before.song.assets.findIndex(
-			(candidate) => candidate.id === payload.assetId,
-		);
-		const asset = before.song.assets[index];
-		return asset ? [addAsset(asset, index)] : [];
-	},
+  type: "asset.remove",
+  version: 1,
+  schema: assetRemovePayloadSchema,
+  summarize: (payload, project) =>
+    `Remove ${assetLabel(project.song.assets, payload.assetId)} from the project`,
+  apply(project, payload) {
+    const index = project.song.assets.findIndex(
+      (candidate) => candidate.id === payload.assetId,
+    );
+    if (index < 0) {
+      return rejected(`Asset ${payload.assetId} is not in this project`);
+    }
+    const holders = holdersOf(project, payload.assetId);
+    if (holders.length > 0) {
+      return rejected(
+        `Asset ${payload.assetId} is still loaded by ${holders.join(", ")}`,
+      );
+    }
+    return applied({
+      ...project,
+      song: {
+        ...project.song,
+        assets: project.song.assets.filter((_, position) => position !== index),
+      },
+    });
+  },
+  invert(payload, before) {
+    const index = before.song.assets.findIndex(
+      (candidate) => candidate.id === payload.assetId,
+    );
+    const asset = before.song.assets[index];
+    return asset ? [addAsset(asset, index)] : [];
+  },
 });
 
 /** The asset's name when the project carries it, else its ID. */
 function assetLabel(assets: readonly Asset[], assetId: AssetId): string {
-	return assets.find((asset) => asset.id === assetId)?.name ?? assetId;
+  return assets.find((asset) => asset.id === assetId)?.name ?? assetId;
 }
 
 // --- Typed builders -------------------------------------------------------
 
-export function addAsset(
-	asset: Asset,
-	index?: number,
-): CommandInput<AssetAddPayload> {
-	return {
-		type: assetAddCommand.type,
-		payload: index === undefined ? { asset } : { asset, index },
-	};
+export function addAsset(asset: Asset, index?: number): CommandInput<AssetAddPayload> {
+  return {
+    type: assetAddCommand.type,
+    payload: index === undefined ? { asset } : { asset, index },
+  };
 }
 
-export function removeAsset(
-	assetId: AssetId,
-): CommandInput<AssetRemovePayload> {
-	return { type: assetRemoveCommand.type, payload: { assetId } };
+export function removeAsset(assetId: AssetId): CommandInput<AssetRemovePayload> {
+  return { type: assetRemoveCommand.type, payload: { assetId } };
 }
 
 /** Registered, payload-erased commands from this module. */
 export const assetCommands: readonly RegisteredCommand[] = [
-	eraseCommand(assetAddCommand),
-	eraseCommand(assetRemoveCommand),
+  eraseCommand(assetAddCommand),
+  eraseCommand(assetRemoveCommand),
 ];

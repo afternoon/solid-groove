@@ -30,16 +30,16 @@ export const APPROVED_LICENSES = ["CC0-1.0", "solid-groove-owned"];
  * well-meaning contributor might reasonably think are fine.
  */
 export const REJECTED_LICENSES = {
-	"CC-BY-4.0":
-		"requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
-	"CC-BY-3.0":
-		"requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
-	"CC-BY-SA-4.0": "share-alike would attach to user projects",
-	"CC-BY-NC-4.0": "non-commercial conflicts with a paid product",
-	"CC-BY-ND-4.0": "no-derivatives conflicts with sampler use and processing",
-	"GPL-3.0": "copyleft audio would attach to user projects",
-	"royalty-free":
-		"standard royalty-free terms permit use in a composition but prohibit redistributing raw files (section 3.1)",
+  "CC-BY-4.0":
+    "requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
+  "CC-BY-3.0":
+    "requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
+  "CC-BY-SA-4.0": "share-alike would attach to user projects",
+  "CC-BY-NC-4.0": "non-commercial conflicts with a paid product",
+  "CC-BY-ND-4.0": "no-derivatives conflicts with sampler use and processing",
+  "GPL-3.0": "copyleft audio would attach to user projects",
+  "royalty-free":
+    "standard royalty-free terms permit use in a composition but prohibit redistributing raw files (section 3.1)",
 };
 
 /**
@@ -69,159 +69,146 @@ export const TIERS = ["tier-1", "tier-2"];
 
 /** @type {Source[]} */
 export const SOURCES = [
-	{
-		id: "producer-space",
-		name: "Producer Space",
-		tier: "tier-1",
-		homepage: "https://producerspace.com/",
-		licenseId: "CC0-1.0",
-		licenseUrl: "https://producerspace.com/license",
-		rightsNote:
-			"The official clearance places the entire library under CC0 and expressly grants reproduction, modification, and distribution.",
-		reviewNote:
-			"Audit pack authorship. Quarantine anything vocal until a performer release is on file (section 3.3).",
-		take: [
-			"electronic one-shots",
-			"percussion",
-			"house material",
-			"non-vocal loops",
-		],
-		avoid: [
-			"vocals and speech — no performer release",
-			"anything credited to a third-party pack",
-		],
-		maxSelections: 40,
-	},
-	{
-		id: "freepats",
-		name: "FreePats",
-		tier: "tier-1",
-		homepage: "https://freepats.zenvoid.org/",
-		licenseId: "CC0-1.0",
-		// FreePats states licences per bank, so the per-bank page is the
-		// evidence, not the site root.
-		licenseUrl: "https://freepats.zenvoid.org/licenses.html",
-		rightsNote:
-			"Licences are stated per bank; only banks explicitly released under CC0 are eligible.",
-		reviewNote:
-			"Confirm the CC0 statement on the specific bank page before pinning. A CC0 bank sitting beside a CC-BY bank is normal here.",
-		take: [
-			"electronic percussion",
-			"synth bass multisamples",
-			"synth pads",
-			"tuned percussion",
-		],
-		avoid: [
-			"any bank whose page does not state CC0",
-			"sampled commercial instruments",
-		],
-		maxSelections: 40,
-	},
-	{
-		id: "vcsl",
-		name: "Versilian Community Sample Library",
-		tier: "tier-1",
-		homepage: "https://versilian-studios.com/vcsl/",
-		licenseId: "CC0-1.0",
-		licenseUrl: "https://versilian-studios.com/vcsl/",
-		rightsNote:
-			"Published under CC0, with the publisher explicitly permitting commercial software, DAWs, granular synths, and samplers.",
-		reviewNote:
-			"Select a small electronic-production subset. Do not ingest the full multi-gigabyte library (section 4.1).",
-		take: [
-			"organic percussion",
-			"mallets",
-			"unusual resonances",
-			"experimental instruments",
-			"textures",
-		],
-		avoid: [
-			"full orchestral multisample sets",
-			"anything that blows the section 12 payload budget",
-		],
-		maxSelections: 50,
-	},
-	{
-		id: "signature-sounds",
-		name: "Signature Sounds",
-		tier: "tier-2",
-		homepage: "https://signaturesounds.org/",
-		licenseId: "CC0-1.0",
-		licenseUrl: "https://signaturesounds.org/",
-		rightsNote: "The site states its packs include CC0 licence files.",
-		reviewNote:
-			"Verify the licence file, creator, and provenance inside every selected pack. A site-wide claim is not sufficient evidence on its own (section 4.2).",
-		take: [
-			"tuned long basses",
-			"organic percussion",
-			"ambience",
-			"drones",
-			"impacts",
-			"bells",
-		],
-		avoid: [
-			"packs with no matching CC0 licence file",
-			"anything with unclear authorship",
-		],
-		maxSelections: 40,
-	},
-	{
-		id: "freesound",
-		name: "Freesound",
-		tier: "tier-2",
-		homepage: "https://freesound.org/",
-		licenseId: "CC0-1.0",
-		licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
-		rightsNote:
-			"Individual sounds may be released under CC0; the catalogue also holds CC-BY and CC-BY-NC.",
-		reviewNote:
-			"Record sound ID, uploader, and licence. Assess provenance manually — an uploader may have re-uploaded a commercial pack. Avoid recognizable media. Never bulk-import a search result page (section 4.2).",
-		take: [
-			"foley",
-			"field recordings",
-			"mechanical sounds",
-			"percussion",
-			"ambience",
-			"noise",
-		],
-		avoid: [
-			"anything not marked CC0",
-			"recognizable music, film, or game audio",
-			"identifiable speech or people (section 3.3)",
-			"sensitive-context field recordings",
-		],
-		maxSelections: 50,
-	},
-	{
-		id: "kenney",
-		name: "Kenney",
-		tier: "tier-2",
-		homepage: "https://www.kenney.nl/assets",
-		licenseId: "CC0-1.0",
-		licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
-		rightsNote: "Kenney states its asset-page downloads are CC0.",
-		reviewNote:
-			"Useful for interface and transition effects rather than core musical identity. Confirm the CC0 statement on the asset page.",
-		take: [
-			"interface sounds",
-			"impacts",
-			"short effects",
-			"raw sound-design material",
-		],
-		avoid: ["anything intended to carry a genre's musical identity"],
-		maxSelections: 25,
-	},
+  {
+    id: "producer-space",
+    name: "Producer Space",
+    tier: "tier-1",
+    homepage: "https://producerspace.com/",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://producerspace.com/license",
+    rightsNote:
+      "The official clearance places the entire library under CC0 and expressly grants reproduction, modification, and distribution.",
+    reviewNote:
+      "Audit pack authorship. Quarantine anything vocal until a performer release is on file (section 3.3).",
+    take: ["electronic one-shots", "percussion", "house material", "non-vocal loops"],
+    avoid: [
+      "vocals and speech — no performer release",
+      "anything credited to a third-party pack",
+    ],
+    maxSelections: 40,
+  },
+  {
+    id: "freepats",
+    name: "FreePats",
+    tier: "tier-1",
+    homepage: "https://freepats.zenvoid.org/",
+    licenseId: "CC0-1.0",
+    // FreePats states licences per bank, so the per-bank page is the
+    // evidence, not the site root.
+    licenseUrl: "https://freepats.zenvoid.org/licenses.html",
+    rightsNote:
+      "Licences are stated per bank; only banks explicitly released under CC0 are eligible.",
+    reviewNote:
+      "Confirm the CC0 statement on the specific bank page before pinning. A CC0 bank sitting beside a CC-BY bank is normal here.",
+    take: [
+      "electronic percussion",
+      "synth bass multisamples",
+      "synth pads",
+      "tuned percussion",
+    ],
+    avoid: ["any bank whose page does not state CC0", "sampled commercial instruments"],
+    maxSelections: 40,
+  },
+  {
+    id: "vcsl",
+    name: "Versilian Community Sample Library",
+    tier: "tier-1",
+    homepage: "https://versilian-studios.com/vcsl/",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://versilian-studios.com/vcsl/",
+    rightsNote:
+      "Published under CC0, with the publisher explicitly permitting commercial software, DAWs, granular synths, and samplers.",
+    reviewNote:
+      "Select a small electronic-production subset. Do not ingest the full multi-gigabyte library (section 4.1).",
+    take: [
+      "organic percussion",
+      "mallets",
+      "unusual resonances",
+      "experimental instruments",
+      "textures",
+    ],
+    avoid: [
+      "full orchestral multisample sets",
+      "anything that blows the section 12 payload budget",
+    ],
+    maxSelections: 50,
+  },
+  {
+    id: "signature-sounds",
+    name: "Signature Sounds",
+    tier: "tier-2",
+    homepage: "https://signaturesounds.org/",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://signaturesounds.org/",
+    rightsNote: "The site states its packs include CC0 licence files.",
+    reviewNote:
+      "Verify the licence file, creator, and provenance inside every selected pack. A site-wide claim is not sufficient evidence on its own (section 4.2).",
+    take: [
+      "tuned long basses",
+      "organic percussion",
+      "ambience",
+      "drones",
+      "impacts",
+      "bells",
+    ],
+    avoid: [
+      "packs with no matching CC0 licence file",
+      "anything with unclear authorship",
+    ],
+    maxSelections: 40,
+  },
+  {
+    id: "freesound",
+    name: "Freesound",
+    tier: "tier-2",
+    homepage: "https://freesound.org/",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+    rightsNote:
+      "Individual sounds may be released under CC0; the catalogue also holds CC-BY and CC-BY-NC.",
+    reviewNote:
+      "Record sound ID, uploader, and licence. Assess provenance manually — an uploader may have re-uploaded a commercial pack. Avoid recognizable media. Never bulk-import a search result page (section 4.2).",
+    take: [
+      "foley",
+      "field recordings",
+      "mechanical sounds",
+      "percussion",
+      "ambience",
+      "noise",
+    ],
+    avoid: [
+      "anything not marked CC0",
+      "recognizable music, film, or game audio",
+      "identifiable speech or people (section 3.3)",
+      "sensitive-context field recordings",
+    ],
+    maxSelections: 50,
+  },
+  {
+    id: "kenney",
+    name: "Kenney",
+    tier: "tier-2",
+    homepage: "https://www.kenney.nl/assets",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+    rightsNote: "Kenney states its asset-page downloads are CC0.",
+    reviewNote:
+      "Useful for interface and transition effects rather than core musical identity. Confirm the CC0 statement on the asset page.",
+    take: ["interface sounds", "impacts", "short effects", "raw sound-design material"],
+    avoid: ["anything intended to carry a genre's musical identity"],
+    maxSelections: 25,
+  },
 ];
 
 export function findSource(id) {
-	return SOURCES.find((source) => source.id === id) ?? null;
+  return SOURCES.find((source) => source.id === id) ?? null;
 }
 
 /** Why a licence is not bundleable, or null if it is approved. */
 export function licenseRejectionReason(licenseId) {
-	if (APPROVED_LICENSES.includes(licenseId)) return null;
-	return (
-		REJECTED_LICENSES[licenseId] ??
-		`"${licenseId}" is not an approved licence; docs/sample-library.md section 3.2 accepts ${APPROVED_LICENSES.join(" or ")}`
-	);
+  if (APPROVED_LICENSES.includes(licenseId)) return null;
+  return (
+    REJECTED_LICENSES[licenseId] ??
+    `"${licenseId}" is not an approved licence; docs/sample-library.md section 3.2 accepts ${APPROVED_LICENSES.join(" or ")}`
+  );
 }

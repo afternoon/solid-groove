@@ -1,111 +1,111 @@
 * {
-	--color-background: #0f1017;
-	--color-background-secondary: #1a1c25;
-	--color-background-tertiary: #3a3d4a;
-	--color-background-highlight: #2f323e;
-	--color-background-hover: #444859;
+  --color-background: #0f1017;
+  --color-background-secondary: #1a1c25;
+  --color-background-tertiary: #3a3d4a;
+  --color-background-highlight: #2f323e;
+  --color-background-hover: #444859;
 
-	--color-foreground: #8d92a6;
-	--color-foreground-bright: white;
+  --color-foreground: #8d92a6;
+  --color-foreground-bright: white;
 
-	--color-text: white;
-	--color-text-secondary: lightgrey;
-	--color-error: #ff6b6b;
+  --color-text: white;
+  --color-text-secondary: lightgrey;
+  --color-error: #ff6b6b;
 
-	--font-size-tiny: 10px;
-	--font-size-small: 11px;
-	--font-size-base: 14px;
-	--font-size-lg: calc(var(--font-size-base) * 1.5);
-	--font-size-xl: calc(var(--font-size-base) * 4);
+  --font-size-tiny: 10px;
+  --font-size-small: 11px;
+  --font-size-base: 14px;
+  --font-size-lg: calc(var(--font-size-base) * 1.5);
+  --font-size-xl: calc(var(--font-size-base) * 4);
 }
 
 :root {
-	font:
-		var(--font-size-base) system-ui,
-		sans-serif;
-	line-height: 1.5;
-	font-weight: 400;
+  font:
+    var(--font-size-base) system-ui,
+    sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
 
-	color-scheme: dark light;
-	color: white;
-	background-color: var(--color-background);
+  color-scheme: dark light;
+  color: white;
+  background-color: var(--color-background);
 
-	font-synthesis: none;
-	text-rendering: optimizeLegibility;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
 body {
-	margin: 0;
+  margin: 0;
 }
 
 h1 {
-	font-size: var(--font-size-xl);
-	font-weight: 700;
-	margin-bottom: 14px;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  margin-bottom: 14px;
 }
 
 h2 {
-	font-size: var(--font-size-lg);
-	font-weight: 700;
-	margin-bottom: 14px;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin-bottom: 14px;
 }
 
 button {
-	padding: 12px 20px;
-	cursor: pointer;
-	background-color: var(--color-background-secondary);
-	color: var(--color-text);
-	border: none;
-	border-radius: 4px;
-	font-size: var(--font-size-base);
-	font-weight: 400;
-	line-height: 1.5;
-	text-align: center;
-	text-decoration: none;
-	transition: background-color 0.1s ease;
+  padding: 12px 20px;
+  cursor: pointer;
+  background-color: var(--color-background-secondary);
+  color: var(--color-text);
+  border: none;
+  border-radius: 4px;
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s ease;
 
-	&:hover {
-		background-color: var(--color-background-highlight);
-	}
+  &:hover {
+    background-color: var(--color-background-highlight);
+  }
 }
 
 input {
-	background-color: var(--color-background-secondary);
-	color: var(--color-text);
-	border: none;
-	font-size: var(--font-size-base);
-	font-weight: 400;
-	line-height: 1.5;
-	padding: 3px 5px;
-	transition: background-color 0.1s ease;
+  background-color: var(--color-background-secondary);
+  color: var(--color-text);
+  border: none;
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 3px 5px;
+  transition: background-color 0.1s ease;
 
-	&:hover {
-		background-color: var(--color-background-highlight);
-	}
+  &:hover {
+    background-color: var(--color-background-highlight);
+  }
 }
 
 p.loading {
-	color: var(--color-text-secondary);
+  color: var(--color-text-secondary);
 }
 
 p.error {
-	color: var(--color-error);
+  color: var(--color-error);
 }
 
 /* Content that is available to assistive technology but not painted — a
    label for a control whose meaning is otherwise carried only by position or
    an icon. Shared: any surface may use it. */
 .visually-hidden {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	padding: 0;
-	margin: -1px;
-	overflow: hidden;
-	clip: rect(0, 0, 0, 0);
-	white-space: nowrap;
-	border: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

@@ -8,21 +8,21 @@
 
 /** An isolated in-memory `Storage`. */
 export function memoryStorage(): Storage {
-	const map = new Map<string, string>();
-	return {
-		get length() {
-			return map.size;
-		},
-		clear: () => map.clear(),
-		getItem: (key) => map.get(key) ?? null,
-		key: (index) => [...map.keys()][index] ?? null,
-		removeItem: (key) => {
-			map.delete(key);
-		},
-		setItem: (key, value) => {
-			map.set(key, value);
-		},
-	} as Storage;
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear: () => map.clear(),
+    getItem: (key) => map.get(key) ?? null,
+    key: (index) => [...map.keys()][index] ?? null,
+    removeItem: (key) => {
+      map.delete(key);
+    },
+    setItem: (key, value) => {
+      map.set(key, value);
+    },
+  } as Storage;
 }
 
 /**
@@ -33,17 +33,17 @@ export function memoryStorage(): Storage {
  * so every consumer has to survive this.
  */
 export function hostileStorage(): Storage {
-	const boom = (): never => {
-		throw new Error("storage disabled");
-	};
-	return {
-		get length(): number {
-			return boom();
-		},
-		clear: boom,
-		getItem: boom,
-		key: boom,
-		removeItem: boom,
-		setItem: boom,
-	} as unknown as Storage;
+  const boom = (): never => {
+    throw new Error("storage disabled");
+  };
+  return {
+    get length(): number {
+      return boom();
+    },
+    clear: boom,
+    getItem: boom,
+    key: boom,
+    removeItem: boom,
+    setItem: boom,
+  } as unknown as Storage;
 }

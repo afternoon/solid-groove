@@ -1,9 +1,6 @@
 import type * as Tone from "tone";
 import type { Device } from "../../domain/entities";
-import {
-	bareParameterId,
-	type ParameterDefinition,
-} from "../../domain/parameters";
+import { bareParameterId, type ParameterDefinition } from "../../domain/parameters";
 import type { AudioProjectScope } from "../AudioRuntime";
 
 /**
@@ -21,9 +18,9 @@ export const DEVICE_SMOOTHING_SECONDS = 0.02;
  * division to seconds without importing the transport or the song.
  */
 export interface DeviceGraphContext {
-	readonly scope: AudioProjectScope;
-	/** The song's current tempo in BPM, read at each `update()`. */
-	readonly tempo: () => number;
+  readonly scope: AudioProjectScope;
+  /** The song's current tempo in BPM, read at each `update()`. */
+  readonly tempo: () => number;
 }
 
 /**
@@ -39,39 +36,39 @@ export interface DeviceGraphContext {
  * `initial` carries.
  */
 export interface DeviceCore {
-	readonly input: Tone.ToneAudioNode;
-	readonly output: Tone.ToneAudioNode;
-	apply(
-		values: DeviceParameterValues,
-		context: DeviceGraphContext,
-		initial: boolean,
-	): void;
-	dispose(): void;
-	/**
-	 * An optional live read of how much gain the device is currently removing,
-	 * in dB (0 when it is not reducing). Only the compressor implements it; the
-	 * panel polls it for a gain-reduction meter (FX-01) and it is never the
-	 * source of an analytics event.
-	 */
-	gainReductionDb?(): number;
-	/**
-	 * The delay time this device last resolved to, in seconds. Only the delay
-	 * implements it. A panel reads it to show the time a *synced* delay currently
-	 * works out to, which the stored parameters alone do not say — the answer
-	 * depends on the song tempo. Reading the live `delayTime` param instead would
-	 * report the wrong value mid-edit, since a parameter change is ramped rather
-	 * than stepped.
-	 */
-	resolvedDelaySeconds?(): number;
-	/**
-	 * Resolves once any asynchronously-built resource the device needs is in
-	 * place. Only the reverb implements it, because its impulse response is
-	 * generated off the audio thread. Live playback never awaits it — the node
-	 * simply keeps its previous impulse until the new one lands, so a decay edit
-	 * mid-tail does not drop to silence — but an *offline* render must, since a
-	 * render that starts before the impulse exists produces no tail at all.
-	 */
-	ready?(): Promise<void>;
+  readonly input: Tone.ToneAudioNode;
+  readonly output: Tone.ToneAudioNode;
+  apply(
+    values: DeviceParameterValues,
+    context: DeviceGraphContext,
+    initial: boolean,
+  ): void;
+  dispose(): void;
+  /**
+   * An optional live read of how much gain the device is currently removing,
+   * in dB (0 when it is not reducing). Only the compressor implements it; the
+   * panel polls it for a gain-reduction meter (FX-01) and it is never the
+   * source of an analytics event.
+   */
+  gainReductionDb?(): number;
+  /**
+   * The delay time this device last resolved to, in seconds. Only the delay
+   * implements it. A panel reads it to show the time a *synced* delay currently
+   * works out to, which the stored parameters alone do not say — the answer
+   * depends on the song tempo. Reading the live `delayTime` param instead would
+   * report the wrong value mid-edit, since a parameter change is ramped rather
+   * than stepped.
+   */
+  resolvedDelaySeconds?(): number;
+  /**
+   * Resolves once any asynchronously-built resource the device needs is in
+   * place. Only the reverb implements it, because its impulse response is
+   * generated off the audio thread. Live playback never awaits it — the node
+   * simply keeps its previous impulse until the new one lands, so a decay edit
+   * mid-tail does not drop to silence — but an *offline* render must, since a
+   * render that starts before the impulse exists produces no tail at all.
+   */
+  ready?(): Promise<void>;
 }
 
 /** A device's parameter values, by bare id, with every default filled in. */
@@ -85,28 +82,28 @@ export type DeviceParameterValues = Readonly<Record<string, number>>;
  * `undefined` reaching a Web Audio param.
  */
 export function readDeviceParameters(
-	definitions: readonly ParameterDefinition[],
-	device: Device,
+  definitions: readonly ParameterDefinition[],
+  device: Device,
 ): DeviceParameterValues {
-	const values: Record<string, number> = {};
-	for (const definition of definitions) {
-		const key = bareParameterId(definition.id);
-		const stored = device.parameters[key];
-		values[key] = Number.isFinite(stored) ? stored : definition.defaultValue;
-	}
-	return values;
+  const values: Record<string, number> = {};
+  for (const definition of definitions) {
+    const key = bareParameterId(definition.id);
+    const stored = device.parameters[key];
+    values[key] = Number.isFinite(stored) ? stored : definition.defaultValue;
+  }
+  return values;
 }
 
 /** Builds the DSP core for a device type. */
 export type DeviceCoreFactory = (
-	device: Device,
-	context: DeviceGraphContext,
+  device: Device,
+  context: DeviceGraphContext,
 ) => DeviceCore;
 
 /** The slice of a Tone/Web Audio param {@link setOrRamp} needs. */
 export interface RampableParam {
-	linearRampTo(value: number, rampTime: number): unknown;
-	setValueAtTime(value: number, time: number): unknown;
+  linearRampTo(value: number, rampTime: number): unknown;
+  setValueAtTime(value: number, time: number): unknown;
 }
 
 /**
@@ -121,11 +118,7 @@ export interface RampableParam {
  * byte-identical: a test passing by accident, and a ~1-in-10 flake across these
  * suites. `setValueAtTime(value, 0)` is unambiguous in both worlds.
  */
-export function setOrRamp(
-	param: RampableParam,
-	value: number,
-	initial: boolean,
-): void {
-	if (initial) param.setValueAtTime(value, 0);
-	else param.linearRampTo(value, DEVICE_SMOOTHING_SECONDS);
+export function setOrRamp(param: RampableParam, value: number, initial: boolean): void {
+  if (initial) param.setValueAtTime(value, 0);
+  else param.linearRampTo(value, DEVICE_SMOOTHING_SECONDS);
 }

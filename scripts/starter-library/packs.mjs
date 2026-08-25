@@ -47,33 +47,33 @@ const ID_SUFFIX_LENGTH = 21;
  * properties `packs.test.mjs` still exercises directly.
  */
 export function packId(slug) {
-	const random = seededBytes(hashSeed(`pack:${slug}`));
-	const generate = customRandom(urlAlphabet, ID_SUFFIX_LENGTH, random);
-	return `pak_${generate()}`;
+  const random = seededBytes(hashSeed(`pack:${slug}`));
+  const generate = customRandom(urlAlphabet, ID_SUFFIX_LENGTH, random);
+  return `pak_${generate()}`;
 }
 
 function hashSeed(seed) {
-	let hash = 0x811c9dc5;
-	for (let index = 0; index < seed.length; index += 1) {
-		hash ^= seed.charCodeAt(index);
-		hash = Math.imul(hash, 0x01000193) >>> 0;
-	}
-	return hash === 0 ? 0x9e3779b9 : hash;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash === 0 ? 0x9e3779b9 : hash;
 }
 
 function seededBytes(seed) {
-	let state = seed >>> 0;
-	return (byteCount) => {
-		const bytes = new Uint8Array(byteCount);
-		for (let index = 0; index < byteCount; index += 1) {
-			state = (state + 0x6d2b79f5) >>> 0;
-			let next = state;
-			next = Math.imul(next ^ (next >>> 15), next | 1);
-			next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
-			bytes[index] = ((next ^ (next >>> 14)) >>> 0) & 0xff;
-		}
-		return bytes;
-	};
+  let state = seed >>> 0;
+  return (byteCount) => {
+    const bytes = new Uint8Array(byteCount);
+    for (let index = 0; index < byteCount; index += 1) {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let next = state;
+      next = Math.imul(next ^ (next >>> 15), next | 1);
+      next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+      bytes[index] = ((next ^ (next >>> 14)) >>> 0) & 0xff;
+    }
+    return bytes;
+  };
 }
 
 /**
@@ -85,16 +85,16 @@ function seededBytes(seed) {
  * domain `Pack` entity.
  */
 const SOLID_GROOVE_OWNED = {
-	licence: "solid-groove-owned",
-	rawRedistribution: true,
-	attributionRequired: false,
+  licence: "solid-groove-owned",
+  rawRedistribution: true,
+  attributionRequired: false,
 };
 
 /** The rights position every acquired-content pack shares. */
 const CC0 = {
-	licence: "CC0-1.0",
-	rawRedistribution: true,
-	attributionRequired: false,
+  licence: "CC0-1.0",
+  rawRedistribution: true,
+  attributionRequired: false,
 };
 
 /**
@@ -106,7 +106,7 @@ const CC0 = {
  * actually use — `tonal` has none rated `extreme`, so it is not claimed.
  */
 function coverage(family, genres, intensity) {
-	return { roles: [...TAXONOMY[family]], genres, bpmRange: null, intensity };
+  return { roles: [...TAXONOMY[family]], genres, bpmRange: null, intensity };
 }
 
 const ALL_INTENSITIES = ["low", "medium", "high", "extreme"];
@@ -124,167 +124,160 @@ const ALL_INTENSITIES = ["low", "medium", "high", "extreme"];
  * how a client can cache a version forever and a repack still becomes visible.
  */
 export const PACKS = [
-	{
-		id: "pak_SdlN_OazweXrwury0j27Y",
-		slug: "core-electronic-drums",
-		family: "drums",
-		name: "Core Electronic Drums",
-		version: "1.0.0",
-		publisher: "Solid Groove",
-		kind: "factory",
-		description:
-			"The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
-		rights: SOLID_GROOVE_OWNED,
-		coverage: coverage("drums", [...GENRES].sort(), ALL_INTENSITIES),
-	},
-	{
-		id: "pak_FH8gyASzYiWGCrtpKZ-Ho",
-		slug: "foundation-bass",
-		family: "bass",
-		name: "Foundation Bass",
-		version: "1.0.0",
-		publisher: "Solid Groove",
-		kind: "factory",
-		description:
-			"Sub, sustained, reese, and stab bass one-shots for dubstep, drum & bass, techno, and beyond. Contains no drums, tonal, texture, or FX material.",
-		rights: SOLID_GROOVE_OWNED,
-		coverage: coverage(
-			"bass",
-			[
-				"ambient",
-				"drum-and-bass",
-				"dubstep",
-				"electronic-pop",
-				"hip-hop",
-				"house",
-				"lofi",
-				"techno",
-				"trap",
-				"uk-garage",
-			],
-			ALL_INTENSITIES,
-		),
-	},
-	{
-		id: "pak_RznkYK7KIIo7BOZQZ_i0O",
-		slug: "tonal-elements",
-		family: "tonal",
-		name: "Tonal Elements",
-		version: "1.0.0",
-		publisher: "Solid Groove",
-		kind: "factory",
-		description:
-			"Chords, stabs, plucks, keys, mallets, and bells for melodic and harmonic material. Contains no drums, bass, texture, or FX material.",
-		rights: SOLID_GROOVE_OWNED,
-		coverage: coverage(
-			"tonal",
-			[
-				"ambient",
-				"drum-and-bass",
-				"dubstep",
-				"electronic-pop",
-				"house",
-				"lofi",
-				"techno",
-				"trance",
-				"trap",
-				"uk-garage",
-			],
-			["low", "medium", "high"],
-		),
-	},
-	{
-		id: "pak_gUou3hBgXF47EwgR-9gZ1",
-		slug: "ambient-textures",
-		family: "texture",
-		name: "Ambient Textures",
-		version: "1.0.0",
-		publisher: "Solid Groove",
-		kind: "factory",
-		description:
-			"Noise, ambience, drones, mechanical, and organic textures for atmosphere and sound design. Contains no drums, bass, tonal, or FX material.",
-		rights: SOLID_GROOVE_OWNED,
-		coverage: coverage(
-			"texture",
-			[
-				"ambient",
-				"drum-and-bass",
-				"dubstep",
-				"electronic-pop",
-				"lofi",
-				"techno",
-			],
-			ALL_INTENSITIES,
-		),
-	},
-	{
-		id: "pak_PrUvdIGkCE3uRGYeKOGRg",
-		slug: "transitions-fx",
-		family: "fx",
-		name: "Transitions & FX",
-		version: "1.0.0",
-		publisher: "Solid Groove",
-		kind: "factory",
-		description:
-			"Impacts, risers, downers, sweeps, reverses, and glitches for transitions and drops. Contains no drums, bass, tonal, or texture material.",
-		rights: SOLID_GROOVE_OWNED,
-		coverage: coverage(
-			"fx",
-			[
-				"ambient",
-				"breakbeat",
-				"drum-and-bass",
-				"dubstep",
-				"electronic-pop",
-				"house",
-				"techno",
-				"trance",
-				"trap",
-			],
-			ALL_INTENSITIES,
-		),
-	},
-	{
-		id: "pak_5o6qI8YY27cYVyqstlJyG",
-		slug: "cc0-community",
-		family: null,
-		name: "CC0 Community Content",
-		version: "1.0.0",
-		publisher: "Solid Groove",
-		kind: "factory",
-		description:
-			"Reserved destination for acquired CC0 content (`library:acquire`, `library:vcsl`). Not yet published — nothing is pinned in sources.lock.json. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
-		rights: CC0,
-		coverage: null,
-	},
+  {
+    id: "pak_SdlN_OazweXrwury0j27Y",
+    slug: "core-electronic-drums",
+    family: "drums",
+    name: "Core Electronic Drums",
+    version: "1.0.0",
+    publisher: "Solid Groove",
+    kind: "factory",
+    description:
+      "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
+    rights: SOLID_GROOVE_OWNED,
+    coverage: coverage("drums", [...GENRES].sort(), ALL_INTENSITIES),
+  },
+  {
+    id: "pak_FH8gyASzYiWGCrtpKZ-Ho",
+    slug: "foundation-bass",
+    family: "bass",
+    name: "Foundation Bass",
+    version: "1.0.0",
+    publisher: "Solid Groove",
+    kind: "factory",
+    description:
+      "Sub, sustained, reese, and stab bass one-shots for dubstep, drum & bass, techno, and beyond. Contains no drums, tonal, texture, or FX material.",
+    rights: SOLID_GROOVE_OWNED,
+    coverage: coverage(
+      "bass",
+      [
+        "ambient",
+        "drum-and-bass",
+        "dubstep",
+        "electronic-pop",
+        "hip-hop",
+        "house",
+        "lofi",
+        "techno",
+        "trap",
+        "uk-garage",
+      ],
+      ALL_INTENSITIES,
+    ),
+  },
+  {
+    id: "pak_RznkYK7KIIo7BOZQZ_i0O",
+    slug: "tonal-elements",
+    family: "tonal",
+    name: "Tonal Elements",
+    version: "1.0.0",
+    publisher: "Solid Groove",
+    kind: "factory",
+    description:
+      "Chords, stabs, plucks, keys, mallets, and bells for melodic and harmonic material. Contains no drums, bass, texture, or FX material.",
+    rights: SOLID_GROOVE_OWNED,
+    coverage: coverage(
+      "tonal",
+      [
+        "ambient",
+        "drum-and-bass",
+        "dubstep",
+        "electronic-pop",
+        "house",
+        "lofi",
+        "techno",
+        "trance",
+        "trap",
+        "uk-garage",
+      ],
+      ["low", "medium", "high"],
+    ),
+  },
+  {
+    id: "pak_gUou3hBgXF47EwgR-9gZ1",
+    slug: "ambient-textures",
+    family: "texture",
+    name: "Ambient Textures",
+    version: "1.0.0",
+    publisher: "Solid Groove",
+    kind: "factory",
+    description:
+      "Noise, ambience, drones, mechanical, and organic textures for atmosphere and sound design. Contains no drums, bass, tonal, or FX material.",
+    rights: SOLID_GROOVE_OWNED,
+    coverage: coverage(
+      "texture",
+      ["ambient", "drum-and-bass", "dubstep", "electronic-pop", "lofi", "techno"],
+      ALL_INTENSITIES,
+    ),
+  },
+  {
+    id: "pak_PrUvdIGkCE3uRGYeKOGRg",
+    slug: "transitions-fx",
+    family: "fx",
+    name: "Transitions & FX",
+    version: "1.0.0",
+    publisher: "Solid Groove",
+    kind: "factory",
+    description:
+      "Impacts, risers, downers, sweeps, reverses, and glitches for transitions and drops. Contains no drums, bass, tonal, or texture material.",
+    rights: SOLID_GROOVE_OWNED,
+    coverage: coverage(
+      "fx",
+      [
+        "ambient",
+        "breakbeat",
+        "drum-and-bass",
+        "dubstep",
+        "electronic-pop",
+        "house",
+        "techno",
+        "trance",
+        "trap",
+      ],
+      ALL_INTENSITIES,
+    ),
+  },
+  {
+    id: "pak_5o6qI8YY27cYVyqstlJyG",
+    slug: "cc0-community",
+    family: null,
+    name: "CC0 Community Content",
+    version: "1.0.0",
+    publisher: "Solid Groove",
+    kind: "factory",
+    description:
+      "Reserved destination for acquired CC0 content (`library:acquire`, `library:vcsl`). Not yet published — nothing is pinned in sources.lock.json. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
+    rights: CC0,
+    coverage: null,
+  },
 ];
 
 /** The one reserved pack acquisition currently targets. */
 export const RESERVED_CC0_PACK_SLUG = "cc0-community";
 
 export function packBySlug(slug) {
-	return PACKS.find((pack) => pack.slug === slug) ?? null;
+  return PACKS.find((pack) => pack.slug === slug) ?? null;
 }
 
 export function packById(id) {
-	return PACKS.find((pack) => pack.id === id) ?? null;
+  return PACKS.find((pack) => pack.id === id) ?? null;
 }
 
 /** The one pack a synthesized catalogue entry belongs to, by its family. */
 export function packForFamily(family) {
-	const pack = PACKS.find((candidate) => candidate.family === family);
-	if (!pack) {
-		throw new Error(`no pack claims the "${family}" family`);
-	}
-	return pack;
+  const pack = PACKS.find((candidate) => candidate.family === family);
+  if (!pack) {
+    throw new Error(`no pack claims the "${family}" family`);
+  }
+  return pack;
 }
 
 /** Packs an acquired selection may target: whichever share the CC0 rights position. */
 export function acquirablePacks() {
-	return PACKS.filter((pack) => pack.rights.licence === "CC0-1.0");
+  return PACKS.filter((pack) => pack.rights.licence === "CC0-1.0");
 }
 
 /** `{ id, version }` — the pack-qualified reference an asset record carries. */
 export function packRef(pack) {
-	return { id: pack.id, version: pack.version };
+  return { id: pack.id, version: pack.version };
 }

@@ -24,25 +24,25 @@ import type { ProjectRepository } from "./persistence/projectRepository";
 let cached: Promise<ProjectRepository> | null = null;
 
 export function getProjectRepository(): Promise<ProjectRepository> {
-	cached ??= createProjectRepository();
-	return cached;
+  cached ??= createProjectRepository();
+  return cached;
 }
 
 async function createProjectRepository(): Promise<ProjectRepository> {
-	if (isMockBackend) {
-		const { createInMemoryProjectRepository } = await import(
-			"./persistence/inMemoryProjectRepository"
-		);
-		return createInMemoryProjectRepository();
-	}
-	const [{ FirestoreProjectRepository }, { db }] = await Promise.all([
-		import("./persistence/firestoreProjectRepository"),
-		import("./firebaseConfig"),
-	]);
-	return new FirestoreProjectRepository(db);
+  if (isMockBackend) {
+    const { createInMemoryProjectRepository } = await import(
+      "./persistence/inMemoryProjectRepository"
+    );
+    return createInMemoryProjectRepository();
+  }
+  const [{ FirestoreProjectRepository }, { db }] = await Promise.all([
+    import("./persistence/firestoreProjectRepository"),
+    import("./firebaseConfig"),
+  ]);
+  return new FirestoreProjectRepository(db);
 }
 
 /** Test-only: forget the memoized repository so each test starts fresh. */
 export function __resetProjectRepositoryClientForTests(): void {
-	cached = null;
+  cached = null;
 }

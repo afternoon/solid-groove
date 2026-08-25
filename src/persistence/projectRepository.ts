@@ -1,9 +1,9 @@
 import type {
-	Clip,
-	PackDependency,
-	Project,
-	ProjectMetadata,
-	Song,
+  Clip,
+  PackDependency,
+  Project,
+  ProjectMetadata,
+  Song,
 } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
 import type { PersistenceIssue } from "./documents";
@@ -31,55 +31,55 @@ import type { PersistenceIssue } from "./documents";
 export type Unsubscribe = () => void;
 
 export type SaveFailureReason =
-	/** The stored revision is not the one the caller wrote against. */
-	| "revision_conflict"
-	/** The project (or the document being updated) does not exist. */
-	| "not_found"
-	/** `createProject` was called for a project ID that already exists. */
-	| "already_exists"
-	/** The stored document declares a schema version this build cannot write. */
-	| "unsupported_schema_version"
-	/** The value offered is not valid schema-v1 state. */
-	| "invalid_document"
-	/** The write would exceed a document budget even after chunking. */
-	| "document_too_large"
-	/** The backend could not be reached or failed transiently. */
-	| "unavailable";
+  /** The stored revision is not the one the caller wrote against. */
+  | "revision_conflict"
+  /** The project (or the document being updated) does not exist. */
+  | "not_found"
+  /** `createProject` was called for a project ID that already exists. */
+  | "already_exists"
+  /** The stored document declares a schema version this build cannot write. */
+  | "unsupported_schema_version"
+  /** The value offered is not valid schema-v1 state. */
+  | "invalid_document"
+  /** The write would exceed a document budget even after chunking. */
+  | "document_too_large"
+  /** The backend could not be reached or failed transiently. */
+  | "unavailable";
 
 export interface SaveSuccess {
-	readonly ok: true;
-	/** The project's revision after the write. */
-	readonly revision: number;
-	readonly modifiedAt: number;
+  readonly ok: true;
+  /** The project's revision after the write. */
+  readonly revision: number;
+  readonly modifiedAt: number;
 }
 
 export interface SaveFailure {
-	readonly ok: false;
-	readonly reason: SaveFailureReason;
-	readonly message: string;
-	/** Whether retrying the identical write could succeed. */
-	readonly retryable: boolean;
-	/** The revision the store actually holds, when the failure is a conflict. */
-	readonly currentRevision?: number;
-	readonly issues?: readonly PersistenceIssue[];
+  readonly ok: false;
+  readonly reason: SaveFailureReason;
+  readonly message: string;
+  /** Whether retrying the identical write could succeed. */
+  readonly retryable: boolean;
+  /** The revision the store actually holds, when the failure is a conflict. */
+  readonly currentRevision?: number;
+  readonly issues?: readonly PersistenceIssue[];
 }
 
 export type SaveResult = SaveSuccess | SaveFailure;
 
 export type LoadFailureReason =
-	| "not_found"
-	| "invalid_document"
-	| "unsupported_schema_version"
-	| "unavailable";
+  | "not_found"
+  | "invalid_document"
+  | "unsupported_schema_version"
+  | "unavailable";
 
 export type LoadResult<T> =
-	| { readonly ok: true; readonly value: T }
-	| {
-			readonly ok: false;
-			readonly reason: LoadFailureReason;
-			readonly message: string;
-			readonly issues?: readonly PersistenceIssue[];
-	  };
+  | { readonly ok: true; readonly value: T }
+  | {
+      readonly ok: false;
+      readonly reason: LoadFailureReason;
+      readonly message: string;
+      readonly issues?: readonly PersistenceIssue[];
+    };
 
 /**
  * The metadata fields a user can edit without touching song or clip state.
@@ -91,11 +91,11 @@ export type LoadResult<T> =
  * adding a pack the user has not yet used touches only this tier.
  */
 export interface ProjectMetadataPatch {
-	readonly name?: string;
-	readonly template?: string | null;
-	readonly genre?: string | null;
-	readonly collaboratorIds?: readonly string[];
-	readonly addedPacks?: readonly PackDependency[];
+  readonly name?: string;
+  readonly template?: string | null;
+  readonly genre?: string | null;
+  readonly collaboratorIds?: readonly string[];
+  readonly addedPacks?: readonly PackDependency[];
 }
 
 /**
@@ -105,92 +105,82 @@ export interface ProjectMetadataPatch {
  * can never disagree with the assets stored under it.
  */
 export interface DerivedMetadataFields {
-	readonly packDependencies?: readonly PackDependency[];
+  readonly packDependencies?: readonly PackDependency[];
 }
 
 export type ProjectWatchEvent =
-	| { readonly kind: "metadata"; readonly metadata: ProjectMetadata }
-	| { readonly kind: "removed" }
-	| { readonly kind: "error"; readonly message: string };
+  | { readonly kind: "metadata"; readonly metadata: ProjectMetadata }
+  | { readonly kind: "removed" }
+  | { readonly kind: "error"; readonly message: string };
 
 export interface ProjectRepository {
-	/** Writes every tier of a new project. Fails if the project ID is taken. */
-	createProject(project: Project): Promise<SaveResult>;
+  /** Writes every tier of a new project. Fails if the project ID is taken. */
+  createProject(project: Project): Promise<SaveResult>;
 
-	/** Reads and validates every tier, including arrangement chunks. */
-	loadProject(projectId: ProjectId): Promise<LoadResult<Project>>;
+  /** Reads and validates every tier, including arrangement chunks. */
+  loadProject(projectId: ProjectId): Promise<LoadResult<Project>>;
 
-	/**
-	 * The dashboard query: metadata only. It must not read the song or clip
-	 * tiers, so listing projects stays cheap no matter how large they are.
-	 */
-	listProjects(ownerId: string): Promise<ProjectMetadata[]>;
+  /**
+   * The dashboard query: metadata only. It must not read the song or clip
+   * tiers, so listing projects stays cheap no matter how large they are.
+   */
+  listProjects(ownerId: string): Promise<ProjectMetadata[]>;
 
-	loadProjectMetadata(
-		projectId: ProjectId,
-	): Promise<LoadResult<ProjectMetadata>>;
+  loadProjectMetadata(projectId: ProjectId): Promise<LoadResult<ProjectMetadata>>;
 
-	saveMetadata(
-		projectId: ProjectId,
-		patch: ProjectMetadataPatch,
-		baseRevision: number,
-	): Promise<SaveResult>;
+  saveMetadata(
+    projectId: ProjectId,
+    patch: ProjectMetadataPatch,
+    baseRevision: number,
+  ): Promise<SaveResult>;
 
-	/**
-	 * Structural and arrangement edits; chunks overflow automatically. It also
-	 * rewrites the metadata tier's derived pack dependency list, because the
-	 * song's assets are what that list is derived from.
-	 */
-	saveSong(
-		projectId: ProjectId,
-		song: Song,
-		baseRevision: number,
-	): Promise<SaveResult>;
+  /**
+   * Structural and arrangement edits; chunks overflow automatically. It also
+   * rewrites the metadata tier's derived pack dependency list, because the
+   * song's assets are what that list is derived from.
+   */
+  saveSong(projectId: ProjectId, song: Song, baseRevision: number): Promise<SaveResult>;
 
-	/** The note-edit path: one clip document, no song rewrite. */
-	saveClip(
-		projectId: ProjectId,
-		clip: Clip,
-		baseRevision: number,
-	): Promise<SaveResult>;
+  /** The note-edit path: one clip document, no song rewrite. */
+  saveClip(projectId: ProjectId, clip: Clip, baseRevision: number): Promise<SaveResult>;
 
-	deleteClip(
-		projectId: ProjectId,
-		clipId: ClipId,
-		baseRevision: number,
-	): Promise<SaveResult>;
+  deleteClip(
+    projectId: ProjectId,
+    clipId: ClipId,
+    baseRevision: number,
+  ): Promise<SaveResult>;
 
-	/** Removes every document of the project, including chunks and clips. */
-	deleteProject(projectId: ProjectId): Promise<void>;
+  /** Removes every document of the project, including chunks and clips. */
+  deleteProject(projectId: ProjectId): Promise<void>;
 
-	/** Observes the metadata tier, which carries the authoritative revision. */
-	watchProject(
-		projectId: ProjectId,
-		listener: (event: ProjectWatchEvent) => void,
-	): Unsubscribe;
+  /** Observes the metadata tier, which carries the authoritative revision. */
+  watchProject(
+    projectId: ProjectId,
+    listener: (event: ProjectWatchEvent) => void,
+  ): Unsubscribe;
 }
 
 export function saveFailure(
-	reason: SaveFailureReason,
-	message: string,
-	extra: Omit<SaveFailure, "ok" | "reason" | "message" | "retryable"> & {
-		retryable?: boolean;
-	} = {},
+  reason: SaveFailureReason,
+  message: string,
+  extra: Omit<SaveFailure, "ok" | "reason" | "message" | "retryable"> & {
+    retryable?: boolean;
+  } = {},
 ): SaveFailure {
-	const { retryable, ...rest } = extra;
-	return {
-		ok: false,
-		reason,
-		message,
-		retryable: retryable ?? reason === "unavailable",
-		...rest,
-	};
+  const { retryable, ...rest } = extra;
+  return {
+    ok: false,
+    reason,
+    message,
+    retryable: retryable ?? reason === "unavailable",
+    ...rest,
+  };
 }
 
 export function loadFailure<T>(
-	reason: LoadFailureReason,
-	message: string,
-	issues?: readonly PersistenceIssue[],
+  reason: LoadFailureReason,
+  message: string,
+  issues?: readonly PersistenceIssue[],
 ): LoadResult<T> {
-	return { ok: false, reason, message, issues };
+  return { ok: false, reason, message, issues };
 }

@@ -23,37 +23,35 @@ const FALSE_VALUES = new Set(["0", "false"]);
  * to set the flag, or `undefined` if the URL made no claim about it (the
  * param was absent or held an unrecognized value).
  */
-export function parseInternalTrafficParam(
-	value: string | null,
-): boolean | undefined {
-	if (value === null) return undefined;
-	const normalized = value.trim().toLowerCase();
-	if (TRUE_VALUES.has(normalized)) return true;
-	if (FALSE_VALUES.has(normalized)) return false;
-	return undefined;
+export function parseInternalTrafficParam(value: string | null): boolean | undefined {
+  if (value === null) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (TRUE_VALUES.has(normalized)) return true;
+  if (FALSE_VALUES.has(normalized)) return false;
+  return undefined;
 }
 
 /** Reads the persisted flag. Fails closed (not internal) if storage throws. */
 export function isInternalTraffic(storage: Storage = localStorage): boolean {
-	try {
-		return storage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY) === "true";
-	} catch {
-		return false;
-	}
+  try {
+    return storage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
 
 function setInternalTraffic(value: boolean, storage: Storage): void {
-	try {
-		if (value) {
-			storage.setItem(INTERNAL_TRAFFIC_STORAGE_KEY, "true");
-		} else {
-			storage.removeItem(INTERNAL_TRAFFIC_STORAGE_KEY);
-		}
-	} catch {
-		// Storage can throw (private browsing, quota, disabled). Marking traffic
-		// is a measurement nicety, never something that should surface an error
-		// or block the app from loading.
-	}
+  try {
+    if (value) {
+      storage.setItem(INTERNAL_TRAFFIC_STORAGE_KEY, "true");
+    } else {
+      storage.removeItem(INTERNAL_TRAFFIC_STORAGE_KEY);
+    }
+  } catch {
+    // Storage can throw (private browsing, quota, disabled). Marking traffic
+    // is a measurement nicety, never something that should surface an error
+    // or block the app from loading.
+  }
 }
 
 /**
@@ -62,14 +60,14 @@ function setInternalTraffic(value: boolean, storage: Storage): void {
  * state either way.
  */
 export function syncInternalTraffic(
-	location: Pick<Location, "search"> = window.location,
-	storage: Storage = localStorage,
+  location: Pick<Location, "search"> = window.location,
+  storage: Storage = localStorage,
 ): boolean {
-	const params = new URLSearchParams(location.search);
-	const claim = parseInternalTrafficParam(params.get("internal"));
-	if (claim !== undefined) {
-		setInternalTraffic(claim, storage);
-		return claim;
-	}
-	return isInternalTraffic(storage);
+  const params = new URLSearchParams(location.search);
+  const claim = parseInternalTrafficParam(params.get("internal"));
+  if (claim !== undefined) {
+    setInternalTraffic(claim, storage);
+    return claim;
+  }
+  return isInternalTraffic(storage);
 }

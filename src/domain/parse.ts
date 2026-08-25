@@ -15,23 +15,23 @@
 
 export { checkClipInvariants } from "./parse/clip";
 export {
-	type DomainIssue,
-	type DomainIssueCode,
-	DomainValidationError,
-	formatIssue,
-	type ParseResult,
+  type DomainIssue,
+  type DomainIssueCode,
+  DomainValidationError,
+  formatIssue,
+  type ParseResult,
 } from "./parse/primitives";
 export {
-	assertProject,
-	checkProjectIntegrity,
-	isProject,
-	parseClip,
-	parseProject,
-	parseProjectMetadata,
-	parseSong,
+  assertProject,
+  checkProjectIntegrity,
+  isProject,
+  parseClip,
+  parseProject,
+  parseProjectMetadata,
+  parseSong,
 } from "./parse/project";
 export {
-	checkSongIntegrity,
-	MAX_RETURN_BUSES,
-	MAX_TRACK_INSERTS,
+  checkSongIntegrity,
+  MAX_RETURN_BUSES,
+  MAX_TRACK_INSERTS,
 } from "./parse/song";

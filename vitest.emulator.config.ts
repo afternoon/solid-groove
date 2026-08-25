@@ -8,10 +8,10 @@ import { defineConfig } from "vitest/config";
 // emulator down — so the default `bun run test` never needs an emulator
 // running and this suite never runs twice under two configs.
 export default defineConfig({
-	test: {
-		environment: "node",
-		include: ["tests/emulator/**/*.test.ts"],
-		hookTimeout: 30_000,
-		testTimeout: 20_000,
-	},
+  test: {
+    environment: "node",
+    include: ["tests/emulator/**/*.test.ts"],
+    hookTimeout: 30_000,
+    testTimeout: 20_000,
+  },
 });

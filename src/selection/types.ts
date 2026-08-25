@@ -1,12 +1,12 @@
 import type {
-	AutomationId,
-	ClipId,
-	DeviceId,
-	EventId,
-	PlacementId,
-	ProjectId,
-	SectionId,
-	TrackId,
+  AutomationId,
+  ClipId,
+  DeviceId,
+  EventId,
+  PlacementId,
+  ProjectId,
+  SectionId,
+  TrackId,
 } from "../domain/ids";
 import type { Ticks } from "../domain/time";
 
@@ -30,25 +30,25 @@ import type { Ticks } from "../domain/time";
  * `(laneId, tick)` pair is already a stable, unique reference to one point.
  */
 export type SelectionScope =
-	| { readonly kind: "project"; readonly id: ProjectId }
-	| { readonly kind: "track"; readonly id: TrackId }
-	| { readonly kind: "clip"; readonly id: ClipId }
-	| { readonly kind: "placement"; readonly id: PlacementId }
-	| { readonly kind: "event"; readonly id: EventId }
-	| { readonly kind: "section"; readonly id: SectionId }
-	| { readonly kind: "device"; readonly id: DeviceId }
-	| {
-			readonly kind: "automationPoint";
-			readonly laneId: AutomationId;
-			readonly tick: Ticks;
-	  }
-	| {
-			readonly kind: "barRange";
-			readonly startTicks: Ticks;
-			readonly endTicks: Ticks;
-			/** Empty means the range applies across all tracks (e.g. a loop range). */
-			readonly trackIds: readonly TrackId[];
-	  };
+  | { readonly kind: "project"; readonly id: ProjectId }
+  | { readonly kind: "track"; readonly id: TrackId }
+  | { readonly kind: "clip"; readonly id: ClipId }
+  | { readonly kind: "placement"; readonly id: PlacementId }
+  | { readonly kind: "event"; readonly id: EventId }
+  | { readonly kind: "section"; readonly id: SectionId }
+  | { readonly kind: "device"; readonly id: DeviceId }
+  | {
+      readonly kind: "automationPoint";
+      readonly laneId: AutomationId;
+      readonly tick: Ticks;
+    }
+  | {
+      readonly kind: "barRange";
+      readonly startTicks: Ticks;
+      readonly endTicks: Ticks;
+      /** Empty means the range applies across all tracks (e.g. a loop range). */
+      readonly trackIds: readonly TrackId[];
+    };
 
 export type SelectionScopeKind = SelectionScope["kind"];
 
@@ -60,6 +60,6 @@ export type SelectionScopeKind = SelectionScope["kind"];
  * `scopes` produced by this module's own operations.
  */
 export interface SelectionState {
-	readonly scopes: readonly SelectionScope[];
-	readonly focus: SelectionScope | null;
+  readonly scopes: readonly SelectionScope[];
+  readonly focus: SelectionScope | null;
 }

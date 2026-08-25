@@ -18,5 +18,5 @@ import type { LaunchOptions } from "@playwright/test";
  * `docs/testing.md`, "Which browsers run where".
  */
 export const chromiumLaunchOptions: LaunchOptions = process.env.PW_CHROMIUM_PATH
-	? { executablePath: process.env.PW_CHROMIUM_PATH }
-	: {};
+  ? { executablePath: process.env.PW_CHROMIUM_PATH }
+  : {};

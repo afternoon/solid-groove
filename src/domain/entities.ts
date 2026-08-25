@@ -1,30 +1,30 @@
 import { z } from "zod";
 import {
-	assetIdSchema,
-	automationIdSchema,
-	clipIdSchema,
-	deviceIdSchema,
-	eventIdSchema,
-	packIdSchema,
-	padIdSchema,
-	placementIdSchema,
-	projectIdSchema,
-	returnIdSchema,
-	revisionIdSchema,
-	sectionIdSchema,
-	trackIdSchema,
+  assetIdSchema,
+  automationIdSchema,
+  clipIdSchema,
+  deviceIdSchema,
+  eventIdSchema,
+  packIdSchema,
+  padIdSchema,
+  placementIdSchema,
+  projectIdSchema,
+  returnIdSchema,
+  revisionIdSchema,
+  sectionIdSchema,
+  trackIdSchema,
 } from "./ids";
 import {
-	MASTER_VOLUME,
-	NOTE_PROBABILITY,
-	NOTE_VELOCITY,
-	parameterValueSchema,
-	RETURN_PAN,
-	RETURN_VOLUME,
-	SONG_TEMPO,
-	TRACK_PAN,
-	TRACK_SEND_LEVEL,
-	TRACK_VOLUME,
+  MASTER_VOLUME,
+  NOTE_PROBABILITY,
+  NOTE_VELOCITY,
+  parameterValueSchema,
+  RETURN_PAN,
+  RETURN_VOLUME,
+  SONG_TEMPO,
+  TRACK_PAN,
+  TRACK_SEND_LEVEL,
+  TRACK_VOLUME,
 } from "./parameters";
 import { durationTickSchema, tickSchema } from "./time";
 
@@ -49,9 +49,7 @@ export const SCHEMA_VERSION = 2;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);
-const colorSchema = z
-	.string()
-	.regex(/^#[0-9a-fA-F]{6}$/, "Expected a #rrggbb color");
+const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Expected a #rrggbb color");
 const epochMillis = z.int().min(0);
 
 /** Free-form device/instrument parameter values, authored in Alpha Milestone 1. */
@@ -69,14 +67,14 @@ export const assetKindSchema = z.enum(["sample", "loop", "recording"]);
  * recorded, so a later version can never silently substitute itself.
  */
 export const packVersionSchema = z
-	.string()
-	.regex(/^\d+\.\d+\.\d+$/, "Expected a major.minor.patch pack version")
-	.brand<"packVersion">();
+  .string()
+  .regex(/^\d+\.\d+\.\d+$/, "Expected a major.minor.patch pack version")
+  .brand<"packVersion">();
 export type PackVersion = z.infer<typeof packVersionSchema>;
 
 /** Parses a pack version string, throwing when it is not `major.minor.patch`. */
 export function packVersion(value: string): PackVersion {
-	return packVersionSchema.parse(value);
+  return packVersionSchema.parse(value);
 }
 
 export const packKindSchema = z.enum(["factory", "user", "third-party"]);
@@ -90,11 +88,11 @@ export type PackKind = z.infer<typeof packKindSchema>;
  * terms differ belongs in a different pack.
  */
 export const packRightsSchema = z.strictObject({
-	/** Licence identifier the whole pack ships under, e.g. `CC0-1.0`. */
-	licence: nonEmptyString,
-	/** Whether the individual raw files may be redistributed, not just mixes. */
-	rawRedistribution: z.boolean(),
-	attributionRequired: z.boolean(),
+  /** Licence identifier the whole pack ships under, e.g. `CC0-1.0`. */
+  licence: nonEmptyString,
+  /** Whether the individual raw files may be redistributed, not just mixes. */
+  rawRedistribution: z.boolean(),
+  attributionRequired: z.boolean(),
 });
 export type PackRights = z.infer<typeof packRightsSchema>;
 
@@ -109,13 +107,13 @@ export type PackRights = z.infer<typeof packRightsSchema>;
  * entitlement, or purchase.
  */
 export const packSchema = z.strictObject({
-	id: packIdSchema,
-	name: displayName,
-	version: packVersionSchema,
-	publisher: displayName,
-	kind: packKindSchema,
-	description: z.string().max(2_000),
-	rights: packRightsSchema,
+  id: packIdSchema,
+  name: displayName,
+  version: packVersionSchema,
+  publisher: displayName,
+  kind: packKindSchema,
+  description: z.string().max(2_000),
+  rights: packRightsSchema,
 });
 export type Pack = z.infer<typeof packSchema>;
 
@@ -126,8 +124,8 @@ export type Pack = z.infer<typeof packSchema>;
  * position could not be derived from an asset reference.
  */
 export const packDependencySchema = z.strictObject({
-	packId: packIdSchema,
-	version: packVersionSchema,
+  packId: packIdSchema,
+  version: packVersionSchema,
 });
 export type PackDependency = z.infer<typeof packDependencySchema>;
 
@@ -138,30 +136,30 @@ export type PackDependency = z.infer<typeof packDependencySchema>;
  * identity (invariant 8).
  */
 export const assetSchema = z.strictObject({
-	id: assetIdSchema,
-	/** The pack that owns this asset. Exactly one, and never absent. */
-	packId: packIdSchema,
-	/** The pack version this reference resolved from. */
-	packVersion: packVersionSchema,
-	kind: assetKindSchema,
-	name: displayName,
-	storageRef: nonEmptyString,
-	url: z.string().nullable(),
-	durationSeconds: z.number().min(0).nullable(),
-	sampleRate: z.int().min(1).nullable(),
-	channelCount: z.int().min(1).max(2).nullable(),
-	provenance: z.strictObject({
-		source: nonEmptyString,
-		licence: nonEmptyString,
-		attribution: z.string().nullable(),
-	}),
+  id: assetIdSchema,
+  /** The pack that owns this asset. Exactly one, and never absent. */
+  packId: packIdSchema,
+  /** The pack version this reference resolved from. */
+  packVersion: packVersionSchema,
+  kind: assetKindSchema,
+  name: displayName,
+  storageRef: nonEmptyString,
+  url: z.string().nullable(),
+  durationSeconds: z.number().min(0).nullable(),
+  sampleRate: z.int().min(1).nullable(),
+  channelCount: z.int().min(1).max(2).nullable(),
+  provenance: z.strictObject({
+    source: nonEmptyString,
+    licence: nonEmptyString,
+    attribution: z.string().nullable(),
+  }),
 });
 export type Asset = z.infer<typeof assetSchema>;
 
 export const devicePresetSchema = z.strictObject({
-	id: nonEmptyString,
-	name: displayName,
-	source: nonEmptyString,
+  id: nonEmptyString,
+  name: displayName,
+  source: nonEmptyString,
 });
 
 /**
@@ -170,117 +168,117 @@ export const devicePresetSchema = z.strictObject({
  * validates them against a parameter definition once one is registered.
  */
 export const deviceSchema = z.strictObject({
-	id: deviceIdSchema,
-	type: nonEmptyString,
-	order: z.int().min(0),
-	bypassed: z.boolean(),
-	parameters: parameterValues,
-	preset: devicePresetSchema.nullable(),
+  id: deviceIdSchema,
+  type: nonEmptyString,
+  order: z.int().min(0),
+  bypassed: z.boolean(),
+  parameters: parameterValues,
+  preset: devicePresetSchema.nullable(),
 });
 export type Device = z.infer<typeof deviceSchema>;
 
 export const padMixerSchema = z.strictObject({
-	volume: parameterValueSchema(TRACK_VOLUME),
-	pan: parameterValueSchema(TRACK_PAN),
-	muted: z.boolean(),
-	soloed: z.boolean(),
+  volume: parameterValueSchema(TRACK_VOLUME),
+  pan: parameterValueSchema(TRACK_PAN),
+  muted: z.boolean(),
+  soloed: z.boolean(),
 });
 
 export const drumPadSchema = z.strictObject({
-	id: padIdSchema,
-	name: displayName,
-	assetId: assetIdSchema.nullable(),
-	chokeGroup: z.int().min(0).max(15).nullable(),
-	parameters: parameterValues,
-	mixer: padMixerSchema,
+  id: padIdSchema,
+  name: displayName,
+  assetId: assetIdSchema.nullable(),
+  chokeGroup: z.int().min(0).max(15).nullable(),
+  parameters: parameterValues,
+  mixer: padMixerSchema,
 });
 export type DrumPad = z.infer<typeof drumPadSchema>;
 
 export const instrumentSchema = z.discriminatedUnion("kind", [
-	z.strictObject({
-		kind: z.literal("sampler"),
-		assetId: assetIdSchema.nullable(),
-		parameters: parameterValues,
-	}),
-	z.strictObject({
-		kind: z.literal("synth"),
-		parameters: parameterValues,
-	}),
-	z.strictObject({
-		kind: z.literal("drumMachine"),
-		pads: z.array(drumPadSchema),
-		parameters: parameterValues,
-	}),
+  z.strictObject({
+    kind: z.literal("sampler"),
+    assetId: assetIdSchema.nullable(),
+    parameters: parameterValues,
+  }),
+  z.strictObject({
+    kind: z.literal("synth"),
+    parameters: parameterValues,
+  }),
+  z.strictObject({
+    kind: z.literal("drumMachine"),
+    pads: z.array(drumPadSchema),
+    parameters: parameterValues,
+  }),
 ]);
 export type Instrument = z.infer<typeof instrumentSchema>;
 
 export const sendSchema = z.strictObject({
-	returnId: returnIdSchema,
-	level: parameterValueSchema(TRACK_SEND_LEVEL),
-	preFader: z.boolean(),
+  returnId: returnIdSchema,
+  level: parameterValueSchema(TRACK_SEND_LEVEL),
+  preFader: z.boolean(),
 });
 export type Send = z.infer<typeof sendSchema>;
 
 export const trackMixerSchema = z.strictObject({
-	volume: parameterValueSchema(TRACK_VOLUME),
-	pan: parameterValueSchema(TRACK_PAN),
-	muted: z.boolean(),
-	soloed: z.boolean(),
+  volume: parameterValueSchema(TRACK_VOLUME),
+  pan: parameterValueSchema(TRACK_PAN),
+  muted: z.boolean(),
+  soloed: z.boolean(),
 });
 export type TrackMixer = z.infer<typeof trackMixerSchema>;
 
 export const trackTypeSchema = z.enum(["instrument", "audio"]);
 
 export const trackSchema = z.strictObject({
-	id: trackIdSchema,
-	name: displayName,
-	color: colorSchema,
-	order: z.int().min(0),
-	type: trackTypeSchema,
-	instrument: instrumentSchema.nullable(),
-	devices: z.array(deviceSchema),
-	sendConfig: z.array(sendSchema),
-	mixer: trackMixerSchema,
+  id: trackIdSchema,
+  name: displayName,
+  color: colorSchema,
+  order: z.int().min(0),
+  type: trackTypeSchema,
+  instrument: instrumentSchema.nullable(),
+  devices: z.array(deviceSchema),
+  sendConfig: z.array(sendSchema),
+  mixer: trackMixerSchema,
 });
 export type Track = z.infer<typeof trackSchema>;
 
 export const returnBusSchema = z.strictObject({
-	id: returnIdSchema,
-	name: displayName,
-	order: z.int().min(0),
-	devices: z.array(deviceSchema),
-	mixer: z.strictObject({
-		volume: parameterValueSchema(RETURN_VOLUME),
-		pan: parameterValueSchema(RETURN_PAN),
-		muted: z.boolean(),
-	}),
+  id: returnIdSchema,
+  name: displayName,
+  order: z.int().min(0),
+  devices: z.array(deviceSchema),
+  mixer: z.strictObject({
+    volume: parameterValueSchema(RETURN_VOLUME),
+    pan: parameterValueSchema(RETURN_PAN),
+    muted: z.boolean(),
+  }),
 });
 export type ReturnBus = z.infer<typeof returnBusSchema>;
 
 export const masterSettingsSchema = z.strictObject({
-	volume: parameterValueSchema(MASTER_VOLUME),
-	devices: z.array(deviceSchema),
+  volume: parameterValueSchema(MASTER_VOLUME),
+  devices: z.array(deviceSchema),
 });
 export type MasterSettings = z.infer<typeof masterSettingsSchema>;
 
 export const sectionSchema = z.strictObject({
-	id: sectionIdSchema,
-	name: displayName,
-	color: colorSchema,
-	startTicks: tickSchema,
-	durationTicks: durationTickSchema,
+  id: sectionIdSchema,
+  name: displayName,
+  color: colorSchema,
+  startTicks: tickSchema,
+  durationTicks: durationTickSchema,
 });
 export type Section = z.infer<typeof sectionSchema>;
 
 /** Arrangement placement of a clip. Clip content stays separate (invariant 3). */
 export const placementSchema = z.strictObject({
-	id: placementIdSchema,
-	clipId: clipIdSchema,
-	trackId: trackIdSchema,
-	startTicks: tickSchema,
-	durationTicks: durationTickSchema,
-	clipOffsetTicks: tickSchema,
-	looped: z.boolean(),
+  id: placementIdSchema,
+  clipId: clipIdSchema,
+  trackId: trackIdSchema,
+  startTicks: tickSchema,
+  durationTicks: durationTickSchema,
+  clipOffsetTicks: tickSchema,
+  looped: z.boolean(),
 });
 export type Placement = z.infer<typeof placementSchema>;
 
@@ -292,157 +290,157 @@ export const automationInterpolationSchema = z.enum(["linear", "step"]);
  * it also needs `deviceId` to say which device.
  */
 export const automationTargetSchema = z.discriminatedUnion("scope", [
-	z.strictObject({
-		scope: z.literal("track"),
-		trackId: trackIdSchema,
-		parameterId: nonEmptyString,
-	}),
-	z.strictObject({
-		scope: z.literal("trackDevice"),
-		trackId: trackIdSchema,
-		deviceId: deviceIdSchema,
-		parameterId: nonEmptyString,
-	}),
-	z.strictObject({
-		scope: z.literal("send"),
-		trackId: trackIdSchema,
-		returnId: returnIdSchema,
-		parameterId: nonEmptyString,
-	}),
-	z.strictObject({
-		scope: z.literal("return"),
-		returnId: returnIdSchema,
-		parameterId: nonEmptyString,
-	}),
-	z.strictObject({
-		scope: z.literal("master"),
-		parameterId: nonEmptyString,
-	}),
+  z.strictObject({
+    scope: z.literal("track"),
+    trackId: trackIdSchema,
+    parameterId: nonEmptyString,
+  }),
+  z.strictObject({
+    scope: z.literal("trackDevice"),
+    trackId: trackIdSchema,
+    deviceId: deviceIdSchema,
+    parameterId: nonEmptyString,
+  }),
+  z.strictObject({
+    scope: z.literal("send"),
+    trackId: trackIdSchema,
+    returnId: returnIdSchema,
+    parameterId: nonEmptyString,
+  }),
+  z.strictObject({
+    scope: z.literal("return"),
+    returnId: returnIdSchema,
+    parameterId: nonEmptyString,
+  }),
+  z.strictObject({
+    scope: z.literal("master"),
+    parameterId: nonEmptyString,
+  }),
 ]);
 export type AutomationTarget = z.infer<typeof automationTargetSchema>;
 
 export const automationPointSchema = z.strictObject({
-	tick: tickSchema,
-	value: z.number(),
+  tick: tickSchema,
+  value: z.number(),
 });
 export type AutomationPoint = z.infer<typeof automationPointSchema>;
 
 export const automationLaneSchema = z.strictObject({
-	id: automationIdSchema,
-	target: automationTargetSchema,
-	interpolation: automationInterpolationSchema,
-	points: z.array(automationPointSchema),
+  id: automationIdSchema,
+  target: automationTargetSchema,
+  interpolation: automationInterpolationSchema,
+  points: z.array(automationPointSchema),
 });
 export type AutomationLane = z.infer<typeof automationLaneSchema>;
 
 /** A note triggers either a pitch or a drum pad on the owning track. */
 export const noteTriggerSchema = z.discriminatedUnion("kind", [
-	z.strictObject({ kind: z.literal("pitch"), pitch: z.int().min(0).max(127) }),
-	z.strictObject({ kind: z.literal("pad"), padId: padIdSchema }),
+  z.strictObject({ kind: z.literal("pitch"), pitch: z.int().min(0).max(127) }),
+  z.strictObject({ kind: z.literal("pad"), padId: padIdSchema }),
 ]);
 export type NoteTrigger = z.infer<typeof noteTriggerSchema>;
 
 export const noteEventSchema = z.strictObject({
-	id: eventIdSchema,
-	trigger: noteTriggerSchema,
-	startTicks: tickSchema,
-	durationTicks: durationTickSchema,
-	velocity: parameterValueSchema(NOTE_VELOCITY),
-	probability: parameterValueSchema(NOTE_PROBABILITY).nullable(),
+  id: eventIdSchema,
+  trigger: noteTriggerSchema,
+  startTicks: tickSchema,
+  durationTicks: durationTickSchema,
+  velocity: parameterValueSchema(NOTE_VELOCITY),
+  probability: parameterValueSchema(NOTE_PROBABILITY).nullable(),
 });
 export type NoteEvent = z.infer<typeof noteEventSchema>;
 
 export const clipContentSchema = z.discriminatedUnion("kind", [
-	z.strictObject({
-		kind: z.literal("notes"),
-		events: z.array(noteEventSchema),
-	}),
-	z.strictObject({
-		kind: z.literal("audioLoop"),
-		assetId: assetIdSchema,
-		sourceTempo: parameterValueSchema(SONG_TEMPO),
-		startOffsetTicks: tickSchema,
-	}),
+  z.strictObject({
+    kind: z.literal("notes"),
+    events: z.array(noteEventSchema),
+  }),
+  z.strictObject({
+    kind: z.literal("audioLoop"),
+    assetId: assetIdSchema,
+    sourceTempo: parameterValueSchema(SONG_TEMPO),
+    startOffsetTicks: tickSchema,
+  }),
 ]);
 export type ClipContent = z.infer<typeof clipContentSchema>;
 
 export const clipSchema = z.strictObject({
-	id: clipIdSchema,
-	trackId: trackIdSchema,
-	name: displayName,
-	color: colorSchema,
-	lengthTicks: durationTickSchema,
-	content: clipContentSchema,
+  id: clipIdSchema,
+  trackId: trackIdSchema,
+  name: displayName,
+  color: colorSchema,
+  lengthTicks: durationTickSchema,
+  content: clipContentSchema,
 });
 export type Clip = z.infer<typeof clipSchema>;
 
 /** The alpha time signature is fixed at 4/4; the field exists for migration. */
 export const timeSignatureSchema = z.strictObject({
-	numerator: z.literal(4),
-	denominator: z.literal(4),
+  numerator: z.literal(4),
+  denominator: z.literal(4),
 });
 export type TimeSignature = z.infer<typeof timeSignatureSchema>;
 
 export const songSchema = z.strictObject({
-	tempo: parameterValueSchema(SONG_TEMPO),
-	timeSignature: timeSignatureSchema,
-	tracks: z.array(trackSchema),
-	returns: z.array(returnBusSchema),
-	master: masterSettingsSchema,
-	sections: z.array(sectionSchema),
-	placements: z.array(placementSchema),
-	automation: z.array(automationLaneSchema),
-	assets: z.array(assetSchema),
+  tempo: parameterValueSchema(SONG_TEMPO),
+  timeSignature: timeSignatureSchema,
+  tracks: z.array(trackSchema),
+  returns: z.array(returnBusSchema),
+  master: masterSettingsSchema,
+  sections: z.array(sectionSchema),
+  placements: z.array(placementSchema),
+  automation: z.array(automationLaneSchema),
+  assets: z.array(assetSchema),
 });
 export type Song = z.infer<typeof songSchema>;
 
 export const projectMetadataSchema = z.strictObject({
-	id: projectIdSchema,
-	schemaVersion: z.literal(SCHEMA_VERSION),
-	revision: z.int().min(0),
-	name: displayName,
-	ownerId: nonEmptyString,
-	collaboratorIds: z.array(nonEmptyString),
-	createdAt: epochMillis,
-	modifiedAt: epochMillis,
-	template: z.string().nullable(),
-	genre: z.string().nullable(),
-	/**
-	 * The packs and pack versions this project depends on (PRD 9.9, LIB-05).
-	 *
-	 * It lives on the metadata tier so the dashboard, export, and a missing-pack
-	 * warning can answer "what does this project need?" without loading song
-	 * state or clip content. It is *derived* from `song.assets` rather than
-	 * maintained by hand — `derivePackDependencies` computes it and
-	 * `checkProjectIntegrity` rejects a project whose list has drifted — and it
-	 * carries at most one version per pack.
-	 */
-	packDependencies: z.array(packDependencySchema),
-	/**
-	 * The packs the user has *added to this project's shelf* (LIB-08).
-	 *
-	 * This is the "which packs has the user put on the shelf?" list, distinct
-	 * from `packDependencies`, which is "which packs does the project need in
-	 * order to open?". A user can add a pack, browse it, and not yet use a sound
-	 * from it: that pack belongs here but not in `packDependencies`, and it must
-	 * survive a reload. So unlike `packDependencies` this list is *maintained*
-	 * by the `pack.add` / `pack.remove` commands rather than derived — but it is
-	 * not free-form: a used pack (one in `packDependencies`) must also appear
-	 * here at the same version, so the shelf is always a superset of the
-	 * dependency list. `checkProjectIntegrity` enforces both directions.
-	 */
-	addedPacks: z.array(packDependencySchema),
+  id: projectIdSchema,
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  revision: z.int().min(0),
+  name: displayName,
+  ownerId: nonEmptyString,
+  collaboratorIds: z.array(nonEmptyString),
+  createdAt: epochMillis,
+  modifiedAt: epochMillis,
+  template: z.string().nullable(),
+  genre: z.string().nullable(),
+  /**
+   * The packs and pack versions this project depends on (PRD 9.9, LIB-05).
+   *
+   * It lives on the metadata tier so the dashboard, export, and a missing-pack
+   * warning can answer "what does this project need?" without loading song
+   * state or clip content. It is *derived* from `song.assets` rather than
+   * maintained by hand — `derivePackDependencies` computes it and
+   * `checkProjectIntegrity` rejects a project whose list has drifted — and it
+   * carries at most one version per pack.
+   */
+  packDependencies: z.array(packDependencySchema),
+  /**
+   * The packs the user has *added to this project's shelf* (LIB-08).
+   *
+   * This is the "which packs has the user put on the shelf?" list, distinct
+   * from `packDependencies`, which is "which packs does the project need in
+   * order to open?". A user can add a pack, browse it, and not yet use a sound
+   * from it: that pack belongs here but not in `packDependencies`, and it must
+   * survive a reload. So unlike `packDependencies` this list is *maintained*
+   * by the `pack.add` / `pack.remove` commands rather than derived — but it is
+   * not free-form: a used pack (one in `packDependencies`) must also appear
+   * here at the same version, so the shelf is always a superset of the
+   * dependency list. `checkProjectIntegrity` enforces both directions.
+   */
+  addedPacks: z.array(packDependencySchema),
 });
 export type ProjectMetadata = z.infer<typeof projectMetadataSchema>;
 
 /** A named checkpoint (PRJ-05). v1 stores the shape; restore ships later. */
 export const revisionSchema = z.strictObject({
-	id: revisionIdSchema,
-	projectId: projectIdSchema,
-	revision: z.int().min(0),
-	authorId: nonEmptyString,
-	createdAt: epochMillis,
-	name: z.string().nullable(),
+  id: revisionIdSchema,
+  projectId: projectIdSchema,
+  revision: z.int().min(0),
+  authorId: nonEmptyString,
+  createdAt: epochMillis,
+  name: z.string().nullable(),
 });
 export type Revision = z.infer<typeof revisionSchema>;
 
@@ -451,8 +449,8 @@ export type Revision = z.infer<typeof revisionSchema>;
  * section 9.9 Firestore tiers: metadata, song, and clips.
  */
 export const projectSchema = z.strictObject({
-	metadata: projectMetadataSchema,
-	song: songSchema,
-	clips: z.array(clipSchema),
+  metadata: projectMetadataSchema,
+  song: songSchema,
+  clips: z.array(clipSchema),
 });
 export type Project = z.infer<typeof projectSchema>;

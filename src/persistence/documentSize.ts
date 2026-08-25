@@ -49,44 +49,42 @@ export const CLIP_DOCUMENT_BUDGET_BYTES = 262_144;
 const utf8 = new TextEncoder();
 
 function utf8Bytes(value: string): number {
-	return utf8.encode(value).length;
+  return utf8.encode(value).length;
 }
 
 /** Size of one Firestore field value, in Firestore's own accounting. */
 export function estimateFirestoreValueBytes(value: JsonValue): number {
-	if (value === null) return 1;
-	if (typeof value === "boolean") return 1;
-	if (typeof value === "number") return 8;
-	if (typeof value === "string") return utf8Bytes(value) + 1;
-	if (Array.isArray(value)) {
-		return value.reduce<number>(
-			(total, entry) => total + estimateFirestoreValueBytes(entry),
-			0,
-		);
-	}
-	return Object.entries(value).reduce(
-		(total, [key, entry]) =>
-			total + utf8Bytes(key) + 1 + estimateFirestoreValueBytes(entry),
-		0,
-	);
+  if (value === null) return 1;
+  if (typeof value === "boolean") return 1;
+  if (typeof value === "number") return 8;
+  if (typeof value === "string") return utf8Bytes(value) + 1;
+  if (Array.isArray(value)) {
+    return value.reduce<number>(
+      (total, entry) => total + estimateFirestoreValueBytes(entry),
+      0,
+    );
+  }
+  return Object.entries(value).reduce(
+    (total, [key, entry]) =>
+      total + utf8Bytes(key) + 1 + estimateFirestoreValueBytes(entry),
+    0,
+  );
 }
 
 /** Size of a document name (its full path), in Firestore's own accounting. */
 export function estimateDocumentNameBytes(path: string): number {
-	return (
-		path
-			.split("/")
-			.filter((segment) => segment.length > 0)
-			.reduce((total, segment) => total + utf8Bytes(segment) + 1, 0) + 16
-	);
+  return (
+    path
+      .split("/")
+      .filter((segment) => segment.length > 0)
+      .reduce((total, segment) => total + utf8Bytes(segment) + 1, 0) + 16
+  );
 }
 
 /** Total stored size of one document: name, fields, and per-document overhead. */
 export function estimateDocumentBytes(
-	path: string,
-	data: Readonly<Record<string, JsonValue>>,
+  path: string,
+  data: Readonly<Record<string, JsonValue>>,
 ): number {
-	return (
-		estimateDocumentNameBytes(path) + estimateFirestoreValueBytes(data) + 32
-	);
+  return estimateDocumentNameBytes(path) + estimateFirestoreValueBytes(data) + 32;
 }

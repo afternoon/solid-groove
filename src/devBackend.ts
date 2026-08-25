@@ -53,15 +53,14 @@ export const EMULATOR_PROJECT_ID = "demo-solid-groove";
 
 /** Resolves the selected backend, throwing on an unrecognized value. */
 export function resolveDevBackend(
-	raw: string | undefined = import.meta.env.VITE_DEV_BACKEND,
+  raw: string | undefined = import.meta.env.VITE_DEV_BACKEND,
 ): DevBackend {
-	if (raw === undefined || raw === "") return "project";
-	if ((DEV_BACKENDS as readonly string[]).includes(raw))
-		return raw as DevBackend;
-	throw new Error(
-		`VITE_DEV_BACKEND must be one of ${DEV_BACKENDS.join(", ")} (got "${raw}"). ` +
-			"Leave it unset to use the Firebase project configured in .env.",
-	);
+  if (raw === undefined || raw === "") return "project";
+  if ((DEV_BACKENDS as readonly string[]).includes(raw)) return raw as DevBackend;
+  throw new Error(
+    `VITE_DEV_BACKEND must be one of ${DEV_BACKENDS.join(", ")} (got "${raw}"). ` +
+      "Leave it unset to use the Firebase project configured in .env.",
+  );
 }
 
 /** The backend this page load is running against. */
@@ -72,20 +71,19 @@ export const isMockBackend = devBackend === "mock";
 
 /** Placeholder Firebase credentials for the backends that never authenticate. */
 export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
-	apiKey: string;
-	authDomain: string;
-	projectId: string;
-	appId: string;
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  appId: string;
 } | null {
-	if (backend === "project") return null;
-	const projectId =
-		backend === "emulator" ? EMULATOR_PROJECT_ID : "mock-project";
-	return {
-		apiKey: `${projectId}-api-key`,
-		authDomain: `${projectId}.firebaseapp.com`,
-		projectId,
-		appId: `${projectId}-app-id`,
-	};
+  if (backend === "project") return null;
+  const projectId = backend === "emulator" ? EMULATOR_PROJECT_ID : "mock-project";
+  return {
+    apiKey: `${projectId}-api-key`,
+    authDomain: `${projectId}.firebaseapp.com`,
+    projectId,
+    appId: `${projectId}-app-id`,
+  };
 }
 
 /**
@@ -102,14 +100,14 @@ export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
  * existing setup that sets only the hosts keeps working.
  */
 export function resolveEmulatorHosts(
-	env: Record<string, string | undefined> = import.meta.env,
-	backend: DevBackend = devBackend,
+  env: Record<string, string | undefined> = import.meta.env,
+  backend: DevBackend = devBackend,
 ): { firestore: string; auth: string } | null {
-	const firestore = env.VITE_FIRESTORE_EMULATOR_HOST;
-	const auth = env.VITE_AUTH_EMULATOR_HOST;
-	if (backend !== "emulator" && !firestore && !auth) return null;
-	return {
-		firestore: firestore || DEFAULT_FIRESTORE_EMULATOR_HOST,
-		auth: auth || DEFAULT_AUTH_EMULATOR_HOST,
-	};
+  const firestore = env.VITE_FIRESTORE_EMULATOR_HOST;
+  const auth = env.VITE_AUTH_EMULATOR_HOST;
+  if (backend !== "emulator" && !firestore && !auth) return null;
+  return {
+    firestore: firestore || DEFAULT_FIRESTORE_EMULATOR_HOST,
+    auth: auth || DEFAULT_AUTH_EMULATOR_HOST,
+  };
 }

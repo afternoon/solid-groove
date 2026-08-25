@@ -1,12 +1,12 @@
 import type { CommandInput, RawCommandInput } from "../commands";
 import {
-	clearNotes,
-	duplicateNotes,
-	noteEventsOf,
-	quantizeNotes,
-	scaleNoteVelocity,
-	transposeNotes,
-	varyNotes,
+  clearNotes,
+  duplicateNotes,
+  noteEventsOf,
+  quantizeNotes,
+  scaleNoteVelocity,
+  transposeNotes,
+  varyNotes,
 } from "../commands";
 import type { Clip, Project } from "../domain/entities";
 import type { EventId, IdFactory } from "../domain/ids";
@@ -27,12 +27,12 @@ import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 
 /** The transformations the panel exposes, in the order it renders them. */
 export const TRANSFORM_KINDS = [
-	"transpose",
-	"scaleVelocity",
-	"quantize",
-	"duplicate",
-	"clear",
-	"vary",
+  "transpose",
+  "scaleVelocity",
+  "quantize",
+  "duplicate",
+  "clear",
+  "vary",
 ] as const;
 export type TransformKind = (typeof TRANSFORM_KINDS)[number];
 
@@ -50,12 +50,12 @@ export const TRANSFORM_DUPLICATE_OFFSET_TICKS = TICKS_PER_BAR;
  * which is what makes the panel useful before the user has selected anything.
  */
 export interface TransformScope {
-	/** `null` selects the whole clip. */
-	readonly eventIds: readonly EventId[] | null;
-	/** How many notes the transformation will actually touch. */
-	readonly count: number;
-	/** True when the scope widened to the clip because nothing was selected. */
-	readonly isWholeClip: boolean;
+  /** `null` selects the whole clip. */
+  readonly eventIds: readonly EventId[] | null;
+  /** How many notes the transformation will actually touch. */
+  readonly count: number;
+  /** True when the scope widened to the clip because nothing was selected. */
+  readonly isWholeClip: boolean;
 }
 
 /**
@@ -66,16 +66,16 @@ export interface TransformScope {
  * selection can outlive the notes it points at (an undo, or a remote edit).
  */
 export function resolveTransformScope(
-	clip: Clip,
-	selectedIds: readonly EventId[],
+  clip: Clip,
+  selectedIds: readonly EventId[],
 ): TransformScope {
-	const events = noteEventsOf(clip) ?? [];
-	const present = new Set(events.map((event) => event.id));
-	const live = selectedIds.filter((id) => present.has(id));
-	if (live.length === 0) {
-		return { eventIds: null, count: events.length, isWholeClip: true };
-	}
-	return { eventIds: live, count: live.length, isWholeClip: false };
+  const events = noteEventsOf(clip) ?? [];
+  const present = new Set(events.map((event) => event.id));
+  const live = selectedIds.filter((id) => present.has(id));
+  if (live.length === 0) {
+    return { eventIds: null, count: events.length, isWholeClip: true };
+  }
+  return { eventIds: live, count: live.length, isWholeClip: false };
 }
 
 /**
@@ -86,25 +86,25 @@ export function resolveTransformScope(
  * certain to fail and would surface as an error the user did not cause.
  */
 export function canTransform(scope: TransformScope): boolean {
-	return scope.count > 0;
+  return scope.count > 0;
 }
 
 export interface TransformOptions {
-	/** Semitones for `transpose`. */
-	readonly semitones: number;
-	/** Multiplier for `scaleVelocity`. */
-	readonly velocityFactor: number;
-	/** Seed for `vary`; the caller supplies it so the result is reproducible. */
-	readonly seed: string;
-	/** Share of notes `vary` may touch, 0..1. */
-	readonly amount: number;
+  /** Semitones for `transpose`. */
+  readonly semitones: number;
+  /** Multiplier for `scaleVelocity`. */
+  readonly velocityFactor: number;
+  /** Seed for `vary`; the caller supplies it so the result is reproducible. */
+  readonly seed: string;
+  /** Share of notes `vary` may touch, 0..1. */
+  readonly amount: number;
 }
 
 export const DEFAULT_TRANSFORM_OPTIONS: TransformOptions = {
-	semitones: 12,
-	velocityFactor: 1.25,
-	seed: "vary-1",
-	amount: 0.5,
+  semitones: 12,
+  velocityFactor: 1.25,
+  seed: "vary-1",
+  amount: 0.5,
 };
 
 /**
@@ -115,61 +115,61 @@ export const DEFAULT_TRANSFORM_OPTIONS: TransformOptions = {
  * preview reproduce the same notes rather than minting fresh ones each time.
  */
 export function buildTransform(
-	kind: TransformKind,
-	context: {
-		readonly project: Project;
-		readonly clip: Clip;
-		readonly scope: TransformScope;
-		readonly ids: IdFactory;
-		readonly options: TransformOptions;
-	},
+  kind: TransformKind,
+  context: {
+    readonly project: Project;
+    readonly clip: Clip;
+    readonly scope: TransformScope;
+    readonly ids: IdFactory;
+    readonly options: TransformOptions;
+  },
 ): CommandInput<never> | RawCommandInput {
-	const { clip, scope, options } = context;
-	switch (kind) {
-		case "transpose":
-			return transposeNotes(clip.id, scope.eventIds, options.semitones);
-		case "scaleVelocity":
-			return scaleNoteVelocity(clip.id, scope.eventIds, options.velocityFactor);
-		case "quantize":
-			return quantizeNotes(clip.id, scope.eventIds, TRANSFORM_GRID_TICKS, 1);
-		case "duplicate":
-			return duplicateNotes(context.ids, context.project, {
-				clipId: clip.id,
-				eventIds: scope.eventIds,
-				offsetTicks: TRANSFORM_DUPLICATE_OFFSET_TICKS,
-			});
-		case "clear":
-			// `notes.clear` empties the whole clip by definition — it takes no
-			// selection — so the panel labels it for the clip, never the selection.
-			return clearNotes(clip.id);
-		case "vary":
-			return varyNotes(clip.id, scope.eventIds, {
-				seed: options.seed,
-				amount: options.amount,
-				gridTicks: TRANSFORM_GRID_TICKS,
-			});
-	}
+  const { clip, scope, options } = context;
+  switch (kind) {
+    case "transpose":
+      return transposeNotes(clip.id, scope.eventIds, options.semitones);
+    case "scaleVelocity":
+      return scaleNoteVelocity(clip.id, scope.eventIds, options.velocityFactor);
+    case "quantize":
+      return quantizeNotes(clip.id, scope.eventIds, TRANSFORM_GRID_TICKS, 1);
+    case "duplicate":
+      return duplicateNotes(context.ids, context.project, {
+        clipId: clip.id,
+        eventIds: scope.eventIds,
+        offsetTicks: TRANSFORM_DUPLICATE_OFFSET_TICKS,
+      });
+    case "clear":
+      // `notes.clear` empties the whole clip by definition — it takes no
+      // selection — so the panel labels it for the clip, never the selection.
+      return clearNotes(clip.id);
+    case "vary":
+      return varyNotes(clip.id, scope.eventIds, {
+        seed: options.seed,
+        amount: options.amount,
+        gridTicks: TRANSFORM_GRID_TICKS,
+      });
+  }
 }
 
 /** How many notes a transformation reports to `clip_edited`'s count bucket. */
 export function transformedEventCount(
-	kind: TransformKind,
-	scope: TransformScope,
-	clip: Clip,
+  kind: TransformKind,
+  scope: TransformScope,
+  clip: Clip,
 ): number {
-	if (kind === "clear") {
-		// Clear always empties the clip, whatever happened to be selected.
-		return (noteEventsOf(clip) ?? []).length;
-	}
-	return scope.count;
+  if (kind === "clear") {
+    // Clear always empties the clip, whatever happened to be selected.
+    return (noteEventsOf(clip) ?? []).length;
+  }
+  return scope.count;
 }
 
 /** The button label for each transformation. */
 export const TRANSFORM_LABELS: Readonly<Record<TransformKind, string>> = {
-	transpose: "Transpose",
-	scaleVelocity: "Velocity",
-	quantize: "Quantize",
-	duplicate: "Duplicate",
-	clear: "Clear",
-	vary: "Vary",
+  transpose: "Transpose",
+  scaleVelocity: "Velocity",
+  quantize: "Quantize",
+  duplicate: "Duplicate",
+  clear: "Clear",
+  vary: "Vary",
 };

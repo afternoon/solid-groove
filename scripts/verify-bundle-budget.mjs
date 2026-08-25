@@ -38,10 +38,10 @@ import { brotliCompressSync, constants } from "node:zlib";
  * `"@sentry/solidstart"` does not survive bundling, so it is not used here.
  */
 const SDK_MARKERS = [
-	"sentry-trace",
-	"sentry_key",
-	"browserSessionIntegration",
-	"captureException",
+  "sentry-trace",
+  "sentry_key",
+  "browserSessionIntegration",
+  "captureException",
 ];
 
 /**
@@ -58,22 +58,22 @@ const SCRIPT_EXTENSIONS = new Set([".js", ".mjs"]);
 
 /** Brotli transfer size, computed rather than trusting a `.br` sibling exists. */
 function brotliSize(file) {
-	return brotliCompressSync(readFileSync(file), {
-		params: { [constants.BROTLI_PARAM_QUALITY]: 11 },
-	}).length;
+  return brotliCompressSync(readFileSync(file), {
+    params: { [constants.BROTLI_PARAM_QUALITY]: 11 },
+  }).length;
 }
 
 function listScripts(dir) {
-	const files = [];
-	for (const entry of readdirSync(dir)) {
-		const full = join(dir, entry);
-		if (statSync(full).isDirectory()) {
-			files.push(...listScripts(full));
-		} else if (SCRIPT_EXTENSIONS.has(extname(full))) {
-			files.push(full);
-		}
-	}
-	return files;
+  const files = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      files.push(...listScripts(full));
+    } else if (SCRIPT_EXTENSIONS.has(extname(full))) {
+      files.push(full);
+    }
+  }
+  return files;
 }
 
 /**
@@ -84,121 +84,119 @@ function listScripts(dir) {
  * the check, so counting it as an edge would make the check always pass.
  */
 export function staticImports(source) {
-	const specifiers = [];
-	for (const match of source.matchAll(/\bfrom\s*["']([^"']+)["']/g)) {
-		specifiers.push(match[1]);
-	}
-	for (const match of source.matchAll(/\bimport\s*["']([^"']+)["']/g)) {
-		specifiers.push(match[1]);
-	}
-	return specifiers;
+  const specifiers = [];
+  for (const match of source.matchAll(/\bfrom\s*["']([^"']+)["']/g)) {
+    specifiers.push(match[1]);
+  }
+  for (const match of source.matchAll(/\bimport\s*["']([^"']+)["']/g)) {
+    specifiers.push(match[1]);
+  }
+  return specifiers;
 }
 
 /** Entry script plus every module `index.html` preloads. */
 export function eagerEntryPoints(html, publicDir) {
-	const hrefs = [];
-	for (const match of html.matchAll(/\b(?:src|href)\s*=\s*"([^"]+)"/g)) {
-		hrefs.push(match[1]);
-	}
-	return hrefs
-		.filter((href) => SCRIPT_EXTENSIONS.has(extname(href)))
-		.map((href) => join(publicDir, href.replace(/^\//, "")))
-		.filter((file) => existsSync(file));
+  const hrefs = [];
+  for (const match of html.matchAll(/\b(?:src|href)\s*=\s*"([^"]+)"/g)) {
+    hrefs.push(match[1]);
+  }
+  return hrefs
+    .filter((href) => SCRIPT_EXTENSIONS.has(extname(href)))
+    .map((href) => join(publicDir, href.replace(/^\//, "")))
+    .filter((file) => existsSync(file));
 }
 
 /** Transitive closure of `entries` over static imports only. */
 export function eagerClosure(entries) {
-	const seen = new Set();
-	const queue = [...entries];
-	while (queue.length > 0) {
-		const file = queue.pop();
-		if (seen.has(file) || !existsSync(file)) continue;
-		seen.add(file);
-		const source = readFileSync(file, "utf8");
-		for (const specifier of staticImports(source)) {
-			if (!specifier.startsWith(".")) continue;
-			queue.push(join(dirname(file), specifier));
-		}
-	}
-	return seen;
+  const seen = new Set();
+  const queue = [...entries];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (seen.has(file) || !existsSync(file)) continue;
+    seen.add(file);
+    const source = readFileSync(file, "utf8");
+    for (const specifier of staticImports(source)) {
+      if (!specifier.startsWith(".")) continue;
+      queue.push(join(dirname(file), specifier));
+    }
+  }
+  return seen;
 }
 
 function containsSdk(file) {
-	const source = readFileSync(file, "utf8");
-	return SDK_MARKERS.some((marker) => source.includes(marker));
+  const source = readFileSync(file, "utf8");
+  return SDK_MARKERS.some((marker) => source.includes(marker));
 }
 
 function main() {
-	const publicDir = process.argv[2] ?? ".output/public";
-	const indexHtml = join(publicDir, "index.html");
-	if (!existsSync(indexHtml)) {
-		console.error(
-			`verify-bundle-budget: "${indexHtml}" does not exist. Run \`bun run build\` first.`,
-		);
-		process.exit(1);
-	}
+  const publicDir = process.argv[2] ?? ".output/public";
+  const indexHtml = join(publicDir, "index.html");
+  if (!existsSync(indexHtml)) {
+    console.error(
+      `verify-bundle-budget: "${indexHtml}" does not exist. Run \`bun run build\` first.`,
+    );
+    process.exit(1);
+  }
 
-	const eager = eagerClosure(
-		eagerEntryPoints(readFileSync(indexHtml, "utf8"), publicDir),
-	);
-	const allScripts = listScripts(publicDir);
-	const withSdk = allScripts.filter(containsSdk);
+  const eager = eagerClosure(
+    eagerEntryPoints(readFileSync(indexHtml, "utf8"), publicDir),
+  );
+  const allScripts = listScripts(publicDir);
+  const withSdk = allScripts.filter(containsSdk);
 
-	const failures = [];
+  const failures = [];
 
-	if (withSdk.length === 0) {
-		// Not a pass: it means the markers stopped matching (an SDK upgrade renamed
-		// them, say), so the eager-chunk check above would trivially succeed
-		// forever. A check that cannot fail is worse than no check.
-		failures.push(
-			"no chunk contains the error-monitoring SDK at all. Either it is no longer " +
-				`bundled, or SDK_MARKERS (${SDK_MARKERS.join(", ")}) no longer match its ` +
-				"minified output and this check has silently stopped working.",
-		);
-	}
+  if (withSdk.length === 0) {
+    // Not a pass: it means the markers stopped matching (an SDK upgrade renamed
+    // them, say), so the eager-chunk check above would trivially succeed
+    // forever. A check that cannot fail is worse than no check.
+    failures.push(
+      "no chunk contains the error-monitoring SDK at all. Either it is no longer " +
+        `bundled, or SDK_MARKERS (${SDK_MARKERS.join(", ")}) no longer match its ` +
+        "minified output and this check has silently stopped working.",
+    );
+  }
 
-	const eagerWithSdk = withSdk.filter((file) => eager.has(file));
-	for (const file of eagerWithSdk) {
-		failures.push(
-			`the error-monitoring SDK is in "${posix.normalize(file)}", which is loaded ` +
-				"eagerly from index.html. It must stay behind the dynamic import() in " +
-				"src/telemetry.ts so it costs nothing before first paint (PRD OPS-03).",
-		);
-	}
+  const eagerWithSdk = withSdk.filter((file) => eager.has(file));
+  for (const file of eagerWithSdk) {
+    failures.push(
+      `the error-monitoring SDK is in "${posix.normalize(file)}", which is loaded ` +
+        "eagerly from index.html. It must stay behind the dynamic import() in " +
+        "src/telemetry.ts so it costs nothing before first paint (PRD OPS-03).",
+    );
+  }
 
-	const lazyWithSdk = withSdk.filter((file) => !eager.has(file));
-	const measured = lazyWithSdk.map((file) => ({
-		name: basename(file),
-		bytes: brotliSize(file),
-	}));
-	const total = measured.reduce((sum, chunk) => sum + chunk.bytes, 0);
+  const lazyWithSdk = withSdk.filter((file) => !eager.has(file));
+  const measured = lazyWithSdk.map((file) => ({
+    name: basename(file),
+    bytes: brotliSize(file),
+  }));
+  const total = measured.reduce((sum, chunk) => sum + chunk.bytes, 0);
 
-	if (total > LAZY_MONITORING_BROTLI_BUDGET) {
-		failures.push(
-			`the lazily-loaded monitoring chunks are ${total} bytes brotli, over the ` +
-				`${LAZY_MONITORING_BROTLI_BUDGET}-byte budget. Drop an integration, or ` +
-				"raise the budget in this file with the reason.",
-		);
-	}
+  if (total > LAZY_MONITORING_BROTLI_BUDGET) {
+    failures.push(
+      `the lazily-loaded monitoring chunks are ${total} bytes brotli, over the ` +
+        `${LAZY_MONITORING_BROTLI_BUDGET}-byte budget. Drop an integration, or ` +
+        "raise the budget in this file with the reason.",
+    );
+  }
 
-	console.log("verify-bundle-budget: error-monitoring SDK bundle cost");
-	console.log(`  eager (before first paint): 0 bytes in ${eager.size} chunks`);
-	for (const chunk of measured) {
-		console.log(`  lazy: ${chunk.name} — ${chunk.bytes} bytes brotli`);
-	}
-	console.log(
-		`  lazy total: ${total} / ${LAZY_MONITORING_BROTLI_BUDGET} bytes brotli`,
-	);
+  console.log("verify-bundle-budget: error-monitoring SDK bundle cost");
+  console.log(`  eager (before first paint): 0 bytes in ${eager.size} chunks`);
+  for (const chunk of measured) {
+    console.log(`  lazy: ${chunk.name} — ${chunk.bytes} bytes brotli`);
+  }
+  console.log(`  lazy total: ${total} / ${LAZY_MONITORING_BROTLI_BUDGET} bytes brotli`);
 
-	if (failures.length > 0) {
-		console.error("\nverify-bundle-budget: FAILED");
-		for (const failure of failures) {
-			console.error(`  - ${failure}`);
-		}
-		process.exit(1);
-	}
+  if (failures.length > 0) {
+    console.error("\nverify-bundle-budget: FAILED");
+    for (const failure of failures) {
+      console.error(`  - ${failure}`);
+    }
+    process.exit(1);
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-	main();
+  main();
 }

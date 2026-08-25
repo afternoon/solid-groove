@@ -26,15 +26,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let fingerprintCalls = 0;
 
 vi.mock("./fingerprint", async () => {
-	const actual =
-		await vi.importActual<typeof import("./fingerprint")>("./fingerprint");
-	return {
-		...actual,
-		fingerprintOf: (value: unknown) => {
-			fingerprintCalls += 1;
-			return actual.fingerprintOf(value);
-		},
-	};
+  const actual = await vi.importActual<typeof import("./fingerprint")>("./fingerprint");
+  return {
+    ...actual,
+    fingerprintOf: (value: unknown) => {
+      fingerprintCalls += 1;
+      return actual.fingerprintOf(value);
+    },
+  };
 });
 
 import type { Placement, Project, Track } from "../domain/entities";
@@ -43,7 +42,7 @@ import { buildArrangementProjection } from "./arrangementProjection";
 import { buildAudioProjection } from "./audioProjection";
 
 beforeEach(() => {
-	fingerprintCalls = 0;
+  fingerprintCalls = 0;
 });
 
 /**
@@ -52,7 +51,7 @@ beforeEach(() => {
  * costs, and building it is not what we measure.
  */
 function referenceProject(): Project {
-	return createReferenceProject();
+  return createReferenceProject();
 }
 
 /**
@@ -63,142 +62,136 @@ function referenceProject(): Project {
  * so would not reproduce the identity-sharing the fast path relies on.
  */
 function replaceTrack(project: Project, next: Track): Project {
-	return {
-		...project,
-		metadata: { ...project.metadata, revision: project.metadata.revision + 1 },
-		song: {
-			...project.song,
-			tracks: project.song.tracks.map((track) =>
-				track.id === next.id ? next : track,
-			),
-		},
-	};
+  return {
+    ...project,
+    metadata: { ...project.metadata, revision: project.metadata.revision + 1 },
+    song: {
+      ...project.song,
+      tracks: project.song.tracks.map((track) => (track.id === next.id ? next : track)),
+    },
+  };
 }
 
 function replacePlacement(project: Project, next: Placement): Project {
-	return {
-		...project,
-		metadata: { ...project.metadata, revision: project.metadata.revision + 1 },
-		song: {
-			...project.song,
-			placements: project.song.placements.map((placement) =>
-				placement.id === next.id ? next : placement,
-			),
-		},
-	};
+  return {
+    ...project,
+    metadata: { ...project.metadata, revision: project.metadata.revision + 1 },
+    song: {
+      ...project.song,
+      placements: project.song.placements.map((placement) =>
+        placement.id === next.id ? next : placement,
+      ),
+    },
+  };
 }
 
 describe("audio projection incremental rebuild", () => {
-	it("re-fingerprints nothing when the project object is unchanged", () => {
-		const project = referenceProject();
-		const before = buildAudioProjection(project);
-		fingerprintCalls = 0;
+  it("re-fingerprints nothing when the project object is unchanged", () => {
+    const project = referenceProject();
+    const before = buildAudioProjection(project);
+    fingerprintCalls = 0;
 
-		// Same project object, same entity references throughout.
-		const after = buildAudioProjection(project, before);
+    // Same project object, same entity references throughout.
+    const after = buildAudioProjection(project, before);
 
-		expect(fingerprintCalls).toBe(0);
-		expect(after.tracks).toEqual(before.tracks);
-		// Every entry is reused by reference.
-		for (let i = 0; i < after.tracks.length; i += 1) {
-			expect(after.tracks[i]).toBe(before.tracks[i]);
-		}
-	});
+    expect(fingerprintCalls).toBe(0);
+    expect(after.tracks).toEqual(before.tracks);
+    // Every entry is reused by reference.
+    for (let i = 0; i < after.tracks.length; i += 1) {
+      expect(after.tracks[i]).toBe(before.tracks[i]);
+    }
+  });
 
-	it("re-fingerprints only the one edited track, not the other 49", () => {
-		const project = referenceProject();
-		const before = buildAudioProjection(project);
+  it("re-fingerprints only the one edited track, not the other 49", () => {
+    const project = referenceProject();
+    const before = buildAudioProjection(project);
 
-		// Edit exactly one track's mixer, immutably — every other track keeps its
-		// object reference (structural sharing).
-		const target = project.song.tracks[10];
-		const edited = replaceTrack(project, {
-			...target,
-			mixer: { ...target.mixer, volume: -12 },
-		});
-		expect(edited.song.tracks[10]).not.toBe(target);
-		expect(edited.song.tracks[0]).toBe(project.song.tracks[0]);
+    // Edit exactly one track's mixer, immutably — every other track keeps its
+    // object reference (structural sharing).
+    const target = project.song.tracks[10];
+    const edited = replaceTrack(project, {
+      ...target,
+      mixer: { ...target.mixer, volume: -12 },
+    });
+    expect(edited.song.tracks[10]).not.toBe(target);
+    expect(edited.song.tracks[0]).toBe(project.song.tracks[0]);
 
-		fingerprintCalls = 0;
-		const after = buildAudioProjection(edited, before);
+    fingerprintCalls = 0;
+    const after = buildAudioProjection(edited, before);
 
-		// One track fingerprints two shapes (full + topology). Nothing else does.
-		expect(fingerprintCalls).toBe(2);
+    // One track fingerprints two shapes (full + topology). Nothing else does.
+    expect(fingerprintCalls).toBe(2);
 
-		// The edited track is a fresh entry; every other track is reused.
-		const editedId = edited.song.tracks[10].id;
-		expect(after.tracksById.get(editedId)).not.toBe(
-			before.tracksById.get(editedId),
-		);
-		for (const track of edited.song.tracks) {
-			if (track.id === editedId) continue;
-			expect(after.tracksById.get(track.id)).toBe(
-				before.tracksById.get(track.id),
-			);
-		}
-	});
+    // The edited track is a fresh entry; every other track is reused.
+    const editedId = edited.song.tracks[10].id;
+    expect(after.tracksById.get(editedId)).not.toBe(before.tracksById.get(editedId));
+    for (const track of edited.song.tracks) {
+      if (track.id === editedId) continue;
+      expect(after.tracksById.get(track.id)).toBe(before.tracksById.get(track.id));
+    }
+  });
 });
 
 describe("arrangement projection incremental rebuild", () => {
-	it("re-fingerprints nothing when the project object is unchanged", () => {
-		const project = referenceProject();
-		const before = buildArrangementProjection(project);
-		fingerprintCalls = 0;
+  it("re-fingerprints nothing when the project object is unchanged", () => {
+    const project = referenceProject();
+    const before = buildArrangementProjection(project);
+    fingerprintCalls = 0;
 
-		const after = buildArrangementProjection(project, before);
+    const after = buildArrangementProjection(project, before);
 
-		expect(fingerprintCalls).toBe(0);
-		for (let i = 0; i < after.placements.length; i += 1) {
-			expect(after.placements[i]).toBe(before.placements[i]);
-		}
-	});
+    expect(fingerprintCalls).toBe(0);
+    for (let i = 0; i < after.placements.length; i += 1) {
+      expect(after.placements[i]).toBe(before.placements[i]);
+    }
+  });
 
-	it("re-fingerprints only the one edited placement, not all 2,500", () => {
-		const project = referenceProject();
-		const before = buildArrangementProjection(project);
-		expect(before.placements.length).toBeGreaterThanOrEqual(2500);
+  it("re-fingerprints only the one edited placement, not all 2,500", () => {
+    const project = referenceProject();
+    const before = buildArrangementProjection(project);
+    expect(before.placements.length).toBeGreaterThanOrEqual(2500);
 
-		const target = project.song.placements[100];
-		const edited = replacePlacement(project, {
-			...target,
-			startTicks: (target.startTicks + 192) as typeof target.startTicks,
-		});
-		expect(edited.song.placements[100]).not.toBe(target);
+    const target = project.song.placements[100];
+    const edited = replacePlacement(project, {
+      ...target,
+      startTicks: (target.startTicks + 192) as typeof target.startTicks,
+    });
+    expect(edited.song.placements[100]).not.toBe(target);
 
-		fingerprintCalls = 0;
-		const after = buildArrangementProjection(edited, before);
+    fingerprintCalls = 0;
+    const after = buildArrangementProjection(edited, before);
 
-		// Exactly one placement is re-fingerprinted.
-		expect(fingerprintCalls).toBe(1);
+    // Exactly one placement is re-fingerprinted.
+    expect(fingerprintCalls).toBe(1);
 
-		const editedId = edited.song.placements[100].id;
-		expect(after.placementsById.get(editedId)).not.toBe(
-			before.placementsById.get(editedId),
-		);
-		for (const placement of edited.song.placements) {
-			if (placement.id === editedId) continue;
-			expect(after.placementsById.get(placement.id)).toBe(
-				before.placementsById.get(placement.id),
-			);
-		}
-	});
+    const editedId = edited.song.placements[100].id;
+    expect(after.placementsById.get(editedId)).not.toBe(
+      before.placementsById.get(editedId),
+    );
+    for (const placement of edited.song.placements) {
+      if (placement.id === editedId) continue;
+      expect(after.placementsById.get(placement.id)).toBe(
+        before.placementsById.get(placement.id),
+      );
+    }
+  });
 
-	it("still detects a change when a track rename shifts row layout", () => {
-		// A row's fingerprint depends on layout position, not just the track
-		// object. This guards the one dep-list that carries scalars: renaming a
-		// track must still produce a fresh row (its name changed) even though the
-		// fast path keys partly on identity.
-		const project = referenceProject();
-		const before = buildArrangementProjection(project);
+  it("still detects a change when a track rename shifts row layout", () => {
+    // A row's fingerprint depends on layout position, not just the track
+    // object. This guards the one dep-list that carries scalars: renaming a
+    // track must still produce a fresh row (its name changed) even though the
+    // fast path keys partly on identity.
+    const project = referenceProject();
+    const before = buildArrangementProjection(project);
 
-		const edited = replaceTrack(project, {
-			...project.song.tracks[0],
-			name: "Renamed",
-		});
+    const edited = replaceTrack(project, {
+      ...project.song.tracks[0],
+      name: "Renamed",
+    });
 
-		const after = buildArrangementProjection(edited, before);
-		const rowId = edited.song.tracks[0].id;
-		expect(after.rowsById.get(rowId)).not.toBe(before.rowsById.get(rowId));
-		expect(after.rowsById.get(rowId)?.name).toBe("Renamed");
-	});
+    const after = buildArrangementProjection(edited, before);
+    const rowId = edited.song.tracks[0].id;
+    expect(after.rowsById.get(rowId)).not.toBe(before.rowsById.get(rowId));
+    expect(after.rowsById.get(rowId)?.name).toBe("Renamed");
+  });
 });

@@ -3,10 +3,10 @@ import { deviceParameters } from "../../domain/devices";
 import type { Device } from "../../domain/entities";
 import type { DeviceNode } from "../DeviceChain";
 import {
-	type DeviceCoreFactory,
-	type DeviceGraphContext,
-	readDeviceParameters,
-	setOrRamp,
+  type DeviceCoreFactory,
+  type DeviceGraphContext,
+  readDeviceParameters,
+  setOrRamp,
 } from "./types";
 
 /**
@@ -28,76 +28,72 @@ import {
  * dry leg stays at zero and costs nothing.
  */
 export function buildDeviceNode(
-	device: Device,
-	context: DeviceGraphContext,
-	createCore: DeviceCoreFactory,
+  device: Device,
+  context: DeviceGraphContext,
+  createCore: DeviceCoreFactory,
 ): DeviceNode {
-	const definitions = deviceParameters(device.type);
-	const hasWet = definitions.some((d) => d.id.endsWith(".wet"));
-	const hasOutput = definitions.some((d) => d.id.endsWith(".output"));
+  const definitions = deviceParameters(device.type);
+  const hasWet = definitions.some((d) => d.id.endsWith(".wet"));
+  const hasOutput = definitions.some((d) => d.id.endsWith(".output"));
 
-	const input = new Tone.Gain(1);
-	const dry = new Tone.Gain(0);
-	const wet = new Tone.Gain(1);
-	const output = new Tone.Gain(1);
-	const trim = new Tone.Volume(0);
+  const input = new Tone.Gain(1);
+  const dry = new Tone.Gain(0);
+  const wet = new Tone.Gain(1);
+  const output = new Tone.Gain(1);
+  const trim = new Tone.Volume(0);
 
-	const core = createCore(device, context);
+  const core = createCore(device, context);
 
-	input.connect(dry);
-	input.connect(core.input);
-	core.output.connect(wet);
-	dry.connect(trim);
-	wet.connect(trim);
-	trim.connect(output);
+  input.connect(dry);
+  input.connect(core.input);
+  core.output.connect(wet);
+  dry.connect(trim);
+  wet.connect(trim);
+  trim.connect(output);
 
-	/**
-	 * Bypass is *not* a separate switch layered over the mix: it is the same two
-	 * gains, driven to a full-dry split. Modelling it this way means a device
-	 * cannot end up bypassed and wet at once, and an un-bypass restores exactly
-	 * the stored mix.
-	 */
-	function applyMix(
-		next: Device,
-		values: Readonly<Record<string, number>>,
-		initial: boolean,
-	) {
-		const mix = next.bypassed ? 0 : hasWet ? values.wet : 1;
-		setOrRamp(wet.gain, mix, initial);
-		setOrRamp(dry.gain, 1 - mix, initial);
-		// Output trim follows bypass too, so a bypassed device is truly inert
-		// rather than a hidden gain stage.
-		setOrRamp(
-			trim.volume,
-			next.bypassed || !hasOutput ? 0 : values.output,
-			initial,
-		);
-	}
+  /**
+   * Bypass is *not* a separate switch layered over the mix: it is the same two
+   * gains, driven to a full-dry split. Modelling it this way means a device
+   * cannot end up bypassed and wet at once, and an un-bypass restores exactly
+   * the stored mix.
+   */
+  function applyMix(
+    next: Device,
+    values: Readonly<Record<string, number>>,
+    initial: boolean,
+  ) {
+    const mix = next.bypassed ? 0 : hasWet ? values.wet : 1;
+    setOrRamp(wet.gain, mix, initial);
+    setOrRamp(dry.gain, 1 - mix, initial);
+    // Output trim follows bypass too, so a bypassed device is truly inert
+    // rather than a hidden gain stage.
+    setOrRamp(trim.volume, next.bypassed || !hasOutput ? 0 : values.output, initial);
+  }
 
-	const initialValues = readDeviceParameters(definitions, device);
-	core.apply(initialValues, context, true);
-	applyMix(device, initialValues, true);
+  const initialValues = readDeviceParameters(definitions, device);
+  core.apply(initialValues, context, true);
+  applyMix(device, initialValues, true);
 
-	return {
-		id: device.id,
-		type: device.type,
-		input,
-		output,
-		update(next) {
-			const values = readDeviceParameters(definitions, next);
-			core.apply(values, context, false);
-			applyMix(next, values, false);
-		},
-		dispose() {
-			core.dispose();
-			input.dispose();
-			dry.dispose();
-			wet.dispose();
-			trim.dispose();
-			output.dispose();
-		},
-		gainReductionDb: core.gainReductionDb?.bind(core),
-		resolvedDelaySeconds: core.resolvedDelaySeconds?.bind(core),
-		ready: core.ready?.bind(core),
-	};
+  return {
+    id: device.id,
+    type: device.type,
+    input,
+    output,
+    update(next) {
+      const values = readDeviceParameters(definitions, next);
+      core.apply(values, context, false);
+      applyMix(next, values, false);
+    },
+    dispose() {
+      core.dispose();
+      input.dispose();
+      dry.dispose();
+      wet.dispose();
+      trim.dispose();
+      output.dispose();
+    },
+    gainReductionDb: core.gainReductionDb?.bind(core),
+    resolvedDelaySeconds: core.resolvedDelaySeconds?.bind(core),
+    ready: core.ready?.bind(core),
+  };
 }

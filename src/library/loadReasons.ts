@@ -9,8 +9,8 @@
  * a pack error's `reason`); every lookup site supplies its own fallback.
  */
 export const LOAD_REASON_LABELS: Record<string, string> = {
-	network: "Check your connection.",
-	not_found: "This library is unavailable.",
-	corrupt: "The library data could not be read.",
-	timeout: "The library took too long to load.",
+  network: "Check your connection.",
+  not_found: "This library is unavailable.",
+  corrupt: "The library data could not be read.",
+  timeout: "The library took too long to load.",
 };

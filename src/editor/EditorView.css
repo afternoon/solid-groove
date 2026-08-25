@@ -10,180 +10,180 @@
  * A persistent side column only works against a bounded page.
  */
 .editor {
-	--size-divider: 5px;
+  --size-divider: 5px;
 
-	width: 100vw;
-	height: 100vh;
-	margin: 0;
-	padding: var(--size-divider);
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-divider);
-	overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: var(--size-divider);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-divider);
+  overflow: hidden;
 }
 
 .editor .project-error {
-	place-self: center;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 12px;
-	text-align: center;
-	padding: var(--size-divider);
+  place-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: var(--size-divider);
 }
 
 .editor .project-error-message {
-	color: var(--color-text-secondary);
+  color: var(--color-text-secondary);
 }
 
 .editor .project-error-actions {
-	display: flex;
-	align-items: center;
-	gap: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .editor .project-error-home {
-	color: var(--color-text-secondary);
-	text-decoration: underline;
+  color: var(--color-text-secondary);
+  text-decoration: underline;
 }
 
 .editor-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--size-divider);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-divider);
 }
 
 .editor-header .back-to-projects {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--color-text-secondary);
-	text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  text-decoration: none;
 }
 
 .editor-header .back-to-projects:hover {
-	color: var(--color-text-primary);
+  color: var(--color-text-primary);
 }
 
 .editor-header .project-name {
-	font-size: var(--font-size-base);
-	margin: 0;
-	margin-right: auto;
+  font-size: var(--font-size-base);
+  margin: 0;
+  margin-right: auto;
 }
 
 .editor-header .transport-controls {
-	display: flex;
-	align-items: center;
-	gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .editor-header button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 4px;
-	height: auto;
-	background: none;
-	border: none;
-	color: inherit;
-	cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  height: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
 }
 
 .editor-header button:disabled {
-	opacity: 0.35;
-	cursor: default;
+  opacity: 0.35;
+  cursor: default;
 }
 
 .editor-header button:not(:disabled):hover {
-	opacity: 0.75;
+  opacity: 0.75;
 }
 
 .editor-header .transport-toggle[aria-pressed="true"],
 .editor-header .loop-toggle[aria-pressed="true"],
 .editor-header .metronome-toggle[aria-pressed="true"] {
-	color: var(--color-accent, #6ea8fe);
-	opacity: 1;
+  color: var(--color-accent, #6ea8fe);
+  opacity: 1;
 }
 
 .editor-header .tempo-control {
-	display: inline-flex;
-	align-items: baseline;
-	gap: 3px;
-	font-size: var(--font-size-small);
-	color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
 }
 
 .editor-header .tempo-input {
-	width: 3.5em;
-	font: inherit;
-	color: var(--color-text-primary);
-	background: var(--color-background-highlight);
-	border: 1px solid transparent;
-	border-radius: 3px;
-	padding: 2px 4px;
-	text-align: right;
+  width: 3.5em;
+  font: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-background-highlight);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 4px;
+  text-align: right;
 }
 
 .editor-header .tempo-input:focus {
-	border-color: var(--color-accent, #6ea8fe);
-	outline: none;
+  border-color: var(--color-accent, #6ea8fe);
+  outline: none;
 }
 
 .editor-header .tempo-unit {
-	font-size: var(--font-size-small);
+  font-size: var(--font-size-small);
 }
 
 .editor-header .time-signature,
 .editor-header .playhead-position {
-	font-size: var(--font-size-small);
-	color: var(--color-text-secondary);
-	font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .editor-header .playhead-position {
-	min-width: 3em;
-	text-align: right;
+  min-width: 3em;
+  text-align: right;
 }
 
 .editor-header .save-status-group {
-	display: flex;
-	align-items: center;
-	gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .editor-header .save-status {
-	font-size: var(--font-size-small);
-	color: var(--color-text-secondary);
-	min-width: 80px;
-	text-align: right;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  min-width: 80px;
+  text-align: right;
 }
 
 .editor-header .save-status[data-state="failed"] {
-	color: #e08a87;
+  color: #e08a87;
 }
 
 .editor-header .save-recovery {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: var(--font-size-small);
-	color: #e08a87;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-small);
+  color: #e08a87;
 }
 
 .editor-header .save-retry-button {
-	font-size: var(--font-size-small);
-	color: inherit;
-	background: none;
-	border: 1px solid currentColor;
-	border-radius: 3px;
-	padding: 2px 8px;
-	cursor: pointer;
+  font-size: var(--font-size-small);
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
 }
 
 .editor-header .save-retry-button:hover {
-	opacity: 0.75;
+  opacity: 0.75;
 }
 
 /*
@@ -193,66 +193,66 @@
  * both rather than sitting under the arrangement.
  */
 .editor-main {
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-divider);
-	flex: 1 1 auto;
-	min-width: 0;
-	min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-divider);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .arrangement-panel {
-	box-sizing: border-box;
-	/* A bounded height so the arrangement's own native scroll container owns
+  box-sizing: border-box;
+  /* A bounded height so the arrangement's own native scroll container owns
 	   scrolling, rather than growing the whole page. */
-	height: 340px;
-	/* The panel is a fixed strip in the editor's flex column: it neither
+  height: 340px;
+  /* The panel is a fixed strip in the editor's flex column: it neither
 	   shrinks under pressure from the surfaces below it nor lets its contents
 	   spill over them (which would leave the arrangement covering — and
 	   swallowing pointer events destined for — the workspace). */
-	flex-shrink: 0;
-	overflow: hidden;
-	border-bottom: 1px solid var(--color-divider, #262626);
+  flex-shrink: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-divider, #262626);
 }
 
 .workspace {
-	background-color: var(--color-background-secondary);
-	box-sizing: border-box;
-	padding: var(--size-divider);
+  background-color: var(--color-background-secondary);
+  box-sizing: border-box;
+  padding: var(--size-divider);
 }
 
 .track-editor {
-	background-color: var(--color-background-highlight);
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-divider);
-	padding: var(--size-divider);
-	max-width: 640px;
+  background-color: var(--color-background-highlight);
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-divider);
+  padding: var(--size-divider);
+  max-width: 640px;
 }
 
 .track-info {
-	display: flex;
-	align-items: baseline;
-	gap: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
 }
 
 .track-info .track-name {
-	font-weight: bold;
+  font-weight: bold;
 }
 
 .track-info .pack-dependency {
-	font-size: var(--font-size-small);
-	color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
 }
 
 /* Where the step editor or piano roll would be for a track that has no clip
    yet. Set in the panel's own body text rather than shouted, because the track
    is fine — there is simply nothing to program on it. */
 .track-editor .no-clip {
-	margin: 0;
-	padding: 12px 0;
-	font-size: var(--font-size-small);
-	color: var(--color-text-secondary);
+  margin: 0;
+  padding: 12px 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
 }
 
 /*
@@ -267,32 +267,32 @@
  * horizontally lives in the pack browser modal instead.
  */
 .editor-header .library-toggle[aria-pressed="true"] {
-	color: var(--color-foreground-bright);
-	background-color: var(--color-background-highlight);
+  color: var(--color-foreground-bright);
+  background-color: var(--color-background-highlight);
 }
 
 .editor-body {
-	display: flex;
-	align-items: stretch;
-	gap: var(--size-divider);
-	flex: 1 1 auto;
-	min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: var(--size-divider);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* The workspace takes the page's old job: it is what scrolls, inside itself. */
 .editor-main .workspace {
-	flex: 1 1 auto;
-	min-width: 0;
-	min-height: 0;
-	overflow-y: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .library-panel {
-	display: block;
-	flex: 0 0 15.625rem;
-	width: 15.625rem;
-	min-width: 0;
-	min-height: 0;
-	overflow: hidden;
-	background-color: var(--color-background-secondary);
+  display: block;
+  flex: 0 0 15.625rem;
+  width: 15.625rem;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--color-background-secondary);
 }

@@ -37,21 +37,21 @@ import { renderVoice } from "./voices.mjs";
  * happened — the ones a brand-new project is built from.
  */
 export const RUNTIME_SELECTION = [
-	{
-		key: "starterKick",
-		assetId: "sg-one-shot-drums-kick-0001",
-		use: "The sampler asset a new project's one track is created with (FND-009).",
-	},
-	{
-		key: "starterClap",
-		assetId: "sg-one-shot-drums-clap-0001",
-		use: "The second drum voice, for fixtures and multi-track smoke tests.",
-	},
-	{
-		key: "starterLoop",
-		assetId: "sg-loop-drums-full-loop-0001",
-		use: "An audio loop, so an audio-clip path has real bar-aligned material.",
-	},
+  {
+    key: "starterKick",
+    assetId: "sg-one-shot-drums-kick-0001",
+    use: "The sampler asset a new project's one track is created with (FND-009).",
+  },
+  {
+    key: "starterClap",
+    assetId: "sg-one-shot-drums-clap-0001",
+    use: "The second drum voice, for fixtures and multi-track smoke tests.",
+  },
+  {
+    key: "starterLoop",
+    assetId: "sg-loop-drums-full-loop-0001",
+    use: "An audio loop, so an audio-clip path has real bar-aligned material.",
+  },
 ];
 
 /**
@@ -61,33 +61,31 @@ export const RUNTIME_SELECTION = [
  * @returns {{ assets: object[], files: {storageKey: string, bytes: Buffer}[] }}
  */
 export function buildRuntimeLibrary(selection = RUNTIME_SELECTION) {
-	const oneShots = new Map(CATALOG.map((entry) => [entry.id, entry]));
-	const loops = new Map(LOOP_CATALOG.map((entry) => [entry.id, entry]));
-	const renderSource = (id) => {
-		const entry = oneShots.get(id);
-		if (!entry) throw new Error(`unknown source asset ${id}`);
-		return renderVoice(entry, createRng(seedFromString(entry.id)));
-	};
+  const oneShots = new Map(CATALOG.map((entry) => [entry.id, entry]));
+  const loops = new Map(LOOP_CATALOG.map((entry) => [entry.id, entry]));
+  const renderSource = (id) => {
+    const entry = oneShots.get(id);
+    if (!entry) throw new Error(`unknown source asset ${id}`);
+    return renderVoice(entry, createRng(seedFromString(entry.id)));
+  };
 
-	const built = selection.map(({ key, assetId, use }) => {
-		const oneShot = oneShots.get(assetId);
-		const loop = loops.get(assetId);
-		if (!oneShot && !loop) {
-			throw new Error(`runtime selection names unknown asset ${assetId}`);
-		}
-		const record = oneShot
-			? buildAsset(oneShot)
-			: buildLoop(loop, renderSource);
-		return { key, use, ...record };
-	});
+  const built = selection.map(({ key, assetId, use }) => {
+    const oneShot = oneShots.get(assetId);
+    const loop = loops.get(assetId);
+    if (!oneShot && !loop) {
+      throw new Error(`runtime selection names unknown asset ${assetId}`);
+    }
+    const record = oneShot ? buildAsset(oneShot) : buildLoop(loop, renderSource);
+    return { key, use, ...record };
+  });
 
-	return {
-		assets: built.map(({ key, use, asset }) => ({ key, use, asset })),
-		files: built.map(({ asset, bytes }) => ({
-			storageKey: asset.files.master.storageKey,
-			bytes,
-		})),
-	};
+  return {
+    assets: built.map(({ key, use, asset }) => ({ key, use, asset })),
+    files: built.map(({ asset, bytes }) => ({
+      storageKey: asset.files.master.storageKey,
+      bytes,
+    })),
+  };
 }
 
 /**
@@ -99,7 +97,7 @@ export function buildRuntimeLibrary(selection = RUNTIME_SELECTION) {
 export const RUNTIME_AUDIO_PREFIX = "samples/starter-library/audio";
 
 export function runtimeStorageRef(storageKey) {
-	return `${RUNTIME_AUDIO_PREFIX}/${storageKey}`;
+  return `${RUNTIME_AUDIO_PREFIX}/${storageKey}`;
 }
 
 /**
@@ -113,56 +111,56 @@ export function runtimeStorageRef(storageKey) {
  * where a stale or malformed emit actually shows up.
  */
 export function renderRuntimeModule(library = buildRuntimeLibrary()) {
-	const entries = library.assets.map(({ key, use, asset }) => {
-		const pack = packById(asset.pack.id);
-		return [
-			"\t{",
-			`\t\t/** ${use} */`,
-			`\t\tkey: ${JSON.stringify(key)},`,
-			`\t\tassetId: ${JSON.stringify(asset.id)},`,
-			`\t\tname: ${JSON.stringify(asset.name)},`,
-			`\t\ttype: ${JSON.stringify(asset.type)},`,
-			`\t\trole: ${JSON.stringify(asset.role)},`,
-			"\t\tpack: {",
-			`\t\t\tid: ${JSON.stringify(pack.id)},`,
-			`\t\t\tname: ${JSON.stringify(pack.name)},`,
-			`\t\t\tversion: ${JSON.stringify(pack.version)},`,
-			`\t\t\tpublisher: ${JSON.stringify(pack.publisher)},`,
-			`\t\t\tkind: ${JSON.stringify(pack.kind)},`,
-			`\t\t\tdescription: ${JSON.stringify(pack.description)},`,
-			"\t\t\trights: {",
-			`\t\t\t\tlicence: ${JSON.stringify(pack.rights.licence)},`,
-			`\t\t\t\trawRedistribution: ${pack.rights.rawRedistribution},`,
-			`\t\t\t\tattributionRequired: ${pack.rights.attributionRequired},`,
-			"\t\t\t},",
-			"\t\t},",
-			`\t\tstorageRef: ${JSON.stringify(runtimeStorageRef(asset.files.master.storageKey))},`,
-			`\t\tsha256: ${JSON.stringify(asset.files.master.sha256)},`,
-			`\t\tdurationSeconds: ${asset.audio.durationSeconds},`,
-			`\t\tsampleRate: ${asset.audio.sampleRate},`,
-			`\t\tchannelCount: ${asset.audio.channels},`,
-			`\t\tlicence: ${JSON.stringify(asset.license.id)},`,
-			"\t},",
-		].join("\n");
-	});
+  const entries = library.assets.map(({ key, use, asset }) => {
+    const pack = packById(asset.pack.id);
+    return [
+      "\t{",
+      `\t\t/** ${use} */`,
+      `\t\tkey: ${JSON.stringify(key)},`,
+      `\t\tassetId: ${JSON.stringify(asset.id)},`,
+      `\t\tname: ${JSON.stringify(asset.name)},`,
+      `\t\ttype: ${JSON.stringify(asset.type)},`,
+      `\t\trole: ${JSON.stringify(asset.role)},`,
+      "\t\tpack: {",
+      `\t\t\tid: ${JSON.stringify(pack.id)},`,
+      `\t\t\tname: ${JSON.stringify(pack.name)},`,
+      `\t\t\tversion: ${JSON.stringify(pack.version)},`,
+      `\t\t\tpublisher: ${JSON.stringify(pack.publisher)},`,
+      `\t\t\tkind: ${JSON.stringify(pack.kind)},`,
+      `\t\t\tdescription: ${JSON.stringify(pack.description)},`,
+      "\t\t\trights: {",
+      `\t\t\t\tlicence: ${JSON.stringify(pack.rights.licence)},`,
+      `\t\t\t\trawRedistribution: ${pack.rights.rawRedistribution},`,
+      `\t\t\t\tattributionRequired: ${pack.rights.attributionRequired},`,
+      "\t\t\t},",
+      "\t\t},",
+      `\t\tstorageRef: ${JSON.stringify(runtimeStorageRef(asset.files.master.storageKey))},`,
+      `\t\tsha256: ${JSON.stringify(asset.files.master.sha256)},`,
+      `\t\tdurationSeconds: ${asset.audio.durationSeconds},`,
+      `\t\tsampleRate: ${asset.audio.sampleRate},`,
+      `\t\tchannelCount: ${asset.audio.channels},`,
+      `\t\tlicence: ${JSON.stringify(asset.license.id)},`,
+      "\t},",
+    ].join("\n");
+  });
 
-	return `${[
-		"// GENERATED FILE — do not edit.",
-		"//",
-		"// Emitted by `bun run library:emit-runtime` from the same manifest pipeline",
-		"// that produces the delivered pack manifests (`scripts/starter-library/`).",
-		"// `CNT-001`: the application resolves the assets it ships with through the",
-		"// generated manifest, not through a hand-maintained list of names and paths.",
-		"//",
-		"// The audio these entries point at is written to `public/` by the same",
-		"// command, at the same content-addressed key the bucket serves it from.",
-		"//",
-		`// Library release: ${RELEASED_AT}`,
-		"",
-		'import type { FactoryLibraryEntry } from "./factoryLibrary";',
-		"",
-		"export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [",
-		...entries,
-		"];",
-	].join("\n")}\n`;
+  return `${[
+    "// GENERATED FILE — do not edit.",
+    "//",
+    "// Emitted by `bun run library:emit-runtime` from the same manifest pipeline",
+    "// that produces the delivered pack manifests (`scripts/starter-library/`).",
+    "// `CNT-001`: the application resolves the assets it ships with through the",
+    "// generated manifest, not through a hand-maintained list of names and paths.",
+    "//",
+    "// The audio these entries point at is written to `public/` by the same",
+    "// command, at the same content-addressed key the bucket serves it from.",
+    "//",
+    `// Library release: ${RELEASED_AT}`,
+    "",
+    'import type { FactoryLibraryEntry } from "./factoryLibrary";',
+    "",
+    "export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [",
+    ...entries,
+    "];",
+  ].join("\n")}\n`;
 }

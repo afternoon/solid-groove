@@ -10,42 +10,42 @@ import { installWebAudioTeardownGuard } from "./testAudioTeardown";
  * Call this once, before importing Tone, to enable offline rendering.
  */
 export function installWebAudioGlobals(): void {
-	// Native `ended` events from `node-web-audio-api` can fire after jsdom is
-	// torn down; guard against that one teardown-race artifact. See
-	// `testAudioTeardown.ts`.
-	installWebAudioTeardownGuard();
+  // Native `ended` events from `node-web-audio-api` can fire after jsdom is
+  // torn down; guard against that one teardown-race artifact. See
+  // `testAudioTeardown.ts`.
+  installWebAudioTeardownGuard();
 
-	const classes = [
-		"AudioContext",
-		"OfflineAudioContext",
-		"AudioParam",
-		"AudioNode",
-		"AudioBuffer",
-		"AudioBufferSourceNode",
-		"GainNode",
-		"OscillatorNode",
-		"BiquadFilterNode",
-		"AnalyserNode",
-		"ConstantSourceNode",
-		"AudioWorkletNode",
-		"AudioDestinationNode",
-	] as const;
+  const classes = [
+    "AudioContext",
+    "OfflineAudioContext",
+    "AudioParam",
+    "AudioNode",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "GainNode",
+    "OscillatorNode",
+    "BiquadFilterNode",
+    "AnalyserNode",
+    "ConstantSourceNode",
+    "AudioWorkletNode",
+    "AudioDestinationNode",
+  ] as const;
 
-	for (const key of classes) {
-		const impl = (nwaa as unknown as Record<string, unknown>)[key];
-		if (impl && !(key in globalThis)) {
-			(globalThis as Record<string, unknown>)[key] = impl;
-		}
-	}
+  for (const key of classes) {
+    const impl = (nwaa as unknown as Record<string, unknown>)[key];
+    if (impl && !(key in globalThis)) {
+      (globalThis as Record<string, unknown>)[key] = impl;
+    }
+  }
 }
 
 /** Root-mean-square amplitude of a rendered mono channel — a proxy for output energy. */
 export function rms(data: Float32Array): number {
-	let sum = 0;
-	for (let i = 0; i < data.length; i++) {
-		sum += data[i] * data[i];
-	}
-	return Math.sqrt(sum / data.length);
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i] * data[i];
+  }
+  return Math.sqrt(sum / data.length);
 }
 
 /**
@@ -57,25 +57,25 @@ export function rms(data: Float32Array): number {
  * regardless of cutoff.
  */
 export function hfEnergy(data: Float32Array): number {
-	let sum = 0;
-	for (let i = 1; i < data.length; i++) {
-		const d = data[i] - data[i - 1];
-		sum += d * d;
-	}
-	return Math.sqrt(sum / Math.max(1, data.length - 1));
+  let sum = 0;
+  for (let i = 1; i < data.length; i++) {
+    const d = data[i] - data[i - 1];
+    sum += d * d;
+  }
+  return Math.sqrt(sum / Math.max(1, data.length - 1));
 }
 
 /** RMS over a sub-window [startFrac, endFrac) of the buffer (fractions of length). */
 export function rmsWindow(
-	data: Float32Array,
-	startFrac: number,
-	endFrac: number,
+  data: Float32Array,
+  startFrac: number,
+  endFrac: number,
 ): number {
-	const start = Math.floor(data.length * startFrac);
-	const end = Math.floor(data.length * endFrac);
-	let sum = 0;
-	for (let i = start; i < end; i++) {
-		sum += data[i] * data[i];
-	}
-	return Math.sqrt(sum / Math.max(1, end - start));
+  const start = Math.floor(data.length * startFrac);
+  const end = Math.floor(data.length * endFrac);
+  let sum = 0;
+  for (let i = start; i < end; i++) {
+    sum += data[i] * data[i];
+  }
+  return Math.sqrt(sum / Math.max(1, end - start));
 }

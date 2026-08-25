@@ -1,11 +1,6 @@
 import type { BucketLabel } from "../analytics/buckets";
 import { bucketOf } from "../analytics/buckets";
-import type {
-	Clip,
-	Instrument,
-	NoteEvent,
-	NoteTrigger,
-} from "../domain/entities";
+import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
 import type { EventId, PadId } from "../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 
@@ -32,9 +27,9 @@ export const MAX_BARS = 8;
  * painted into this lane fires.
  */
 export interface StepLane {
-	readonly key: string;
-	readonly name: string;
-	readonly trigger: NoteTrigger;
+  readonly key: string;
+  readonly name: string;
+  readonly trigger: NoteTrigger;
 }
 
 /**
@@ -43,35 +38,35 @@ export interface StepLane {
  * step is hidden.
  */
 export function barCount(clip: Clip): number {
-	const bars = Math.ceil(clip.lengthTicks / TICKS_PER_BAR);
-	return Math.min(MAX_BARS, Math.max(MIN_BARS, bars));
+  const bars = Math.ceil(clip.lengthTicks / TICKS_PER_BAR);
+  return Math.min(MAX_BARS, Math.max(MIN_BARS, bars));
 }
 
 /** Total 16th-note steps across the clip's bars. */
 export function stepCount(clip: Clip): number {
-	return barCount(clip) * STEPS_PER_BAR;
+  return barCount(clip) * STEPS_PER_BAR;
 }
 
 /** The absolute start tick of a step index (0-based). */
 export function stepStartTicks(step: number): number {
-	return step * TICKS_PER_SIXTEENTH;
+  return step * TICKS_PER_SIXTEENTH;
 }
 
 /** True at the first step of a bar (a heavier bar division). */
 export function isBarStart(step: number): boolean {
-	return step % STEPS_PER_BAR === 0;
+  return step % STEPS_PER_BAR === 0;
 }
 
 /** True at the first step of a beat (a lighter beat division). */
 export function isBeatStart(step: number): boolean {
-	return step % (STEPS_PER_BAR / 4) === 0;
+  return step % (STEPS_PER_BAR / 4) === 0;
 }
 
 /** Whether two triggers name the same lane (pitch value, or pad id). */
 export function triggersMatch(a: NoteTrigger, b: NoteTrigger): boolean {
-	if (a.kind === "pitch" && b.kind === "pitch") return a.pitch === b.pitch;
-	if (a.kind === "pad" && b.kind === "pad") return a.padId === b.padId;
-	return false;
+  if (a.kind === "pitch" && b.kind === "pitch") return a.pitch === b.pitch;
+  if (a.kind === "pad" && b.kind === "pad") return a.padId === b.padId;
+  return false;
 }
 
 /**
@@ -86,42 +81,37 @@ export function triggersMatch(a: NoteTrigger, b: NoteTrigger): boolean {
 export const SAMPLER_LANE_PITCH = 36;
 
 export function lanesFor(instrument: Instrument | null): readonly StepLane[] {
-	if (instrument?.kind === "drumMachine") {
-		return instrument.pads.map((pad) => ({
-			key: pad.id,
-			name: pad.name,
-			trigger: { kind: "pad", padId: pad.id },
-		}));
-	}
-	return [
-		{
-			key: `pitch:${SAMPLER_LANE_PITCH}`,
-			name: "Notes",
-			trigger: { kind: "pitch", pitch: SAMPLER_LANE_PITCH },
-		},
-	];
+  if (instrument?.kind === "drumMachine") {
+    return instrument.pads.map((pad) => ({
+      key: pad.id,
+      name: pad.name,
+      trigger: { kind: "pad", padId: pad.id },
+    }));
+  }
+  return [
+    {
+      key: `pitch:${SAMPLER_LANE_PITCH}`,
+      name: "Notes",
+      trigger: { kind: "pitch", pitch: SAMPLER_LANE_PITCH },
+    },
+  ];
 }
 
 /** The clip's note events, or an empty list for non-note content. */
 export function noteEventsOf(clip: Clip): readonly NoteEvent[] {
-	return clip.content.kind === "notes" ? clip.content.events : [];
+  return clip.content.kind === "notes" ? clip.content.events : [];
 }
 
 /**
  * The note occupying a given lane and step, if any. A step is "occupied" when a
  * note starts exactly on that step's tick and its trigger matches the lane.
  */
-export function noteAt(
-	clip: Clip,
-	lane: StepLane,
-	step: number,
-): NoteEvent | undefined {
-	const startTicks = stepStartTicks(step);
-	return noteEventsOf(clip).find(
-		(event) =>
-			event.startTicks === startTicks &&
-			triggersMatch(event.trigger, lane.trigger),
-	);
+export function noteAt(clip: Clip, lane: StepLane, step: number): NoteEvent | undefined {
+  const startTicks = stepStartTicks(step);
+  return noteEventsOf(clip).find(
+    (event) =>
+      event.startTicks === startTicks && triggersMatch(event.trigger, lane.trigger),
+  );
 }
 
 /**
@@ -130,26 +120,26 @@ export function noteAt(
  * bars so a looped clip lights the correct step on each pass.
  */
 export function playbackStep(
-	clip: Clip,
-	positionTicks: number,
-	isPlaying: boolean,
+  clip: Clip,
+  positionTicks: number,
+  isPlaying: boolean,
 ): number | null {
-	if (!isPlaying) return null;
-	const total = stepCount(clip);
-	if (total <= 0) return null;
-	const step = Math.floor(positionTicks / TICKS_PER_SIXTEENTH);
-	if (step < 0) return null;
-	return step % total;
+  if (!isPlaying) return null;
+  const total = stepCount(clip);
+  if (total <= 0) return null;
+  const step = Math.floor(positionTicks / TICKS_PER_SIXTEENTH);
+  if (step < 0) return null;
+  return step % total;
 }
 
 /** The `event_count_bucket` for a completed gesture (PRD OPS-02). */
 export function eventCountBucket(count: number): BucketLabel<"event_count"> {
-	return bucketOf("event_count", count);
+  return bucketOf("event_count", count);
 }
 
 /** A stable identity for a (lane, step) cell, for pointer-drag de-duplication. */
 export function cellKey(lane: StepLane, step: number): string {
-	return `${lane.key}#${step}`;
+  return `${lane.key}#${step}`;
 }
 
 export type { EventId, PadId };

@@ -7,21 +7,21 @@
  * while a fader has focus is exactly the case the registry exists for.
  */
 export function isTextEntry(target: EventTarget | null): boolean {
-	if (!(target instanceof HTMLElement)) return false;
-	if (target.isContentEditable) return true;
-	if (target instanceof HTMLTextAreaElement) return true;
-	if (target instanceof HTMLSelectElement) return true;
-	if (target instanceof HTMLInputElement) {
-		return ![
-			"range",
-			"checkbox",
-			"radio",
-			"button",
-			"submit",
-			"reset",
-			"color",
-			"file",
-		].includes(target.type);
-	}
-	return false;
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement) return true;
+  if (target instanceof HTMLSelectElement) return true;
+  if (target instanceof HTMLInputElement) {
+    return ![
+      "range",
+      "checkbox",
+      "radio",
+      "button",
+      "submit",
+      "reset",
+      "color",
+      "file",
+    ].includes(target.type);
+  }
+  return false;
 }

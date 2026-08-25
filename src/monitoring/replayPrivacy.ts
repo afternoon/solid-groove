@@ -80,8 +80,4 @@ export const UNMASK_CONTENT = "sentry-unmask";
  * default rather than extending it. Passing only `aria-label` would quietly
  * unmask two attributes in the course of masking one.
  */
-export const MASK_ATTRIBUTES: readonly string[] = [
-	"title",
-	"placeholder",
-	"aria-label",
-];
+export const MASK_ATTRIBUTES: readonly string[] = ["title", "placeholder", "aria-label"];

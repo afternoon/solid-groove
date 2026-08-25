@@ -30,19 +30,19 @@ export const UNDERRUN_TOLERANCE_SECONDS = 0.02;
 export const UNDERRUN_SAMPLING_RATE = 0.1;
 
 export interface UnderrunReport {
-	readonly droppedEventBucket: BucketLabel<"dropped_events">;
-	readonly sampleRate: SampleRateKey;
+  readonly droppedEventBucket: BucketLabel<"dropped_events">;
+  readonly sampleRate: SampleRateKey;
 }
 
 export interface UnderrunMonitorOptions {
-	/** The audio context sample rate, recorded on every report. */
-	readonly contextSampleRate: number;
-	/** Fired once per sampling window with the bucketed drop count. */
-	readonly emit: (report: UnderrunReport) => void;
-	/** Fraction of detected drops that produce a report. Defaults to {@link UNDERRUN_SAMPLING_RATE}. */
-	readonly samplingRate?: number;
-	/** Lateness tolerance in seconds. Defaults to {@link UNDERRUN_TOLERANCE_SECONDS}. */
-	readonly toleranceSeconds?: number;
+  /** The audio context sample rate, recorded on every report. */
+  readonly contextSampleRate: number;
+  /** Fired once per sampling window with the bucketed drop count. */
+  readonly emit: (report: UnderrunReport) => void;
+  /** Fraction of detected drops that produce a report. Defaults to {@link UNDERRUN_SAMPLING_RATE}. */
+  readonly samplingRate?: number;
+  /** Lateness tolerance in seconds. Defaults to {@link UNDERRUN_TOLERANCE_SECONDS}. */
+  readonly toleranceSeconds?: number;
 }
 
 /**
@@ -52,37 +52,37 @@ export interface UnderrunMonitorOptions {
  * the bucketed count in that window plus the recorded sample rate.
  */
 export class UnderrunMonitor {
-	private readonly sampleRate: SampleRateKey;
-	private readonly emit: (report: UnderrunReport) => void;
-	private readonly samplingRate: number;
-	private readonly tolerance: number;
-	/** Drops accumulated toward the next report threshold. */
-	private windowDrops = 0;
-	/** The number of drops that triggers one report (1 / samplingRate). */
-	private readonly reportEvery: number;
+  private readonly sampleRate: SampleRateKey;
+  private readonly emit: (report: UnderrunReport) => void;
+  private readonly samplingRate: number;
+  private readonly tolerance: number;
+  /** Drops accumulated toward the next report threshold. */
+  private windowDrops = 0;
+  /** The number of drops that triggers one report (1 / samplingRate). */
+  private readonly reportEvery: number;
 
-	constructor(options: UnderrunMonitorOptions) {
-		this.sampleRate = sampleRateKey(options.contextSampleRate);
-		this.emit = options.emit;
-		this.samplingRate = options.samplingRate ?? UNDERRUN_SAMPLING_RATE;
-		this.tolerance = options.toleranceSeconds ?? UNDERRUN_TOLERANCE_SECONDS;
-		this.reportEvery = Math.max(1, Math.round(1 / this.samplingRate));
-	}
+  constructor(options: UnderrunMonitorOptions) {
+    this.sampleRate = sampleRateKey(options.contextSampleRate);
+    this.emit = options.emit;
+    this.samplingRate = options.samplingRate ?? UNDERRUN_SAMPLING_RATE;
+    this.tolerance = options.toleranceSeconds ?? UNDERRUN_TOLERANCE_SECONDS;
+    this.reportEvery = Math.max(1, Math.round(1 / this.samplingRate));
+  }
 
-	/**
-	 * Observe one fired scheduled event. `intendedTime` is the audio time it was
-	 * scheduled for; `actualTime` is the audio clock when the callback ran. A
-	 * callback that runs on time (actual <= intended + tolerance) is not a drop.
-	 */
-	observe(intendedTime: number, actualTime: number): void {
-		if (actualTime <= intendedTime + this.tolerance) return;
-		this.windowDrops += 1;
-		if (this.windowDrops < this.reportEvery) return;
-		const dropped = this.windowDrops;
-		this.windowDrops = 0;
-		this.emit({
-			droppedEventBucket: bucketOf("dropped_events", dropped),
-			sampleRate: this.sampleRate,
-		});
-	}
+  /**
+   * Observe one fired scheduled event. `intendedTime` is the audio time it was
+   * scheduled for; `actualTime` is the audio clock when the callback ran. A
+   * callback that runs on time (actual <= intended + tolerance) is not a drop.
+   */
+  observe(intendedTime: number, actualTime: number): void {
+    if (actualTime <= intendedTime + this.tolerance) return;
+    this.windowDrops += 1;
+    if (this.windowDrops < this.reportEvery) return;
+    const dropped = this.windowDrops;
+    this.windowDrops = 0;
+    this.emit({
+      droppedEventBucket: bucketOf("dropped_events", dropped),
+      sampleRate: this.sampleRate,
+    });
+  }
 }

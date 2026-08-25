@@ -1,8 +1,4 @@
-import {
-	type LibrarySample,
-	librarySampleSchema,
-	toLibrarySample,
-} from "./insertion";
+import { type LibrarySample, librarySampleSchema, toLibrarySample } from "./insertion";
 import type { LibraryAsset } from "./manifest";
 
 /**
@@ -34,11 +30,11 @@ export const LIBRARY_SAMPLE_MIME = "application/x-solid-groove-library-sample";
  * a test can hand in a plain object — jsdom implements no `DataTransfer` at all.
  */
 export interface LibraryDragTransfer {
-	readonly types: readonly string[];
-	getData(format: string): string;
-	setData(format: string, data: string): void;
-	effectAllowed?: string;
-	dropEffect?: string;
+  readonly types: readonly string[];
+  getData(format: string): string;
+  setData(format: string, data: string): void;
+  effectAllowed?: string;
+  dropEffect?: string;
 }
 
 /**
@@ -47,37 +43,37 @@ export interface LibraryDragTransfer {
  * no drag rather than starting one that must be refused on drop.
  */
 export function writeLibrarySampleDrag(
-	transfer: LibraryDragTransfer | null | undefined,
-	asset: LibraryAsset,
+  transfer: LibraryDragTransfer | null | undefined,
+  asset: LibraryAsset,
 ): boolean {
-	const sample = toLibrarySample(asset);
-	if (!transfer || !sample) return false;
-	transfer.setData(LIBRARY_SAMPLE_MIME, JSON.stringify(sample));
-	transfer.effectAllowed = "copy";
-	return true;
+  const sample = toLibrarySample(asset);
+  if (!transfer || !sample) return false;
+  transfer.setData(LIBRARY_SAMPLE_MIME, JSON.stringify(sample));
+  transfer.effectAllowed = "copy";
+  return true;
 }
 
 /** Whether this drag is carrying a library sound, from the type list alone. */
 export function hasLibrarySampleDrag(
-	transfer: LibraryDragTransfer | null | undefined,
+  transfer: LibraryDragTransfer | null | undefined,
 ): boolean {
-	return [...(transfer?.types ?? [])].includes(LIBRARY_SAMPLE_MIME);
+  return [...(transfer?.types ?? [])].includes(LIBRARY_SAMPLE_MIME);
 }
 
 /** The sound a drop is carrying, or `null` when it is carrying something else. */
 export function readLibrarySampleDrag(
-	transfer: LibraryDragTransfer | null | undefined,
+  transfer: LibraryDragTransfer | null | undefined,
 ): LibrarySample | null {
-	if (!hasLibrarySampleDrag(transfer)) return null;
-	const raw = transfer?.getData(LIBRARY_SAMPLE_MIME);
-	if (!raw) return null;
-	try {
-		const parsed = librarySampleSchema.safeParse(JSON.parse(raw));
-		return parsed.success ? parsed.data : null;
-	} catch {
-		// Not JSON at all: a page outside this app wrote our type.
-		return null;
-	}
+  if (!hasLibrarySampleDrag(transfer)) return null;
+  const raw = transfer?.getData(LIBRARY_SAMPLE_MIME);
+  if (!raw) return null;
+  try {
+    const parsed = librarySampleSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    // Not JSON at all: a page outside this app wrote our type.
+    return null;
+  }
 }
 
 export type { LibrarySample };

@@ -7,20 +7,20 @@
 // does: production code is a consumer too, not just tests.
 
 export interface Clock {
-	/** Current time in epoch milliseconds. */
-	now(): number;
+  /** Current time in epoch milliseconds. */
+  now(): number;
 }
 
 /** The real clock. Use this everywhere outside tests. */
 export const systemClock: Clock = {
-	now: () => Date.now(),
+  now: () => Date.now(),
 };
 
 export interface ManualClock extends Clock {
-	/** Jumps to an absolute time. */
-	set(ms: number): void;
-	/** Moves forward by a relative amount (negative values move it backward). */
-	advance(ms: number): void;
+  /** Jumps to an absolute time. */
+  set(ms: number): void;
+  /** Moves forward by a relative amount (negative values move it backward). */
+  advance(ms: number): void;
 }
 
 /**
@@ -29,14 +29,14 @@ export interface ManualClock extends Clock {
  * depend on when the test happens to run.
  */
 export function createManualClock(startMs = 0): ManualClock {
-	let current = startMs;
-	return {
-		now: () => current,
-		set(ms: number) {
-			current = ms;
-		},
-		advance(ms: number) {
-			current += ms;
-		},
-	};
+  let current = startMs;
+  return {
+    now: () => current,
+    set(ms: number) {
+      current = ms;
+    },
+    advance(ms: number) {
+      current += ms;
+    },
+  };
 }

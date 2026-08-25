@@ -40,24 +40,22 @@ const notes = [];
  * guard keeps `https://` inside a string literal from eating the rest of a line.
  */
 const stripComments = (source) =>
-	source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
 if (!existsSync(REGISTER)) {
-	console.error(`check-core-flows — ${REGISTER} is missing.`);
-	process.exit(1);
+  console.error(`check-core-flows — ${REGISTER} is missing.`);
+  process.exit(1);
 }
 
 // Registered flows. The template block in the register writes its ID as
 // `CF-0NN`, which the three-digit pattern deliberately does not match.
 const registered = new Map();
-for (const [, id, title] of readFileSync(REGISTER, "utf8").matchAll(
-	FLOW_HEADING,
-)) {
-	if (registered.has(id))
-		failures.push(
-			`${REGISTER}: flow ${id} is registered twice. IDs are stable and never reused.`,
-		);
-	else registered.set(id, title.trim());
+for (const [, id, title] of readFileSync(REGISTER, "utf8").matchAll(FLOW_HEADING)) {
+  if (registered.has(id))
+    failures.push(
+      `${REGISTER}: flow ${id} is registered twice. IDs are stable and never reused.`,
+    );
+  else registered.set(id, title.trim());
 }
 
 if (registered.size === 0) notes.push(`${REGISTER} registers no flows yet.`);
@@ -65,58 +63,55 @@ if (registered.size === 0) notes.push(`${REGISTER} registers no flows yet.`);
 // Specs on disk, keyed by the ID in their filename.
 const specs = new Map();
 for (const suite of SUITES) {
-	if (!existsSync(suite)) continue;
-	for (const file of readdirSync(suite)) {
-		const match = file.match(/^(CF-\d{3})\.spec\.ts$/);
-		if (!match) {
-			failures.push(
-				`${join(suite, file)}: every file in a flows/ directory is one core-flow spec named for its ID, e.g. CF-001.spec.ts.`,
-			);
-			continue;
-		}
-		const [, id] = match;
-		const path = join(suite, file);
-		if (specs.has(id))
-			failures.push(
-				`${id} has two specs: ${specs.get(id).path} and ${path}. A flow has exactly one.`,
-			);
-		else
-			specs.set(id, { path, code: stripComments(readFileSync(path, "utf8")) });
-	}
+  if (!existsSync(suite)) continue;
+  for (const file of readdirSync(suite)) {
+    const match = file.match(/^(CF-\d{3})\.spec\.ts$/);
+    if (!match) {
+      failures.push(
+        `${join(suite, file)}: every file in a flows/ directory is one core-flow spec named for its ID, e.g. CF-001.spec.ts.`,
+      );
+      continue;
+    }
+    const [, id] = match;
+    const path = join(suite, file);
+    if (specs.has(id))
+      failures.push(
+        `${id} has two specs: ${specs.get(id).path} and ${path}. A flow has exactly one.`,
+      );
+    else specs.set(id, { path, code: stripComments(readFileSync(path, "utf8")) });
+  }
 }
 
 for (const [id, title] of registered)
-	if (!specs.has(id))
-		failures.push(
-			`${id} ("${title}") is registered in ${REGISTER} but has no spec. Add e2e/flows/${id}.spec.ts (or e2e-emulator/flows/${id}.spec.ts), marked test.fixme until it passes.`,
-		);
+  if (!specs.has(id))
+    failures.push(
+      `${id} ("${title}") is registered in ${REGISTER} but has no spec. Add e2e/flows/${id}.spec.ts (or e2e-emulator/flows/${id}.spec.ts), marked test.fixme until it passes.`,
+    );
 
 for (const [id, spec] of specs) {
-	if (!registered.has(id))
-		failures.push(
-			`${spec.path} reproduces ${id}, which is not registered in ${REGISTER}. Only the product owner adds a flow.`,
-		);
+  if (!registered.has(id))
+    failures.push(
+      `${spec.path} reproduces ${id}, which is not registered in ${REGISTER}. Only the product owner adds a flow.`,
+    );
 
-	if (!/\bwalkthrough\s*\(/.test(spec.code))
-		failures.push(
-			`${spec.path} never calls walkthrough() — its PR walkthrough could only be captured by hand. Import it from e2e/support/walkthrough and capture a step at each point a reviewer should see.`,
-		);
+  if (!/\bwalkthrough\s*\(/.test(spec.code))
+    failures.push(
+      `${spec.path} never calls walkthrough() — its PR walkthrough could only be captured by hand. Import it from e2e/support/walkthrough and capture a step at each point a reviewer should see.`,
+    );
 
-	if (/\.fixme\s*\(/.test(spec.code))
-		notes.push(
-			`${id} is still test.fixme in ${spec.path} — in flight, or abandoned mid-stack.`,
-		);
+  if (/\.fixme\s*\(/.test(spec.code))
+    notes.push(
+      `${id} is still test.fixme in ${spec.path} — in flight, or abandoned mid-stack.`,
+    );
 }
 
 for (const note of notes) console.log(`  note: ${note}`);
 
 if (failures.length > 0) {
-	console.error(`\ncheck-core-flows — ${failures.length} problem(s):\n`);
-	for (const failure of failures) console.error(`  - ${failure}`);
-	console.error("");
-	process.exit(1);
+  console.error(`\ncheck-core-flows — ${failures.length} problem(s):\n`);
+  for (const failure of failures) console.error(`  - ${failure}`);
+  console.error("");
+  process.exit(1);
 }
 
-console.log(
-	`check-core-flows — ${registered.size} flow(s), each with exactly one spec.`,
-);
+console.log(`check-core-flows — ${registered.size} flow(s), each with exactly one spec.`);

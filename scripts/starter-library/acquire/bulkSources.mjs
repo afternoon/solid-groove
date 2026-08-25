@@ -60,155 +60,153 @@
  * own 1000-wide window so no two acquisition paths can ever collide.
  */
 export const BULK_ID_BASE = {
-	"producer-space": 7000,
-	freepats: 8000,
+  "producer-space": 7000,
+  freepats: 8000,
 };
 
 /** @type {BulkSource[]} */
 export const BULK_SOURCES = [
-	{
-		id: "producer-space:tech-house-essentials",
-		sourceId: "producer-space",
-		name: "Producer Space — Tech House Essentials",
-		// The curator pins the exact pack .zip they confirmed on the page. This is
-		// a placeholder pointing at the source's pack index until a specific pack
-		// is chosen; `--list` prints it and the ingest refuses a placeholder URL.
-		archiveUrl: "https://producerspace.com/free-samples/",
-		licenseUrl: "https://producerspace.com/license",
-		rightsNote:
-			"Producer Space's official clearance places the entire library under CC0 with an express redistribution grant (section 4.1).",
-		idBase: BULK_ID_BASE["producer-space"],
-		defaultFamily: "drums",
-		defaultRole: "percussion",
-		defaultGenres: ["house", "techno"],
-		defaultCharacters: ["clean"],
-		maxMembers: 60,
-		mappings: [
-			{
-				match: /kick|\bbd\b|bass ?drum/i,
-				family: "drums",
-				role: "kick",
-				genres: ["house", "techno"],
-				characters: ["punchy", "clean"],
-			},
-			{
-				match: /snare|\bsd\b/i,
-				family: "drums",
-				role: "snare",
-				genres: ["house", "techno"],
-				characters: ["tight", "clean"],
-			},
-			{
-				match: /clap|\bcp\b/i,
-				family: "drums",
-				role: "clap",
-				genres: ["house"],
-				characters: ["bright", "short"],
-			},
-			{
-				match: /open.?hat|\boh\b/i,
-				family: "drums",
-				role: "open-hat",
-				genres: ["house", "techno"],
-				characters: ["bright", "metallic"],
-			},
-			{
-				match: /closed.?hat|\bch\b|\bhh\b|hi.?hat/i,
-				family: "drums",
-				role: "closed-hat",
-				genres: ["house", "techno"],
-				characters: ["bright", "short"],
-			},
-			{
-				match: /rim|rimshot/i,
-				family: "drums",
-				role: "rim",
-				genres: ["house"],
-				characters: ["short", "clean"],
-			},
-			{
-				match: /perc|shaker|tamb|conga|bongo/i,
-				family: "drums",
-				role: "percussion",
-				genres: ["house", "techno"],
-				characters: ["clean", "short"],
-			},
-			{
-				match: /sub|\b808\b/i,
-				family: "bass",
-				role: "sub",
-				genres: ["house", "techno", "hip-hop"],
-				characters: ["deep", "sub-heavy"],
-			},
-			{
-				match: /bass/i,
-				family: "bass",
-				role: "sustained",
-				genres: ["house", "techno"],
-				characters: ["warm", "round"],
-			},
-		],
-	},
-	{
-		id: "freepats:electric-percussion",
-		sourceId: "freepats",
-		name: "FreePats — Electric Percussion (CC0 bank)",
-		// The curator pins the exact bank .zip after confirming the bank page
-		// states CC0. FreePats ships .tar.bz2 and .zip mirrors; pin the .zip.
-		archiveUrl:
-			"https://freepats.zenvoid.org/Percussion/electric-percussion.html",
-		licenseUrl:
-			"https://freepats.zenvoid.org/Percussion/electric-percussion.html",
-		rightsNote:
-			"This specific FreePats bank states CC0 on its own page; the whole bank archive shares that one licence (section 4.1).",
-		idBase: BULK_ID_BASE.freepats,
-		defaultFamily: "drums",
-		defaultRole: "percussion",
-		defaultGenres: ["techno", "house"],
-		defaultCharacters: ["clean"],
-		maxMembers: 60,
-		mappings: [
-			{
-				match: /kick|bass ?drum/i,
-				family: "drums",
-				role: "kick",
-				genres: ["techno", "house"],
-				characters: ["clean", "punchy"],
-			},
-			{
-				match: /snare/i,
-				family: "drums",
-				role: "snare",
-				genres: ["techno"],
-				characters: ["clean", "tight"],
-			},
-			{
-				match: /clap/i,
-				family: "drums",
-				role: "clap",
-				genres: ["house"],
-				characters: ["bright", "short"],
-			},
-			{
-				match: /open.?hat/i,
-				family: "drums",
-				role: "open-hat",
-				genres: ["techno", "house"],
-				characters: ["bright", "metallic"],
-			},
-			{
-				match: /hat|hi.?hat|cymbal/i,
-				family: "drums",
-				role: "closed-hat",
-				genres: ["techno", "house"],
-				characters: ["bright", "short"],
-			},
-		],
-	},
+  {
+    id: "producer-space:tech-house-essentials",
+    sourceId: "producer-space",
+    name: "Producer Space — Tech House Essentials",
+    // The curator pins the exact pack .zip they confirmed on the page. This is
+    // a placeholder pointing at the source's pack index until a specific pack
+    // is chosen; `--list` prints it and the ingest refuses a placeholder URL.
+    archiveUrl: "https://producerspace.com/free-samples/",
+    licenseUrl: "https://producerspace.com/license",
+    rightsNote:
+      "Producer Space's official clearance places the entire library under CC0 with an express redistribution grant (section 4.1).",
+    idBase: BULK_ID_BASE["producer-space"],
+    defaultFamily: "drums",
+    defaultRole: "percussion",
+    defaultGenres: ["house", "techno"],
+    defaultCharacters: ["clean"],
+    maxMembers: 60,
+    mappings: [
+      {
+        match: /kick|\bbd\b|bass ?drum/i,
+        family: "drums",
+        role: "kick",
+        genres: ["house", "techno"],
+        characters: ["punchy", "clean"],
+      },
+      {
+        match: /snare|\bsd\b/i,
+        family: "drums",
+        role: "snare",
+        genres: ["house", "techno"],
+        characters: ["tight", "clean"],
+      },
+      {
+        match: /clap|\bcp\b/i,
+        family: "drums",
+        role: "clap",
+        genres: ["house"],
+        characters: ["bright", "short"],
+      },
+      {
+        match: /open.?hat|\boh\b/i,
+        family: "drums",
+        role: "open-hat",
+        genres: ["house", "techno"],
+        characters: ["bright", "metallic"],
+      },
+      {
+        match: /closed.?hat|\bch\b|\bhh\b|hi.?hat/i,
+        family: "drums",
+        role: "closed-hat",
+        genres: ["house", "techno"],
+        characters: ["bright", "short"],
+      },
+      {
+        match: /rim|rimshot/i,
+        family: "drums",
+        role: "rim",
+        genres: ["house"],
+        characters: ["short", "clean"],
+      },
+      {
+        match: /perc|shaker|tamb|conga|bongo/i,
+        family: "drums",
+        role: "percussion",
+        genres: ["house", "techno"],
+        characters: ["clean", "short"],
+      },
+      {
+        match: /sub|\b808\b/i,
+        family: "bass",
+        role: "sub",
+        genres: ["house", "techno", "hip-hop"],
+        characters: ["deep", "sub-heavy"],
+      },
+      {
+        match: /bass/i,
+        family: "bass",
+        role: "sustained",
+        genres: ["house", "techno"],
+        characters: ["warm", "round"],
+      },
+    ],
+  },
+  {
+    id: "freepats:electric-percussion",
+    sourceId: "freepats",
+    name: "FreePats — Electric Percussion (CC0 bank)",
+    // The curator pins the exact bank .zip after confirming the bank page
+    // states CC0. FreePats ships .tar.bz2 and .zip mirrors; pin the .zip.
+    archiveUrl: "https://freepats.zenvoid.org/Percussion/electric-percussion.html",
+    licenseUrl: "https://freepats.zenvoid.org/Percussion/electric-percussion.html",
+    rightsNote:
+      "This specific FreePats bank states CC0 on its own page; the whole bank archive shares that one licence (section 4.1).",
+    idBase: BULK_ID_BASE.freepats,
+    defaultFamily: "drums",
+    defaultRole: "percussion",
+    defaultGenres: ["techno", "house"],
+    defaultCharacters: ["clean"],
+    maxMembers: 60,
+    mappings: [
+      {
+        match: /kick|bass ?drum/i,
+        family: "drums",
+        role: "kick",
+        genres: ["techno", "house"],
+        characters: ["clean", "punchy"],
+      },
+      {
+        match: /snare/i,
+        family: "drums",
+        role: "snare",
+        genres: ["techno"],
+        characters: ["clean", "tight"],
+      },
+      {
+        match: /clap/i,
+        family: "drums",
+        role: "clap",
+        genres: ["house"],
+        characters: ["bright", "short"],
+      },
+      {
+        match: /open.?hat/i,
+        family: "drums",
+        role: "open-hat",
+        genres: ["techno", "house"],
+        characters: ["bright", "metallic"],
+      },
+      {
+        match: /hat|hi.?hat|cymbal/i,
+        family: "drums",
+        role: "closed-hat",
+        genres: ["techno", "house"],
+        characters: ["bright", "short"],
+      },
+    ],
+  },
 ];
 
 export function findBulkSource(id) {
-	return BULK_SOURCES.find((source) => source.id === id) ?? null;
+  return BULK_SOURCES.find((source) => source.id === id) ?? null;
 }
 
 /**
@@ -219,24 +217,24 @@ export function findBulkSource(id) {
  * does not gate.
  */
 export function mapBulkMember(source, memberPath) {
-	for (const rule of source.mappings ?? []) {
-		if (rule.match.test(memberPath)) {
-			return {
-				family: rule.family,
-				role: rule.role,
-				genres: rule.genres,
-				characters: rule.characters,
-				intensity: rule.intensity ?? "medium",
-			};
-		}
-	}
-	return {
-		family: source.defaultFamily,
-		role: source.defaultRole,
-		genres: source.defaultGenres,
-		characters: source.defaultCharacters,
-		intensity: "medium",
-	};
+  for (const rule of source.mappings ?? []) {
+    if (rule.match.test(memberPath)) {
+      return {
+        family: rule.family,
+        role: rule.role,
+        genres: rule.genres,
+        characters: rule.characters,
+        intensity: rule.intensity ?? "medium",
+      };
+    }
+  }
+  return {
+    family: source.defaultFamily,
+    role: source.defaultRole,
+    genres: source.defaultGenres,
+    characters: source.defaultCharacters,
+    intensity: "medium",
+  };
 }
 
 /**
@@ -246,5 +244,5 @@ export function mapBulkMember(source, memberPath) {
  * confirmed, not the page they found it on.
  */
 export function isPlaceholderArchiveUrl(url) {
-	return !/\.zip($|\?)/i.test(url);
+  return !/\.zip($|\?)/i.test(url);
 }

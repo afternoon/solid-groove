@@ -23,28 +23,28 @@
  * than array position) must sort it before calling this.
  */
 export function stableStringify(value: unknown): string {
-	return JSON.stringify(value, sortObjectKeys);
+  return JSON.stringify(value, sortObjectKeys);
 }
 
 function sortObjectKeys(_key: string, value: unknown): unknown {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) {
-		return value;
-	}
-	const sorted: Record<string, unknown> = {};
-	for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-		sorted[key] = (value as Record<string, unknown>)[key];
-	}
-	return sorted;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const sorted: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    sorted[key] = (value as Record<string, unknown>)[key];
+  }
+  return sorted;
 }
 
 /** FNV-1a, 32-bit. Not cryptographic — only used to shorten a fingerprint key. */
 function fnv1a(text: string): number {
-	let hash = 0x811c9dc5;
-	for (let index = 0; index < text.length; index += 1) {
-		hash ^= text.charCodeAt(index);
-		hash = Math.imul(hash, 0x01000193);
-	}
-	return hash >>> 0;
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
 }
 
 /**
@@ -53,7 +53,7 @@ function fnv1a(text: string): number {
  * information" every projection in this module exposes.
  */
 export function fingerprintOf(value: unknown): string {
-	return fnv1a(stableStringify(value)).toString(36);
+  return fnv1a(stableStringify(value)).toString(36);
 }
 
 /**
@@ -92,11 +92,11 @@ type Deps = readonly unknown[];
 const sourceDeps = new WeakMap<object, Deps>();
 
 function depsEqual(a: Deps, b: Deps): boolean {
-	if (a.length !== b.length) return false;
-	for (let index = 0; index < a.length; index += 1) {
-		if (!Object.is(a[index], b[index])) return false;
-	}
-	return true;
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (!Object.is(a[index], b[index])) return false;
+  }
+  return true;
 }
 
 /**
@@ -104,8 +104,8 @@ function depsEqual(a: Deps, b: Deps): boolean {
  * builder can write `return rememberSource(built, [source]);` in one line.
  */
 export function rememberSource<T extends object>(entry: T, deps: Deps): T {
-	sourceDeps.set(entry, deps);
-	return entry;
+  sourceDeps.set(entry, deps);
+  return entry;
 }
 
 /**
@@ -117,13 +117,13 @@ export function rememberSource<T extends object>(entry: T, deps: Deps): T {
  * misfiring.
  */
 export function reuseIfUnchanged<T extends object>(
-	previous: T | undefined,
-	deps: Deps,
+  previous: T | undefined,
+  deps: Deps,
 ): T | undefined {
-	if (!previous) return undefined;
-	const recorded = sourceDeps.get(previous);
-	if (recorded && depsEqual(recorded, deps)) {
-		return previous;
-	}
-	return undefined;
+  if (!previous) return undefined;
+  const recorded = sourceDeps.get(previous);
+  if (recorded && depsEqual(recorded, deps)) {
+    return previous;
+  }
+  return undefined;
 }

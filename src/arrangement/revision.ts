@@ -31,13 +31,13 @@ let nextRevision = 1;
  * itself changed) gets a new number.
  */
 export function revisionOf(entity: object): number {
-	let revision = revisions.get(entity);
-	if (revision === undefined) {
-		revision = nextRevision;
-		nextRevision += 1;
-		revisions.set(entity, revision);
-	}
-	return revision;
+  let revision = revisions.get(entity);
+  if (revision === undefined) {
+    revision = nextRevision;
+    nextRevision += 1;
+    revisions.set(entity, revision);
+  }
+  return revision;
 }
 
 /**
@@ -48,10 +48,10 @@ export function revisionOf(entity: object): number {
  * output.
  */
 export function combineRevisions(...values: readonly number[]): number {
-	let hash = 0x811c9dc5;
-	for (const value of values) {
-		hash ^= value;
-		hash = Math.imul(hash, 0x01000193) >>> 0;
-	}
-	return hash >>> 0;
+  let hash = 0x811c9dc5;
+  for (const value of values) {
+    hash ^= value;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
 }

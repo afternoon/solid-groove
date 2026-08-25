@@ -14,10 +14,7 @@ export const SMOOTHING_SECONDS = 0.02;
  * for the factory below. */
 export type SamplerInstrument = Extract<Instrument, { kind: "sampler" }>;
 export type SynthInstrument = Extract<Instrument, { kind: "synth" }>;
-export type DrumMachineInstrument = Extract<
-	Instrument,
-	{ kind: "drumMachine" }
->;
+export type DrumMachineInstrument = Extract<Instrument, { kind: "drumMachine" }>;
 
 /**
  * A track's sound source, keyed to the track by the track graph that owns it
@@ -28,25 +25,25 @@ export type DrumMachineInstrument = Extract<
  * changes (sampler <-> synth <-> drumMachine, or null <-> present).
  */
 export interface InstrumentNode {
-	readonly kind: Instrument["kind"];
-	readonly output: Tone.ToneAudioNode;
-	trigger(
-		trigger: NoteTrigger,
-		time: Tone.Unit.Time,
-		duration: Tone.Unit.Time,
-		velocity: number,
-	): void;
-	update(instrument: Instrument): void;
-	dispose(): void;
+  readonly kind: Instrument["kind"];
+  readonly output: Tone.ToneAudioNode;
+  trigger(
+    trigger: NoteTrigger,
+    time: Tone.Unit.Time,
+    duration: Tone.Unit.Time,
+    velocity: number,
+  ): void;
+  update(instrument: Instrument): void;
+  dispose(): void;
 }
 
 export interface InstrumentGraphContext {
-	readonly scope: AudioProjectScope;
-	readonly assetsById: ReadonlyMap<AssetId, AudioAssetProjection>;
-	readonly bufferCache: AudioBufferCache<Tone.ToneAudioBuffer>;
+  readonly scope: AudioProjectScope;
+  readonly assetsById: ReadonlyMap<AssetId, AudioAssetProjection>;
+  readonly bufferCache: AudioBufferCache<Tone.ToneAudioBuffer>;
 }
 
 export type InstrumentNodeFactory = (
-	instrument: Instrument,
-	context: InstrumentGraphContext,
+  instrument: Instrument,
+  context: InstrumentGraphContext,
 ) => InstrumentNode;

@@ -6,21 +6,21 @@
 
 /** The one-shot tree from section 5: family, then functional role. */
 export const TAXONOMY = {
-	drums: [
-		"kick",
-		"snare",
-		"clap",
-		"rim",
-		"closed-hat",
-		"open-hat",
-		"cymbal",
-		"tom",
-		"percussion",
-	],
-	bass: ["sub", "sustained", "stab", "reese"],
-	tonal: ["chord", "stab", "pluck", "key", "mallet", "bell"],
-	texture: ["noise", "ambience", "drone", "mechanical", "organic"],
-	fx: ["impact", "riser", "downer", "sweep", "reverse", "glitch"],
+  drums: [
+    "kick",
+    "snare",
+    "clap",
+    "rim",
+    "closed-hat",
+    "open-hat",
+    "cymbal",
+    "tom",
+    "percussion",
+  ],
+  bass: ["sub", "sustained", "stab", "reese"],
+  tonal: ["chord", "stab", "pluck", "key", "mallet", "bell"],
+  texture: ["noise", "ambience", "drone", "mechanical", "organic"],
+  fx: ["impact", "riser", "downer", "sweep", "reverse", "glitch"],
 };
 
 export const FAMILIES = Object.keys(TAXONOMY);
@@ -46,10 +46,10 @@ export const ASSET_TYPES = ["one-shot", "loop", "preset", "derived"];
  * depending on the type — which the browser's role filter cannot show.
  */
 export const LOOP_TAXONOMY = {
-	drums: ["full-loop", "top-loop", "percussion-loop"],
-	bass: ["bassline"],
-	tonal: ["chord-loop", "melodic-loop"],
-	texture: ["atmosphere-loop"],
+  drums: ["full-loop", "top-loop", "percussion-loop"],
+  bass: ["bassline"],
+  tonal: ["chord-loop", "melodic-loop"],
+  texture: ["atmosphere-loop"],
 };
 
 /** Loop time signatures the grid checker accepts. */
@@ -72,11 +72,11 @@ export const PRESET_KINDS = ["drum-kit", "instrument", "device-chain"];
 export const DERIVATIONS = ["reverse", "half-speed", "octave-down"];
 
 export function isKnownRole(family, role) {
-	return TAXONOMY[family]?.includes(role) ?? false;
+  return TAXONOMY[family]?.includes(role) ?? false;
 }
 
 export function isKnownLoopRole(family, role) {
-	return LOOP_TAXONOMY[family]?.includes(role) ?? false;
+  return LOOP_TAXONOMY[family]?.includes(role) ?? false;
 }
 
 /**
@@ -85,13 +85,13 @@ export function isKnownLoopRole(family, role) {
  * roles here and nothing else.
  */
 export function isKnownRoleForType(type, family, role) {
-	if (type === "loop") return isKnownLoopRole(family, role);
-	if (type === "preset") return PRESET_KINDS.includes(role);
-	// A derived master keeps its source's family and role, so it is checked
-	// against whichever tree that source came from.
-	if (type === "derived")
-		return isKnownRole(family, role) || isKnownLoopRole(family, role);
-	return isKnownRole(family, role);
+  if (type === "loop") return isKnownLoopRole(family, role);
+  if (type === "preset") return PRESET_KINDS.includes(role);
+  // A derived master keeps its source's family and role, so it is checked
+  // against whichever tree that source came from.
+  if (type === "derived")
+    return isKnownRole(family, role) || isKnownLoopRole(family, role);
+  return isKnownRole(family, role);
 }
 
 /**
@@ -101,49 +101,49 @@ export function isKnownRoleForType(type, family, role) {
  * Covers every genre PRD LIB-02 names as required.
  */
 export const GENRES = [
-	"house",
-	"techno",
-	"hip-hop",
-	"trap",
-	"drum-and-bass",
-	"jungle",
-	"dubstep",
-	"ambient",
-	"lofi",
-	"trance",
-	"uk-garage",
-	"breakbeat",
-	"electronic-pop",
+  "house",
+  "techno",
+  "hip-hop",
+  "trap",
+  "drum-and-bass",
+  "jungle",
+  "dubstep",
+  "ambient",
+  "lofi",
+  "trance",
+  "uk-garage",
+  "breakbeat",
+  "electronic-pop",
 ];
 
 /** Audible qualities, kept separate from genre and from mood. */
 export const CHARACTERS = [
-	"abrasive",
-	"bright",
-	"clean",
-	"dark",
-	"deep",
-	"distorted",
-	"dry",
-	"experimental",
-	"glassy",
-	"gritty",
-	"layered",
-	"long",
-	"metallic",
-	"noisy",
-	"organic",
-	"punchy",
-	"resonant",
-	"roomy",
-	"round",
-	"short",
-	"soft",
-	"sub-heavy",
-	"tight",
-	"tuned",
-	"warm",
-	"wooden",
+  "abrasive",
+  "bright",
+  "clean",
+  "dark",
+  "deep",
+  "distorted",
+  "dry",
+  "experimental",
+  "glassy",
+  "gritty",
+  "layered",
+  "long",
+  "metallic",
+  "noisy",
+  "organic",
+  "punchy",
+  "resonant",
+  "roomy",
+  "round",
+  "short",
+  "soft",
+  "sub-heavy",
+  "tight",
+  "tuned",
+  "warm",
+  "wooden",
 ];
 
 export const INTENSITIES = ["low", "medium", "high", "extreme"];
@@ -154,12 +154,12 @@ export const INTENSITIES = ["low", "medium", "high", "extreme"];
  * commissioned content when `CNT-002` adds it.
  */
 export const SOURCE_TYPES = [
-	"synthesized",
-	"recorded",
-	"field-recording",
-	"resampled",
-	"processed",
-	"commissioned",
+  "synthesized",
+  "recorded",
+  "field-recording",
+  "resampled",
+  "processed",
+  "commissioned",
 ];
 
 /**

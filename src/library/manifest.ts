@@ -63,10 +63,10 @@ export const PACK_INDEX_KEY = "packs/index.json";
  * Hosting artefact, which is what issue #226 reported.
  */
 export function resolveLibraryBucket(
-	raw: string | undefined = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  raw: string | undefined = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
 ): string | null {
-	const bucket = raw?.trim();
-	return bucket ? bucket : null;
+  const bucket = raw?.trim();
+  return bucket ? bucket : null;
 }
 
 /** The bucket this page load delivers the library from. */
@@ -82,10 +82,10 @@ export const libraryBucket: string | null = resolveLibraryBucket();
  * site.
  */
 export function libraryKey(path: string): string {
-	const trimmed = path.replace(/^\/+/, "");
-	for (const prefix of [`${STORAGE_PREFIX}/`, `${LIBRARY_ROOT}/`])
-		if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length);
-	return trimmed;
+  const trimmed = path.replace(/^\/+/, "");
+  for (const prefix of [`${STORAGE_PREFIX}/`, `${LIBRARY_ROOT}/`])
+    if (trimmed.startsWith(prefix)) return trimmed.slice(prefix.length);
+  return trimmed;
 }
 
 /**
@@ -99,14 +99,11 @@ export function libraryKey(path: string): string {
  * rules. The object path is a single encoded path segment, so its slashes are
  * escaped.
  */
-export function libraryUrl(
-	key: string,
-	bucket: string | null = libraryBucket,
-): string {
-	const normalized = libraryKey(key);
-	if (!bucket) return `/${LIBRARY_ROOT}/${normalized}`;
-	const object = encodeURIComponent(`${STORAGE_PREFIX}/${normalized}`);
-	return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${object}?alt=media`;
+export function libraryUrl(key: string, bucket: string | null = libraryBucket): string {
+  const normalized = libraryKey(key);
+  if (!bucket) return `/${LIBRARY_ROOT}/${normalized}`;
+  const object = encodeURIComponent(`${STORAGE_PREFIX}/${normalized}`);
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${object}?alt=media`;
 }
 
 /** The pack index URL for this page load's delivery origin. */
@@ -114,7 +111,7 @@ export const PACK_INDEX_PATH = libraryUrl(PACK_INDEX_KEY);
 
 /** The immutable manifest URL for one pack version. */
 export function packManifestPath(slug: string, version: string): string {
-	return libraryUrl(`packs/${slug}/v${version}.json`);
+  return libraryUrl(`packs/${slug}/v${version}.json`);
 }
 
 /**
@@ -132,43 +129,41 @@ export function packManifestPath(slug: string, version: string): string {
  * reads the library from. The two coincide only under same-origin delivery.
  */
 export function assetStorageRef(storageKey: string): string {
-	return `${LIBRARY_ROOT}/audio/${storageKey}`;
+  return `${LIBRARY_ROOT}/audio/${storageKey}`;
 }
 
 /** The URL an asset's master audio is fetched from, for this page load. */
 export function assetAudioUrl(storageKey: string): string {
-	return libraryUrl(`audio/${storageKey}`);
+  return libraryUrl(`audio/${storageKey}`);
 }
 
 // ---------------------------------------------------------------------------
 // Wire schemas
 // ---------------------------------------------------------------------------
 
-const slug = z
-	.string()
-	.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Expected a kebab-case slug");
+const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Expected a kebab-case slug");
 const version = z
-	.string()
-	.regex(/^\d+\.\d+\.\d+$/, "Expected a major.minor.patch version");
+  .string()
+  .regex(/^\d+\.\d+\.\d+$/, "Expected a major.minor.patch version");
 
 /** One row of the pack index. Enough to list and open a pack, no assets. */
 export const packIndexEntrySchema = z.object({
-	id: packIdSchema,
-	slug,
-	name: z.string().min(1),
-	version,
-	publisher: z.string().min(1),
-	kind: z.enum(["factory", "user", "third-party"]),
-	description: z.string(),
-	assetCount: z.number().int().min(0),
-	manifestPath: z.string().min(1),
+  id: packIdSchema,
+  slug,
+  name: z.string().min(1),
+  version,
+  publisher: z.string().min(1),
+  kind: z.enum(["factory", "user", "third-party"]),
+  description: z.string(),
+  assetCount: z.number().int().min(0),
+  manifestPath: z.string().min(1),
 });
 export type PackIndexEntry = z.infer<typeof packIndexEntrySchema>;
 
 export const packIndexSchema = z.object({
-	schemaVersion: z.number().int(),
-	generatedAt: z.string(),
-	packs: z.array(packIndexEntrySchema),
+  schemaVersion: z.number().int(),
+  generatedAt: z.string(),
+  packs: z.array(packIndexEntrySchema),
 });
 export type PackIndex = z.infer<typeof packIndexSchema>;
 
@@ -182,58 +177,58 @@ export const LIBRARY_ASSET_TYPES = ["one-shot", "loop", "preset"] as const;
 export type LibraryAssetType = (typeof LIBRARY_ASSET_TYPES)[number];
 
 const manifestAssetSchema = z.object({
-	id: z.string().min(1),
-	name: z.string().min(1),
-	type: z.enum(["one-shot", "loop", "preset", "derived"]),
-	family: z.string().min(1),
-	role: z.string().min(1),
-	pack: z.object({ id: packIdSchema, version }),
-	tags: z.object({
-		genres: z.array(z.string()),
-		characters: z.array(z.string()),
-		intensity: z.string().nullable().optional(),
-		sourceTypes: z.array(z.string()).optional(),
-	}),
-	files: z
-		.object({
-			master: z
-				.object({
-					storageKey: z.string().min(1),
-					format: z.string().min(1).optional(),
-				})
-				.nullish(),
-		})
-		.nullish(),
-	// The rights position the asset was delivered under. A project that carries
-	// this sound records it as the asset's provenance licence, so what a producer
-	// may do with an exported track is answerable from the project alone rather
-	// than by re-reading the manifest it came from (LIB-05).
-	license: z.object({ id: z.string().min(1) }).nullish(),
-	// A preset carries no audio of its own, so `audio` is `null` for it — accept
-	// null as readily as absent so a preset does not fail the whole manifest.
-	audio: z
-		.object({
-			durationSeconds: z.number().nullish(),
-			sampleRate: z.number().nullish(),
-			channels: z.number().nullish(),
-			bpm: z.number().nullish(),
-		})
-		.nullish(),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.enum(["one-shot", "loop", "preset", "derived"]),
+  family: z.string().min(1),
+  role: z.string().min(1),
+  pack: z.object({ id: packIdSchema, version }),
+  tags: z.object({
+    genres: z.array(z.string()),
+    characters: z.array(z.string()),
+    intensity: z.string().nullable().optional(),
+    sourceTypes: z.array(z.string()).optional(),
+  }),
+  files: z
+    .object({
+      master: z
+        .object({
+          storageKey: z.string().min(1),
+          format: z.string().min(1).optional(),
+        })
+        .nullish(),
+    })
+    .nullish(),
+  // The rights position the asset was delivered under. A project that carries
+  // this sound records it as the asset's provenance licence, so what a producer
+  // may do with an exported track is answerable from the project alone rather
+  // than by re-reading the manifest it came from (LIB-05).
+  license: z.object({ id: z.string().min(1) }).nullish(),
+  // A preset carries no audio of its own, so `audio` is `null` for it — accept
+  // null as readily as absent so a preset does not fail the whole manifest.
+  audio: z
+    .object({
+      durationSeconds: z.number().nullish(),
+      sampleRate: z.number().nullish(),
+      channels: z.number().nullish(),
+      bpm: z.number().nullish(),
+    })
+    .nullish(),
 });
 
 export const packManifestSchema = z.object({
-	schemaVersion: z.number().int(),
-	pack: z.object({
-		id: packIdSchema,
-		slug,
-		name: z.string().min(1),
-		version,
-		publisher: z.string().min(1),
-		kind: z.enum(["factory", "user", "third-party"]),
-		description: z.string(),
-		assetCount: z.number().int().min(0),
-	}),
-	assets: z.array(manifestAssetSchema),
+  schemaVersion: z.number().int(),
+  pack: z.object({
+    id: packIdSchema,
+    slug,
+    name: z.string().min(1),
+    version,
+    publisher: z.string().min(1),
+    kind: z.enum(["factory", "user", "third-party"]),
+    description: z.string(),
+    assetCount: z.number().int().min(0),
+  }),
+  assets: z.array(manifestAssetSchema),
 });
 export type PackManifest = z.infer<typeof packManifestSchema>;
 
@@ -247,84 +242,80 @@ export type PackManifest = z.infer<typeof packManifestSchema>;
  * plus its owning pack, so the browser never re-reads the wire shape.
  */
 export interface LibraryAsset {
-	readonly id: string;
-	readonly name: string;
-	readonly type: LibraryAssetType;
-	readonly family: string;
-	readonly role: string;
-	readonly genres: readonly string[];
-	readonly characters: readonly string[];
-	/** Owning pack, always present — asset identity is pack-qualified (invariant 12). */
-	readonly packId: string;
-	readonly packSlug: string;
-	readonly packName: string;
-	readonly packVersion: string;
-	/** Absolute audio URL, or `null` when the manifest carried no master file. */
-	readonly url: string | null;
-	readonly storageKey: string | null;
-	/** Delivered rights position, or `null` when the manifest stated none. */
-	readonly licence: string | null;
-	readonly durationSeconds: number | null;
-	readonly sampleRate: number | null;
-	readonly channelCount: number | null;
-	readonly bpm: number | null;
+  readonly id: string;
+  readonly name: string;
+  readonly type: LibraryAssetType;
+  readonly family: string;
+  readonly role: string;
+  readonly genres: readonly string[];
+  readonly characters: readonly string[];
+  /** Owning pack, always present — asset identity is pack-qualified (invariant 12). */
+  readonly packId: string;
+  readonly packSlug: string;
+  readonly packName: string;
+  readonly packVersion: string;
+  /** Absolute audio URL, or `null` when the manifest carried no master file. */
+  readonly url: string | null;
+  readonly storageKey: string | null;
+  /** Delivered rights position, or `null` when the manifest stated none. */
+  readonly licence: string | null;
+  readonly durationSeconds: number | null;
+  readonly sampleRate: number | null;
+  readonly channelCount: number | null;
+  readonly bpm: number | null;
 }
 
 /** A pack as the index lists it, before its manifest is fetched. */
 export interface LibraryPackSummary {
-	readonly id: string;
-	readonly slug: string;
-	readonly name: string;
-	readonly version: string;
-	readonly publisher: string;
-	readonly kind: "factory" | "user" | "third-party";
-	readonly description: string;
-	readonly assetCount: number;
-	readonly manifestPath: string;
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly version: string;
+  readonly publisher: string;
+  readonly kind: "factory" | "user" | "third-party";
+  readonly description: string;
+  readonly assetCount: number;
+  readonly manifestPath: string;
 }
 
 /** Maps the generator's four wire types onto the three the browser shows. */
 function browserAssetType(
-	wireType: z.infer<typeof manifestAssetSchema>["type"],
-	family: string,
+  wireType: z.infer<typeof manifestAssetSchema>["type"],
+  family: string,
 ): LibraryAssetType {
-	if (wireType === "loop") return "loop";
-	if (wireType === "preset") return "preset";
-	// A `one-shot` is a one-shot; a `derived` master keeps its source family, so
-	// it is a one-shot too unless it derived from a loop (which today it never
-	// does — derived masters are one-shot transforms). Grouping it here means the
-	// type filter has no unreachable bucket.
-	if (wireType === "derived" && family === "loop") return "loop";
-	return "one-shot";
+  if (wireType === "loop") return "loop";
+  if (wireType === "preset") return "preset";
+  // A `one-shot` is a one-shot; a `derived` master keeps its source family, so
+  // it is a one-shot too unless it derived from a loop (which today it never
+  // does — derived masters are one-shot transforms). Grouping it here means the
+  // type filter has no unreachable bucket.
+  if (wireType === "derived" && family === "loop") return "loop";
+  return "one-shot";
 }
 
 /** Parse a fetched pack index, throwing a readable error when it is malformed. */
 export function parsePackIndex(value: unknown): PackIndex {
-	return packIndexSchema.parse(value);
+  return packIndexSchema.parse(value);
 }
 
 /** The index rows as {@link LibraryPackSummary}, in the order the index lists them. */
 export function packSummaries(index: PackIndex): LibraryPackSummary[] {
-	return index.packs.map((entry) => ({
-		id: entry.id,
-		slug: entry.slug,
-		name: entry.name,
-		version: entry.version,
-		publisher: entry.publisher,
-		kind: entry.kind,
-		description: entry.description,
-		assetCount: entry.assetCount,
-		// The index states `manifestPath` in its publisher's own terms — root
-		// relative from `build.mjs`, a `library/…` object key from `upload.mjs` —
-		// so resolve it to a full delivery URL here. Fetching it verbatim would
-		// ask a SPA server for `/packs/...` and get `index.html` back: a 200 with
-		// a non-JSON body, reported as "corrupt" (issue #226).
-		manifestPath: resolveManifestPath(
-			entry.manifestPath,
-			entry.slug,
-			entry.version,
-		),
-	}));
+  return index.packs.map((entry) => ({
+    id: entry.id,
+    slug: entry.slug,
+    name: entry.name,
+    version: entry.version,
+    publisher: entry.publisher,
+    kind: entry.kind,
+    description: entry.description,
+    assetCount: entry.assetCount,
+    // The index states `manifestPath` in its publisher's own terms — root
+    // relative from `build.mjs`, a `library/…` object key from `upload.mjs` —
+    // so resolve it to a full delivery URL here. Fetching it verbatim would
+    // ask a SPA server for `/packs/...` and get `index.html` back: a 200 with
+    // a non-JSON body, reported as "corrupt" (issue #226).
+    manifestPath: resolveManifestPath(entry.manifestPath, entry.slug, entry.version),
+  }));
 }
 
 /**
@@ -333,43 +324,43 @@ export function packSummaries(index: PackIndex): LibraryPackSummary[] {
  * rooted — and falls back to the canonical layout when the index omits it.
  */
 function resolveManifestPath(
-	manifestPath: string | undefined,
-	slug: string,
-	version: string,
+  manifestPath: string | undefined,
+  slug: string,
+  version: string,
 ): string {
-	if (!manifestPath) return packManifestPath(slug, version);
-	return libraryUrl(manifestPath);
+  if (!manifestPath) return packManifestPath(slug, version);
+  return libraryUrl(manifestPath);
 }
 
 /** Parse a fetched pack manifest, throwing when it is malformed. */
 export function parsePackManifest(value: unknown): PackManifest {
-	return packManifestSchema.parse(value);
+  return packManifestSchema.parse(value);
 }
 
 /** The manifest's assets as {@link LibraryAsset}, resolved against its pack. */
 export function packAssets(manifest: PackManifest): LibraryAsset[] {
-	const { pack } = manifest;
-	return manifest.assets.map((asset) => {
-		const storageKey = asset.files?.master?.storageKey ?? null;
-		return {
-			id: asset.id,
-			name: asset.name,
-			type: browserAssetType(asset.type, asset.family),
-			family: asset.family,
-			role: asset.role,
-			genres: asset.tags.genres,
-			characters: asset.tags.characters,
-			packId: pack.id,
-			packSlug: pack.slug,
-			packName: pack.name,
-			packVersion: pack.version,
-			url: storageKey ? assetAudioUrl(storageKey) : null,
-			storageKey,
-			licence: asset.license?.id ?? null,
-			durationSeconds: asset.audio?.durationSeconds ?? null,
-			sampleRate: asset.audio?.sampleRate ?? null,
-			channelCount: asset.audio?.channels ?? null,
-			bpm: asset.audio?.bpm ?? null,
-		};
-	});
+  const { pack } = manifest;
+  return manifest.assets.map((asset) => {
+    const storageKey = asset.files?.master?.storageKey ?? null;
+    return {
+      id: asset.id,
+      name: asset.name,
+      type: browserAssetType(asset.type, asset.family),
+      family: asset.family,
+      role: asset.role,
+      genres: asset.tags.genres,
+      characters: asset.tags.characters,
+      packId: pack.id,
+      packSlug: pack.slug,
+      packName: pack.name,
+      packVersion: pack.version,
+      url: storageKey ? assetAudioUrl(storageKey) : null,
+      storageKey,
+      licence: asset.license?.id ?? null,
+      durationSeconds: asset.audio?.durationSeconds ?? null,
+      sampleRate: asset.audio?.sampleRate ?? null,
+      channelCount: asset.audio?.channels ?? null,
+      bpm: asset.audio?.bpm ?? null,
+    };
+  });
 }

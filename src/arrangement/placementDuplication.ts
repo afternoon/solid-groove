@@ -31,10 +31,10 @@ import type { Clip, Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
 import { toTicks } from "../domain/time";
 import {
-	clampTick,
-	findClip,
-	findPlacement,
-	MAX_ARRANGEMENT_TICKS,
+  clampTick,
+  findClip,
+  findPlacement,
+  MAX_ARRANGEMENT_TICKS,
 } from "./placementGeometry";
 
 /**
@@ -52,15 +52,15 @@ export type DuplicateMode = "linked" | "independent";
  * takes, so the label and the behavior cannot drift apart.
  */
 export function describeDuplicate(mode: DuplicateMode): string {
-	return mode === "linked"
-		? "Duplicate as a linked copy — editing either occurrence changes both"
-		: "Duplicate as an independent copy — the new clip can be edited on its own";
+  return mode === "linked"
+    ? "Duplicate as a linked copy — editing either occurrence changes both"
+    : "Duplicate as an independent copy — the new clip can be edited on its own";
 }
 
 export interface DuplicateResult {
-	readonly commands: RawCommandInput[];
-	/** The new placement's ID, so a caller can select what it just created. */
-	readonly placementId: PlacementId | null;
+  readonly commands: RawCommandInput[];
+  /** The new placement's ID, so a caller can select what it just created. */
+  readonly placementId: PlacementId | null;
 }
 
 /**
@@ -74,59 +74,57 @@ export interface DuplicateResult {
  * second command were to be rejected.
  */
 export function duplicatePlacement(
-	project: Project,
-	placementId: PlacementId,
-	mode: DuplicateMode,
-	ids: IdFactory,
+  project: Project,
+  placementId: PlacementId,
+  mode: DuplicateMode,
+  ids: IdFactory,
 ): DuplicateResult {
-	const placement = findPlacement(project, placementId);
-	if (!placement) return { commands: [], placementId: null };
-	const startTicks = toTicks(
-		clampTick(placement.startTicks + placement.durationTicks),
-	);
-	// A duplicate that would land beyond the guaranteed bound is refused rather
-	// than silently stacked on top of its source.
-	if (startTicks + placement.durationTicks > MAX_ARRANGEMENT_TICKS) {
-		return { commands: [], placementId: null };
-	}
+  const placement = findPlacement(project, placementId);
+  if (!placement) return { commands: [], placementId: null };
+  const startTicks = toTicks(clampTick(placement.startTicks + placement.durationTicks));
+  // A duplicate that would land beyond the guaranteed bound is refused rather
+  // than silently stacked on top of its source.
+  if (startTicks + placement.durationTicks > MAX_ARRANGEMENT_TICKS) {
+    return { commands: [], placementId: null };
+  }
 
-	const newPlacementId = ids("placement");
-	const commands: RawCommandInput[] = [];
-	let clipId = placement.clipId;
+  const newPlacementId = ids("placement");
+  const commands: RawCommandInput[] = [];
+  let clipId = placement.clipId;
 
-	if (mode === "independent") {
-		const source = findClip(project, placement.clipId);
-		if (!source) return { commands: [], placementId: null };
-		const copy = copyClip(source, ids);
-		clipId = copy.id;
-		commands.push(addClip(copy));
-	}
+  if (mode === "independent") {
+    const source = findClip(project, placement.clipId);
+    if (!source) return { commands: [], placementId: null };
+    const copy = copyClip(source, ids);
+    clipId = copy.id;
+    commands.push(addClip(copy));
+  }
 
-	commands.push(
-		addPlacement({
-			...placement,
-			id: newPlacementId,
-			clipId,
-			startTicks,
-		}),
-	);
-	return { commands, placementId: newPlacementId };
+  commands.push(
+    addPlacement({
+      ...placement,
+      id: newPlacementId,
+      clipId,
+      startTicks,
+    }),
+  );
+  return { commands, placementId: newPlacementId };
 }
 
 /** A deep copy of a clip with fresh IDs throughout — never a shared reference. */
 export function copyClip(clip: Clip, ids: IdFactory): Clip {
-	return {
-		...clip,
-		id: ids("clip"),
-		content:
-			clip.content.kind === "notes"
-				? {
-						...clip.content,
-						events: clip.content.events.map((event) => ({
-							...event,
-							id: ids("event"),
-						})),
-					}
-				: { ...clip.content },
-	};
+  return {
+    ...clip,
+    id: ids("clip"),
+    content:
+      clip.content.kind === "notes"
+        ? {
+            ...clip.content,
+            events: clip.content.events.map((event) => ({
+              ...event,
+              id: ids("event"),
+            })),
+          }
+        : { ...clip.content },
+  };
 }

@@ -18,100 +18,100 @@ const green = (text) => `[32m${text}[0m`;
 const yellow = (text) => `[33m${text}[0m`;
 
 function state() {
-	const built = existsSync(join(DEFAULT_OUT_DIR, "manifests"));
-	const entriesPath = join(ACQUIRED_DIR, "entries.json");
-	let acquired = 0;
-	if (existsSync(entriesPath)) {
-		try {
-			acquired = JSON.parse(readFileSync(entriesPath, "utf8")).length;
-		} catch {
-			acquired = 0;
-		}
-	}
-	let pinned = 0;
-	try {
-		pinned = readLockfile().selections.length;
-	} catch {
-		pinned = 0;
-	}
-	return { built, acquired, pinned };
+  const built = existsSync(join(DEFAULT_OUT_DIR, "manifests"));
+  const entriesPath = join(ACQUIRED_DIR, "entries.json");
+  let acquired = 0;
+  if (existsSync(entriesPath)) {
+    try {
+      acquired = JSON.parse(readFileSync(entriesPath, "utf8")).length;
+    } catch {
+      acquired = 0;
+    }
+  }
+  let pinned = 0;
+  try {
+    pinned = readLockfile().selections.length;
+  } catch {
+    pinned = 0;
+  }
+  return { built, acquired, pinned };
 }
 
 export function helpText() {
-	const { built, acquired, pinned } = state();
-	const mark = (ok) => (ok ? green("✓") : yellow("·"));
+  const { built, acquired, pinned } = state();
+  const mark = (ok) => (ok ? green("✓") : yellow("·"));
 
-	return [
-		"",
-		bold("  Solid Groove sound library"),
-		dim("  docs/sample-library.md section 15 · PRD LIB-00"),
-		"",
-		bold("  Right now"),
-		`    ${mark(built)} synthesized library rendered to disk   ${dim(built ? DEFAULT_OUT_DIR : "not built yet")}`,
-		`    ${mark(pinned > 0)} CC0 selections pinned                 ${dim(`${pinned} in sources.lock.json`)}`,
-		`    ${mark(acquired > 0)} CC0 content ingested                  ${dim(`${acquired} assets`)}`,
-		"",
-		bold("  Generate and listen before you upload"),
-		"",
-		`    ${bold("1.")} ${green("bun run library:build")}`,
-		"       Renders the synthesized one-shots, loops, presets, and derived",
-		"       masters, and their per-pack manifests and pack index, into",
-		`       ${dim("public/samples/starter-library/")} (gitignored). Merges anything`,
-		"       already acquired. ~20s. Add --force to re-render from scratch.",
-		"",
-		`    ${bold("2.")} ${green("bun run library:audition")}`,
-		`       Serves everything at ${dim("http://127.0.0.1:4180")} — search, filter by`,
-		"       family/role/genre/character, arrow keys to move and play.",
-		"       Served from memory, so you hear exactly what would be published.",
-		"       This is the step that catches a sound that validates but is wrong.",
-		"",
-		`    ${bold("3.")} ${green("bun run library:validate")}`,
-		"       Renders and runs every manifest rule without writing anything:",
-		"       checksums, rights, audio metadata, role and genre coverage, the",
-		"       section 6.4 balance floors, and the metadata payload budget.",
-		"       This is the CI gate — if it passes here it passes there.",
-		"",
-		`    ${bold("4.")} ${green("bun run library:upload -- --dry-run")}`,
-		"       Prints every object, its cache headers, and the total payload.",
-		"       No network, no credentials, nothing written.",
-		"",
-		`    ${bold("5.")} ${green("bun run library:upload")}`,
-		`       Publishes to Cloud Storage. Idempotent — re-running uploads only`,
-		"       what changed. Needs FIREBASE_STORAGE_BUCKET and a credential;",
-		`       see ${dim(".env.example")}. Add --configure-bucket to apply CORS.`,
-		"",
-		bold("  Adding CC0 content"),
-		"",
-		`    ${green("bun run library:manage")}              review candidate pages, verify selections`,
-		`    ${green("bun run library:acquire -- --plan")}   approved sources and what is pinned`,
-		`    ${green("bun run library:acquire -- --pin")}    download declared files, record checksums`,
-		`    ${green("bun run library:acquire")}             verify, prepare, and ingest`,
-		`    ${green("bun run library:vcsl")}                bulk-ingest the CC0 VCSL subset`,
-		"",
-		`    ${bold("library:manage")} opens a local review UI (${dim("http://127.0.0.1:4181")}): it`,
-		`    steps through the ~1000 candidate pages in ${dim("acquire/candidates.json")}, shows`,
-		"    each with its guessed metadata and a licence-confidence tier, and on Verify",
-		"    writes a draft selection. Selections are reviewed by a person, never crawled.",
-		`    Regenerate the candidate list with ${green("bun run library:candidates")}.`,
-		`    Then ${green("--pin")} records checksums; review, commit, and re-run step 1 to merge.`,
-		"",
-		`    ${bold("library:vcsl")} is the exception: VCSL is CC0 library-wide, so it is`,
-		"    bulk-ingested (clone → ingest a curated subset → delete the clone), not",
-		"    auditioned page-by-page. Then re-run step 1 to merge it in.",
-		"",
-		bold("  Checking your changes"),
-		"",
-		`    ${green("bun run library:emit-runtime")}   refresh the manifest the app resolves against`,
-		"    Writes src/library/factoryLibrary.generated.ts and the audio it names.",
-		"    Runs automatically from `bun run samples` (predev/prebuild/pretest).",
-		"",
-		`    ${green("bun run library:test")}   the library suites only (fast)`,
-		`    ${green("bun run test")}           every unit and component suite`,
-		`    ${green("bun run check")}          typecheck, lint, and format`,
-		"",
-	].join("\n");
+  return [
+    "",
+    bold("  Solid Groove sound library"),
+    dim("  docs/sample-library.md section 15 · PRD LIB-00"),
+    "",
+    bold("  Right now"),
+    `    ${mark(built)} synthesized library rendered to disk   ${dim(built ? DEFAULT_OUT_DIR : "not built yet")}`,
+    `    ${mark(pinned > 0)} CC0 selections pinned                 ${dim(`${pinned} in sources.lock.json`)}`,
+    `    ${mark(acquired > 0)} CC0 content ingested                  ${dim(`${acquired} assets`)}`,
+    "",
+    bold("  Generate and listen before you upload"),
+    "",
+    `    ${bold("1.")} ${green("bun run library:build")}`,
+    "       Renders the synthesized one-shots, loops, presets, and derived",
+    "       masters, and their per-pack manifests and pack index, into",
+    `       ${dim("public/samples/starter-library/")} (gitignored). Merges anything`,
+    "       already acquired. ~20s. Add --force to re-render from scratch.",
+    "",
+    `    ${bold("2.")} ${green("bun run library:audition")}`,
+    `       Serves everything at ${dim("http://127.0.0.1:4180")} — search, filter by`,
+    "       family/role/genre/character, arrow keys to move and play.",
+    "       Served from memory, so you hear exactly what would be published.",
+    "       This is the step that catches a sound that validates but is wrong.",
+    "",
+    `    ${bold("3.")} ${green("bun run library:validate")}`,
+    "       Renders and runs every manifest rule without writing anything:",
+    "       checksums, rights, audio metadata, role and genre coverage, the",
+    "       section 6.4 balance floors, and the metadata payload budget.",
+    "       This is the CI gate — if it passes here it passes there.",
+    "",
+    `    ${bold("4.")} ${green("bun run library:upload -- --dry-run")}`,
+    "       Prints every object, its cache headers, and the total payload.",
+    "       No network, no credentials, nothing written.",
+    "",
+    `    ${bold("5.")} ${green("bun run library:upload")}`,
+    `       Publishes to Cloud Storage. Idempotent — re-running uploads only`,
+    "       what changed. Needs FIREBASE_STORAGE_BUCKET and a credential;",
+    `       see ${dim(".env.example")}. Add --configure-bucket to apply CORS.`,
+    "",
+    bold("  Adding CC0 content"),
+    "",
+    `    ${green("bun run library:manage")}              review candidate pages, verify selections`,
+    `    ${green("bun run library:acquire -- --plan")}   approved sources and what is pinned`,
+    `    ${green("bun run library:acquire -- --pin")}    download declared files, record checksums`,
+    `    ${green("bun run library:acquire")}             verify, prepare, and ingest`,
+    `    ${green("bun run library:vcsl")}                bulk-ingest the CC0 VCSL subset`,
+    "",
+    `    ${bold("library:manage")} opens a local review UI (${dim("http://127.0.0.1:4181")}): it`,
+    `    steps through the ~1000 candidate pages in ${dim("acquire/candidates.json")}, shows`,
+    "    each with its guessed metadata and a licence-confidence tier, and on Verify",
+    "    writes a draft selection. Selections are reviewed by a person, never crawled.",
+    `    Regenerate the candidate list with ${green("bun run library:candidates")}.`,
+    `    Then ${green("--pin")} records checksums; review, commit, and re-run step 1 to merge.`,
+    "",
+    `    ${bold("library:vcsl")} is the exception: VCSL is CC0 library-wide, so it is`,
+    "    bulk-ingested (clone → ingest a curated subset → delete the clone), not",
+    "    auditioned page-by-page. Then re-run step 1 to merge it in.",
+    "",
+    bold("  Checking your changes"),
+    "",
+    `    ${green("bun run library:emit-runtime")}   refresh the manifest the app resolves against`,
+    "    Writes src/library/factoryLibrary.generated.ts and the audio it names.",
+    "    Runs automatically from `bun run samples` (predev/prebuild/pretest).",
+    "",
+    `    ${green("bun run library:test")}   the library suites only (fast)`,
+    `    ${green("bun run test")}           every unit and component suite`,
+    `    ${green("bun run check")}          typecheck, lint, and format`,
+    "",
+  ].join("\n");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-	console.log(helpText());
+  console.log(helpText());
 }

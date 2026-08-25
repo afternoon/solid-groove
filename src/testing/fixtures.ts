@@ -17,33 +17,29 @@
 
 import type { RawProjectDocuments } from "../persistence/documents";
 
-const isNodeRuntime =
-	typeof process !== "undefined" && !!process.versions?.node;
+const isNodeRuntime = typeof process !== "undefined" && !!process.versions?.node;
 
 /** Reads and parses a JSON fixture from `public/fixtures/<relativePath>`. */
 export async function loadFixtureJson<T>(relativePath: string): Promise<T> {
-	if (isNodeRuntime) {
-		const { readFile } = await import("node:fs/promises");
-		const { fileURLToPath } = await import("node:url");
-		// `import.meta.url` is read into a local first: some runtimes evaluate
-		// `import.meta.url` inline as an accessor, and passing that access
-		// expression directly as `new URL()`'s second argument has been
-		// observed to resolve against an empty base under Bun's Vite module
-		// runner. Capturing the value first keeps resolution deterministic.
-		const moduleUrl = import.meta.url;
-		const fixtureUrl = new URL(
-			`../../public/fixtures/${relativePath}`,
-			moduleUrl,
-		);
-		const path = fileURLToPath(fixtureUrl);
-		return JSON.parse(await readFile(path, "utf8")) as T;
-	}
+  if (isNodeRuntime) {
+    const { readFile } = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    // `import.meta.url` is read into a local first: some runtimes evaluate
+    // `import.meta.url` inline as an accessor, and passing that access
+    // expression directly as `new URL()`'s second argument has been
+    // observed to resolve against an empty base under Bun's Vite module
+    // runner. Capturing the value first keeps resolution deterministic.
+    const moduleUrl = import.meta.url;
+    const fixtureUrl = new URL(`../../public/fixtures/${relativePath}`, moduleUrl);
+    const path = fileURLToPath(fixtureUrl);
+    return JSON.parse(await readFile(path, "utf8")) as T;
+  }
 
-	const response = await fetch(`/fixtures/${relativePath}`);
-	if (!response.ok) {
-		throw new Error(`Fixture not found: ${relativePath} (${response.status})`);
-	}
-	return (await response.json()) as T;
+  const response = await fetch(`/fixtures/${relativePath}`);
+  if (!response.ok) {
+    throw new Error(`Fixture not found: ${relativePath} (${response.status})`);
+  }
+  return (await response.json()) as T;
 }
 
 /**
@@ -57,7 +53,7 @@ export async function loadFixtureJson<T>(relativePath: string): Promise<T> {
  * reconstructed by today's encoder.
  */
 export async function loadStoredProjectFixture(
-	fileName: string,
+  fileName: string,
 ): Promise<RawProjectDocuments> {
-	return loadFixtureJson<RawProjectDocuments>(`persistence/${fileName}`);
+  return loadFixtureJson<RawProjectDocuments>(`persistence/${fileName}`);
 }

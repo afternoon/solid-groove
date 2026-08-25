@@ -1,19 +1,45 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.2.5/schema.json",
-	"files": {
-		"includes": [
-			"**",
-			"!.claude",
-			"!.output",
-			"!.vinxi",
-			"!public",
-			"!docs/design",
-			"!playwright-report",
-			"!test-results",
-			"!scripts/starter-library/acquire/candidate-sources",
-			"!scripts/starter-library/acquire/candidates.json",
-			"!src/library/factoryLibrary.generated.ts",
-			"!src/library/__fixtures__/library.generated.ts"
-		]
-	}
+  "$schema": "https://biomejs.dev/schemas/2.2.5/schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!.claude",
+      "!.output",
+      "!.vinxi",
+      "!public",
+      "!docs/design",
+      "!playwright-report",
+      "!test-results",
+      "!scripts/starter-library/acquire/candidate-sources",
+      "!scripts/starter-library/acquire/candidates.json",
+      "!src/library/factoryLibrary.generated.ts",
+      "!src/library/__fixtures__/library.generated.ts"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 90
+  },
+  "linter": {
+    "rules": {
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all"
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
 }

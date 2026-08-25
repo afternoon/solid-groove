@@ -15,58 +15,55 @@
 import type { AnalyticsParamValue } from "./catalog";
 
 export interface AnalyticsTransport {
-	logEvent(
-		name: string,
-		params: Readonly<Record<string, AnalyticsParamValue>>,
-	): void;
-	setUserProperties(properties: Readonly<Record<string, string>>): void;
+  logEvent(name: string, params: Readonly<Record<string, AnalyticsParamValue>>): void;
+  setUserProperties(properties: Readonly<Record<string, string>>): void;
 }
 
 /** Discards everything. The default until a real transport is wired in. */
 export const noopTransport: AnalyticsTransport = {
-	logEvent() {},
-	setUserProperties() {},
+  logEvent() {},
+  setUserProperties() {},
 };
 
 export interface RecordedEvent {
-	readonly name: string;
-	readonly params: Record<string, AnalyticsParamValue>;
+  readonly name: string;
+  readonly params: Record<string, AnalyticsParamValue>;
 }
 
 export interface RecordingTransport extends AnalyticsTransport {
-	readonly events: readonly RecordedEvent[];
-	readonly userProperties: Readonly<Record<string, string>>;
-	/** Events recorded for one name, in order. */
-	named(name: string): readonly RecordedEvent[];
-	reset(): void;
+  readonly events: readonly RecordedEvent[];
+  readonly userProperties: Readonly<Record<string, string>>;
+  /** Events recorded for one name, in order. */
+  named(name: string): readonly RecordedEvent[];
+  reset(): void;
 }
 
 /** An in-memory transport for tests and for the local debug surface. */
 export function createRecordingTransport(): RecordingTransport {
-	const events: RecordedEvent[] = [];
-	let userProperties: Record<string, string> = {};
+  const events: RecordedEvent[] = [];
+  let userProperties: Record<string, string> = {};
 
-	return {
-		get events() {
-			return events;
-		},
-		get userProperties() {
-			return userProperties;
-		},
-		named(name) {
-			return events.filter((event) => event.name === name);
-		},
-		logEvent(name, params) {
-			events.push({ name, params: { ...params } });
-		},
-		setUserProperties(properties) {
-			userProperties = { ...userProperties, ...properties };
-		},
-		reset() {
-			events.length = 0;
-			userProperties = {};
-		},
-	};
+  return {
+    get events() {
+      return events;
+    },
+    get userProperties() {
+      return userProperties;
+    },
+    named(name) {
+      return events.filter((event) => event.name === name);
+    },
+    logEvent(name, params) {
+      events.push({ name, params: { ...params } });
+    },
+    setUserProperties(properties) {
+      userProperties = { ...userProperties, ...properties };
+    },
+    reset() {
+      events.length = 0;
+      userProperties = {};
+    },
+  };
 }
 
 /**
@@ -74,14 +71,14 @@ export function createRecordingTransport(): RecordingTransport {
  * "disabling or blocking analytics leaves every product behavior unchanged".
  */
 export function createFailingTransport(
-	message = "analytics blocked",
+  message = "analytics blocked",
 ): AnalyticsTransport {
-	return {
-		logEvent() {
-			throw new Error(message);
-		},
-		setUserProperties() {
-			throw new Error(message);
-		},
-	};
+  return {
+    logEvent() {
+      throw new Error(message);
+    },
+    setUserProperties() {
+      throw new Error(message);
+    },
+  };
 }

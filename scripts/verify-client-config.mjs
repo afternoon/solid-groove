@@ -29,30 +29,30 @@ const BUILD_DIR = ".output/public";
 // project has no Realtime Database) and `measurementId` (analytics-only, and
 // the app degrades cleanly without it) are deliberately not required.
 const REQUIRED = [
-	{ key: "apiKey", pattern: /^AIza[\w-]{35}$/ },
-	{ key: "authDomain", pattern: /\.firebaseapp\.com$/ },
-	{ key: "projectId", pattern: /^[a-z0-9-]+$/ },
-	{ key: "appId", pattern: /^\d+:\d+:web:[a-f0-9]+$/ },
+  { key: "apiKey", pattern: /^AIza[\w-]{35}$/ },
+  { key: "authDomain", pattern: /\.firebaseapp\.com$/ },
+  { key: "projectId", pattern: /^[a-z0-9-]+$/ },
+  { key: "appId", pattern: /^\d+:\d+:web:[a-f0-9]+$/ },
 ];
 
 function collectJsFiles(dir) {
-	const out = [];
-	for (const entry of readdirSync(dir)) {
-		const path = join(dir, entry);
-		if (statSync(path).isDirectory()) out.push(...collectJsFiles(path));
-		else if (entry.endsWith(".js")) out.push(path);
-	}
-	return out;
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) out.push(...collectJsFiles(path));
+    else if (entry.endsWith(".js")) out.push(path);
+  }
+  return out;
 }
 
 let files;
 try {
-	files = collectJsFiles(BUILD_DIR);
+  files = collectJsFiles(BUILD_DIR);
 } catch {
-	console.error(
-		`verify-client-config: cannot read "${BUILD_DIR}". Run \`bun run build\` first.`,
-	);
-	process.exit(1);
+  console.error(
+    `verify-client-config: cannot read "${BUILD_DIR}". Run \`bun run build\` first.`,
+  );
+  process.exit(1);
 }
 
 // Vite inlines `import.meta.env.X` as a literal, so the built config object
@@ -62,33 +62,33 @@ const haystack = files.map((f) => readFileSync(f, "utf8")).join("\n");
 
 const failures = [];
 for (const { key, pattern } of REQUIRED) {
-	const match = haystack.match(new RegExp(`${key}\\s*:\\s*"([^"]*)"`));
-	if (!match) {
-		failures.push(
-			`${key}: not present in the bundle (built as \`undefined\` -- VITE_FIREBASE_${key
-				.replace(/([A-Z])/g, "_$1")
-				.toUpperCase()} was unset at build time)`,
-		);
-	} else if (!pattern.test(match[1])) {
-		failures.push(`${key}: present but malformed (does not match ${pattern})`);
-	}
+  const match = haystack.match(new RegExp(`${key}\\s*:\\s*"([^"]*)"`));
+  if (!match) {
+    failures.push(
+      `${key}: not present in the bundle (built as \`undefined\` -- VITE_FIREBASE_${key
+        .replace(/([A-Z])/g, "_$1")
+        .toUpperCase()} was unset at build time)`,
+    );
+  } else if (!pattern.test(match[1])) {
+    failures.push(`${key}: present but malformed (does not match ${pattern})`);
+  }
 }
 
 if (failures.length > 0) {
-	console.error(
-		`verify-client-config: the built client in "${BUILD_DIR}" has no usable Firebase configuration.\n`,
-	);
-	for (const failure of failures) console.error(`  - ${failure}`);
-	console.error(
-		"\nThis build would deploy successfully and then fail in the browser with\n" +
-			"`auth/invalid-api-key`. Set the VITE_FIREBASE_* variables on the `prod`\n" +
-			'GitHub environment (see docs/testing.md "Deploy"), then rebuild.\n' +
-			"Note that a job only receives an environment's variables if it declares\n" +
-			"`environment: prod`.",
-	);
-	process.exit(1);
+  console.error(
+    `verify-client-config: the built client in "${BUILD_DIR}" has no usable Firebase configuration.\n`,
+  );
+  for (const failure of failures) console.error(`  - ${failure}`);
+  console.error(
+    "\nThis build would deploy successfully and then fail in the browser with\n" +
+      "`auth/invalid-api-key`. Set the VITE_FIREBASE_* variables on the `prod`\n" +
+      'GitHub environment (see docs/testing.md "Deploy"), then rebuild.\n' +
+      "Note that a job only receives an environment's variables if it declares\n" +
+      "`environment: prod`.",
+  );
+  process.exit(1);
 }
 
 console.log(
-	`verify-client-config: Firebase client configuration present in "${BUILD_DIR}".`,
+  `verify-client-config: Firebase client configuration present in "${BUILD_DIR}".`,
 );

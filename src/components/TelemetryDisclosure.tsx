@@ -1,14 +1,5 @@
-import {
-	type Component,
-	createEffect,
-	createSignal,
-	onCleanup,
-} from "solid-js";
-import {
-	type ConsentState,
-	type ConsentStore,
-	consentStore,
-} from "../analytics/consent";
+import { type Component, createEffect, createSignal, onCleanup } from "solid-js";
+import { type ConsentState, type ConsentStore, consentStore } from "../analytics/consent";
 import "./TelemetryDisclosure.css";
 
 /**
@@ -52,86 +43,80 @@ const [inlineCount, setInlineCount] = createSignal(0);
 export const inlineDisclosureMounted = () => inlineCount() > 0;
 
 const TelemetryDisclosure: Component<{
-	store?: ConsentStore;
-	placement?: "floating" | "inline";
+  store?: ConsentStore;
+  placement?: "floating" | "inline";
 }> = (props) => {
-	const store = props.store ?? consentStore;
-	const [state, setState] = createSignal<ConsentState>(store.current);
-	onCleanup(store.subscribe(setState));
+  const store = props.store ?? consentStore;
+  const [state, setState] = createSignal<ConsentState>(store.current);
+  onCleanup(store.subscribe(setState));
 
-	createEffect(() => {
-		if ((props.placement ?? "floating") !== "inline") return;
-		setInlineCount((count) => count + 1);
-		onCleanup(() => setInlineCount((count) => count - 1));
-	});
+  createEffect(() => {
+    if ((props.placement ?? "floating") !== "inline") return;
+    setInlineCount((count) => count + 1);
+    onCleanup(() => setInlineCount((count) => count - 1));
+  });
 
-	// Any collection at all shows as "on", so the single control never reads as
-	// off while something is still being collected. `optOut()` turns all three
-	// off in one action (ADR 0002 decision 4), which is the whole control the
-	// user has; the flags stay separable for `DEC-009`, not for the UI.
-	const enabled = () =>
-		state().productAnalytics ||
-		state().errorMonitoring ||
-		state().sessionReplay;
+  // Any collection at all shows as "on", so the single control never reads as
+  // off while something is still being collected. `optOut()` turns all three
+  // off in one action (ADR 0002 decision 4), which is the whole control the
+  // user has; the flags stay separable for `DEC-009`, not for the UI.
+  const enabled = () =>
+    state().productAnalytics || state().errorMonitoring || state().sessionReplay;
 
-	const toggle = () => {
-		if (enabled()) {
-			store.optOut();
-		} else {
-			store.optIn();
-		}
-	};
+  const toggle = () => {
+    if (enabled()) {
+      store.optOut();
+    } else {
+      store.optIn();
+    }
+  };
 
-	return (
-		<details
-			class="telemetry-disclosure"
-			classList={{
-				"telemetry-disclosure-inline":
-					(props.placement ?? "floating") === "inline",
-			}}
-		>
-			<summary class="telemetry-disclosure-summary">Privacy</summary>
-			<div class="telemetry-disclosure-body">
-				<p>
-					Solid Groove records which features are used and reports errors, so we
-					can tell what works and fix what breaks. Two processors receive this:
-					Google Analytics for product events and Sentry for error reports and
-					Session Replay.
-				</p>
-				<p>
-					Session Replay records a small sample of sessions — which controls you
-					click and how you move around — so we can see where people get stuck
-					and fix it. Those recordings include your arrangement and piano roll,
-					which means the musical work itself: the clips, the notes, and the
-					names you give sections. We record them because that is where the
-					problems we need to see actually happen.
-				</p>
-				<p>
-					Names and typed text stay hidden. Event reports, error reports, and
-					replays carry no project, track, or clip names, no audio, no assistant
-					messages, and no text you type.
-				</p>
-				<p>
-					Your conversations with the assistant are stored with your project so
-					we can tell whether it is helping. They stay with us — never sent to
-					Google Analytics or Sentry — and deleting a project deletes its
-					conversations.
-				</p>
-				<label class="telemetry-disclosure-toggle">
-					<input
-						type="checkbox"
-						checked={enabled()}
-						onChange={toggle}
-						aria-describedby="telemetry-disclosure-note"
-					/>
-					<span>Share usage and error reports</span>
-				</label>
-				<p id="telemetry-disclosure-note" class="telemetry-disclosure-note">
-					Turning this off stops collection. Every feature keeps working.
-				</p>
-			</div>
-		</details>
-	);
+  return (
+    <details
+      class="telemetry-disclosure"
+      classList={{
+        "telemetry-disclosure-inline": (props.placement ?? "floating") === "inline",
+      }}
+    >
+      <summary class="telemetry-disclosure-summary">Privacy</summary>
+      <div class="telemetry-disclosure-body">
+        <p>
+          Solid Groove records which features are used and reports errors, so we can tell
+          what works and fix what breaks. Two processors receive this: Google Analytics
+          for product events and Sentry for error reports and Session Replay.
+        </p>
+        <p>
+          Session Replay records a small sample of sessions — which controls you click and
+          how you move around — so we can see where people get stuck and fix it. Those
+          recordings include your arrangement and piano roll, which means the musical work
+          itself: the clips, the notes, and the names you give sections. We record them
+          because that is where the problems we need to see actually happen.
+        </p>
+        <p>
+          Names and typed text stay hidden. Event reports, error reports, and replays
+          carry no project, track, or clip names, no audio, no assistant messages, and no
+          text you type.
+        </p>
+        <p>
+          Your conversations with the assistant are stored with your project so we can
+          tell whether it is helping. They stay with us — never sent to Google Analytics
+          or Sentry — and deleting a project deletes its conversations.
+        </p>
+        <label class="telemetry-disclosure-toggle">
+          <input
+            type="checkbox"
+            checked={enabled()}
+            onChange={toggle}
+            aria-describedby="telemetry-disclosure-note"
+          />
+          <span>Share usage and error reports</span>
+        </label>
+        <p id="telemetry-disclosure-note" class="telemetry-disclosure-note">
+          Turning this off stops collection. Every feature keeps working.
+        </p>
+      </div>
+    </details>
+  );
 };
 
 export default TelemetryDisclosure;

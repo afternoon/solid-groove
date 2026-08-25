@@ -10,10 +10,8 @@
 // error event; this module is the one place that value comes from.
 
 function readReleaseSha(): string {
-	const raw = import.meta.env.VITE_RELEASE_SHA;
-	return typeof raw === "string" && raw.trim().length > 0
-		? raw.trim()
-		: "unknown";
+  const raw = import.meta.env.VITE_RELEASE_SHA;
+  return typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : "unknown";
 }
 
 export const RELEASE_SHA: string = readReleaseSha();
@@ -25,5 +23,5 @@ export const RELEASE_SHA: string = readReleaseSha();
  * similar length.
  */
 export function shortReleaseSha(sha: string = RELEASE_SHA): string {
-	return sha === "unknown" ? sha : sha.slice(0, 12);
+  return sha === "unknown" ? sha : sha.slice(0, 12);
 }

@@ -11,9 +11,9 @@ import { unzipSync } from "fflate";
 export const SUPPORTED_ARCHIVES = [".zip"];
 
 export function isArchive(filename) {
-	return SUPPORTED_ARCHIVES.some((extension) =>
-		filename.toLowerCase().endsWith(extension),
-	);
+  return SUPPORTED_ARCHIVES.some((extension) =>
+    filename.toLowerCase().endsWith(extension),
+  );
 }
 
 /**
@@ -22,15 +22,15 @@ export function isArchive(filename) {
  * this says so plainly and the selection can point at the zip mirror instead.
  */
 export function unsupportedArchiveReason(filename) {
-	const lowered = filename.toLowerCase();
-	if (isArchive(lowered)) return null;
-	if (/\.(tar\.bz2|tbz2|bz2)$/.test(lowered)) {
-		return "bzip2 archives are not supported (Node has no bzip2); pin the .zip distribution instead";
-	}
-	if (/\.(tar\.gz|tgz|tar|7z|rar)$/.test(lowered)) {
-		return `${lowered.split(".").pop()} archives are not supported; pin the .zip distribution instead`;
-	}
-	return null;
+  const lowered = filename.toLowerCase();
+  if (isArchive(lowered)) return null;
+  if (/\.(tar\.bz2|tbz2|bz2)$/.test(lowered)) {
+    return "bzip2 archives are not supported (Node has no bzip2); pin the .zip distribution instead";
+  }
+  if (/\.(tar\.gz|tgz|tar|7z|rar)$/.test(lowered)) {
+    return `${lowered.split(".").pop()} archives are not supported; pin the .zip distribution instead`;
+  }
+  return null;
 }
 
 /**
@@ -38,11 +38,11 @@ export function unsupportedArchiveReason(filename) {
  * pack without extracting or ingesting any of it.
  */
 export function listArchiveMembers(bytes) {
-	const entries = unzipSync(new Uint8Array(bytes));
-	return Object.entries(entries)
-		.filter(([name]) => !name.endsWith("/"))
-		.map(([name, content]) => ({ name, bytes: content.length }))
-		.sort((a, b) => a.name.localeCompare(b.name));
+  const entries = unzipSync(new Uint8Array(bytes));
+  return Object.entries(entries)
+    .filter(([name]) => !name.endsWith("/"))
+    .map(([name, content]) => ({ name, bytes: content.length }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -53,19 +53,15 @@ export function listArchiveMembers(bytes) {
  * hands back; a literal match against a pinned name cannot.
  */
 export function extractMember(bytes, memberPath) {
-	const entries = unzipSync(new Uint8Array(bytes));
-	const content = entries[memberPath];
-	if (!content) {
-		const available = Object.keys(entries).filter(
-			(name) => !name.endsWith("/"),
-		);
-		const hint =
-			available.length > 20
-				? `${available.slice(0, 20).join(", ")}, ... (${available.length} total)`
-				: available.join(", ");
-		throw new Error(
-			`archive has no member "${memberPath}". Available: ${hint}`,
-		);
-	}
-	return Buffer.from(content);
+  const entries = unzipSync(new Uint8Array(bytes));
+  const content = entries[memberPath];
+  if (!content) {
+    const available = Object.keys(entries).filter((name) => !name.endsWith("/"));
+    const hint =
+      available.length > 20
+        ? `${available.slice(0, 20).join(", ")}, ... (${available.length} total)`
+        : available.join(", ");
+    throw new Error(`archive has no member "${memberPath}". Available: ${hint}`);
+  }
+  return Buffer.from(content);
 }

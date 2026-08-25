@@ -21,20 +21,20 @@ const CAPTURING = process.env.CAPTURE_WALKTHROUGH === "1";
 const OUTPUT_ROOT = process.env.WALKTHROUGH_DIR ?? "walkthroughs";
 
 export type WalkthroughFlow = {
-	/** The flow's stable ID, e.g. `CF-001`. Must exist in `docs/core-flows.md`. */
-	id: string;
-	/** The flow's title, as written in `docs/core-flows.md`. */
-	title: string;
+  /** The flow's stable ID, e.g. `CF-001`. Must exist in `docs/core-flows.md`. */
+  id: string;
+  /** The flow's title, as written in `docs/core-flows.md`. */
+  title: string;
 };
 
 type StepRecord = { file: string; caption: string };
 
 const slugify = (caption: string) =>
-	caption
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "")
-		.slice(0, 60) || "step";
+  caption
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "step";
 
 /**
  * Opens a capture session for one flow. Returns the `step` function the spec
@@ -55,27 +55,27 @@ const slugify = (caption: string) =>
  * in `docs/core-flows.md`.
  */
 export function walkthrough(page: Page, flow: WalkthroughFlow) {
-	const steps: StepRecord[] = [];
-	const flowDirectory = join(OUTPUT_ROOT, flow.id);
+  const steps: StepRecord[] = [];
+  const flowDirectory = join(OUTPUT_ROOT, flow.id);
 
-	return async function step(caption: string): Promise<void> {
-		if (!CAPTURING) return;
+  return async function step(caption: string): Promise<void> {
+    if (!CAPTURING) return;
 
-		const file = `${String(steps.length + 1).padStart(2, "0")}-${slugify(caption)}.png`;
-		const path = join(flowDirectory, file);
-		mkdirSync(dirname(path), { recursive: true });
-		// Viewport rather than full page: the reviewer is judging what a person
-		// sees on arrival, and a full-page capture of a scrolling editor
-		// silently changes the framing between steps.
-		await page.screenshot({ path });
+    const file = `${String(steps.length + 1).padStart(2, "0")}-${slugify(caption)}.png`;
+    const path = join(flowDirectory, file);
+    mkdirSync(dirname(path), { recursive: true });
+    // Viewport rather than full page: the reviewer is judging what a person
+    // sees on arrival, and a full-page capture of a scrolling editor
+    // silently changes the framing between steps.
+    await page.screenshot({ path });
 
-		steps.push({ file, caption });
-		// Rewritten after every step rather than once at the end, so a spec that
-		// fails midway still leaves a readable partial walkthrough — which is
-		// often exactly what you want to look at when diagnosing the failure.
-		writeFileSync(
-			join(flowDirectory, "index.json"),
-			`${JSON.stringify({ id: flow.id, title: flow.title, steps }, null, 2)}\n`,
-		);
-	};
+    steps.push({ file, caption });
+    // Rewritten after every step rather than once at the end, so a spec that
+    // fails midway still leaves a readable partial walkthrough — which is
+    // often exactly what you want to look at when diagnosing the failure.
+    writeFileSync(
+      join(flowDirectory, "index.json"),
+      `${JSON.stringify({ id: flow.id, title: flow.title, steps }, null, 2)}\n`,
+    );
+  };
 }

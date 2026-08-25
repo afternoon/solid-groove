@@ -13,19 +13,19 @@
 import { type ZodType, z } from "zod";
 
 export class SchemaValidationError extends Error {
-	readonly issues: readonly z.core.$ZodIssue[];
+  readonly issues: readonly z.core.$ZodIssue[];
 
-	constructor(message: string, issues: readonly z.core.$ZodIssue[]) {
-		super(message);
-		this.name = "SchemaValidationError";
-		this.issues = issues;
-	}
+  constructor(message: string, issues: readonly z.core.$ZodIssue[]) {
+    super(message);
+    this.name = "SchemaValidationError";
+    this.issues = issues;
+  }
 }
 
 function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
-	return issues
-		.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
-		.join("; ");
+  return issues
+    .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+    .join("; ");
 }
 
 /**
@@ -34,32 +34,28 @@ function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
  * any caller can read a partially-valid result, rather than returning
  * `undefined` or a best-effort partial object.
  */
-export function parseOrThrow<T>(
-	schema: ZodType<T>,
-	value: unknown,
-	context?: string,
-): T {
-	const result = schema.safeParse(value);
-	if (!result.success) {
-		const detail = formatIssues(result.error.issues);
-		throw new SchemaValidationError(
-			context ? `${context}: ${detail}` : detail,
-			result.error.issues,
-		);
-	}
-	return result.data;
+export function parseOrThrow<T>(schema: ZodType<T>, value: unknown, context?: string): T {
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    const detail = formatIssues(result.error.issues);
+    throw new SchemaValidationError(
+      context ? `${context}: ${detail}` : detail,
+      result.error.issues,
+    );
+  }
+  return result.data;
 }
 
 /** Non-throwing counterpart, for callers that want to present errors themselves. */
 export function safeParseWithIssues<T>(
-	schema: ZodType<T>,
-	value: unknown,
+  schema: ZodType<T>,
+  value: unknown,
 ): { success: true; data: T } | { success: false; issues: string } {
-	const result = schema.safeParse(value);
-	if (!result.success) {
-		return { success: false, issues: formatIssues(result.error.issues) };
-	}
-	return { success: true, data: result.data };
+  const result = schema.safeParse(value);
+  if (!result.success) {
+    return { success: false, issues: formatIssues(result.error.issues) };
+  }
+  return { success: true, data: result.data };
 }
 
 /**
@@ -69,5 +65,5 @@ export function safeParseWithIssues<T>(
  * general-purpose primitive it and any other bounded value can share.
  */
 export function finiteNumberInRange(min: number, max: number): ZodType<number> {
-	return z.number().finite().min(min).max(max);
+  return z.number().finite().min(min).max(max);
 }

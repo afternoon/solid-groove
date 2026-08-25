@@ -1,8 +1,5 @@
 import { createMemo, type JSX } from "solid-js";
-import {
-	clampParameterValue,
-	type ParameterDefinition,
-} from "../domain/parameters";
+import { clampParameterValue, type ParameterDefinition } from "../domain/parameters";
 import "./FillSlider.css";
 
 /**
@@ -11,47 +8,47 @@ import "./FillSlider.css";
  * positions while the parameter it writes is decibels.
  */
 export interface FillSliderRange {
-	readonly min: number;
-	readonly max: number;
-	readonly step?: number | null;
+  readonly min: number;
+  readonly max: number;
+  readonly step?: number | null;
 }
 
 export interface FillSliderProps {
-	readonly definition: ParameterDefinition;
-	readonly value: number;
-	/** Formatted live value shown under the slider (e.g. "760 Hz"). */
-	readonly displayValue: string;
-	/** Called with a coerced, in-range value while dragging. */
-	onInput(value: number): void;
-	/** Called once when the drag/keyboard gesture commits. */
-	onCommit(value: number): void;
-	/**
-	 * A unique element id for the input. Required when more than one slider for
-	 * the same parameter is on screen — a mixer has one volume fader per track.
-	 */
-	readonly inputId?: string;
-	/** Visible label above the slider. Defaults to the parameter's own label. */
-	readonly label?: string;
-	/**
-	 * Accessible name for the input, when the visible label alone is ambiguous
-	 * (a mixer's "VOL" needs to say which track it belongs to).
-	 */
-	readonly ariaLabel?: string;
-	/** The slider's own coordinate space, if not the parameter's range. */
-	readonly range?: FillSliderRange;
-	/**
-	 * Which way the fill travels. Vertical is the default and the mock's shape;
-	 * horizontal is for a value whose range *is* an axis the user already reads
-	 * left-to-right — pan being the one that matters, where a vertical control
-	 * would ask them to translate "up" into "right".
-	 */
-	readonly orientation?: "vertical" | "horizontal";
-	/**
-	 * Fill outwards from the centre rather than from the start of the track, for
-	 * a bipolar value where the centre is the meaningful rest position. A pan
-	 * filled from the left would read "half loud" at centre.
-	 */
-	readonly bipolar?: boolean;
+  readonly definition: ParameterDefinition;
+  readonly value: number;
+  /** Formatted live value shown under the slider (e.g. "760 Hz"). */
+  readonly displayValue: string;
+  /** Called with a coerced, in-range value while dragging. */
+  onInput(value: number): void;
+  /** Called once when the drag/keyboard gesture commits. */
+  onCommit(value: number): void;
+  /**
+   * A unique element id for the input. Required when more than one slider for
+   * the same parameter is on screen — a mixer has one volume fader per track.
+   */
+  readonly inputId?: string;
+  /** Visible label above the slider. Defaults to the parameter's own label. */
+  readonly label?: string;
+  /**
+   * Accessible name for the input, when the visible label alone is ambiguous
+   * (a mixer's "VOL" needs to say which track it belongs to).
+   */
+  readonly ariaLabel?: string;
+  /** The slider's own coordinate space, if not the parameter's range. */
+  readonly range?: FillSliderRange;
+  /**
+   * Which way the fill travels. Vertical is the default and the mock's shape;
+   * horizontal is for a value whose range *is* an axis the user already reads
+   * left-to-right — pan being the one that matters, where a vertical control
+   * would ask them to translate "up" into "right".
+   */
+  readonly orientation?: "vertical" | "horizontal";
+  /**
+   * Fill outwards from the centre rather than from the start of the track, for
+   * a bipolar value where the centre is the meaningful rest position. A pan
+   * filled from the left would read "half loud" at centre.
+   */
+  readonly bipolar?: boolean;
 }
 
 /**
@@ -72,79 +69,75 @@ export interface FillSliderProps {
  * single history gesture so a drag is one undo step and emits nothing per tick.
  */
 export default function FillSlider(props: FillSliderProps): JSX.Element {
-	const id = () => props.inputId ?? defaultInputId(props.definition.id);
-	const scale = (): FillSliderRange => props.range ?? props.definition;
+  const id = () => props.inputId ?? defaultInputId(props.definition.id);
+  const scale = (): FillSliderRange => props.range ?? props.definition;
 
-	const fillPercent = createMemo(() => {
-		const { min, max } = scale();
-		const span = max - min;
-		if (span <= 0) return 0;
-		return ((props.value - min) / span) * 100;
-	});
+  const fillPercent = createMemo(() => {
+    const { min, max } = scale();
+    const span = max - min;
+    if (span <= 0) return 0;
+    return ((props.value - min) / span) * 100;
+  });
 
-	const horizontal = () => props.orientation === "horizontal";
+  const horizontal = () => props.orientation === "horizontal";
 
-	/**
-	 * Where the accent is painted. A unipolar slider fills from the start of the
-	 * track to the value; a bipolar one fills from the centre out to it, in
-	 * whichever direction the value went. The centre span never collapses to
-	 * nothing, so a value sitting exactly at rest still shows where it is.
-	 */
-	const fillStyle = createMemo((): JSX.CSSProperties => {
-		const percent = fillPercent();
-		if (!horizontal()) return { height: `${percent}%` };
-		if (!props.bipolar) return { left: "0%", width: `${percent}%` };
-		const from = Math.min(percent, 50);
-		const to = Math.max(percent, 50);
-		return { left: `${from}%`, width: `${to - from}%` };
-	});
+  /**
+   * Where the accent is painted. A unipolar slider fills from the start of the
+   * track to the value; a bipolar one fills from the centre out to it, in
+   * whichever direction the value went. The centre span never collapses to
+   * nothing, so a value sitting exactly at rest still shows where it is.
+   */
+  const fillStyle = createMemo((): JSX.CSSProperties => {
+    const percent = fillPercent();
+    if (!horizontal()) return { height: `${percent}%` };
+    if (!props.bipolar) return { left: "0%", width: `${percent}%` };
+    const from = Math.min(percent, 50);
+    const to = Math.max(percent, 50);
+    return { left: `${from}%`, width: `${to - from}%` };
+  });
 
-	const coerce = (raw: number): number => {
-		const range = props.range;
-		if (!range) return clampParameterValue(props.definition, raw);
-		if (!Number.isFinite(raw)) return range.min;
-		return Math.min(range.max, Math.max(range.min, raw));
-	};
+  const coerce = (raw: number): number => {
+    const range = props.range;
+    if (!range) return clampParameterValue(props.definition, raw);
+    if (!Number.isFinite(raw)) return range.min;
+    return Math.min(range.max, Math.max(range.min, raw));
+  };
 
-	return (
-		<div
-			class="fill-slider"
-			classList={{ horizontal: horizontal(), bipolar: props.bipolar === true }}
-		>
-			<label class="fill-slider-label" for={id()}>
-				{props.label ?? props.definition.label}
-			</label>
-			<div class="fill-slider-track">
-				<div class="fill-slider-fill" style={fillStyle()} aria-hidden="true" />
-				<input
-					id={id()}
-					class="fill-slider-input"
-					type="range"
-					// The orientation the pointer and arrow keys actually move in.
-					aria-orientation={horizontal() ? "horizontal" : "vertical"}
-					aria-label={props.ariaLabel}
-					// The slider's raw number is meaningless to a screen reader — a
-					// fader position, or a bipolar pan. Announce what is painted.
-					aria-valuetext={props.displayValue}
-					min={scale().min}
-					max={scale().max}
-					step={scale().step ?? "any"}
-					value={props.value}
-					onInput={(event) =>
-						props.onInput(coerce(event.currentTarget.valueAsNumber))
-					}
-					onChange={(event) =>
-						props.onCommit(coerce(event.currentTarget.valueAsNumber))
-					}
-				/>
-			</div>
-			<output class="fill-slider-value" for={id()}>
-				{props.displayValue}
-			</output>
-		</div>
-	);
+  return (
+    <div
+      class="fill-slider"
+      classList={{ horizontal: horizontal(), bipolar: props.bipolar === true }}
+    >
+      <label class="fill-slider-label" for={id()}>
+        {props.label ?? props.definition.label}
+      </label>
+      <div class="fill-slider-track">
+        <div class="fill-slider-fill" style={fillStyle()} aria-hidden="true" />
+        <input
+          id={id()}
+          class="fill-slider-input"
+          type="range"
+          // The orientation the pointer and arrow keys actually move in.
+          aria-orientation={horizontal() ? "horizontal" : "vertical"}
+          aria-label={props.ariaLabel}
+          // The slider's raw number is meaningless to a screen reader — a
+          // fader position, or a bipolar pan. Announce what is painted.
+          aria-valuetext={props.displayValue}
+          min={scale().min}
+          max={scale().max}
+          step={scale().step ?? "any"}
+          value={props.value}
+          onInput={(event) => props.onInput(coerce(event.currentTarget.valueAsNumber))}
+          onChange={(event) => props.onCommit(coerce(event.currentTarget.valueAsNumber))}
+        />
+      </div>
+      <output class="fill-slider-value" for={id()}>
+        {props.displayValue}
+      </output>
+    </div>
+  );
 }
 
 function defaultInputId(parameterId: string): string {
-	return `fill-slider-${parameterId.replace(/\./g, "-")}`;
+  return `fill-slider-${parameterId.replace(/\./g, "-")}`;
 }

@@ -34,51 +34,44 @@
 // one splits a metric across two values for the same behavior. Adding is
 // routine; renaming or removing is a task of its own.
 
-import {
-	type BucketLabel,
-	type BucketScaleName,
-	bucketLabels,
-} from "./buckets";
+import { type BucketLabel, type BucketScaleName, bucketLabels } from "./buckets";
 import { ERROR_AREAS, ERROR_CODES } from "./errorCodes";
 import {
-	isPublishedPackSlug,
-	PACK_KINDS,
-	type PublishedPackId,
-	RESERVED_PACK_IDS,
+  isPublishedPackSlug,
+  PACK_KINDS,
+  type PublishedPackId,
+  RESERVED_PACK_IDS,
 } from "./packIdentity";
 
 // ---------------------------------------------------------------------------
 // Parameter kinds
 // ---------------------------------------------------------------------------
 
-export interface EnumParam<
-	V extends string = string,
-	O extends boolean = boolean,
-> {
-	readonly kind: "enum";
-	readonly values: readonly V[];
-	readonly optional: O;
+export interface EnumParam<V extends string = string, O extends boolean = boolean> {
+  readonly kind: "enum";
+  readonly values: readonly V[];
+  readonly optional: O;
 }
 
 export interface BucketParam<
-	S extends BucketScaleName = BucketScaleName,
-	O extends boolean = boolean,
+  S extends BucketScaleName = BucketScaleName,
+  O extends boolean = boolean,
 > {
-	readonly kind: "bucket";
-	readonly scale: S;
-	readonly optional: O;
+  readonly kind: "bucket";
+  readonly scale: S;
+  readonly optional: O;
 }
 
 export interface BooleanParam<O extends boolean = boolean> {
-	readonly kind: "boolean";
-	readonly optional: O;
+  readonly kind: "boolean";
+  readonly optional: O;
 }
 
 export interface CountParam<O extends boolean = boolean> {
-	readonly kind: "count";
-	/** Values above this are clamped, so cardinality stays bounded. */
-	readonly max: number;
-	readonly optional: O;
+  readonly kind: "count";
+  /** Values above this are clamped, so cardinality stays bounded. */
+  readonly max: number;
+  readonly optional: O;
 }
 
 /**
@@ -94,58 +87,46 @@ export interface CountParam<O extends boolean = boolean> {
  * made before it gets here, by `packAnalyticsIdentity`.
  */
 export interface SlugParam<O extends boolean = boolean> {
-	readonly kind: "slug";
-	/** Non-slug values that are always allowed (e.g. `"user"`, `"unknown"`). */
-	readonly reserved: readonly string[];
-	readonly optional: O;
+  readonly kind: "slug";
+  /** Non-slug values that are always allowed (e.g. `"user"`, `"unknown"`). */
+  readonly reserved: readonly string[];
+  readonly optional: O;
 }
 
 export type AnalyticsParam =
-	| EnumParam
-	| BucketParam
-	| BooleanParam
-	| CountParam
-	| SlugParam;
+  | EnumParam
+  | BucketParam
+  | BooleanParam
+  | CountParam
+  | SlugParam;
 
 /** Every parameter kind, for exhaustiveness checks in tests and validation. */
-export const PARAM_KINDS = [
-	"enum",
-	"bucket",
-	"boolean",
-	"count",
-	"slug",
-] as const;
+export const PARAM_KINDS = ["enum", "bucket", "boolean", "count", "slug"] as const;
 
-function enumParam<const V extends string>(
-	values: readonly V[],
-): EnumParam<V, false> {
-	return { kind: "enum", values, optional: false };
+function enumParam<const V extends string>(values: readonly V[]): EnumParam<V, false> {
+  return { kind: "enum", values, optional: false };
 }
 
 function optionalEnumParam<const V extends string>(
-	values: readonly V[],
+  values: readonly V[],
 ): EnumParam<V, true> {
-	return { kind: "enum", values, optional: true };
+  return { kind: "enum", values, optional: true };
 }
 
-function bucketParam<S extends BucketScaleName>(
-	scale: S,
-): BucketParam<S, false> {
-	return { kind: "bucket", scale, optional: false };
+function bucketParam<S extends BucketScaleName>(scale: S): BucketParam<S, false> {
+  return { kind: "bucket", scale, optional: false };
 }
 
 function boolParam(): BooleanParam<false> {
-	return { kind: "boolean", optional: false };
+  return { kind: "boolean", optional: false };
 }
 
 function countParam(max: number): CountParam<false> {
-	return { kind: "count", max, optional: false };
+  return { kind: "count", max, optional: false };
 }
 
-function slugParam<const R extends string>(
-	reserved: readonly R[],
-): SlugParam<false> {
-	return { kind: "slug", reserved, optional: false };
+function slugParam<const R extends string>(reserved: readonly R[]): SlugParam<false> {
+  return { kind: "slug", reserved, optional: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -177,24 +158,24 @@ export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
  * A feature task adds its key here with the feature.
  */
 export const FEATURE_KEYS = [
-	"step_editor",
-	"piano_roll",
-	"drum_machine",
-	"synth",
-	"sampler",
-	"audio_loop",
-	"device_chain",
-	"send_return",
-	"mixer",
-	"library_browser",
-	"pack_browser",
-	"shortcut_guide",
-	"arrangement",
-	"sections",
-	"automation",
-	"assistant",
-	"export_stereo",
-	"export_stems",
+  "step_editor",
+  "piano_roll",
+  "drum_machine",
+  "synth",
+  "sampler",
+  "audio_loop",
+  "device_chain",
+  "send_return",
+  "mixer",
+  "library_browser",
+  "pack_browser",
+  "shortcut_guide",
+  "arrangement",
+  "sections",
+  "automation",
+  "assistant",
+  "export_stereo",
+  "export_stems",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -208,47 +189,47 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
  * fails the suite.
  */
 export const COMMAND_IDS = [
-	"note.add",
-	"note.remove",
-	"note.update",
-	"notes.clear",
-	"notes.duplicate",
-	"notes.quantize",
-	"notes.scaleVelocity",
-	"notes.transpose",
-	"notes.vary",
-	"clip.create",
-	"clip.delete",
-	"clip.update",
-	"track.create",
-	"track.delete",
-	"track.reorder",
-	"track.setFlag",
-	"track.update",
-	"placement.create",
-	"placement.delete",
-	"placement.update",
-	"parameter.set",
-	"drum.setPadAsset",
-	"drum.setPadFlag",
-	"drum.setPadChoke",
-	"drum.setPadParameter",
-	"drum.addPad",
-	"drum.removePad",
-	"drum.reorderPad",
-	"instrument.change",
-	"instrument.setSample",
-	"pack.add",
-	"pack.remove",
-	"asset.add",
-	"asset.remove",
-	"device.add",
-	"device.remove",
-	"device.reorder",
-	"device.duplicate",
-	"device.setBypass",
-	"device.reset",
-	"device.restoreParameters",
+  "note.add",
+  "note.remove",
+  "note.update",
+  "notes.clear",
+  "notes.duplicate",
+  "notes.quantize",
+  "notes.scaleVelocity",
+  "notes.transpose",
+  "notes.vary",
+  "clip.create",
+  "clip.delete",
+  "clip.update",
+  "track.create",
+  "track.delete",
+  "track.reorder",
+  "track.setFlag",
+  "track.update",
+  "placement.create",
+  "placement.delete",
+  "placement.update",
+  "parameter.set",
+  "drum.setPadAsset",
+  "drum.setPadFlag",
+  "drum.setPadChoke",
+  "drum.setPadParameter",
+  "drum.addPad",
+  "drum.removePad",
+  "drum.reorderPad",
+  "instrument.change",
+  "instrument.setSample",
+  "pack.add",
+  "pack.remove",
+  "asset.add",
+  "asset.remove",
+  "device.add",
+  "device.remove",
+  "device.reorder",
+  "device.duplicate",
+  "device.setBypass",
+  "device.reset",
+  "device.restoreParameters",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 
@@ -261,28 +242,28 @@ export type CommandId = (typeof COMMAND_IDS)[number];
  * change. `catalog.test.ts` asserts this list equals the registry's exactly.
  */
 export const SHORTCUT_ACTION_IDS = [
-	"transport.play_stop",
-	"transport.continue",
-	"transport.metronome",
-	"edit.undo",
-	"edit.redo",
-	"edit.cut",
-	"edit.copy",
-	"edit.paste",
-	"edit.select_all",
-	"edit.delete",
-	"edit.duplicate",
-	"arrangement.split_clip",
-	"arrangement.toggle_loop",
-	"arrangement.toggle_automation_view",
-	"clip.quantize",
-	"clip.toggle_draw_mode",
-	"view.zoom_to_selection",
-	"view.zoom_back",
-	"view.zoom_in",
-	"view.zoom_out",
-	"view.close_surface",
-	"help.shortcut_guide",
+  "transport.play_stop",
+  "transport.continue",
+  "transport.metronome",
+  "edit.undo",
+  "edit.redo",
+  "edit.cut",
+  "edit.copy",
+  "edit.paste",
+  "edit.select_all",
+  "edit.delete",
+  "edit.duplicate",
+  "arrangement.split_clip",
+  "arrangement.toggle_loop",
+  "arrangement.toggle_automation_view",
+  "clip.quantize",
+  "clip.toggle_draw_mode",
+  "view.zoom_to_selection",
+  "view.zoom_back",
+  "view.zoom_in",
+  "view.zoom_out",
+  "view.close_surface",
+  "help.shortcut_guide",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -292,21 +273,21 @@ export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
  * machine. `sampleRateKey()` maps a measured rate onto this set.
  */
 export const SAMPLE_RATE_KEYS = [
-	"44100",
-	"48000",
-	"88200",
-	"96000",
-	"176400",
-	"192000",
-	"other",
+  "44100",
+  "48000",
+  "88200",
+  "96000",
+  "176400",
+  "192000",
+  "other",
 ] as const;
 export type SampleRateKey = (typeof SAMPLE_RATE_KEYS)[number];
 
 export function sampleRateKey(rate: number): SampleRateKey {
-	const candidate = String(Math.round(rate));
-	return (SAMPLE_RATE_KEYS as readonly string[]).includes(candidate)
-		? (candidate as SampleRateKey)
-		: "other";
+  const candidate = String(Math.round(rate));
+  return (SAMPLE_RATE_KEYS as readonly string[]).includes(candidate)
+    ? (candidate as SampleRateKey)
+    : "other";
 }
 
 /**
@@ -326,12 +307,12 @@ export function sampleRateKey(rate: number): SampleRateKey {
  * exploration of the first-party library can rely on.
  */
 export const LIBRARY_PACK_SLUGS = [
-	"core-electronic-drums",
-	"foundation-bass",
-	"tonal-elements",
-	"ambient-textures",
-	"transitions-fx",
-	"cc0-community",
+  "core-electronic-drums",
+  "foundation-bass",
+  "tonal-elements",
+  "ambient-textures",
+  "transitions-fx",
+  "cc0-community",
 ] as const;
 export type LibraryPackSlug = (typeof LIBRARY_PACK_SLUGS)[number];
 
@@ -349,9 +330,9 @@ const UNCLAIMED: readonly never[] = [];
  * strips them if a caller somehow supplies one.
  */
 export const AUTOMATIC_PARAMS = {
-	/** The deployed revision, from `src/release.ts` (PRD `OPS-01`). */
-	release_sha: "release_sha",
-	surface: "surface",
+  /** The deployed revision, from `src/release.ts` (PRD `OPS-01`). */
+  release_sha: "release_sha",
+  surface: "surface",
 } as const;
 
 /**
@@ -359,9 +340,9 @@ export const AUTOMATIC_PARAMS = {
  * facts: account type and whether the session is internal").
  */
 export const USER_PROPERTIES = {
-	account_type: "account_type",
-	/** `"true"`/`"false"` — GA4 user property values are strings. */
-	internal: "internal",
+  account_type: "account_type",
+  /** `"true"`/`"false"` — GA4 user property values are strings. */
+  internal: "internal",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -369,16 +350,16 @@ export const USER_PROPERTIES = {
 // ---------------------------------------------------------------------------
 
 export interface AnalyticsEventDefinition {
-	/**
-	 * Delivery milestone, matching the PRD `OPS-02` catalog table's
-	 * `Alpha Milestone` column. The field keeps its `phase` name because
-	 * renaming it changes this published catalog contract, which is its own
-	 * task rather than part of a documentation rename.
-	 */
-	readonly phase: 0 | 1 | 2 | 3;
-	/** Backlog task(s) that must ship the event with the feature it measures. */
-	readonly owners: readonly string[];
-	readonly params: Readonly<Record<string, AnalyticsParam>>;
+  /**
+   * Delivery milestone, matching the PRD `OPS-02` catalog table's
+   * `Alpha Milestone` column. The field keeps its `phase` name because
+   * renaming it changes this published catalog contract, which is its own
+   * task rather than part of a documentation rename.
+   */
+  readonly phase: 0 | 1 | 2 | 3;
+  /** Backlog task(s) that must ship the event with the feature it measures. */
+  readonly owners: readonly string[];
+  readonly params: Readonly<Record<string, AnalyticsParam>>;
 }
 
 /**
@@ -390,372 +371,372 @@ export interface AnalyticsEventDefinition {
  * properties.
  */
 export const ANALYTICS_EVENTS = {
-	app_opened: {
-		phase: 0,
-		owners: ["FND-001c"],
-		params: {},
-	},
+  app_opened: {
+    phase: 0,
+    owners: ["FND-001c"],
+    params: {},
+  },
 
-	landing_cta_click: {
-		phase: 1,
-		owners: ["LOOP-001b"],
-		params: { cta_id: enumParam(["start_free", "log_in"]) },
-	},
+  landing_cta_click: {
+    phase: 1,
+    owners: ["LOOP-001b"],
+    params: { cta_id: enumParam(["start_free", "log_in"]) },
+  },
 
-	anon_session_created: {
-		phase: 1,
-		owners: ["LOOP-001"],
-		params: {},
-	},
+  anon_session_created: {
+    phase: 1,
+    owners: ["LOOP-001"],
+    params: {},
+  },
 
-	account_upgraded: {
-		phase: 1,
-		owners: ["LOOP-001"],
-		// The alpha's only upgrade path is linking an anonymous account to a
-		// Google identity (see src/auth/authService.ts). A second provider adds
-		// its key here with the sign-in method itself.
-		params: { method: enumParam(["google"]) },
-	},
+  account_upgraded: {
+    phase: 1,
+    owners: ["LOOP-001"],
+    // The alpha's only upgrade path is linking an anonymous account to a
+    // Google identity (see src/auth/authService.ts). A second provider adds
+    // its key here with the sign-in method itself.
+    params: { method: enumParam(["google"]) },
+  },
 
-	project_created: {
-		phase: 1,
-		owners: ["LOOP-001", "LOOP-015"],
-		params: {
-			source: enumParam(["blank", "template", "duplicate"]),
-			// Template keys belong to LOOP-015; genres are the PRD LIB-02 set,
-			// pinned here so a library re-tagging cannot rewrite analytics history.
-			template_id: optionalEnumParam(UNCLAIMED),
-			genre: optionalEnumParam([
-				"house",
-				"techno",
-				"hip_hop",
-				"trap",
-				"drum_and_bass",
-				"jungle",
-				"dubstep",
-				"ambient",
-				"lofi",
-				"trance",
-				"uk_garage",
-				"breakbeat",
-				"electronic_pop",
-			]),
-		},
-	},
+  project_created: {
+    phase: 1,
+    owners: ["LOOP-001", "LOOP-015"],
+    params: {
+      source: enumParam(["blank", "template", "duplicate"]),
+      // Template keys belong to LOOP-015; genres are the PRD LIB-02 set,
+      // pinned here so a library re-tagging cannot rewrite analytics history.
+      template_id: optionalEnumParam(UNCLAIMED),
+      genre: optionalEnumParam([
+        "house",
+        "techno",
+        "hip_hop",
+        "trap",
+        "drum_and_bass",
+        "jungle",
+        "dubstep",
+        "ambient",
+        "lofi",
+        "trance",
+        "uk_garage",
+        "breakbeat",
+        "electronic_pop",
+      ]),
+    },
+  },
 
-	project_opened: {
-		phase: 1,
-		owners: ["LOOP-001"],
-		params: {
-			project_age_bucket: bucketParam("project_age"),
-			track_count_bucket: bucketParam("track_count"),
-			is_first_open: boolParam(),
-		},
-	},
+  project_opened: {
+    phase: 1,
+    owners: ["LOOP-001"],
+    params: {
+      project_age_bucket: bucketParam("project_age"),
+      track_count_bucket: bucketParam("track_count"),
+      is_first_open: boolParam(),
+    },
+  },
 
-	project_deleted: {
-		phase: 1,
-		owners: ["LOOP-001"],
-		params: { project_age_bucket: bucketParam("project_age") },
-	},
+  project_deleted: {
+    phase: 1,
+    owners: ["LOOP-001"],
+    params: { project_age_bucket: bucketParam("project_age") },
+  },
 
-	first_edit: {
-		phase: 0,
-		owners: ["FND-009"],
-		params: {
-			command_id: enumParam(COMMAND_IDS),
-			seconds_since_open_bucket: bucketParam("elapsed_seconds"),
-		},
-	},
+  first_edit: {
+    phase: 0,
+    owners: ["FND-009"],
+    params: {
+      command_id: enumParam(COMMAND_IDS),
+      seconds_since_open_bucket: bucketParam("elapsed_seconds"),
+    },
+  },
 
-	feature_first_use: {
-		phase: 0,
-		owners: ["FND-001c", "each owning feature task"],
-		params: { feature: enumParam(FEATURE_KEYS) },
-	},
+  feature_first_use: {
+    phase: 0,
+    owners: ["FND-001c", "each owning feature task"],
+    params: { feature: enumParam(FEATURE_KEYS) },
+  },
 
-	transport_play: {
-		phase: 1,
-		owners: ["LOOP-003"],
-		params: { is_first_play_in_session: boolParam() },
-	},
+  transport_play: {
+    phase: 1,
+    owners: ["LOOP-003"],
+    params: { is_first_play_in_session: boolParam() },
+  },
 
-	track_added: {
-		phase: 1,
-		owners: ["LOOP-007"],
-		params: {
-			track_type: enumParam(["instrument", "audio", "return"]),
-			// Which instrument the new track was created with. Optional because a
-			// track need not carry one (an audio track, a return); `track_type`
-			// alone cannot separate a sampler from a synth, and choosing between
-			// them is the whole point of the affordance that adds a track (#223).
-			instrument_type: optionalEnumParam(INSTRUMENT_TYPES),
-		},
-	},
+  track_added: {
+    phase: 1,
+    owners: ["LOOP-007"],
+    params: {
+      track_type: enumParam(["instrument", "audio", "return"]),
+      // Which instrument the new track was created with. Optional because a
+      // track need not carry one (an audio track, a return); `track_type`
+      // alone cannot separate a sampler from a synth, and choosing between
+      // them is the whole point of the affordance that adds a track (#223).
+      instrument_type: optionalEnumParam(INSTRUMENT_TYPES),
+    },
+  },
 
-	instrument_changed: {
-		phase: 1,
-		owners: ["LOOP-004", "LOOP-005"],
-		params: {
-			instrument_type: enumParam(INSTRUMENT_TYPES),
-		},
-	},
+  instrument_changed: {
+    phase: 1,
+    owners: ["LOOP-004", "LOOP-005"],
+    params: {
+      instrument_type: enumParam(INSTRUMENT_TYPES),
+    },
+  },
 
-	device_added: {
-		phase: 1,
-		owners: ["LOOP-008", "LOOP-009"],
-		params: {
-			// The alpha's six core device types (LOOP-008); LOOP-009 extends this
-			// list as it authors more. Kept in sync with `src/domain/devices.ts`.
-			device_type: enumParam([
-				"filter",
-				"overdrive",
-				"saturator",
-				"compressor",
-				"delay",
-				"reverb",
-			]),
-			chain: enumParam(["insert", "return", "master"]),
-		},
-	},
+  device_added: {
+    phase: 1,
+    owners: ["LOOP-008", "LOOP-009"],
+    params: {
+      // The alpha's six core device types (LOOP-008); LOOP-009 extends this
+      // list as it authors more. Kept in sync with `src/domain/devices.ts`.
+      device_type: enumParam([
+        "filter",
+        "overdrive",
+        "saturator",
+        "compressor",
+        "delay",
+        "reverb",
+      ]),
+      chain: enumParam(["insert", "return", "master"]),
+    },
+  },
 
-	library_audition: {
-		phase: 1,
-		owners: ["LOOP-013"],
-		params: {
-			asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
-			had_genre_filter: boolParam(),
-			// The pack's stable slug (never its display name), so an audition can
-			// be attributed to a pack without leaking library copy — see
-			// `packIdentity.ts` for which packs may be named at all.
-			pack_id: slugParam(RESERVED_PACK_IDS),
-			pack_kind: enumParam(PACK_KINDS),
-		},
-	},
+  library_audition: {
+    phase: 1,
+    owners: ["LOOP-013"],
+    params: {
+      asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
+      had_genre_filter: boolParam(),
+      // The pack's stable slug (never its display name), so an audition can
+      // be attributed to a pack without leaking library copy — see
+      // `packIdentity.ts` for which packs may be named at all.
+      pack_id: slugParam(RESERVED_PACK_IDS),
+      pack_kind: enumParam(PACK_KINDS),
+    },
+  },
 
-	library_pack_added: {
-		phase: 1,
-		owners: ["LOOP-013", "LIB-08"],
-		// This is the pack-popularity measure, so it has to say *which* pack —
-		// including a third party's, whose creator the adoption number is fed back
-		// to (LIB-05, LIB-06). `pack_id` therefore carries any *published* pack's
-		// slug, first-party or third-party, and `"user"` for an unpublished pack a
-		// producer authored themselves. `packAnalyticsIdentity` is what draws that
-		// line; the same two parameters as `library_audition`, so a pack's
-		// auditions and its adds join on one vocabulary.
-		params: {
-			pack_id: slugParam(RESERVED_PACK_IDS),
-			pack_kind: enumParam(PACK_KINDS),
-		},
-	},
+  library_pack_added: {
+    phase: 1,
+    owners: ["LOOP-013", "LIB-08"],
+    // This is the pack-popularity measure, so it has to say *which* pack —
+    // including a third party's, whose creator the adoption number is fed back
+    // to (LIB-05, LIB-06). `pack_id` therefore carries any *published* pack's
+    // slug, first-party or third-party, and `"user"` for an unpublished pack a
+    // producer authored themselves. `packAnalyticsIdentity` is what draws that
+    // line; the same two parameters as `library_audition`, so a pack's
+    // auditions and its adds join on one vocabulary.
+    params: {
+      pack_id: slugParam(RESERVED_PACK_IDS),
+      pack_kind: enumParam(PACK_KINDS),
+    },
+  },
 
-	clip_edited: {
-		phase: 1,
-		owners: ["LOOP-010", "LOOP-011"],
-		params: {
-			editor: enumParam(["step", "piano_roll"]),
-			event_count_bucket: bucketParam("event_count"),
-		},
-	},
+  clip_edited: {
+    phase: 1,
+    owners: ["LOOP-010", "LOOP-011"],
+    params: {
+      editor: enumParam(["step", "piano_roll"]),
+      event_count_bucket: bucketParam("event_count"),
+    },
+  },
 
-	shortcut_used: {
-		phase: 1,
-		owners: ["LOOP-014"],
-		// Action IDs come from the KEY-01 shortcut registry (LOOP-014), and the
-		// registry — not the handler — is what logs them.
-		params: { action_id: enumParam(SHORTCUT_ACTION_IDS) },
-	},
+  shortcut_used: {
+    phase: 1,
+    owners: ["LOOP-014"],
+    // Action IDs come from the KEY-01 shortcut registry (LOOP-014), and the
+    // registry — not the handler — is what logs them.
+    params: { action_id: enumParam(SHORTCUT_ACTION_IDS) },
+  },
 
-	undo_used: {
-		phase: 1,
-		owners: ["LOOP-002"],
-		params: {
-			direction: enumParam(["undo", "redo"]),
-			actor: enumParam(["user", "assistant"]),
-		},
-	},
+  undo_used: {
+    phase: 1,
+    owners: ["LOOP-002"],
+    params: {
+      direction: enumParam(["undo", "redo"]),
+      actor: enumParam(["user", "assistant"]),
+    },
+  },
 
-	placement_duplicated: {
-		phase: 2,
-		owners: ["ARR-002"],
-		// CLP-01 requires duplicating a placement to be able to either reuse the
-		// source clip or fork an independent variation, with the UI saying which
-		// will happen. `mode` is how we learn whether producers actually reach for
-		// reuse — the whole point of clips being reusable — or always fork.
-		params: { mode: enumParam(["linked", "independent"]) },
-	},
+  placement_duplicated: {
+    phase: 2,
+    owners: ["ARR-002"],
+    // CLP-01 requires duplicating a placement to be able to either reuse the
+    // source clip or fork an independent variation, with the UI saying which
+    // will happen. `mode` is how we learn whether producers actually reach for
+    // reuse — the whole point of clips being reusable — or always fork.
+    params: { mode: enumParam(["linked", "independent"]) },
+  },
 
-	section_created: {
-		phase: 2,
-		owners: ["ARR-003"],
-		params: { origin: enumParam(["manual", "template", "assistant"]) },
-	},
+  section_created: {
+    phase: 2,
+    owners: ["ARR-003"],
+    params: { origin: enumParam(["manual", "template", "assistant"]) },
+  },
 
-	arrangement_outline_created: {
-		phase: 2,
-		owners: ["ARR-003"],
-		params: {
-			template_id: enumParam(UNCLAIMED),
-			section_count: countParam(64),
-		},
-	},
+  arrangement_outline_created: {
+    phase: 2,
+    owners: ["ARR-003"],
+    params: {
+      template_id: enumParam(UNCLAIMED),
+      section_count: countParam(64),
+    },
+  },
 
-	automation_lane_created: {
-		phase: 2,
-		owners: ["ARR-004"],
-		params: {
-			target_kind: enumParam(["track", "device", "return", "master"]),
-		},
-	},
+  automation_lane_created: {
+    phase: 2,
+    owners: ["ARR-004"],
+    params: {
+      target_kind: enumParam(["track", "device", "return", "master"]),
+    },
+  },
 
-	arrangement_milestone: {
-		phase: 2,
-		owners: ["ARR-003"],
-		params: {
-			section_count: countParam(64),
-			duration_bucket: bucketParam("musical_duration"),
-		},
-	},
+  arrangement_milestone: {
+    phase: 2,
+    owners: ["ARR-003"],
+    params: {
+      section_count: countParam(64),
+      duration_bucket: bucketParam("musical_duration"),
+    },
+  },
 
-	export_started: {
-		phase: 2,
-		owners: ["EXP-002", "EXP-003"],
-		params: {
-			export_type: enumParam(["stereo", "stems"]),
-			duration_bucket: bucketParam("musical_duration"),
-			track_count_bucket: bucketParam("track_count"),
-		},
-	},
+  export_started: {
+    phase: 2,
+    owners: ["EXP-002", "EXP-003"],
+    params: {
+      export_type: enumParam(["stereo", "stems"]),
+      duration_bucket: bucketParam("musical_duration"),
+      track_count_bucket: bucketParam("track_count"),
+    },
+  },
 
-	export_completed: {
-		phase: 2,
-		owners: ["EXP-002", "EXP-003"],
-		params: {
-			export_type: enumParam(["stereo", "stems"]),
-			elapsed_ms_bucket: bucketParam("elapsed_ms"),
-		},
-	},
+  export_completed: {
+    phase: 2,
+    owners: ["EXP-002", "EXP-003"],
+    params: {
+      export_type: enumParam(["stereo", "stems"]),
+      elapsed_ms_bucket: bucketParam("elapsed_ms"),
+    },
+  },
 
-	export_failed: {
-		phase: 2,
-		owners: ["EXP-002", "EXP-003"],
-		params: {
-			export_type: enumParam(["stereo", "stems"]),
-			error_code: enumParam(ERROR_CODES),
-			was_cancelled: boolParam(),
-		},
-	},
+  export_failed: {
+    phase: 2,
+    owners: ["EXP-002", "EXP-003"],
+    params: {
+      export_type: enumParam(["stereo", "stems"]),
+      error_code: enumParam(ERROR_CODES),
+      was_cancelled: boolParam(),
+    },
+  },
 
-	assistant_message_sent: {
-		phase: 3,
-		owners: ["AI-004"],
-		params: { scope: enumParam(["clip", "track", "section", "song"]) },
-	},
+  assistant_message_sent: {
+    phase: 3,
+    owners: ["AI-004"],
+    params: { scope: enumParam(["clip", "track", "section", "song"]) },
+  },
 
-	assistant_suggestion_clicked: {
-		phase: 3,
-		owners: ["AI-004"],
-		params: { suggestion_id: enumParam(UNCLAIMED) },
-	},
+  assistant_suggestion_clicked: {
+    phase: 3,
+    owners: ["AI-004"],
+    params: { suggestion_id: enumParam(UNCLAIMED) },
+  },
 
-	assistant_proposal_shown: {
-		phase: 3,
-		owners: ["AI-003"],
-		params: {
-			// Capability keys come from the Appendix A command families (AI-001).
-			capability: enumParam(UNCLAIMED),
-			command_count_bucket: bucketParam("command_count"),
-		},
-	},
+  assistant_proposal_shown: {
+    phase: 3,
+    owners: ["AI-003"],
+    params: {
+      // Capability keys come from the Appendix A command families (AI-001).
+      capability: enumParam(UNCLAIMED),
+      command_count_bucket: bucketParam("command_count"),
+    },
+  },
 
-	assistant_proposal_applied: {
-		phase: 3,
-		owners: ["AI-003"],
-		params: {
-			capability: enumParam(UNCLAIMED),
-			seconds_to_decision_bucket: bucketParam("elapsed_seconds"),
-		},
-	},
+  assistant_proposal_applied: {
+    phase: 3,
+    owners: ["AI-003"],
+    params: {
+      capability: enumParam(UNCLAIMED),
+      seconds_to_decision_bucket: bucketParam("elapsed_seconds"),
+    },
+  },
 
-	assistant_proposal_cancelled: {
-		phase: 3,
-		owners: ["AI-003"],
-		params: { capability: enumParam(UNCLAIMED) },
-	},
+  assistant_proposal_cancelled: {
+    phase: 3,
+    owners: ["AI-003"],
+    params: { capability: enumParam(UNCLAIMED) },
+  },
 
-	assistant_proposal_undone: {
-		phase: 3,
-		owners: ["AI-003"],
-		params: {
-			capability: enumParam(UNCLAIMED),
-			seconds_to_undo_bucket: bucketParam("elapsed_seconds"),
-		},
-	},
+  assistant_proposal_undone: {
+    phase: 3,
+    owners: ["AI-003"],
+    params: {
+      capability: enumParam(UNCLAIMED),
+      seconds_to_undo_bucket: bucketParam("elapsed_seconds"),
+    },
+  },
 
-	assistant_result_edited: {
-		phase: 3,
-		owners: ["AI-004"],
-		params: { capability: enumParam(UNCLAIMED) },
-	},
+  assistant_result_edited: {
+    phase: 3,
+    owners: ["AI-004"],
+    params: { capability: enumParam(UNCLAIMED) },
+  },
 
-	save_failed: {
-		phase: 0,
-		owners: ["FND-001c", "LOOP-002"],
-		params: {
-			error_code: enumParam(ERROR_CODES),
-			retry_count: countParam(20),
-		},
-	},
+  save_failed: {
+    phase: 0,
+    owners: ["FND-001c", "LOOP-002"],
+    params: {
+      error_code: enumParam(ERROR_CODES),
+      retry_count: countParam(20),
+    },
+  },
 
-	save_recovered: {
-		phase: 1,
-		owners: ["LOOP-002"],
-		params: { retry_count: countParam(20) },
-	},
+  save_recovered: {
+    phase: 1,
+    owners: ["LOOP-002"],
+    params: { retry_count: countParam(20) },
+  },
 
-	audio_start_failed: {
-		phase: 0,
-		owners: ["FND-001c", "LOOP-003"],
-		params: {
-			error_code: enumParam(ERROR_CODES),
-			was_browser_blocked: boolParam(),
-		},
-	},
+  audio_start_failed: {
+    phase: 0,
+    owners: ["FND-001c", "LOOP-003"],
+    params: {
+      error_code: enumParam(ERROR_CODES),
+      was_browser_blocked: boolParam(),
+    },
+  },
 
-	audio_underrun: {
-		phase: 1,
-		owners: ["LOOP-003"],
-		params: {
-			dropped_event_bucket: bucketParam("dropped_events"),
-			sample_rate: enumParam(SAMPLE_RATE_KEYS),
-		},
-	},
+  audio_underrun: {
+    phase: 1,
+    owners: ["LOOP-003"],
+    params: {
+      dropped_event_bucket: bucketParam("dropped_events"),
+      sample_rate: enumParam(SAMPLE_RATE_KEYS),
+    },
+  },
 
-	asset_load_failed: {
-		phase: 1,
-		owners: ["LOOP-006", "LOOP-013"],
-		params: {
-			asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
-			error_code: enumParam(ERROR_CODES),
-		},
-	},
+  asset_load_failed: {
+    phase: 1,
+    owners: ["LOOP-006", "LOOP-013"],
+    params: {
+      asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
+      error_code: enumParam(ERROR_CODES),
+    },
+  },
 
-	exception: {
-		phase: 0,
-		owners: ["FND-001c"],
-		params: {
-			fatal: boolParam(),
-			area: enumParam(ERROR_AREAS),
-			error_code: enumParam(ERROR_CODES),
-		},
-	},
+  exception: {
+    phase: 0,
+    owners: ["FND-001c"],
+    params: {
+      fatal: boolParam(),
+      area: enumParam(ERROR_AREAS),
+      error_code: enumParam(ERROR_CODES),
+    },
+  },
 } as const satisfies Record<string, AnalyticsEventDefinition>;
 
 export type AnalyticsCatalog = typeof ANALYTICS_EVENTS;
 export type AnalyticsEventName = keyof AnalyticsCatalog;
 
 export const ANALYTICS_EVENT_NAMES = Object.keys(
-	ANALYTICS_EVENTS,
+  ANALYTICS_EVENTS,
 ) as AnalyticsEventName[];
 
 // ---------------------------------------------------------------------------
@@ -764,25 +745,25 @@ export const ANALYTICS_EVENT_NAMES = Object.keys(
 
 /** The value type one declared parameter accepts. */
 export type ParamValue<P> = P extends EnumParam<infer V, boolean>
-	? V
-	: P extends BucketParam<infer S, boolean>
-		? BucketLabel<S>
-		: P extends BooleanParam
-			? boolean
-			: P extends CountParam
-				? number
-				: P extends SlugParam
-					? PublishedPackId
-					: never;
+  ? V
+  : P extends BucketParam<infer S, boolean>
+    ? BucketLabel<S>
+    : P extends BooleanParam
+      ? boolean
+      : P extends CountParam
+        ? number
+        : P extends SlugParam
+          ? PublishedPackId
+          : never;
 
 type ParamsOf<N extends AnalyticsEventName> = AnalyticsCatalog[N]["params"];
 
 type RequiredKeys<P> = {
-	[K in keyof P]: P[K] extends { optional: true } ? never : K;
+  [K in keyof P]: P[K] extends { optional: true } ? never : K;
 }[keyof P];
 
 type OptionalKeys<P> = {
-	[K in keyof P]: P[K] extends { optional: true } ? K : never;
+  [K in keyof P]: P[K] extends { optional: true } ? K : never;
 }[keyof P];
 
 /**
@@ -794,20 +775,20 @@ type OptionalKeys<P> = {
  * errors, not runtime surprises.
  */
 export type AnalyticsEventPayload<N extends AnalyticsEventName> = {
-	[K in RequiredKeys<ParamsOf<N>>]: ParamValue<ParamsOf<N>[K]>;
+  [K in RequiredKeys<ParamsOf<N>>]: ParamValue<ParamsOf<N>[K]>;
 } & {
-	[K in OptionalKeys<ParamsOf<N>>]?: ParamValue<ParamsOf<N>[K]>;
+  [K in OptionalKeys<ParamsOf<N>>]?: ParamValue<ParamsOf<N>[K]>;
 };
 
 /** Events whose payload is empty, so `log(name)` needs no second argument. */
 type HasNoParams<N extends AnalyticsEventName> = keyof ParamsOf<N> extends never
-	? true
-	: false;
+  ? true
+  : false;
 
 /** Argument tuple for `log`, making the payload optional for empty events. */
 export type LogArgs<N extends AnalyticsEventName> = HasNoParams<N> extends true
-	? [payload?: Record<string, never>]
-	: [payload: AnalyticsEventPayload<N>];
+  ? [payload?: Record<string, never>]
+  : [payload: AnalyticsEventPayload<N>];
 
 // ---------------------------------------------------------------------------
 // Runtime validation
@@ -819,8 +800,8 @@ export type LogArgs<N extends AnalyticsEventName> = HasNoParams<N> extends true
 export type AnalyticsParamValue = string | number | boolean;
 
 export interface ValidationResult {
-	readonly params: Record<string, AnalyticsParamValue>;
-	readonly issues: readonly string[];
+  readonly params: Record<string, AnalyticsParamValue>;
+  readonly issues: readonly string[];
 }
 
 /**
@@ -833,79 +814,72 @@ export interface ValidationResult {
  * It never throws: PRD `OPS-02` requires analytics to fail open.
  */
 export function validateEventPayload(
-	event: AnalyticsEventName,
-	payload: Readonly<Record<string, unknown>> = {},
+  event: AnalyticsEventName,
+  payload: Readonly<Record<string, unknown>> = {},
 ): ValidationResult {
-	const definition = ANALYTICS_EVENTS[event] as
-		| AnalyticsEventDefinition
-		| undefined;
-	const params: Record<string, AnalyticsParamValue> = {};
-	const issues: string[] = [];
+  const definition = ANALYTICS_EVENTS[event] as AnalyticsEventDefinition | undefined;
+  const params: Record<string, AnalyticsParamValue> = {};
+  const issues: string[] = [];
 
-	// The compiler rejects an unregistered event at every typed call site, so
-	// reaching this needs an untyped edge. It must still return rather than
-	// throw: analytics fails open, and the caller is editing or playback code.
-	if (!definition) {
-		return { params, issues: [`"${event}" is not a registered event`] };
-	}
+  // The compiler rejects an unregistered event at every typed call site, so
+  // reaching this needs an untyped edge. It must still return rather than
+  // throw: analytics fails open, and the caller is editing or playback code.
+  if (!definition) {
+    return { params, issues: [`"${event}" is not a registered event`] };
+  }
 
-	for (const [name, value] of Object.entries(payload)) {
-		const spec = definition.params[name];
-		if (!spec) {
-			issues.push(`"${event}" has no parameter "${name}"`);
-			continue;
-		}
-		if (value === undefined) continue;
-		const coerced = coerceParam(spec, value);
-		if (coerced === undefined) {
-			// Deliberately does not include `value` — an issue string can end up in
-			// a log or an error report, and the whole point of this file is that a
-			// rejected value may be exactly the project content that must not travel.
-			issues.push(
-				`"${event}.${name}" received a value outside its declared set`,
-			);
-			continue;
-		}
-		params[name] = coerced;
-	}
+  for (const [name, value] of Object.entries(payload)) {
+    const spec = definition.params[name];
+    if (!spec) {
+      issues.push(`"${event}" has no parameter "${name}"`);
+      continue;
+    }
+    if (value === undefined) continue;
+    const coerced = coerceParam(spec, value);
+    if (coerced === undefined) {
+      // Deliberately does not include `value` — an issue string can end up in
+      // a log or an error report, and the whole point of this file is that a
+      // rejected value may be exactly the project content that must not travel.
+      issues.push(`"${event}.${name}" received a value outside its declared set`);
+      continue;
+    }
+    params[name] = coerced;
+  }
 
-	for (const [name, spec] of Object.entries(definition.params)) {
-		if (!spec.optional && !(name in params)) {
-			issues.push(`"${event}" is missing required parameter "${name}"`);
-		}
-	}
+  for (const [name, spec] of Object.entries(definition.params)) {
+    if (!spec.optional && !(name in params)) {
+      issues.push(`"${event}" is missing required parameter "${name}"`);
+    }
+  }
 
-	return { params, issues };
+  return { params, issues };
 }
 
 function coerceParam(
-	spec: AnalyticsParam,
-	value: unknown,
+  spec: AnalyticsParam,
+  value: unknown,
 ): AnalyticsParamValue | undefined {
-	switch (spec.kind) {
-		case "enum":
-			return typeof value === "string" && spec.values.includes(value)
-				? value
-				: undefined;
-		case "bucket":
-			return typeof value === "string" &&
-				(bucketLabels(spec.scale) as readonly string[]).includes(value)
-				? value
-				: undefined;
-		case "boolean":
-			return typeof value === "boolean" ? value : undefined;
-		case "count":
-			if (typeof value !== "number" || !Number.isFinite(value))
-				return undefined;
-			return Math.min(Math.max(Math.round(value), 0), spec.max);
-		case "slug":
-			if (typeof value !== "string") return undefined;
-			if (spec.reserved.includes(value)) return value;
-			// Shape, not membership — the published set is not knowable here. A
-			// value that is not a well-formed slug (a `pak_` ID, a display name, a
-			// user-entered string) is dropped exactly like an out-of-set enum value.
-			return isPublishedPackSlug(value) ? value : undefined;
-	}
+  switch (spec.kind) {
+    case "enum":
+      return typeof value === "string" && spec.values.includes(value) ? value : undefined;
+    case "bucket":
+      return typeof value === "string" &&
+        (bucketLabels(spec.scale) as readonly string[]).includes(value)
+        ? value
+        : undefined;
+    case "boolean":
+      return typeof value === "boolean" ? value : undefined;
+    case "count":
+      if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+      return Math.min(Math.max(Math.round(value), 0), spec.max);
+    case "slug":
+      if (typeof value !== "string") return undefined;
+      if (spec.reserved.includes(value)) return value;
+      // Shape, not membership — the published set is not knowable here. A
+      // value that is not a well-formed slug (a `pak_` ID, a display name, a
+      // user-entered string) is dropped exactly like an out-of-set enum value.
+      return isPublishedPackSlug(value) ? value : undefined;
+  }
 }
 
 /**
@@ -913,14 +887,14 @@ function coerceParam(
  * parameter has no closed set — only its reserved sentinels are declared.
  */
 export function declaredValues(spec: AnalyticsParam): readonly string[] {
-	switch (spec.kind) {
-		case "enum":
-			return spec.values;
-		case "bucket":
-			return bucketLabels(spec.scale);
-		case "slug":
-			return spec.reserved;
-		default:
-			return [];
-	}
+  switch (spec.kind) {
+    case "enum":
+      return spec.values;
+    case "bucket":
+      return bucketLabels(spec.scale);
+    case "slug":
+      return spec.reserved;
+    default:
+      return [];
+  }
 }

@@ -19,12 +19,12 @@ export { DEVICE_SMOOTHING_SECONDS, setOrRamp } from "./types";
  * module plus one entry here.
  */
 const DEVICE_CORES: Readonly<Record<string, DeviceCoreFactory>> = {
-	filter: createFilterCore,
-	overdrive: createOverdriveCore,
-	saturator: createSaturatorCore,
-	compressor: createCompressorCore,
-	delay: createDelayCore,
-	reverb: createReverbCore,
+  filter: createFilterCore,
+  overdrive: createOverdriveCore,
+  saturator: createSaturatorCore,
+  compressor: createCompressorCore,
+  delay: createDelayCore,
+  reverb: createReverbCore,
 };
 
 /**
@@ -36,23 +36,21 @@ const DEVICE_CORES: Readonly<Record<string, DeviceCoreFactory>> = {
  * unknown type — a project saved by a future build, say — must still load and
  * play the rest of the chain rather than failing to build the graph at all.
  */
-export function createDeviceNodeFactory(
-	context: DeviceGraphContext,
-): DeviceNodeFactory {
-	return (device: Device): DeviceNode | undefined => {
-		const createCore = DEVICE_CORES[device.type];
-		if (!createCore) return undefined;
-		return buildDeviceNode(device, context, createCore);
-	};
+export function createDeviceNodeFactory(context: DeviceGraphContext): DeviceNodeFactory {
+  return (device: Device): DeviceNode | undefined => {
+    const createCore = DEVICE_CORES[device.type];
+    if (!createCore) return undefined;
+    return buildDeviceNode(device, context, createCore);
+  };
 }
 
 /** Whether a `device.type` has real DSP behind it, rather than a passthrough. */
 export function hasDeviceCore(type: string): boolean {
-	return type in DEVICE_CORES;
+  return type in DEVICE_CORES;
 }
 
 /** Every `device.type` with a registered core. Lets a test prove this map and
  * the domain's device-type registry have not drifted apart in either direction. */
 export function registeredDeviceCoreTypes(): readonly string[] {
-	return Object.keys(DEVICE_CORES);
+  return Object.keys(DEVICE_CORES);
 }

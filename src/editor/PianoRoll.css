@@ -1,187 +1,187 @@
 .piano-roll {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	border: 1px solid var(--surface-border, #2a2a33);
-	border-radius: 8px;
-	background: var(--surface, #16161c);
-	padding: 0.5rem;
-	outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--surface-border, #2a2a33);
+  border-radius: 8px;
+  background: var(--surface, #16161c);
+  padding: 0.5rem;
+  outline: none;
 }
 
 .piano-roll:focus-visible {
-	box-shadow: 0 0 0 2px var(--accent, #6c7bff);
+  box-shadow: 0 0 0 2px var(--accent, #6c7bff);
 }
 
 .piano-roll-toolbar {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .pr-tool {
-	font: inherit;
-	padding: 0.15rem 0.5rem;
-	border: 1px solid var(--surface-border, #2a2a33);
-	border-radius: 5px;
-	background: var(--surface-raised, #22222b);
-	color: inherit;
-	cursor: pointer;
+  font: inherit;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--surface-border, #2a2a33);
+  border-radius: 5px;
+  background: var(--surface-raised, #22222b);
+  color: inherit;
+  cursor: pointer;
 }
 
 .pr-tool:disabled {
-	opacity: 0.4;
-	cursor: default;
+  opacity: 0.4;
+  cursor: default;
 }
 
 .pr-selection-count {
-	font-size: 0.8rem;
-	opacity: 0.7;
+  font-size: 0.8rem;
+  opacity: 0.7;
 }
 
 .pr-key-guide {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.25rem;
-	font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
 }
 
 .pr-key-select {
-	font: inherit;
-	font-size: 0.8rem;
-	padding: 0.1rem 0.25rem;
-	border: 1px solid var(--surface-border, #2a2a33);
-	border-radius: 5px;
-	background: var(--surface-raised, #22222b);
-	color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--surface-border, #2a2a33);
+  border-radius: 5px;
+  background: var(--surface-raised, #22222b);
+  color: inherit;
 }
 
 .pr-zoom {
-	margin-left: auto;
-	display: inline-flex;
-	gap: 0.25rem;
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.25rem;
 }
 
 .piano-roll-body {
-	display: flex;
-	max-height: 320px;
-	overflow: auto;
-	border: 1px solid var(--surface-border, #2a2a33);
-	border-radius: 6px;
-	background: var(--grid-bg, #101015);
+  display: flex;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--surface-border, #2a2a33);
+  border-radius: 6px;
+  background: var(--grid-bg, #101015);
 }
 
 .piano-roll-keys {
-	position: relative;
-	flex: 0 0 44px;
-	border-right: 1px solid var(--surface-border, #2a2a33);
-	background: var(--surface-raised, #22222b);
+  position: relative;
+  flex: 0 0 44px;
+  border-right: 1px solid var(--surface-border, #2a2a33);
+  background: var(--surface-raised, #22222b);
 }
 
 .pr-key {
-	position: absolute;
-	left: 0;
-	right: 0;
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	padding-right: 4px;
-	font-size: 0.6rem;
-	color: var(--muted, #8a8a99);
-	border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-	box-sizing: border-box;
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 4px;
+  font-size: 0.6rem;
+  color: var(--muted, #8a8a99);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  box-sizing: border-box;
 }
 
 .pr-key.black {
-	background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .pr-key.out-of-key {
-	color: rgba(138, 138, 153, 0.4);
+  color: rgba(138, 138, 153, 0.4);
 }
 
 .piano-roll-content {
-	position: relative;
-	flex: 1 0 auto;
-	min-width: 0;
-	touch-action: none;
+  position: relative;
+  flex: 1 0 auto;
+  min-width: 0;
+  touch-action: none;
 }
 
 .pr-row {
-	position: absolute;
-	left: 0;
-	right: 0;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-	box-sizing: border-box;
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  box-sizing: border-box;
 }
 
 .pr-row.black {
-	background: rgba(255, 255, 255, 0.015);
+  background: rgba(255, 255, 255, 0.015);
 }
 
 /* The in-key guide: rows whose pitch class is out of the chosen key are dimmed
    so the scale reads at a glance. View-only shading — every row stays fully
    interactive. */
 .pr-row.out-of-key {
-	background: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .pr-note {
-	position: absolute;
-	box-sizing: border-box;
-	border-radius: 3px;
-	background: var(--note, #6c7bff);
-	border: 1px solid rgba(255, 255, 255, 0.25);
-	display: flex;
-	align-items: flex-end;
-	cursor: grab;
-	overflow: hidden;
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 3px;
+  background: var(--note, #6c7bff);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: flex-end;
+  cursor: grab;
+  overflow: hidden;
 }
 
 .pr-note.selected {
-	background: var(--note-selected, #ffb54d);
-	border-color: #fff;
-	z-index: 2;
+  background: var(--note-selected, #ffb54d);
+  border-color: #fff;
+  z-index: 2;
 }
 
 .pr-note-resize {
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	width: 6px;
-	cursor: ew-resize;
-	background: rgba(255, 255, 255, 0.25);
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .pr-note-velocity {
-	width: 100%;
-	height: 4px;
-	margin: 0;
-	accent-color: rgba(0, 0, 0, 0.55);
-	cursor: pointer;
+  width: 100%;
+  height: 4px;
+  margin: 0;
+  accent-color: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
 }
 
 .pr-marquee {
-	position: absolute;
-	border: 1px dashed var(--accent, #6c7bff);
-	background: rgba(108, 123, 255, 0.15);
-	pointer-events: none;
-	z-index: 3;
+  position: absolute;
+  border: 1px dashed var(--accent, #6c7bff);
+  background: rgba(108, 123, 255, 0.15);
+  pointer-events: none;
+  z-index: 3;
 }
 
 .pr-playhead {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	width: 2px;
-	background: var(--playhead, #ff5d5d);
-	pointer-events: none;
-	z-index: 4;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--playhead, #ff5d5d);
+  pointer-events: none;
+  z-index: 4;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.pr-playhead {
-		transition: none;
-	}
+  .pr-playhead {
+    transition: none;
+  }
 }

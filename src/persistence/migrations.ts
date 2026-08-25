@@ -1,13 +1,9 @@
+import { type Project, type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
 import {
-	type Project,
-	type ProjectMetadata,
-	SCHEMA_VERSION,
-} from "../domain/entities";
-import {
-	type DecodeResult,
-	decodeProject,
-	decodeProjectMetadata,
-	type RawProjectDocuments,
+  type DecodeResult,
+  decodeProject,
+  decodeProjectMetadata,
+  type RawProjectDocuments,
 } from "./documents";
 
 /**
@@ -21,18 +17,16 @@ import {
  * not. This satisfies the domain invariant (every used pack is shelved) on the
  * first read, before any `pack.add`/`pack.remove` runs.
  */
-function metadataV1ToV2(
-	metadata: Record<string, unknown>,
-): Record<string, unknown> {
-	const dependencies = Array.isArray(metadata.packDependencies)
-		? metadata.packDependencies
-		: [];
-	return {
-		...metadata,
-		schemaVersion: 2,
-		// The shelf a v1 project starts with is exactly what it already uses.
-		addedPacks: dependencies.map((dependency) => ({ ...asRecord(dependency) })),
-	};
+function metadataV1ToV2(metadata: Record<string, unknown>): Record<string, unknown> {
+  const dependencies = Array.isArray(metadata.packDependencies)
+    ? metadata.packDependencies
+    : [];
+  return {
+    ...metadata,
+    schemaVersion: 2,
+    // The shelf a v1 project starts with is exactly what it already uses.
+    addedPacks: dependencies.map((dependency) => ({ ...asRecord(dependency) })),
+  };
 }
 
 /**
@@ -43,42 +37,39 @@ function metadataV1ToV2(
  * behind would make the decoded aggregate fail its version check.
  */
 const migrateV1ToV2: ProjectMigration = {
-	from: 1,
-	to: 2,
-	description:
-		"Add the project pack shelf (addedPacks), seeded from dependencies",
-	migrate(documents) {
-		return {
-			...documents,
-			metadata: metadataV1ToV2(asRecord(documents.metadata)),
-			song: bumpVersion(documents.song, 2),
-			clips: documents.clips.map((clip) => bumpVersion(clip, 2)),
-			...(documents.arrangement
-				? {
-						arrangement: documents.arrangement.map((chunk) =>
-							bumpVersion(chunk, 2),
-						),
-					}
-				: {}),
-		};
-	},
+  from: 1,
+  to: 2,
+  description: "Add the project pack shelf (addedPacks), seeded from dependencies",
+  migrate(documents) {
+    return {
+      ...documents,
+      metadata: metadataV1ToV2(asRecord(documents.metadata)),
+      song: bumpVersion(documents.song, 2),
+      clips: documents.clips.map((clip) => bumpVersion(clip, 2)),
+      ...(documents.arrangement
+        ? {
+            arrangement: documents.arrangement.map((chunk) => bumpVersion(chunk, 2)),
+          }
+        : {}),
+    };
+  },
 };
 
 /** The metadata-tier transform each migration applies, keyed by source version. */
 const METADATA_MIGRATIONS: ReadonlyMap<
-	number,
-	(metadata: Record<string, unknown>) => Record<string, unknown>
+  number,
+  (metadata: Record<string, unknown>) => Record<string, unknown>
 > = new Map([[1, metadataV1ToV2]]);
 
 function asRecord(value: unknown): Record<string, unknown> {
-	return typeof value === "object" && value !== null
-		? (value as Record<string, unknown>)
-		: {};
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 /** Sets a document's `schemaVersion` envelope field, leaving the rest intact. */
 function bumpVersion(document: unknown, to: number): Record<string, unknown> {
-	return { ...asRecord(document), schemaVersion: to };
+  return { ...asRecord(document), schemaVersion: to };
 }
 
 /**
@@ -108,93 +99,85 @@ function bumpVersion(document: unknown, to: number): Record<string, unknown> {
  */
 
 export interface ProjectMigration {
-	readonly from: number;
-	readonly to: number;
-	readonly description: string;
-	migrate(documents: RawProjectDocuments): RawProjectDocuments;
+  readonly from: number;
+  readonly to: number;
+  readonly description: string;
+  migrate(documents: RawProjectDocuments): RawProjectDocuments;
 }
 
 /** Ordered, gap-free chain of migrations up to `SCHEMA_VERSION`. */
 export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [migrateV1ToV2];
 
 export type MigrationFailureReason =
-	| "future_version"
-	| "unknown_version"
-	| "missing_version";
+  | "future_version"
+  | "unknown_version"
+  | "missing_version";
 
 export type MigrationResult =
-	| {
-			readonly ok: true;
-			readonly documents: RawProjectDocuments;
-			/** Descriptions of the migrations applied, in order. */
-			readonly applied: readonly string[];
-	  }
-	| {
-			readonly ok: false;
-			readonly reason: MigrationFailureReason;
-			readonly message: string;
-			readonly storedVersion: number | null;
-	  };
+  | {
+      readonly ok: true;
+      readonly documents: RawProjectDocuments;
+      /** Descriptions of the migrations applied, in order. */
+      readonly applied: readonly string[];
+    }
+  | {
+      readonly ok: false;
+      readonly reason: MigrationFailureReason;
+      readonly message: string;
+      readonly storedVersion: number | null;
+    };
 
 /** The schema version a stored project declares, or `null` when unreadable. */
-export function storedSchemaVersion(
-	documents: RawProjectDocuments,
-): number | null {
-	const metadata = documents.metadata;
-	if (typeof metadata !== "object" || metadata === null) {
-		return null;
-	}
-	const version = (metadata as { schemaVersion?: unknown }).schemaVersion;
-	return typeof version === "number" && Number.isInteger(version)
-		? version
-		: null;
+export function storedSchemaVersion(documents: RawProjectDocuments): number | null {
+  const metadata = documents.metadata;
+  if (typeof metadata !== "object" || metadata === null) {
+    return null;
+  }
+  const version = (metadata as { schemaVersion?: unknown }).schemaVersion;
+  return typeof version === "number" && Number.isInteger(version) ? version : null;
 }
 
 /** Upgrades stored documents to `SCHEMA_VERSION`, or explains why it cannot. */
-export function migrateProjectDocuments(
-	documents: RawProjectDocuments,
-): MigrationResult {
-	const storedVersion = storedSchemaVersion(documents);
-	if (storedVersion === null) {
-		return {
-			ok: false,
-			reason: "missing_version",
-			message: "Stored project declares no integer schema version",
-			storedVersion: null,
-		};
-	}
-	if (storedVersion > SCHEMA_VERSION) {
-		return {
-			ok: false,
-			reason: "future_version",
-			message: `Stored project is at schema version ${storedVersion}; this build supports up to ${SCHEMA_VERSION} and will not read or overwrite it`,
-			storedVersion,
-		};
-	}
-	if (storedVersion === SCHEMA_VERSION) {
-		return { ok: true, documents, applied: [] };
-	}
+export function migrateProjectDocuments(documents: RawProjectDocuments): MigrationResult {
+  const storedVersion = storedSchemaVersion(documents);
+  if (storedVersion === null) {
+    return {
+      ok: false,
+      reason: "missing_version",
+      message: "Stored project declares no integer schema version",
+      storedVersion: null,
+    };
+  }
+  if (storedVersion > SCHEMA_VERSION) {
+    return {
+      ok: false,
+      reason: "future_version",
+      message: `Stored project is at schema version ${storedVersion}; this build supports up to ${SCHEMA_VERSION} and will not read or overwrite it`,
+      storedVersion,
+    };
+  }
+  if (storedVersion === SCHEMA_VERSION) {
+    return { ok: true, documents, applied: [] };
+  }
 
-	const applied: string[] = [];
-	let current = documents;
-	let version = storedVersion;
-	while (version < SCHEMA_VERSION) {
-		const migration = PROJECT_MIGRATIONS.find(
-			(entry) => entry.from === version,
-		);
-		if (!migration) {
-			return {
-				ok: false,
-				reason: "unknown_version",
-				message: `No migration is registered from schema version ${version}; stored state is left untouched`,
-				storedVersion,
-			};
-		}
-		current = migration.migrate(current);
-		applied.push(migration.description);
-		version = migration.to;
-	}
-	return { ok: true, documents: current, applied };
+  const applied: string[] = [];
+  let current = documents;
+  let version = storedVersion;
+  while (version < SCHEMA_VERSION) {
+    const migration = PROJECT_MIGRATIONS.find((entry) => entry.from === version);
+    if (!migration) {
+      return {
+        ok: false,
+        reason: "unknown_version",
+        message: `No migration is registered from schema version ${version}; stored state is left untouched`,
+        storedVersion,
+      };
+    }
+    current = migration.migrate(current);
+    applied.push(migration.description);
+    version = migration.to;
+  }
+  return { ok: true, documents: current, applied };
 }
 
 /**
@@ -209,25 +192,25 @@ export function migrateProjectDocuments(
  * effect of loading it.
  */
 export function decodeStoredProject(
-	documents: RawProjectDocuments,
+  documents: RawProjectDocuments,
 ): DecodeResult<Project> {
-	const migrated = migrateProjectDocuments(documents);
-	if (!migrated.ok) {
-		return {
-			ok: false,
-			issues: [
-				{
-					code:
-						migrated.reason === "future_version"
-							? "unsupported_schema_version"
-							: "invalid_shape",
-					path: ["metadata", "schemaVersion"],
-					message: migrated.message,
-				},
-			],
-		};
-	}
-	return decodeProject(migrated.documents);
+  const migrated = migrateProjectDocuments(documents);
+  if (!migrated.ok) {
+    return {
+      ok: false,
+      issues: [
+        {
+          code:
+            migrated.reason === "future_version"
+              ? "unsupported_schema_version"
+              : "invalid_shape",
+          path: ["metadata", "schemaVersion"],
+          message: migrated.message,
+        },
+      ],
+    };
+  }
+  return decodeProject(migrated.documents);
 }
 
 /**
@@ -238,28 +221,27 @@ export function decodeStoredProject(
  * failure). Only the metadata half of each migration is applied here.
  */
 export function decodeStoredProjectMetadata(
-	projectId: string,
-	raw: unknown,
+  projectId: string,
+  raw: unknown,
 ): DecodeResult<ProjectMetadata> {
-	const data = asRecord(raw);
-	const storedVersion =
-		typeof data.schemaVersion === "number" &&
-		Number.isInteger(data.schemaVersion)
-			? data.schemaVersion
-			: null;
-	if (storedVersion === null || storedVersion > SCHEMA_VERSION) {
-		// Let the decoder report a missing or future version the usual way.
-		return decodeProjectMetadata(projectId, raw);
-	}
-	let current = data;
-	let version = storedVersion;
-	while (version < SCHEMA_VERSION) {
-		const migrate = METADATA_MIGRATIONS.get(version);
-		if (!migrate) {
-			return decodeProjectMetadata(projectId, raw);
-		}
-		current = migrate(current);
-		version += 1;
-	}
-	return decodeProjectMetadata(projectId, current);
+  const data = asRecord(raw);
+  const storedVersion =
+    typeof data.schemaVersion === "number" && Number.isInteger(data.schemaVersion)
+      ? data.schemaVersion
+      : null;
+  if (storedVersion === null || storedVersion > SCHEMA_VERSION) {
+    // Let the decoder report a missing or future version the usual way.
+    return decodeProjectMetadata(projectId, raw);
+  }
+  let current = data;
+  let version = storedVersion;
+  while (version < SCHEMA_VERSION) {
+    const migrate = METADATA_MIGRATIONS.get(version);
+    if (!migrate) {
+      return decodeProjectMetadata(projectId, raw);
+    }
+    current = migrate(current);
+    version += 1;
+  }
+  return decodeProjectMetadata(projectId, current);
 }

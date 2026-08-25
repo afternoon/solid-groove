@@ -25,30 +25,30 @@ import type { RegisteredCommand } from "./types";
  * one heterogeneous registry needs no `any` and no cast here.
  */
 const ALL_DEFINITIONS: readonly RegisteredCommand[] = [
-	...noteCommands,
-	...transformCommands,
-	...clipCommands,
-	...trackCommands,
-	...placementCommands,
-	...parameterCommands,
-	...drumCommands,
-	...instrumentCommands,
-	...packCommands,
-	...assetCommands,
-	...deviceCommands,
+  ...noteCommands,
+  ...transformCommands,
+  ...clipCommands,
+  ...trackCommands,
+  ...placementCommands,
+  ...parameterCommands,
+  ...drumCommands,
+  ...instrumentCommands,
+  ...packCommands,
+  ...assetCommands,
+  ...deviceCommands,
 ];
 
 function buildRegistry(
-	definitions: readonly RegisteredCommand[],
+  definitions: readonly RegisteredCommand[],
 ): ReadonlyMap<string, RegisteredCommand> {
-	const registry = new Map<string, RegisteredCommand>();
-	for (const definition of definitions) {
-		if (registry.has(definition.type)) {
-			throw new TypeError(`Command "${definition.type}" is already registered`);
-		}
-		registry.set(definition.type, definition);
-	}
-	return registry;
+  const registry = new Map<string, RegisteredCommand>();
+  for (const definition of definitions) {
+    if (registry.has(definition.type)) {
+      throw new TypeError(`Command "${definition.type}" is already registered`);
+    }
+    registry.set(definition.type, definition);
+  }
+  return registry;
 }
 
 const REGISTRY = buildRegistry(ALL_DEFINITIONS);
@@ -57,21 +57,21 @@ const REGISTRY = buildRegistry(ALL_DEFINITIONS);
 export const COMMAND_TYPES: readonly string[] = [...REGISTRY.keys()];
 
 export function commandRegistry(): ReadonlyMap<string, RegisteredCommand> {
-	return REGISTRY;
+  return REGISTRY;
 }
 
 export function findCommand(type: string): RegisteredCommand | undefined {
-	return REGISTRY.get(type);
+  return REGISTRY.get(type);
 }
 
 export function requireCommand(type: string): RegisteredCommand {
-	const command = REGISTRY.get(type);
-	if (!command) {
-		throw new TypeError(`Unknown command "${type}"`);
-	}
-	return command;
+  const command = REGISTRY.get(type);
+  if (!command) {
+    throw new TypeError(`Unknown command "${type}"`);
+  }
+  return command;
 }
 
 export function isRegisteredCommand(type: string): boolean {
-	return REGISTRY.has(type);
+  return REGISTRY.has(type);
 }

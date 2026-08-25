@@ -1,194 +1,194 @@
 .dashboard {
-	width: 100%;
-	max-width: 900px;
-	margin: 64px auto;
-	padding: 0 24px;
-	box-sizing: border-box;
+  width: 100%;
+  max-width: 900px;
+  margin: 64px auto;
+  padding: 0 24px;
+  box-sizing: border-box;
 }
 
 .dashboard .tape-loader {
-	margin: 48px auto;
+  margin: 48px auto;
 }
 
 .dashboard-title {
-	font-size: var(--font-size-lg);
-	margin-bottom: 24px;
+  font-size: var(--font-size-lg);
+  margin-bottom: 24px;
 }
 
 .upgrade-prompt {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 10px;
-	padding: 16px 20px;
-	margin-bottom: 24px;
-	border: 1px solid rgba(255, 255, 255, 0.15);
-	border-radius: 10px;
-	background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .upgrade-prompt .upgrade-message {
-	margin: 0;
-	opacity: 0.85;
+  margin: 0;
+  opacity: 0.85;
 }
 
 .upgrade-prompt button,
 .dashboard-actions .new-project,
 .dashboard-actions .blank-project {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 10px 16px;
-	border-radius: 8px;
-	cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 .upgrade-prompt button:disabled,
 .dashboard-actions .new-project:disabled,
 .dashboard-actions .blank-project:disabled {
-	opacity: 0.6;
-	cursor: default;
+  opacity: 0.6;
+  cursor: default;
 }
 
 .dashboard-actions {
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 8px;
-	/* Pull the buttons up so they align with the "Projects" header row. */
-	margin-top: -68px;
-	margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  /* Pull the buttons up so they align with the "Projects" header row. */
+  margin-top: -68px;
+  margin-bottom: 28px;
 }
 
 .dashboard-actions .action-row {
-	display: flex;
-	gap: 8px;
+  display: flex;
+  gap: 8px;
 }
 
 .dashboard-actions .create-error {
-	margin: 0;
-	font-size: var(--font-size-small);
-	color: #ff8a8a;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: #ff8a8a;
 }
 
 .project-list {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-	gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .project-card {
-	position: relative;
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	padding: 20px;
-	border: 1px solid rgba(255, 255, 255, 0.08);
-	border-radius: 12px;
-	background: var(--color-background-secondary);
-	transition:
-		border-color 0.15s ease,
-		background 0.15s ease,
-		transform 0.15s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: var(--color-background-secondary);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 
 .project-card:hover {
-	border-color: rgba(255, 255, 255, 0.18);
-	background: var(--color-background-highlight);
-	transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--color-background-highlight);
+  transform: translateY(-2px);
 }
 
 .project-card .project-title {
-	margin: 0;
-	font-size: var(--font-size-base);
-	font-weight: 600;
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
 }
 
 .project-card .project-title a {
-	color: var(--color-text);
-	text-decoration: none;
+  color: var(--color-text);
+  text-decoration: none;
 }
 
 .project-card .project-title a::after {
-	content: "";
-	position: absolute;
-	inset: 0;
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 .project-card .project-meta {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin: 0;
-	font-size: var(--font-size-small);
-	color: var(--color-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
 }
 
 .project-card .project-badge {
-	padding: 2px 8px;
-	border-radius: 999px;
-	font-size: var(--font-size-tiny);
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	background: rgba(255, 255, 255, 0.08);
-	color: var(--color-text-secondary);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--font-size-tiny);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
 }
 
 .project-card .project-badge.is-public {
-	background: rgba(90, 170, 120, 0.18);
-	color: #7fd6a0;
+  background: rgba(90, 170, 120, 0.18);
+  color: #7fd6a0;
 }
 
 .empty-projects {
-	grid-column: 1 / -1;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 6px;
-	padding: 56px 24px;
-	text-align: center;
-	color: var(--color-foreground);
-	border: 1px dashed rgba(255, 255, 255, 0.12);
-	border-radius: 12px;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--color-foreground);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
 }
 
 .empty-projects .empty-projects-title {
-	margin: 0;
-	font-size: var(--font-size-base);
-	font-weight: 600;
-	color: var(--color-text-secondary);
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
 .empty-projects .empty-projects-hint {
-	margin: 0;
-	font-size: var(--font-size-small);
+  margin: 0;
+  font-size: var(--font-size-small);
 }
 
 .projects-error {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 16px;
-	padding: 40px 24px;
-	text-align: center;
-	border: 1px solid rgba(255, 122, 122, 0.25);
-	border-radius: 12px;
-	background: rgba(255, 122, 122, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  border: 1px solid rgba(255, 122, 122, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 122, 122, 0.06);
 }
 
 .projects-error-message {
-	margin: 0;
-	color: #ff8a8a;
+  margin: 0;
+  color: #ff8a8a;
 }
 
 .projects-error .retry-button {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	padding: 10px 16px;
-	border-radius: 8px;
-	cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 /* The card title's stretched link (`.project-title a::after`) covers the
@@ -196,56 +196,56 @@
    stay clickable above it. */
 .project-card-actions,
 .project-rename-form {
-	position: relative;
-	z-index: 1;
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .project-card-actions .project-action {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 6px 10px;
-	border-radius: 6px;
-	font-size: var(--font-size-small);
-	background: rgba(255, 255, 255, 0.06);
-	border: 1px solid rgba(255, 255, 255, 0.1);
-	color: var(--color-text);
-	cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: var(--font-size-small);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 .project-card-actions .project-action:disabled {
-	opacity: 0.5;
-	cursor: default;
+  opacity: 0.5;
+  cursor: default;
 }
 
 .project-card-actions .project-action-destructive {
-	color: #ff9a9a;
+  color: #ff9a9a;
 }
 
 .project-rename-form .project-rename-input {
-	flex: 1;
-	min-width: 0;
-	padding: 6px 8px;
-	border-radius: 6px;
-	border: 1px solid rgba(255, 255, 255, 0.2);
-	background: var(--color-background);
-	color: var(--color-text);
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .project-rename-form button {
-	padding: 6px 10px;
-	border-radius: 6px;
-	cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 .project-row-error {
-	position: relative;
-	z-index: 1;
-	margin: 0;
-	font-size: var(--font-size-small);
-	color: #ff8a8a;
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: #ff8a8a;
 }

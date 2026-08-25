@@ -1,12 +1,12 @@
 import type {
-	Asset,
-	Clip,
-	Pack,
-	PackDependency,
-	PackVersion,
-	Project,
-	Song,
-	Track,
+  Asset,
+  Clip,
+  Pack,
+  PackDependency,
+  PackVersion,
+  Project,
+  Song,
+  Track,
 } from "./entities";
 import type { AssetId, ClipId, PackId, TrackId } from "./ids";
 
@@ -43,30 +43,29 @@ import type { AssetId, ClipId, PackId, TrackId } from "./ids";
  * maintained by hand" means in practice.
  */
 export function derivePackDependencies(song: Song): PackDependency[] {
-	const seen = new Map<string, PackDependency>();
-	for (const asset of song.assets) {
-		const key = `${asset.packId}@${asset.packVersion}`;
-		if (!seen.has(key)) {
-			seen.set(key, { packId: asset.packId, version: asset.packVersion });
-		}
-	}
-	return [...seen.values()].sort(
-		(a, b) =>
-			compare(a.packId, b.packId) || compare(a.version as string, b.version),
-	);
+  const seen = new Map<string, PackDependency>();
+  for (const asset of song.assets) {
+    const key = `${asset.packId}@${asset.packVersion}`;
+    if (!seen.has(key)) {
+      seen.set(key, { packId: asset.packId, version: asset.packVersion });
+    }
+  }
+  return [...seen.values()].sort(
+    (a, b) => compare(a.packId, b.packId) || compare(a.version as string, b.version),
+  );
 }
 
 /** Do two dependency lists name the same packs at the same versions? */
 export function packDependenciesEqual(
-	a: readonly PackDependency[],
-	b: readonly PackDependency[],
+  a: readonly PackDependency[],
+  b: readonly PackDependency[],
 ): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-	const left = sortedKeys(a);
-	const right = sortedKeys(b);
-	return left.every((key, index) => key === right[index]);
+  if (a.length !== b.length) {
+    return false;
+  }
+  const left = sortedKeys(a);
+  const right = sortedKeys(b);
+  return left.every((key, index) => key === right[index]);
 }
 
 /**
@@ -85,23 +84,23 @@ export function packDependenciesEqual(
  * command's job, not a side effect of an edit.
  */
 export function withDerivedPackDependencies(project: Project): Project {
-	const derived = derivePackDependencies(project.song);
-	const shelf = reconcilePackShelf(project.metadata.addedPacks, derived);
-	const dependenciesChanged = !packDependenciesEqual(
-		project.metadata.packDependencies,
-		derived,
-	);
-	if (!dependenciesChanged && shelf === project.metadata.addedPacks) {
-		return project;
-	}
-	return {
-		...project,
-		metadata: {
-			...project.metadata,
-			packDependencies: derived,
-			addedPacks: [...shelf],
-		},
-	};
+  const derived = derivePackDependencies(project.song);
+  const shelf = reconcilePackShelf(project.metadata.addedPacks, derived);
+  const dependenciesChanged = !packDependenciesEqual(
+    project.metadata.packDependencies,
+    derived,
+  );
+  if (!dependenciesChanged && shelf === project.metadata.addedPacks) {
+    return project;
+  }
+  return {
+    ...project,
+    metadata: {
+      ...project.metadata,
+      packDependencies: derived,
+      addedPacks: [...shelf],
+    },
+  };
 }
 
 /**
@@ -115,57 +114,56 @@ export function withDerivedPackDependencies(project: Project): Project {
  * metadata fields can never disagree on disk.
  */
 export function reconcilePackShelf(
-	shelf: readonly PackDependency[],
-	dependencies: readonly PackDependency[],
+  shelf: readonly PackDependency[],
+  dependencies: readonly PackDependency[],
 ): readonly PackDependency[] {
-	const byPack = new Map(shelf.map((entry) => [entry.packId, entry]));
-	let changed = false;
-	for (const dependency of dependencies) {
-		const shelved = byPack.get(dependency.packId);
-		if (!shelved || shelved.version !== dependency.version) {
-			byPack.set(dependency.packId, dependency);
-			changed = true;
-		}
-	}
-	if (!changed) {
-		return shelf;
-	}
-	return [...byPack.values()].sort(
-		(a, b) =>
-			compare(a.packId, b.packId) || compare(a.version as string, b.version),
-	);
+  const byPack = new Map(shelf.map((entry) => [entry.packId, entry]));
+  let changed = false;
+  for (const dependency of dependencies) {
+    const shelved = byPack.get(dependency.packId);
+    if (!shelved || shelved.version !== dependency.version) {
+      byPack.set(dependency.packId, dependency);
+      changed = true;
+    }
+  }
+  if (!changed) {
+    return shelf;
+  }
+  return [...byPack.values()].sort(
+    (a, b) => compare(a.packId, b.packId) || compare(a.version as string, b.version),
+  );
 }
 
 // --- Availability -----------------------------------------------------
 
 export type MissingPackReason =
-	/** No version of the pack is available at all. */
-	| "pack_unavailable"
-	/** The pack is available, but not at the version the project pinned. */
-	| "version_unavailable";
+  /** No version of the pack is available at all. */
+  | "pack_unavailable"
+  /** The pack is available, but not at the version the project pinned. */
+  | "version_unavailable";
 
 /** An entity a missing pack affects, named so a warning can be specific. */
 export interface NamedEntity<Id extends string> {
-	readonly id: Id;
-	readonly name: string;
+  readonly id: Id;
+  readonly name: string;
 }
 
 export interface MissingPack {
-	readonly packId: PackId;
-	/** The version the project depends on, not a version that is available. */
-	readonly version: PackVersion;
-	readonly reason: MissingPackReason;
-	/** Versions of this pack the caller does hold, for an actionable message. */
-	readonly availableVersions: readonly PackVersion[];
-	readonly assets: readonly NamedEntity<AssetId>[];
-	readonly tracks: readonly NamedEntity<TrackId>[];
-	readonly clips: readonly NamedEntity<ClipId>[];
+  readonly packId: PackId;
+  /** The version the project depends on, not a version that is available. */
+  readonly version: PackVersion;
+  readonly reason: MissingPackReason;
+  /** Versions of this pack the caller does hold, for an actionable message. */
+  readonly availableVersions: readonly PackVersion[];
+  readonly assets: readonly NamedEntity<AssetId>[];
+  readonly tracks: readonly NamedEntity<TrackId>[];
+  readonly clips: readonly NamedEntity<ClipId>[];
 }
 
 export interface PackAvailability {
-	/** True when every declared pack is available at its declared version. */
-	readonly satisfied: boolean;
-	readonly missing: readonly MissingPack[];
+  /** True when every declared pack is available at its declared version. */
+  readonly satisfied: boolean;
+  readonly missing: readonly MissingPack[];
 }
 
 /**
@@ -184,91 +182,87 @@ export interface PackAvailability {
  * since a note clip cannot sound without its track's instrument.
  */
 export function resolvePackAvailability(
-	project: Project,
-	availablePacks: readonly Pack[],
+  project: Project,
+  availablePacks: readonly Pack[],
 ): PackAvailability {
-	const versionsByPack = new Map<string, Set<string>>();
-	for (const pack of availablePacks) {
-		const versions = versionsByPack.get(pack.id) ?? new Set<string>();
-		versions.add(pack.version);
-		versionsByPack.set(pack.id, versions);
-	}
+  const versionsByPack = new Map<string, Set<string>>();
+  for (const pack of availablePacks) {
+    const versions = versionsByPack.get(pack.id) ?? new Set<string>();
+    versions.add(pack.version);
+    versionsByPack.set(pack.id, versions);
+  }
 
-	const missing: MissingPack[] = [];
-	for (const dependency of project.metadata.packDependencies) {
-		const available = versionsByPack.get(dependency.packId);
-		if (available?.has(dependency.version)) {
-			continue;
-		}
-		const assets = project.song.assets.filter(
-			(asset) =>
-				asset.packId === dependency.packId &&
-				asset.packVersion === dependency.version,
-		);
-		const affectedTracks = project.song.tracks.filter((track) =>
-			trackUsesAssets(track, assets),
-		);
-		missing.push({
-			packId: dependency.packId,
-			version: dependency.version,
-			reason: available ? "version_unavailable" : "pack_unavailable",
-			availableVersions: [...(available ?? [])].sort() as PackVersion[],
-			assets: assets.map(named),
-			tracks: affectedTracks.map(named),
-			clips: affectedClips(project.clips, assets, affectedTracks).map(named),
-		});
-	}
+  const missing: MissingPack[] = [];
+  for (const dependency of project.metadata.packDependencies) {
+    const available = versionsByPack.get(dependency.packId);
+    if (available?.has(dependency.version)) {
+      continue;
+    }
+    const assets = project.song.assets.filter(
+      (asset) =>
+        asset.packId === dependency.packId && asset.packVersion === dependency.version,
+    );
+    const affectedTracks = project.song.tracks.filter((track) =>
+      trackUsesAssets(track, assets),
+    );
+    missing.push({
+      packId: dependency.packId,
+      version: dependency.version,
+      reason: available ? "version_unavailable" : "pack_unavailable",
+      availableVersions: [...(available ?? [])].sort() as PackVersion[],
+      assets: assets.map(named),
+      tracks: affectedTracks.map(named),
+      clips: affectedClips(project.clips, assets, affectedTracks).map(named),
+    });
+  }
 
-	return { satisfied: missing.length === 0, missing };
+  return { satisfied: missing.length === 0, missing };
 }
 
 /** Every asset ID a track's instrument resolves, sampler or drum pad. */
 export function trackAssetIds(track: Track): AssetId[] {
-	const instrument = track.instrument;
-	if (!instrument) {
-		return [];
-	}
-	if (instrument.kind === "sampler") {
-		return instrument.assetId ? [instrument.assetId] : [];
-	}
-	if (instrument.kind === "drumMachine") {
-		return instrument.pads.flatMap((pad) => (pad.assetId ? [pad.assetId] : []));
-	}
-	return [];
+  const instrument = track.instrument;
+  if (!instrument) {
+    return [];
+  }
+  if (instrument.kind === "sampler") {
+    return instrument.assetId ? [instrument.assetId] : [];
+  }
+  if (instrument.kind === "drumMachine") {
+    return instrument.pads.flatMap((pad) => (pad.assetId ? [pad.assetId] : []));
+  }
+  return [];
 }
 
 function trackUsesAssets(track: Track, assets: readonly Asset[]): boolean {
-	const ids = new Set(assets.map((asset) => asset.id));
-	return trackAssetIds(track).some((assetId) => ids.has(assetId));
+  const ids = new Set(assets.map((asset) => asset.id));
+  return trackAssetIds(track).some((assetId) => ids.has(assetId));
 }
 
 function affectedClips(
-	clips: readonly Clip[],
-	assets: readonly Asset[],
-	affectedTracks: readonly Track[],
+  clips: readonly Clip[],
+  assets: readonly Asset[],
+  affectedTracks: readonly Track[],
 ): Clip[] {
-	const assetIds = new Set(assets.map((asset) => asset.id));
-	const trackIds = new Set(affectedTracks.map((track) => track.id));
-	return clips.filter(
-		(clip) =>
-			trackIds.has(clip.trackId) ||
-			(clip.content.kind === "audioLoop" && assetIds.has(clip.content.assetId)),
-	);
+  const assetIds = new Set(assets.map((asset) => asset.id));
+  const trackIds = new Set(affectedTracks.map((track) => track.id));
+  return clips.filter(
+    (clip) =>
+      trackIds.has(clip.trackId) ||
+      (clip.content.kind === "audioLoop" && assetIds.has(clip.content.assetId)),
+  );
 }
 
-function named<Id extends string>(entity: {
-	id: Id;
-	name: string;
-}): NamedEntity<Id> {
-	return { id: entity.id, name: entity.name };
+function named<Id extends string>(entity: { id: Id; name: string }): NamedEntity<Id> {
+  return { id: entity.id, name: entity.name };
 }
 
 function sortedKeys(dependencies: readonly PackDependency[]): string[] {
-	return dependencies
-		.map((dependency) => `${dependency.packId}@${dependency.version}`)
-		.sort();
+  return dependencies
+    .map((dependency) => `${dependency.packId}@${dependency.version}`)
+    .sort();
 }
 
 function compare(a: string, b: string): number {
-	return a < b ? -1 : a > b ? 1 : 0;
+  return a < b ? -1 : a > b ? 1 : 0;
 }

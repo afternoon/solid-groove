@@ -3,9 +3,9 @@ import ProjectNotFound from "../components/ProjectNotFound";
 import TapeLoader from "../components/TapeLoader";
 
 export interface ProjectLoadStatesProps {
-	readonly loading: boolean;
-	readonly notFound: boolean;
-	readonly error: string | null;
+  readonly loading: boolean;
+  readonly notFound: boolean;
+  readonly error: string | null;
 }
 
 /**
@@ -21,31 +21,31 @@ export interface ProjectLoadStatesProps {
  * three `<Match>` branches of its top-level `<Switch>`.
  */
 export default function ProjectLoadStates(props: ProjectLoadStatesProps) {
-	return (
-		<Switch>
-			<Match when={props.loading}>
-				<TapeLoader label="Loading project" />
-			</Match>
-			<Match when={props.notFound}>
-				<ProjectNotFound />
-			</Match>
-			<Match when={props.error}>
-				<div class="project-error">
-					<p class="project-error-message">{props.error}</p>
-					<div class="project-error-actions">
-						<button
-							type="button"
-							class="project-error-retry"
-							onClick={() => location.reload()}
-						>
-							Try again
-						</button>
-						<a class="project-error-home" href="/dashboard">
-							Back to your projects
-						</a>
-					</div>
-				</div>
-			</Match>
-		</Switch>
-	);
+  return (
+    <Switch>
+      <Match when={props.loading}>
+        <TapeLoader label="Loading project" />
+      </Match>
+      <Match when={props.notFound}>
+        <ProjectNotFound />
+      </Match>
+      <Match when={props.error}>
+        <div class="project-error">
+          <p class="project-error-message">{props.error}</p>
+          <div class="project-error-actions">
+            <button
+              type="button"
+              class="project-error-retry"
+              onClick={() => location.reload()}
+            >
+              Try again
+            </button>
+            <a class="project-error-home" href="/dashboard">
+              Back to your projects
+            </a>
+          </div>
+        </div>
+      </Match>
+    </Switch>
+  );
 }

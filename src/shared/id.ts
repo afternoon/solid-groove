@@ -13,18 +13,18 @@ import { customRandom, nanoid, urlAlphabet } from "nanoid";
 
 /** Entity ID prefixes, from PRD section 9.4's identifier table. */
 export const ID_PREFIXES = [
-	"prj", // Project
-	"trk", // Track
-	"clp", // Clip
-	"plc", // Placement
-	"evt", // Note event
-	"dev", // Device
-	"pad", // Drum pad
-	"aut", // Automation lane
-	"sec", // Section
-	"ret", // Return bus
-	"ast", // Asset
-	"rev", // Revision
+  "prj", // Project
+  "trk", // Track
+  "clp", // Clip
+  "plc", // Placement
+  "evt", // Note event
+  "dev", // Device
+  "pad", // Drum pad
+  "aut", // Automation lane
+  "sec", // Section
+  "ret", // Return bus
+  "ast", // Asset
+  "rev", // Revision
 ] as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[number];
@@ -33,15 +33,15 @@ export type IdPrefix = (typeof ID_PREFIXES)[number];
 export const ID_SUFFIX_LENGTH = 21;
 
 const ID_PATTERN_BY_PREFIX = new Map<IdPrefix, RegExp>(
-	ID_PREFIXES.map((prefix) => [
-		prefix,
-		new RegExp(`^${prefix}_[A-Za-z0-9_-]{${ID_SUFFIX_LENGTH}}$`),
-	]),
+  ID_PREFIXES.map((prefix) => [
+    prefix,
+    new RegExp(`^${prefix}_[A-Za-z0-9_-]{${ID_SUFFIX_LENGTH}}$`),
+  ]),
 );
 
 /** Generates a fresh, non-deterministic, type-prefixed ID (e.g. `trk_...`). */
 export function createId(prefix: IdPrefix): string {
-	return `${prefix}_${nanoid(ID_SUFFIX_LENGTH)}`;
+  return `${prefix}_${nanoid(ID_SUFFIX_LENGTH)}`;
 }
 
 /**
@@ -52,7 +52,7 @@ export function createId(prefix: IdPrefix): string {
  * 9.4).
  */
 export function isPrefixedId(prefix: IdPrefix, value: string): boolean {
-	return ID_PATTERN_BY_PREFIX.get(prefix)?.test(value) ?? false;
+  return ID_PATTERN_BY_PREFIX.get(prefix)?.test(value) ?? false;
 }
 
 /** A prefixed-ID generator, either the production factory or a seeded test double. */
@@ -64,13 +64,13 @@ export type IdFactory = (prefix: IdPrefix) => string;
  * for production ID generation.
  */
 function mulberry32(seed: number): () => number {
-	let state = seed >>> 0;
-	return () => {
-		state = (state + 0x6d2b79f5) | 0;
-		let t = Math.imul(state ^ (state >>> 15), 1 | state);
-		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-	};
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /**
@@ -85,19 +85,15 @@ function mulberry32(seed: number): () => number {
  * shared, matching one real generator being called many times.
  */
 export function createSeededIdFactory(seed: number): IdFactory {
-	const random = mulberry32(seed);
-	const getRandomBytes = (size: number): Uint8Array => {
-		const bytes = new Uint8Array(size);
-		for (let i = 0; i < size; i++) {
-			bytes[i] = Math.floor(random() * 256);
-		}
-		return bytes;
-	};
-	const generateSuffix = customRandom(
-		urlAlphabet,
-		ID_SUFFIX_LENGTH,
-		getRandomBytes,
-	);
+  const random = mulberry32(seed);
+  const getRandomBytes = (size: number): Uint8Array => {
+    const bytes = new Uint8Array(size);
+    for (let i = 0; i < size; i++) {
+      bytes[i] = Math.floor(random() * 256);
+    }
+    return bytes;
+  };
+  const generateSuffix = customRandom(urlAlphabet, ID_SUFFIX_LENGTH, getRandomBytes);
 
-	return (prefix: IdPrefix) => `${prefix}_${generateSuffix()}`;
+  return (prefix: IdPrefix) => `${prefix}_${generateSuffix()}`;
 }

@@ -2,8 +2,8 @@ import type { Component } from "solid-js";
 import NotFound from "./NotFound";
 
 type PageNotFoundProps = {
-	/** Optional call-to-action link back into the app. Defaults to the dashboard. */
-	homeHref?: string;
+  /** Optional call-to-action link back into the app. Defaults to the dashboard. */
+  homeHref?: string;
 };
 
 /**
@@ -11,12 +11,12 @@ type PageNotFoundProps = {
  * shared illustration and layout.
  */
 const PageNotFound: Component<PageNotFoundProps> = (props) => (
-	<NotFound
-		code="404"
-		title="This page doesn't exist"
-		message="The address might be mistyped, or the page may have moved."
-		homeHref={props.homeHref}
-	/>
+  <NotFound
+    code="404"
+    title="This page doesn't exist"
+    message="The address might be mistyped, or the page may have moved."
+    homeHref={props.homeHref}
+  />
 );
 
 export default PageNotFound;

@@ -10,8 +10,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-	initializeTestEnvironment,
-	type RulesTestEnvironment,
+  initializeTestEnvironment,
+  type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 
 export const EMULATOR_PROJECT_ID = "demo-solid-groove";
@@ -22,15 +22,15 @@ export const EMULATOR_PROJECT_ID = "demo-solid-groove";
  * file's teardown cannot delete another file's data mid-test.
  */
 export function emulatorProjectId(suite: string): string {
-	return `${EMULATOR_PROJECT_ID}-${suite}`;
+  return `${EMULATOR_PROJECT_ID}-${suite}`;
 }
 
 function parseHostAndPort(
-	envValue: string | undefined,
-	fallbackPort: number,
+  envValue: string | undefined,
+  fallbackPort: number,
 ): { host: string; port: number } {
-	const [host, portStr] = (envValue ?? `127.0.0.1:${fallbackPort}`).split(":");
-	return { host, port: Number(portStr) };
+  const [host, portStr] = (envValue ?? `127.0.0.1:${fallbackPort}`).split(":");
+  return { host, port: Number(portStr) };
 }
 
 /**
@@ -40,17 +40,17 @@ function parseHostAndPort(
  * hardcode a host/port that could drift from `firebase.json`.
  */
 export async function createTestEnvironment(
-	projectId: string = EMULATOR_PROJECT_ID,
+  projectId: string = EMULATOR_PROJECT_ID,
 ): Promise<RulesTestEnvironment> {
-	const firestore = parseHostAndPort(process.env.FIRESTORE_EMULATOR_HOST, 8080);
+  const firestore = parseHostAndPort(process.env.FIRESTORE_EMULATOR_HOST, 8080);
 
-	return initializeTestEnvironment({
-		projectId,
-		firestore: {
-			...firestore,
-			rules: readFileSync(resolve(process.cwd(), "firestore.rules"), "utf8"),
-		},
-	});
+  return initializeTestEnvironment({
+    projectId,
+    firestore: {
+      ...firestore,
+      rules: readFileSync(resolve(process.cwd(), "firestore.rules"), "utf8"),
+    },
+  });
 }
 
 /**
@@ -59,12 +59,12 @@ export async function createTestEnvironment(
  * the rules treat it exactly like a registered user's.
  */
 export function anonymousContext(
-	testEnv: RulesTestEnvironment,
-	uid: string,
+  testEnv: RulesTestEnvironment,
+  uid: string,
 ): ReturnType<RulesTestEnvironment["authenticatedContext"]> {
-	return testEnv.authenticatedContext(uid, {
-		firebase: { sign_in_provider: "anonymous" },
-	});
+  return testEnv.authenticatedContext(uid, {
+    firebase: { sign_in_provider: "anonymous" },
+  });
 }
 
 export { assertFails, assertSucceeds } from "@firebase/rules-unit-testing";

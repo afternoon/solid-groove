@@ -15,16 +15,16 @@
  * behavior and cannot have an editor shortcut fire underneath it.
  */
 export const SHORTCUT_CONTEXTS = [
-	"global",
-	"editor",
-	"arrangement",
-	"step_editor",
-	"piano_roll",
-	"automation_lane",
-	"timeline",
-	"selection",
-	"dialog",
-	"gesture",
+  "global",
+  "editor",
+  "arrangement",
+  "step_editor",
+  "piano_roll",
+  "automation_lane",
+  "timeline",
+  "selection",
+  "dialog",
+  "gesture",
 ] as const;
 export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
 
@@ -43,27 +43,27 @@ export const AMBIENT_CONTEXT: ShortcutContext = "global";
  * existing group instead of inventing one.
  */
 export const SHORTCUT_GROUPS = [
-	"transport",
-	"global_editing",
-	"arrangement",
-	"clips_notes",
-	"automation",
-	"mixer_devices",
-	"browser",
-	"navigation",
+  "transport",
+  "global_editing",
+  "arrangement",
+  "clips_notes",
+  "automation",
+  "mixer_devices",
+  "browser",
+  "navigation",
 ] as const;
 export type ShortcutGroup = (typeof SHORTCUT_GROUPS)[number];
 
 /** Human-readable section titles for the guide. */
 export const SHORTCUT_GROUP_LABELS: Record<ShortcutGroup, string> = {
-	transport: "Transport",
-	global_editing: "Global Editing",
-	arrangement: "Arrangement",
-	clips_notes: "Clips and Notes",
-	automation: "Automation",
-	mixer_devices: "Mixer and Devices",
-	browser: "Browser",
-	navigation: "Navigation",
+  transport: "Transport",
+  global_editing: "Global Editing",
+  arrangement: "Arrangement",
+  clips_notes: "Clips and Notes",
+  automation: "Automation",
+  mixer_devices: "Mixer and Devices",
+  browser: "Browser",
+  navigation: "Navigation",
 };
 
 /**
@@ -77,13 +77,13 @@ export const SHORTCUT_GROUP_LABELS: Record<ShortcutGroup, string> = {
  * inventing one.
  */
 export type AbletonParity =
-	| { readonly kind: "follows"; readonly abletonKeys: string }
-	| {
-			readonly kind: "differs";
-			readonly abletonKeys: string;
-			readonly reason: string;
-	  }
-	| { readonly kind: "solid_groove"; readonly reason: string };
+  | { readonly kind: "follows"; readonly abletonKeys: string }
+  | {
+      readonly kind: "differs";
+      readonly abletonKeys: string;
+      readonly reason: string;
+    }
+  | { readonly kind: "solid_groove"; readonly reason: string };
 
 /**
  * A browser combination Solid Groove deliberately takes over.
@@ -94,6 +94,6 @@ export type AbletonParity =
  * with a reason attached rather than an accident.
  */
 export interface BrowserConflict {
-	readonly keys: string;
-	readonly note: string;
+  readonly keys: string;
+  readonly note: string;
 }

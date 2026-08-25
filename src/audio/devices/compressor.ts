@@ -1,9 +1,9 @@
 import * as Tone from "tone";
 import {
-	type DeviceCore,
-	type DeviceCoreFactory,
-	type RampableParam,
-	setOrRamp,
+  type DeviceCore,
+  type DeviceCoreFactory,
+  type RampableParam,
+  setOrRamp,
 } from "./types";
 
 /**
@@ -32,15 +32,15 @@ const ZERO_CEILING_EPSILON = 1e-6;
  * zero: -1e-6 dB behaves identically and every later ramp stays in range.
  */
 function applyParam(
-	param: RampableParam & {
-		readonly minValue: number;
-		readonly maxValue: number;
-	},
-	value: number,
-	initial: boolean,
+  param: RampableParam & {
+    readonly minValue: number;
+    readonly maxValue: number;
+  },
+  value: number,
+  initial: boolean,
 ): void {
-	const ceiling = param.maxValue === 0 ? -ZERO_CEILING_EPSILON : param.maxValue;
-	setOrRamp(param, Math.min(ceiling, Math.max(param.minValue, value)), initial);
+  const ceiling = param.maxValue === 0 ? -ZERO_CEILING_EPSILON : param.maxValue;
+  setOrRamp(param, Math.min(ceiling, Math.max(param.minValue, value)), initial);
 }
 
 /**
@@ -57,37 +57,37 @@ function applyParam(
  * `deviceNode.ts`, not from anything here.
  */
 export const createCompressorCore: DeviceCoreFactory = (): DeviceCore => {
-	const compressor = new Tone.Compressor();
-	const makeup = new Tone.Volume(0);
-	compressor.connect(makeup);
+  const compressor = new Tone.Compressor();
+  const makeup = new Tone.Volume(0);
+  compressor.connect(makeup);
 
-	return {
-		input: compressor,
-		output: makeup,
-		apply(values, _context, initial) {
-			// `knee` is not exposed as a control: FX-01 lists five compressor
-			// parameters and a sixth would be a knob without a stated purpose. A
-			// fixed moderate knee keeps low ratios musical rather than abrupt.
-			applyParam(compressor.knee, 6, initial);
-			applyParam(compressor.threshold, values.threshold, initial);
-			applyParam(compressor.ratio, values.ratio, initial);
-			applyParam(compressor.attack, values.attack, initial);
-			applyParam(compressor.release, values.release, initial);
-			applyParam(makeup.volume, values.makeup, initial);
-		},
-		/**
-		 * The node's own `reduction`, in dB: 0 when the compressor is not working
-		 * and increasingly negative as it clamps down. Returned as a *positive*
-		 * magnitude, which is how a gain-reduction meter reads, and polled by the
-		 * panel — never pushed as an analytics event, so metering adds no
-		 * per-frame telemetry.
-		 */
-		gainReductionDb() {
-			return Math.abs(compressor.reduction);
-		},
-		dispose() {
-			compressor.dispose();
-			makeup.dispose();
-		},
-	};
+  return {
+    input: compressor,
+    output: makeup,
+    apply(values, _context, initial) {
+      // `knee` is not exposed as a control: FX-01 lists five compressor
+      // parameters and a sixth would be a knob without a stated purpose. A
+      // fixed moderate knee keeps low ratios musical rather than abrupt.
+      applyParam(compressor.knee, 6, initial);
+      applyParam(compressor.threshold, values.threshold, initial);
+      applyParam(compressor.ratio, values.ratio, initial);
+      applyParam(compressor.attack, values.attack, initial);
+      applyParam(compressor.release, values.release, initial);
+      applyParam(makeup.volume, values.makeup, initial);
+    },
+    /**
+     * The node's own `reduction`, in dB: 0 when the compressor is not working
+     * and increasingly negative as it clamps down. Returned as a *positive*
+     * magnitude, which is how a gain-reduction meter reads, and polled by the
+     * panel — never pushed as an analytics event, so metering adds no
+     * per-frame telemetry.
+     */
+    gainReductionDb() {
+      return Math.abs(compressor.reduction);
+    },
+    dispose() {
+      compressor.dispose();
+      makeup.dispose();
+    },
+  };
 };

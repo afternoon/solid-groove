@@ -19,13 +19,13 @@ type FirebaseAnalytics = import("firebase/analytics").Analytics;
 const MAX_BUFFERED = 20;
 
 interface BufferedEvent {
-	readonly name: string;
-	readonly params: Readonly<Record<string, AnalyticsParamValue>>;
+  readonly name: string;
+  readonly params: Readonly<Record<string, AnalyticsParamValue>>;
 }
 
 export interface FirebaseTransportOptions {
-	/** Resolves the initialized Analytics instance, or `null` if unsupported. */
-	load?: () => Promise<FirebaseAnalytics | null>;
+  /** Resolves the initialized Analytics instance, or `null` if unsupported. */
+  load?: () => Promise<FirebaseAnalytics | null>;
 }
 
 /**
@@ -37,78 +37,78 @@ export interface FirebaseTransportOptions {
  * degrades to discarding events, never to throwing (PRD `OPS-02` fail-open).
  */
 export function createFirebaseAnalyticsTransport(
-	options: FirebaseTransportOptions = {},
+  options: FirebaseTransportOptions = {},
 ): AnalyticsTransport {
-	let instance: FirebaseAnalytics | null = null;
-	let unavailable = false;
-	const bufferedEvents: BufferedEvent[] = [];
-	let bufferedProperties: Record<string, string> | null = null;
+  let instance: FirebaseAnalytics | null = null;
+  let unavailable = false;
+  const bufferedEvents: BufferedEvent[] = [];
+  let bufferedProperties: Record<string, string> | null = null;
 
-	const load =
-		options.load ??
-		(async () => {
-			const { loadAnalytics } = await import("../firebaseConfig");
-			return await loadAnalytics();
-		});
+  const load =
+    options.load ??
+    (async () => {
+      const { loadAnalytics } = await import("../firebaseConfig");
+      return await loadAnalytics();
+    });
 
-	const ready = load()
-		.then(async (resolved) => {
-			if (!resolved) {
-				unavailable = true;
-				bufferedEvents.length = 0;
-				bufferedProperties = null;
-				return;
-			}
-			instance = resolved;
-			const sdk = await import("firebase/analytics");
-			if (bufferedProperties) {
-				sdk.setUserProperties(resolved, bufferedProperties);
-				bufferedProperties = null;
-			}
-			for (const event of bufferedEvents.splice(0, bufferedEvents.length)) {
-				sdk.logEvent(resolved, event.name, event.params);
-			}
-		})
-		.catch(() => {
-			unavailable = true;
-			bufferedEvents.length = 0;
-			bufferedProperties = null;
-		});
+  const ready = load()
+    .then(async (resolved) => {
+      if (!resolved) {
+        unavailable = true;
+        bufferedEvents.length = 0;
+        bufferedProperties = null;
+        return;
+      }
+      instance = resolved;
+      const sdk = await import("firebase/analytics");
+      if (bufferedProperties) {
+        sdk.setUserProperties(resolved, bufferedProperties);
+        bufferedProperties = null;
+      }
+      for (const event of bufferedEvents.splice(0, bufferedEvents.length)) {
+        sdk.logEvent(resolved, event.name, event.params);
+      }
+    })
+    .catch(() => {
+      unavailable = true;
+      bufferedEvents.length = 0;
+      bufferedProperties = null;
+    });
 
-	return {
-		logEvent(name, params) {
-			if (unavailable) return;
-			if (!instance) {
-				if (bufferedEvents.length < MAX_BUFFERED) {
-					bufferedEvents.push({ name, params });
-				}
-				return;
-			}
-			void ready.then(async () => {
-				try {
-					const sdk = await import("firebase/analytics");
-					if (instance) sdk.logEvent(instance, name, params);
-				} catch {
-					// Blocked by an extension, offline, or the SDK failed to load.
-				}
-			});
-		},
-		setUserProperties(properties) {
-			if (unavailable) return;
-			if (!instance) {
-				bufferedProperties = { ...bufferedProperties, ...properties };
-				return;
-			}
-			void ready.then(async () => {
-				try {
-					const sdk = await import("firebase/analytics");
-					if (instance) sdk.setUserProperties(instance, properties);
-				} catch {
-					// Same as above: never surfaces.
-				}
-			});
-		},
-	};
+  return {
+    logEvent(name, params) {
+      if (unavailable) return;
+      if (!instance) {
+        if (bufferedEvents.length < MAX_BUFFERED) {
+          bufferedEvents.push({ name, params });
+        }
+        return;
+      }
+      void ready.then(async () => {
+        try {
+          const sdk = await import("firebase/analytics");
+          if (instance) sdk.logEvent(instance, name, params);
+        } catch {
+          // Blocked by an extension, offline, or the SDK failed to load.
+        }
+      });
+    },
+    setUserProperties(properties) {
+      if (unavailable) return;
+      if (!instance) {
+        bufferedProperties = { ...bufferedProperties, ...properties };
+        return;
+      }
+      void ready.then(async () => {
+        try {
+          const sdk = await import("firebase/analytics");
+          if (instance) sdk.setUserProperties(instance, properties);
+        } catch {
+          // Same as above: never surfaces.
+        }
+      });
+    },
+  };
 }
 
 /**
@@ -126,9 +126,9 @@ export function createFirebaseAnalyticsTransport(
  * never grants consent.
  */
 export function setFirebaseAnalyticsCollectionEnabled(enabled: boolean): void {
-	void import("../firebaseConfig")
-		.then((config) => config.setAnalyticsCollection(enabled))
-		.catch(() => {
-			// Nothing loaded means nothing is collecting.
-		});
+  void import("../firebaseConfig")
+    .then((config) => config.setAnalyticsCollection(enabled))
+    .catch(() => {
+      // Nothing loaded means nothing is collecting.
+    });
 }

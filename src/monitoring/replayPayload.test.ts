@@ -62,19 +62,16 @@ const sourceRoot = join(process.cwd(), "src");
 
 /** Every component source in `src/`, which is where a `data-*` can be bound. */
 function sourceFiles(dir = sourceRoot): string[] {
-	const files: string[] = [];
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		const full = join(dir, entry.name);
-		if (entry.isDirectory()) {
-			files.push(...sourceFiles(full));
-		} else if (
-			entry.name.endsWith(".tsx") &&
-			!entry.name.endsWith(".test.tsx")
-		) {
-			files.push(full);
-		}
-	}
-	return files;
+  const files: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...sourceFiles(full));
+    } else if (entry.name.endsWith(".tsx") && !entry.name.endsWith(".test.tsx")) {
+      files.push(full);
+    }
+  }
+  return files;
 }
 
 /**
@@ -83,24 +80,23 @@ function sourceFiles(dir = sourceRoot): string[] {
  * strings, asset URLs, or tokens".
  */
 const FORBIDDEN = {
-	projectName: "Midnight Drive Demo",
-	trackName: "Lead Vocal Take 3",
-	clipName: "Chorus Riff",
-	assetName: "my-secret-sample.wav",
-	assetUrl: "https://storage.googleapis.com/solid-groove/users/u1/kick.wav",
-	assistantText: "Make the chorus feel more euphoric with a wide pad",
-	searchTerm: "dusty vinyl piano",
-	token:
-		"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
+  projectName: "Midnight Drive Demo",
+  trackName: "Lead Vocal Take 3",
+  clipName: "Chorus Riff",
+  assetName: "my-secret-sample.wav",
+  assetUrl: "https://storage.googleapis.com/solid-groove/users/u1/kick.wav",
+  assistantText: "Make the chorus feel more euphoric with a wide pad",
+  searchTerm: "dusty vinyl piano",
+  token:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
 } as const;
 
 function expectNoForbiddenContent(payload: string): void {
-	for (const [label, value] of Object.entries(FORBIDDEN)) {
-		expect(
-			payload.includes(value),
-			`${label} reached the replay payload: ${value}`,
-		).toBe(false);
-	}
+  for (const [label, value] of Object.entries(FORBIDDEN)) {
+    expect(payload.includes(value), `${label} reached the replay payload: ${value}`).toBe(
+      false,
+    );
+  }
 }
 
 /**
@@ -115,15 +111,15 @@ const MASKED_ATTRIBUTES = ["title", "placeholder", "aria-label"];
  * subtrees and attributes — `src` included — never reach the payload.
  */
 const MEDIA_TAGS = [
-	"img",
-	"image",
-	"svg",
-	"video",
-	"object",
-	"picture",
-	"embed",
-	"map",
-	"audio",
+  "img",
+  "image",
+  "svg",
+  "video",
+  "object",
+  "picture",
+  "embed",
+  "map",
+  "audio",
 ];
 
 /**
@@ -153,37 +149,37 @@ const MEDIA_TAGS = [
  * leaving the omission to be read as an oversight.
  */
 function serializeUnderMasking(root: Element): string {
-	const node = (element: Element): unknown => {
-		const tag = element.tagName.toLowerCase();
-		if (MEDIA_TAGS.includes(tag)) {
-			// Blocked: a placeholder box, carrying neither children nor attributes.
-			return { tag, blocked: true };
-		}
-		const attributes: Record<string, string> = {};
-		for (const attribute of element.attributes) {
-			const name = attribute.name;
-			const masksInputValue = name === "value" && tag === "input";
-			attributes[name] =
-				MASKED_ATTRIBUTES.includes(name) || masksInputValue
-					? mask(attribute.value)
-					: attribute.value;
-		}
-		return {
-			tag,
-			attributes,
-			// `maskAllText`: every text node's characters are replaced at capture.
-			text: [...element.childNodes]
-				.filter((child) => child.nodeType === 3)
-				.map((child) => mask(child.textContent ?? "")),
-			children: [...element.children].map(node),
-		};
-	};
-	return JSON.stringify(node(root));
+  const node = (element: Element): unknown => {
+    const tag = element.tagName.toLowerCase();
+    if (MEDIA_TAGS.includes(tag)) {
+      // Blocked: a placeholder box, carrying neither children nor attributes.
+      return { tag, blocked: true };
+    }
+    const attributes: Record<string, string> = {};
+    for (const attribute of element.attributes) {
+      const name = attribute.name;
+      const masksInputValue = name === "value" && tag === "input";
+      attributes[name] =
+        MASKED_ATTRIBUTES.includes(name) || masksInputValue
+          ? mask(attribute.value)
+          : attribute.value;
+    }
+    return {
+      tag,
+      attributes,
+      // `maskAllText`: every text node's characters are replaced at capture.
+      text: [...element.childNodes]
+        .filter((child) => child.nodeType === 3)
+        .map((child) => mask(child.textContent ?? "")),
+      children: [...element.children].map(node),
+    };
+  };
+  return JSON.stringify(node(root));
 }
 
 /** Sentry replaces each character of masked text with `*`. */
 function mask(value: string): string {
-	return "*".repeat(value.length);
+  return "*".repeat(value.length);
 }
 
 /**
@@ -195,28 +191,28 @@ function mask(value: string): string {
  * than of literal spellings, so reformatting a route does not require editing it.
  */
 function boundExpressions(bound: string): string[] {
-	if (!bound.startsWith("`") || !bound.endsWith("`")) return [bound];
-	return [...bound.matchAll(/\$\{([^{}]*)\}/g)].map((hole) => hole[1].trim());
+  if (!bound.startsWith("`") || !bound.endsWith("`")) return [bound];
+  return [...bound.matchAll(/\$\{([^{}]*)\}/g)].map((hole) => hole[1].trim());
 }
 
 function html(markup: string): Element {
-	const host = document.createElement("div");
-	host.innerHTML = markup;
-	return host;
+  const host = document.createElement("div");
+  host.innerHTML = markup;
+  return host;
 }
 
 describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 3)", () => {
-	it("keeps project content out of a payload built from every shape a surface uses", () => {
-		// Every way our surfaces put content into the DOM that the recorder
-		// genuinely cleans: text nodes, the three masked accessible names, an
-		// input value, and an asset URL on a `blockAllMedia`-blocked `<img>`. All
-		// at once, so this is one assertion about the whole payload rather than a
-		// checklist a new shape can slip past.
-		//
-		// The shapes it does *not* clean — an unmasked `href`, an `alt` — are
-		// deliberately absent, and covered by the source guards below. Passing
-		// with them here would require the model to mask what the SDK does not.
-		const surface = html(`
+  it("keeps project content out of a payload built from every shape a surface uses", () => {
+    // Every way our surfaces put content into the DOM that the recorder
+    // genuinely cleans: text nodes, the three masked accessible names, an
+    // input value, and an asset URL on a `blockAllMedia`-blocked `<img>`. All
+    // at once, so this is one assertion about the whole payload rather than a
+    // checklist a new shape can slip past.
+    //
+    // The shapes it does *not* clean — an unmasked `href`, an `alt` — are
+    // deliberately absent, and covered by the source guards below. Passing
+    // with them here would require the model to mask what the SDK does not.
+    const surface = html(`
 			<section class="${MASK_CONTENT}">
 				<h1>${FORBIDDEN.projectName}</h1>
 				<button aria-label="Rename ${FORBIDDEN.trackName}">Rename</button>
@@ -227,32 +223,32 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
 			</section>
 		`);
 
-		expectNoForbiddenContent(serializeUnderMasking(surface));
-	});
+    expectNoForbiddenContent(serializeUnderMasking(surface));
+  });
 
-	// ADR 0003 removed the one blocked subtree — the arrangement canvas stack —
-	// because blocking it is what made replay useless. So the arrangement's
-	// *DOM* is now recorded like any other, and the rule that keeps content out
-	// of it is masking, not blocking. This is the replacement for the old
-	// "blocked subtree" case, and it is a stricter test: the content has to
-	// survive masking rather than being skipped wholesale.
-	it("keeps it out of the arrangement's DOM, which is no longer blocked", () => {
-		const surface = html(`
+  // ADR 0003 removed the one blocked subtree — the arrangement canvas stack —
+  // because blocking it is what made replay useless. So the arrangement's
+  // *DOM* is now recorded like any other, and the rule that keeps content out
+  // of it is masking, not blocking. This is the replacement for the old
+  // "blocked subtree" case, and it is a stricter test: the content has to
+  // survive masking rather than being skipped wholesale.
+  it("keeps it out of the arrangement's DOM, which is no longer blocked", () => {
+    const surface = html(`
 			<div class="arrangement-canvas-stack" aria-label="${FORBIDDEN.projectName}">
 				<span class="${MASK_CONTENT}">${FORBIDDEN.trackName}</span>
 				<p>${FORBIDDEN.assistantText}</p>
 			</div>
 		`);
 
-		expectNoForbiddenContent(serializeUnderMasking(surface));
-	});
+    expectNoForbiddenContent(serializeUnderMasking(surface));
+  });
 
-	it("keeps it out of a surface that carries no marking of its own", () => {
-		// The point of `maskAllText` being the *default* rather than an opt-in: a
-		// surface a later task adds and forgets to mark is still masked. The
-		// component-level marking is the second safeguard, not the only one, and
-		// `replayPrivacy.test.ts` is what stops that second one rotting.
-		const surface = html(`
+  it("keeps it out of a surface that carries no marking of its own", () => {
+    // The point of `maskAllText` being the *default* rather than an opt-in: a
+    // surface a later task adds and forgets to mark is still masked. The
+    // component-level marking is the second safeguard, not the only one, and
+    // `replayPrivacy.test.ts` is what stops that second one rotting.
+    const surface = html(`
 			<div>
 				<h2>${FORBIDDEN.projectName}</h2>
 				<p>${FORBIDDEN.assistantText}</p>
@@ -260,177 +256,177 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
 			</div>
 		`);
 
-		expectNoForbiddenContent(serializeUnderMasking(surface));
-	});
+    expectNoForbiddenContent(serializeUnderMasking(surface));
+  });
 
-	it("keeps it out of an assistant transcript, the largest free-text surface", () => {
-		const surface = html(`
+  it("keeps it out of an assistant transcript, the largest free-text surface", () => {
+    const surface = html(`
 			<ol class="${MASK_CONTENT}">
 				<li>${FORBIDDEN.assistantText}</li>
 				<li>Added a pad to ${FORBIDDEN.trackName}</li>
 			</ol>
 		`);
 
-		expectNoForbiddenContent(serializeUnderMasking(surface));
-	});
+    expectNoForbiddenContent(serializeUnderMasking(surface));
+  });
 
-	// ADR 0003 decision 1, stated as a checked fact rather than left as an
-	// absence. Canvas capture is on and masking has no reach inside a canvas, so
-	// what the arrangement renderer draws — clips, notes, waveforms, and the
-	// user-authored section names at `canvasRenderer.ts` — is recorded as drawn.
-	// This suite models the DOM payload and cannot see those pixels, which is
-	// exactly why the limit is written down here: a reader must not take "the
-	// payload tests pass" as "no project content reaches Sentry".
-	it("does not claim to cover canvas pixels, which are recorded unmasked", () => {
-		const surface = html(
-			`<canvas class="${MASK_CONTENT}" data-testid="arrangement-layer"></canvas>`,
-		);
+  // ADR 0003 decision 1, stated as a checked fact rather than left as an
+  // absence. Canvas capture is on and masking has no reach inside a canvas, so
+  // what the arrangement renderer draws — clips, notes, waveforms, and the
+  // user-authored section names at `canvasRenderer.ts` — is recorded as drawn.
+  // This suite models the DOM payload and cannot see those pixels, which is
+  // exactly why the limit is written down here: a reader must not take "the
+  // payload tests pass" as "no project content reaches Sentry".
+  it("does not claim to cover canvas pixels, which are recorded unmasked", () => {
+    const surface = html(
+      `<canvas class="${MASK_CONTENT}" data-testid="arrangement-layer"></canvas>`,
+    );
 
-		// The DOM node masks like anything else — and says nothing at all about
-		// the pixels inside it, which the canvas integration records verbatim.
-		const serialized = serializeUnderMasking(surface);
-		expect(serialized).toContain("canvas");
-		expect(serialized).not.toContain(FORBIDDEN.clipName);
-	});
+    // The DOM node masks like anything else — and says nothing at all about
+    // the pixels inside it, which the canvas integration records verbatim.
+    const serialized = serializeUnderMasking(surface);
+    expect(serialized).toContain("canvas");
+    expect(serialized).not.toContain(FORBIDDEN.clipName);
+  });
 
-	it("fails when a surface puts content in a data attribute", () => {
-		// The test that proves the test works, and a real gap rather than a model
-		// artifact: a `data-*` attribute is not text and not one of the three
-		// masked attributes, so neither this model nor Sentry's recorder masks it.
-		// A surface stashing a clip name there leaks it, and this file has to be
-		// able to say so rather than passing because the page looked masked.
-		const leaky = html(
-			`<div class="${MASK_CONTENT}" data-track-name="${FORBIDDEN.trackName}"></div>`,
-		);
+  it("fails when a surface puts content in a data attribute", () => {
+    // The test that proves the test works, and a real gap rather than a model
+    // artifact: a `data-*` attribute is not text and not one of the three
+    // masked attributes, so neither this model nor Sentry's recorder masks it.
+    // A surface stashing a clip name there leaks it, and this file has to be
+    // able to say so rather than passing because the page looked masked.
+    const leaky = html(
+      `<div class="${MASK_CONTENT}" data-track-name="${FORBIDDEN.trackName}"></div>`,
+    );
 
-		expect(serializeUnderMasking(leaky)).toContain(FORBIDDEN.trackName);
-	});
+    expect(serializeUnderMasking(leaky)).toContain(FORBIDDEN.trackName);
+  });
 
-	it("fails when a surface puts a token or an asset URL in an href", () => {
-		// The second real gap, and the one an earlier version of this file hid by
-		// masking `href` in the model. Masking the element does nothing for it:
-		// `MASK_CONTENT` governs text, not URLs.
-		const leaky = html(
-			`<a class="${MASK_CONTENT}" href="/download?token=${FORBIDDEN.token}">Export</a>`,
-		);
+  it("fails when a surface puts a token or an asset URL in an href", () => {
+    // The second real gap, and the one an earlier version of this file hid by
+    // masking `href` in the model. Masking the element does nothing for it:
+    // `MASK_CONTENT` governs text, not URLs.
+    const leaky = html(
+      `<a class="${MASK_CONTENT}" href="/download?token=${FORBIDDEN.token}">Export</a>`,
+    );
 
-		expect(serializeUnderMasking(leaky)).toContain(FORBIDDEN.token);
-	});
+    expect(serializeUnderMasking(leaky)).toContain(FORBIDDEN.token);
+  });
 
-	it("keeps an asset URL out when the element carrying it is media, which is blocked", () => {
-		// Why the `<img src>` above is safe while the `<a href>` is not:
-		// `blockAllMedia` blocks the element outright, so its attributes never
-		// reach the payload. The protection is the block, not the masking — which
-		// is why moving an asset URL onto a non-media element would break it.
-		const media = html(`<img src="${FORBIDDEN.assetUrl}" />`);
+  it("keeps an asset URL out when the element carrying it is media, which is blocked", () => {
+    // Why the `<img src>` above is safe while the `<a href>` is not:
+    // `blockAllMedia` blocks the element outright, so its attributes never
+    // reach the payload. The protection is the block, not the masking — which
+    // is why moving an asset URL onto a non-media element would break it.
+    const media = html(`<img src="${FORBIDDEN.assetUrl}" />`);
 
-		expectNoForbiddenContent(serializeUnderMasking(media));
-	});
+    expectNoForbiddenContent(serializeUnderMasking(media));
+  });
 
-	it("has no surface that binds a URL attribute to anything user-authored", () => {
-		// The guard for the `href`/`src` gap above, over the real source rather
-		// than a fixture, in the same shape as the `data-*` allowlist below.
-		// Static URLs are not listed — a literal in our own source is our string,
-		// not the user's. Only *bound* expressions can carry content.
-		const allowed = [
-			// A PRD section 9.4 prefixed project ID in a route. Opaque by
-			// construction, and specifically not the project's name. Listed by the
-			// expression it interpolates, since the literal wrapper is stripped
-			// below.
-			"project.id",
-			// A caller-supplied route constant with a static fallback.
-			'props.homeHref ?? "/dashboard"',
-		];
-		const offenders: string[] = [];
-		for (const file of sourceFiles()) {
-			const source = readFileSync(file, "utf8");
-			// `(?<![-\w])` so `data-action=` and `data-available=` are not read as
-			// the `object[data]` attribute, and a template literal's `${…}` is
-			// allowed one level of nesting so `` `/projects/${id}` `` matches whole.
-			for (const match of source.matchAll(
-				/(?<![-\w])(?:href|src|srcset|poster|action|data)=\{((?:[^{}]|\$\{[^{}]*\})*)\}/g,
-			)) {
-				for (const bound of boundExpressions(match[1].trim())) {
-					if (!allowed.includes(bound)) {
-						offenders.push(`${relative(sourceRoot, file)}: ={${bound}}`);
-					}
-				}
-			}
-		}
-		expect(
-			offenders,
-			"a URL attribute bound to an expression that is not on the allowlist. " +
-				"Sentry's replay recorder resolves `src` and `href` to absolute URLs " +
-				"and serializes them verbatim — masking never sees them (ADR 0002 " +
-				"decision 3). An asset URL or a token placed there reaches the " +
-				"payload. Use an opaque prefixed ID, or add it here with the reason " +
-				"it carries no content.",
-		).toEqual([]);
-	});
+  it("has no surface that binds a URL attribute to anything user-authored", () => {
+    // The guard for the `href`/`src` gap above, over the real source rather
+    // than a fixture, in the same shape as the `data-*` allowlist below.
+    // Static URLs are not listed — a literal in our own source is our string,
+    // not the user's. Only *bound* expressions can carry content.
+    const allowed = [
+      // A PRD section 9.4 prefixed project ID in a route. Opaque by
+      // construction, and specifically not the project's name. Listed by the
+      // expression it interpolates, since the literal wrapper is stripped
+      // below.
+      "project.id",
+      // A caller-supplied route constant with a static fallback.
+      'props.homeHref ?? "/dashboard"',
+    ];
+    const offenders: string[] = [];
+    for (const file of sourceFiles()) {
+      const source = readFileSync(file, "utf8");
+      // `(?<![-\w])` so `data-action=` and `data-available=` are not read as
+      // the `object[data]` attribute, and a template literal's `${…}` is
+      // allowed one level of nesting so `` `/projects/${id}` `` matches whole.
+      for (const match of source.matchAll(
+        /(?<![-\w])(?:href|src|srcset|poster|action|data)=\{((?:[^{}]|\$\{[^{}]*\})*)\}/g,
+      )) {
+        for (const bound of boundExpressions(match[1].trim())) {
+          if (!allowed.includes(bound)) {
+            offenders.push(`${relative(sourceRoot, file)}: ={${bound}}`);
+          }
+        }
+      }
+    }
+    expect(
+      offenders,
+      "a URL attribute bound to an expression that is not on the allowlist. " +
+        "Sentry's replay recorder resolves `src` and `href` to absolute URLs " +
+        "and serializes them verbatim — masking never sees them (ADR 0002 " +
+        "decision 3). An asset URL or a token placed there reaches the " +
+        "payload. Use an opaque prefixed ID, or add it here with the reason " +
+        "it carries no content.",
+    ).toEqual([]);
+  });
 
-	it("has no surface that puts user content in a data attribute today", () => {
-		// The guard for the gap above, over the real source rather than a fixture,
-		// so it covers surfaces a later task adds. Every `data-*` the app binds
-		// dynamically must carry a prefixed ID, a revision, an enum, or a release
-		// SHA — never a name, a search term, or anything else a user authored.
-		//
-		// Kept as an allowlist of *bound expressions* rather than a scan for bad
-		// values, because the bad values are only knowable at runtime: the
-		// question is what a surface is allowed to put there at all.
-		const allowed = [
-			// PRD section 9.4 prefixed IDs. Opaque by construction.
-			"props.note.id",
-			"track.id",
-			// The `PlacementId`s of the placement-editing selection (ARR-002), in
-			// the arrangement's accessible mirror. A prefixed ID like the two above
-			// — the placement's *name* is never bound here, and the mirror's own
-			// track names are text inside `MASK_CONTENT`.
-			"placementId",
-			// A save state enum and its integer revision.
-			"props.saveStatus()?.state",
-			"props.saveStatus()?.revision",
-			// The deployed revision, which is our code's identity, not the user's.
-			"RELEASE_SHA",
-			// Shortcut registry facts: a static action ID and a boolean.
-			"row.shortcut.id",
-			"String(row.available)",
-		];
-		const offenders: string[] = [];
-		for (const file of sourceFiles()) {
-			const source = readFileSync(file, "utf8");
-			for (const match of source.matchAll(/\bdata-[a-z-]+=\{([^}]+)\}/g)) {
-				const bound = match[1].trim();
-				if (!allowed.includes(bound)) {
-					offenders.push(`${relative(sourceRoot, file)}: data-…={${bound}}`);
-				}
-			}
-		}
-		expect(
-			offenders,
-			"a data attribute bound to something not on the allowlist. Sentry's " +
-				"replay recorder does not mask data-* attributes, so anything " +
-				"user-authored placed there reaches the payload (ADR 0002 decision 3). " +
-				"Render it as text inside a masked element instead, or add it here " +
-				"with the reason it carries no content.",
-		).toEqual([]);
-	});
+  it("has no surface that puts user content in a data attribute today", () => {
+    // The guard for the gap above, over the real source rather than a fixture,
+    // so it covers surfaces a later task adds. Every `data-*` the app binds
+    // dynamically must carry a prefixed ID, a revision, an enum, or a release
+    // SHA — never a name, a search term, or anything else a user authored.
+    //
+    // Kept as an allowlist of *bound expressions* rather than a scan for bad
+    // values, because the bad values are only knowable at runtime: the
+    // question is what a surface is allowed to put there at all.
+    const allowed = [
+      // PRD section 9.4 prefixed IDs. Opaque by construction.
+      "props.note.id",
+      "track.id",
+      // The `PlacementId`s of the placement-editing selection (ARR-002), in
+      // the arrangement's accessible mirror. A prefixed ID like the two above
+      // — the placement's *name* is never bound here, and the mirror's own
+      // track names are text inside `MASK_CONTENT`.
+      "placementId",
+      // A save state enum and its integer revision.
+      "props.saveStatus()?.state",
+      "props.saveStatus()?.revision",
+      // The deployed revision, which is our code's identity, not the user's.
+      "RELEASE_SHA",
+      // Shortcut registry facts: a static action ID and a boolean.
+      "row.shortcut.id",
+      "String(row.available)",
+    ];
+    const offenders: string[] = [];
+    for (const file of sourceFiles()) {
+      const source = readFileSync(file, "utf8");
+      for (const match of source.matchAll(/\bdata-[a-z-]+=\{([^}]+)\}/g)) {
+        const bound = match[1].trim();
+        if (!allowed.includes(bound)) {
+          offenders.push(`${relative(sourceRoot, file)}: data-…={${bound}}`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      "a data attribute bound to something not on the allowlist. Sentry's " +
+        "replay recorder does not mask data-* attributes, so anything " +
+        "user-authored placed there reaches the payload (ADR 0002 decision 3). " +
+        "Render it as text inside a masked element instead, or add it here " +
+        "with the reason it carries no content.",
+    ).toEqual([]);
+  });
 
-	it("still records the interaction, which is the whole point of decision 1", () => {
-		// Masking must not be achieved by recording nothing. Replay exists to show
-		// which controls were used and how the user moved through the app, so the
-		// structure, the element types, and the stable chrome all survive — only
-		// the characters go.
-		const payload = serializeUnderMasking(
-			html(`
+  it("still records the interaction, which is the whole point of decision 1", () => {
+    // Masking must not be achieved by recording nothing. Replay exists to show
+    // which controls were used and how the user moved through the app, so the
+    // structure, the element types, and the stable chrome all survive — only
+    // the characters go.
+    const payload = serializeUnderMasking(
+      html(`
 				<section class="${MASK_CONTENT}" data-testid="mixer-strip">
 					<button type="button">Solo</button>
 					<input type="range" />
 				</section>
 			`),
-		);
+    );
 
-		expect(payload).toContain("button");
-		expect(payload).toContain("range");
-		expect(payload).toContain("mixer-strip");
-	});
+    expect(payload).toContain("button");
+    expect(payload).toContain("range");
+    expect(payload).toContain("mixer-strip");
+  });
 });

@@ -19,21 +19,21 @@
  * dashboard — that belongs to no single feature area.
  */
 export const ERROR_AREAS = [
-	"shell",
-	"editor",
-	"assistant",
-	"audio",
-	"renderer",
-	"export",
-	"persistence",
-	"library",
-	"unknown",
+  "shell",
+  "editor",
+  "assistant",
+  "audio",
+  "renderer",
+  "export",
+  "persistence",
+  "library",
+  "unknown",
 ] as const;
 
 export type ErrorArea = (typeof ERROR_AREAS)[number];
 
 export function isErrorArea(value: string): value is ErrorArea {
-	return (ERROR_AREAS as readonly string[]).includes(value);
+  return (ERROR_AREAS as readonly string[]).includes(value);
 }
 
 /**
@@ -44,50 +44,50 @@ export function isErrorArea(value: string): value is ErrorArea {
  * subsystem raised it.
  */
 export const ERROR_CODES = [
-	// --- Generic -----------------------------------------------------------
-	/** Nothing more specific could be determined. Investigate in Sentry. */
-	"unknown",
-	/** A bug in our own code: a broken invariant, a failed assertion. */
-	"internal",
-	/** The operation was cancelled deliberately, by the user or by teardown. */
-	"aborted",
-	"timeout",
-	"network",
-	"permission_denied",
-	"quota_exceeded",
+  // --- Generic -----------------------------------------------------------
+  /** Nothing more specific could be determined. Investigate in Sentry. */
+  "unknown",
+  /** A bug in our own code: a broken invariant, a failed assertion. */
+  "internal",
+  /** The operation was cancelled deliberately, by the user or by teardown. */
+  "aborted",
+  "timeout",
+  "network",
+  "permission_denied",
+  "quota_exceeded",
 
-	// --- Persistence -------------------------------------------------------
-	// These mirror `SaveFailureReason` in src/persistence/projectRepository.ts
-	// one-for-one; `catalog.test.ts` fails if the two drift apart.
-	"revision_conflict",
-	"not_found",
-	"already_exists",
-	"unsupported_schema_version",
-	"invalid_document",
-	"document_too_large",
-	"unavailable",
+  // --- Persistence -------------------------------------------------------
+  // These mirror `SaveFailureReason` in src/persistence/projectRepository.ts
+  // one-for-one; `catalog.test.ts` fails if the two drift apart.
+  "revision_conflict",
+  "not_found",
+  "already_exists",
+  "unsupported_schema_version",
+  "invalid_document",
+  "document_too_large",
+  "unavailable",
 
-	// --- Audio -------------------------------------------------------------
-	/** The browser refused to start audio because no user gesture allowed it. */
-	"autoplay_blocked",
-	/** An AudioContext could not be created at all (unsupported/exhausted). */
-	"context_unavailable",
-	/** The context went away underneath us mid-operation. */
-	"context_closed",
-	/** Audio data could not be decoded. */
-	"decode_failed",
-	/** A required Web Audio capability is missing in this browser. */
-	"not_supported",
+  // --- Audio -------------------------------------------------------------
+  /** The browser refused to start audio because no user gesture allowed it. */
+  "autoplay_blocked",
+  /** An AudioContext could not be created at all (unsupported/exhausted). */
+  "context_unavailable",
+  /** The context went away underneath us mid-operation. */
+  "context_closed",
+  /** Audio data could not be decoded. */
+  "decode_failed",
+  /** A required Web Audio capability is missing in this browser. */
+  "not_supported",
 
-	// --- Assets ------------------------------------------------------------
-	"asset_missing",
-	"asset_too_large",
+  // --- Assets ------------------------------------------------------------
+  "asset_missing",
+  "asset_too_large",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export function isErrorCode(value: string): value is ErrorCode {
-	return (ERROR_CODES as readonly string[]).includes(value);
+  return (ERROR_CODES as readonly string[]).includes(value);
 }
 
 /**
@@ -98,5 +98,5 @@ export function isErrorCode(value: string): value is ErrorCode {
  * into `error_code`.
  */
 export function toErrorCode(value: string | undefined): ErrorCode {
-	return value !== undefined && isErrorCode(value) ? value : "unknown";
+  return value !== undefined && isErrorCode(value) ? value : "unknown";
 }

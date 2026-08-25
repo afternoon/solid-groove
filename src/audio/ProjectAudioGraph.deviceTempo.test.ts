@@ -13,17 +13,17 @@ let AudioRuntimeModule: typeof import("./AudioRuntime");
 let ProjectAudioGraphModule: typeof import("./ProjectAudioGraph");
 
 beforeAll(async () => {
-	AudioRuntimeModule = await import("./AudioRuntime");
-	ProjectAudioGraphModule = await import("./ProjectAudioGraph");
+  AudioRuntimeModule = await import("./AudioRuntime");
+  ProjectAudioGraphModule = await import("./ProjectAudioGraph");
 });
 
 function fakeTransport(): import("./ProjectAudioGraph").AudioTransport {
-	let nextId = 1;
-	return {
-		bpm: { value: 120 },
-		schedule: () => nextId++,
-		clear: () => {},
-	};
+  let nextId = 1;
+  return {
+    bpm: { value: 120 },
+    schedule: () => nextId++,
+    clear: () => {},
+  };
 }
 
 /**
@@ -35,18 +35,18 @@ function fakeTransport(): import("./ProjectAudioGraph").AudioTransport {
 const DELAY_ID = "dev_delay" as DeviceId;
 
 function projectWithDelay(tempo: number): Project {
-	const base = createSliceFixtureProject();
-	const delay = createDevice(DELAY_ID, "delay", 0);
-	return {
-		...base,
-		song: {
-			...base.song,
-			tempo,
-			tracks: base.song.tracks.map((track, index) =>
-				index === 0 ? { ...track, devices: [delay] } : track,
-			),
-		},
-	};
+  const base = createSliceFixtureProject();
+  const delay = createDevice(DELAY_ID, "delay", 0);
+  return {
+    ...base,
+    song: {
+      ...base.song,
+      tempo,
+      tracks: base.song.tracks.map((track, index) =>
+        index === 0 ? { ...track, devices: [delay] } : track,
+      ),
+    },
+  };
 }
 
 /**
@@ -61,72 +61,69 @@ function projectWithDelay(tempo: number): Project {
  * `apply()` at all, and which tempo it reads when it does.
  */
 function resolvedDelaySeconds(
-	graph: import("./ProjectAudioGraph").ProjectAudioGraph,
-	trackId: import("../domain/ids").TrackId,
+  graph: import("./ProjectAudioGraph").ProjectAudioGraph,
+  trackId: import("../domain/ids").TrackId,
 ): number {
-	const track = graph.trackGraphs.get(trackId);
-	if (!track) throw new Error("no track graph");
-	const node = track.deviceNode(DELAY_ID);
-	if (!node) throw new Error("no delay device node in the chain");
-	const resolved = node.resolvedDelaySeconds?.();
-	if (resolved === undefined) {
-		throw new Error("the delay node exposes no resolved time");
-	}
-	return resolved;
+  const track = graph.trackGraphs.get(trackId);
+  if (!track) throw new Error("no track graph");
+  const node = track.deviceNode(DELAY_ID);
+  if (!node) throw new Error("no delay device node in the chain");
+  const resolved = node.resolvedDelaySeconds?.();
+  if (resolved === undefined) {
+    throw new Error("the delay node exposes no resolved time");
+  }
+  return resolved;
 }
 
 describe("ProjectAudioGraph device tempo wiring (FX-01)", () => {
-	it("builds a synced delay against the project's own tempo, not the 120 BPM default", async () => {
-		const runtime = new AudioRuntimeModule.AudioRuntime();
-		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
-			transport: fakeTransport(),
-		});
-		const project = projectWithDelay(60);
+  it("builds a synced delay against the project's own tempo, not the 120 BPM default", async () => {
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport: fakeTransport(),
+    });
+    const project = projectWithDelay(60);
 
-		graph.reconcile(buildAudioProjection(project));
+    graph.reconcile(buildAudioProjection(project));
 
-		// A 1/8 note at 60 BPM is 0.5 s. Reading the default 120 would give 0.25 —
-		// every synced delay in a non-120 project silently on the wrong grid.
-		expect(resolvedDelaySeconds(graph, project.song.tracks[0].id)).toBeCloseTo(
-			0.5,
-			4,
-		);
+    // A 1/8 note at 60 BPM is 0.5 s. Reading the default 120 would give 0.25 —
+    // every synced delay in a non-120 project silently on the wrong grid.
+    expect(resolvedDelaySeconds(graph, project.song.tracks[0].id)).toBeCloseTo(0.5, 4);
 
-		await graph.dispose();
-		await runtime.close();
-	});
+    await graph.dispose();
+    await runtime.close();
+  });
 
-	it("moves a synced delay onto the new grid when only the tempo changed", async () => {
-		const runtime = new AudioRuntimeModule.AudioRuntime();
-		const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
-			transport: fakeTransport(),
-		});
-		const project = projectWithDelay(120);
-		const trackId = project.song.tracks[0].id;
+  it("moves a synced delay onto the new grid when only the tempo changed", async () => {
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport: fakeTransport(),
+    });
+    const project = projectWithDelay(120);
+    const trackId = project.song.tracks[0].id;
 
-		const before = buildAudioProjection(project);
-		graph.reconcile(before);
-		expect(resolvedDelaySeconds(graph, trackId)).toBeCloseTo(0.25, 4);
+    const before = buildAudioProjection(project);
+    graph.reconcile(before);
+    expect(resolvedDelaySeconds(graph, trackId)).toBeCloseTo(0.25, 4);
 
-		const slower: Project = {
-			...project,
-			song: { ...project.song, tempo: 60 },
-		};
-		const after = buildAudioProjection(slower, before);
+    const slower: Project = {
+      ...project,
+      song: { ...project.song, tempo: 60 },
+    };
+    const after = buildAudioProjection(slower, before);
 
-		// The defect this guards: a tempo-only edit changes no track, so the audio
-		// projection reuses the track projection object *by reference* and every
-		// per-entity short-circuit between here and the device chain would
-		// otherwise swallow the change outright.
-		expect(after.tracks[0]).toBe(before.tracks[0]);
+    // The defect this guards: a tempo-only edit changes no track, so the audio
+    // projection reuses the track projection object *by reference* and every
+    // per-entity short-circuit between here and the device chain would
+    // otherwise swallow the change outright.
+    expect(after.tracks[0]).toBe(before.tracks[0]);
 
-		graph.reconcile(after);
+    graph.reconcile(after);
 
-		// A 1/8 note at 60 BPM, and read as the value `apply()` resolved rather
-		// than the live param, which is only *ramping* toward it after an edit.
-		expect(resolvedDelaySeconds(graph, trackId)).toBeCloseTo(0.5, 4);
+    // A 1/8 note at 60 BPM, and read as the value `apply()` resolved rather
+    // than the live param, which is only *ramping* toward it after an edit.
+    expect(resolvedDelaySeconds(graph, trackId)).toBeCloseTo(0.5, 4);
 
-		await graph.dispose();
-		await runtime.close();
-	});
+    await graph.dispose();
+    await runtime.close();
+  });
 });

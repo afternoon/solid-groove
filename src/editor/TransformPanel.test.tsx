@@ -1,12 +1,12 @@
 import { cleanup, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	clickTransform,
-	currentNotes,
-	pitches,
-	pitchOf,
-	setOption,
-	setUpTransformPanel as setUp,
+  clickTransform,
+  currentNotes,
+  pitches,
+  pitchOf,
+  setOption,
+  setUpTransformPanel as setUp,
 } from "./transformPanelHarness";
 
 afterEach(() => cleanup());
@@ -17,112 +17,110 @@ afterEach(() => cleanup());
  * (`TransformPanel.history.test.tsx`).
  */
 describe("TransformPanel (CLP-04)", () => {
-	it("transposes the whole clip when nothing is selected", async () => {
-		const { session, renderPanel } = await setUp();
-		const before = pitches(session);
-		renderPanel([]);
+  it("transposes the whole clip when nothing is selected", async () => {
+    const { session, renderPanel } = await setUp();
+    const before = pitches(session);
+    renderPanel([]);
 
-		clickTransform("Transpose");
+    clickTransform("Transpose");
 
-		expect(pitches(session)).toEqual(before.map((pitch) => pitch + 12));
-	});
+    expect(pitches(session)).toEqual(before.map((pitch) => pitch + 12));
+  });
 
-	it("transposes only the selected notes", async () => {
-		const { session, renderPanel } = await setUp();
-		const before = new Map(
-			currentNotes(session).map((event) => [event.id, pitchOf(event)]),
-		);
-		const target = currentNotes(session)[0];
-		renderPanel([target.id]);
+  it("transposes only the selected notes", async () => {
+    const { session, renderPanel } = await setUp();
+    const before = new Map(
+      currentNotes(session).map((event) => [event.id, pitchOf(event)]),
+    );
+    const target = currentNotes(session)[0];
+    renderPanel([target.id]);
 
-		clickTransform("Transpose");
+    clickTransform("Transpose");
 
-		// The selected note moved by the panel's semitone value; every other note
-		// is exactly where it was.
-		for (const event of currentNotes(session)) {
-			const expected = before.get(event.id) ?? -1;
-			expect(pitchOf(event)).toBe(
-				event.id === target.id ? expected + 12 : expected,
-			);
-		}
-	});
+    // The selected note moved by the panel's semitone value; every other note
+    // is exactly where it was.
+    for (const event of currentNotes(session)) {
+      const expected = before.get(event.id) ?? -1;
+      expect(pitchOf(event)).toBe(event.id === target.id ? expected + 12 : expected);
+    }
+  });
 
-	it("scales velocity through the shared command, clamping at the range end", async () => {
-		const { session, renderPanel } = await setUp();
-		renderPanel([]);
+  it("scales velocity through the shared command, clamping at the range end", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
 
-		clickTransform("Velocity");
+    clickTransform("Velocity");
 
-		for (const event of currentNotes(session)) {
-			expect(event.velocity).toBeLessThanOrEqual(1);
-			expect(event.velocity).toBeGreaterThan(0);
-		}
-	});
+    for (const event of currentNotes(session)) {
+      expect(event.velocity).toBeLessThanOrEqual(1);
+      expect(event.velocity).toBeGreaterThan(0);
+    }
+  });
 
-	it("quantizes onto the 16th grid", async () => {
-		const { session, renderPanel } = await setUp();
-		renderPanel([]);
+  it("quantizes onto the 16th grid", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
 
-		clickTransform("Quantize");
+    clickTransform("Quantize");
 
-		for (const event of currentNotes(session)) {
-			expect(event.startTicks % 48).toBe(0);
-		}
-	});
+    for (const event of currentNotes(session)) {
+      expect(event.startTicks % 48).toBe(0);
+    }
+  });
 
-	it("duplicates every note in scope", async () => {
-		const { session, renderPanel } = await setUp();
-		const before = currentNotes(session).length;
-		renderPanel([]);
+  it("duplicates every note in scope", async () => {
+    const { session, renderPanel } = await setUp();
+    const before = currentNotes(session).length;
+    renderPanel([]);
 
-		clickTransform("Duplicate");
+    clickTransform("Duplicate");
 
-		expect(currentNotes(session)).toHaveLength(before * 2);
-	});
+    expect(currentNotes(session)).toHaveLength(before * 2);
+  });
 
-	it("clears every note in the clip", async () => {
-		const { session, renderPanel } = await setUp();
-		renderPanel([]);
+  it("clears every note in the clip", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
 
-		clickTransform("Clear");
+    clickTransform("Clear");
 
-		expect(currentNotes(session)).toHaveLength(0);
-	});
+    expect(currentNotes(session)).toHaveLength(0);
+  });
 
-	it("disables every transformation when the clip has no notes", async () => {
-		const { session, renderPanel } = await setUp();
-		renderPanel([]);
-		clickTransform("Clear");
-		cleanup();
-		renderPanel([]);
+  it("disables every transformation when the clip has no notes", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
+    clickTransform("Clear");
+    cleanup();
+    renderPanel([]);
 
-		expect(currentNotes(session)).toHaveLength(0);
-		for (const button of screen.getAllByRole("button")) {
-			expect(button).toBeDisabled();
-		}
-	});
+    expect(currentNotes(session)).toHaveLength(0);
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeDisabled();
+    }
+  });
 
-	it("surfaces a boundary rejection instead of clamping the notes", async () => {
-		const { session, renderPanel } = await setUp();
-		const before = pitches(session);
-		renderPanel([]);
+  it("surfaces a boundary rejection instead of clamping the notes", async () => {
+    const { session, renderPanel } = await setUp();
+    const before = pitches(session);
+    renderPanel([]);
 
-		// The fixture's top note is C5; repeated +24 transposes eventually leave
-		// the 0-127 range, and the command refuses rather than clamping.
-		setOption("Semitones", "24");
-		for (let index = 0; index < 4; index += 1) clickTransform("Transpose");
+    // The fixture's top note is C5; repeated +24 transposes eventually leave
+    // the 0-127 range, and the command refuses rather than clamping.
+    setOption("Semitones", "24");
+    for (let index = 0; index < 4; index += 1) clickTransform("Transpose");
 
-		const alert = screen.getByRole("alert").textContent ?? "";
-		expect(alert).not.toBe("");
-		// The command layer's own issue text names clip/event IDs and raw ticks.
-		// That is right for a log and wrong for a person, so the panel says what
-		// to change instead of echoing it.
-		expect(alert).not.toMatch(/\b(clp|evt|trk)_/);
-		expect(alert).toMatch(/semitones/i);
+    const alert = screen.getByRole("alert").textContent ?? "";
+    expect(alert).not.toBe("");
+    // The command layer's own issue text names clip/event IDs and raw ticks.
+    // That is right for a log and wrong for a person, so the panel says what
+    // to change instead of echoing it.
+    expect(alert).not.toMatch(/\b(clp|evt|trk)_/);
+    expect(alert).toMatch(/semitones/i);
 
-		// The refused transformation left every note where the last accepted one
-		// put it: nothing was clamped to the edge of the range.
-		expect(pitches(session).every((pitch) => pitch <= 127)).toBe(true);
-		expect(pitches(session)).not.toEqual(before);
-	});
+    // The refused transformation left every note where the last accepted one
+    // put it: nothing was clamped to the edge of the range.
+    expect(pitches(session).every((pitch) => pitch <= 127)).toBe(true);
+    expect(pitches(session)).not.toEqual(before);
+  });
 });

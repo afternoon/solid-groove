@@ -67,29 +67,29 @@
 import type { ErrorReport, ErrorSink } from "./errorReporting";
 import { MASK_ATTRIBUTES, MASK_CONTENT } from "./replayPrivacy";
 import {
-	type ScrubbableBreadcrumb,
-	type ScrubbableEvent,
-	scrubBreadcrumb,
-	scrubSentryEvent,
+  type ScrubbableBreadcrumb,
+  type ScrubbableEvent,
+  scrubBreadcrumb,
+  scrubSentryEvent,
 } from "./scrub";
 
 type SentryModule = typeof import("@sentry/solidstart");
 
 export interface SentrySinkOptions {
-	dsn?: string;
-	release?: string;
-	environment?: string;
-	/** Injectable for tests, so no test ever loads or initializes the real SDK. */
-	load?: () => Promise<SentryModule>;
-	/**
-	 * Whether Session Replay may capture (ADR 0002 decision 4).
-	 *
-	 * Read once, at `start()`, and honoured at the source: `false` means the
-	 * replay integration is never constructed and `replaysSessionSampleRate` is
-	 * 0, so this session records nothing at all. Defaults to `false` so a caller
-	 * that has not consulted consent gets the safe outcome.
-	 */
-	sessionReplay?: boolean;
+  dsn?: string;
+  release?: string;
+  environment?: string;
+  /** Injectable for tests, so no test ever loads or initializes the real SDK. */
+  load?: () => Promise<SentryModule>;
+  /**
+   * Whether Session Replay may capture (ADR 0002 decision 4).
+   *
+   * Read once, at `start()`, and honoured at the source: `false` means the
+   * replay integration is never constructed and `replaysSessionSampleRate` is
+   * 0, so this session records nothing at all. Defaults to `false` so a caller
+   * that has not consulted consent gets the safe outcome.
+   */
+  sessionReplay?: boolean;
 }
 
 /** Reports buffered while the SDK is still loading. */
@@ -133,16 +133,16 @@ export const REPLAY_SESSION_SAMPLE_RATE = 0.1;
  * specific surface proves unreadable there is nothing to name.
  */
 export const REPLAY_PRIVACY = {
-	/** Every text node is masked at capture unless explicitly named otherwise. */
-	maskAllText: true,
-	/** Images, video, and audio elements are not recorded. */
-	blockAllMedia: true,
-	/** Text inputs are masked; typed text is user content by definition. */
-	maskAllInputs: true,
-	/** The class a component marks itself with. */
-	mask: [`.${MASK_CONTENT}`],
-	/** Names also reach the DOM as attributes; class marking does not cover those. */
-	maskAttributes: [...MASK_ATTRIBUTES],
+  /** Every text node is masked at capture unless explicitly named otherwise. */
+  maskAllText: true,
+  /** Images, video, and audio elements are not recorded. */
+  blockAllMedia: true,
+  /** Text inputs are masked; typed text is user content by definition. */
+  maskAllInputs: true,
+  /** The class a component marks itself with. */
+  mask: [`.${MASK_CONTENT}`],
+  /** Names also reach the DOM as attributes; class marking does not cover those. */
+  maskAttributes: [...MASK_ATTRIBUTES],
 };
 
 /**
@@ -175,195 +175,188 @@ export const REPLAY_CANVAS_INTEGRATION = "replayCanvasIntegration";
  * not lost to the lazy-loading requirement.
  */
 export class SentrySink implements ErrorSink {
-	private sentry: SentryModule | null = null;
-	private starting: Promise<boolean> | null = null;
-	private stopped = false;
-	private replayEnabled = false;
-	private readonly buffered: ErrorReport[] = [];
+  private sentry: SentryModule | null = null;
+  private starting: Promise<boolean> | null = null;
+  private stopped = false;
+  private replayEnabled = false;
+  private readonly buffered: ErrorReport[] = [];
 
-	constructor(private readonly options: SentrySinkOptions = {}) {}
+  constructor(private readonly options: SentrySinkOptions = {}) {}
 
-	get isReady(): boolean {
-		return this.sentry !== null;
-	}
+  get isReady(): boolean {
+    return this.sentry !== null;
+  }
 
-	/**
-	 * Loads and initializes the SDK. Idempotent; resolves `false` when there is
-	 * no DSN configured or the SDK could not be loaded — an ad blocker, an
-	 * offline first load, a chunk that 404s after a rollback. None of those may
-	 * surface to the user (PRD `OPS-03`).
-	 */
-	start(): Promise<boolean> {
-		if (this.starting) return this.starting;
-		this.starting = this.startInner().catch(() => false);
-		return this.starting;
-	}
+  /**
+   * Loads and initializes the SDK. Idempotent; resolves `false` when there is
+   * no DSN configured or the SDK could not be loaded — an ad blocker, an
+   * offline first load, a chunk that 404s after a rollback. None of those may
+   * surface to the user (PRD `OPS-03`).
+   */
+  start(): Promise<boolean> {
+    if (this.starting) return this.starting;
+    this.starting = this.startInner().catch(() => false);
+    return this.starting;
+  }
 
-	private async startInner(): Promise<boolean> {
-		const dsn = this.options.dsn ?? readEnv("VITE_SENTRY_DSN");
-		if (!dsn) return false;
+  private async startInner(): Promise<boolean> {
+    const dsn = this.options.dsn ?? readEnv("VITE_SENTRY_DSN");
+    if (!dsn) return false;
 
-		const load = this.options.load ?? (() => import("@sentry/solidstart"));
-		const sentry = await load();
+    const load = this.options.load ?? (() => import("@sentry/solidstart"));
+    const sentry = await load();
 
-		// ADR 0002 decision 4: consent is honoured at the source. A declined
-		// session constructs no replay integration, so there is nothing to filter
-		// on send because there is nothing captured.
-		const replayEnabled = this.options.sessionReplay === true;
-		this.replayEnabled = replayEnabled;
+    // ADR 0002 decision 4: consent is honoured at the source. A declined
+    // session constructs no replay integration, so there is nothing to filter
+    // on send because there is nothing captured.
+    const replayEnabled = this.options.sessionReplay === true;
+    this.replayEnabled = replayEnabled;
 
-		sentry.init({
-			dsn,
-			release: this.options.release,
-			environment: this.options.environment ?? "alpha",
+    sentry.init({
+      dsn,
+      release: this.options.release,
+      environment: this.options.environment ?? "alpha",
 
-			// --- Privacy (ADR 0001) -------------------------------------------
-			sendDefaultPii: false,
-			// ADR 0002 decision 6. A declined session samples nothing as well as
-			// constructing no integration, so neither alone is load-bearing.
-			replaysSessionSampleRate: replayEnabled ? REPLAY_SESSION_SAMPLE_RATE : 0,
-			// Stays 0 unconditionally: error-triggered replay is the debugging use
-			// ADR 0001 rejected, and ADR 0002 explicitly does not revisit it.
-			replaysOnErrorSampleRate: 0,
-			// No performance tracing. ADR 0001 leaves that to a separate decision.
-			tracesSampleRate: 0,
+      // --- Privacy (ADR 0001) -------------------------------------------
+      sendDefaultPii: false,
+      // ADR 0002 decision 6. A declined session samples nothing as well as
+      // constructing no integration, so neither alone is load-bearing.
+      replaysSessionSampleRate: replayEnabled ? REPLAY_SESSION_SAMPLE_RATE : 0,
+      // Stays 0 unconditionally: error-triggered replay is the debugging use
+      // ADR 0001 rejected, and ADR 0002 explicitly does not revisit it.
+      replaysOnErrorSampleRate: 0,
+      // No performance tracing. ADR 0001 leaves that to a separate decision.
+      tracesSampleRate: 0,
 
-			// --- Minimal integration set --------------------------------------
-			defaultIntegrations: false,
-			integrations: [
-				// Release Health: the source of the section 11 crash-free session rate.
-				sentry.browserSessionIntegration(),
-				// A second, independent collapse of identical events.
-				sentry.dedupeIntegration(),
-				sentry.breadcrumbsIntegration({
-					// Disabled, not filtered: console arguments routinely contain
-					// project state in a music application.
-					console: false,
-					dom: true,
-					fetch: true,
-					xhr: true,
-					history: true,
-					sentry: false,
-				}),
-				// Both or neither: the canvas integration records nothing on its own,
-				// and replay without it is the grey-box replay ADR 0003 rejected.
-				...(replayEnabled
-					? [
-							sentry.replayIntegration(REPLAY_PRIVACY),
-							sentry.replayCanvasIntegration(),
-						]
-					: []),
-			],
+      // --- Minimal integration set --------------------------------------
+      defaultIntegrations: false,
+      integrations: [
+        // Release Health: the source of the section 11 crash-free session rate.
+        sentry.browserSessionIntegration(),
+        // A second, independent collapse of identical events.
+        sentry.dedupeIntegration(),
+        sentry.breadcrumbsIntegration({
+          // Disabled, not filtered: console arguments routinely contain
+          // project state in a music application.
+          console: false,
+          dom: true,
+          fetch: true,
+          xhr: true,
+          history: true,
+          sentry: false,
+        }),
+        // Both or neither: the canvas integration records nothing on its own,
+        // and replay without it is the grey-box replay ADR 0003 rejected.
+        ...(replayEnabled
+          ? [sentry.replayIntegration(REPLAY_PRIVACY), sentry.replayCanvasIntegration()]
+          : []),
+      ],
 
-			// --- Scrubbing ------------------------------------------------------
-			// The double casts bridge the SDK's nominal event types and this
-			// module's SDK-free structural ones. `scrubSentryEvent` only ever
-			// removes fields or replaces strings with shorter strings, so the
-			// shape it returns is still a valid event.
-			beforeSend: (event) =>
-				scrubSentryEvent(
-					event as unknown as ScrubbableEvent,
-				) as unknown as typeof event,
-			beforeBreadcrumb: (breadcrumb) =>
-				scrubBreadcrumb(breadcrumb as ScrubbableBreadcrumb) as
-					| typeof breadcrumb
-					| null,
-		});
+      // --- Scrubbing ------------------------------------------------------
+      // The double casts bridge the SDK's nominal event types and this
+      // module's SDK-free structural ones. `scrubSentryEvent` only ever
+      // removes fields or replaces strings with shorter strings, so the
+      // shape it returns is still a valid event.
+      beforeSend: (event) =>
+        scrubSentryEvent(event as unknown as ScrubbableEvent) as unknown as typeof event,
+      beforeBreadcrumb: (breadcrumb) =>
+        scrubBreadcrumb(breadcrumb as ScrubbableBreadcrumb) as typeof breadcrumb | null,
+    });
 
-		this.sentry = sentry;
-		this.flushBuffer();
-		return true;
-	}
+    this.sentry = sentry;
+    this.flushBuffer();
+    return true;
+  }
 
-	capture(report: ErrorReport): void {
-		if (this.stopped) return;
-		if (!this.sentry) {
-			if (this.buffered.length < MAX_BUFFERED_REPORTS) {
-				this.buffered.push(report);
-			}
-			return;
-		}
-		this.send(this.sentry, report);
-	}
+  capture(report: ErrorReport): void {
+    if (this.stopped) return;
+    if (!this.sentry) {
+      if (this.buffered.length < MAX_BUFFERED_REPORTS) {
+        this.buffered.push(report);
+      }
+      return;
+    }
+    this.send(this.sentry, report);
+  }
 
-	private flushBuffer(): void {
-		const sentry = this.sentry;
-		if (!sentry) return;
-		const pending = this.buffered.splice(0, this.buffered.length);
-		for (const report of pending) {
-			this.send(sentry, report);
-		}
-	}
+  private flushBuffer(): void {
+    const sentry = this.sentry;
+    if (!sentry) return;
+    const pending = this.buffered.splice(0, this.buffered.length);
+    for (const report of pending) {
+      this.send(sentry, report);
+    }
+  }
 
-	private send(sentry: SentryModule, report: ErrorReport): void {
-		sentry.captureException(report.error, {
-			// `handled: false` is what marks the session crashed in Release
-			// Health, so the crash-free session rate reflects fatal errors only.
-			mechanism: { type: "solid_groove_boundary", handled: !report.fatal },
-			captureContext: {
-				level: report.fatal ? "fatal" : "error",
-				tags: {
-					area: report.area,
-					error_code: report.code,
-					fatal: report.fatal,
-					browser_name: report.browser.browserName,
-					browser_version: report.browser.browserVersion,
-					engine_name: report.browser.engineName,
-					engine_version: report.browser.engineVersion,
-				},
-			},
-		});
-	}
+  private send(sentry: SentryModule, report: ErrorReport): void {
+    sentry.captureException(report.error, {
+      // `handled: false` is what marks the session crashed in Release
+      // Health, so the crash-free session rate reflects fatal errors only.
+      mechanism: { type: "solid_groove_boundary", handled: !report.fatal },
+      captureContext: {
+        level: report.fatal ? "fatal" : "error",
+        tags: {
+          area: report.area,
+          error_code: report.code,
+          fatal: report.fatal,
+          browser_name: report.browser.browserName,
+          browser_version: report.browser.browserVersion,
+          engine_name: report.browser.engineName,
+          engine_version: report.browser.engineVersion,
+        },
+      },
+    });
+  }
 
-	/**
-	 * Stops an in-flight Session Replay recording (ADR 0002 decision 4).
-	 *
-	 * "Opting out mid-session stops an in-flight recording rather than merely
-	 * dropping it before send." Closing the client is not enough on its own:
-	 * replay buffers in the page and a session already sampled in keeps
-	 * recording until it is told to stop, so this is called *before* the close
-	 * and separately from it, for the case where replay consent is withdrawn
-	 * while error monitoring is still allowed.
-	 *
-	 * Idempotent and non-throwing. Safe to call when replay was never enabled,
-	 * where it does nothing.
-	 */
-	async stopReplay(): Promise<void> {
-		if (!this.replayEnabled) return;
-		this.replayEnabled = false;
-		try {
-			await this.sentry?.getReplay?.()?.stop();
-		} catch {
-			// A recording we cannot stop must not become an exception on the
-			// consent path. The client close below is the backstop.
-		}
-	}
+  /**
+   * Stops an in-flight Session Replay recording (ADR 0002 decision 4).
+   *
+   * "Opting out mid-session stops an in-flight recording rather than merely
+   * dropping it before send." Closing the client is not enough on its own:
+   * replay buffers in the page and a session already sampled in keeps
+   * recording until it is told to stop, so this is called *before* the close
+   * and separately from it, for the case where replay consent is withdrawn
+   * while error monitoring is still allowed.
+   *
+   * Idempotent and non-throwing. Safe to call when replay was never enabled,
+   * where it does nothing.
+   */
+  async stopReplay(): Promise<void> {
+    if (!this.replayEnabled) return;
+    this.replayEnabled = false;
+    try {
+      await this.sentry?.getReplay?.()?.stop();
+    } catch {
+      // A recording we cannot stop must not become an exception on the
+      // consent path. The client close below is the backstop.
+    }
+  }
 
-	/**
-	 * Stops sending. Used when the user withdraws consent mid-session: our
-	 * boundary already stops forwarding, but `browserSessionIntegration` emits
-	 * session updates on its own, so the client itself has to be closed.
-	 */
-	async stop(): Promise<void> {
-		this.stopped = true;
-		this.buffered.length = 0;
-		// Before the close, so a sampled-in recording is told to stop rather than
-		// left to the client teardown (ADR 0002 decision 4).
-		await this.stopReplay();
-		try {
-			await this.sentry?.getClient()?.close();
-		} catch {
-			// Closing is best-effort; a failure here must not surface anywhere.
-		}
-		this.sentry = null;
-	}
+  /**
+   * Stops sending. Used when the user withdraws consent mid-session: our
+   * boundary already stops forwarding, but `browserSessionIntegration` emits
+   * session updates on its own, so the client itself has to be closed.
+   */
+  async stop(): Promise<void> {
+    this.stopped = true;
+    this.buffered.length = 0;
+    // Before the close, so a sampled-in recording is told to stop rather than
+    // left to the client teardown (ADR 0002 decision 4).
+    await this.stopReplay();
+    try {
+      await this.sentry?.getClient()?.close();
+    } catch {
+      // Closing is best-effort; a failure here must not surface anywhere.
+    }
+    this.sentry = null;
+  }
 }
 
 function readEnv(key: string): string | undefined {
-	try {
-		const value = (import.meta.env as Record<string, unknown>)[key];
-		return typeof value === "string" && value.length > 0 ? value : undefined;
-	} catch {
-		return undefined;
-	}
+  try {
+    const value = (import.meta.env as Record<string, unknown>)[key];
+    return typeof value === "string" && value.length > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }

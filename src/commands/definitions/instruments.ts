@@ -1,19 +1,19 @@
 import { z } from "zod";
 import { type Instrument, instrumentSchema } from "../../domain/entities";
 import {
-	type AssetId,
-	assetIdSchema,
-	type TrackId,
-	trackIdSchema,
+  type AssetId,
+  assetIdSchema,
+  type TrackId,
+  trackIdSchema,
 } from "../../domain/ids";
 import { findTrack, replaceTrack, trackLabel } from "../projectEdits";
 import {
-	applied,
-	type CommandInput,
-	defineCommand,
-	eraseCommand,
-	type RegisteredCommand,
-	rejected,
+  applied,
+  type CommandInput,
+  defineCommand,
+  eraseCommand,
+  type RegisteredCommand,
+  rejected,
 } from "../types";
 
 /**
@@ -37,118 +37,109 @@ import {
  */
 
 export const instrumentChangePayloadSchema = z.strictObject({
-	trackId: trackIdSchema,
-	/** The instrument to install, or `null` to clear the track's instrument. */
-	instrument: instrumentSchema.nullable(),
+  trackId: trackIdSchema,
+  /** The instrument to install, or `null` to clear the track's instrument. */
+  instrument: instrumentSchema.nullable(),
 });
-export type InstrumentChangePayload = z.infer<
-	typeof instrumentChangePayloadSchema
->;
+export type InstrumentChangePayload = z.infer<typeof instrumentChangePayloadSchema>;
 
 export const instrumentSetSamplePayloadSchema = z.strictObject({
-	trackId: trackIdSchema,
-	/** The asset the sampler should play, or `null` to clear it. */
-	assetId: assetIdSchema.nullable(),
+  trackId: trackIdSchema,
+  /** The asset the sampler should play, or `null` to clear it. */
+  assetId: assetIdSchema.nullable(),
 });
-export type InstrumentSetSamplePayload = z.infer<
-	typeof instrumentSetSamplePayloadSchema
->;
+export type InstrumentSetSamplePayload = z.infer<typeof instrumentSetSamplePayloadSchema>;
 
 function describeInstrument(instrument: Instrument | null): string {
-	if (!instrument) return "no instrument";
-	switch (instrument.kind) {
-		case "sampler":
-			return "sampler";
-		case "synth":
-			return "synth";
-		case "drumMachine":
-			return "drum machine";
-	}
+  if (!instrument) return "no instrument";
+  switch (instrument.kind) {
+    case "sampler":
+      return "sampler";
+    case "synth":
+      return "synth";
+    case "drumMachine":
+      return "drum machine";
+  }
 }
 
 export const instrumentChangeCommand = defineCommand<InstrumentChangePayload>({
-	type: "instrument.change",
-	version: 1,
-	schema: instrumentChangePayloadSchema,
-	summarize: (payload, project) =>
-		`Change ${trackLabel(project, payload.trackId)} to ${describeInstrument(payload.instrument)}`,
-	apply(project, payload) {
-		const track = findTrack(project, payload.trackId);
-		if (!track) {
-			return rejected(`Track ${payload.trackId} does not exist`);
-		}
-		return applied(
-			replaceTrack(project, { ...track, instrument: payload.instrument }),
-		);
-	},
-	invert(payload, before) {
-		const track = findTrack(before, payload.trackId);
-		return track ? [changeInstrument(payload.trackId, track.instrument)] : [];
-	},
+  type: "instrument.change",
+  version: 1,
+  schema: instrumentChangePayloadSchema,
+  summarize: (payload, project) =>
+    `Change ${trackLabel(project, payload.trackId)} to ${describeInstrument(payload.instrument)}`,
+  apply(project, payload) {
+    const track = findTrack(project, payload.trackId);
+    if (!track) {
+      return rejected(`Track ${payload.trackId} does not exist`);
+    }
+    return applied(replaceTrack(project, { ...track, instrument: payload.instrument }));
+  },
+  invert(payload, before) {
+    const track = findTrack(before, payload.trackId);
+    return track ? [changeInstrument(payload.trackId, track.instrument)] : [];
+  },
 });
 
-export const instrumentSetSampleCommand =
-	defineCommand<InstrumentSetSamplePayload>({
-		type: "instrument.setSample",
-		version: 1,
-		schema: instrumentSetSamplePayloadSchema,
-		summarize: (payload, project) =>
-			payload.assetId
-				? `Replace sample on ${trackLabel(project, payload.trackId)}`
-				: `Clear sample on ${trackLabel(project, payload.trackId)}`,
-		apply(project, payload) {
-			const track = findTrack(project, payload.trackId);
-			if (!track) {
-				return rejected(`Track ${payload.trackId} does not exist`);
-			}
-			if (track.instrument?.kind !== "sampler") {
-				return rejected(
-					`Track ${track.id} has no sampler to load a sample into`,
-				);
-			}
-			return applied(
-				replaceTrack(project, {
-					...track,
-					// Only the asset changes: pitch, start/end, and envelope carry
-					// through unchanged, which is the "compatible clip data preserved"
-					// guarantee at the instrument level.
-					instrument: { ...track.instrument, assetId: payload.assetId },
-				}),
-			);
-		},
-		invert(payload, before) {
-			const track = findTrack(before, payload.trackId);
-			if (track?.instrument?.kind !== "sampler") {
-				return [];
-			}
-			return [setSample(payload.trackId, track.instrument.assetId)];
-		},
-	});
+export const instrumentSetSampleCommand = defineCommand<InstrumentSetSamplePayload>({
+  type: "instrument.setSample",
+  version: 1,
+  schema: instrumentSetSamplePayloadSchema,
+  summarize: (payload, project) =>
+    payload.assetId
+      ? `Replace sample on ${trackLabel(project, payload.trackId)}`
+      : `Clear sample on ${trackLabel(project, payload.trackId)}`,
+  apply(project, payload) {
+    const track = findTrack(project, payload.trackId);
+    if (!track) {
+      return rejected(`Track ${payload.trackId} does not exist`);
+    }
+    if (track.instrument?.kind !== "sampler") {
+      return rejected(`Track ${track.id} has no sampler to load a sample into`);
+    }
+    return applied(
+      replaceTrack(project, {
+        ...track,
+        // Only the asset changes: pitch, start/end, and envelope carry
+        // through unchanged, which is the "compatible clip data preserved"
+        // guarantee at the instrument level.
+        instrument: { ...track.instrument, assetId: payload.assetId },
+      }),
+    );
+  },
+  invert(payload, before) {
+    const track = findTrack(before, payload.trackId);
+    if (track?.instrument?.kind !== "sampler") {
+      return [];
+    }
+    return [setSample(payload.trackId, track.instrument.assetId)];
+  },
+});
 
 // --- Typed builders -------------------------------------------------------
 
 export function changeInstrument(
-	trackId: TrackId,
-	instrument: Instrument | null,
+  trackId: TrackId,
+  instrument: Instrument | null,
 ): CommandInput<InstrumentChangePayload> {
-	return {
-		type: instrumentChangeCommand.type,
-		payload: { trackId, instrument },
-	};
+  return {
+    type: instrumentChangeCommand.type,
+    payload: { trackId, instrument },
+  };
 }
 
 export function setSample(
-	trackId: TrackId,
-	assetId: AssetId | null,
+  trackId: TrackId,
+  assetId: AssetId | null,
 ): CommandInput<InstrumentSetSamplePayload> {
-	return {
-		type: instrumentSetSampleCommand.type,
-		payload: { trackId, assetId },
-	};
+  return {
+    type: instrumentSetSampleCommand.type,
+    payload: { trackId, assetId },
+  };
 }
 
 /** Registered, payload-erased commands from this module. */
 export const instrumentCommands: readonly RegisteredCommand[] = [
-	eraseCommand(instrumentChangeCommand),
-	eraseCommand(instrumentSetSampleCommand),
+  eraseCommand(instrumentChangeCommand),
+  eraseCommand(instrumentSetSampleCommand),
 ];

@@ -13,24 +13,24 @@ let filter: typeof import("./filter");
 let distortion: typeof import("./distortion");
 
 beforeAll(async () => {
-	Tone = await import("tone");
-	deviceNode = await import("./deviceNode");
-	filter = await import("./filter");
-	distortion = await import("./distortion");
+  Tone = await import("tone");
+  deviceNode = await import("./deviceNode");
+  filter = await import("./filter");
+  distortion = await import("./distortion");
 });
 
 const context = { scope: null as never, tempo: () => 120 };
 
 function device(
-	type: Parameters<typeof createDevice>[1],
-	overrides: Record<string, number> = {},
-	bypassed = false,
+  type: Parameters<typeof createDevice>[1],
+  overrides: Record<string, number> = {},
+  bypassed = false,
 ): Device {
-	return {
-		...createDevice("dev_shaping" as DeviceId, type, 0),
-		bypassed,
-		parameters: { ...defaultDeviceParameters(type), ...overrides },
-	};
+  return {
+    ...createDevice("dev_shaping" as DeviceId, type, 0),
+    bypassed,
+    parameters: { ...defaultDeviceParameters(type), ...overrides },
+  };
 }
 
 /**
@@ -51,166 +51,126 @@ function device(
  * every drive setting and the measurement barely moves.
  */
 async function render(
-	build: (d: Device) => import("../DeviceChain").DeviceNode,
-	d: Device,
-	options: { wave?: "sine" | "sawtooth"; level?: number } = {},
+  build: (d: Device) => import("../DeviceChain").DeviceNode,
+  d: Device,
+  options: { wave?: "sine" | "sawtooth"; level?: number } = {},
 ): Promise<Float32Array> {
-	const buffer = await Tone.Offline(() => {
-		const node = build(d);
-		const osc = new Tone.Oscillator({
-			type: options.wave ?? "sawtooth",
-			frequency: 220,
-			volume: Tone.gainToDb(options.level ?? 1),
-		});
-		osc.connect(node.input);
-		node.output.toDestination();
-		osc.start(0);
-	}, 0.4);
-	return buffer.getChannelData(0);
+  const buffer = await Tone.Offline(() => {
+    const node = build(d);
+    const osc = new Tone.Oscillator({
+      type: options.wave ?? "sawtooth",
+      frequency: 220,
+      volume: Tone.gainToDb(options.level ?? 1),
+    });
+    osc.connect(node.input);
+    node.output.toDestination();
+    osc.start(0);
+  }, 0.4);
+  return buffer.getChannelData(0);
 }
 
 /** A moderate sine — the distortion probe described on `render`. */
 const SINE = { wave: "sine", level: 0.3 } as const;
 
 const buildFilter = (d: Device) =>
-	deviceNode.buildDeviceNode(d, context, filter.createFilterCore);
+  deviceNode.buildDeviceNode(d, context, filter.createFilterCore);
 const buildOverdrive = (d: Device) =>
-	deviceNode.buildDeviceNode(d, context, distortion.createOverdriveCore);
+  deviceNode.buildDeviceNode(d, context, distortion.createOverdriveCore);
 const buildSaturator = (d: Device) =>
-	deviceNode.buildDeviceNode(d, context, distortion.createSaturatorCore);
+  deviceNode.buildDeviceNode(d, context, distortion.createSaturatorCore);
 
 /** Discards the smoothing ramp at the head so a measurement reads the settled
  * signal rather than the fade-in every ramped parameter starts with. */
 function settled(data: Float32Array): Float32Array {
-	return data.subarray(Math.floor(data.length * 0.5));
+  return data.subarray(Math.floor(data.length * 0.5));
 }
 
 describe("filter device (FX-01)", () => {
-	it("removes high-frequency energy as the cutoff closes", async () => {
-		const open = settled(
-			await render(buildFilter, device("filter", { cutoff: 18_000 })),
-		);
-		const closed = settled(
-			await render(buildFilter, device("filter", { cutoff: 300 })),
-		);
-		expect(hfEnergy(closed)).toBeLessThan(hfEnergy(open) * 0.5);
-	});
+  it("removes high-frequency energy as the cutoff closes", async () => {
+    const open = settled(await render(buildFilter, device("filter", { cutoff: 18_000 })));
+    const closed = settled(await render(buildFilter, device("filter", { cutoff: 300 })));
+    expect(hfEnergy(closed)).toBeLessThan(hfEnergy(open) * 0.5);
+  });
 
-	it("passes highs and cuts lows in high-pass mode", async () => {
-		const low = settled(
-			await render(buildFilter, device("filter", { mode: 0, cutoff: 2_000 })),
-		);
-		const high = settled(
-			await render(buildFilter, device("filter", { mode: 1, cutoff: 2_000 })),
-		);
-		// At the same cutoff the two modes are complementary, so the high-pass
-		// keeps proportionally far more high-frequency energy per unit of level.
-		expect(hfEnergy(high) / rms(high)).toBeGreaterThan(
-			hfEnergy(low) / rms(low),
-		);
-	});
+  it("passes highs and cuts lows in high-pass mode", async () => {
+    const low = settled(
+      await render(buildFilter, device("filter", { mode: 0, cutoff: 2_000 })),
+    );
+    const high = settled(
+      await render(buildFilter, device("filter", { mode: 1, cutoff: 2_000 })),
+    );
+    // At the same cutoff the two modes are complementary, so the high-pass
+    // keeps proportionally far more high-frequency energy per unit of level.
+    expect(hfEnergy(high) / rms(high)).toBeGreaterThan(hfEnergy(low) / rms(low));
+  });
 
-	it("stays stable and finite at the top of its deliberately extreme resonance (FX-02)", async () => {
-		const data = settled(
-			await render(
-				buildFilter,
-				device("filter", { cutoff: 500, resonance: 30 }),
-			),
-		);
-		expect(data.every((s) => Number.isFinite(s))).toBe(true);
-		// Bounded: a self-resonant sweep is loud and creative, not a runaway.
-		expect(Math.max(...data.map(Math.abs))).toBeLessThan(8);
-	});
+  it("stays stable and finite at the top of its deliberately extreme resonance (FX-02)", async () => {
+    const data = settled(
+      await render(buildFilter, device("filter", { cutoff: 500, resonance: 30 })),
+    );
+    expect(data.every((s) => Number.isFinite(s))).toBe(true);
+    // Bounded: a self-resonant sweep is loud and creative, not a runaway.
+    expect(Math.max(...data.map(Math.abs))).toBeLessThan(8);
+  });
 
-	it("changes mode without replacing the node", async () => {
-		const node = buildFilter(device("filter", { mode: 0 }));
-		const before = node.input;
-		node.update(device("filter", { mode: 2 }));
-		expect(node.input).toBe(before);
-		node.dispose();
-	});
+  it("changes mode without replacing the node", async () => {
+    const node = buildFilter(device("filter", { mode: 0 }));
+    const before = node.input;
+    node.update(device("filter", { mode: 2 }));
+    expect(node.input).toBe(before);
+    node.dispose();
+  });
 });
 
 describe("overdrive and saturator (FX-01, FX-02)", () => {
-	it("adds harmonics as drive climbs, from coloration to destruction", async () => {
-		const clean = settled(
-			await render(
-				buildOverdrive,
-				device("overdrive", { drive: 0, tone: 1 }),
-				SINE,
-			),
-		);
-		const pushed = settled(
-			await render(
-				buildOverdrive,
-				device("overdrive", { drive: 0.5, tone: 1 }),
-				SINE,
-			),
-		);
-		const destroyed = settled(
-			await render(
-				buildOverdrive,
-				device("overdrive", { drive: 1, tone: 1 }),
-				SINE,
-			),
-		);
-		// Harmonic content per unit of level rises monotonically with drive —
-		// normalising by RMS is what makes this a claim about *distortion* rather
-		// than about the device simply getting louder.
-		const brightness = (d: Float32Array) => hfEnergy(d) / rms(d);
-		expect(brightness(pushed)).toBeGreaterThan(brightness(clean));
-		expect(brightness(destroyed)).toBeGreaterThan(brightness(pushed));
-	});
+  it("adds harmonics as drive climbs, from coloration to destruction", async () => {
+    const clean = settled(
+      await render(buildOverdrive, device("overdrive", { drive: 0, tone: 1 }), SINE),
+    );
+    const pushed = settled(
+      await render(buildOverdrive, device("overdrive", { drive: 0.5, tone: 1 }), SINE),
+    );
+    const destroyed = settled(
+      await render(buildOverdrive, device("overdrive", { drive: 1, tone: 1 }), SINE),
+    );
+    // Harmonic content per unit of level rises monotonically with drive —
+    // normalising by RMS is what makes this a claim about *distortion* rather
+    // than about the device simply getting louder.
+    const brightness = (d: Float32Array) => hfEnergy(d) / rms(d);
+    expect(brightness(pushed)).toBeGreaterThan(brightness(clean));
+    expect(brightness(destroyed)).toBeGreaterThan(brightness(pushed));
+  });
 
-	it("darkens with the overdrive tone control", async () => {
-		const dark = settled(
-			await render(
-				buildOverdrive,
-				device("overdrive", { drive: 0.6, tone: 0 }),
-			),
-		);
-		const bright = settled(
-			await render(
-				buildOverdrive,
-				device("overdrive", { drive: 0.6, tone: 1 }),
-			),
-		);
-		expect(hfEnergy(dark)).toBeLessThan(hfEnergy(bright));
-	});
+  it("darkens with the overdrive tone control", async () => {
+    const dark = settled(
+      await render(buildOverdrive, device("overdrive", { drive: 0.6, tone: 0 })),
+    );
+    const bright = settled(
+      await render(buildOverdrive, device("overdrive", { drive: 0.6, tone: 1 })),
+    );
+    expect(hfEnergy(dark)).toBeLessThan(hfEnergy(bright));
+  });
 
-	it("keeps the saturator's output bounded at its most extreme drive", async () => {
-		const data = settled(
-			await render(
-				buildSaturator,
-				device("saturator", { drive: 48, character: 1 }),
-			),
-		);
-		expect(data.every((s) => Number.isFinite(s))).toBe(true);
-		// The waveshaper curve is clamped to ±1, so however hard it is driven the
-		// device cannot hand an unsafe sample to the rest of the chain (FX-02).
-		expect(Math.max(...data.map(Math.abs))).toBeLessThanOrEqual(1.0001);
-	});
+  it("keeps the saturator's output bounded at its most extreme drive", async () => {
+    const data = settled(
+      await render(buildSaturator, device("saturator", { drive: 48, character: 1 })),
+    );
+    expect(data.every((s) => Number.isFinite(s))).toBe(true);
+    // The waveshaper curve is clamped to ±1, so however hard it is driven the
+    // device cannot hand an unsafe sample to the rest of the chain (FX-02).
+    expect(Math.max(...data.map(Math.abs))).toBeLessThanOrEqual(1.0001);
+  });
 
-	it("moves from a soft knee toward a hard fold with character", async () => {
-		// Measured at a moderate drive: past the point where both curves are fully
-		// saturated they necessarily converge on the same square-ish wave, so the
-		// two shapes are only distinguishable while the knee still matters.
-		const soft = settled(
-			await render(
-				buildSaturator,
-				device("saturator", { drive: 6, character: 0 }),
-				SINE,
-			),
-		);
-		const hard = settled(
-			await render(
-				buildSaturator,
-				device("saturator", { drive: 6, character: 1 }),
-				SINE,
-			),
-		);
-		expect(hfEnergy(hard) / rms(hard)).toBeGreaterThan(
-			hfEnergy(soft) / rms(soft),
-		);
-	});
+  it("moves from a soft knee toward a hard fold with character", async () => {
+    // Measured at a moderate drive: past the point where both curves are fully
+    // saturated they necessarily converge on the same square-ish wave, so the
+    // two shapes are only distinguishable while the knee still matters.
+    const soft = settled(
+      await render(buildSaturator, device("saturator", { drive: 6, character: 0 }), SINE),
+    );
+    const hard = settled(
+      await render(buildSaturator, device("saturator", { drive: 6, character: 1 }), SINE),
+    );
+    expect(hfEnergy(hard) / rms(hard)).toBeGreaterThan(hfEnergy(soft) / rms(soft));
+  });
 });

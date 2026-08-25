@@ -1,11 +1,11 @@
 import {
-	type LibraryAsset,
-	type LibraryPackSummary,
-	PACK_INDEX_PATH,
-	packAssets,
-	packSummaries,
-	parsePackIndex,
-	parsePackManifest,
+  type LibraryAsset,
+  type LibraryPackSummary,
+  PACK_INDEX_PATH,
+  packAssets,
+  packSummaries,
+  parsePackIndex,
+  parsePackManifest,
 } from "./manifest";
 
 /**
@@ -32,26 +32,26 @@ export type JsonFetcher = (url: string) => Promise<unknown>;
 export type LibraryLoadReason = "network" | "not_found" | "corrupt" | "timeout";
 
 export interface PackLoadError {
-	readonly packId: string;
-	readonly packSlug: string;
-	readonly reason: LibraryLoadReason;
-	readonly message: string;
+  readonly packId: string;
+  readonly packSlug: string;
+  readonly reason: LibraryLoadReason;
+  readonly message: string;
 }
 
 export class LibraryIndexError extends Error {
-	constructor(
-		readonly reason: LibraryLoadReason,
-		message: string,
-	) {
-		super(message);
-		this.name = "LibraryIndexError";
-	}
+  constructor(
+    readonly reason: LibraryLoadReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "LibraryIndexError";
+  }
 }
 
 /** The result of loading one pack: either its assets, or an isolated error. */
 export type PackLoadResult =
-	| { readonly ok: true; readonly assets: readonly LibraryAsset[] }
-	| { readonly ok: false; readonly error: PackLoadError };
+  | { readonly ok: true; readonly assets: readonly LibraryAsset[] }
+  | { readonly ok: false; readonly error: PackLoadError };
 
 /**
  * The default fetcher: a GET of a static delivery document.
@@ -65,109 +65,108 @@ export type PackLoadResult =
  * `Response`.
  */
 export function httpJsonFetcher(url: string): Promise<unknown> {
-	return fetch(url).then(
-		async (response) => {
-			if (!response.ok) {
-				const reason: LibraryLoadReason =
-					response.status === 404 ? "not_found" : "network";
-				throw new FetchClassifiedError(reason, `HTTP ${response.status}`);
-			}
-			try {
-				return await response.json();
-			} catch {
-				throw new FetchClassifiedError("corrupt", "Response was not JSON");
-			}
-		},
-		(error) => {
-			throw new FetchClassifiedError(
-				"network",
-				error instanceof Error ? error.message : "Network request failed",
-			);
-		},
-	);
+  return fetch(url).then(
+    async (response) => {
+      if (!response.ok) {
+        const reason: LibraryLoadReason =
+          response.status === 404 ? "not_found" : "network";
+        throw new FetchClassifiedError(reason, `HTTP ${response.status}`);
+      }
+      try {
+        return await response.json();
+      } catch {
+        throw new FetchClassifiedError("corrupt", "Response was not JSON");
+      }
+    },
+    (error) => {
+      throw new FetchClassifiedError(
+        "network",
+        error instanceof Error ? error.message : "Network request failed",
+      );
+    },
+  );
 }
 
 /** A fetch failure already classified into a {@link LibraryLoadReason}. */
 export class FetchClassifiedError extends Error {
-	constructor(
-		readonly reason: LibraryLoadReason,
-		message: string,
-	) {
-		super(message);
-		this.name = "FetchClassifiedError";
-	}
+  constructor(
+    readonly reason: LibraryLoadReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "FetchClassifiedError";
+  }
 }
 
 function reasonOf(error: unknown): LibraryLoadReason {
-	if (error instanceof FetchClassifiedError) return error.reason;
-	// A parse failure (Zod) or any unclassified throw is a corrupt document: the
-	// fetch succeeded but the body was not a manifest we can trust.
-	return "corrupt";
+  if (error instanceof FetchClassifiedError) return error.reason;
+  // A parse failure (Zod) or any unclassified throw is a corrupt document: the
+  // fetch succeeded but the body was not a manifest we can trust.
+  return "corrupt";
 }
 
 export class LibraryClient {
-	private readonly fetchJson: JsonFetcher;
-	private indexPromise: Promise<readonly LibraryPackSummary[]> | null = null;
-	/** Manifest loads in flight or resolved, keyed by `packId@version`. */
-	private readonly packCache = new Map<string, Promise<PackLoadResult>>();
+  private readonly fetchJson: JsonFetcher;
+  private indexPromise: Promise<readonly LibraryPackSummary[]> | null = null;
+  /** Manifest loads in flight or resolved, keyed by `packId@version`. */
+  private readonly packCache = new Map<string, Promise<PackLoadResult>>();
 
-	constructor(fetcher: JsonFetcher = httpJsonFetcher) {
-		this.fetchJson = fetcher;
-	}
+  constructor(fetcher: JsonFetcher = httpJsonFetcher) {
+    this.fetchJson = fetcher;
+  }
 
-	/**
-	 * Fetch the pack index once. Repeated calls return the same in-flight or
-	 * settled promise, so opening the browser fetches the index exactly once
-	 * however many components ask for it.
-	 */
-	loadIndex(): Promise<readonly LibraryPackSummary[]> {
-		if (!this.indexPromise) {
-			this.indexPromise = this.fetchJson(PACK_INDEX_PATH)
-				.then((raw) => packSummaries(parsePackIndex(raw)))
-				.catch((error: unknown) => {
-					// A failed index load is not cached: the browser can retry it,
-					// unlike a settled success which is stable.
-					this.indexPromise = null;
-					throw new LibraryIndexError(
-						reasonOf(error),
-						error instanceof Error ? error.message : "Failed to load library",
-					);
-				});
-		}
-		return this.indexPromise;
-	}
+  /**
+   * Fetch the pack index once. Repeated calls return the same in-flight or
+   * settled promise, so opening the browser fetches the index exactly once
+   * however many components ask for it.
+   */
+  loadIndex(): Promise<readonly LibraryPackSummary[]> {
+    if (!this.indexPromise) {
+      this.indexPromise = this.fetchJson(PACK_INDEX_PATH)
+        .then((raw) => packSummaries(parsePackIndex(raw)))
+        .catch((error: unknown) => {
+          // A failed index load is not cached: the browser can retry it,
+          // unlike a settled success which is stable.
+          this.indexPromise = null;
+          throw new LibraryIndexError(
+            reasonOf(error),
+            error instanceof Error ? error.message : "Failed to load library",
+          );
+        });
+    }
+    return this.indexPromise;
+  }
 
-	/**
-	 * Fetch one pack's manifest, caching the result by its immutable
-	 * `packId@version` key. A failure resolves to an isolated {@link PackLoadResult}
-	 * rather than rejecting, so a caller loading several packs at once never
-	 * loses the good ones to one bad manifest — but the failure is *not* cached,
-	 * so a later retry can succeed.
-	 */
-	loadPack(pack: LibraryPackSummary): Promise<PackLoadResult> {
-		const key = `${pack.id}@${pack.version}`;
-		const cached = this.packCache.get(key);
-		if (cached) return cached;
+  /**
+   * Fetch one pack's manifest, caching the result by its immutable
+   * `packId@version` key. A failure resolves to an isolated {@link PackLoadResult}
+   * rather than rejecting, so a caller loading several packs at once never
+   * loses the good ones to one bad manifest — but the failure is *not* cached,
+   * so a later retry can succeed.
+   */
+  loadPack(pack: LibraryPackSummary): Promise<PackLoadResult> {
+    const key = `${pack.id}@${pack.version}`;
+    const cached = this.packCache.get(key);
+    if (cached) return cached;
 
-		const promise = this.fetchJson(pack.manifestPath)
-			.then<PackLoadResult>((raw) => ({
-				ok: true,
-				assets: packAssets(parsePackManifest(raw)),
-			}))
-			.catch<PackLoadResult>((error: unknown) => {
-				this.packCache.delete(key);
-				return {
-					ok: false,
-					error: {
-						packId: pack.id,
-						packSlug: pack.slug,
-						reason: reasonOf(error),
-						message:
-							error instanceof Error ? error.message : "Failed to load pack",
-					},
-				};
-			});
-		this.packCache.set(key, promise);
-		return promise;
-	}
+    const promise = this.fetchJson(pack.manifestPath)
+      .then<PackLoadResult>((raw) => ({
+        ok: true,
+        assets: packAssets(parsePackManifest(raw)),
+      }))
+      .catch<PackLoadResult>((error: unknown) => {
+        this.packCache.delete(key);
+        return {
+          ok: false,
+          error: {
+            packId: pack.id,
+            packSlug: pack.slug,
+            reason: reasonOf(error),
+            message: error instanceof Error ? error.message : "Failed to load pack",
+          },
+        };
+      });
+    this.packCache.set(key, promise);
+    return promise;
+  }
 }

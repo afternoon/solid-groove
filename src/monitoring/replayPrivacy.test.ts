@@ -25,15 +25,15 @@ import { MASK_ATTRIBUTES, MASK_CONTENT, UNMASK_CONTENT } from "./replayPrivacy";
 const sourceRoot = join(process.cwd(), "src");
 
 function read(relative: string): string {
-	return readFileSync(join(sourceRoot, relative), "utf8");
+  return readFileSync(join(sourceRoot, relative), "utf8");
 }
 
 function componentFiles(directory: string = sourceRoot): string[] {
-	return readdirSync(directory).flatMap((entry) => {
-		const path = join(directory, entry);
-		if (statSync(path).isDirectory()) return componentFiles(path);
-		return path.endsWith(".tsx") ? [path] : [];
-	});
+  return readdirSync(directory).flatMap((entry) => {
+    const path = join(directory, entry);
+    if (statSync(path).isDirectory()) return componentFiles(path);
+    return path.endsWith(".tsx") ? [path] : [];
+  });
 }
 
 /**
@@ -46,35 +46,35 @@ function componentFiles(directory: string = sourceRoot): string[] {
  * only on a `>` outside them at brace depth zero.
  */
 function tagEnd(source: string, start: number): number {
-	type Skip = '"' | "'" | "`" | "line" | "block" | null;
-	let depth = 0;
-	let skipping: Skip = null;
-	for (let i = start; i < source.length; i++) {
-		const char = source[i];
-		const next = source[i + 1];
-		if (skipping === "line") {
-			if (char === "\n") skipping = null;
-			continue;
-		}
-		if (skipping === "block") {
-			if (char === "*" && next === "/") {
-				skipping = null;
-				i++;
-			}
-			continue;
-		}
-		if (skipping) {
-			if (char === skipping) skipping = null;
-			continue;
-		}
-		if (char === "/" && next === "/") skipping = "line";
-		else if (char === "/" && next === "*") skipping = "block";
-		else if (char === '"' || char === "'" || char === "`") skipping = char;
-		else if (char === "{") depth++;
-		else if (char === "}") depth--;
-		else if (char === ">" && depth === 0) return i + 1;
-	}
-	return -1;
+  type Skip = '"' | "'" | "`" | "line" | "block" | null;
+  let depth = 0;
+  let skipping: Skip = null;
+  for (let i = start; i < source.length; i++) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (skipping === "line") {
+      if (char === "\n") skipping = null;
+      continue;
+    }
+    if (skipping === "block") {
+      if (char === "*" && next === "/") {
+        skipping = null;
+        i++;
+      }
+      continue;
+    }
+    if (skipping) {
+      if (char === skipping) skipping = null;
+      continue;
+    }
+    if (char === "/" && next === "/") skipping = "line";
+    else if (char === "/" && next === "*") skipping = "block";
+    else if (char === '"' || char === "'" || char === "`") skipping = char;
+    else if (char === "{") depth++;
+    else if (char === "}") depth--;
+    else if (char === ">" && depth === 0) return i + 1;
+  }
+  return -1;
 }
 
 /**
@@ -84,14 +84,14 @@ function tagEnd(source: string, start: number): number {
  * whatever tag happened to precede that prose.
  */
 function openingTagsAround(source: string, anchor: string): string[] {
-	const tags: string[] = [];
-	for (let at = source.indexOf(anchor); at !== -1; ) {
-		const start = source.lastIndexOf("<", at);
-		const end = start === -1 ? -1 : tagEnd(source, start);
-		if (start !== -1 && end > at) tags.push(source.slice(start, end));
-		at = source.indexOf(anchor, at + anchor.length);
-	}
-	return tags;
+  const tags: string[] = [];
+  for (let at = source.indexOf(anchor); at !== -1; ) {
+    const start = source.lastIndexOf("<", at);
+    const end = start === -1 ? -1 : tagEnd(source, start);
+    if (start !== -1 && end > at) tags.push(source.slice(start, end));
+    at = source.indexOf(anchor, at + anchor.length);
+  }
+  return tags;
 }
 
 /**
@@ -106,75 +106,75 @@ function openingTagsAround(source: string, anchor: string): string[] {
  * those three names, or that accepts typed text, means adding it here.
  */
 const MASKED_NAMES: readonly {
-	readonly file: string;
-	readonly anchor: string;
-	readonly renders: string;
+  readonly file: string;
+  readonly anchor: string;
+  readonly renders: string;
 }[] = [
-	{
-		file: "components/ProjectList.tsx",
-		anchor: "project-title",
-		renders: "a project's name on the dashboard",
-	},
-	{
-		file: "components/ProjectList.tsx",
-		anchor: "project-rename-input",
-		renders: "the new project name as it is typed",
-	},
-	{
-		file: "editor/EditorHeader.tsx",
-		anchor: "project-name",
-		renders: "the open project's name",
-	},
-	{
-		file: "editor/Mixer.tsx",
-		anchor: "mixer-strip-name",
-		renders: "the track name, editable in place",
-	},
-	{
-		file: "editor/TrackEditor.tsx",
-		anchor: "track-name",
-		renders: "the selected track's name",
-	},
-	{
-		file: "editor/EditorView.tsx",
-		anchor: "track-name",
-		renders: "the drum track's name",
-	},
-	{
-		file: "arrangement/ArrangementView.tsx",
-		anchor: "arrangement-header-name",
-		renders: "track names down the arrangement's header column",
-	},
-	{
-		file: "arrangement/ArrangementView.tsx",
-		anchor: "arrangement-selection-live",
-		renders: "the selected track's name, announced to assistive tech",
-	},
-	{
-		file: "arrangement/ArrangementView.tsx",
-		anchor: "Arrangement tracks",
-		renders: "track names in the arrangement's accessible mirror",
-	},
-	{
-		file: "library/LibraryBrowser.tsx",
-		anchor: "library-search",
-		renders: "the sound search the user typed",
-	},
-	{
-		file: "library/LibraryFacets.tsx",
-		anchor: "library-search",
-		renders: "the sound search the user typed",
-	},
-	{
-		file: "library/PackList.tsx",
-		anchor: "pack-browser-search",
-		renders: "the pack search the user typed",
-	},
-	{
-		file: "components/ConfirmDialog.tsx",
-		anchor: "confirm-dialog-title",
-		renders: "a project or track name in a delete confirmation",
-	},
+  {
+    file: "components/ProjectList.tsx",
+    anchor: "project-title",
+    renders: "a project's name on the dashboard",
+  },
+  {
+    file: "components/ProjectList.tsx",
+    anchor: "project-rename-input",
+    renders: "the new project name as it is typed",
+  },
+  {
+    file: "editor/EditorHeader.tsx",
+    anchor: "project-name",
+    renders: "the open project's name",
+  },
+  {
+    file: "editor/Mixer.tsx",
+    anchor: "mixer-strip-name",
+    renders: "the track name, editable in place",
+  },
+  {
+    file: "editor/TrackEditor.tsx",
+    anchor: "track-name",
+    renders: "the selected track's name",
+  },
+  {
+    file: "editor/EditorView.tsx",
+    anchor: "track-name",
+    renders: "the drum track's name",
+  },
+  {
+    file: "arrangement/ArrangementView.tsx",
+    anchor: "arrangement-header-name",
+    renders: "track names down the arrangement's header column",
+  },
+  {
+    file: "arrangement/ArrangementView.tsx",
+    anchor: "arrangement-selection-live",
+    renders: "the selected track's name, announced to assistive tech",
+  },
+  {
+    file: "arrangement/ArrangementView.tsx",
+    anchor: "Arrangement tracks",
+    renders: "track names in the arrangement's accessible mirror",
+  },
+  {
+    file: "library/LibraryBrowser.tsx",
+    anchor: "library-search",
+    renders: "the sound search the user typed",
+  },
+  {
+    file: "library/LibraryFacets.tsx",
+    anchor: "library-search",
+    renders: "the sound search the user typed",
+  },
+  {
+    file: "library/PackList.tsx",
+    anchor: "pack-browser-search",
+    renders: "the pack search the user typed",
+  },
+  {
+    file: "components/ConfirmDialog.tsx",
+    anchor: "confirm-dialog-title",
+    renders: "a project or track name in a delete confirmation",
+  },
 ];
 
 /**
@@ -194,98 +194,98 @@ const MASKED_NAMES: readonly {
  * disclosure covers it instead of a mark that would do nothing.
  */
 const DELIBERATELY_UNMARKED: readonly {
-	readonly file: string;
-	readonly literal: string;
+  readonly file: string;
+  readonly literal: string;
 }[] = [
-	{
-		file: "arrangement/ArrangementView.tsx",
-		literal: 'class="arrangement-canvas-stack"',
-	},
-	{
-		file: "arrangement/ArrangementView.tsx",
-		literal: 'class="arrangement-headers"',
-	},
-	{
-		file: "editor/Mixer.tsx",
-		literal: 'class="mixer-strip"',
-	},
-	{
-		file: "components/ProjectList.tsx",
-		literal: 'class="project-card"',
-	},
-	{
-		file: "editor/PianoRoll.tsx",
-		literal: 'class="piano-roll"',
-	},
-	{
-		file: "editor/StepEditor.tsx",
-		literal: 'class="step-lane"',
-	},
-	{
-		file: "editor/DrumMachinePanel.tsx",
-		literal: 'class="pad-control pad-sample"',
-	},
-	{
-		file: "editor/LoopInfo.tsx",
-		literal: 'class="loop-asset"',
-	},
-	{
-		file: "instrument/SamplerPanel.tsx",
-		// The sample group carries a layout class of its own; the pin follows the
-		// markup so it keeps asserting what it is for — a plain, unmasked string
-		// literal, which turning masking back on would have to replace with a
-		// template literal.
-		literal: 'class="instrument-panel-group sampler-sample-group"',
-	},
-	// The title beside it *is* masked (see MASKED_NAMES). The message is fixed
-	// explanatory copy, and a delete confirmation is friction worth observing.
-	{
-		file: "components/ConfirmDialog.tsx",
-		literal: 'class="confirm-dialog-message"',
-	},
+  {
+    file: "arrangement/ArrangementView.tsx",
+    literal: 'class="arrangement-canvas-stack"',
+  },
+  {
+    file: "arrangement/ArrangementView.tsx",
+    literal: 'class="arrangement-headers"',
+  },
+  {
+    file: "editor/Mixer.tsx",
+    literal: 'class="mixer-strip"',
+  },
+  {
+    file: "components/ProjectList.tsx",
+    literal: 'class="project-card"',
+  },
+  {
+    file: "editor/PianoRoll.tsx",
+    literal: 'class="piano-roll"',
+  },
+  {
+    file: "editor/StepEditor.tsx",
+    literal: 'class="step-lane"',
+  },
+  {
+    file: "editor/DrumMachinePanel.tsx",
+    literal: 'class="pad-control pad-sample"',
+  },
+  {
+    file: "editor/LoopInfo.tsx",
+    literal: 'class="loop-asset"',
+  },
+  {
+    file: "instrument/SamplerPanel.tsx",
+    // The sample group carries a layout class of its own; the pin follows the
+    // markup so it keeps asserting what it is for — a plain, unmasked string
+    // literal, which turning masking back on would have to replace with a
+    // template literal.
+    literal: 'class="instrument-panel-group sampler-sample-group"',
+  },
+  // The title beside it *is* masked (see MASKED_NAMES). The message is fixed
+  // explanatory copy, and a delete confirmation is friction worth observing.
+  {
+    file: "components/ConfirmDialog.tsx",
+    literal: 'class="confirm-dialog-message"',
+  },
 ];
 
 describe("user-authored names are masked (ADR 0002 decision 2)", () => {
-	for (const surface of MASKED_NAMES) {
-		it(`masks ${surface.anchor} in ${surface.file}, which renders ${surface.renders}`, () => {
-			const tags = openingTagsAround(read(surface.file), surface.anchor);
-			expect(
-				tags.length,
-				`"${surface.anchor}" was not found on an element in ${surface.file}`,
-			).toBeGreaterThan(0);
-			expect(
-				tags.some((tag) => tag.includes("MASK_CONTENT")),
-				`"${surface.anchor}" in ${surface.file} renders ${surface.renders} ` +
-					`but does not carry ${MASK_CONTENT}. ADR 0002 decision 2 requires ` +
-					"a surface rendering user-authored content to be masked by its own " +
-					"markup as well as by the global default.",
-			).toBe(true);
-		});
-	}
+  for (const surface of MASKED_NAMES) {
+    it(`masks ${surface.anchor} in ${surface.file}, which renders ${surface.renders}`, () => {
+      const tags = openingTagsAround(read(surface.file), surface.anchor);
+      expect(
+        tags.length,
+        `"${surface.anchor}" was not found on an element in ${surface.file}`,
+      ).toBeGreaterThan(0);
+      expect(
+        tags.some((tag) => tag.includes("MASK_CONTENT")),
+        `"${surface.anchor}" in ${surface.file} renders ${surface.renders} ` +
+          `but does not carry ${MASK_CONTENT}. ADR 0002 decision 2 requires ` +
+          "a surface rendering user-authored content to be masked by its own " +
+          "markup as well as by the global default.",
+      ).toBe(true);
+    });
+  }
 
-	it("imports the marking from this module rather than writing the class inline", () => {
-		// A hand-written "sentry-mask" string would not be found by a rename and
-		// would not be found by the check above either.
-		for (const file of new Set(MASKED_NAMES.map((s) => s.file))) {
-			expect(read(file), `${file} should import its marking`).toContain(
-				'from "../monitoring/replayPrivacy"',
-			);
-		}
-	});
+  it("imports the marking from this module rather than writing the class inline", () => {
+    // A hand-written "sentry-mask" string would not be found by a rename and
+    // would not be found by the check above either.
+    for (const file of new Set(MASKED_NAMES.map((s) => s.file))) {
+      expect(read(file), `${file} should import its marking`).toContain(
+        'from "../monitoring/replayPrivacy"',
+      );
+    }
+  });
 });
 
 describe("the interface stays visible (ADR 0002 decision 1)", () => {
-	for (const surface of DELIBERATELY_UNMARKED) {
-		it(`leaves ${surface.literal} in ${surface.file} unmarked`, () => {
-			expect(
-				read(surface.file),
-				`${surface.literal} in ${surface.file} appears to have been masked or ` +
-					"blocked. It is unmarked on purpose: replay is worth having only " +
-					"while the interface around a masked name stays legible (ADR 0002 " +
-					"decision 1).",
-			).toContain(surface.literal);
-		});
-	}
+  for (const surface of DELIBERATELY_UNMARKED) {
+    it(`leaves ${surface.literal} in ${surface.file} unmarked`, () => {
+      expect(
+        read(surface.file),
+        `${surface.literal} in ${surface.file} appears to have been masked or ` +
+          "blocked. It is unmarked on purpose: replay is worth having only " +
+          "while the interface around a masked name stays legible (ADR 0002 " +
+          "decision 1).",
+      ).toContain(surface.literal);
+    });
+  }
 });
 
 /**
@@ -299,23 +299,22 @@ describe("the interface stays visible (ADR 0002 decision 1)", () => {
  * attribute into the recording under the name written here.
  */
 function nameBearingAttributes(): { attribute: string; where: string }[] {
-	const attribute =
-		/([A-Za-z][A-Za-z-]*)=\{((?:[^{}`]|`[^`]*`|\{[^{}]*\})*)\}/g;
-	const found: { attribute: string; where: string }[] = [];
-	for (const path of componentFiles()) {
-		const source = readFileSync(path, "utf8");
-		for (const match of source.matchAll(attribute)) {
-			if (!/\.name\b/.test(match[2])) continue;
-			const tagAt = source.lastIndexOf("<", match.index);
-			const tag = source.slice(tagAt + 1).match(/^[A-Za-z][\w.]*/)?.[0] ?? "";
-			if (!/^[a-z]/.test(tag)) continue;
-			found.push({
-				attribute: match[1],
-				where: `<${tag} ${match[1]}> in ${relativeTo(sourceRoot, path)}`,
-			});
-		}
-	}
-	return found;
+  const attribute = /([A-Za-z][A-Za-z-]*)=\{((?:[^{}`]|`[^`]*`|\{[^{}]*\})*)\}/g;
+  const found: { attribute: string; where: string }[] = [];
+  for (const path of componentFiles()) {
+    const source = readFileSync(path, "utf8");
+    for (const match of source.matchAll(attribute)) {
+      if (!/\.name\b/.test(match[2])) continue;
+      const tagAt = source.lastIndexOf("<", match.index);
+      const tag = source.slice(tagAt + 1).match(/^[A-Za-z][\w.]*/)?.[0] ?? "";
+      if (!/^[a-z]/.test(tag)) continue;
+      found.push({
+        attribute: match[1],
+        where: `<${tag} ${match[1]}> in ${relativeTo(sourceRoot, path)}`,
+      });
+    }
+  }
+  return found;
 }
 
 /**
@@ -327,54 +326,54 @@ function nameBearingAttributes(): { attribute: string; where: string }[] {
 const MASKED_ELSEWHERE = ["value"];
 
 describe("names in attributes are masked (ADR 0002 decision 2)", () => {
-	it("masks aria-label, which is where names reach the DOM", () => {
-		expect(MASK_ATTRIBUTES).toContain("aria-label");
-	});
+  it("masks aria-label, which is where names reach the DOM", () => {
+    expect(MASK_ATTRIBUTES).toContain("aria-label");
+  });
 
-	it("keeps the SDK's own defaults, which this list replaces", () => {
-		// `maskAttributes` overrides rather than extends, so adding one attribute
-		// without these would unmask two.
-		expect(MASK_ATTRIBUTES).toContain("title");
-		expect(MASK_ATTRIBUTES).toContain("placeholder");
-	});
+  it("keeps the SDK's own defaults, which this list replaces", () => {
+    // `maskAttributes` overrides rather than extends, so adding one attribute
+    // without these would unmask two.
+    expect(MASK_ATTRIBUTES).toContain("title");
+    expect(MASK_ATTRIBUTES).toContain("placeholder");
+  });
 
-	it("covers every attribute a name is interpolated into", () => {
-		const uncovered = nameBearingAttributes().filter(
-			(hit) =>
-				!MASK_ATTRIBUTES.includes(hit.attribute) &&
-				!MASKED_ELSEWHERE.includes(hit.attribute),
-		);
-		expect(
-			uncovered.map((hit) => hit.where),
-			"These attributes are built from a name and are recorded verbatim: " +
-				"attribute masking is by attribute name, so no class on the element " +
-				"covers them. Add the attribute to MASK_ATTRIBUTES, or build the " +
-				"value without the name.",
-		).toEqual([]);
-	});
+  it("covers every attribute a name is interpolated into", () => {
+    const uncovered = nameBearingAttributes().filter(
+      (hit) =>
+        !MASK_ATTRIBUTES.includes(hit.attribute) &&
+        !MASKED_ELSEWHERE.includes(hit.attribute),
+    );
+    expect(
+      uncovered.map((hit) => hit.where),
+      "These attributes are built from a name and are recorded verbatim: " +
+        "attribute masking is by attribute name, so no class on the element " +
+        "covers them. Add the attribute to MASK_ATTRIBUTES, or build the " +
+        "value without the name.",
+    ).toEqual([]);
+  });
 
-	it("finds the attributes it is scanning for", () => {
-		// The scan is a regex over source; if it silently matched nothing, the
-		// check above would pass by finding no work to do.
-		expect(nameBearingAttributes().length).toBeGreaterThan(10);
-	});
+  it("finds the attributes it is scanning for", () => {
+    // The scan is a regex over source; if it silently matched nothing, the
+    // check above would pass by finding no work to do.
+    expect(nameBearingAttributes().length).toBeGreaterThan(10);
+  });
 });
 
 describe("nothing unmasks itself (ADR 0002 decision 2)", () => {
-	it("exposes the mask class Sentry looks for by default", () => {
-		// Named as a string rather than imported from the SDK, so `sentrySink.ts`
-		// stays the only module importing `@sentry/*` (ADR 0001 decision 1).
-		expect(MASK_CONTENT).toBe("sentry-mask");
-	});
+  it("exposes the mask class Sentry looks for by default", () => {
+    // Named as a string rather than imported from the SDK, so `sentrySink.ts`
+    // stays the only module importing `@sentry/*` (ADR 0001 decision 1).
+    expect(MASK_CONTENT).toBe("sentry-mask");
+  });
 
-	it("has no component that unmasks itself", () => {
-		// Unmasking is permitted only for stable, non-user-authored chrome, and
-		// only by an explicit named selector in the SDK configuration — never by a
-		// component deciding for itself that its own content is safe to record.
-		const offenders: string[] = [];
-		for (const file of new Set(MASKED_NAMES.map((s) => s.file))) {
-			if (read(file).includes(UNMASK_CONTENT)) offenders.push(file);
-		}
-		expect(offenders).toEqual([]);
-	});
+  it("has no component that unmasks itself", () => {
+    // Unmasking is permitted only for stable, non-user-authored chrome, and
+    // only by an explicit named selector in the SDK configuration — never by a
+    // component deciding for itself that its own content is safe to record.
+    const offenders: string[] = [];
+    for (const file of new Set(MASKED_NAMES.map((s) => s.file))) {
+      if (read(file).includes(UNMASK_CONTENT)) offenders.push(file);
+    }
+    expect(offenders).toEqual([]);
+  });
 });
