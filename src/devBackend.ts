@@ -93,7 +93,7 @@ export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
  * `emulator` mode implies the default hosts, which is what lets `dev:emulator`
  * be a bare command rather than a wall of env vars. `VITE_FIRESTORE_EMULATOR_HOST`
  * / `VITE_AUTH_EMULATOR_HOST` still override them, because
- * `playwright.emulator.config.ts` only learns the real ports at runtime from
+ * `tests/e2e/emulator/playwright.config.ts` only learns the real ports at runtime from
  * `firebase emulators:exec` and must be able to pass them through.
  *
  * Setting a host explicitly also selects emulator wiring on its own, so an

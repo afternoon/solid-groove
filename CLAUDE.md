@@ -135,12 +135,20 @@ src/
 ├── firebaseConfig.ts   # Firebase configuration (+ local emulator wiring)
 └── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
 
-e2e/                    # Playwright browser E2E suite (in-memory mock backend)
-├── flows/              # One spec per core flow (docs/core-flows.md), named for its CF- id
-└── support/            # walkthrough.ts — the screenshot capture a flow spec drives
-e2e-emulator/           # Playwright browser E2E suite against the Firestore/Auth emulator (FND-009)
-└── flows/              # Core flows whose outcome needs a real backend (saving, reload, sign-in)
-tests/emulator/         # Firebase Emulator suite (Firestore rules, etc.)
+tests/                  # Every suite that is not a src/ unit or component test
+├── playwright.chromium.ts   # Shared Chromium launch options for all three Playwright configs
+├── e2e/
+│   ├── support/        # walkthrough.ts — the screenshot capture a flow spec drives
+│   ├── mock/           # Playwright browser E2E suite (in-memory mock backend)
+│   │   ├── playwright.config.ts
+│   │   └── flows/      # One spec per core flow (docs/core-flows.md), named for its CF- id
+│   ├── emulator/       # Playwright browser E2E suite against the Firestore/Auth emulator (FND-009)
+│   │   ├── playwright.config.ts
+│   │   └── flows/      # Core flows whose outcome needs a real backend (saving, reload, sign-in)
+│   └── hosted/         # Post-deploy smoke test against the real Hosting URL (PRD OPS-01)
+│       └── playwright.config.ts
+└── emulator/           # Firebase Emulator suite (Firestore rules, etc.)
+    └── vitest.config.ts
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 ```
 
@@ -166,8 +174,8 @@ what matters here is how the flows shape the work:
    that depends on work which does not exist yet gets that dependency broken out
    as its own issue first.
 2. **The flow and its spec land together, before implementation starts** —
-   the entry in `docs/core-flows.md` and `e2e/flows/<ID>.spec.ts` (or
-   `e2e-emulator/flows/<ID>.spec.ts`) in one PR, marked `test.fixme` because the
+   the entry in `docs/core-flows.md` and `tests/e2e/mock/flows/<ID>.spec.ts` (or
+   `tests/e2e/emulator/flows/<ID>.spec.ts`) in one PR, marked `test.fixme` because the
    implementation does not exist. That PR is the product owner's, and it is
    reviewed on its own, before anything is built, because it is the contract
    everything else is measured against — which is exactly why the implementation
@@ -309,8 +317,8 @@ bun run test:browser:install  # One-time: download Playwright's browser binaries
 
 # Core flows and PR walkthroughs
 bun run verify:core-flows                    # Every flow in docs/core-flows.md has exactly one spec, and vice versa
-bun run walkthrough:capture                  # Screenshot each step() of the passing e2e/flows specs
-bun run walkthrough:capture:emulator         # The same, for e2e-emulator/flows
+bun run walkthrough:capture                  # Screenshot each step() of the passing tests/e2e/mock/flows specs
+bun run walkthrough:capture:emulator         # The same, for tests/e2e/emulator/flows
 bun run walkthrough:publish -- --issue <n>   # Push the images and print the Markdown for the PR body
 ```
 
@@ -456,7 +464,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 - Vitest configured with jsdom for DOM testing
 - Use `@solidjs/testing-library` for component tests
 - Use `@testing-library/jest-dom` for DOM assertions
-- Beyond unit/component tests, the project has a Firebase Emulator suite (`tests/emulator/`, `bun run test:emulator`), a Playwright browser E2E suite against the in-memory mock backend (`e2e/`, `bun run test:browser`), and a Playwright browser E2E suite against a local Firestore/Auth emulator (`e2e-emulator/`, `bun run test:browser:emulator`) — see [`docs/testing.md`](./docs/testing.md) for what each covers and how CI gates on them
+- Beyond unit/component tests, the project has a Firebase Emulator suite (`tests/emulator/`, `bun run test:emulator`), a Playwright browser E2E suite against the in-memory mock backend (`e2e/`, `bun run test:browser`), and a Playwright browser E2E suite against a local Firestore/Auth emulator (`tests/e2e/emulator/`, `bun run test:browser:emulator`) — see [`docs/testing.md`](./docs/testing.md) for what each covers and how CI gates on them
 - Use `src/shared/id.ts`'s `createId`/`createSeededIdFactory` for entity IDs and `src/shared/clock.ts`'s `Clock` for anything that needs the current time, rather than calling `nanoid()`/`Date.now()` directly, so tests can be deterministic
 - Use `src/testing/fixtures.ts`'s builders (`buildProject`, `buildTrack`, ...) instead of hand-writing fixture literals in new tests
 

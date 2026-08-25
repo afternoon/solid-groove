@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { walkthrough } from "../support/walkthrough";
+import { walkthrough } from "../../support/walkthrough";
 
 /**
  * `CF-002` — a producer turns a loop into a song outline.

@@ -439,7 +439,7 @@ describe("Mixer track selection (#228)", () => {
     // Selection used to be a `pointerdown` handler on the whole strip. WebKit
     // fires no click at all when mousedown and mouseup land on different
     // elements, so the re-render that handler caused swallowed the delete
-    // button's own click (`e2e/mixer.spec.ts`, WebKit only). Nothing on the
+    // button's own click (`tests/e2e/mock/mixer.spec.ts`, WebKit only). Nothing on the
     // strip may cost a control its press.
     const { history, selected } = renderMixer(createDrumMachineFixtureProject());
     const withClips = history.project.song.tracks[0];

@@ -2,12 +2,12 @@ import { expect, test } from "@playwright/test";
 
 // PRD `OPS-01` post-deploy smoke test. Runs against `SMOKE_URL` (the real
 // deployed Firebase Hosting URL) with real Firebase Authentication and
-// Firestore -- see playwright.smoke.config.ts. A failing run here is treated
+// Firestore -- see tests/e2e/hosted/playwright.config.ts. A failing run here is treated
 // as a failed deploy: the `deploy` job in .github/workflows/ci.yml runs this
 // immediately after `firebase deploy` and does not consider the deploy
 // successful until it passes.
 //
-// This intentionally does not reuse e2e/smoke.spec.ts: that suite drives the
+// This intentionally does not reuse tests/e2e/mock/smoke.spec.ts: that suite drives the
 // in-memory mock backend (`VITE_DEV_BACKEND=mock`) against a local dev
 // server, which proves the UI works but nothing about whether the deployed
 // build can actually reach production Firebase Authentication, Firestore, and

@@ -126,7 +126,7 @@ test.describe("anonymous start", () => {
 // anonymous session. This suite
 // runs against the in-memory mock backend (see playwright.config.ts), which
 // is a fresh store on every page load, so it cannot prove persistence across
-// a real reload; e2e-emulator/slice.spec.ts covers that against a real
+// a real reload; tests/e2e/emulator/slice.spec.ts covers that against a real
 // (emulated) backend instead.
 test.describe("new project", () => {
   test("creates a project with a working sampler step editor", async ({ page }) => {
@@ -185,7 +185,7 @@ test.describe("new project", () => {
 
 // `LOOP-001`: the dashboard's project-management surface — blank creation,
 // rename, duplicate, and confirmed delete — against the in-memory mock
-// backend. See `e2e-emulator/dashboard.spec.ts` for the access-control and
+// backend. See `tests/e2e/emulator/dashboard.spec.ts` for the access-control and
 // persisted-delete coverage a real backend is needed to prove.
 test.describe("dashboard project management", () => {
   test("creates a genuinely empty project via Blank Project", async ({ page }) => {
@@ -268,7 +268,7 @@ test.describe("keyboard shortcuts", () => {
     browserName,
   }) => {
     // Playback is asserted in Chromium only — the same known, tracked gap
-    // `e2e-emulator/slice.spec.ts` documents: in Firefox here
+    // `tests/e2e/emulator/slice.spec.ts` documents: in Firefox here
     // `AudioContext.resume()` is refused, so the transport button never flips.
     // `LOOP-003` bounded that refusal with a timeout so it now reports
     // `audio_start_failed` instead of hanging, but a bounded failure is still

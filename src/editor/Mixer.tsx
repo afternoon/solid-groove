@@ -303,7 +303,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				    drag, and WebKit fires no click at all when mousedown and
 				    mouseup land on different elements — so a re-render from that
 				    handler swallowed the delete button's own click
-				    (`e2e/mixer.spec.ts`). A real focusable control costs one
+				    (`tests/e2e/mock/mixer.spec.ts`). A real focusable control costs one
 				    deliberate click and breaks nothing under it. */}
         <button
           type="button"

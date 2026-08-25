@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { walkthrough } from "./support/walkthrough";
+import { walkthrough } from "../support/walkthrough";
 
 // `LOOP-007`: the mixer's continuous controls are the shared fill slider
 // (`src/instrument/FillSlider.tsx`, design mock `06c-slider`) — a real range

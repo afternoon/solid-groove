@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { walkthrough } from "../support/walkthrough";
+import { walkthrough } from "../../support/walkthrough";
 
 /**
  * `CF-001` — a visitor with no account reaches a playing loop.
@@ -27,7 +27,7 @@ import { walkthrough } from "../support/walkthrough";
  *
  * Runs against the in-memory mock backend (see `playwright.config.ts`), which
  * is a fresh, empty store on every page load — so this flow deliberately proves
- * nothing about persistence. `e2e-emulator/` is where that belongs.
+ * nothing about persistence. `tests/e2e/emulator/` is where that belongs.
  */
 test.describe("CF-001", () => {
   test("a visitor with no account reaches a playing loop", async ({
@@ -84,8 +84,8 @@ test.describe("CF-001", () => {
     // scope" for this flow, docs/testing.md, and issue #43.
     //
     // Asserted in Chromium only — the known, tracked gap this flow's own "Out
-    // of scope" already names, and the same guard `e2e/smoke.spec.ts` and
-    // `e2e-emulator/slice.spec.ts` carry. In Firefox here `AudioContext`
+    // of scope" already names, and the same guard `tests/e2e/mock/smoke.spec.ts` and
+    // `tests/e2e/emulator/slice.spec.ts` carry. In Firefox here `AudioContext`
     // constructs but its `resume()` never settles, so `play()` times out into
     // `audio_start_failed` and the button never becomes "Stop playback".
     // `LOOP-003` bounded that hang; it did not make Firefox play. The cause is

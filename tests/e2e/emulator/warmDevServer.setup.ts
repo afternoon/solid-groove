@@ -2,7 +2,7 @@ import { test } from "@playwright/test";
 
 /**
  * Warm-up for the emulator suite, run as a Playwright **setup project** (see
- * `playwright.emulator.config.ts`): walk the app once, in the same browser the
+ * `tests/e2e/emulator/playwright.config.ts`): walk the app once, in the same browser the
  * suite under test uses, before any real test runs.
  *
  * Why this exists. Vite's dev server does not pre-bundle a dependency until

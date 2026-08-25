@@ -33,7 +33,7 @@ export const db = getFirestore(app);
 
 // Local Firebase Emulator wiring (`VITE_DEV_BACKEND=emulator`, plus the
 // `FND-009` emulator-backed browser E2E suite; see
-// `playwright.emulator.config.ts`). Distinct from the mock backend, which swaps
+// `tests/e2e/emulator/playwright.config.ts`). Distinct from the mock backend, which swaps
 // in an in-memory fake and never touches the Firebase SDK at all: this points
 // the *real* SDK at a local emulator so a genuine page reload proves
 // persistence rather than a fake that resets on every navigation. Emulator mode

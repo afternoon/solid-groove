@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { walkthrough } from "./support/walkthrough";
+import { walkthrough } from "../support/walkthrough";
 
 // #224: a track's instrument used to be fixed for its whole life — the
 // `instrument.change` command existed but nothing dispatched it. This walks the

@@ -67,7 +67,7 @@ describe("resolveEmulatorHosts", () => {
   });
 
   it("lets an explicit host override the default", () => {
-    // `playwright.emulator.config.ts` depends on this: `emulators:exec`
+    // `tests/e2e/emulator/playwright.config.ts` depends on this: `emulators:exec`
     // chooses the real ports at runtime and passes them through.
     expect(
       resolveEmulatorHosts(

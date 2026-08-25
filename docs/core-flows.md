@@ -58,8 +58,8 @@ The same applies to `docs/prd.md`, for the same reason and by the same rule.
 1. **Written.** The product owner adds the flow here with a fresh ID, and links
    it from the feature's GitHub issue by ID. If the flow depends on work that does
    not exist yet, that dependency is broken out as its own issue first.
-2. **Specified.** The first PR in the feature's stack adds `e2e/flows/<ID>.spec.ts`
-   (or `e2e-emulator/flows/<ID>.spec.ts`), written from this file, marked
+2. **Specified.** The first PR in the feature's stack adds `tests/e2e/mock/flows/<ID>.spec.ts`
+   (or `tests/e2e/emulator/flows/<ID>.spec.ts`), written from this file, marked
    `test.fixme` because the implementation does not exist. It is reviewed on its
    own — it is the acceptance contract for everything that follows — and it merges
    green, because a `fixme` test does not fail.
@@ -76,10 +76,10 @@ quietly land with its flow permanently skipped.
 
 ## Which suite a flow belongs in
 
-- **`e2e/flows/`** — the in-memory mock backend. The default. Fast, no external
+- **`tests/e2e/mock/flows/`** — the in-memory mock backend. The default. Fast, no external
   dependency. It **cannot** prove anything survives a reload: the mock repository
   is a fresh, empty store on every page load.
-- **`e2e-emulator/flows/`** — a real (emulated) Firestore and Auth. Use this for
+- **`tests/e2e/emulator/flows/`** — a real (emulated) Firestore and Auth. Use this for
   any flow whose outcome involves saving, reloading, revisions, sign-in, or
   security rules.
 
@@ -96,7 +96,7 @@ browser, it is written at the wrong altitude.
 ```markdown
 ### CF-0NN — Short title in the user's language
 
-**Issue:** #NN · **Suite:** `e2e/flows/CF-0NN.spec.ts` · **Entrypoint:** the public landing page
+**Issue:** #NN · **Suite:** `tests/e2e/mock/flows/CF-0NN.spec.ts` · **Entrypoint:** the public landing page
 
 **Preconditions:** what must already be true. "None" is a good answer.
 
@@ -123,7 +123,7 @@ separate errand.
 ### CF-001 — A visitor with no account reaches a playing loop
 
 **Issue:** — (pre-dates this register; describes shipped `FND-009`/`LOOP-010`
-behavior) · **Suite:** `e2e/flows/CF-001.spec.ts` · **Entrypoint:** the public
+behavior) · **Suite:** `tests/e2e/mock/flows/CF-001.spec.ts` · **Entrypoint:** the public
 landing page
 
 **Preconditions:** none. No account, no existing project.
@@ -149,7 +149,7 @@ mock backend, which is empty again on the next page load.
 
 ### CF-002 — A producer turns a loop into a song outline
 
-**Issue:** #61 · **Suite:** `e2e/flows/CF-002.spec.ts` · **Entrypoint:** the
+**Issue:** #61 · **Suite:** `tests/e2e/mock/flows/CF-002.spec.ts` · **Entrypoint:** the
 project dashboard
 
 **Preconditions:** signed in as a guest with no projects — where CF-001 ends.
@@ -192,7 +192,7 @@ mean a break in any of those surfaces will surface here as an `ARR-003` failure.
 
 ### CF-003 — A producer names and rearranges the parts of their song
 
-**Issue:** #61 · **Suite:** `e2e/flows/CF-003.spec.ts` · **Entrypoint:** the
+**Issue:** #61 · **Suite:** `tests/e2e/mock/flows/CF-003.spec.ts` · **Entrypoint:** the
 project dashboard
 
 **Preconditions:** signed in as a guest with no projects.
@@ -212,7 +212,7 @@ its clips moving with it, and a single undo puts the order back.
 
 **Out of scope:** the template-driven path, which is CF-002; section-aware
 automation (`ARR-004`); and whether sections survive a reload, which would belong
-to a flow in `e2e-emulator/flows/`.
+to a flow in `tests/e2e/emulator/flows/`.
 
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a

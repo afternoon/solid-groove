@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { walkthrough } from "../support/walkthrough";
+import { walkthrough } from "../../support/walkthrough";
 
 /**
  * `CF-003` — a producer names and rearranges the parts of their song.

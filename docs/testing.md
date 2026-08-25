@@ -14,10 +14,10 @@ This document is the map of "which suite do I run, and how." It does not restate
 | Suite | Command | Runner | Environment | External services |
 | --- | --- | --- | --- | --- |
 | Unit + component | `bun run test` | Vitest (`vitest.config.ts`) | jsdom | None — Firebase and audio are mocked/faked |
-| Firebase Emulator | `bun run test:emulator` | Vitest (`vitest.emulator.config.ts`), wrapped by `firebase emulators:exec` | Node | Local Firestore emulator only, started and torn down automatically |
+| Firebase Emulator | `bun run test:emulator` | Vitest (`tests/emulator/vitest.config.ts`), wrapped by `firebase emulators:exec` | Node | Local Firestore emulator only, started and torn down automatically |
 | Browser E2E | `bun run test:browser` | Playwright (`playwright.config.ts`) | Real browsers (Chromium, Firefox, WebKit) | A local dev server (`bun run dev`) against the in-memory mock backend |
-| Browser E2E against the emulator | `bun run test:browser:emulator` | Playwright (`playwright.emulator.config.ts`), wrapped by `firebase emulators:exec` | Real browsers (Chromium, Firefox) | A local dev server against a local Firestore + Auth emulator, started and torn down automatically |
-| Post-deploy smoke test | `bun run smoke:hosted` | Playwright (`playwright.smoke.config.ts`) | Real browser (Chromium) | The real deployed Hosting URL (`SMOKE_URL`), real Firebase Auth/Firestore — see "Deploy" below |
+| Browser E2E against the emulator | `bun run test:browser:emulator` | Playwright (`tests/e2e/emulator/playwright.config.ts`), wrapped by `firebase emulators:exec` | Real browsers (Chromium, Firefox) | A local dev server against a local Firestore + Auth emulator, started and torn down automatically |
+| Post-deploy smoke test | `bun run smoke:hosted` | Playwright (`tests/e2e/hosted/playwright.config.ts`) | Real browser (Chromium) | The real deployed Hosting URL (`SMOKE_URL`), real Firebase Auth/Firestore — see "Deploy" below |
 
 Each suite is isolated on purpose: `bun run test` never needs a browser or an emulator running, so it stays fast enough to run on every save. `test:emulator` and `test:browser` are heavier and are meant for CI and pre-push checks. `smoke:hosted` is the odd one out — it is the only suite that touches the production project, and it only ever runs post-deploy (see "Deploy").
 
@@ -26,7 +26,7 @@ Each suite is isolated on purpose: `bun run test` never needs a browser or an em
 A **core flow** is one user journey that must work end to end when a feature is
 finished, registered in [`docs/core-flows.md`](./core-flows.md) with a stable ID
 (`CF-001`, …). Flows are not a fourth suite: they live *inside* the two browser
-suites, in `e2e/flows/` and `e2e-emulator/flows/`, one spec per flow named for
+suites, in `tests/e2e/mock/flows/` and `tests/e2e/emulator/flows/`, one spec per flow named for
 its ID. What makes them different is their role, not their runner —
 
 - they are written **before** the implementation, from the register, and reviewed
@@ -45,13 +45,13 @@ how they sequence a feature's PRs.
 ### Walkthrough screenshots
 
 The screenshot walkthrough a reviewer reads on a pull request is a **byproduct of
-the flow spec**, not a separate errand: `e2e/support/walkthrough.ts` takes one
+the flow spec**, not a separate errand: `tests/e2e/support/walkthrough.ts` takes one
 screenshot per `step()` call, so the images cannot drift from what shipped and
 always start where the flow starts.
 
 ```sh
-bun run walkthrough:capture                  # e2e/flows, Chromium, one worker
-bun run walkthrough:capture:emulator         # e2e-emulator/flows
+bun run walkthrough:capture                  # tests/e2e/mock/flows, Chromium, one worker
+bun run walkthrough:capture:emulator         # tests/e2e/emulator/flows
 bun run walkthrough:publish -- --issue 123   # push the images, print the Markdown
 ```
 
@@ -105,11 +105,11 @@ They also **copy** rendered samples (`Float32Array.from(buffer.getChannelData(0)
 bun run test:emulator
 ```
 
-`test:emulator` runs `firebase emulators:exec --only firestore --project demo-solid-groove "vitest run --config vitest.emulator.config.ts"`. `firebase emulators:exec` starts the Firestore emulator declared in `firebase.json`, sets `FIRESTORE_EMULATOR_HOST` for the child process, runs the suite, and shuts the emulator down regardless of pass/fail. A `demo-*` project ID is the Firebase-documented convention for emulator-only testing: no real GCP project, login, or credentials are needed.
+`test:emulator` runs `firebase emulators:exec --only firestore --project demo-solid-groove "vitest run --config tests/emulator/vitest.config.ts"`. `firebase emulators:exec` starts the Firestore emulator declared in `firebase.json`, sets `FIRESTORE_EMULATOR_HOST` for the child process, runs the suite, and shuts the emulator down regardless of pass/fail. A `demo-*` project ID is the Firebase-documented convention for emulator-only testing: no real GCP project, login, or credentials are needed.
 
 `firebase.json` also declares an `auth` emulator (port `9099`) for future tasks that need to test Firebase Authentication behavior directly; `--only firestore` keeps today's suite (which only needs Firestore) fast by not starting it.
 
-Suite location: `tests/emulator/`, isolated from `vitest.config.ts` via `vitest.emulator.config.ts`'s own `include`. `tests/emulator/setup.ts` provides `createTestEnvironment()`, which reads `firestore.rules` (the real rules file, not a copy) and connects to whatever host/port the running emulator reports.
+Suite location: `tests/emulator/`, isolated from `vitest.config.ts` via `tests/emulator/vitest.config.ts`'s own `include`. `tests/emulator/setup.ts` provides `createTestEnvironment()`, which reads `firestore.rules` (the real rules file, not a copy) and connects to whatever host/port the running emulator reports.
 
 Test files run in parallel against one emulator and `clearFirestore()` wipes a whole project, so each file takes its own project ID via `emulatorProjectId("<suite>")` — without that, one file's teardown deletes another file's data mid-test.
 
@@ -143,7 +143,7 @@ In a Chromium-only environment, run the pre-flight explicitly:
 
 ```sh
 bun run test:browser:chromium            # e2e/, chromium only
-bun run test:browser:emulator:chromium   # e2e-emulator/, chromium only
+bun run test:browser:emulator:chromium   # tests/e2e/emulator/, chromium only
 ```
 
 Use those rather than `bun run test:browser --project=chromium`, so the command
@@ -153,7 +153,7 @@ browsers, and one of them has not run. Push the branch and read CI.
 
 Two mechanics make this work, and neither belongs in a test:
 
-- **`PW_CHROMIUM_PATH`** (see `playwright.chromium.ts`) points the Chromium
+- **`PW_CHROMIUM_PATH`** (see `tests/playwright.chromium.ts`) points the Chromium
   projects at a browser the environment already supplies. A container may
   preinstall Chromium at whatever revision *its* Playwright wanted, which is not
   the revision this repo's pin asks for, so Playwright's own lookup misses a
@@ -183,9 +183,9 @@ bun run test:browser:install   # one-time (or after a Playwright version bump)
 bun run test:browser
 ```
 
-Config: `playwright.config.ts`. `webServer` starts `bun run dev` with `VITE_DEV_BACKEND=mock` and waits for it before running tests, so the suite needs no real Firebase project — see `src/auth/authService.ts` for the mock auth implementation it exercises and `src/projectRepositoryClient.ts` for the in-memory `ProjectRepository` it exercises (a fresh, empty store per page load — this suite cannot prove persistence across a real reload, which is what `e2e-emulator/` is for; see below).
+Config: `playwright.config.ts`. `webServer` starts `bun run dev` with `VITE_DEV_BACKEND=mock` and waits for it before running tests, so the suite needs no real Firebase project — see `src/auth/authService.ts` for the mock auth implementation it exercises and `src/projectRepositoryClient.ts` for the in-memory `ProjectRepository` it exercises (a fresh, empty store per page load — this suite cannot prove persistence across a real reload, which is what `tests/e2e/emulator/` is for; see below).
 
-Suite location: `e2e/`. `e2e/smoke.spec.ts` is PRD section 14's "anonymous start" required end-to-end layer: it loads the landing page, starts an anonymous session, and confirms the dashboard renders its empty state, then creates a project and confirms the `FND-009` slice's 16-step grid renders on it. Its `landing page` block is `LOOP-001b`'s coverage of the PRD `PRJ-06` front door — the promise, the alpha status, the tested browsers, and that the page carries exactly one analytics disclosure and opt-out (the app-chrome copy stands down there; see `src/app.tsx`). The same file's `dashboard project management` block is `LOOP-001`'s dashboard coverage against the mock backend: a Blank Project's empty editor state, and rename/duplicate/confirmed-delete acting only on the row they were invoked on. Its `transport bar` block is `LOOP-003`'s cross-browser coverage of everything on the transport that does not need the audio context to unlock — the tempo command's round-trip, clamp and undo, the loop and metronome toggles' pressed state, the fixed 4/4 display and bar.beat playhead, and `Space`/`O` typed into the BPM input staying text. It runs unguarded in all three browsers; see "Playback is asserted in Chromium only" below for the part that does not.
+Suite location: `e2e/`. `tests/e2e/mock/smoke.spec.ts` is PRD section 14's "anonymous start" required end-to-end layer: it loads the landing page, starts an anonymous session, and confirms the dashboard renders its empty state, then creates a project and confirms the `FND-009` slice's 16-step grid renders on it. Its `landing page` block is `LOOP-001b`'s coverage of the PRD `PRJ-06` front door — the promise, the alpha status, the tested browsers, and that the page carries exactly one analytics disclosure and opt-out (the app-chrome copy stands down there; see `src/app.tsx`). The same file's `dashboard project management` block is `LOOP-001`'s dashboard coverage against the mock backend: a Blank Project's empty editor state, and rename/duplicate/confirmed-delete acting only on the row they were invoked on. Its `transport bar` block is `LOOP-003`'s cross-browser coverage of everything on the transport that does not need the audio context to unlock — the tempo command's round-trip, clamp and undo, the loop and metronome toggles' pressed state, the fixed 4/4 display and bar.beat playhead, and `Space`/`O` typed into the BPM input staying text. It runs unguarded in all three browsers; see "Playback is asserted in Chromium only" below for the part that does not.
 
 ### Browser E2E suite against the Firebase Emulator
 
@@ -193,15 +193,15 @@ Suite location: `e2e/`. `e2e/smoke.spec.ts` is PRD section 14's "anonymous start
 bun run test:browser:emulator
 ```
 
-Config: `playwright.emulator.config.ts`. Unlike the suite above, this points the *real* Firebase SDK at a local Firestore + Auth emulator (`VITE_FIRESTORE_EMULATOR_HOST`/`VITE_AUTH_EMULATOR_HOST`, wired in `src/firebaseConfig.ts`) instead of the in-memory mock — `bun run test:browser:emulator` runs `firebase emulators:exec --only firestore,auth` around the Playwright run, the same pattern `test:emulator` uses. This is what proves the `FND-009` slice's "save it, reload it, reproduce playback" step against a real backend: the in-memory repository above is a fresh, empty store on every page load, so it cannot prove anything survives an actual `page.reload()`.
+Config: `tests/e2e/emulator/playwright.config.ts`. Unlike the suite above, this points the *real* Firebase SDK at a local Firestore + Auth emulator (`VITE_FIRESTORE_EMULATOR_HOST`/`VITE_AUTH_EMULATOR_HOST`, wired in `src/firebaseConfig.ts`) instead of the in-memory mock — `bun run test:browser:emulator` runs `firebase emulators:exec --only firestore,auth` around the Playwright run, the same pattern `test:emulator` uses. This is what proves the `FND-009` slice's "save it, reload it, reproduce playback" step against a real backend: the in-memory repository above is a fresh, empty store on every page load, so it cannot prove anything survives an actual `page.reload()`.
 
-Suite location: `e2e-emulator/`. `e2e-emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `playwright.emulator.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
+Suite location: `tests/e2e/emulator/`. `tests/e2e/emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `tests/e2e/emulator/playwright.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
 
-`e2e-emulator/dashboard.spec.ts` is `LOOP-001`'s access-control and destructive-confirmation coverage — the reason it needs the real emulator rather than the mock backend: a second `browser.newContext()` gets its own anonymous Firebase identity, so it can prove a project created by one anonymous session neither appears in another session's listing nor opens by URL (Firestore's security rules deny the read; the repository maps that `permission-denied` onto the same "not found" state an unknown ID would produce). The same file confirms a cancelled delete leaves a project in place and a confirmed one is gone after a real `page.reload()`.
+`tests/e2e/emulator/dashboard.spec.ts` is `LOOP-001`'s access-control and destructive-confirmation coverage — the reason it needs the real emulator rather than the mock backend: a second `browser.newContext()` gets its own anonymous Firebase identity, so it can prove a project created by one anonymous session neither appears in another session's listing nor opens by URL (Firestore's security rules deny the read; the repository maps that `permission-denied` onto the same "not found" state an unknown ID would produce). The same file confirms a cancelled delete leaves a project in place and a confirmed one is gone after a real `page.reload()`.
 
 ### Playback is asserted in Chromium only — a known, tracked gap
 
-`slice.spec.ts` runs in both gating browsers, but its two playback assertions are guarded by `browserName === "chromium"`. `LOOP-014` added the same guard to the keyboard-shortcut test in `e2e/smoke.spec.ts`, for the same reason and with the same annotation — pressing `Space` dispatches identically in Firefox, but the transport button it would flip depends on the same `resume()` that never settles there. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
+`slice.spec.ts` runs in both gating browsers, but its two playback assertions are guarded by `browserName === "chromium"`. `LOOP-014` added the same guard to the keyboard-shortcut test in `tests/e2e/mock/smoke.spec.ts`, for the same reason and with the same annotation — pressing `Space` dispatches identically in Firefox, but the transport button it would flip depends on the same `resume()` that never settles there. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
 
 **Why.** In Firefox here, `useProjectAudio.play()` never reaches `setIsPlaying(true)`, so the transport button never becomes "Stop playback". What is known, from instrumenting the spec:
 
@@ -233,7 +233,7 @@ Note that the `checks` job's null ALSA device is a *different* and genuinely nec
 
 **The guard stays.** A bounded failure is still a failure: Firefox does not play, so `setIsPlaying(true)` is still never reached and the transport button still never becomes "Stop playback". Making the assertion unconditional would only turn one silent 30s timeout into one loud 5s one. What remains open is the *cause* — why Firefox refuses the unlock in this environment at all — which is a real-hardware, real-browser-policy question, and is `HARD-001`'s cross-browser pass, not something a headless emulator run can settle. `LOOP-003` also does not surface the failure to the user: `audio_start_failed` plus `reportError` is telemetry, so a Firefox user sees a play button that does nothing for five seconds and then still does nothing. A user-facing "your browser blocked audio" state is deliberately out of `LOOP-003`'s scope and belongs with the browser-support work in `HARD-001`. **Revisit the guard when `HARD-001` runs against real hardware; do not restore it before then.**
 
-`LOOP-003`'s own cross-browser claim is covered by everything around playback rather than through it. `e2e/smoke.spec.ts`'s `transport bar` block runs unguarded in chromium, firefox *and* webkit: the tempo command's round-trip and clamp, undo of a tempo edit, the loop and metronome toggles' pressed state, the fixed 4/4 display and the bar.beat playhead, and `Space`/`O` typed into the BPM input reaching the input rather than the transport. None of that needs the context to unlock, so all of it is real coverage in the gating browsers.
+`LOOP-003`'s own cross-browser claim is covered by everything around playback rather than through it. `tests/e2e/mock/smoke.spec.ts`'s `transport bar` block runs unguarded in chromium, firefox *and* webkit: the tempo command's round-trip and clamp, undo of a tempo edit, the loop and metronome toggles' pressed state, the fixed 4/4 display and the bar.beat playhead, and `Space`/`O` typed into the BPM input reaching the input rather than the transport. None of that needs the context to unlock, so all of it is real coverage in the gating browsers.
 
 The playback tests annotate each run `playback-asserted` or `playback-skipped`, so the gap is visible in the report rather than only in this document.
 
@@ -246,7 +246,7 @@ CI is always the cold case — a fresh checkout has no `node_modules/.vinxi`. `r
 Two mechanisms, and they are **not** equal partners — the first is load-bearing and the second is a backstop:
 
 - **`app.config.ts`'s `optimizeDeps.include`** pre-bundles those dependencies at dev-server start, collapsing all four rounds into one startup cost. This also removes the stutter from plain `bun run dev`. Measured: zero `new dependencies optimized` messages across four cold runs with it, versus a deterministic reproduction of the failure without it. It is an optimization, not a contract — a dependency added later and left off the list still works, it just reintroduces one reload for itself. `tone` is the easy one to miss, because nothing on the dashboard imports it, so it is only discovered when a project page first mounts. (`solid-firebase` is deliberately absent: the dashboard imports it during initial load, so it lands in Vite's first pre-load scan rather than a mid-session discovery round.)
-- **`e2e-emulator/warmDevServer.setup.ts`** walks dashboard → new project → editor once, so any remaining optimize-and-reload happens before the first assertion. It must reach the *editor*, not just the dashboard, for the `tone` reason above. It never fails the suite, and it logs precisely whether it confirmed a warm editor rather than claiming success it did not achieve.
+- **`tests/e2e/emulator/warmDevServer.setup.ts`** walks dashboard → new project → editor once, so any remaining optimize-and-reload happens before the first assertion. It must reach the *editor*, not just the dashboard, for the `tone` reason above. It never fails the suite, and it logs precisely whether it confirmed a warm editor rather than claiming success it did not achieve.
 
   It runs as a Playwright **setup project**, not a `globalSetup`, and the reason is worth recording because both obvious alternatives are broken. `.github/workflows/ci.yml` installs only the matrix browser (`playwright install --with-deps ${{ matrix.browser }}`), so a `globalSetup` calling `chromium.launch()` directly has no binary in the firefox job and silently no-ops there. Reading the browser from `config.projects[0].use.defaultBrowserType` does not rescue it either: **`FullConfig.projects` is not filtered by `--project`** — verified by putting firefox first in a throwaway config and running `--project=chromium`, which still reported `projects[0] === firefox`. A setup project resolves per project, so `warmup:chromium`/`warmup:firefox` each carry their own browser, `--project=firefox` pulls in `warmup:firefox` automatically, and the warm-up's outcome appears in the report rather than only in stdout.
 
@@ -377,7 +377,7 @@ Visiting the hosted alpha with `?internal=1` (e.g. `https://<project-id>.web.app
 
 ### Post-deploy smoke test
 
-`e2e-hosted/smoke.spec.ts` (config: `playwright.smoke.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded starter project yet; that is Alpha Milestone 1 work) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
+`tests/e2e/hosted/smoke.spec.ts` (config: `tests/e2e/hosted/playwright.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded starter project yet; that is Alpha Milestone 1 work) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
 
 ### Rollback
 

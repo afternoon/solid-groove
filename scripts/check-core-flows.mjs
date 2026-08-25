@@ -27,7 +27,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const REGISTER = "docs/core-flows.md";
-const SUITES = ["e2e/flows", "e2e-emulator/flows"];
+const SUITES = ["tests/e2e/mock/flows", "tests/e2e/emulator/flows"];
 const FLOW_HEADING = /^### (CF-\d{3}) — (.+)$/gm;
 
 const failures = [];
@@ -85,7 +85,7 @@ for (const suite of SUITES) {
 for (const [id, title] of registered)
   if (!specs.has(id))
     failures.push(
-      `${id} ("${title}") is registered in ${REGISTER} but has no spec. Add e2e/flows/${id}.spec.ts (or e2e-emulator/flows/${id}.spec.ts), marked test.fixme until it passes.`,
+      `${id} ("${title}") is registered in ${REGISTER} but has no spec. Add tests/e2e/mock/flows/${id}.spec.ts (or tests/e2e/emulator/flows/${id}.spec.ts), marked test.fixme until it passes.`,
     );
 
 for (const [id, spec] of specs) {
@@ -96,7 +96,7 @@ for (const [id, spec] of specs) {
 
   if (!/\bwalkthrough\s*\(/.test(spec.code))
     failures.push(
-      `${spec.path} never calls walkthrough() — its PR walkthrough could only be captured by hand. Import it from e2e/support/walkthrough and capture a step at each point a reviewer should see.`,
+      `${spec.path} never calls walkthrough() — its PR walkthrough could only be captured by hand. Import it from tests/e2e/support/walkthrough and capture a step at each point a reviewer should see.`,
     );
 
   if (/\.fixme\s*\(/.test(spec.code))

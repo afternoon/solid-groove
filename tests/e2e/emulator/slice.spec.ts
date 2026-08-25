@@ -5,8 +5,8 @@ import { expect, test } from "@playwright/test";
  * (emulated) backend: open a schema-v1 project, add one note, play it, undo
  * it, save it, reload it, and reproduce playback.
  *
- * Runs against the Firestore + Auth emulator (see `playwright.emulator.config.ts`),
- * not the in-memory mock backend `e2e/smoke.spec.ts` uses — the mock
+ * Runs against the Firestore + Auth emulator (see `tests/e2e/emulator/playwright.config.ts`),
+ * not the in-memory mock backend `tests/e2e/mock/smoke.spec.ts` uses — the mock
  * repository is a fresh, empty store on every page load, so it cannot prove
  * anything survives a real `page.reload()`.
  */

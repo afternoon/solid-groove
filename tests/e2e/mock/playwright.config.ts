@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { chromiumLaunchOptions } from "./playwright.chromium";
+import { chromiumLaunchOptions } from "../../playwright.chromium";
 
 const PORT = 3000;
 const baseURL = `http://127.0.0.1:${PORT}`;
@@ -15,13 +15,23 @@ const baseURL = `http://127.0.0.1:${PORT}`;
 // src/auth/authService.ts) rather than a real Firebase project, so this
 // suite has no external dependency and needs no emulator. `page.reload()`
 // cannot be used to prove persistence here — the in-memory repository is a
-// fresh, empty store every page load — see playwright.emulator.config.ts.
+// fresh, empty store every page load — see tests/e2e/emulator/playwright.config.ts.
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: ".",
+  // Test artifacts stay at the repo root even though this config now lives in
+  // `tests/`: Playwright resolves both paths relative to the config file, and
+  // CI uploads `playwright-report/` from the root (see .github/workflows/ci.yml)
+  // while `bun run clean` removes the root copies.
+  outputDir: "../../../test-results",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
+  reporter: process.env.CI
+    ? [
+        ["github"],
+        ["html", { open: "never", outputFolder: "../../../playwright-report" }],
+      ]
+    : "list",
   // The suite runs against the dev server, so the first test to reach a route
   // pays for compiling that route's chunks on demand — the dashboard pulls in
   // the Firebase SDK, which is measurably slow the first time. Cold locally
@@ -42,6 +52,9 @@ export default defineConfig({
     // IPv6 address while `url` below polls IPv4 — the server comes up, nothing
     // ever answers on 127.0.0.1, and the run dies on the webServer timeout.
     command: "bun run dev --host 127.0.0.1",
+    // Playwright resolves `cwd` relative to this config file, which now lives
+    // under `tests/`. The dev server must run from the repo root.
+    cwd: "../../..",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     // A cold start takes a few seconds locally, but CI runners are slower and

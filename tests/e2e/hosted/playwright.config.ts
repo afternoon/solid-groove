@@ -14,13 +14,18 @@ const baseURL = process.env.SMOKE_URL;
 
 if (!baseURL) {
   throw new Error(
-    "playwright.smoke.config.ts: SMOKE_URL must be set to the deployed Hosting URL " +
+    "tests/e2e/hosted/playwright.config.ts: SMOKE_URL must be set to the deployed Hosting URL " +
       '(e.g. SMOKE_URL="https://<project-id>.web.app" bun run smoke:hosted).',
   );
 }
 
 export default defineConfig({
-  testDir: "./e2e-hosted",
+  testDir: ".",
+  // Test artifacts stay at the repo root even though this config now lives in
+  // `tests/`: Playwright resolves both paths relative to the config file, and
+  // CI uploads `playwright-report/` from the root (see .github/workflows/ci.yml)
+  // while `bun run clean` removes the root copies.
+  outputDir: "../../../test-results",
   // One worker: this hits a real, rate-limited backend rather than a local
   // dev server, and the suite is small enough that serial execution costs
   // nothing.

@@ -21,7 +21,7 @@ nobody can tell the difference six months later when it regresses.
 - `docs/prd.md` is authoritative for what the correct behavior *is*. A bug is a
   divergence from it (or from an invariant in `CLAUDE.md`); if the PRD does not
   say, see "When the correct behavior is not decided" below.
-- `docs/core-flows.md` and the flow specs in `e2e/flows` / `e2e-emulator/flows`
+- `docs/core-flows.md` and the flow specs in `tests/e2e/mock/flows` / `tests/e2e/emulator/flows`
   are **frozen**, exactly as they are for a feature. They are the product owner's.
 - `CLAUDE.md` is authoritative for stack conventions, SolidJS patterns, and
   commands.

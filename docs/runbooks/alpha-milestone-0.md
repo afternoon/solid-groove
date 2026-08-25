@@ -188,7 +188,7 @@ turn that into a build failure instead.
       install Chromium → smoke test against `https://<project-id>.web.app`.
 - [ ] Confirm the site loads and `ReleaseBadge` shows the deployed commit SHA.
 
-The smoke test (`e2e-hosted/smoke.spec.ts`) has never been run against a real
+The smoke test (`tests/e2e/hosted/smoke.spec.ts`) has never been run against a real
 environment — it cannot be, without one. It drives real Authentication and
 Firestore, and it is the first thing here that exercises your rules and providers
 end to end. Expect it to be where a missing Anonymous provider or an over-tight

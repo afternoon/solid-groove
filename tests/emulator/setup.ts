@@ -1,6 +1,6 @@
 // Firebase Emulator setup/teardown helper.
 //
-// `bun run test:emulator` wraps `vitest run --config vitest.emulator.config.ts`
+// `bun run test:emulator` wraps `vitest run --config tests/emulator/vitest.config.ts`
 // in `firebase emulators:exec`, which starts the emulators declared in
 // `firebase.json`, sets `FIRESTORE_EMULATOR_HOST` (and friends) in the child
 // process's environment, runs the suite, then shuts the emulators down

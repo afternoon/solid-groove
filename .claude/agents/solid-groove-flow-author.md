@@ -23,7 +23,7 @@ scrutiny than the implementation does, not less.
   "When the flow is wrong" below.
 - The issue body carries the acceptance criteria and names the flows. Read it in
   full first.
-- `e2e/flows/CF-001.spec.ts` is the worked example. Copy its shape.
+- `tests/e2e/mock/flows/CF-001.spec.ts` is the worked example. Copy its shape.
 
 **You may not edit `docs/core-flows.md` or `docs/prd.md`.** They are the product
 owner's. A spec that quietly disagrees with the register is the one failure this
@@ -33,8 +33,8 @@ whole convention exists to prevent.
 
 One spec per flow, named for its ID:
 
-- `e2e/flows/<ID>.spec.ts` — against the in-memory mock backend. The default.
-- `e2e-emulator/flows/<ID>.spec.ts` — against the emulated Firestore/Auth. Use
+- `tests/e2e/mock/flows/<ID>.spec.ts` — against the in-memory mock backend. The default.
+- `tests/e2e/emulator/flows/<ID>.spec.ts` — against the emulated Firestore/Auth. Use
   this when the flow's outcome involves saving, reloading, revisions, sign-in, or
   security rules. The mock backend is a fresh empty store on every page load and
   **cannot** prove persistence.
@@ -51,7 +51,7 @@ Each spec:
    walkthrough a reviewer reads is captured from this spec, and it has to show the
    feature the way a person actually meets it.
 3. **Captures a walkthrough step at each point worth seeing**, via
-   `walkthrough()` from `e2e/support/walkthrough`. Call `step()` *after* the
+   `walkthrough()` from `tests/e2e/support/walkthrough`. Call `step()` *after* the
    assertions for that point, never before, so a screenshot can never show a state
    the test did not assert. Captions are the flow's own step wording.
 4. **Asserts the flow's stated outcome, and stops.** Do not bolt neighbouring
