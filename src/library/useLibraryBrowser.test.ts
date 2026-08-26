@@ -1,4 +1,4 @@
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -23,6 +23,14 @@ function analytics(): { analytics: Analytics; transport: RecordingTransport } {
   instance.setAccountType("anonymous");
   return { analytics: instance, transport };
 }
+
+/**
+ * These tests drive the view model imperatively, so anywhere one writes and then
+ * reads back in the same tick it calls `flush()` first. Solid 2 batches reads:
+ * an accessor keeps reporting the old value until the batch settles, which in
+ * the app happens between the click that writes and the render that reads. The
+ * assertions are unchanged — only the point at which they are allowed to look.
+ */
 
 /** Run `body` inside a disposable reactive root, awaiting its promise. */
 async function withBrowser(
@@ -157,6 +165,7 @@ describe("selecting a pack", () => {
       const genre = browser.facets().genres[0];
       browser.toggleGenre(genre);
       browser.clearFilters();
+      flush();
       expect(browser.selectedPackSlug()).toBe(slug);
       expect(browser.filter().genres).toEqual([]);
     });
@@ -187,6 +196,7 @@ describe("audition analytics (PRD OPS-02 / LOOP-013)", () => {
       await browser.selectPack(null);
       const asset = browser.assets()[0];
       browser.toggleGenre(asset.genres[0]);
+      flush();
       await browser.audition(asset);
       expect(transport.named("library_audition")[0].params.had_genre_filter).toBe(true);
     });
@@ -329,10 +339,12 @@ describe("the panel tree (LOOP-013 layout)", () => {
       const before = browser.tree()[0].matchCount;
       expect(before).toBeGreaterThan(0);
       browser.setTreeQuery("zzzz-no-such-sound");
+      flush();
       expect(browser.tree()[0].matchCount).toBe(0);
       // The pack browser's filter is untouched by the panel's search box.
       expect(browser.filter().query).toBe("");
       browser.setTreeQuery("");
+      flush();
       expect(browser.tree()[0].matchCount).toBe(before);
     });
   });

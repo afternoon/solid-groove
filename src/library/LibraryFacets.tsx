@@ -1,4 +1,5 @@
-import { createMemo, For, type JSX, Show } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { createMemo } from "solid-js";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { LibraryAssetType } from "./manifest";
 import type { PackKind } from "./search";
@@ -107,9 +108,8 @@ export function FacetGroup(props: {
             return (
               <button
                 type="button"
-                class="library-chip"
-                classList={{ "library-chip-active": isActive() }}
-                aria-pressed={isActive()}
+                class={["library-chip", { "library-chip-active": isActive() }]}
+                aria-pressed={isActive() ? "true" : "false"}
                 onClick={() => props.onToggle(value)}
               >
                 {props.display ? props.display(value) : value}
