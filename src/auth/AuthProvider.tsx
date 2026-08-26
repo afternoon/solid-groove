@@ -3,7 +3,6 @@ import {
   createContext,
   createEffect,
   createStore,
-  onCleanup,
   type ParentProps,
   useContext,
 } from "solid-js";
@@ -35,44 +34,65 @@ export function AuthProvider(props: AuthProviderProps) {
   // parameter, and it is the only account fact analytics carries. The
   // boundary attaches it to every subsequent event, so no call site passes
   // it and none can get it wrong.
-  createEffect(() => {
-    analytics.setAccountType(
-      state.loading ? "unknown" : state.user ? accountTypeOf(state) : "unknown",
-    );
-  });
+  //
+  // Split effect: every reactive read stays in the compute half, because Solid
+  // 2 tracks only what that half touches. All three of `state.loading`,
+  // `state.user` and — through `accountTypeOf` — `state.isAnonymous` are read
+  // there; a read that slipped into the apply half below would leave the
+  // reported account type frozen at whatever it was on the first run.
+  createEffect(
+    () => (state.loading || !state.user ? "unknown" : accountTypeOf(state)),
+    (accountType) => analytics.setAccountType(accountType),
+  );
 
-  createEffect(() => {
-    const unsubscribe = authService.onAuthStateChanged((user) => {
-      if (!user) {
-        // No session yet: sign the visitor in anonymously so they can
-        // start working immediately. Firebase persists this session
-        // locally, so returning users keep their work and uid, and this
-        // branch never runs for them — `onAuthStateChanged` reports their
-        // existing user directly instead. That is what makes it safe to
-        // log `anon_session_created` (PRD `OPS-02`) unconditionally here:
-        // reaching this branch at all means a genuinely new anonymous
-        // Firebase identity is about to be created, not a returning one.
-        authService
-          .signInAnonymously()
-          .then(() => analytics.log("anon_session_created"))
-          .catch((error) => {
-            console.error("Error signing in anonymously:", error);
-            setState({ user: null, loading: false, isAnonymous: false });
-          });
-        return;
-      }
+  // Split effect with no reactive dependencies: the subscription is created
+  // once and lives until the provider is disposed. It sits in the apply half
+  // because that is where a store write is sanctioned in Solid 2, and the
+  // unsubscribe rides the cleanup the apply half *returns* rather than a
+  // nested `onCleanup`.
+  createEffect(
+    () => undefined,
+    () => {
+      const unsubscribe = authService.onAuthStateChanged((user) => {
+        if (!user) {
+          // No session yet: sign the visitor in anonymously so they can
+          // start working immediately. Firebase persists this session
+          // locally, so returning users keep their work and uid, and this
+          // branch never runs for them — `onAuthStateChanged` reports their
+          // existing user directly instead. That is what makes it safe to
+          // log `anon_session_created` (PRD `OPS-02`) unconditionally here:
+          // reaching this branch at all means a genuinely new anonymous
+          // Firebase identity is about to be created, not a returning one.
+          authService
+            .signInAnonymously()
+            .then(() => analytics.log("anon_session_created"))
+            .catch((error) => {
+              console.error("Error signing in anonymously:", error);
+              setState((auth) => {
+                auth.user = null;
+                auth.loading = false;
+                auth.isAnonymous = false;
+              });
+            });
+          return;
+        }
 
-      setState({ user, loading: false, isAnonymous: user.isAnonymous });
-    });
+        setState((auth) => {
+          auth.user = user;
+          auth.loading = false;
+          auth.isAnonymous = user.isAnonymous;
+        });
+      });
 
-    onCleanup(() => unsubscribe());
-  });
+      return () => unsubscribe();
+    },
+  );
 
-  return <AuthContext.Provider value={state}>{props.children}</AuthContext.Provider>;
+  return <AuthContext value={state}>{props.children}</AuthContext>;
 }
 
 export function useAuth() {
-  return useContext(AuthContext) as AuthState;
+  return useContext(AuthContext);
 }
 
 /** Coarse, non-identifying account fact for the GA4 user property. */

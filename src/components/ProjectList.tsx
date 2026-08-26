@@ -1,7 +1,7 @@
-import { A } from "@solidjs/router";
+import type { JSX } from "@solidjs/web";
 import since from "since-time-ago";
 import { HiSolidDocumentDuplicate, HiSolidPencil, HiSolidTrash } from "solid-icons/hi";
-import { createSignal, For, type JSX, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import type { ProjectMetadata } from "../domain/entities";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import ConfirmDialog from "./ConfirmDialog";
@@ -118,7 +118,9 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 									   it — dates, badges, actions — stays legible (ADR 0002
 									   decision 2). */
                   <p class={`project-title ${MASK_CONTENT}`}>
-                    <A href={`/projects/${project.id}`}>{project.name}</A>
+                    {/* Router 2 has no <A>: it claims plain in-app anchors,
+											   so a bare <a> is the only link primitive. */}
+                    <a href={`/projects/${project.id}`}>{project.name}</a>
                   </p>
                 }
               >
@@ -134,7 +136,7 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
                     class={`project-rename-input ${MASK_CONTENT}`}
                     type="text"
                     value={draftName()}
-                    maxLength={120}
+                    maxlength={120}
                     aria-label={`Rename ${project.name}`}
                     onInput={(event) => setDraftName(event.currentTarget.value)}
                     // Opening rename mode is itself the user's request to type
@@ -206,11 +208,14 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
 
       <Show when={pendingDeleteId()}>
         {(projectId) => {
-          const project = props.projects.find((p) => p.id === projectId());
+          // Derived, not read here: a `Show` child's body is not a tracking
+          // scope in Solid 2, so resolving the project eagerly would warn and
+          // then never update. Reading it from the JSX below keeps it live.
+          const project = () => props.projects.find((p) => p.id === projectId());
           return (
             <ConfirmDialog
               title="Delete this project?"
-              message={`"${project?.name ?? "This project"}" will be permanently deleted. This cannot be undone.`}
+              message={`"${project()?.name ?? "This project"}" will be permanently deleted. This cannot be undone.`}
               confirmLabel="Delete"
               busy={busyId() === projectId()}
               onCancel={() => setPendingDeleteId(null)}

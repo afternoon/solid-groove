@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -7,6 +8,10 @@ import { type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
 import { memoryStorage } from "../testing/storage";
 import Dashboard from "./Dashboard";
 
+// Solid 2 batches writes, and the DOM testing library's `fireEvent` does no
+// flushing of its own the way Solid 1's testing-library wrapper did, so each
+// `fireEvent` below that a later synchronous line depends on is followed by an
+// explicit `flush()`.
 afterEach(() => {
   cleanup();
   // `resetAllMocks`, not `restoreAllMocks`: the mocks here are module-level
@@ -31,11 +36,10 @@ vi.mock("../auth/AuthProvider", () => ({
 }));
 
 const navigate = vi.fn();
+// Router 2 deleted `<A>`; `ProjectList` links with a plain `<a>`, so the mock
+// only has to stand in for the navigation hook the dashboard itself calls.
 vi.mock("@solidjs/router", () => ({
   useNavigate: () => navigate,
-  A: (props: { href: string; children?: unknown }) => (
-    <a href={props.href}>{props.children as never}</a>
-  ),
 }));
 
 const { listProjects, createProject, saveMetadata, loadProject, deleteProject } =
@@ -202,8 +206,10 @@ describe("Dashboard", () => {
       renderDashboard();
 
       fireEvent.click(await screen.findByRole("button", { name: /rename/i }));
+      flush();
       const input = screen.getByRole("textbox", { name: /rename my groove/i });
       fireEvent.input(input, { target: { value: "Renamed Groove" } });
+      flush();
       fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
       await screen.findByText("Renamed Groove");
@@ -221,9 +227,11 @@ describe("Dashboard", () => {
       renderDashboard();
 
       fireEvent.click(await screen.findByRole("button", { name: /rename/i }));
+      flush();
       fireEvent.input(screen.getByRole("textbox", { name: /rename my groove/i }), {
         target: { value: "New name" },
       });
+      flush();
       fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
       expect(
@@ -279,6 +287,7 @@ describe("Dashboard", () => {
       renderDashboard();
 
       fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
+      flush();
 
       expect(
         screen.getByRole("alertdialog", { name: /delete this project/i }),
@@ -291,7 +300,9 @@ describe("Dashboard", () => {
       renderDashboard();
 
       fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
+      flush();
       fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+      flush();
 
       expect(deleteProject).not.toHaveBeenCalled();
       expect(await screen.findByText("My Groove")).toBeInTheDocument();
@@ -303,6 +314,7 @@ describe("Dashboard", () => {
       const { transport } = renderDashboard();
 
       fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
+      flush();
       const dialog = screen.getByRole("alertdialog", {
         name: /delete this project/i,
       });

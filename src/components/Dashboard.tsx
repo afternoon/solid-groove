@@ -1,14 +1,6 @@
 import { useNavigate } from "@solidjs/router";
 import { HiSolidArrowPath, HiSolidDocumentText, HiSolidPlus } from "solid-icons/hi";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  Match,
-  onCleanup,
-  Show,
-  Switch,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { projectAgeBucket } from "../analytics/buckets";
 import { useAuth } from "../auth/AuthProvider";
@@ -27,6 +19,15 @@ interface ProjectsState {
   loading: boolean;
   error: string | null;
   data: ProjectMetadata[];
+}
+
+/** What the project-listing effect's tracked half hands to its apply half. */
+interface ProjectsListing {
+  /** The signed-in user whose projects to list, if there is one. */
+  id: string | undefined;
+  /** Carried for its dependency alone: bumping it re-runs the fetch. */
+  retry: number;
+  isFirstRun: boolean;
 }
 
 export interface DashboardProps {
@@ -49,45 +50,60 @@ export default function Dashboard(props: DashboardProps = {}) {
   // Bumped to force the effect below to re-run and retry.
   const [retryCount, setRetryCount] = createSignal(0);
 
-  createEffect((isFirstRun: boolean) => {
-    const id = userId();
-    retryCount();
-    if (!id) {
-      setProjectsState({ loading: false, error: null, data: [] });
-      return false;
-    }
+  // Split effect. Both reactive reads — the signed-in user and the retry
+  // counter — stay in the compute half, which is the only half Solid 2
+  // tracks; `retryCount()` is read for its dependency alone, and a fresh
+  // object is returned every run so bumping the counter always re-fetches.
+  // The fetch and every `setProjectsState` write live in the apply half,
+  // where a write is sanctioned, and the cancellation that used to be a
+  // nested `onCleanup` is the cleanup that half returns.
+  //
+  // `prev === undefined` is how "first run" is spelled now that
+  // `createEffect`'s second argument is the apply function rather than 1.x's
+  // `initialValue`.
+  createEffect<ProjectsListing>(
+    (previous) => ({
+      id: userId(),
+      retry: retryCount(),
+      isFirstRun: previous === undefined,
+    }),
+    ({ id, isFirstRun }) => {
+      if (!id) {
+        setProjectsState({ loading: false, error: null, data: [] });
+        return;
+      }
 
-    // Only show the full loading state on the very first fetch. A retry
-    // re-runs this same effect, but the dashboard chrome (button, error
-    // panel) is already on screen, so swapping back to the loader would
-    // just flash the tape deck in and out again for no benefit — the error
-    // panel stays up until the retry resolves one way or the other.
-    if (isFirstRun) {
-      setProjectsState({ loading: true, error: null, data: [] });
-    }
+      // Only show the full loading state on the very first fetch. A retry
+      // re-runs this same effect, but the dashboard chrome (button, error
+      // panel) is already on screen, so swapping back to the loader would
+      // just flash the tape deck in and out again for no benefit — the error
+      // panel stays up until the retry resolves one way or the other.
+      if (isFirstRun) {
+        setProjectsState({ loading: true, error: null, data: [] });
+      }
 
-    let cancelled = false;
-    getProjectRepository()
-      .then((repository) => repository.listProjects(id))
-      .then((projects) => {
-        if (cancelled) return;
-        setProjectsState({ loading: false, error: null, data: projects });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        console.error("Error fetching projects:", error);
-        setProjectsState({
-          loading: false,
-          error: "Something went wrong while loading your projects.",
-          data: [],
+      let cancelled = false;
+      getProjectRepository()
+        .then((repository) => repository.listProjects(id))
+        .then((projects) => {
+          if (cancelled) return;
+          setProjectsState({ loading: false, error: null, data: projects });
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          console.error("Error fetching projects:", error);
+          setProjectsState({
+            loading: false,
+            error: "Something went wrong while loading your projects.",
+            data: [],
+          });
         });
-      });
 
-    onCleanup(() => {
-      cancelled = true;
-    });
-    return false;
-  }, true);
+      return () => {
+        cancelled = true;
+      };
+    },
+  );
 
   const retryFetchProjects = () => setRetryCount((count) => count + 1);
 

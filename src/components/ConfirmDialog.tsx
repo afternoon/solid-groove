@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { useShortcuts } from "../shortcuts";

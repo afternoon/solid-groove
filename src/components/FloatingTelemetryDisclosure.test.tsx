@@ -1,12 +1,6 @@
 import { cleanup, render, screen } from "@solidjs/testing-library";
-import {
-  type Component,
-  createSignal,
-  ErrorBoundary,
-  lazy,
-  Show,
-  Suspense,
-} from "solid-js";
+import { Errored, Loading } from "@solidjs/web";
+import { type Component, createSignal, flush, lazy, Show } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import AppErrorFallback from "./AppErrorFallback";
 import FloatingTelemetryDisclosure from "./FloatingTelemetryDisclosure";
@@ -21,8 +15,8 @@ function disclosures(container: HTMLElement) {
 
 /**
  * PRD `OPS-02`: the opt-out is reachable from every page, and a page never
- * carries two of it. `src/app.tsx` renders this outside its error boundary and
- * Suspense fallback, so these are the cases that decide whether the invariant
+ * carries two of it. `src/app.tsx` renders this outside its `Errored` boundary
+ * and `Loading` fallback, so these are the cases that decide whether the invariant
  * holds on `/` — where `LandingPage` hosts its own inline copy (`LOOP-001b`).
  */
 describe("FloatingTelemetryDisclosure (PRD OPS-02)", () => {
@@ -58,7 +52,10 @@ describe("FloatingTelemetryDisclosure (PRD OPS-02)", () => {
     ));
     expect(disclosures(container)).toHaveLength(1);
 
+    // Solid 2 batches writes: the signal above is not visible to the render
+    // until the batch flushes, so the assertions below need that flush first.
     setShowInline(false);
+    flush();
 
     const found = disclosures(container);
     expect(found).toHaveLength(1);
@@ -75,10 +72,10 @@ describe("FloatingTelemetryDisclosure (PRD OPS-02)", () => {
     }
     const { container } = render(() => (
       <>
-        <ErrorBoundary
+        <Errored
           fallback={(error, reset) => (
             <AppErrorFallback
-              error={error}
+              error={error()}
               reset={reset}
               area="shell"
               report={() => true}
@@ -87,7 +84,7 @@ describe("FloatingTelemetryDisclosure (PRD OPS-02)", () => {
         >
           <Boom />
           <TelemetryDisclosure placement="inline" />
-        </ErrorBoundary>
+        </Errored>
         <FloatingTelemetryDisclosure />
       </>
     ));
@@ -105,9 +102,9 @@ describe("FloatingTelemetryDisclosure (PRD OPS-02)", () => {
     const StillLoading = lazy<Component>(() => new Promise(() => {}));
     const { container } = render(() => (
       <>
-        <Suspense fallback={<p>Loading</p>}>
+        <Loading fallback={<p>Loading</p>}>
           <StillLoading />
-        </Suspense>
+        </Loading>
         <FloatingTelemetryDisclosure />
       </>
     ));

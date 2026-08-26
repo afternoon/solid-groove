@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConsentStore } from "../analytics/consent";
 import { memoryStorage } from "../testing/storage";
@@ -147,6 +148,9 @@ describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", ()
   it("reflects a change made elsewhere", () => {
     const { store } = setup();
     store.optOut();
+    // Solid 2 batches writes, so the subscription's `setState` is not visible
+    // to the rendered checkbox until the batch flushes.
+    flush();
     expect(
       screen.getByRole("checkbox", { name: /Share usage and error reports/ }),
     ).not.toBeChecked();
