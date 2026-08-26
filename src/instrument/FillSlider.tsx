@@ -1,4 +1,5 @@
-import { createMemo, type JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { createMemo } from "solid-js";
 import { clampParameterValue, type ParameterDefinition } from "../domain/parameters";
 import "./FillSlider.css";
 
@@ -105,8 +106,10 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
 
   return (
     <div
-      class="fill-slider"
-      classList={{ horizontal: horizontal(), bipolar: props.bipolar === true }}
+      class={[
+        "fill-slider",
+        { horizontal: horizontal(), bipolar: props.bipolar === true },
+      ]}
     >
       <label class="fill-slider-label" for={id()}>
         {props.label ?? props.definition.label}

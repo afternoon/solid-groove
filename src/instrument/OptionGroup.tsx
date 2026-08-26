@@ -1,4 +1,4 @@
-import { For, type JSX } from "solid-js";
+import { For, type JSX } from "@solidjs/web";
 import "./OptionGroup.css";
 
 export interface OptionGroupOption<V extends string | number> {
@@ -31,7 +31,7 @@ export default function OptionGroup<V extends string | number>(
         {(option) => {
           const selected = () => option.value === props.value;
           return (
-            <label class="option-group-option" classList={{ active: selected() }}>
+            <label class={["option-group-option", { active: selected() }]}>
               <input
                 type="radio"
                 class="option-group-input"

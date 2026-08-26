@@ -1,4 +1,5 @@
-import { createSignal, type JSX, Show } from "solid-js";
+import { type JSX, Show } from "@solidjs/web";
+import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import { changeInstrument, removeNotes } from "../commands";

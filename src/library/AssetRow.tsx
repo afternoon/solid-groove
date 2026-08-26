@@ -1,5 +1,5 @@
+import { type JSX, Show } from "@solidjs/web";
 import { HiSolidPlay, HiSolidPlus, HiSolidStop } from "solid-icons/hi";
-import { type JSX, Show } from "solid-js";
 import { writeLibrarySampleDrag } from "./assetDrag";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset } from "./manifest";
@@ -30,11 +30,13 @@ export default function AssetRow(props: {
 }): JSX.Element {
   return (
     <li
-      class="library-row"
-      classList={{
-        "library-row-active": props.active,
-        "library-row-error": props.error !== null,
-      }}
+      class={[
+        "library-row",
+        {
+          "library-row-active": props.active,
+          "library-row-error": props.error !== null,
+        },
+      ]}
       draggable="true"
       onDragStart={(event) => {
         // A sound with no master audio (a preset) carries nothing an
@@ -51,7 +53,7 @@ export default function AssetRow(props: {
         aria-label={
           props.active ? `Stop ${props.asset.name}` : `Audition ${props.asset.name}`
         }
-        aria-pressed={props.active}
+        aria-pressed={props.active ? "true" : "false"}
         onClick={() => (props.active ? props.onStop() : props.onPlay())}
       >
         <Show when={props.active} fallback={<HiSolidPlay size={12} />}>

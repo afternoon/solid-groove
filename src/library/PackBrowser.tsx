@@ -1,9 +1,10 @@
+import { For, type JSX, Show } from "@solidjs/web";
 import {
   HiSolidCheckCircle,
   HiSolidExclamationTriangle,
   HiSolidXMark,
 } from "solid-icons/hi";
-import { createEffect, createMemo, For, type JSX, onMount, Show } from "solid-js";
+import { createEffect, createMemo, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
@@ -60,7 +61,7 @@ export default function PackBrowser(props: PackBrowserProps): JSX.Element {
     contexts: () => DIALOG_CONTEXTS,
   });
 
-  onMount(() => {
+  onSettled(() => {
     analytics.logFeatureFirstUse("pack_browser");
     void browser.open();
   });
@@ -68,17 +69,26 @@ export default function PackBrowser(props: PackBrowserProps): JSX.Element {
   // Open on a pack rather than the cross-pack list: a pack is what this surface
   // is about, and its detail is what a producer decides from. That fetches
   // exactly one manifest, never every pack's (LIB-05). This is an effect rather
-  // than part of `onMount` because the index may still be in flight when the
-  // dialog mounts — and it runs once, so choosing "All sounds" afterwards is not
-  // undone by a later index update.
+  // than part of the mount hook because the index may still be in flight when
+  // the dialog mounts — and it runs once, so choosing "All sounds" afterwards is
+  // not undone by a later index update.
+  //
+  // Both reads belong in the compute half: only that half is tracked, so the
+  // selection and the pack list moved into the apply half would leave this
+  // waiting forever on an index that arrives after mount. The compute reads them
+  // unconditionally rather than behind the early returns — a superset of what
+  // was tracked before, which the apply half's own guards then narrow.
   let choseInitialPack = false;
-  createEffect(() => {
-    if (choseInitialPack || browser.selectedPackSlug() !== null) return;
-    const first = browser.packs()[0];
-    if (!first) return;
-    choseInitialPack = true;
-    void browser.selectPack(first.slug);
-  });
+  createEffect(
+    () => ({ selected: browser.selectedPackSlug(), packs: browser.packs() }),
+    ({ selected, packs }) => {
+      if (choseInitialPack || selected !== null) return;
+      const first = packs[0];
+      if (!first) return;
+      choseInitialPack = true;
+      void browser.selectPack(first.slug);
+    },
+  );
 
   const selectedPack = createMemo<LibraryPackSummary | null>(() => {
     const slug = browser.selectedPackSlug();
@@ -99,7 +109,7 @@ export default function PackBrowser(props: PackBrowserProps): JSX.Element {
       <button
         type="button"
         class="pack-browser-scrim"
-        tabIndex={-1}
+        tabindex={-1}
         aria-label="Close pack browser"
         onClick={() => props.onClose()}
       />
