@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Instrument } from "../domain/entities";
 import { packVersion } from "../domain/entities";
@@ -71,6 +72,7 @@ function leaveTowards(from: HTMLElement, to: EventTarget | null): void {
       relatedTarget: to,
     }),
   );
+  flush();
 }
 
 /** The area, found the way a drag target is: by its accessible name. */
@@ -125,6 +127,7 @@ describe("InstrumentArea", () => {
       dataTransfer: transfer,
       cancelable: true,
     });
+    flush();
     expect(allowed).toBe(false);
     expect(transfer.dropEffect).toBe("copy");
     expect(isTarget()).toBe(true);
@@ -137,6 +140,7 @@ describe("InstrumentArea", () => {
       dataTransfer: transfer,
       cancelable: true,
     });
+    flush();
     expect(allowed).toBe(true);
     expect(isTarget()).toBe(false);
   });
@@ -145,10 +149,12 @@ describe("InstrumentArea", () => {
     renderArea();
     const transfer = transferCarrying(JSON.stringify(DROPPED));
     fireEvent.dragOver(area(), { dataTransfer: transfer });
+    flush();
     expect(transfer.dropEffect).toBe("copy");
     expect(isTarget()).toBe(true);
 
     fireEvent.dragLeave(area(), { dataTransfer: transfer });
+    flush();
     expect(isTarget()).toBe(false);
   });
 
@@ -156,6 +162,7 @@ describe("InstrumentArea", () => {
     renderArea();
     const transfer = transferCarrying(JSON.stringify(DROPPED));
     fireEvent.dragOver(area(), { dataTransfer: transfer });
+    flush();
     expect(isTarget()).toBe(true);
 
     // Moving from one panel to the next fires `dragleave` on the panel the
@@ -173,6 +180,7 @@ describe("InstrumentArea", () => {
     renderArea();
     const transfer = transferCarrying(JSON.stringify(DROPPED));
     fireEvent.dragOver(area(), { dataTransfer: transfer });
+    flush();
     leaveTowards(screen.getByText("panel goes here"), document.body);
     expect(isTarget()).toBe(false);
   });
@@ -181,6 +189,7 @@ describe("InstrumentArea", () => {
     renderArea();
     const transfer = transferCarrying(null);
     fireEvent.dragOver(area(), { dataTransfer: transfer });
+    flush();
     expect(transfer.dropEffect).toBe("none");
     expect(isTarget()).toBe(false);
   });
@@ -191,6 +200,7 @@ describe("InstrumentArea", () => {
 
     // Not even a drop cursor: a synth track is not a target at all.
     fireEvent.dragOver(area(), { dataTransfer: transfer });
+    flush();
     expect(transfer.dropEffect).toBe("none");
     expect(isTarget()).toBe(false);
 
