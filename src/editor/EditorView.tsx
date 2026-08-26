@@ -1,10 +1,9 @@
+import type { JSX } from "@solidjs/web";
 import {
   createEffect,
   createMemo,
-  createResource,
   createSignal,
   For,
-  type JSX,
   Match,
   Show,
   Switch,
@@ -74,11 +73,17 @@ export interface EditorViewProps {
  * instrument panels, and save/undo wiring are the same path it established.
  */
 export default function EditorView(props: EditorViewProps): JSX.Element {
-  const [repositoryResource] = createResource(() => getProjectRepository());
-  const session = useEditorSession(
-    () => props.projectId,
-    () => repositoryResource() ?? null,
-  );
+  // An async computation, not a resource: `createResource` is gone in Solid 2,
+  // and reading this memo before `getProjectRepository()` settles reports "not
+  // ready" rather than a value. Only `useEditorSession`'s effect consumes it —
+  // nothing renders from it — so the not-ready read suspends that effect and
+  // never reaches a `Loading` boundary. That is the point: the editor's own
+  // not-ready UI is the richer three-way `ProjectLoadStates` below (loading /
+  // not found / load error) driven by `session.state`, and the previous
+  // `repositoryResource() ?? null` was flattening "still loading" into "there
+  // is no repository", which the hook could not tell from a real absence.
+  const repository = createMemo(() => getProjectRepository());
+  const session = useEditorSession(() => props.projectId, repository);
 
   const project = createMemo(() => session.state.project);
   const audio = useProjectAudio(project);
@@ -147,11 +152,17 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // A track deleted by this session, an undo, or a remote edit must not leave
   // the editor pointed at it: `reconcileSelection` drops the dead scope, and
   // the fallback picks up from there.
-  createEffect(() => {
-    const current = project();
-    if (!current) return;
-    setSelection((state) => reconcileSelection(state, current));
-  });
+  //
+  // `project()` is the effect's only reactive read, so it is the whole compute
+  // half; the `setSelection` write has to be in the apply half, which is the
+  // only phase of an effect where a write is allowed.
+  createEffect(
+    () => project(),
+    (current) => {
+      if (!current) return;
+      setSelection((state) => reconcileSelection(state, current));
+    },
+  );
   function selectTrack(trackId: TrackId): void {
     setSelection(selectOnly({ kind: "track", id: trackId }));
   }

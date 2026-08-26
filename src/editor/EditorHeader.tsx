@@ -1,4 +1,3 @@
-import { A } from "@solidjs/router";
 import {
   HiSolidArrowPathRoundedSquare,
   HiSolidArrowUturnLeft,
@@ -55,14 +54,20 @@ export interface EditorHeaderProps {
 export default function EditorHeader(props: EditorHeaderProps) {
   return (
     <header class="editor-header">
-      <A
+      {/*
+       * A plain anchor: Solid Router 2 has no `<A>` component. The router
+       * intercepts in-app anchor clicks itself and gives them the same
+       * `aria-current`/`data-active`/`data-pending` vocabulary `<A>` used to
+       * apply, so client-side navigation is unchanged.
+       */}
+      <a
         class="back-to-projects"
         href="/dashboard"
         aria-label="Projects"
         title="Projects"
       >
         <HiSolidSquares2x2 size={18} />
-      </A>
+      </a>
       {/* The project's name, chosen by the user (ADR 0002 decision 2). */}
       <h1 class={`project-name ${MASK_CONTENT}`}>{props.projectName}</h1>
       <div class="transport-controls">
@@ -90,7 +95,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="transport-toggle"
           onClick={() => props.onTogglePlay()}
-          aria-pressed={props.isPlaying()}
+          aria-pressed={props.isPlaying() ? "true" : "false"}
           aria-label={props.isPlaying() ? "Stop playback" : "Start playback"}
           title={`${props.isPlaying() ? "Stop" : "Play"} (${props.keyHint(
             "transport.play_stop",
@@ -104,7 +109,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="loop-toggle"
           onClick={() => props.onToggleLoop()}
-          aria-pressed={props.loopEnabled()}
+          aria-pressed={props.loopEnabled() ? "true" : "false"}
           aria-label={props.loopEnabled() ? "Disable loop" : "Enable loop"}
           title={props.loopEnabled() ? "Disable loop" : "Enable loop"}
         >
@@ -114,7 +119,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="metronome-toggle"
           onClick={() => props.onToggleMetronome()}
-          aria-pressed={props.metronomeEnabled()}
+          aria-pressed={props.metronomeEnabled() ? "true" : "false"}
           aria-label={props.metronomeEnabled() ? "Disable metronome" : "Enable metronome"}
           title={`Metronome (${props.keyHint("transport.metronome")})`}
         >
@@ -158,7 +163,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
         type="button"
         class="library-toggle"
         aria-label="Library"
-        aria-pressed={props.libraryOpen()}
+        aria-pressed={props.libraryOpen() ? "true" : "false"}
         title="Library"
         onClick={() => props.onToggleLibrary()}
       >

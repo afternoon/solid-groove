@@ -1,4 +1,5 @@
 import { cleanup, renderHook } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { removeNotes } from "../commands";
 import { createSliceFixtureProject } from "../domain/fixtures";
@@ -42,6 +43,11 @@ describe("useEditorSession navigation flush", () => {
     await vi.waitFor(() => expect(result.state.loading).toBe(false));
 
     result.dispatch(removeNotes(clipId, [eventId]));
+    // Solid 2 batches writes: the autosave subscription has already written
+    // the queued status into the store, but a read only sees it once the
+    // batch flushes. `flush()` is that synchronous catch-up point, and a test
+    // asserting immediately after an action is exactly what it is for.
+    flush();
     expect(result.state.saveStatus?.pending).toBe(1);
     // Nothing has reached the repository yet — the default coalescing
     // window (400ms) has not elapsed and no real time has passed in this
