@@ -60,11 +60,14 @@ nothing else would say so; a file matched by two runs twice. Both fail the
 check, and CI runs it before the suite.
 
 **This needs Vitest 4.** The projects use the `test.projects` API. Under
-Vitest 3's `defineWorkspace`, `vite-plugin-solid` did not receive the client
-resolve conditions, `solid-js/web` resolved to its *server* build, and every
-component test failed with "Client-only API called on the server side" — the
-same config file passed via `--config` and failed as a project, which is what
-identified it as a workspace bug rather than a configuration error.
+Vitest 3's `defineWorkspace`, the Solid Vite plugin did not receive the client
+resolve conditions, the framework's web entry resolved to its *server* build,
+and every component test failed with "Client-only API called on the server
+side" — the same config file passed via `--config` and failed as a project,
+which is what identified it as a workspace bug rather than a configuration
+error. (That was diagnosed on Solid 1, where the packages were named
+`vite-plugin-solid` and `solid-js/web`; they are `@solidjs/vite-plugin` and
+`@solidjs/web` now, and the Vitest 4 requirement is unchanged.)
 
 Each suite is isolated on purpose: `bun run test` never needs a browser or an emulator running, so it stays fast enough to run on every save. `test:emulator` and `test:browser` are heavier and are meant for CI and pre-push checks. `smoke:hosted` is the odd one out — it is the only suite that touches the production project, and it only ever runs post-deploy (see "Deploy").
 
@@ -136,7 +139,7 @@ bun run test:watch  # watch mode
 bun run test:ui     # Vitest UI
 ```
 
-Config: `vitest.config.ts`. `vite-plugin-solid` sets `test.environment: "jsdom"` automatically, so both plain unit tests (e.g. `src/shared/id.test.ts`) and component tests using `@solidjs/testing-library` (e.g. `src/components/Dashboard.test.tsx`) run under the same command — see those two files for the canonical shape of each.
+Config: `vitest.config.ts`. `@solidjs/vite-plugin` sets `test.environment: "jsdom"` automatically, so both plain unit tests (e.g. `src/shared/id.test.ts`) and component tests using `@solidjs/testing-library` (e.g. `src/components/Dashboard.test.tsx`) run under the same command — see those two files for the canonical shape of each.
 
 `src/audio/InstrumentGraph.test.ts`, `src/audio/TrackAudioGraph.test.ts`, `src/audio/DeviceChain.test.ts`, and `src/audio/ProjectAudioGraph.test.ts` additionally render real audio via `node-web-audio-api` (see `src/audio/testAudioContext.ts`). Importing `tone` creates a real (non-offline) global `AudioContext` as a side effect, and `node-web-audio-api`'s `cpal` backend needs to find *some* default output device to satisfy that, even though the tests themselves only render through `Tone.Offline`. On a machine with no audio hardware (`/dev/snd` absent — every GitHub-hosted runner, most containers), that context creation throws `InvalidStateError: ... DeviceUnavailable` and the whole file fails before any test runs.
 
@@ -145,6 +148,47 @@ Config: `vitest.config.ts`. `vite-plugin-solid` sets `test.environment: "jsdom"`
 These suites always dispose the instrument/graph they build once the offline render resolves. Without that, repeated back-to-back offline renders in the same process left native audio nodes bound to torn-down `OfflineAudioContext`s undisposed, which showed up as rare, wildly out-of-range sample values (filter-energy assertions occasionally comparing against values like `1e30`) once the suite could actually run past context creation. Always dispose the built instrument/graph after consuming its rendered buffer in new tests that follow this pattern.
 
 They also **copy** rendered samples (`Float32Array.from(buffer.getChannelData(0))`, e.g. `src/audio/TrackAudioGraph.test.ts`) instead of returning the view directly. `getChannelData` returns a view backed by memory the native `AudioBuffer` owns, and the buffer becomes unreachable as soon as a render helper returns — so the backing store could be freed while a test still held the view, and an assertion would then compare against whatever had taken over that memory. This was the remaining cause of the same out-of-range symptom after the disposal fix, measured historically at about 1 run in 10 failing with wildly out-of-range values, and 0/30 once the samples were copied. **Never hold a `getChannelData` view beyond the lifetime of its `AudioBuffer`** — copy it out at the boundary, as `scripts/starter-library/acquire/audio.mjs` also does when decoding.
+
+### `fireEvent` no longer flushes — call `flush()` before you assert
+
+This is the single most common way a Solid 2 component test fails, and it fails
+by asserting on stale state rather than by erroring, so read this before writing
+one.
+
+Two things changed together:
+
+- **Solid 2 batches reactive updates onto the microtask queue.** After
+  `setCount(1)`, `count()` still returns the old value, and no effect has run,
+  until that batch drains.
+- **`@solidjs/testing-library@1.0.0-beta.2` re-exports `@testing-library/dom`
+  directly** (`export * from "@testing-library/dom"` in its entry point), so
+  `fireEvent` is now the plain DOM helper. Under Solid 1 the library wrapped it
+  in a Solid flush; it does not any more.
+
+So a test that fires an event and then synchronously reads the DOM or the store
+sees the state from *before* the event. Put `flush()` from `solid-js` between
+them:
+
+```ts
+import { flush } from "solid-js";
+import { fireEvent, screen } from "@solidjs/testing-library";
+
+fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+flush();                       // drain the batch the click queued
+expect(track().muted).toBe(true);
+```
+
+`flush()` drains the pending queue synchronously. It applies to any write made
+outside the reactive system too, not just `fireEvent` — a subscription callback
+firing from a fake store needs the same treatment
+(`src/components/TelemetryDisclosure.test.tsx` is the worked example). Each step
+of a multi-step interaction needs its own flush, because each one queues its own
+batch: `src/editor/StepEditor.test.tsx`'s `stroke()`/`dragStroke()` helpers flush
+after every pointer event for exactly that reason.
+
+`flush()` is a **test** tool. It is not an escape hatch for product code — a
+component that needs it is a component whose reads are in the wrong half of an
+effect.
 
 ## Firebase Emulator suite
 
@@ -334,11 +378,11 @@ The playback tests annotate each run `playback-asserted` or `playback-skipped`, 
 
 Vite does not pre-bundle a dependency until something imports it, and each discovery force-reloads the open page (`[vite] ✨ optimized dependencies changed. reloading`). A reload landing mid-test discards whatever interaction was in flight. Measured on a cold server, this suite took **four** such rounds to settle — analytics, then the Firebase SDK and Sentry, then the small utilities, then `tone` when the first project editor mounted — and the reload ate `slice.spec.ts`'s `New Project` click, so the URL never left `/dashboard` and the test failed on `toHaveURL(/\/projects\/prj_/)`. That reads exactly like a broken create-project flow and is not one: the same suite passed in 17s against an already-warm server.
 
-CI is always the cold case — a fresh checkout has no `node_modules/.vinxi`. `retries: 2` would usually have hidden this (the dev server survives between retries, so retry #1 sees a warm cache), which is worse than failing: the suite goes green and the real cause stays invisible.
+CI is always the cold case — a fresh checkout has no `node_modules/.vite`. `retries: 2` would usually have hidden this (the dev server survives between retries, so retry #1 sees a warm cache), which is worse than failing: the suite goes green and the real cause stays invisible.
 
 Two mechanisms, and they are **not** equal partners — the first is load-bearing and the second is a backstop:
 
-- **`app.config.ts`'s `optimizeDeps.include`** pre-bundles those dependencies at dev-server start, collapsing all four rounds into one startup cost. This also removes the stutter from plain `bun run dev`. Measured: zero `new dependencies optimized` messages across four cold runs with it, versus a deterministic reproduction of the failure without it. It is an optimization, not a contract — a dependency added later and left off the list still works, it just reintroduces one reload for itself. `tone` is the easy one to miss, because nothing on the dashboard imports it, so it is only discovered when a project page first mounts. (`solid-firebase` is deliberately absent: the dashboard imports it during initial load, so it lands in Vite's first pre-load scan rather than a mid-session discovery round.)
+- **`vite.config.ts`'s `optimizeDeps.include`** pre-bundles those dependencies at dev-server start, collapsing all four rounds into one startup cost. This also removes the stutter from plain `bun run dev`. Measured: zero `new dependencies optimized` messages across four cold runs with it, versus a deterministic reproduction of the failure without it. It is an optimization, not a contract — a dependency added later and left off the list still works, it just reintroduces one reload for itself. `tone` is the easy one to miss, because nothing on the dashboard imports it, so it is only discovered when a project page first mounts.
 - **`tests/e2e/emulator/warmDevServer.setup.ts`** walks dashboard → new project → editor once, so any remaining optimize-and-reload happens before the first assertion. It must reach the *editor*, not just the dashboard, for the `tone` reason above. It never fails the suite, and it logs precisely whether it confirmed a warm editor rather than claiming success it did not achieve.
 
   It runs as a Playwright **setup project**, not a `globalSetup`, and the reason is worth recording because both obvious alternatives are broken. `.github/workflows/ci.yml` installs only the matrix browser (`playwright install --with-deps ${{ matrix.browser }}`), so a `globalSetup` calling `chromium.launch()` directly has no binary in the firefox job and silently no-ops there. Reading the browser from `config.projects[0].use.defaultBrowserType` does not rescue it either: **`FullConfig.projects` is not filtered by `--project`** — verified by putting firefox first in a throwaway config and running `--project=chromium`, which still reported `projects[0] === firefox`. A setup project resolves per project, so `warmup:chromium`/`warmup:firefox` each carry their own browser, `--project=firefox` pulls in `warmup:firefox` automatically, and the warm-up's outcome appears in the report rather than only in stdout.
@@ -452,7 +496,7 @@ The job runs `bun run build && bun run verify:bundle && bun run verify:client-co
 
 ### Release SHA
 
-`app.config.ts` stamps the deployed git commit SHA into `import.meta.env.VITE_RELEASE_SHA` at build time (`src/release.ts` reads it, `src/components/ReleaseBadge.tsx` renders it). Resolution order: an explicit `VITE_RELEASE_SHA` (what the `deploy` job sets), then `GITHUB_SHA` (set automatically in every Actions run, including the unconditional `build` job), then `git rev-parse HEAD` for a local build, then the `"unknown"` sentinel if even `git` fails — stamping must never be able to block a build. `FND-001c` reads `RELEASE_SHA` to attach the release to every analytics and error event.
+`vite.config.ts` stamps the deployed git commit SHA into `import.meta.env.VITE_RELEASE_SHA` at build time (`src/release.ts` reads it, `src/components/ReleaseBadge.tsx` renders it). Resolution order: an explicit `VITE_RELEASE_SHA` (what the `deploy` job sets), then `GITHUB_SHA` (set automatically in every Actions run, including the unconditional `build` job), then `git rev-parse HEAD` for a local build, then the `"unknown"` sentinel if even `git` fails — stamping must never be able to block a build. `FND-001c` reads `RELEASE_SHA` to attach the release to every analytics and error event.
 
 ### The client bundle carries a usable Firebase config
 
@@ -520,7 +564,7 @@ bun run build && bun run verify:budget
 
 Three separate mechanisms, one per clause of the acceptance criterion:
 
-1. **Produced** — `app.config.ts` sets `build.sourcemap: "hidden"`, so a map is emitted for every chunk with no `//# sourceMappingURL=` comment pointing at it.
+1. **Produced** — `vite.config.ts` sets `build.sourcemap: "hidden"`, so a map is emitted for every chunk with no `//# sourceMappingURL=` comment pointing at it.
 2. **Uploaded over an authenticated channel** — `@sentry/vite-plugin` runs during the `deploy` job's `predeploy` build (the only moment the deployed artifacts and their maps both exist), authenticating with the CI-only `SENTRY_AUTH_TOKEN`. It also registers the release under the deployed commit SHA and injects **debug IDs** into both chunk and map, so Sentry matches them by ID rather than by URL.
 3. **Never served publicly from Hosting** — the plugin deletes the maps after upload, and `firebase.json`'s `hosting.ignore` refuses to upload `**/*.map` regardless. The second is the guarantee that does not depend on the first having run: a local build, or a build with no Sentry credentials, still cannot publish a map.
 
@@ -710,17 +754,17 @@ A second run of the same command should report every audio object and the versio
 bun run clean
 ```
 
-Deletes `.vinxi`, `.output`, `node_modules/.vinxi`, `node_modules/.vite`, and the `test-results` / `playwright-report` / `blob-report` / `vitest-report` output directories. It does **not** touch `node_modules` itself, so no reinstall is needed afterwards, and it leaves `public/samples` alone — those are generated artifacts rather than caches, and regenerating them is slow (see above).
+Deletes `dist` (start mode's build output, which replaced `.vinxi` and `.output`), `node_modules/.vite`, and the `test-results` / `playwright-report` / `blob-report` / `vitest-report` output directories. It does **not** touch `node_modules` itself, so no reinstall is needed afterwards, and it leaves `public/samples` alone — those are generated artifacts rather than caches, and regenerating them is slow (see above).
 
 It exists because of a failure mode that is genuinely hard to recognise. Vite's dependency pre-bundling cache lives *inside* `node_modules/`, so it survives `git checkout`, `bun install`, and restarting the dev server. A long-lived local clone can therefore serve module output built from a commit you are no longer on, and nothing in the normal workflow invalidates it.
 
 The symptom to recognise:
 
-- A route in `src/routes/` **matches** — you get a blank page rather than the `[...404]` page — but its component never mounts.
+- A route **matches** — you get a blank page rather than the catch-all page — but its component never mounts.
 - **No error in the browser console, and none in the dev server terminal.**
 - `bun run test` passes, because Vitest does not use that cache.
 - A fresh clone of the same commit works.
 
-The tell is the disagreement between those first two facts: route scanning reads the filesystem directly and sees your checkout, while module loading goes through the cache and sees the older build. When a route matches but renders nothing, suspect the cache before suspecting the code, and run `bun run clean` first.
+The tell was the disagreement between those first two facts: this was diagnosed under the vinxi/SolidStart serving layer, where route *scanning* read the filesystem directly and saw your checkout while module loading went through the cache and saw the older build. Routes are now an explicit table in `src/router.tsx` (see `CLAUDE.md`'s "Routing"), so that particular split no longer exists — but the cache and everything else about the failure do. When a page renders nothing with no error anywhere, suspect the cache before suspecting the code, and run `bun run clean` first.
 
 It is also worth reaching for before trusting any local run of a suite that loads the real app — the browser E2E suite, and any future measurement harness, go through the same cache.
