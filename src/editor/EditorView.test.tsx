@@ -1,4 +1,4 @@
-import { MemoryRouter, Route } from "@solidjs/router";
+import { createRouter, memoryHistory } from "@solidjs/router";
 import {
   cleanup,
   fireEvent,
@@ -99,8 +99,10 @@ function saveRetryButton(): HTMLElement | null {
   return within(saveStatusGroup()).queryByRole("button", { name: "Retry" });
 }
 
-// EditorView links back to the dashboard with <A>, which needs a matched Route
-// context to resolve against — a bare MemoryRouter isn't enough.
+// EditorView links back to the dashboard with a plain anchor, which the router
+// only resolves from inside a matched route — so the editor is mounted as the
+// component of a one-route router over an in-memory history, which is Router
+// 2's replacement for the old `<MemoryRouter><Route .../></MemoryRouter>` pair.
 function renderEditor(
   projectId: string,
   options: {
@@ -110,21 +112,23 @@ function renderEditor(
   } = {},
 ) {
   const EditorView = EditorViewModule.default;
-  return render(() => (
-    <MemoryRouter>
-      <Route
-        path="/"
-        component={() => (
+  const TestRouter = createRouter({
+    history: memoryHistory("/"),
+    routes: [
+      {
+        path: "/",
+        component: () => (
           <EditorView
             projectId={projectId}
             createAuditionEngine={options.createAuditionEngine}
             libraryClient={options.libraryClient}
             analytics={options.analytics}
           />
-        )}
-      />
-    </MemoryRouter>
-  ));
+        ),
+      },
+    ],
+  });
+  return render(() => <TestRouter />);
 }
 
 /** A library sound as a drag hands it over, already in its wire form (#225). */

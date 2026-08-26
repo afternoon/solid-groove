@@ -210,45 +210,57 @@ export function useProjectAudio(
     graph = null;
   }
 
-  createEffect(() => {
-    const current = project();
-    if (!current) return;
-    if (!graph || ownerId !== current.metadata.id) {
-      tearDown();
-      ownerId = current.metadata.id;
-      graph = new ProjectAudioGraph(runtime, ownerId, {
-        underrunMonitor: underrunMonitor(),
-        onAssetLoadFailure: reportAssetLoadFailure,
-      });
-      metronome = new TransportMetronome(
-        liveTransportEngine,
-        graph.projectScope,
-        graph.masterInput,
-      );
-      transport = new TransportController({ metronome });
-      // The slice's loop is the one bar its 16-step grid shows. Enabling it is
-      // a user gesture, but the range is fixed here rather than selected:
-      // there is no timeline to drag a range on until `ARR-002`, which owns
-      // range select and range loop. See `setLoop` on the controls above.
-      transport.setLoop(0, TICKS_PER_BAR);
-      setLoop(transport.loop);
-      setLoopEnabled(false);
-      setMetronomeEnabled(false);
-      lastProjection = undefined;
-    }
-    lastProjection = buildAudioProjection(current, lastProjection);
-    graph.reconcile(lastProjection);
-    // Mirror the song tempo onto the transport without restarting it.
-    transport?.setTempo(current.song.tempo);
+  // Split effect. `project()` is the effect's only reactive read, so the
+  // compute half is exactly that read and the whole body below moves to the
+  // apply half — which is also where it belongs, because it writes the
+  // loop/metronome signals and Solid 2 throws on a write inside a tracking
+  // scope.
+  //
+  // `lastProjection` stays a closure variable of the hook, not of the apply
+  // function, so each run still hands the *previous* projection back to
+  // `buildAudioProjection` and an unrelated edit reuses every entry it did not
+  // touch (PRD AUD-08).
+  createEffect(
+    () => project(),
+    (current) => {
+      if (!current) return;
+      if (!graph || ownerId !== current.metadata.id) {
+        tearDown();
+        ownerId = current.metadata.id;
+        graph = new ProjectAudioGraph(runtime, ownerId, {
+          underrunMonitor: underrunMonitor(),
+          onAssetLoadFailure: reportAssetLoadFailure,
+        });
+        metronome = new TransportMetronome(
+          liveTransportEngine,
+          graph.projectScope,
+          graph.masterInput,
+        );
+        transport = new TransportController({ metronome });
+        // The slice's loop is the one bar its 16-step grid shows. Enabling it
+        // is a user gesture, but the range is fixed here rather than selected:
+        // there is no timeline to drag a range on until `ARR-002`, which owns
+        // range select and range loop. See `setLoop` on the controls above.
+        transport.setLoop(0, TICKS_PER_BAR);
+        setLoop(transport.loop);
+        setLoopEnabled(false);
+        setMetronomeEnabled(false);
+        lastProjection = undefined;
+      }
+      lastProjection = buildAudioProjection(current, lastProjection);
+      graph.reconcile(lastProjection);
+      // Mirror the song tempo onto the transport without restarting it.
+      transport?.setTempo(current.song.tempo);
 
-    // `audio_loop` first-use (PRD OPS-02, INS-02): the first time a project
-    // with a tempo-labelled loop clip is wired onto the audio graph. Fired via
-    // `logFeatureFirstUse`, so it lands at most once per account per browser
-    // even though the effect re-runs on every edit.
-    if (current.clips.some((clip) => clip.content.kind === "audioLoop")) {
-      analytics.logFeatureFirstUse("audio_loop");
-    }
-  });
+      // `audio_loop` first-use (PRD OPS-02, INS-02): the first time a project
+      // with a tempo-labelled loop clip is wired onto the audio graph. Fired
+      // via `logFeatureFirstUse`, so it lands at most once per account per
+      // browser even though the effect re-runs on every edit.
+      if (current.clips.some((clip) => clip.content.kind === "audioLoop")) {
+        analytics.logFeatureFirstUse("audio_loop");
+      }
+    },
+  );
 
   onCleanup(tearDown);
 
