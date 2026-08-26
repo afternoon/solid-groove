@@ -61,3 +61,6 @@ tmp/
 
 # big fat blobs
 public/samples
+
+# Vite/start-mode build output (replaces .vinxi and .output).
+dist

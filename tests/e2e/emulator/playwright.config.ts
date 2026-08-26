@@ -60,7 +60,15 @@ export default defineConfig({
     // Playwright resolves `cwd` relative to this config file, which now lives
     // under `tests/`. The dev server must run from the repo root.
     cwd: "../../..",
-    url: baseURL,
+    // `port`, not `url`. Solid 2's start mode only serves the document shell to
+    // **HTML-accepting** GETs and 404s everything else (by design -- see
+    // `@solidjs/vite-plugin`'s client mode). Playwright's `url` probe sends a
+    // bare GET, so it read that 404 as "not up yet" and sat here until the
+    // webServer timeout even though the server was serving fine. `port` waits
+    // on the TCP listener instead, which is what "the dev server is up"
+    // actually means. A real browser always sends `Accept: text/html`, so this
+    // only ever affected the probe.
+    port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     stdout: "pipe",

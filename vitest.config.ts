@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import solid from "vite-plugin-solid";
+import solid from "@solidjs/vite-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 
 // `vite-plugin-solid` normally auto-injects this setup file by checking

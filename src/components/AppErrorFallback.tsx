@@ -1,4 +1,4 @@
-import { type Component, onMount } from "solid-js";
+import { type Component, onSettled } from "solid-js";
 import type { ErrorArea } from "../analytics/errorCodes";
 import { reportError } from "../monitoring/errorReporting";
 import "./AppErrorFallback.css";
@@ -19,7 +19,7 @@ type AppErrorFallbackProps = {
  *
  * It is also one of the two capture points PRD `OPS-03` names — "global
  * `error`/`unhandledrejection` handlers plus the section 10 error boundaries".
- * Reporting happens in `onMount` rather than during render so a failing
+ * Reporting happens in `onSettled` rather than during render so a failing
  * reporter cannot prevent the recovery UI from appearing, and it goes through
  * the application's own boundary rather than a monitoring SDK. Duplicate
  * reports (an error seen by both this boundary and the global handler) are
@@ -33,7 +33,7 @@ const AppErrorFallback: Component<AppErrorFallbackProps> = (props) => {
   const message = () =>
     props.error instanceof Error ? props.error.message : String(props.error);
 
-  onMount(() => {
+  onSettled(() => {
     try {
       // Fatal: this boundary firing means a surface was replaced by a recovery
       // screen, which is what the section 11 crash-free session rate counts.

@@ -2,11 +2,11 @@ import type { User } from "firebase/auth";
 import {
   createContext,
   createEffect,
+  createStore,
   onCleanup,
   type ParentProps,
   useContext,
 } from "solid-js";
-import { createStore } from "solid-js/store";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { authService } from "./authService";
 

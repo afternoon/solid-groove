@@ -1,5 +1,4 @@
-import { type Accessor, createEffect, onCleanup } from "solid-js";
-import { createStore } from "solid-js/store";
+import { type Accessor, createEffect, createStore, onCleanup } from "solid-js";
 import type {
   Gesture,
   GestureOptions,

@@ -50,11 +50,19 @@ const TelemetryDisclosure: Component<{
   const [state, setState] = createSignal<ConsentState>(store.current);
   onCleanup(store.subscribe(setState));
 
-  createEffect(() => {
-    if ((props.placement ?? "floating") !== "inline") return;
-    setInlineCount((count) => count + 1);
-    onCleanup(() => setInlineCount((count) => count - 1));
-  });
+  // Split effect: the compute half tracks the placement, the apply half does
+  // the counting. That split is load-bearing rather than stylistic -- Solid 2
+  // throws on a signal write inside a tracking scope, and the apply phase is
+  // where a write is sanctioned. The decrement rides the returned cleanup for
+  // the same reason a nested `onCleanup` no longer belongs here.
+  createEffect(
+    () => (props.placement ?? "floating") === "inline",
+    (isInline) => {
+      if (!isInline) return;
+      setInlineCount((count) => count + 1);
+      return () => setInlineCount((count) => count - 1);
+    },
+  );
 
   // Any collection at all shows as "on", so the single control never reads as
   // off while something is still being collected. `optOut()` turns all three
@@ -73,10 +81,12 @@ const TelemetryDisclosure: Component<{
 
   return (
     <details
-      class="telemetry-disclosure"
-      classList={{
-        "telemetry-disclosure-inline": (props.placement ?? "floating") === "inline",
-      }}
+      class={[
+        "telemetry-disclosure",
+        {
+          "telemetry-disclosure-inline": (props.placement ?? "floating") === "inline",
+        },
+      ]}
     >
       <summary class="telemetry-disclosure-summary">Privacy</summary>
       <div class="telemetry-disclosure-body">
