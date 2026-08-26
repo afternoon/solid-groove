@@ -16,6 +16,24 @@ export default defineConfig({
   // the full copies under `.claude/worktrees/` that the agent workflow creates.
   root: fileURLToPath(new URL(".", import.meta.url)),
   test: {
+    // A machine-readable transcript of the run alongside the terminal output,
+    // uploaded by CI as an artifact (`.github/workflows/ci.yml`). The path is
+    // resolved from this file rather than left relative because Vitest resolves
+    // `outputFile` against the project root pinned above — a relative path
+    // would bury the report inside `tests/emulator/`, away from every other
+    // suite's. `vitest-report/` is the repo root's, shared with the unit
+    // suite's own `unit.json`.
+    reporters: [
+      "default",
+      [
+        "json",
+        {
+          outputFile: fileURLToPath(
+            new URL("../../vitest-report/emulator.json", import.meta.url),
+          ),
+        },
+      ],
+    ],
     environment: "node",
     include: ["**/*.test.ts"],
     hookTimeout: 30_000,

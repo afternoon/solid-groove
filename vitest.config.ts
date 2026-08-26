@@ -22,6 +22,20 @@ const jestDomSetupPath = fileURLToPath(
   import.meta.resolve("@testing-library/jest-dom/vitest"),
 );
 
+/**
+ * Where a run's machine-readable report lands.
+ *
+ * Resolved from this file rather than left relative, because Vitest resolves a
+ * relative `outputFile` against the *project root*, which differs per project
+ * here — a relative path would scatter one run's report across several
+ * directories. `vitest-report/` sits alongside Playwright's `playwright-report/`
+ * and is deliberately **not** under `test-results/`: Playwright empties that
+ * directory when it starts, which would delete a Vitest report captured
+ * moments earlier.
+ */
+const jsonReport = (name: string) =>
+  fileURLToPath(new URL(`vitest-report/${name}.json`, import.meta.url));
+
 /** Shared by every project: never collect from a nested worktree checkout. */
 const exclude = [...configDefaults.exclude, "tests/**", ".claude/**"];
 
@@ -110,6 +124,18 @@ const appProject = (name: string, include: string[]) => ({
  */
 export default defineConfig({
   test: {
+    // The terminal reporter a human reads, plus a machine-readable transcript
+    // of the same run. The JSON report is what CI uploads as an artifact
+    // (`.github/workflows/ci.yml`), so a failure can be inspected — which test,
+    // which file, which assertion, how long it took — without re-reading a
+    // wall of log output or re-running the suite locally to reproduce it.
+    //
+    // `reporters` and `outputFile` are root-only options in Vitest: a project
+    // cannot set its own, so this one file covers whichever projects a run
+    // selects. That means `bun run test`, `bun run test:all` and `bun run
+    // test:library` each overwrite `unit.json` with *their* run — the report
+    // describes the last run, not a merged history.
+    reporters: ["default", ["json", { outputFile: jsonReport("unit") }]],
     projects: [
       // The pure contract layers: no Firebase, Tone, or Solid imports.
       appProject("domain", [

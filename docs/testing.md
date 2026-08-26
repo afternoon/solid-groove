@@ -167,6 +167,52 @@ Two suites run here:
 
 Requires a JDK (the emulator runs on the JVM); `.github/workflows/ci.yml` installs Temurin 21.
 
+## Vitest JSON run reports
+
+Both Vitest suites write a machine-readable report of every run alongside the
+terminal output, via the built-in `json` reporter:
+
+| Suite | Config | Report |
+| --- | --- | --- |
+| Unit + component (`bun run test`, `test:all`, `test:library`, `test:watch`) | `vitest.config.ts` | `vitest-report/unit.json` |
+| Firebase Emulator (`bun run test:emulator`) | `tests/emulator/vitest.config.ts` | `vitest-report/emulator.json` |
+
+The report lists every test file, every assertion, its status, duration and
+failure messages, plus the run's totals — the same run the terminal just
+described, in a form a script or another agent can read. It is written whether
+the run passed or failed, which is the case it exists for: a failed run's
+report names exactly what failed without anyone re-reading the log or
+reproducing the run locally.
+
+Three things about it are easy to trip over:
+
+- **One report per run, overwritten each time.** `reporters` and `outputFile`
+  are root-only options in Vitest — a project cannot set its own — so a run
+  writes one file covering whichever projects it selected. `bun run test` (five
+  projects), `bun run test:all` (six) and `bun run test:library` (one) all
+  write `vitest-report/unit.json`, each replacing the last. The report describes
+  the most recent run, not a merged history, and it carries no project name per
+  file: attribute a file to a project through `vitest.config.ts`'s globs.
+- **`vitest-report/`, not `test-results/`.** Playwright empties `test-results/`
+  when it starts, so a report written there would vanish the moment a browser
+  suite ran. The directory is gitignored and `bun run clean` removes it.
+- **Watch mode rewrites it on every rerun**, so a report read while
+  `bun run test:watch` is running may be a partial-selection run.
+
+### CI keeps them as artifacts
+
+`.github/workflows/ci.yml` uploads each report from the job that produced it,
+under `if: ${{ !cancelled() }}` so a red run is captured as well as a green one
+(a *cancelled* run is skipped — its report would be half-written):
+
+| Job | Artifact | Contents |
+| --- | --- | --- |
+| `checks` | `vitest-report-unit` | `vitest-report/unit.json` from `bun run test:all` |
+| `emulator` | `vitest-report-emulator` | `vitest-report/emulator.json` from `bun run test:emulator` |
+
+Both are kept for 7 days, matching the Playwright report artifacts the browser
+jobs upload. Download them from the run's summary page.
+
 ## Which browsers run where
 
 The two browser suites below run three browsers, but not every environment can
@@ -323,10 +369,10 @@ bun run check     # tsc --noEmit && biome check
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
 
-1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this.
+1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this. Uploads the run's JSON report as the `vitest-report-unit` artifact, pass or fail (see "Vitest JSON run reports" above).
 2. **`browser`** — the Playwright suite, matrixed over `chromium`, `firefox`, `webkit`. Chromium/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
 3. **`browser-emulator`** — `bun run test:browser:emulator` (`FND-009`), matrixed over the gating browsers `chromium`/`firefox` only, with a JDK installed for the Firestore emulator, exercising the foundation slice's add/play/undo/save/reload journey against a real (emulated) backend.
-4. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator.
+4. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator. Uploads its JSON report as the `vitest-report-emulator` artifact, pass or fail.
 5. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
 6. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops.
 
@@ -664,7 +710,7 @@ A second run of the same command should report every audio object and the versio
 bun run clean
 ```
 
-Deletes `.vinxi`, `.output`, `node_modules/.vinxi`, `node_modules/.vite`, and the `test-results` / `playwright-report` / `blob-report` output directories. It does **not** touch `node_modules` itself, so no reinstall is needed afterwards, and it leaves `public/samples` alone — those are generated artifacts rather than caches, and regenerating them is slow (see above).
+Deletes `.vinxi`, `.output`, `node_modules/.vinxi`, `node_modules/.vite`, and the `test-results` / `playwright-report` / `blob-report` / `vitest-report` output directories. It does **not** touch `node_modules` itself, so no reinstall is needed afterwards, and it leaves `public/samples` alone — those are generated artifacts rather than caches, and regenerating them is slow (see above).
 
 It exists because of a failure mode that is genuinely hard to recognise. Vite's dependency pre-bundling cache lives *inside* `node_modules/`, so it survives `git checkout`, `bun install`, and restarting the dev server. A long-lived local clone can therefore serve module output built from a commit you are no longer on, and nothing in the normal workflow invalidates it.
 
