@@ -1,12 +1,10 @@
+import { For, Show } from "@solidjs/web";
 import {
   type Accessor,
   createEffect,
   createMemo,
   createSignal,
-  For,
-  onCleanup,
-  onMount,
-  Show,
+  onSettled,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
@@ -221,7 +219,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return projection().tracks[rowIndex]?.id ?? null;
   }
 
-  onMount(() => {
+  // `onSettled` is Solid 2's lifecycle hook, and it runs before the effects
+  // below get their first apply — the same order 1.x's `onMount` gave us — so
+  // both still see a live shell on their first run. The refs are assigned and
+  // the elements are in the document by then, which is what `observeViewport`
+  // and the priming measurement need.
+  onSettled(() => {
     shell = createArrangementShell(() => projection(), {
       initialViewport: initialViewport(),
       config: { maxDevicePixelRatio: 2 },
@@ -249,6 +252,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
       props.onEditingActionsReady?.(editing);
     }
 
+    // Installed before the measurement below on purpose: a `ResizeObserver`
+    // delivers the element's current size as soon as it starts observing, so
+    // a viewport that is not laid out yet at this instant still reaches the
+    // shell on that first delivery rather than waiting for a user resize.
     canvas.observeViewport(scrollEl, bumpState);
 
     // Prime the initial size and paint every layer once.
@@ -259,10 +266,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
       shell.markDirty("background", "content", "interaction");
     }
     bumpState();
-  });
 
-  onCleanup(() => {
-    props.onEditingActionsReady?.(null);
+    // The teardown for the registration above. In Solid 2 the value an
+    // `onSettled` callback returns *is* its cleanup, which is what pairs it
+    // with the setup here instead of a detached `onCleanup`.
+    return () => {
+      props.onEditingActionsReady?.(null);
+    };
   });
 
   // Project identity / structure changed: everything is dirty, scroll bounds
@@ -272,25 +282,51 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // bounds and redraws once. An undo/redo or remote edit can also remove a
   // selected placement out from under the controller, so it drops any
   // selected ID the project no longer contains (see `reconcile`'s doc comment).
-  createEffect(() => {
-    projection();
-    shell?.invalidateAll();
-    editing?.reconcile();
-    syncSpacer();
-    bumpState();
-  });
+  //
+  // `projection()` is this effect's only reactive dependency, and the split is
+  // load-bearing rather than stylistic: `syncSpacer` and `bumpState` both
+  // write signals, which Solid 2 forbids in a tracking scope and sanctions in
+  // the apply half.
+  //
+  // The apply half re-reads the same memo indirectly — `invalidateAll` clamps
+  // scroll against the shell's own `getProjection` closure, `syncSpacer` reads
+  // it for the logical size, `reconcile` reads `props.project` behind it — and
+  // in dev each of those logs `STRICT_READ_UNTRACKED`. Here that diagnostic is
+  // a false positive rather than a missed dependency: the compute half above
+  // subscribes to exactly the memo those reads resolve, so the effect does
+  // re-run and they do see the new value. Silencing it would mean either
+  // `untrack` or threading the projection value through `ArrangementShell` and
+  // `PlacementEditing`, neither of which belongs in a framework migration.
+  createEffect(
+    () => projection(),
+    () => {
+      shell?.invalidateAll();
+      editing?.reconcile();
+      syncSpacer();
+      bumpState();
+    },
+  );
 
   // Transport playhead follow: seek the shell to the live position while
   // playing. `seekTo` only marks the interaction layer dirty and follows the
   // playhead into view; a stopped transport advances nothing, so the surface
   // stays idle (PRD 9.3 "must not run a permanent 60 Hz loop while stopped").
-  createEffect(() => {
-    const ticks = props.playheadTicks?.() ?? 0;
-    const playing = props.isPlaying?.() ?? false;
-    if (!shell) return;
-    shell.setPlayheadFollow(playing);
-    shell.seekTo(ticks);
-  });
+  //
+  // Both the props and the accessors they hold are read in the compute half —
+  // `props.playheadTicks` can be swapped for a different accessor and the
+  // accessor's own value changes every transport tick, so all four reads have
+  // to stay here for the playhead to keep following.
+  createEffect(
+    () => ({
+      ticks: props.playheadTicks?.() ?? 0,
+      playing: props.isPlaying?.() ?? false,
+    }),
+    ({ ticks, playing }) => {
+      if (!shell) return;
+      shell.setPlayheadFollow(playing);
+      shell.seekTo(ticks);
+    },
+  );
 
   function syncSpacer(): void {
     if (!shell) return;
@@ -550,7 +586,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
                   <button
                     type="button"
                     class="arrangement-header-select"
-                    aria-pressed={props.selectedTrackId === track.id}
+                    aria-pressed={props.selectedTrackId === track.id ? "true" : "false"}
                     aria-label={`Edit ${track.name}${track.muted ? " (muted)" : ""}`}
                     onClick={() => selectTrack(track.id)}
                   >

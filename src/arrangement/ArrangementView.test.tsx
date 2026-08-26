@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -25,6 +25,22 @@ const PIXELS_PER_TICK = 0.08;
 const RULER_HEIGHT_PX = 22;
 const ROW_HEIGHT_PX = 28;
 
+/**
+ * Every synthetic event in this file goes through one of the two helpers
+ * below, and both flush before returning. Solid 2 batches reads until the
+ * microtask flush, so a handler's signal write is not visible in the DOM at
+ * the moment `fireEvent` returns; a browser flushes on its own before the next
+ * paint, a synchronous assertion does not. It is not only the assertions that
+ * need it — a *later* event in the same test lands on the DOM this one
+ * produced, so a duplicate button still reading `disabled` would swallow the
+ * click. `flush()` is the sanctioned test-side "catch up now"; it is not, and
+ * must not become, product code.
+ */
+function clickAndFlush(element: Element): void {
+  fireEvent.click(element);
+  flush();
+}
+
 /** jsdom's `PointerEvent` drops `clientX`/`button`; a `MouseEvent` bubbles to
  * the same `onPointer*` handlers and carries them, exactly like `PianoRoll`'s
  * own test helper does for the same reason. */
@@ -42,6 +58,7 @@ function firePointer(
   });
   Object.defineProperty(event, "pointerId", { value: init.pointerId ?? 1 });
   fireEvent(el, event);
+  flush();
 }
 
 /** A one-placement fixture wired to a real `EditorSession`, so a test asserts
@@ -160,7 +177,7 @@ describe("ArrangementView shell", () => {
       "button[data-track-select]",
     );
     if (!firstSelect) throw new Error("no track-select control rendered");
-    fireEvent.click(firstSelect);
+    clickAndFlush(firstSelect);
     const live = screen.getByTestId("arrangement-selection-live");
     expect(live.textContent).toMatch(/^Selected /);
     expect(live.textContent).toMatch(/bars 1 to/);
@@ -174,12 +191,12 @@ describe("arrangement feature_first_use analytics (PRD OPS-02)", () => {
     // No interaction yet: nothing logged.
     expect(featureUses(transport)).toEqual([]);
 
-    fireEvent.click(screen.getByLabelText("Zoom in"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
     expect(featureUses(transport)).toEqual(["arrangement"]);
 
     // Further interactions do not re-fire it.
-    fireEvent.click(screen.getByLabelText("Zoom out"));
-    fireEvent.click(screen.getByLabelText("Zoom in"));
+    clickAndFlush(screen.getByLabelText("Zoom out"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
     expect(featureUses(transport)).toEqual(["arrangement"]);
   });
 
@@ -195,8 +212,8 @@ describe("arrangement feature_first_use analytics (PRD OPS-02)", () => {
       storage: memoryStorage(),
     });
     renderView(analytics);
-    fireEvent.click(screen.getByLabelText("Zoom in"));
-    fireEvent.click(screen.getByLabelText("Zoom out"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
+    clickAndFlush(screen.getByLabelText("Zoom out"));
     expect(transport.events).toEqual([]);
   });
 });
@@ -299,13 +316,13 @@ describe("placement editing wiring (ARR-002)", () => {
       (p) => p.id === placementId,
     );
 
-    fireEvent.click(screen.getByText(/Duplicate as a linked copy/));
+    clickAndFlush(screen.getByText(/Duplicate as a linked copy/));
     expect(session.project.clips.length).toBe(originalClipCount);
     expect(session.project.song.placements.length).toBe(2);
     const linkedCopy = session.project.song.placements.find((p) => p.id !== placementId);
     expect(linkedCopy?.clipId).toBe(sourcePlacement?.clipId);
 
-    fireEvent.click(screen.getByText(/Duplicate as an independent copy/));
+    clickAndFlush(screen.getByText(/Duplicate as an independent copy/));
     expect(session.project.clips.length).toBe(originalClipCount + 1);
     expect(session.project.song.placements.length).toBe(3);
   });
@@ -343,7 +360,7 @@ describe("arrangement track selection (#228)", () => {
     const second = project.song.tracks[1];
 
     expect(headerButton(second.name)).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(headerButton(second.name));
+    clickAndFlush(headerButton(second.name));
 
     expect(selected).toEqual([second.id]);
     expect(headerButton(second.name)).toHaveAttribute("aria-pressed", "true");
@@ -370,7 +387,7 @@ describe("arrangement track selection (#228)", () => {
     const list = screen.getByLabelText("Arrangement tracks");
     const buttons = list.querySelectorAll<HTMLButtonElement>("button[data-track-select]");
 
-    fireEvent.click(buttons[1]);
+    clickAndFlush(buttons[1]);
 
     expect(selected).toEqual([project.song.tracks[1].id]);
     // The bar-range selection it already made is unchanged.
@@ -382,7 +399,7 @@ describe("arrangement track selection (#228)", () => {
   it("counts selecting a track as arrangement use, with no event of its own", () => {
     const { project, transport } = renderSelectable();
 
-    fireEvent.click(headerButton(project.song.tracks[1].name));
+    clickAndFlush(headerButton(project.song.tracks[1].name));
 
     expect(featureUses(transport)).toEqual(["arrangement"]);
     expect(transport.events).toHaveLength(1);
