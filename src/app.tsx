@@ -89,9 +89,7 @@ export default function App() {
               <AppErrorFallback error={err()} reset={reset} area="shell" />
             )}
           >
-            <Loading fallback={<TapeLoader label="Loading" />}>
-              {props.children}
-            </Loading>
+            <Loading fallback={<TapeLoader label="Loading" />}>{props.children}</Loading>
           </Errored>
           {/* Outside the Errored/Loading boundary so the deployed revision
 					    stays visible/inspectable even while the app is loading or has
