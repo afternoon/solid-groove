@@ -74,6 +74,20 @@ jobs:
         # where that project must still run, so nothing merges without it.
         # `vitest.config.ts` defines the projects.
         run: bun run test:all
+      # The machine-readable half of that run (`vitest.config.ts` configures the
+      # `json` reporter alongside the terminal one). Uploaded on failure too —
+      # that is the case it exists for: the artifact names every failing test,
+      # its file, its assertion messages and its duration, so a red run can be
+      # triaged from the run page instead of by scrolling the log or
+      # re-reproducing it locally. `!cancelled()` rather than `always()` so a
+      # superseded run does not upload a half-written report.
+      - name: Upload the unit + component test report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: vitest-report-unit
+          path: vitest-report/unit.json
+          retention-days: 7
       - name: Validate the starter sound library
         # Renders all 200 assets and runs the full manifest validation
         # (docs/sample-library.md section 9), including the collection-level
@@ -174,6 +188,15 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run Firebase Emulator suite
         run: bun run test:emulator
+      # As in the `checks` job: the same run, in machine-readable form, kept
+      # whether it passed or failed. `tests/emulator/vitest.config.ts` writes it.
+      - name: Upload the emulator test report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: vitest-report-emulator
+          path: vitest-report/emulator.json
+          retention-days: 7
 
   # FND-001b (PRD OPS-01): proves the production build itself, and the "no
   # secret reaches the client bundle" check, on every push and PR -- not only

@@ -59,7 +59,7 @@
     "prebuild": "bun run samples",
     "build": "vinxi build",
     "start": "vinxi start",
-    "clean": "rm -rf .vinxi .output node_modules/.vinxi node_modules/.vite test-results playwright-report blob-report",
+    "clean": "rm -rf .vinxi .output node_modules/.vinxi node_modules/.vite test-results playwright-report blob-report vitest-report",
     "firebase:emulator": "firebase emulators:start --only firestore,auth --project demo-solid-groove",
     "test": "vitest run --project=domain --project=audio --project=ui --project=data --project=platform",
     "test:all": "vitest run",

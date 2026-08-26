@@ -10,6 +10,7 @@
       "!docs/design",
       "!playwright-report",
       "!test-results",
+      "!vitest-report",
       "!scripts/starter-library/acquire/candidate-sources",
       "!scripts/starter-library/acquire/candidates.json",
       "!src/library/factoryLibrary.generated.ts",
