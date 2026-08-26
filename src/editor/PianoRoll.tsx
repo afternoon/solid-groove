@@ -1,4 +1,5 @@
-import { createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { createEffect, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
@@ -213,13 +214,19 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     return [...selection()];
   }
 
-  // Mirrors the selection outward for the transformation panel. Tracking
-  // `selection()` alone keeps this to one call per selection change, and the
-  // roll never reads back what it published, so there is no feedback loop.
-  createEffect(() => {
-    const ids = [...selection()];
-    props.onSelectionChange?.(ids);
-  });
+  // Mirrors the selection outward for the transformation panel. `selection()`
+  // is the compute half's only read, which is what keeps this to one call per
+  // selection change: reading `props.onSelectionChange` from the apply half
+  // leaves it untracked, so swapping the callback does not re-notify. The
+  // notification is also a write into the parent, and the apply half is where
+  // Solid 2 sanctions one. The roll never reads back what it published, so
+  // there is no feedback loop.
+  createEffect(
+    () => [...selection()],
+    (ids) => {
+      props.onSelectionChange?.(ids);
+    },
+  );
 
   function isSelected(note: NoteEvent): boolean {
     return selection().has(note.id);
@@ -530,11 +537,10 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
           <For each={pitches}>
             {(pitch) => (
               <div
-                class="pr-key"
-                classList={{
-                  black: isBlackKey(pitch),
-                  "out-of-key": outOfKey(pitch),
-                }}
+                class={[
+                  "pr-key",
+                  { black: isBlackKey(pitch), "out-of-key": outOfKey(pitch) },
+                ]}
                 style={rowStyle(pitch)}
               >
                 <span class="pr-key-label">{pitchLabel(pitch)}</span>
@@ -580,11 +586,10 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
           <For each={pitches}>
             {(pitch) => (
               <div
-                class="pr-row"
-                classList={{
-                  black: isBlackKey(pitch),
-                  "out-of-key": outOfKey(pitch),
-                }}
+                class={[
+                  "pr-row",
+                  { black: isBlackKey(pitch), "out-of-key": outOfKey(pitch) },
+                ]}
                 style={rowStyle(pitch)}
                 aria-hidden="true"
               />

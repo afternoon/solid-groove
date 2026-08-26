@@ -1,4 +1,4 @@
-import { Match, Switch } from "solid-js";
+import { Match, Switch } from "@solidjs/web";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";

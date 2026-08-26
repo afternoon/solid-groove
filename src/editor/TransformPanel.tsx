@@ -1,4 +1,5 @@
-import { createEffect, createMemo, createSignal, For, type JSX, on } from "solid-js";
+import { For, type JSX } from "@solidjs/web";
+import { createEffect, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
 import type { RawCommandInput, TransactionResult } from "../commands";
@@ -60,12 +61,17 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
   // A refusal describes the clip as it was when the user clicked. Once the clip
   // changes underneath — another transformation, an undo, a remote edit — the
   // message may no longer be true, so it is dropped rather than left to mislead.
+  //
+  // The 1.x `on(..., { defer: true })` wrapper is gone: a split effect's
+  // compute half *is* the dependency declaration, so `props.clip` is the whole
+  // of it, and `defer` is now an option on `createEffect` itself. Clearing the
+  // error is a write, which is why it sits in the apply half.
   createEffect(
-    on(
-      () => props.clip,
-      () => setError(null),
-      { defer: true },
-    ),
+    () => props.clip,
+    () => {
+      setError(null);
+    },
+    { defer: true },
   );
 
   function scopeLabel(): string {

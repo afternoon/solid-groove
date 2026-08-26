@@ -1,5 +1,5 @@
+import { type JSX, Show } from "@solidjs/web";
 import { HiSolidArrowsRightLeft, HiSolidMusicalNote } from "solid-icons/hi";
-import { type JSX, Show } from "solid-js";
 import type { Asset, Clip } from "../domain/entities";
 import { ticksToBars } from "../domain/time";
 import "./LoopInfo.css";
@@ -96,11 +96,14 @@ export default function LoopInfo(props: LoopInfoProps): JSX.Element {
               </div>
             </dl>
             <p class="loop-stretch-note">
-              <HiSolidMusicalNote
-                size={14}
-                aria-hidden="true"
-                class="loop-stretch-icon"
-              />
+              {/* The class rides a wrapper because `solid-icons@1.2.0` types
+                  `IconProps` off `JSX.SVGElementTags` imported from `solid-js`,
+                  which no longer exports a `JSX` namespace — so `class` is not
+                  on the icon's prop type under Solid 2. The span carries the
+                  same two cosmetic declarations to the same effect. */}
+              <span class="loop-stretch-icon">
+                <HiSolidMusicalNote size={14} aria-hidden="true" />
+              </span>
               This loop follows the project tempo by time-stretching, which preserves
               pitch: it plays over more or less time, but stays in the key it was recorded
               in.{" "}

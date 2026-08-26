@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { NoteEvent } from "../domain/entities";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { pitchOf } from "./pianoRollGestures";
@@ -29,8 +29,7 @@ export interface PianoRollNoteProps {
 export default function PianoRollNote(props: PianoRollNoteProps): JSX.Element {
   return (
     <div
-      class="pr-note"
-      classList={{ selected: props.selected }}
+      class={["pr-note", { selected: props.selected }]}
       style={props.style}
       data-event-id={props.note.id}
       title={`Note ${pitchLabel(pitchOf(props.note))}`}

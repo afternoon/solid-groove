@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -44,6 +45,11 @@ function firePointer(
       shiftKey: init.shiftKey ?? false,
     }),
   );
+  // Solid 2 applies writes on the next microtask, so a pointer sequence
+  // dispatched synchronously would have `pointermove` reading the drag state
+  // `pointerdown` had only just set. A browser flushes between the two because
+  // each event is its own task; this restores that interleaving.
+  flush();
 }
 
 const PIXELS_PER_TICK = 0.25;
@@ -310,6 +316,7 @@ describe("PianoRoll", () => {
     // The registry-owned `edit.delete` calls the roll's exposed operation —
     // the roll never listens for the key itself (PRD KEY-01).
     getActions()?.deleteSelection();
+    flush();
     expect(noteEvents(session.project.clips[0])).toHaveLength(0);
     expect(getActions()?.hasSelection()).toBe(false);
   });
@@ -548,6 +555,7 @@ describe("PianoRoll", () => {
 
     const checkbox = container.querySelector(".pr-key-guide input") as HTMLInputElement;
     fireEvent.click(checkbox);
+    flush();
 
     // C major (default root C): the black keys become out-of-key rows.
     expect(container.querySelectorAll(".pr-row.out-of-key").length).toBeGreaterThan(0);

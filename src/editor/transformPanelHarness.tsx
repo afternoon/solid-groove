@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { onTestFinished as onTestCleanup } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -96,13 +96,22 @@ export function clipEdited(transport: RecordingTransport) {
   return transport.events.filter((event) => event.name === "clip_edited");
 }
 
-/** Clicks the panel button whose visible label is `label`. */
+/**
+ * Clicks the panel button whose visible label is `label`.
+ *
+ * Every helper here ends with `flush()`. In a browser each event is its own
+ * task, so Solid 2 has applied the handler's writes before the next thing a
+ * user does; `fireEvent` dispatches synchronously, so without the flush a
+ * following click would read the options — or an assertion would read the
+ * error text — as they stood before.
+ */
 export function clickTransform(label: string): void {
   const button = screen
     .getAllByRole("button")
     .find((candidate) => candidate.textContent === label);
   if (!button) throw new Error(`no ${label} button`);
   fireEvent.click(button);
+  flush();
 }
 
 /** Types into one of the panel's labelled option inputs. */
@@ -110,4 +119,5 @@ export function setOption(label: string, value: string): void {
   fireEvent.input(screen.getByLabelText(label, { exact: false }), {
     target: { value },
   });
+  flush();
 }

@@ -1,4 +1,5 @@
-import { createSignal, type JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { createSignal } from "solid-js";
 import type { Instrument } from "../domain/entities";
 import {
   hasLibrarySampleDrag,
@@ -53,8 +54,7 @@ export default function InstrumentArea(props: InstrumentAreaProps): JSX.Element 
 
   return (
     <section
-      class="instrument-area"
-      classList={{ "instrument-panel-drop-target": dragOver() }}
+      class={["instrument-area", { "instrument-panel-drop-target": dragOver() }]}
       aria-label={`${props.trackName} instrument`}
       // A drop target is claimed on arrival *and* on every move over it. Both
       // matter: the drag-and-drop processing model picks the element a drag is

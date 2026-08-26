@@ -1,4 +1,4 @@
-import { For, type JSX, Show } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
 import { PITCH_CLASS_NAMES, type PitchClass, type ScaleMode } from "./pitchClass";
 
 export interface PianoRollToolbarProps {
