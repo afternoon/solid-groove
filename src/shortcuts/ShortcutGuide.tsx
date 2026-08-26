@@ -1,13 +1,5 @@
-import {
-  createMemo,
-  createSignal,
-  createUniqueId,
-  For,
-  type JSX,
-  onCleanup,
-  onMount,
-  Show,
-} from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { createMemo, createSignal, createUniqueId, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics";
 import { detectPlatform, type ShortcutPlatform } from "./keys";
 import {
@@ -105,16 +97,22 @@ export default function ShortcutGuide(props: ShortcutGuideProps): JSX.Element {
     });
   });
 
-  onMount(() => {
+  // `onSettled` runs once the first render has settled, with `ref` already
+  // assigned — the same point 1.x's `onMount` gave us for the focus move, and
+  // nothing in this component touches focus before it, so `document.activeElement`
+  // is still the element the guide was opened from. The restore rides the
+  // returned cleanup rather than a nested `onCleanup`, which is how Solid 2
+  // pairs teardown with settle-time setup.
+  onSettled(() => {
     const previous = document.activeElement;
     search?.focus();
     (props.analytics ?? defaultAnalytics).logFeatureFirstUse("shortcut_guide");
-    onCleanup(() => {
+    return () => {
       // `KEY-02`: closing "restores focus to the prior editor element".
       if (previous instanceof HTMLElement && previous.isConnected) {
         previous.focus();
       }
-    });
+    };
   });
 
   /** Keeps Tab inside the modal (`KEY-02`: "traps focus while modal"). */

@@ -38,7 +38,7 @@ import type { WaveformCache } from "./waveformCache";
 
 /** Everything the canvas lifecycle needs from the component that hosts it. */
 export interface ArrangementCanvasOptions {
-  /** The live shell, or `null` before `onMount` has created it. */
+  /** The live shell, or `null` before `onSettled` has created it. */
   readonly shell: () => ArrangementShell | null;
   /** The current projection to draw. */
   readonly projection: () => ArrangementProjection;
@@ -78,6 +78,13 @@ export function useArrangementCanvas(
   options: ArrangementCanvasOptions,
 ): ArrangementCanvas {
   let rafHandle: number | null = null;
+  // The viewport observers this hook installed, disconnected together on
+  // disposal. They are collected here rather than each registering its own
+  // `onCleanup` because the caller installs them from `onSettled`, where Solid
+  // 2 forbids `onCleanup` outright — the hook's own owned body is the scope
+  // that outlives the call and can hold their disposal. Same owner, same
+  // lifetime as before, one registration instead of one per observer.
+  const observers = new Set<ResizeObserver>();
 
   function scheduleDraw(): void {
     if (rafHandle !== null) return;
@@ -174,12 +181,16 @@ export function useArrangementCanvas(
       onResize();
     });
     resizeObserver.observe(element);
-    onCleanup(() => resizeObserver.disconnect());
+    observers.add(resizeObserver);
     return true;
   }
 
+  // `onCleanup` in a hook body is the shape Solid 2 keeps it for: custom
+  // primitive internals binding an external resource to the calling owner.
   onCleanup(() => {
     cancelScheduledDraw();
+    for (const observer of observers) observer.disconnect();
+    observers.clear();
   });
 
   return { scheduleDraw, drawDirtyLayers, observeViewport };

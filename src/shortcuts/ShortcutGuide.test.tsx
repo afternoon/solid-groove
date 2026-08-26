@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -42,6 +43,18 @@ function renderGuide(
     />
   ));
   return { transport, onClose };
+}
+
+/**
+ * Fires an event and lets the resulting write land. Solid 2 batches reads until
+ * the microtask flush, so a handler's signal write is not visible in the DOM at
+ * the moment `fireEvent` returns; a browser flushes on its own before the next
+ * paint, a synchronous assertion does not. `flush()` is the sanctioned test-side
+ * "catch up now" — it is not, and must not become, product code.
+ */
+function fireAndFlush(fire: () => void): void {
+  fire();
+  flush();
 }
 
 function rowFor(action: string): HTMLElement {
@@ -109,9 +122,11 @@ describe("search and context filter", () => {
   it("searches by action name", () => {
     renderGuide();
 
-    fireEvent.input(screen.getByLabelText("Search shortcuts"), {
-      target: { value: "quantize" },
-    });
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Search shortcuts"), {
+        target: { value: "quantize" },
+      }),
+    );
 
     expect(document.querySelectorAll("[data-action]")).toHaveLength(1);
     expect(rowFor("clip.quantize")).toBeInTheDocument();
@@ -120,9 +135,11 @@ describe("search and context filter", () => {
   it("searches by key combination", () => {
     renderGuide({ platform: "other" });
 
-    fireEvent.input(screen.getByLabelText("Search shortcuts"), {
-      target: { value: "ctrl+shift" },
-    });
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Search shortcuts"), {
+        target: { value: "ctrl+shift" },
+      }),
+    );
 
     expect(rowFor("edit.redo")).toBeInTheDocument();
     expect(document.querySelector('[data-action="edit.undo"]')).toBeNull();
@@ -131,9 +148,11 @@ describe("search and context filter", () => {
   it("reports when nothing matches", () => {
     renderGuide();
 
-    fireEvent.input(screen.getByLabelText("Search shortcuts"), {
-      target: { value: "sidechain" },
-    });
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Search shortcuts"), {
+        target: { value: "sidechain" },
+      }),
+    );
 
     expect(screen.getByText("No shortcuts match your search.")).toBeVisible();
   });
@@ -160,8 +179,10 @@ describe("search and context filter", () => {
   it("filters to what is available right now on request", () => {
     renderGuide({ contexts: ["editor"] });
 
-    fireEvent.click(
-      screen.getByLabelText("Only shortcuts available here", { exact: false }),
+    fireAndFlush(() =>
+      fireEvent.click(
+        screen.getByLabelText("Only shortcuts available here", { exact: false }),
+      ),
     );
 
     expect(document.querySelector('[data-action="arrangement.split_clip"]')).toBeNull();
