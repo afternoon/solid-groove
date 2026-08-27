@@ -30,6 +30,7 @@ function renderPanel(options: { optedOut?: boolean; refuseEdits?: boolean } = {}
         setProject(history.project);
         return result;
       }}
+      beginGesture={(gestureOptions) => history.beginGesture(gestureOptions)}
       analytics={analytics}
     />
   ));
@@ -103,7 +104,8 @@ describe("MasterPanel", () => {
     addDeviceNamed("Overdrive");
     addDeviceNamed("Reverb");
     expect(chain().map((device) => device.type)).toEqual(["overdrive", "reverb"]);
-    expect(chainItems().map((item) => item.textContent)).toEqual(["Overdrive", "Reverb"]);
+    expect(chainItems()[0]).toHaveTextContent("Overdrive");
+    expect(chainItems()[1]).toHaveTextContent("Reverb");
   });
 
   it("logs the added device's type once, and its chain, with no names", () => {

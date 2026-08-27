@@ -141,6 +141,60 @@
   color: var(--color-text);
 }
 
+/* The card is a <fieldset> for its grouping semantics; the browser's default
+   fieldset chrome is not part of the visual language. */
+.master-device {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* A bypassed device stays fully readable — its controls are still the thing
+   you are about to switch back on — so it dims rather than collapsing. */
+.master-device.bypassed {
+  opacity: 0.55;
+}
+
+.master-device-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.master-device-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.master-device-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border: none;
+  font-family: inherit;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-foreground);
+}
+
+.master-device-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.master-device-action.active {
+  background-color: var(--color-accent, #20c8e8);
+  color: var(--color-background);
+}
+
 .master-chain-empty {
   margin: 0;
   font-size: var(--font-size-tiny);

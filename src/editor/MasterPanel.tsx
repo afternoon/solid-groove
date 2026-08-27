@@ -4,17 +4,19 @@ import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { DeviceOperation } from "../analytics/catalog";
 import type { ErrorCode } from "../analytics/errorCodes";
-import type { CommandIssueCode, RawCommandInput, TransactionResult } from "../commands";
+import type {
+  CommandIssueCode,
+  Gesture,
+  GestureOptions,
+  RawCommandInput,
+  TransactionResult,
+} from "../commands";
 import { addDevice, masterChain } from "../commands";
-import {
-  createDevice,
-  type DeviceTypeId,
-  deviceTypeDefinition,
-  deviceTypes,
-} from "../domain/devices";
+import { createDevice, type DeviceTypeId, deviceTypes } from "../domain/devices";
 import type { Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import { ariaBool } from "../shared/aria";
+import MasterDevice from "./MasterDevice";
 import "./DevicePanel.css";
 
 /** Mints IDs for the devices this panel creates. A module singleton. */
@@ -25,6 +27,7 @@ export interface MasterPanelProps {
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -111,12 +114,16 @@ export default function MasterPanel(props: MasterPanelProps): JSX.Element {
           chain is one stable landmark either way. */}
       <ul class="master-chain" aria-label="Master chain">
         <For each={devices()}>
-          {(device) => (
-            // Its registry label; the card of controls mounts here next.
+          {(device, index) => (
             <li class="master-chain-item">
-              <span class="master-device-name">
-                {deviceTypeDefinition(device.type)?.label ?? device.type}
-              </span>
+              <MasterDevice
+                device={device}
+                index={index()}
+                count={devices().length}
+                edit={edit}
+                dispatch={props.dispatch}
+                beginGesture={props.beginGesture}
+              />
             </li>
           )}
         </For>
