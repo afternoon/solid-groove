@@ -142,11 +142,10 @@ tests/                  # Every suite that is not a src/ unit or component test
 ├── e2e/
 │   ├── support/        # walkthrough.ts — the screenshot capture a flow spec drives
 │   ├── mock/           # Playwright browser E2E suite (in-memory mock backend)
-│   │   ├── playwright.config.ts
-│   │   └── flows/      # One spec per core flow (docs/core-flows.md), named for its CF- id
+│   │   └── playwright.config.ts   # Fast per-surface browser tests. No core flows live here
 │   ├── emulator/       # Playwright browser E2E suite against the Firestore/Auth emulator (FND-009)
 │   │   ├── playwright.config.ts
-│   │   └── flows/      # Core flows whose outcome needs a real backend (saving, reload, sign-in)
+│   │   └── flows/      # EVERY core flow (docs/core-flows.md), one spec named for its CF- id
 │   └── hosted/         # Post-deploy smoke test against the real Hosting URL
 │       └── playwright.config.ts
 └── emulator/           # Firebase Emulator suite (Firestore rules, etc.)
@@ -176,8 +175,8 @@ what matters here is how the flows shape the work:
    that depends on work which does not exist yet gets that dependency broken out
    as its own issue first.
 2. **The flow and its spec land together, before implementation starts** —
-   the entry in `docs/core-flows.md` and `tests/e2e/mock/flows/<ID>.spec.ts` (or
-   `tests/e2e/emulator/flows/<ID>.spec.ts`) in one PR, marked `test.fixme` because the
+   the entry in `docs/core-flows.md` and `tests/e2e/emulator/flows/<ID>.spec.ts`
+   in one PR, marked `test.fixme` because the
    implementation does not exist. That PR is the product owner's, and it is
    reviewed on its own, before anything is built, because it is the contract
    everything else is measured against — which is exactly why the implementation
@@ -325,8 +324,7 @@ bun run test:browser:install  # One-time: download Playwright's browser binaries
 
 # Core flows and PR walkthroughs
 bun run verify:core-flows                    # Every flow in docs/core-flows.md has exactly one spec, and vice versa
-bun run walkthrough:capture                  # Screenshot each step() of the passing tests/e2e/mock/flows specs
-bun run walkthrough:capture:emulator         # The same, for tests/e2e/emulator/flows
+bun run walkthrough:capture                  # Screenshot each step() of the passing tests/e2e/emulator/flows specs
 bun run walkthrough:publish -- --issue <n>   # Push the images and print the Markdown for the PR body
 ```
 

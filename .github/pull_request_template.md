@@ -44,7 +44,7 @@ Closes #<!-- issue number -->
   specs, so it cannot drift from what shipped. Once the fixme markers are gone
   and the flows pass:
 
-      bun run walkthrough:capture              # or walkthrough:capture:emulator
+      bun run walkthrough:capture
       bun run walkthrough:publish -- --issue <n>
 
   Paste the printed Markdown here verbatim, then check the images render.

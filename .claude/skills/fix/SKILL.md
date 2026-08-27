@@ -177,7 +177,7 @@ workflow's agents report their own work, and a self-report is a claim.
 ### The specification
 
 10. **Nothing frozen was touched.**
-    `git diff origin/main..<branch> -- docs/prd.md docs/core-flows.md tests/e2e/mock/flows tests/e2e/emulator/flows`
+    `git diff origin/main..<branch> -- docs/prd.md docs/core-flows.md tests/e2e/emulator/flows`
     must be **empty**. A bug fix does not edit the specification and does not remove
     a `test.fixme` marker — that belongs to the feature delivering the flow. If it
     is not empty, that is the most serious thing you can find here: report it
