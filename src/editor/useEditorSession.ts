@@ -150,9 +150,8 @@ export function useEditorSession(
   // two subscription callbacks below are deliberately left where they are:
   // they run later, on a microtask or a subscriber notification, outside any
   // tracking scope, so they need no special handling.
-  createEffect(
-    () => ({ id: projectId(), repository: repository() }),
-    ({ id, repository: repo }) => {
+  createEffect(() => ({ id: projectId(), repository: repository() }), {
+    effect: ({ id, repository: repo }) => {
       // The one genuine whole-state reset, so it uses the setter's
       // return-a-replacement form (every key is present, which is what that
       // form requires — a returned object's missing keys are deleted). Every
@@ -218,7 +217,30 @@ export function useEditorSession(
         }
       };
     },
-  );
+    // The compute half reads `repository()`, an async memo -- so it can
+    // *reject*, not just be not-ready. Without this arm that rejection is
+    // silent: the compute throws, the effect body never runs, `loading` stays
+    // true, and the editor sits on its spinner for ever with no error surface
+    // and nothing reported. Solid 1's `createResource` propagated a rejected
+    // read to the app's error boundary, so the user at least saw the error
+    // page; keeping that failure visible is what this restores.
+    //
+    // It reuses the load-failure copy rather than inventing a second message:
+    // from the user's side "the repository would not load" and "the project
+    // would not load" are the same event, and `ProjectLoadStates` already
+    // renders this one. `error` runs in the same writable scope as `effect`,
+    // so setting state here is legal.
+    //
+    // Reachable in production via `getProjectRepository()`'s dynamic imports
+    // -- a chunk that 404s after a redeploy is the realistic trigger.
+    error: () => {
+      setState((draft) => {
+        draft.loading = false;
+        draft.notFound = false;
+        draft.error = "Something went wrong while loading this project.";
+      });
+    },
+  });
 
   return {
     state,

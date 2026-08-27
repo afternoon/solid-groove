@@ -253,6 +253,24 @@ export function useLibraryBrowser(
   }
 
   async function selectPack(slug: string | null): Promise<void> {
+    // The pack list is read *first*, before any write, and used from here
+    // rather than re-read after the awaits.
+    //
+    // `setSelectedPackSlug(slug)` below is a write, and under Solid 2 a read
+    // after it in the same tick sees the old value. Nothing reads
+    // `selectedPackSlug()` further down today, so this is not a live bug --
+    // reading up front is what keeps it from becoming one when someone adds a
+    // read here, and it is the same shape the `open()` fix took after that
+    // exact pattern silently broke the panel.
+    //
+    // It does *not* quiet the STRICT_READ_UNTRACKED warnings this function
+    // raises when called from `PackBrowser`'s effect apply half: reading a
+    // reactive value in an untracked callback warns wherever in the function
+    // it happens, so ordering cannot help. Those warnings belong to the wider
+    // question of projections and view models reading store proxies from
+    // untracked scopes, which is a data-flow decision rather than a migration
+    // step.
+    const available = packs();
     setSelectedPackSlug(slug);
     // Selecting a pack narrows the pack facet to it; "all packs" clears it.
     setFilter((prev) => ({ ...prev, packSlug: slug }));
@@ -261,9 +279,9 @@ export function useLibraryBrowser(
       if (slug === null) {
         // Cross-pack search needs every pack's manifest; load the ones that
         // have not loaded yet, isolating any that fail.
-        await Promise.all(packs().map((summary) => loadPack(summary)));
+        await Promise.all(available.map((summary) => loadPack(summary)));
       } else {
-        const summary = packs().find((candidate) => candidate.slug === slug);
+        const summary = available.find((candidate) => candidate.slug === slug);
         if (summary) await loadPack(summary);
       }
     } finally {
