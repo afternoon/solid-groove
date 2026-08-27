@@ -80,7 +80,7 @@
     "walkthrough:capture:emulator": "CAPTURE_WALKTHROUGH=1 firebase emulators:exec --only firestore,auth --project demo-solid-groove \"playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --workers=1 flows\"",
     "walkthrough:publish": "node scripts/walkthrough/publish.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit && biome check",
+    "check": "tsc --noEmit && biome check && bun run verify:no-solid-1",
     "check:fix": "biome check --write",
     "verify:bundle": "node --env-file-if-exists=.env scripts/verify-no-secrets-in-bundle.mjs",
     "verify:budget": "node --env-file-if-exists=.env scripts/verify-bundle-budget.mjs",
@@ -89,7 +89,8 @@
     "verify:test-projects": "node scripts/check-test-projects.mjs",
     "predeploy": "bun run build && bun run verify:bundle && bun run verify:client-config",
     "deploy": "firebase deploy --only hosting,firestore,storage --non-interactive --project \"$FIREBASE_PROJECT_ID\"",
-    "smoke:hosted": "playwright test --config=tests/e2e/hosted/playwright.config.ts"
+    "smoke:hosted": "playwright test --config=tests/e2e/hosted/playwright.config.ts",
+    "verify:no-solid-1": "node scripts/check-no-solid-1.mjs"
   },
   "type": "module",
   "trustedDependencies": [
