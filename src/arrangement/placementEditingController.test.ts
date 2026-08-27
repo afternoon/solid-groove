@@ -121,54 +121,19 @@ describe("discrete operations", () => {
   });
 });
 
-describe("paste anchor (#258)", () => {
+describe("paste anchor", () => {
   /**
-   * Reported from the preview: with a placement selected at bar 2 and the
-   * playhead at bar 1, paste landed at bar 1. The playhead is the right anchor
-   * only "with no explicit target selected", which the handler's own comment
-   * says — a live selection *is* that explicit target, and `edit.paste`
-   * declares `ableton: { kind: "follows" }`, where Ableton pastes at the
-   * selection. Verified against Ableton by the reporter.
+   * Paste lands at the anchor the caller passes — the playhead, from
+   * `edit.paste`. PR #285 briefly anchored it at the selection instead, to
+   * match Ableton; that produced a copy stacked invisibly on its own source,
+   * and dodging the stack needed rules this schema cannot express yet (no
+   * overlap invariant, no overwrite semantics). The anchoring question is
+   * #290/#291; until they are settled, paste stays predictable.
    */
-  it("pastes at the selection, not the playhead, when something is selected", () => {
-    const h = harness();
-    const first = h.placementId();
-    h.editing.select(first);
-    h.editing.copy();
-
-    // The playhead is somewhere else entirely.
-    h.editing.paste(TICKS_PER_BAR * 4);
-
-    const placements = h.getProject().song.placements;
-    expect(placements).toHaveLength(2);
-    const source = placements.find((p) => p.id === first);
-    if (!source) throw new Error("the copied placement is gone");
-    const pasted = placements.find((p) => p.id !== first);
-    // Anchored to the selection at bar 1, not the playhead at bar 5 — and
-    // immediately *after* its own source rather than on top of it. The
-    // preview showed the stacked version: "Copying a clip then pasting it
-    // results in 2 clips at the current location."
-    expect(pasted?.startTicks).toBe(source.startTicks + source.durationTicks);
-  });
-
-  it("cascades a repeated paste rather than stacking copies", () => {
+  it("pastes at the caller's anchor", () => {
     const h = harness();
     h.editing.select(h.placementId());
     h.editing.copy();
-
-    h.editing.paste(TICKS_PER_BAR * 4);
-    h.editing.paste(TICKS_PER_BAR * 4);
-
-    const starts = h.getProject().song.placements.map((p) => p.startTicks);
-    expect(starts).toHaveLength(3);
-    expect(new Set(starts).size).toBe(3);
-  });
-
-  it("still pastes at the caller's anchor when nothing is selected", () => {
-    const h = harness();
-    h.editing.select(h.placementId());
-    h.editing.copy();
-    h.editing.clearSelection();
 
     h.editing.paste(TICKS_PER_BAR * 4);
 
