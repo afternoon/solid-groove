@@ -1,7 +1,12 @@
 import { For, type JSX } from "@solidjs/web";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
-import type { RawCommandInput, TransactionResult } from "../commands";
-import { setParameter } from "../commands";
+import type {
+  Gesture,
+  GestureOptions,
+  RawCommandInput,
+  TransactionResult,
+} from "../commands";
+import { createControlGesture, setParameter } from "../commands";
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import {
@@ -28,6 +33,7 @@ export interface SamplerPanelProps {
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
   audition(): void;
   readonly analytics?: Analytics;
 }
@@ -54,17 +60,19 @@ const ENVELOPE_SLIDERS = [
  * particular one; this panel stays a panel.
  *
  * Parameter edits dispatch a validated `parameter.set` in the `instrument`
- * scope; a continuous slider commits once per gesture, so a drag is one command
- * and emits nothing per tick.
+ * scope. A continuous slider runs the whole drag as one history gesture
+ * (`createControlGesture`): every move applies live, so the fill, the readout
+ * and the audio follow the pointer, and the release commits the lot as one
+ * entry, one revision and one analytics event (#254).
  */
 export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
 
-  function commit(parameterId: string, value: number): void {
-    props.dispatch(
-      setParameter({ scope: "instrument", trackId: props.trackId, parameterId }, value),
+  function parameterCommand(parameterId: string, value: number) {
+    return setParameter(
+      { scope: "instrument", trackId: props.trackId, parameterId },
+      value,
     );
-    analytics().logFeatureFirstUse("sampler");
   }
 
   return (
@@ -105,15 +113,22 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
 
   function sliderFor(definition: (typeof PLAYBACK_SLIDERS)[number]): JSX.Element {
     const value = () => readInstrumentParameter(definition, props.instrument.parameters);
+    const control = createControlGesture({
+      beginGesture: (options) => props.beginGesture(options),
+      dispatch: (commands) => props.dispatch(commands),
+      summary: () => `Set ${definition.label}`,
+      command: (next) => parameterCommand(bareParameterId(definition.id), next),
+    });
     return (
       <FillSlider
         definition={definition}
         value={value()}
         displayValue={formatInstrumentValue(definition, value())}
-        onInput={() => {
-          /* live audio follows on commit; nothing per tick */
+        onInput={(next) => control.input(next)}
+        onCommit={(next) => {
+          control.commit(next);
+          analytics().logFeatureFirstUse("sampler");
         }}
-        onCommit={(next) => commit(bareParameterId(definition.id), next)}
       />
     );
   }

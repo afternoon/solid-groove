@@ -156,6 +156,7 @@ export default function TrackEditor(props: TrackEditorProps) {
               instrument={props.instrument}
               sampleName={props.sampleName}
               dispatch={props.dispatch}
+              beginGesture={props.beginGesture}
               audition={props.auditionInstrument}
             />
           )}
