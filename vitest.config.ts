@@ -148,7 +148,33 @@ export default defineConfig({
       // audio output device — see CLAUDE.md, "`bun run test` needs an audio
       // output device". Isolating it makes that dependency legible instead of
       // a property of the whole suite.
-      appProject("audio", ["src/audio/**/*.test.{ts,tsx}"]),
+      //
+      // `fileParallelism: false` is load-bearing, not tidiness. Twenty files
+      // here render through `Tone.Offline`, which swaps Tone's *global*
+      // context, and the backend underneath is `node-web-audio-api` — a native
+      // addon, so its state is shared per **process**, not per worker thread.
+      // Vitest's module isolation does not reach it. Two renders overlapping
+      // in that native layer intermittently hand one of them back silence,
+      // which surfaces as an assertion about audio that is suddenly ~1e-28.
+      //
+      // Measured rather than guessed, because "flake" is not a diagnosis:
+      // with parallelism the project fails ~3 runs in 22 locally and failed
+      // both of two consecutive CI runs; with it off, 16 for 16 locally. It
+      // reproduces identically on `main` with Solid 1.9.9 and Vite 6 (1 in 8),
+      // so it predates the Solid 2 migration and is not caused by it.
+      //
+      // The cost is ~11s on this project (12s → 23s). That is the right trade
+      // against a suite that is red one run in seven for reasons unrelated to
+      // the change under test — and it is the honest fix, since every test
+      // still runs. Skipping, quarantining or retrying the affected test would
+      // hide a real property of the audio backend.
+      {
+        ...appProject("audio", ["src/audio/**/*.test.{ts,tsx}"]),
+        test: {
+          ...appProject("audio", ["src/audio/**/*.test.{ts,tsx}"]).test,
+          fileParallelism: false,
+        },
+      },
       // Components and the view models behind them.
       appProject("ui", [
         "src/editor/**/*.test.{ts,tsx}",
