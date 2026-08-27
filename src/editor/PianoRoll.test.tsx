@@ -203,6 +203,50 @@ describe("PianoRoll", () => {
     expect(added.trigger.kind === "pitch" && added.trigger.pitch).toBe(62);
   });
 
+  it("ends a drag once when pointerup bubbles from the note to the grid", async () => {
+    // Regression: a pointerup on a note runs the note's own handler and then
+    // the grid's as it bubbles, and both end the drag. Under Solid 1 the
+    // first call's `setDrag(null)` was visible to the second synchronously,
+    // so the `if (drag())` guard short-circuited it. Solid 2 publishes that
+    // write on the next microtask, so the second call saw a live drag, passed
+    // the guard, and committed an already-finished gesture -- the command
+    // layer threw "This gesture has already finished" on every real note drag.
+    //
+    // The assertion is on window `error` events, not on `firePointer`
+    // throwing, because jsdom reports a listener throw to the virtual console
+    // rather than to the caller. That is precisely what made the bug easy to
+    // miss: it surfaced as an *unhandled error* that failed the run while
+    // every assertion in this file still passed.
+    const { session, renderRoll } = await setUp();
+    const { container } = renderRoll();
+    const note = noteEvents(session.project.clips[0])[0];
+    const startRevision = session.project.metadata.revision;
+
+    const escaped: string[] = [];
+    const onError = (event: ErrorEvent) => escaped.push(event.message);
+    window.addEventListener("error", onError);
+    try {
+      const el = noteEl(container, note.id);
+      stubNoteRect(el);
+      firePointer(el, "pointerdown", {
+        button: 0,
+        clientX: tickX(note.startTicks) + 2,
+        clientY: pitchY(60),
+      });
+      firePointer(el, "pointermove", {
+        clientX: tickX(note.startTicks) + 2 + TICKS_PER_SIXTEENTH * PIXELS_PER_TICK,
+        clientY: pitchY(60),
+      });
+      firePointer(el, "pointerup");
+    } finally {
+      window.removeEventListener("error", onError);
+    }
+
+    expect(escaped).toEqual([]);
+    // And the gesture landed exactly once, not once per handler.
+    expect(session.project.metadata.revision).toBe(startRevision + 1);
+  });
+
   it("moves a note as ONE undo transaction across many drag frames", async () => {
     const { session, renderRoll } = await setUp();
     const { container } = renderRoll();

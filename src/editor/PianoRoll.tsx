@@ -108,6 +108,20 @@ interface DragState {
   readonly pointerStartY: number;
   /** Whether any command has been applied yet (for the empty-commit case). */
   moved: boolean;
+  /**
+   * Set the instant the gesture is committed or cancelled, and read as the
+   * re-entrancy guard for both.
+   *
+   * A plain field rather than a signal, deliberately. A pointerup on a note
+   * runs the note's own handler and then the grid's as it bubbles, and both
+   * end the drag. Under Solid 1 the first call's `setDrag(null)` was visible
+   * to the second synchronously, so `if (drag())` short-circuited it. Solid 2
+   * publishes that write on the next microtask, so the second call still sees
+   * the old state, passes the guard, and commits an already-finished gesture
+   * -- which throws. A signal read cannot serve as a same-tick mutex any
+   * more; a plain field can, because it is not batched.
+   */
+  finished: boolean;
 }
 
 interface MarqueeState {
@@ -288,6 +302,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
       pointerStartX: event.clientX,
       pointerStartY: event.clientY,
       moved: false,
+      finished: false,
     });
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
   }
@@ -316,7 +331,8 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 
   function endDrag(): void {
     const state = drag();
-    if (!state) return;
+    if (!state || state.finished) return;
+    state.finished = true;
     setDrag(null);
     if (state.moved) {
       state.gesture.commit();
@@ -588,10 +604,12 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
             else if (marquee()) endMarquee();
           }}
           onPointerCancel={() => {
-            if (drag()) {
-              drag()?.gesture.cancel();
-              setDrag(null);
+            const state = drag();
+            if (state && !state.finished) {
+              state.finished = true;
+              state.gesture.cancel();
             }
+            setDrag(null);
             setMarquee(null);
           }}
         >
