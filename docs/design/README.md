@@ -6,15 +6,15 @@ source of truth.
 
 > **These mocks are directional.** They depict the north-star end state of the
 > product, not the private alpha or any single earlier milestone. Some screens
-> show more than a milestone requires — fuller instrument panels
+> show more than is being built — fuller instrument panels
 > (`05a`, `05b`), a public marketing site (`04`), and the assistant
-> recommending tutorial videos (`07-*`). For *what ships when*, the
-> [PRD](../prd.md) priorities (P0/P1/P2) and delivery milestones are authoritative;
-> the mocks are authoritative for *how it looks and feels* once built. See
-> "On the design mocks" in the PRD. In particular, the inline tutorial-video
-> assistant is a later-vision (P2) capability (PRD AI-08), and the richer
-> synth/sampler controls beyond the PRD's INS-01 baseline are deferred to
-> P1/P2.
+> recommending tutorial videos (`07-*`). For *what ships when*, the open
+> [GitHub issues](https://github.com/afternoon/solid-groove/issues) are
+> authoritative; the mocks are authoritative for *how it looks and feels* once
+> built, and the [PRD](../prd.md) for whether a capability belongs in the
+> product at all. See "On the design mocks" in the PRD. In particular, the
+> inline tutorial-video assistant and the richer synth/sampler controls are
+> later-vision capabilities with no issue behind them yet.
 
 ## Source
 

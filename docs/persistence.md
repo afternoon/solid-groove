@@ -5,7 +5,7 @@
 | Status | Implemented (`FND-004`) |
 | Scope | The Firestore document layout, the repository boundary, optimistic autosave, and the migration harness |
 
-Related documents: [Product requirements](./prd.md) ([PRJ-01…04](./prd.md#71-projects-and-persistence), [9.1](./prd.md#91-committed-alpha-stack), [9.9](./prd.md#99-persistence-boundary)), [testing](./testing.md)
+Related documents: [Product principles](./prd.md), [core flows](./core-flows.md), [testing](./testing.md)
 
 Code: [`src/persistence/`](../src/persistence). The canonical domain model it stores is [`src/domain/`](../src/domain); persistence never redefines a domain rule, it only decides where bytes live.
 
@@ -34,14 +34,14 @@ Conventions that hold on every tier:
 
 ## Packs and pack-qualified assets
 
-Library content is organized into **packs** ([LIB-05](./prd.md#76-sound-library), invariant 12), and `FND-002b` put that in schema v1. The domain model owns the rules; this section records where the bytes live.
+Library content is organized into **packs** (domain invariant 12), and `FND-002b` put that in schema v1. The domain model owns the rules; this section records where the bytes live.
 
 The domain side, in [`src/domain/packs.ts`](../src/domain/packs.ts) and [`entities.ts`](../src/domain/entities.ts):
 
 - A **`Pack`** has a `pak_` ID, name, `major.minor.patch` version, publisher, kind (`factory`, `user`, `third-party`), description, and one rights position covering every asset in it. A pack version is immutable content: republished audio or metadata is a new version. Packs are *library* entities — a project never stores pack records, so nothing in a stored project has to be kept in step with a catalogue.
 - An **`Asset`** names its owning `packId` and the `packVersion` it resolved from. Asset identity is therefore pack-qualified: two packs may hold a sound of the same name without collision, and neither is renamed to avoid the other. The storage reference is still not identity (invariant 8).
 - A project's **pack dependency list** is `metadata.packDependencies`: one `{ packId, version }` per pack its assets resolve from, at most one version per pack. It is *derived*, by `derivePackDependencies(song)`, and `parseProject` enforces both directions — an asset whose pack is undeclared, a declared version that disagrees with the asset, and a declared pack no asset uses are all rejected. Drift is an invalid project, not a project that quietly over-reports.
-- A project's **pack shelf** is `metadata.addedPacks` ([LIB-08](./prd.md#76-sound-library)): the packs the user has *added to this project*, as `{ packId, version }` entries, one version per pack. It answers a different question from the dependency list — "which packs has the user put on the shelf?" rather than "which packs does the project need to open?" — so a user can add a pack, browse it, and not yet use a sound from it, and that pack survives a reload. Unlike `packDependencies` the shelf is *maintained*, by the `pack.add`/`pack.remove` commands, not derived. But it is not free-form: `parseProject` requires it to be a **superset** of the dependency list at matching versions, so every used pack is always shelved. Adding an asset from a new pack shelves that pack automatically (`withDerivedPackDependencies` reconciles the shelf alongside the derived list); removing a pack whose assets are in use is refused, not silently dropped.
+- A project's **pack shelf** is `metadata.addedPacks`: the packs the user has *added to this project*, as `{ packId, version }` entries, one version per pack. It answers a different question from the dependency list — "which packs has the user put on the shelf?" rather than "which packs does the project need to open?" — so a user can add a pack, browse it, and not yet use a sound from it, and that pack survives a reload. Unlike `packDependencies` the shelf is *maintained*, by the `pack.add`/`pack.remove` commands, not derived. But it is not free-form: `parseProject` requires it to be a **superset** of the dependency list at matching versions, so every used pack is always shelved. Adding an asset from a new pack shelves that pack automatically (`withDerivedPackDependencies` reconciles the shelf alongside the derived list); removing a pack whose assets are in use is refused, not silently dropped.
 - An **unavailable pack** is a reported state, never a dangling reference or a substitution. `resolvePackAvailability(project, availablePacks)` returns the missing packs with the affected tracks and clips named, distinguishes "no version of this pack" from "not the version this project pinned", and never falls back to a version that happens to exist. Presenting that state is `LOOP-013`.
 
 Where a dependency is recomputed:

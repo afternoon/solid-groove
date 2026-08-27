@@ -9,7 +9,8 @@ day-to-day loop of checks before you open a pull request.
 | Drive the app by hand against a real backend | "Running against the Firebase Emulator" below |
 | Know which test suite covers what, and how CI gates | [`docs/testing.md`](./docs/testing.md) |
 | Know the stack, code style, and architecture boundaries | [`CLAUDE.md`](./CLAUDE.md) |
-| Know what to build and what "done" means | [`docs/prd.md`](./docs/prd.md) and the [GitHub issues](https://github.com/afternoon/solid-groove/issues) |
+| Know what to build and what "done" means | The [GitHub issues](https://github.com/afternoon/solid-groove/issues) and [`docs/core-flows.md`](./docs/core-flows.md) |
+| Know what the product is for, and what it will not do | [`docs/prd.md`](./docs/prd.md) |
 
 ## Setup
 
@@ -271,9 +272,10 @@ before starting a task, not after. In short:
   `bun run walkthrough:capture` and `walkthrough:publish`, not assembled by hand.
   See [`.github/pull_request_template.md`](./.github/pull_request_template.md)
   and [`docs/testing.md`](./docs/testing.md#walkthrough-screenshots).
-- Don't edit `docs/prd.md` or `docs/core-flows.md` unless the task genuinely
-  revises product behavior — and if you are an agent implementing a task, don't
-  edit them at all.
+- Don't edit `docs/prd.md` or `docs/core-flows.md`. The PRD holds the product's
+  principles, not its features, and a flow is the contract a task is measured
+  against — both belong to the product owner. If a task cannot be done without
+  contradicting one of them, say so on the issue instead.
 
 The full definition of done, including the analytics and privacy requirements
 every user-facing change carries, is in

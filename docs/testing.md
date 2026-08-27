@@ -5,7 +5,7 @@
 | Status | Implemented (`FND-001`) |
 | Scope | Shared tooling all later agents use: dependencies, test suites, CI, and test helpers |
 
-Related documents: [Product requirements](./prd.md) ([9.1](./prd.md#91-committed-alpha-stack), [10](./prd.md#10-non-functional-requirements), [14](./prd.md#14-test-strategy-and-definition-of-done))
+Related documents: [Product principles](./prd.md) ([10 Non-functional requirements](./prd.md#10-non-functional-requirements), [14 Test strategy and definition of done](./prd.md#14-test-strategy-and-definition-of-done)), [core flows](./core-flows.md)
 
 This document is the map of "which suite do I run, and how." It does not restate `CLAUDE.md`'s stack/style conventions, and it is not the local setup guide — [`CONTRIBUTING.md`](../CONTRIBUTING.md) covers installing prerequisites, running the app against the mock backend or a local Firebase Emulator, and the pre-PR loop.
 
@@ -431,7 +431,7 @@ None of `checks`, `browser`, `browser-emulator`, or `emulator` touch the product
 | Status | Implemented (`FND-001b`) |
 | Scope | Firebase Hosting deploy pipeline, `firebase.json` hosting config, the release-SHA stamp, and the hosted post-deploy smoke test |
 
-Related: [PRD `OPS-01`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 9.1](./prd.md#91-committed-alpha-stack), [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements)
+Related: [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements), [`OPS-001`](https://github.com/afternoon/solid-groove/issues)
 
 ### The single hosted environment
 
@@ -533,7 +533,7 @@ Because Hosting release history and Firestore rules revisions are both associate
 | Status | Implemented (`FND-001c`) |
 | Scope | The typed analytics catalog, the logging boundary, the error-reporting boundary and its Sentry sink, consent/opt-out, source-map upload, and release registration |
 
-Related: [PRD `OPS-02`/`OPS-03`](./prd.md#710-deployment-analytics-and-monitoring), [PRD 11](./prd.md#11-success-metrics), [ADR 0001](./adr/0001-sentry-for-error-monitoring.md)
+Related: [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements), [ADR 0001](./adr/0001-sentry-for-error-monitoring.md)
 
 ### What is checked without a deployed build
 
@@ -650,7 +650,7 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 
 **Descoped.**
 
-- **Computing the section 11 primary measure from real events** is deferred to post-alpha (`DEC-011`, PRD sections 11 and 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
+- **Computing the primary success measure from real events** is deferred to post-alpha (`DEC-011`, PRD section 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
 - **Inspecting a delivered error in the Sentry UI** is deferred to post-alpha (`DEC-012`). Delivery itself is verified above: an uncaught error reaches ingest with HTTP 200 from the deployed build, so a crash in front of a real user *is* reported. What is deferred is confirming what the resulting issue looks like — the release SHA on it, a **symbolicated** stack naming `src/` files, the expected tags, a redacted message, one-issue-per-error, and a crash-free session rate under *Releases → Health*. Each is a property of the Sentry console rather than of the app, and every one is already covered by unit tests against a fake SDK (`src/monitoring/sentrySink.test.ts`, `scrub.test.ts`).
   - The half that fails silently in CI *is* confirmed: source maps uploaded for release `9e109fee` with debug IDs paired to every chunk ([run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815)). Symbolication resolves on those debug IDs, so the remaining risk is narrow.
   - **The residual risk, stated plainly:** if scrubbing were misconfigured in a way the unit tests do not model, a real error could carry user content into Sentry before anyone notices. That is the one item here worth revisiting early, and it is why this is recorded as accepted rather than dismissed.
@@ -666,7 +666,7 @@ The two remaining checks are deferred by decision (`DEC-012`), not left unfinish
 
 | Helper | Location | Purpose |
 | --- | --- | --- |
-| `createId`, `createSeededIdFactory`, `isPrefixedId` | `src/shared/id.ts` | The PRD section 9.4 prefixed-ID format (`trk_...`, `clp_...`, ...). `createId` is the production generator; `createSeededIdFactory(seed)` is deterministic for fixtures and round-trip tests. One shared factory, not a separate test-only ID shape. |
+| `createId`, `createSeededIdFactory`, `isPrefixedId` | `src/shared/id.ts` | The prefixed-ID format (`trk_...`, `clp_...`, ...). `createId` is the production generator; `createSeededIdFactory(seed)` is deterministic for fixtures and round-trip tests. One shared factory, not a separate test-only ID shape. |
 | `systemClock`, `createManualClock` | `src/shared/clock.ts` | A `Clock` abstraction so domain code depends on an injectable clock instead of calling `Date.now()` directly. `createManualClock` never advances on its own — tests control time explicitly. |
 | `parseOrThrow`, `safeParseWithIssues`, `finiteNumberInRange` | `src/shared/schema.ts` | The shared Zod entry point PRD section 9.1 commits to for runtime schemas. `parseOrThrow` fails closed (throws `SchemaValidationError`, never returns a partial value) per invariant 6; `finiteNumberInRange` is the shared clamping primitive invariant 4 asks for. `FND-002` builds the schema-v1 domain schemas on top of this rather than inventing its own parse/error shape. |
 | `timeoutScheduler`, `createManualScheduler` | `src/shared/scheduler.ts` | A `Scheduler` abstraction for deferred work (autosave coalescing, backoff), so a test drives the delay explicitly instead of sleeping. Same rationale as `clock.ts`: production code is a consumer too. |

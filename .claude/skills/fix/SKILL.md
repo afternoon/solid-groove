@@ -66,7 +66,7 @@ reporting, so the human gets the complete list rather than one item at a time.
 | 1 | The issue exists and is **open** | `gh issue view <n> --json number,state,title,body,labels,comments` |
 | 2 | It reports a **bug**, not a feature request | the code does something other than what it was specified to do — if the code does what it was specified to do and the issue wants it specified differently, that is a feature, and `/implement-feature` is the pipeline |
 | 3 | It names an **observable wrong behavior** | not "playback feels off"; something you could write an assertion about |
-| 4 | The **correct** behavior is stated or derivable | from `docs/prd.md`, a domain invariant in `CLAUDE.md`, or a registered core flow. Quote the source. If nothing says which side of the divergence is right, this is a product decision wearing a bug's clothes — stop |
+| 4 | The **correct** behavior is stated or derivable | from the issue, a registered core flow, a domain invariant in `CLAUDE.md`, or another documented contract. `docs/prd.md` holds principles only and specifies no behavior. Quote the source. If nothing says which side of the divergence is right, this is a product decision wearing a bug's clothes — stop |
 | 5 | It is **one** bug | several bugs in one issue need one regression test and one PR each; ask for them to be split |
 | 6 | It is **not** labelled `human-input-required`, and no open `DEC-*` gates the answer | `gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by --paginate` |
 | 7 | No open PR already fixes it | `gh pr list --search "<n>" --state open` |
@@ -83,7 +83,8 @@ catching the issues that should never have reached it.
 
 **If any check fails**, stop. Say which failed, quote the relevant part of the
 issue, and state precisely what the human needs to add or decide — a stated
-expected behavior, a PRD reference, a split into separate issues. Do not start
+expected behavior, the flow or contract it follows from, a split into separate
+issues. Do not start
 the workflow, do not fix the gap yourself, and do not post the questions on the
 issue unless asked.
 

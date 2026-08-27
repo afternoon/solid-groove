@@ -19,8 +19,9 @@ Let's build it!
 | --- | --- |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Local development: setup, running against mock/emulator/real backends, and the pre-PR checks |
 | [`CLAUDE.md`](./CLAUDE.md) | Stack, project structure, commands, and code style |
-| [`docs/prd.md`](./docs/prd.md) | Product requirements — authoritative for scope and acceptance criteria |
-| [GitHub issues](https://github.com/afternoon/solid-groove/issues) | Implementation tasks, dependencies, and per-task acceptance criteria (one issue per task). `CLAUDE.md` describes how work is tracked and landed |
+| [`docs/prd.md`](./docs/prd.md) | Product principles — vision, target user, goals and non-goals, sample licensing, and privacy. Not a feature specification |
+| [`docs/core-flows.md`](./docs/core-flows.md) | The user journeys that must work end to end, each with a Playwright spec |
+| [GitHub issues](https://github.com/afternoon/solid-groove/issues) | What to build: scope and acceptance criteria, one issue per task. `CLAUDE.md` describes how work is tracked and landed |
 | [`docs/sample-library.md`](./docs/sample-library.md) | Sound library plan, licensing policy, and the shipped starter library |
 | [`docs/testing.md`](./docs/testing.md) | Which test suite to run, and how |
 

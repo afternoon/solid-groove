@@ -18,9 +18,11 @@ scrutiny than the implementation does, not less.
 
 - **`docs/core-flows.md` is your specification.** The flow's numbered steps are
   your spec's steps, in the same order and the same language.
-- **`docs/prd.md` is authoritative for product behavior.** Where a flow and the
-  PRD disagree, the PRD wins and the flow is wrong — do not paper over it, see
-  "When the flow is wrong" below.
+- **`docs/prd.md` holds the product's principles**, not its features. It does not
+  specify behavior, so it will not tell you what a step should assert. Where a
+  flow would require the product to act against a principle, the principle wins
+  and the flow is wrong — do not paper over it, see "When the flow is wrong"
+  below.
 - The issue body carries the acceptance criteria and names the flows. Read it in
   full first.
 - `tests/e2e/mock/flows/CF-001.spec.ts` is the worked example. Copy its shape.
@@ -78,7 +80,7 @@ Assert the thing the flow actually promises, not a proxy for it.
 ## When the flow is wrong
 
 You will sometimes find that a flow cannot be written as specified: it is
-ambiguous, it contradicts the PRD, it depends on something that does not exist, or
+ambiguous, it contradicts a product principle, it depends on something that does not exist, or
 its outcome is not observable from the UI.
 
 **Stop and report it.** Comment on the issue naming the flow ID, the exact step

@@ -18,9 +18,12 @@ nobody can tell the difference six months later when it regresses.
 - **Your GitHub issue is the report and the live record.** Its body describes the
   symptom, the expected behavior, and how to reproduce it. Read it in full,
   comments included, before you touch code.
-- `docs/prd.md` is authoritative for what the correct behavior *is*. A bug is a
-  divergence from it (or from an invariant in `CLAUDE.md`); if the PRD does not
-  say, see "When the correct behavior is not decided" below.
+- **What the correct behavior *is*** comes from the issue, a registered core flow
+  in `docs/core-flows.md`, or a documented contract (a domain invariant, a
+  boundary described in `CLAUDE.md`, an ADR). `docs/prd.md` holds the product's
+  principles only — useful for judging which of two behaviors fits the product,
+  never a specification. If none of them says, see "When the correct behavior is
+  not decided" below.
 - `docs/core-flows.md` and the flow specs in `tests/e2e/mock/flows` / `tests/e2e/emulator/flows`
   are **frozen**, exactly as they are for a feature. They are the product owner's.
 - `CLAUDE.md` is authoritative for stack conventions, SolidJS patterns, and
@@ -77,8 +80,8 @@ because it closes the issue and moves the bug out of sight.
 
 ## When the correct behavior is not decided
 
-If the issue reports a divergence but neither the PRD nor an invariant says which
-side is correct, that is a product decision, not a bug. Do not pick the behavior
+If the issue reports a divergence but neither a flow, an invariant, nor a
+documented contract says which side is correct, that is a product decision, not a bug. Do not pick the behavior
 that is easier to implement, and do not let a library default become product
 behavior by omission. Report it, name the two candidate behaviors, and stop.
 Likewise if the issue carries `blocked` and an open `DEC-*` gates the answer.
