@@ -30,10 +30,30 @@ export function createControlGesture(props: {
 }) {
   let gesture: Gesture | undefined;
 
+  /**
+   * Opens this control's gesture, or gives up and lets the caller fall back to
+   * plain dispatch.
+   *
+   * `CommandHistory.beginGesture` *throws* when another gesture is already
+   * open, and a control cannot know what the rest of the editor is doing. One
+   * orphaned gesture must not take every other control down with it: the
+   * value still has to land, and the control still has to follow the pointer.
+   * The worst case here is that this drag records one history entry per step
+   * instead of one for the whole gesture — visibly worse to undo, but the
+   * control keeps working.
+   */
+  function openGesture(): Gesture | undefined {
+    try {
+      return props.beginGesture({ summary: props.summary() });
+    } catch {
+      return undefined;
+    }
+  }
+
   return {
     input(value: number): void {
       if (!gesture?.active) {
-        gesture = props.beginGesture({ summary: props.summary() });
+        gesture = openGesture();
       }
       const command = props.command(value);
       if (gesture?.active) {

@@ -155,6 +155,22 @@ describe("SamplerPanel", () => {
     expect(readInstrumentParameter(SAMPLER_PITCH, instrument().parameters)).toBe(7);
   });
 
+  // The orphan half of the same defect: a drag that ends without a `change`
+  // (released off-element, or the panel unmounted by a track switch) used to
+  // leave its gesture open forever, and the next control touched anywhere in
+  // the editor threw out of its own `input` handler and locked up.
+  it("commits its gesture on pointer-up, with no change event (#254)", () => {
+    const { history } = renderLivePanel();
+    const pitch = screen.getByLabelText("Pitch") as HTMLInputElement;
+
+    moveTo(pitch, "5");
+    expect(history.gestureActive).toBe(true);
+
+    fireEvent.pointerUp(pitch);
+    expect(history.gestureActive).toBe(false);
+    expect(history.entries).toHaveLength(1);
+  });
+
   it("auditions on the audition button", () => {
     const { audition } = renderPanel();
     fireEvent.click(screen.getByRole("button", { name: "Audition" }));
