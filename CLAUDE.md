@@ -7,19 +7,20 @@ Solid Groove is a browser-based music production tool designed to make music cre
 ## Tech Stack
 
 ### Core Framework
-- **SolidJS** - Reactive UI framework
-  - Use SolidJS best practices: signals, stores, effects, and resource patterns
-  - Prefer `createStore` from `solid-js/store` for complex state
-  - Use `createEffect` for side effects and `createMemo` for derived values
+- **SolidJS 2** (`solid-js@2.0.0-rc.3`) - Reactive UI framework
+  - Use SolidJS best practices: signals, stores, and effects
+  - Store APIs (`createStore`, `reconcile`, `snapshot`, `storePath`) come from `solid-js` itself — there is no `solid-js/store` subpath
+  - Control flow (`Show`, `For`, `Switch`, `Match`, `Loading`, `Errored`) and the `JSX` types come from **`@solidjs/web`**; `solid-js` no longer exports a `JSX` namespace, and there is no `solid-js/web`. (`@solidjs/web` re-exports the control-flow components from `solid-js`, so either import resolves to the same component — most of the repo names `@solidjs/web`.)
+  - `Suspense` is `Loading` and `ErrorBoundary` is `Errored`; `Errored`'s fallback receives the error as an **accessor** (`(err, reset) => ... err().message`). See `src/app.tsx`
+  - Use `createEffect(compute, apply)` for side effects and `createMemo` for derived values — see "Effects and Cleanup" below, and read it before writing one
   - Utilize Context providers for global state (see the `AuthProvider` pattern in `src/auth/AuthProvider.tsx`)
-- **SolidJS Start** - Meta-framework for SolidJS (currently configured as CSR-only with `ssr: false`)
-- **Vinxi** - Build tool and dev server
+- **`@solidjs/vite-plugin`** - The serving layer, in **client start mode** (`solid({ start: true })` in `vite.config.ts`). It owns the dev server, the generated entries, and the build. There is no `@solidjs/start` release for Solid 2 and there is not meant to be one — Start is a mode of this plugin now, which is why the repo carries no `app.config.ts`, no `vinxi`, and no `src/entry-client.tsx`/`src/entry-server.tsx`
+- **Vite 8** - Build tool and dev server (`vite.config.ts`, which pins port 3000 and documents the client-start-mode decision)
 
 ### Backend & Data
 - **Firebase Authentication** - User authentication and session management
 - **Firebase Firestore** - Real-time database for project storage and synchronization
-- **solid-firebase** - SolidJS integration library for Firebase
-  - Note: Currently using manual subscriptions in dataService rather than solid-firebase hooks
+  - There is no SolidJS/Firebase integration library in the stack; the repository layer owns its own subscriptions (`ProjectRepository.watchProject`)
 
 ### Audio
 - **Tone.js** - Web Audio API library for audio synthesis and playback
@@ -119,10 +120,11 @@ src/
 │   ├── arrangementProjection.ts  # Arrangement renderer's projection (PRD 9.3)
 │   ├── projectSummaryProjection.ts # Dashboard/persistence summary (PRD 9.9)
 │   └── assistantContextProjection.ts # Compact assistant context (PRD 9.8)
-├── routes/             # File-based routing
+├── routes/             # The page modules `router.tsx` points at (NOT file-based routing)
 │   ├── index.tsx            # Home/landing page
 │   ├── dashboard.tsx        # User dashboard
-│   └── projects/[id].tsx    # Project editor route
+│   ├── CatchAll.tsx         # The `*404` page
+│   └── projects/Project.tsx # Project editor route
 ├── shared/             # Helpers production code AND tests depend on
 │   ├── id.ts                # PRD 9.4 prefixed-ID factory (+ seeded test variant)
 │   ├── clock.ts              # Injectable Clock abstraction
@@ -130,8 +132,8 @@ src/
 │   └── schema.ts             # Shared Zod parse helper (PRD 9.1 runtime-schema decision)
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
-├── app.tsx             # Root application component
-├── entry-client.tsx    # Client entry point
+├── app.tsx             # Root application component; the plugin generates the entries from it
+├── router.tsx          # The explicit route table (see "Routing" below)
 ├── firebaseConfig.ts   # Firebase configuration (+ local emulator wiring)
 └── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
 
@@ -346,26 +348,44 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 ### SolidJS Best Practices
 
 1. **State Management**
-   - Use `createStore` with `produce` for complex nested state updates (see `src/editor/useEditorSession.ts`)
+   - Use `createStore` (from `solid-js`) for complex nested state updates (see `src/editor/useEditorSession.ts`). `produce` is gone — mutating the draft **is** the setter's default behaviour: `setState((draft) => { draft.project = next; })`
    - Domain state changes only through the command layer (`src/commands`); a component never mutates a `Project` directly
    - Export setter functions rather than exposing setters directly
    - Keep stores focused on a single domain (auth, editor session, etc.)
 
 2. **Context Providers**
-   - Follow the pattern in `AuthProvider.tsx:20`
+   - Follow the pattern in `AuthProvider.tsx:18`
+   - The context object **is** its own provider: `<AuthContext value={state}>`, not `<AuthContext.Provider value={state}>`
+   - `createContext<T>()` with no default returns `T` from `useContext` and throws `ContextNotFoundError` when no provider is mounted, so there is no `as T` cast to write and no throw-wrapper hook to hand-roll
    - Always provide a typed hook for consuming context (e.g., `useAuth()`)
-   - Type assert the context return value to avoid optional checks
 
 3. **Effects and Cleanup**
-   - Use `createEffect` for subscriptions and side effects
-   - Always call `onCleanup` for subscriptions (see project.ts:30)
+   - `createEffect` is split in two: `createEffect(compute, apply)`. **Only the compute half is tracked.** A reactive read moved into the apply half compiles, runs once, and then silently never re-runs — enumerate every reactive read an effect needs and keep all of them in the compute half
+   - The apply half is where a write belongs: a signal or store write inside a tracking scope throws in dev, and the apply half is not a tracking scope
+   - **Cleanup is the value the apply half returns**, not a nested `onCleanup`. `onCleanup` still exists and is still right at the top level of a component or hook body (see `src/editor/useEditorSession.ts`); what changed is that it no longer nests inside an effect
    - Example pattern:
    ```typescript
-   createEffect(() => {
-     const unsubscribe = service.subscribe(...);
-     onCleanup(() => unsubscribe());
-   });
+   // A subscription with no reactive dependencies: compute returns a constant,
+   // the apply half opens the subscription and returns its teardown.
+   createEffect(
+     () => undefined,
+     () => {
+       const unsubscribe = service.subscribe(...);
+       return () => unsubscribe();
+     },
+   );
+
+   // A subscription keyed on something reactive: that key is read in compute.
+   createEffect(
+     () => props.id(),
+     (id) => {
+       const unsubscribe = service.subscribe(id, ...);
+       return () => unsubscribe();
+     },
+   );
    ```
+   - Worked examples: `src/auth/AuthProvider.tsx` (both shapes), `src/app.tsx` (`SurfaceTracker`, two reads in one compute), `src/components/TelemetryDisclosure.tsx` (a write that is only legal in the apply half)
+   - `onMount` is `onSettled`, and it **returns** its cleanup rather than nesting `onCleanup` (see `src/app.tsx`)
 
 4. **Component Structure**
    - Keep components focused on a single responsibility
@@ -454,13 +474,14 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 
 ### Real-time Synchronization
 - Use Firestore's `onSnapshot` for real-time updates
-- Subscriptions are set up in `createEffect` with proper cleanup
-- Store updates use `produce` for immutable updates
+- Subscriptions are set up in the apply half of a `createEffect`, and their teardown is what that half returns
+- Store updates mutate the draft the setter hands them; `produce` is gone, and draft mutation is the default
 
-### File-based Routing
-- Routes are defined by files in `src/routes/`
-- Dynamic routes use `[param]` syntax
-- Use `useParams()` to access route parameters
+### Routing
+- **There is no file-based routing.** `<FileRoutes />` came from `@solidjs/start/router`, and SolidStart has no Solid 2 release. Router 2 does ship a `fileRoutes()` adapter in `@solidjs/router/fs`, but it reads a `virtual:file-routes` manifest that `@solidjs/vite-plugin` does not emit, so there is nothing for it to consume
+- Routes are an explicit table in `src/router.tsx`: a path and a `lazy()` page module per entry. Every page stays `lazy`, so each route is still its own chunk
+- Page modules live in `src/routes/`, but their filenames are only names — the `[param]`/`[...404]` spelling is gone, because nothing reads it. The patterns live in the table
+- Use `useParams()` from `@solidjs/router` to read route parameters. Router 2 types them as `string | undefined`; narrow with `Show` rather than asserting (see `src/routes/projects/Project.tsx`)
 
 ## Testing
 
@@ -482,9 +503,9 @@ That is an environment problem, not a test bug — **do not "fix" it by mocking 
 
 ## Important Configuration Notes
 
-1. **SSR is disabled** - The app runs client-side only (app.config.ts:4)
+1. **The app runs client-side only** - `solid({ start: true })` with no `ssr` in `vite.config.ts` is the plugin's **client start mode**. `vite build` emits a static `dist/client` whose `index.html` is the shell prerendered once through the built handler; deep links get that same shell by history fallback, and the client `render()`s (never hydrates) into it. The app itself never renders on the server, which is the PRD's client-only decision unchanged
 2. **Module system** - Using ESNext with bundler resolution
-3. **JSX** - Preserved with `solid-js` import source
+3. **JSX** - Preserved with `@solidjs/web` as the import source (`tsconfig.json`'s `jsxImportSource`)
 4. **Strict TypeScript** - All strict checks enabled
 5. **Package Management** - This project uses Bun as the package manager
    - **NEVER commit package-lock.json** - This file is auto-generated by npm and conflicts with Bun's package management
@@ -494,9 +515,8 @@ That is an environment problem, not a test bug — **do not "fix" it by mocking 
 ## Common Tasks
 
 ### Adding a new route
-1. Create file in `src/routes/`
-2. File name becomes the route (e.g., `about.tsx` → `/about`)
-3. Default export is the page component
+1. Create the page module in `src/routes/`, with the component as its default export
+2. Add its path to the `routes` table in `src/router.tsx`, wrapping the import in `lazy()` so it stays its own chunk. The filename does not define the route — the table does
 
 ### Adding a new data model
 1. Define the entity's shape and Zod schema in `src/domain/entities.ts`, and add any invariants it needs to `src/domain/parse.ts`

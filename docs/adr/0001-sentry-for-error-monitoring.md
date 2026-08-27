@@ -2,11 +2,11 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Accepted; decision 4 superseded by [ADR 0002](./0002-sentry-session-replay.md) |
+| Status | Accepted; decision 4 superseded by [ADR 0002](./0002-sentry-session-replay.md), and the SDK package named below superseded by [ADR 0005](./0005-leaving-solidstart-for-the-vite-plugin.md) |
 | Date | 2026-07-25 |
 | Decides | PRD section 9.1 stack row "Error monitoring"; PRD `OPS-03` |
 | Supersedes | The Cloud Functions sink into Cloud Logging described in the first draft of `OPS-03` |
-| Superseded by | [ADR 0002](./0002-sentry-session-replay.md), for decision 4 only — the rest of this ADR stands |
+| Superseded by | [ADR 0002](./0002-sentry-session-replay.md), for decision 4 only. [ADR 0005](./0005-leaving-solidstart-for-the-vite-plugin.md), for the SDK package named in the Decision paragraph only — `@sentry/solidstart` is not installable on Solid 2, so `@sentry/browser` sits behind the same boundary instead. Every numbered decision here otherwise stands |
 | Affects | `FND-001b`, `FND-001c`, `HARD-003`, `DEC-009` |
 
 ## Context
@@ -26,6 +26,8 @@ Separately, PRD section 11 makes **crash-free session rate** a release gate. Com
 ## Decision
 
 Adopt **Sentry** as the error and crash monitoring platform for the private alpha, via the official SolidStart SDK (`@sentry/solidstart`, a wrapper over `@sentry/solid` for the client and `@sentry/node` for the server). Remove the Cloud Functions sink into Cloud Logging from `OPS-03`.
+
+> **The client SDK named here is superseded by [ADR 0005](./0005-leaving-solidstart-for-the-vite-plugin.md).** `@sentry/solidstart` peer-depends on `@solidjs/start@^1.0.0` and Solid 1's router, so it cannot be installed alongside `solid-js@2.0.0-rc.3`. The client uses `@sentry/browser` behind the unchanged boundary of decision 1 — the fallback the risk list below already named. `@sentry/node` for the `AI-001` gateway (decision 5) is unaffected.
 
 Specifically:
 
@@ -56,7 +58,7 @@ Specifically:
   - Session Replay stays off (decision 4 above) — until [ADR 0002](./0002-sentry-session-replay.md), which enables it for product understanding and carries the masking, opt-out, and payload-test conditions that keep this bullet's promise true.
 - **Bundle size** works against the section 10 three-second-interactive budget. The SDK is initialized lazily after first paint with a minimal integration set, and is not loaded on the marketing landing page (`LOOP-001b`).
 - **Ad and tracker blockers block `sentry.io`.** The `OPS-02` fail-open rule applies unchanged: a blocked or failing reporter never affects playback, editing, saving, or export. We do not tunnel reports through our own domain in the alpha — it would reintroduce the Cloud Function this ADR removes. The resulting undercount is documented; note that a blocked SDK loses the session *and* its errors, so the crash-free **ratio** is less biased than the absolute counts.
-- **`@sentry/solidstart` is beta.** Its API is stable but behavior may shift in minor releases. The version is pinned, and the framework wrapper is a convenience over the core browser SDK — if it misbehaves we drop to `@sentry/browser` behind the same unchanged boundary.
+- **`@sentry/solidstart` is beta.** Its API is stable but behavior may shift in minor releases. The version is pinned, and the framework wrapper is a convenience over the core browser SDK — if it misbehaves we drop to `@sentry/browser` behind the same unchanged boundary. *(This is what happened, for a different reason: the Solid 2 migration made the wrapper uninstallable. See [ADR 0005](./0005-leaving-solidstart-for-the-vite-plugin.md).)*
 - **Exit cost is bounded** precisely because of decision 1. Replacing Sentry means replacing a transport behind an interface we own, not re-instrumenting the application.
 
 ## Alternatives considered
