@@ -20,6 +20,7 @@ import type { Analytics } from "../analytics/analytics";
 import type { RawCommandInput } from "../commands/types";
 import type { Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
+import { TICKS_PER_BAR } from "../domain/time";
 import {
   copyPlacements,
   cutPlacements,
@@ -33,9 +34,11 @@ import {
 } from "./placementDuplication";
 import {
   deletePlacements,
+  MAX_ARRANGEMENT_TICKS,
   movePlacement,
   resizePlacement,
   setPlacementLooped,
+  snapToBar,
 } from "./placementGeometry";
 
 /** Applies commands as one transaction; returns whether anything landed. */
@@ -232,6 +235,17 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     return true;
   };
 
+  /** Everything a paste sets, so "is this copy already exactly here?" is one
+   * string comparison. */
+  const identity = (p: {
+    trackId: string;
+    clipId: string;
+    startTicks: number;
+    durationTicks: number;
+    clipOffsetTicks: number;
+  }): string =>
+    `${p.trackId}|${p.clipId}|${p.startTicks}|${p.durationTicks}|${p.clipOffsetTicks}`;
+
   /**
    * Where a paste lands: the start of the current selection when there is one,
    * and only otherwise the caller's anchor (the playhead).
@@ -242,13 +256,42 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
    * the playhead however deliberately the user had picked a spot (#258).
    * `edit.paste` declares `ableton: { kind: "follows" }`, and Ableton pastes
    * at the selection.
+   *
+   * An anchor whose material the clipboard already holds is advanced past it,
+   * one clipboard-span at a time. After a copy the selection *is* the copied
+   * material, so anchoring there re-created it exactly where it already was —
+   * invisible, and stacked, because schema v1 has no overlap invariant.
+   * Ableton settles that by overwriting (a track there cannot hold two clips
+   * at one position); with no overwrite semantics to lean on, landing the copy
+   * immediately after its source is the outcome that is both visible and
+   * non-destructive, and it makes a repeated paste cascade rather than pile up.
    */
   function pasteAnchor(current: Project, fallbackTicks: number): number {
-    if (selected.length === 0) return fallbackTicks;
     const starts = current.song.placements
       .filter((placement) => selected.includes(placement.id))
       .map((placement) => placement.startTicks);
-    return starts.length === 0 ? fallbackTicks : Math.min(...starts);
+    if (starts.length === 0 || clipboard.length === 0) return fallbackTicks;
+
+    const origin = Math.min(...clipboard.map((entry) => entry.startTicks));
+    const span = Math.max(
+      ...clipboard.map((entry) => entry.startTicks + entry.durationTicks - origin),
+    );
+    // Always at least a bar, so the walk below cannot stall on a snap.
+    const step = Math.max(TICKS_PER_BAR, span);
+    const present = new Set(current.song.placements.map(identity));
+    const alreadyThere = (anchor: number): boolean =>
+      clipboard.every((entry) =>
+        present.has(
+          identity({
+            ...entry,
+            startTicks: snapToBar(anchor) + entry.startTicks - origin,
+          }),
+        ),
+      );
+
+    let anchor = Math.min(...starts);
+    while (anchor + step <= MAX_ARRANGEMENT_TICKS && alreadyThere(anchor)) anchor += step;
+    return anchor;
   }
 
   const paste = (targetTicks: number): boolean => {

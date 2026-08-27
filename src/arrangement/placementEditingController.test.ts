@@ -141,9 +141,27 @@ describe("paste anchor (#258)", () => {
 
     const placements = h.getProject().song.placements;
     expect(placements).toHaveLength(2);
-    const selectedStart = placements.find((p) => p.id === first)?.startTicks;
+    const source = placements.find((p) => p.id === first);
+    if (!source) throw new Error("the copied placement is gone");
     const pasted = placements.find((p) => p.id !== first);
-    expect(pasted?.startTicks).toBe(selectedStart);
+    // Anchored to the selection at bar 1, not the playhead at bar 5 — and
+    // immediately *after* its own source rather than on top of it. The
+    // preview showed the stacked version: "Copying a clip then pasting it
+    // results in 2 clips at the current location."
+    expect(pasted?.startTicks).toBe(source.startTicks + source.durationTicks);
+  });
+
+  it("cascades a repeated paste rather than stacking copies", () => {
+    const h = harness();
+    h.editing.select(h.placementId());
+    h.editing.copy();
+
+    h.editing.paste(TICKS_PER_BAR * 4);
+    h.editing.paste(TICKS_PER_BAR * 4);
+
+    const starts = h.getProject().song.placements.map((p) => p.startTicks);
+    expect(starts).toHaveLength(3);
+    expect(new Set(starts).size).toBe(3);
   });
 
   it("still pastes at the caller's anchor when nothing is selected", () => {

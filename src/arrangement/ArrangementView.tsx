@@ -436,6 +436,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
       const hit = shell.hitTestAt(x, y);
       if (hit.kind === "placement") {
         const { tick } = shell.pointToArrangement(x, y);
+        // One selection at a time: the placement becomes it, so the shell's
+        // bar range from an earlier click stops being painted alongside it.
+        shell.setSelection(null);
         editing.beginDrag(hit.placementId, hit.handle, tick);
         activePointerId = event.pointerId;
         (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
@@ -445,6 +448,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
       }
     }
 
+    // ...and the other way round: a bar range is the selection now, so the
+    // placement selection it replaces is dropped rather than left on screen.
+    editing?.clearSelection();
     const selection = shell.handlePointerDown(x, y);
     bumpState();
     if (selection) noteFirstUse();
@@ -495,6 +501,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (!shell) return;
     const track = projection().tracks[rowIndex];
     if (!track) return;
+    editing?.clearSelection();
     shell.setSelection({
       trackId: track.id,
       startTick: 0,
