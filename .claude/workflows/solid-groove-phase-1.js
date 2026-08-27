@@ -17,7 +17,7 @@ export const meta = {
   ],
 }
 
-// Model policy (docs/prd.md section 16): code-writing runs on Opus for every
+// Model policy, set by the product owner: code-writing runs on Opus for every
 // task — implement and fix alike — not just the shared registries and frameworks
 // that once justified it while leaf features ran on Sonnet. Review is always Opus
 // at high effort, and runs before any PR is opened. The mechanical GitHub/git
@@ -82,7 +82,7 @@ const NO_HOSTED_ENV = `
 
 There is no hosted environment. The Firebase project, GA4 property, and Sentry organization are NOT provisioned, and the CI deploy job is gated off. Never invent a project id, DSN, token, or key; never commit a placeholder shaped like a real one; and never report a deploy, smoke test, or delivered event as having happened when it did not.
 
-Your analytics obligation is unchanged and is **not** deferred: emit your task's PRD OPS-02 events through the shared typed catalog in \`src/analytics\`, extend the catalog in this same change if your feature introduces an action it does not cover, and prove each event fires exactly once per action with an automated test. What moved to \`OPS-001\` (after Alpha Milestone 2) is only *observing* those events arriving from a deployed build. Verify against the emulator suite and the gating browsers instead, and treat the hosted half as out of scope rather than unmet.`
+Your analytics obligation is unchanged and is **not** deferred: emit your task's analytics events through the shared typed catalog in \`src/analytics\`, extend the catalog in this same change if your feature introduces an action it does not cover, and prove each event fires exactly once per action with an automated test. What moved to \`OPS-001\` (after Alpha Milestone 2) is only *observing* those events arriving from a deployed build. Verify against the emulator suite and the gating browsers instead, and treat the hosted half as out of scope rather than unmet.`
 
 // A task blocked on an unmade product decision is the one place an agent is most
 // likely to do damage quietly: guessing a retention policy or a template list
@@ -316,7 +316,7 @@ const issueBrief = (t) =>
 
 const implPrompt = (t) => `${brief(IMPLEMENTER)}Implement task ${t.id} - ${t.title}, tracked as issue #${t.issue}.
 
-Read the issue body — it is the specification — with \`gh issue view ${t.issue}\`, and every PRD requirement it links, then implement it in full: product code, tests, fixtures and any documentation the task requires.${NO_HOSTED_ENV}${
+Read the issue body — it is the specification — with \`gh issue view ${t.issue}\`, and every core flow it links, then implement it in full: product code, tests, fixtures and any documentation the task requires.${NO_HOSTED_ENV}${
   t.blocked ? decisionBlocked(resolveDecisions(t.blocked)) : ''
 }${issueBrief(t)}
 
@@ -382,7 +382,7 @@ Return every pull request URL you opened, in stack order.`
 async function runTask(t) {
   // Every task implements and fixes on Opus. The shared registries/frameworks
   // once justified Opus while leaf features ran on Sonnet, but code-writing is now
-  // Opus across the board (see docs/prd.md section 16). Review is Opus too, below.
+  // Opus across the board. Review is Opus too, below.
   const model = 'opus'
 
   // Reserve the issue by flipping its Status to In Progress before any code is

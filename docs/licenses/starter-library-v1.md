@@ -9,7 +9,7 @@
 | Raw redistribution allowed | Yes, without restriction |
 | Recorded | 2026-07-25 |
 
-Related documents: [sample library plan](../sample-library.md) (sections 3.2, 3.4, 14), [product requirements](../prd.md) (LIB-00, LIB-01)
+Related documents: [sample library plan](../sample-library.md) (sections 3.2, 3.4, 14), [product principles](../prd.md) (sample licensing)
 
 This is the immutable evidence record required by [`docs/sample-library.md` section 3.4](../sample-library.md). Every asset in the starter library manifest points at this file through its `license.evidencePath` field.
 

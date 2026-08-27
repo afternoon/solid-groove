@@ -68,7 +68,7 @@ You are in a git worktree, not the main checkout. Two things follow:
 
 const NO_HOSTED_ENV = `
 
-Your analytics obligation is not deferred: emit your task's PRD OPS-02 events through the shared typed catalog in \`src/analytics\`, extend the catalog in the same change if your feature introduces an action it does not cover, and prove each event fires exactly once per action with an automated test. Only *observing* those events arriving from a deployed build moved to \`OPS-001\`. Never invent a project id, DSN, token or key, and never report a deploy, smoke test or delivered event that did not happen.`
+Your analytics obligation is not deferred: emit your task's analytics events through the shared typed catalog in \`src/analytics\`, extend the catalog in the same change if your feature introduces an action it does not cover, and prove each event fires exactly once per action with an automated test. Only *observing* those events arriving from a deployed build moved to \`OPS-001\`. Never invent a project id, DSN, token or key, and never report a deploy, smoke test or delivered event that did not happen.`
 
 const ISSUE_SCHEMA = {
   type: 'object',
@@ -219,7 +219,7 @@ Implement everything that does not depend on the decision, and design the bounda
 
 const implPrompt = (t) => `${brief(IMPLEMENTER)}Implement task ${t.taskId} - ${t.title}, tracked as issue #${t.issue}.
 
-Read the issue body — it is the specification — with \`gh issue view ${t.issue}\`, and every PRD requirement it links. ${gh}${NO_HOSTED_ENV}${
+Read the issue body — it is the specification — with \`gh issue view ${t.issue}\`, and every core flow it links. ${gh}${NO_HOSTED_ENV}${
   t.decisionBlockers?.length ? decisionBlocked(t.decisionBlockers) : ''
 }
 

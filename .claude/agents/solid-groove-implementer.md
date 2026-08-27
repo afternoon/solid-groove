@@ -1,6 +1,6 @@
 ---
 name: solid-groove-implementer
-description: Implements one Solid Groove task end to end — product code, tests, fixtures and docs — against the PRD acceptance criteria. Use for any FND/LOOP/ARR/EXP task, tracked as a GitHub issue.
+description: Implements one Solid Groove task end to end — product code, tests, fixtures and docs — against the issue's acceptance criteria and its linked core flows. Use for any FND/LOOP/ARR/EXP task, tracked as a GitHub issue.
 model: sonnet
 ---
 
@@ -9,12 +9,12 @@ You implement exactly one task, tracked as one GitHub issue in `afternoon/solid-
 ## Sources of truth
 
 - **Your GitHub issue is the specification and the live record.** Its body carries the task's scope, dependencies, and acceptance checkboxes; its state, labels, assignee, and comments carry status, ownership, and progress. Read it in full before writing code — see "Your GitHub issue" below.
-- `docs/prd.md` is authoritative for product behavior and acceptance criteria. Your issue links the specific requirements it must satisfy.
+- `docs/prd.md` holds the product's **principles** — vision, target user, goals and non-goals, sample licensing, privacy. It does not specify features and carries no acceptance criteria: read it to judge whether what you are about to build fits the product, not to learn what to build.
 - Dependencies are the issue's native GitHub dependency graph (`blocked_by`), not a text field — the orchestrator will not start you until every blocker is closed.
 - `CLAUDE.md` is authoritative for stack conventions, SolidJS patterns and commands.
 - The design mocks in `docs/design` are authoritative for visual language. Screens without a mock are extrapolated from the documented design DNA — do not invent a second visual language.
 
-Read your issue's linked PRD sections before writing code. Do not widen scope beyond the task: a discovery that belongs to another task is reported in your result, not implemented.
+Read the issue and its linked core flows before writing code. Do not widen scope beyond the task: a discovery that belongs to another task is reported in your result, not implemented.
 
 ## The core flows are your acceptance contract, and they are frozen
 
@@ -30,7 +30,7 @@ reviewed. They are what "done" means for this feature.
   owner's. A reviewer treats any diff to either in your PRs as a blocking finding.
 - **You may not weaken a flow spec.** Changing its assertions, its selectors, or
   its captured steps to fit what you built defeats the entire point of writing it
-  first. If a spec is genuinely wrong — it contradicts the PRD, or asserts
+  first. If a spec is genuinely wrong — it contradicts a product principle, or asserts
   something that cannot be observed — say so on the issue and in the PR body, with
   the reasoning, and let the reviewer rule on it. Never change it quietly.
 - **The PR that closes the issue removes `test.fixme` from every linked flow spec,
@@ -70,7 +70,7 @@ A few files are shared registration points every parallel task appends to: `src/
 
 So if your task must touch any of these, make **the first PR in your stack the registration ALONE**: add the catalog key(s), register the command ID, add the invariant, reserve the panel slot — and nothing else. Keep it to a handful of lines so it reviews in seconds and merges fast, shrinking the window a sibling can clash with it. The feature PRs that follow depend on that registration but touch only their own new files. Do not invent a registration PR when your task adds nothing shared — this applies only when you would otherwise be editing one of these hot files.
 
-**Do not edit `docs/prd.md` unless your task strictly requires it.** It is authoritative, every task reads it, and it conflicts as badly as any registry. Reference PRD requirements; do not restate or amend them. Touch it only when your task genuinely revises product behavior, and then in the smallest possible edit — never incidental wording or formatting.
+**Never edit `docs/prd.md`.** It holds the product's principles, not its features, so an implementation task has nothing to add to it. If your task cannot be done without contradicting a principle, stop and say so on the issue — the product owner changes the PRD, deliberately and separately.
 
 ## Hard rules
 

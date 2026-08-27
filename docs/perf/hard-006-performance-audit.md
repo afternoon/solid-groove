@@ -6,10 +6,10 @@
 | Scope | Audit of the per-edit and per-frame hot paths against the PRD section 10 performance budgets and section 9.3 arrangement acceptance, plus the fixes the audit surfaced |
 | Gates | Blocks `REL-003` (the private-alpha release gate, issue #80) |
 
-Related documents: [Product requirements](../prd.md) ([section 10 Performance budgets](../prd.md#performance-budgets), [section 9.3 Arrangement performance acceptance](../prd.md#93-arrangement-renderer-decision)), [arrangement renderer spike & bench harness (retired)](../arrangement-renderer-spike.md), [testing](../testing.md).
+Related documents: [PRD section 10 Performance budgets](../prd.md#performance-budgets), [arrangement renderer spike & bench harness (retired)](../arrangement-renderer-spike.md), [testing](../testing.md). The arrangement acceptance budgets came from PRD section 9.3, since removed; the numbers themselves are restated here and in the spike record.
 
-The issue body for #127 is empty; this document, together with the PRD sections
-above, is the specification the task was implemented against. What lands here is
+The issue body for #127 is empty; this document, together with the budgets it
+restates, is the specification the task was implemented against. What lands here is
 a *code* audit — the reproducible, machine-independent half of the milestone.
 The half that needs the physical baseline device and a deployed build (measuring
 the section 9.3 frame budgets on the 2019-MacBook-class machine in the gating

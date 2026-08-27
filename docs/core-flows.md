@@ -18,7 +18,7 @@ written so that someone who has never read the code can follow it by hand.
 
 A core flow is **not**:
 
-- a requirement (that is the PRD's job),
+- a product principle (that is the PRD's job),
 - an acceptance criterion (that is the issue's job),
 - a unit of implementation (that is the PR's job), or
 - an exhaustive test plan. A flow covers the path that must not break, not every
@@ -30,22 +30,27 @@ contains a dependency that should be its own issue.
 
 ## Precedence
 
-`docs/prd.md` remains authoritative for product behavior. A core flow is a
-concrete journey *through* behavior the PRD already specifies; it never
-introduces, weakens, or reinterprets a requirement. **Where a flow and the PRD
-disagree, the PRD wins and the flow is wrong** — fix the flow.
+A registered flow **is** the specification of the behavior it describes. Nothing
+else states it: [`docs/prd.md`](./prd.md) holds the product's principles — vision,
+target user, goals and non-goals, sample licensing, privacy — and no longer
+specifies features, and an issue says what to build for one task rather than what
+the product does.
 
-If writing a flow reveals that the PRD does not actually say what the product
-should do, that is a PRD change, made deliberately and separately, before the
-flow is finalised.
+So a flow answers to two things above it. It must not contradict a **product
+principle** in the PRD — a flow that requires the product to behave against its
+own principles is wrong, and the principle wins. And where a flow and an issue
+disagree about the same behavior, the flow wins: it is the frozen contract the
+implementation is measured against, and an issue that needs different behavior
+needs the flow changed first, deliberately and separately, before the work
+starts.
 
 ## Who edits this file
 
 **The product owner, and no one else.** Implementing and reviewing agents must
 treat this file as read-only:
 
-- An implementer that finds a flow ambiguous, impossible, or contradicted by the
-  PRD **stops and says so** on the issue. It does not edit the flow to match what
+- An implementer that finds a flow ambiguous, impossible, or contradicted by a
+  product principle in the PRD **stops and says so** on the issue. It does not edit the flow to match what
   it built.
 - A reviewer treats any diff to `docs/core-flows.md` in an implementation PR as a
   **blocking finding**. Retro-fitting the specification to the implementation is

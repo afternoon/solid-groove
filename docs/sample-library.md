@@ -7,7 +7,7 @@
 | Licensing posture | CC0-first; explicit raw-redistribution rights required |
 | Primary outcome | A coherent, editable electronic-music palette that supports fast loop creation and complete tracks |
 
-Related document: [Product requirements](./prd.md)
+Related document: [Product principles](./prd.md)
 
 ## 1. Purpose
 

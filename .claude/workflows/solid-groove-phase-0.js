@@ -14,7 +14,7 @@ export const meta = {
   ],
 }
 
-// Model policy, per the decision recorded in docs/prd.md section 16:
+// Model policy, set by the product owner:
 // contract-owning tasks run on Opus because an error there propagates into every
 // dependent task and surfaces late; everything else runs on Sonnet. Review is
 // always Opus, at high effort, and runs before any PR is opened.
@@ -85,7 +85,7 @@ This task provisions no accounts and holds no secrets. Assume the Firebase proje
 
 Implement everything that does not need them: the pipeline, configuration, catalog, boundaries, tests, and documentation, referring to every credential by name through CI secrets and \`.env.example\`.
 
-Hosted-environment verification has been **moved out of Alpha Milestone 0** to task \`OPS-001\`, after Alpha Milestone 2 (PRD section 12, "After Alpha Milestone 2"). Your task block marks the affected checkboxes in bold. Those are **out of scope for you, not unmet by you**: put them in \`outOfScope\`, not \`unmet\`, and satisfy the automated-test half of each one that remains yours. Reserve \`unmet\` for something you were genuinely supposed to deliver and could not.`
+Hosted-environment verification has been **moved out of Alpha Milestone 0** to task \`OPS-001\`, after Alpha Milestone 2. Your task block marks the affected checkboxes in bold. Those are **out of scope for you, not unmet by you**: put them in \`outOfScope\`, not \`unmet\`, and satisfy the automated-test half of each one that remains yours. Reserve \`unmet\` for something you were genuinely supposed to deliver and could not.`
 
 // `issue` is the GitHub issue number that is the task's live record. Only the
 // three tasks that were still in flight when the issue convention was adopted

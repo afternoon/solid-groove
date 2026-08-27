@@ -96,7 +96,7 @@ const TRIAGE_SCHEMA = {
         },
       },
     },
-    expected: { type: 'string', description: 'The correct behavior, and where it is stated (PRD requirement, invariant, flow step)' },
+    expected: { type: 'string', description: 'The correct behavior, and where it is stated (core flow, invariant, issue text)' },
     actual: { type: 'string', description: 'The reported wrong behavior' },
     reproduction: { type: 'string', description: 'How to observe it, and the lowest layer at which it is observable' },
     suspects: { type: 'array', description: 'Files or modules the defect plausibly lives in', items: { type: 'string' } },
@@ -234,12 +234,12 @@ const WALKTHROUGH_SCHEMA = {
 
 const triagePrompt = (issue) => `Triage \`afternoon/solid-groove\` issue **#${issue}** as a bug report. ${gh} This is **read-only** — change nothing, comment nothing, and do not create a branch.
 
-Read the issue in full with \`gh issue view ${issue} --comments\`. Then read enough of the repository, \`docs/prd.md\` and \`docs/core-flows.md\` to judge whether the bug can be acted on. Fetch \`origin/${BASE_BRANCH}\` and read the code there.
+Read the issue in full with \`gh issue view ${issue} --comments\`. Then read enough of the repository, \`docs/prd.md\` (principles only) and \`docs/core-flows.md\` to judge whether the bug can be acted on. Fetch \`origin/${BASE_BRANCH}\` and read the code there.
 
 Your one hard judgement is \`ambiguous\`. Set it **true** if any of these hold:
 
 1. **The symptom is not identifiable.** You cannot tell what observable behavior is wrong, or the report describes a feeling ("playback feels off") with nothing you could assert.
-2. **The correct behavior is not stated and not derivable.** Neither the PRD, a domain invariant in \`CLAUDE.md\`, nor a registered core flow says which side of the divergence is right. This is a product decision wearing a bug's clothes.
+2. **The correct behavior is not stated and not derivable.** Neither the issue, a domain invariant in \`CLAUDE.md\`, nor a registered core flow says which side of the divergence is right. This is a product decision wearing a bug's clothes.
 3. **It is a feature request.** The code does what it was specified to do, and the issue wants it specified differently.
 4. **Materially different fixes are equally defensible** and the issue gives you no way to choose — e.g. a value could be corrected at the source or clamped at the boundary, and the two produce different behavior elsewhere.
 5. **An open \`DEC-*\` decision gates the answer** (check the native \`blocked_by\` graph: \`gh api repos/afternoon/solid-groove/issues/${issue}/dependencies/blocked_by\`).
@@ -251,7 +251,7 @@ A missing reproduction is only ambiguous if you also could not reproduce it your
 
 Return, in \`ambiguities\`, one entry per thing a human must answer, each phrased so a one-line reply unblocks the work, with what specifically cannot be decided without it. If \`ambiguous\` is false, return an empty array.
 
-Also return: \`expected\` (and where it is stated — quote the PRD requirement or invariant), \`actual\`, \`reproduction\` and the lowest layer at which the bug is observable, \`suspects\` (files or modules the defect plausibly lives in — a hypothesis, clearly not a conclusion), \`changesUi\`, \`flows\` (core flow IDs whose behavior this affects, whether or not the issue names them), \`decisionBlockers\`, and \`slug\`: a short kebab-case summary of the bug for a branch name.
+Also return: \`expected\` (and where it is stated — quote the flow step, invariant, or issue text), \`actual\`, \`reproduction\` and the lowest layer at which the bug is observable, \`suspects\` (files or modules the defect plausibly lives in — a hypothesis, clearly not a conclusion), \`changesUi\`, \`flows\` (core flow IDs whose behavior this affects, whether or not the issue names them), \`decisionBlockers\`, and \`slug\`: a short kebab-case summary of the bug for a branch name.
 
 Read every value from GitHub and from the repository at \`origin/${BASE_BRANCH}\`. Do not guess any of it.`
 
@@ -304,7 +304,7 @@ const reviewPrompt = (t, fix, round) => `${brief(REVIEWER)}Review the bug fix fo
   round > 1 ? `\n\nThis is review round ${round}. A previous round returned blocking findings which the fixer has since addressed. Verify the fixes rather than assuming them, and check that fixing them did not introduce something new.` : ''
 }
 
-This is a **bug fix**, not a feature. Your checks on published contracts, the PRD section 9.5 invariants, resource lifecycle, scope and PR size apply unchanged. Check 2a — the frozen acceptance contract — narrows to one thing: \`git diff origin/${BASE_BRANCH}..${fix.branch} -- docs/core-flows.md docs/prd.md tests/e2e/mock/flows tests/e2e/emulator/flows\` should be **empty**. A bug fix does not edit the specification and does not remove a \`test.fixme\` marker; either is blocking.
+This is a **bug fix**, not a feature. Your checks on published contracts, the domain invariants, resource lifecycle, scope and PR size apply unchanged. Check 2a — the frozen acceptance contract — narrows to one thing: \`git diff origin/${BASE_BRANCH}..${fix.branch} -- docs/core-flows.md docs/prd.md tests/e2e/mock/flows tests/e2e/emulator/flows\` should be **empty**. A bug fix does not edit the specification and does not remove a \`test.fixme\` marker; either is blocking.
 
 Four checks are specific to this pipeline, and the first is the one that matters most:
 

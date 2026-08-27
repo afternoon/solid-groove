@@ -76,7 +76,7 @@ Two soft signals worth reporting but not blocking on: the issue carrying the
 `blocked` label with an open `DEC-*` blocker (the workflow handles it — the
 implementer is told not to guess the decision, and the unmet criteria come back
 in the result), and a flow whose steps mention behavior you cannot find anywhere
-in the PRD.
+in the register, the issue, or the code.
 
 **If any blocking check fails**, stop. Report exactly which failed, quote the
 relevant part of the issue or register, and say precisely what the human needs to

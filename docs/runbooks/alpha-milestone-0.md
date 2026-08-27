@@ -19,7 +19,7 @@ Nothing here is optional or downgraded by the move — the acceptance criteria a
 | Backlog task | `OPS-001` — Hosted environment verification and rollback drill |
 | When | After Alpha Milestone 2, at the `REL-001` gate |
 | Closes | Gate **G4.5: Hosted environment verified** |
-| Related | [PRD `OPS-01`/`OPS-02`/`OPS-03`](../prd.md#710-deployment-analytics-and-monitoring), [ADR 0001](../adr/0001-sentry-for-error-monitoring.md), [`docs/testing.md`](../testing.md#deploy) |
+| Related | [PRD 10 Security and privacy](../prd.md#10-non-functional-requirements), [ADR 0001](../adr/0001-sentry-for-error-monitoring.md), [`docs/testing.md`](../testing.md#deploy) |
 
 ## Before you start
 
@@ -289,9 +289,8 @@ results — except the two deferred by `DEC-012`, noted below:
 | `LOOP-016` | Every Alpha Milestone 1 OPS-02 event observed from the deployed build | Part 5 |
 | `REL-001` | Every Alpha Milestone 2 OPS-02 event observed | Part 5 |
 
-Computing the section 11 primary measure from real events was originally part of
-that last row. It is **deferred to post-alpha** (`DEC-011`, PRD sections 11 and
-16): the events still fire and are still covered by automated tests, but the
+Computing the primary success measure from real events was originally part of
+that last row. It is **deferred to post-alpha** (`DEC-011`, PRD section 16): the events still fire and are still covered by automated tests, but the
 measure's thresholds and definition need more consideration than the alpha can
 give them. Do not tick anything here for it, and do not treat its absence as an
 outstanding defect.

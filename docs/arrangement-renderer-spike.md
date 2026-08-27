@@ -5,7 +5,7 @@
 | Status | **Retired.** Implemented by `FND-008`; its disposable UI, its unlinked route, and its measurement harness were removed once the production arrangement renderer landed. |
 | Scope | Historical record of what `FND-008` produced, which parts were retained, and where its baseline numbers came from. |
 
-Related documents: [Product requirements](./prd.md) ([7.5 ARR-01](./prd.md#75-arrangement), [9.3 Arrangement renderer decision](./prd.md#93-arrangement-renderer-decision), [Performance budgets](./prd.md#performance-budgets)), [testing](./testing.md)
+Related documents: [PRD performance budgets](./prd.md#performance-budgets), [testing](./testing.md). The arrangement renderer decision and its acceptance budgets were specified in PRD section 9.3, removed when the PRD became a principles document; that text is in git history, and the numbers this spike measured are recorded below.
 
 `FND-008` built a deliberately disposable hybrid virtualized-DOM/Canvas 2D
 spike to prove out the projection/geometry contracts under a real Canvas
