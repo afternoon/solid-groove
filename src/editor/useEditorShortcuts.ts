@@ -172,8 +172,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       // Pastes at the live playhead position, the same anchor most DAWs use
       // with no explicit target selected.
       run: () => arrangementEditingActions()?.paste(audio.positionTicks()),
-      isEnabled: () =>
-        !showPianoRoll() && (arrangementEditingActions()?.getClipboard().length ?? 0) > 0,
+      // Gated on the clipboard alone (#258), not on which editor is mounted
+      // below the arrangement — the same term the rest of this block shed.
+      // Nothing is stolen from the piano roll: it registers no clipboard
+      // action of its own, so Mod+V has exactly one meaning in the editor.
+      isEnabled: () => (arrangementEditingActions()?.getClipboard().length ?? 0) > 0,
     },
   });
 
