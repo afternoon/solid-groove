@@ -37,6 +37,7 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import "./Mixer.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * The volume fader's own coordinate space: a normalized fader position, not the
@@ -303,7 +304,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         <button
           type="button"
           class="mixer-strip-select"
-          aria-pressed={props.selected ? "true" : "false"}
+          aria-pressed={ariaBool(props.selected)}
           aria-label={`Edit ${props.track.name}`}
           title={`Edit ${props.track.name}`}
           onClick={() => props.onSelect()}
@@ -357,7 +358,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         <button
           type="button"
           class={["mixer-strip-button mixer-mute", { active: props.track.mixer.muted }]}
-          aria-pressed={props.track.mixer.muted ? "true" : "false"}
+          aria-pressed={ariaBool(props.track.mixer.muted)}
           aria-label={`Mute ${props.track.name}`}
           onClick={() =>
             props.dispatch(
@@ -370,7 +371,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         <button
           type="button"
           class={["mixer-strip-button mixer-solo", { active: props.track.mixer.soloed }]}
-          aria-pressed={props.track.mixer.soloed ? "true" : "false"}
+          aria-pressed={ariaBool(props.track.mixer.soloed)}
           aria-label={`Solo ${props.track.name}`}
           onClick={() =>
             props.dispatch(

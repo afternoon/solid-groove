@@ -17,6 +17,7 @@ import {
 } from "../domain/fixtures";
 import type { TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import Mixer from "./Mixer";
 
@@ -102,8 +103,7 @@ describe("Mixer track management (TRK-01)", () => {
     const { history, transport } = renderMixer();
     const before = history.project.song.tracks.length;
 
-    fireEvent.click(screen.getByRole("button", { name: "Add synth track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Add synth track" }));
 
     expect(history.project.song.tracks.length).toBe(before + 1);
     const added = transport.events.filter((e) => e.name === "track_added");
@@ -116,10 +116,8 @@ describe("Mixer track management (TRK-01)", () => {
 
   it("emits the mixer feature key at most once across several adds", () => {
     const { transport } = renderMixer();
-    fireEvent.click(screen.getByRole("button", { name: "Add synth track" }));
-    flush();
-    fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Add synth track" }));
+    clickAndFlush(screen.getByRole("button", { name: "Add sampler track" }));
     expect(transport.events.filter((e) => e.name === "feature_first_use")).toHaveLength(
       1,
     );
@@ -135,8 +133,7 @@ describe("Mixer track management (TRK-01)", () => {
       ["Add drum machine track", "drumMachine", "drum_machine"],
       ["Add synth track", "synth", "synth"],
     ] as const) {
-      fireEvent.click(screen.getByRole("button", { name: button }));
-      flush();
+      clickAndFlush(screen.getByRole("button", { name: button }));
       const added = history.project.song.tracks.at(-1);
       expect(added?.instrument?.kind, button).toBe(kind);
       expect(
@@ -150,8 +147,7 @@ describe("Mixer track management (TRK-01)", () => {
     const { history } = renderMixer();
     const revisionBefore = history.project.metadata.revision;
 
-    fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Add sampler track" }));
 
     const track = history.project.song.tracks.at(-1);
     const clip = history.project.clips.find((c) => c.trackId === track?.id);
@@ -171,8 +167,7 @@ describe("Mixer track management (TRK-01)", () => {
   it("opens a new drum machine with a kit of empty pads", () => {
     const { history } = renderMixer();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add drum machine track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Add drum machine track" }));
 
     const instrument = history.project.song.tracks.at(-1)?.instrument;
     expect(instrument?.kind === "drumMachine" && instrument.pads).toMatchObject([
@@ -186,10 +181,8 @@ describe("Mixer track management (TRK-01)", () => {
   it("names each new track for its instrument, without repeating a name", () => {
     const { history } = renderMixer();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
-    flush();
-    fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Add sampler track" }));
+    clickAndFlush(screen.getByRole("button", { name: "Add sampler track" }));
 
     expect(history.project.song.tracks.map((track) => track.name)).toEqual([
       "BD",
@@ -201,8 +194,7 @@ describe("Mixer track management (TRK-01)", () => {
   it("reports the duplicated track's own instrument on track_added", () => {
     const { transport } = renderMixer(createDrumMachineFixtureProject());
 
-    fireEvent.click(screen.getAllByRole("button", { name: /^Duplicate / })[0]);
-    flush();
+    clickAndFlush(screen.getAllByRole("button", { name: /^Duplicate / })[0]);
 
     expect(
       transport.events.filter((e) => e.name === "track_added").at(-1)?.params
@@ -213,8 +205,7 @@ describe("Mixer track management (TRK-01)", () => {
   it("selects the track it just added, so the editor follows it (#228)", () => {
     const { history, selected } = renderMixer();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add sampler track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Add sampler track" }));
 
     const added = history.project.song.tracks.at(-1);
     expect(selected).toEqual([added?.id]);
@@ -236,8 +227,7 @@ describe("Mixer track management (TRK-01)", () => {
       .filter((c) => c.trackId === first.id)
       .map((c) => c.id);
 
-    fireEvent.click(screen.getByRole("button", { name: `Move ${first.name} right` }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: `Move ${first.name} right` }));
 
     const reordered = history.project.song.tracks;
     // The moved track keeps its id, its clips, and its sends.
@@ -254,16 +244,12 @@ describe("Mixer track management (TRK-01)", () => {
     const { history } = renderMixer(createDrumMachineFixtureProject());
     const trackWithClips = history.project.song.tracks[0];
 
-    fireEvent.click(
-      screen.getByRole("button", { name: `Delete ${trackWithClips.name}` }),
-    );
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: `Delete ${trackWithClips.name}` }));
     // A confirmation dialog appears rather than deleting outright.
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     expect(history.project.song.tracks).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete track" }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Delete track" }));
     expect(history.project.song.tracks.some((t) => t.id === trackWithClips.id)).toBe(
       false,
     );
@@ -276,8 +262,7 @@ describe("Mixer track management (TRK-01)", () => {
       history.project.clips.filter((c) => c.trackId === source.id).map((c) => c.id),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: `Duplicate ${source.name}` }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: `Duplicate ${source.name}` }));
 
     expect(history.project.song.tracks).toHaveLength(3);
     const copy = history.project.song.tracks.find(
@@ -301,13 +286,11 @@ describe("Mixer controls (TRK-02)", () => {
 
     const mute = screen.getByRole("button", { name: `Mute ${track.name}` });
     expect(mute).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(mute);
-    flush();
+    clickAndFlush(mute);
     expect(history.project.song.tracks[0].mixer.muted).toBe(true);
 
     const solo = screen.getByRole("button", { name: `Solo ${track.name}` });
-    fireEvent.click(solo);
-    flush();
+    clickAndFlush(solo);
     expect(history.project.song.tracks[0].mixer.soloed).toBe(true);
   });
 
@@ -449,8 +432,7 @@ describe("Mixer track selection (#228)", () => {
     const select = (name: string) => screen.getByRole("button", { name: `Edit ${name}` });
     expect(select(drums.name)).toHaveAttribute("aria-pressed", "false");
 
-    fireEvent.click(select(breakTrack.name));
-    flush();
+    clickAndFlush(select(breakTrack.name));
 
     expect(selected).toEqual([breakTrack.id]);
     expect(select(breakTrack.name)).toHaveAttribute("aria-pressed", "true");
@@ -474,8 +456,7 @@ describe("Mixer track selection (#228)", () => {
     });
     fireEvent.pointerDown(del);
     flush();
-    fireEvent.click(del);
-    flush();
+    clickAndFlush(del);
 
     expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     // ...and pressing it selected nothing: only the Edit control does that.
@@ -486,8 +467,7 @@ describe("Mixer track selection (#228)", () => {
     const { history, transport } = renderMixer(createDrumMachineFixtureProject());
     const breakTrack = history.project.song.tracks[1];
 
-    fireEvent.click(screen.getByRole("button", { name: `Edit ${breakTrack.name}` }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: `Edit ${breakTrack.name}` }));
 
     const events = transport.events.filter((event) => event.name === "feature_first_use");
     expect(events).toHaveLength(1);

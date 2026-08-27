@@ -6,6 +6,7 @@ import type { Asset, DrumPad, Track } from "../domain/entities";
 import type { AssetId, PadId } from "../domain/ids";
 import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import "./DrumMachinePanel.css";
+import { ariaBool } from "../shared/aria";
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
 const CHOKE_GROUPS = Array.from({ length: 8 }, (_, i) => i);
@@ -180,7 +181,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               <button
                 type="button"
                 class={["pad-flag", { active: pad.mixer.muted }]}
-                aria-pressed={pad.mixer.muted ? "true" : "false"}
+                aria-pressed={ariaBool(pad.mixer.muted)}
                 aria-label={`Mute ${pad.name}`}
                 onClick={() => toggleFlag(pad, "muted")}
                 title="Mute"
@@ -190,7 +191,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               <button
                 type="button"
                 class={["pad-flag", { active: pad.mixer.soloed }]}
-                aria-pressed={pad.mixer.soloed ? "true" : "false"}
+                aria-pressed={ariaBool(pad.mixer.soloed)}
                 aria-label={`Solo ${pad.name}`}
                 onClick={() => toggleFlag(pad, "soloed")}
                 title="Solo"

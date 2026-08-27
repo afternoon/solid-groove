@@ -14,6 +14,7 @@ import type { useLibraryBrowser } from "./useLibraryBrowser";
 // first, exactly as it did when these views imported one another.
 import "./LibraryBrowser.css";
 import "./PackBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 export const TYPE_LABELS: Record<LibraryAssetType, string> = {
   "one-shot": "One-shots",
@@ -109,7 +110,7 @@ export function FacetGroup(props: {
               <button
                 type="button"
                 class={["library-chip", { "library-chip-active": isActive() }]}
-                aria-pressed={isActive() ? "true" : "false"}
+                aria-pressed={ariaBool(isActive())}
                 onClick={() => props.onToggle(value)}
               >
                 {props.display ? props.display(value) : value}

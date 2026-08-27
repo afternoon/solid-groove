@@ -18,6 +18,7 @@ import PackBrowser from "./PackBrowser";
 import type { LibraryTreeGroup, LibraryTreePack } from "./tree";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import "./LibraryBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 export interface LibraryBrowserProps {
   /** Injected in tests; the browser builds its own client/engine otherwise. */
@@ -212,7 +213,7 @@ function PackNode(props: {
       <button
         type="button"
         class="library-node library-node-pack"
-        aria-expanded={expanded() ? "true" : "false"}
+        aria-expanded={ariaBool(expanded())}
         onClick={() => void props.browser.togglePackNode(props.pack.slug)}
       >
         <Chevron expanded={expanded()} />
@@ -285,7 +286,7 @@ function GroupNode(props: {
       <button
         type="button"
         class="library-node library-node-group"
-        aria-expanded={expanded() ? "true" : "false"}
+        aria-expanded={ariaBool(expanded())}
         onClick={() => props.browser.toggleGroupNode(props.group.key)}
       >
         <Chevron expanded={expanded()} />

@@ -5,6 +5,7 @@ import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import Dashboard from "./Dashboard";
 
@@ -205,8 +206,7 @@ describe("Dashboard", () => {
       });
       renderDashboard();
 
-      fireEvent.click(await screen.findByRole("button", { name: /rename/i }));
-      flush();
+      clickAndFlush(await screen.findByRole("button", { name: /rename/i }));
       const input = screen.getByRole("textbox", { name: /rename my groove/i });
       fireEvent.input(input, { target: { value: "Renamed Groove" } });
       flush();
@@ -226,8 +226,7 @@ describe("Dashboard", () => {
       });
       renderDashboard();
 
-      fireEvent.click(await screen.findByRole("button", { name: /rename/i }));
-      flush();
+      clickAndFlush(await screen.findByRole("button", { name: /rename/i }));
       fireEvent.input(screen.getByRole("textbox", { name: /rename my groove/i }), {
         target: { value: "New name" },
       });
@@ -286,8 +285,7 @@ describe("Dashboard", () => {
       listProjects.mockResolvedValue([makeMetadata()]);
       renderDashboard();
 
-      fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
-      flush();
+      clickAndFlush(await screen.findByRole("button", { name: /^delete$/i }));
 
       expect(
         screen.getByRole("alertdialog", { name: /delete this project/i }),
@@ -299,10 +297,8 @@ describe("Dashboard", () => {
       listProjects.mockResolvedValue([makeMetadata()]);
       renderDashboard();
 
-      fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
-      flush();
-      fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
-      flush();
+      clickAndFlush(await screen.findByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
       expect(deleteProject).not.toHaveBeenCalled();
       expect(await screen.findByText("My Groove")).toBeInTheDocument();
@@ -313,8 +309,7 @@ describe("Dashboard", () => {
       deleteProject.mockResolvedValue(undefined);
       const { transport } = renderDashboard();
 
-      fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
-      flush();
+      clickAndFlush(await screen.findByRole("button", { name: /^delete$/i }));
       const dialog = screen.getByRole("alertdialog", {
         name: /delete this project/i,
       });

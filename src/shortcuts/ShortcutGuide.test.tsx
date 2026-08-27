@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -7,6 +6,7 @@ import {
   createRecordingTransport,
   type RecordingTransport,
 } from "../analytics/transport";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import type { ShortcutActionId } from "./registry";
 import ShortcutGuide from "./ShortcutGuide";
@@ -43,18 +43,6 @@ function renderGuide(
     />
   ));
   return { transport, onClose };
-}
-
-/**
- * Fires an event and lets the resulting write land. Solid 2 batches reads until
- * the microtask flush, so a handler's signal write is not visible in the DOM at
- * the moment `fireEvent` returns; a browser flushes on its own before the next
- * paint, a synchronous assertion does not. `flush()` is the sanctioned test-side
- * "catch up now" — it is not, and must not become, product code.
- */
-function fireAndFlush(fire: () => void): void {
-  fire();
-  flush();
 }
 
 function rowFor(action: string): HTMLElement {
@@ -179,10 +167,8 @@ describe("search and context filter", () => {
   it("filters to what is available right now on request", () => {
     renderGuide({ contexts: ["editor"] });
 
-    fireAndFlush(() =>
-      fireEvent.click(
-        screen.getByLabelText("Only shortcuts available here", { exact: false }),
-      ),
+    clickAndFlush(
+      screen.getByLabelText("Only shortcuts available here", { exact: false }),
     );
 
     expect(document.querySelector('[data-action="arrangement.split_clip"]')).toBeNull();

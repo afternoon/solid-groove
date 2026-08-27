@@ -9,6 +9,7 @@ import type { LibraryAsset } from "./manifest";
 // sheet — so it must be imported here, by the component that owns these class
 // names, rather than relied on from whichever view happened to mount first.
 import "./LibraryBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * One auditionable sound. Shared by the panel tree and the pack browser.
@@ -53,7 +54,7 @@ export default function AssetRow(props: {
         aria-label={
           props.active ? `Stop ${props.asset.name}` : `Audition ${props.asset.name}`
         }
-        aria-pressed={props.active ? "true" : "false"}
+        aria-pressed={ariaBool(props.active)}
         onClick={() => (props.active ? props.onStop() : props.onPlay())}
       >
         <Show when={props.active} fallback={<HiSolidPlay size={12} />}>

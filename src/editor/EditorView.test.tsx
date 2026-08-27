@@ -25,6 +25,7 @@ import type { PreviewEngine } from "../library/audition";
 import { LibraryClient } from "../library/libraryClient";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
@@ -386,8 +387,7 @@ describe("EditorView", () => {
     ).not.toBeInTheDocument();
 
     // And back, from the same control on the other strip.
-    fireEvent.click(mixerSelect(drums.name));
-    flush();
+    clickAndFlush(mixerSelect(drums.name));
     expect(
       screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).toBeInTheDocument();
@@ -407,12 +407,11 @@ describe("EditorView", () => {
 
     // The arrangement's track header column: the same click a pointer makes
     // on a row, from the DOM side of the hybrid surface.
-    fireEvent.click(
+    clickAndFlush(
       within(screen.getByLabelText("Tracks")).getByRole("button", {
         name: `Edit ${breakTrack.name}`,
       }),
     );
-    flush();
 
     expect(
       screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),

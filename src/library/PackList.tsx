@@ -7,6 +7,7 @@ import type { LibraryPackSummary } from "./manifest";
 import { EMPTY_PACK_FILTER, filterPacks, type PackKind } from "./search";
 import type { useLibraryBrowser } from "./useLibraryBrowser";
 import "./PackBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * The pack browser's left rail: every pack, narrowed by name and by kind, plus
@@ -68,7 +69,7 @@ export default function PackList(props: {
               <button
                 type="button"
                 class={["library-chip", { "library-chip-active": active() }]}
-                aria-pressed={active() ? "true" : "false"}
+                aria-pressed={ariaBool(active())}
                 onClick={() => toggleKind(kind)}
               >
                 {KIND_LABELS[kind]}
@@ -87,7 +88,7 @@ export default function PackList(props: {
                 "pack-browser-pack-active": browser.selectedPackSlug() === null,
               },
             ]}
-            aria-pressed={browser.selectedPackSlug() === null ? "true" : "false"}
+            aria-pressed={ariaBool(browser.selectedPackSlug() === null)}
             onClick={() => void browser.selectPack(null)}
           >
             <span class="pack-browser-pack-name">All sounds</span>

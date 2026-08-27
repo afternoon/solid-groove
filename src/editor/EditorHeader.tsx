@@ -14,6 +14,7 @@ import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import type { TimeSignature } from "../domain/entities";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { SaveStatus as SaveStatusValue } from "../persistence/autosave";
+import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
 import SaveStatus from "./SaveStatus";
 
@@ -95,7 +96,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="transport-toggle"
           onClick={() => props.onTogglePlay()}
-          aria-pressed={props.isPlaying() ? "true" : "false"}
+          aria-pressed={ariaBool(props.isPlaying())}
           aria-label={props.isPlaying() ? "Stop playback" : "Start playback"}
           title={`${props.isPlaying() ? "Stop" : "Play"} (${props.keyHint(
             "transport.play_stop",
@@ -109,7 +110,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="loop-toggle"
           onClick={() => props.onToggleLoop()}
-          aria-pressed={props.loopEnabled() ? "true" : "false"}
+          aria-pressed={ariaBool(props.loopEnabled())}
           aria-label={props.loopEnabled() ? "Disable loop" : "Enable loop"}
           title={props.loopEnabled() ? "Disable loop" : "Enable loop"}
         >
@@ -119,7 +120,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="metronome-toggle"
           onClick={() => props.onToggleMetronome()}
-          aria-pressed={props.metronomeEnabled() ? "true" : "false"}
+          aria-pressed={ariaBool(props.metronomeEnabled())}
           aria-label={props.metronomeEnabled() ? "Disable metronome" : "Enable metronome"}
           title={`Metronome (${props.keyHint("transport.metronome")})`}
         >
@@ -163,7 +164,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
         type="button"
         class="library-toggle"
         aria-label="Library"
-        aria-pressed={props.libraryOpen() ? "true" : "false"}
+        aria-pressed={ariaBool(props.libraryOpen())}
         title="Library"
         onClick={() => props.onToggleLibrary()}
       >

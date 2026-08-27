@@ -13,6 +13,7 @@ import { TICKS_PER_BAR } from "../domain/time";
 import { EditorSession } from "../editor/EditorSession";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import ArrangementView, { type PlacementEditingActions } from "./ArrangementView";
 
@@ -24,22 +25,6 @@ afterEach(() => {
 const PIXELS_PER_TICK = 0.08;
 const RULER_HEIGHT_PX = 22;
 const ROW_HEIGHT_PX = 28;
-
-/**
- * Every synthetic event in this file goes through one of the two helpers
- * below, and both flush before returning. Solid 2 batches reads until the
- * microtask flush, so a handler's signal write is not visible in the DOM at
- * the moment `fireEvent` returns; a browser flushes on its own before the next
- * paint, a synchronous assertion does not. It is not only the assertions that
- * need it — a *later* event in the same test lands on the DOM this one
- * produced, so a duplicate button still reading `disabled` would swallow the
- * click. `flush()` is the sanctioned test-side "catch up now"; it is not, and
- * must not become, product code.
- */
-function clickAndFlush(element: Element): void {
-  fireEvent.click(element);
-  flush();
-}
 
 /** jsdom's `PointerEvent` drops `clientX`/`button`; a `MouseEvent` bubbles to
  * the same `onPointer*` handlers and carries them, exactly like `PianoRoll`'s

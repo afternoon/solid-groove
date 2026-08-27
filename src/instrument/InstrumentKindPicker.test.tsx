@@ -1,5 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { flush } from "solid-js";
+import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -12,25 +11,11 @@ import {
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import InstrumentKindPicker from "./InstrumentKindPicker";
 
 afterEach(() => cleanup());
-
-/**
- * Click, then let the click's own render land.
- *
- * Solid 2 batches reads, so a signal a handler writes — the pending kind this
- * picker's confirmation reads — is not visible to the DOM until the batch
- * flushes. In the app that gap is the frame between the click and the repaint;
- * in a synchronous test it has to be asked for. Every click goes through here
- * rather than only the ones that currently need it, so a later assertion can
- * never quietly interact with a surface that has not caught up yet.
- */
-function click(element: HTMLElement): void {
-  fireEvent.click(element);
-  flush();
-}
 
 type Dispatch = (
   commands: RawCommandInput | readonly RawCommandInput[],
@@ -85,7 +70,7 @@ describe("InstrumentKindPicker", () => {
 
   it("changes the instrument in one transaction and reports the new type", () => {
     const { dispatch, transport, track } = renderPicker(createSliceFixtureProject());
-    click(screen.getByRole("radio", { name: "Synth" }));
+    clickAndFlush(screen.getByRole("radio", { name: "Synth" }));
 
     const commands = transaction(dispatch);
     expect(commands).toHaveLength(1);
@@ -106,7 +91,7 @@ describe("InstrumentKindPicker", () => {
 
   it("gives a new drum machine pads to load sounds into", () => {
     const { dispatch } = renderPicker(createSliceFixtureProject());
-    click(screen.getByRole("radio", { name: "Drum machine" }));
+    clickAndFlush(screen.getByRole("radio", { name: "Drum machine" }));
 
     const command = transaction(dispatch)[0] as {
       payload: { instrument: { kind: string; pads: readonly unknown[] } };
@@ -117,19 +102,19 @@ describe("InstrumentKindPicker", () => {
 
   it("does nothing when the track's current kind is picked again", () => {
     const { dispatch, transport } = renderPicker(createSliceFixtureProject());
-    click(screen.getByRole("radio", { name: "Sampler" }));
+    clickAndFlush(screen.getByRole("radio", { name: "Sampler" }));
     expect(dispatch).not.toHaveBeenCalled();
     expect(transport.events).toHaveLength(0);
   });
 
   it("confirms before leaving a drum machine whose clips hold pad hits", () => {
     const { dispatch, transport } = renderPicker(createDrumMachineFixtureProject());
-    click(screen.getByRole("radio", { name: "Synth" }));
+    clickAndFlush(screen.getByRole("radio", { name: "Synth" }));
 
     expect(screen.getByRole("alertdialog")).toBeVisible();
     expect(dispatch).not.toHaveBeenCalled();
 
-    click(screen.getByRole("button", { name: "Cancel" }));
+    clickAndFlush(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
     expect(transport.events).toHaveLength(0);
@@ -138,8 +123,8 @@ describe("InstrumentKindPicker", () => {
   it("deletes the stranded hits in the same transaction once confirmed", () => {
     const project = createDrumMachineFixtureProject();
     const { dispatch, transport } = renderPicker(project);
-    click(screen.getByRole("radio", { name: "Synth" }));
-    click(screen.getByRole("button", { name: "Change instrument" }));
+    clickAndFlush(screen.getByRole("radio", { name: "Synth" }));
+    clickAndFlush(screen.getByRole("button", { name: "Change instrument" }));
 
     const commands = transaction(dispatch);
     expect(commands.length).toBeGreaterThan(1);
@@ -155,7 +140,7 @@ describe("InstrumentKindPicker", () => {
 
   it("reports nothing when the transaction is rejected", () => {
     const { transport } = renderPicker(createSliceFixtureProject(), false);
-    click(screen.getByRole("radio", { name: "Synth" }));
+    clickAndFlush(screen.getByRole("radio", { name: "Synth" }));
     expect(transport.events).toHaveLength(0);
   });
 });

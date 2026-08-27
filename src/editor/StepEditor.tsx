@@ -22,6 +22,7 @@ import {
 } from "./stepEditorModel";
 import { createStroke } from "./stepStroke";
 import "./StepEditor.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * Mints note-event IDs for notes the editor paints. A module singleton, not
@@ -286,7 +287,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                               }
                             : undefined
                         }
-                        aria-pressed={active() ? "true" : "false"}
+                        aria-pressed={ariaBool(active())}
                         aria-label={`${lane.name}, step ${step + 1}${
                           active() ? ", on" : ", off"
                         }`}

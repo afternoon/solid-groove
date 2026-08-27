@@ -12,6 +12,7 @@ import { createPianoRollFixtureProject } from "../domain/fixtures";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { EditorSession } from "./EditorSession";
 import PianoRoll, { type PianoRollActions, type PianoRollProps } from "./PianoRoll";
@@ -598,8 +599,7 @@ describe("PianoRoll", () => {
     expect(container.querySelectorAll(".pr-row.out-of-key")).toHaveLength(0);
 
     const checkbox = container.querySelector(".pr-key-guide input") as HTMLInputElement;
-    fireEvent.click(checkbox);
-    flush();
+    clickAndFlush(checkbox);
 
     // C major (default root C): the black keys become out-of-key rows.
     expect(container.querySelectorAll(".pr-row.out-of-key").length).toBeGreaterThan(0);

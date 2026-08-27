@@ -4,6 +4,7 @@ import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectMetadata } from "../domain/entities";
 import { createFactoryContext, createProjectMetadata } from "../domain/factories";
+import { clickAndFlush } from "../testing/events";
 import ProjectList, { type ProjectActionResult } from "./ProjectList";
 
 afterEach(() => cleanup());
@@ -92,8 +93,7 @@ describe("ProjectList", () => {
     const onRename = vi.fn().mockResolvedValue({ ok: true });
     renderWithRouter([project], { onRename });
 
-    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: /rename/i }));
     const input = screen.getByRole("textbox", { name: /rename old name/i });
     fireEvent.input(input, { target: { value: "New Name" } });
     flush();
@@ -107,10 +107,8 @@ describe("ProjectList", () => {
     const onRename = vi.fn();
     renderWithRouter([project], { onRename });
 
-    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
-    flush();
-    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: /rename/i }));
+    clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
     expect(onRename).not.toHaveBeenCalled();
     expect(screen.getByText("Old Name")).toBeInTheDocument();
@@ -124,8 +122,7 @@ describe("ProjectList", () => {
     });
     renderWithRouter([project], { onRename });
 
-    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
-    flush();
+    clickAndFlush(screen.getByRole("button", { name: /rename/i }));
     fireEvent.input(screen.getByRole("textbox", { name: /rename old name/i }), {
       target: { value: "New Name" },
     });
@@ -153,8 +150,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn();
       renderWithRouter([project], { onDelete });
 
-      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-      flush();
+      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
 
       expect(
         screen.getByRole("alertdialog", { name: /delete this project/i }),
@@ -170,8 +166,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn().mockResolvedValue({ ok: true });
       renderWithRouter([project], { onDelete });
 
-      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-      flush();
+      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
       const dialog = screen.getByRole("alertdialog", {
         name: /delete this project/i,
       });
@@ -185,10 +180,8 @@ describe("ProjectList", () => {
       const onDelete = vi.fn();
       renderWithRouter([project], { onDelete });
 
-      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-      flush();
-      fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
-      flush();
+      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
       expect(onDelete).not.toHaveBeenCalled();

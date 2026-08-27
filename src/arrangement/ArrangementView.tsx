@@ -34,6 +34,7 @@ import {
 import { type ArrangementProjection, buildArrangementProjection } from "./projection";
 import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
+import { ariaBool } from "../shared/aria";
 
 /** The placement-editing operations `EditorView` wires into the KEY-01
  * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`. */
@@ -586,7 +587,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
                   <button
                     type="button"
                     class="arrangement-header-select"
-                    aria-pressed={props.selectedTrackId === track.id ? "true" : "false"}
+                    aria-pressed={ariaBool(props.selectedTrackId === track.id)}
                     aria-label={`Edit ${track.name}${track.muted ? " (muted)" : ""}`}
                     onClick={() => selectTrack(track.id)}
                   >

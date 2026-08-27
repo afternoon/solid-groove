@@ -64,6 +64,10 @@ export default function Dashboard(props: DashboardProps = {}) {
   createEffect<ProjectsListing>(
     (previous) => ({
       id: userId(),
+      // Read for its dependency alone; the apply half never destructures it.
+      // The property *is* the read -- delete the line and the "Try again"
+      // button silently stops retrying. `Dashboard.test.tsx`'s "retries the
+      // listing when 'Try again' is clicked" is what catches that.
       retry: retryCount(),
       isFirstRun: previous === undefined,
     }),
