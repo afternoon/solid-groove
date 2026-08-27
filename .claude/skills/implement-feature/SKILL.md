@@ -33,7 +33,7 @@ expensive.
    so and stop — **do not make the check pass by authoring the missing flow
    yourself.** A flow you invented is a specification nobody agreed to, and
    everything downstream would then be measured against it.
-4. **Never edit a flow spec** (`tests/e2e/mock/flows/`, `tests/e2e/emulator/flows/`) during the
+4. **Never edit a flow spec** (`tests/e2e/emulator/flows/`) during the
    postflight. If a spec is wrong, report it.
 5. **Report honestly.** A failed preflight is a normal, useful outcome. A
    preflight you quietly loosened to get to the fun part is not.
@@ -65,7 +65,7 @@ one item at a time.
 | 3 | It links **at least one** core flow ID matching `CF-\d{3}` | search the body |
 | 4 | **Every** linked flow is registered in `docs/core-flows.md` on the **current `main`** | `git fetch origin main` first, then read the file at `origin/main` — not your working copy, which may be stale or carry local edits |
 | 5 | Each registered flow entry is **complete**, not a stub: it names an entrypoint, has numbered steps, and states an outcome | read the entries, per the anatomy in `docs/core-flows.md` |
-| 5a | Each linked flow has a **spec file on `main`** — `tests/e2e/mock/flows/<ID>.spec.ts` or `tests/e2e/emulator/flows/<ID>.spec.ts` | the workflow does not write specs; it refuses to start without them, so this is where a missing one surfaces early |
+| 5a | Each linked flow has a **spec file on `main`** — `tests/e2e/emulator/flows/<ID>.spec.ts` | the workflow does not write specs; it refuses to start without them, so this is where a missing one surfaces early |
 | 6 | The issue has acceptance criteria (checkboxes) | search the body |
 | 7 | Every issue in its `blocked_by` graph is **closed** | `gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by --paginate`, then each blocker's state |
 | 8 | It is **not** labelled `human-input-required` | that label marks a decision only a human resolves |
@@ -154,7 +154,7 @@ self-report is a claim.
 7. **The flows are live.** On the top branch, `bun run verify:core-flows` passes
    and reports **no** flow still at `test.fixme` for the issue's flow IDs.
 8. **The specs were not weakened, or added to.**
-   `git diff origin/main..<top-branch> -- tests/e2e/mock/flows tests/e2e/emulator/flows` shows
+   `git diff origin/main..<top-branch> -- tests/e2e/emulator/flows` shows
    only removed `test.fixme` markers, plus any mechanical change the PR body
    explicitly called out and justified. A changed assertion that the body does
    not mention is a failure — and so is a **new** flow spec file, since the

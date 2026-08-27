@@ -63,8 +63,8 @@ The same applies to `docs/prd.md`, for the same reason and by the same rule.
 1. **Written.** The product owner adds the flow here with a fresh ID, and links
    it from the feature's GitHub issue by ID. If the flow depends on work that does
    not exist yet, that dependency is broken out as its own issue first.
-2. **Specified.** The first PR in the feature's stack adds `tests/e2e/mock/flows/<ID>.spec.ts`
-   (or `tests/e2e/emulator/flows/<ID>.spec.ts`), written from this file, marked
+2. **Specified.** The first PR in the feature's stack adds
+   `tests/e2e/emulator/flows/<ID>.spec.ts`, written from this file, marked
    `test.fixme` because the implementation does not exist. It is reviewed on its
    own — it is the acceptance contract for everything that follows — and it merges
    green, because a `fixme` test does not fail.
@@ -81,16 +81,24 @@ quietly land with its flow permanently skipped.
 
 ## Which suite a flow belongs in
 
-- **`tests/e2e/mock/flows/`** — the in-memory mock backend. The default. Fast, no external
-  dependency. It **cannot** prove anything survives a reload: the mock repository
-  is a fresh, empty store on every page load.
-- **`tests/e2e/emulator/flows/`** — a real (emulated) Firestore and Auth. Use this for
-  any flow whose outcome involves saving, reloading, revisions, sign-in, or
-  security rules.
+**`tests/e2e/emulator/flows/`, and nowhere else.** Every core flow runs against
+a real (emulated) Firestore and Auth.
 
-A flow that says "and it is still there tomorrow" belongs in the second one. See
-[`docs/testing.md`](./testing.md) for what each suite covers and how CI gates on
-them.
+There is no choice to make here, and that is deliberate. A journey is not
+finished when the screen looks right — it is finished when the producer comes
+back tomorrow and their work is still there. So **persistence is part of every
+flow's outcome**, and every flow ends by reloading the page and finding what it
+made. The in-memory mock backend cannot answer that: it is a fresh, empty store
+on every page load, so a reload there proves the opposite of what a flow needs
+to claim.
+
+The mock browser E2E suite (`tests/e2e/mock/`) remains, and remains the right
+home for a fast, dependency-free browser test of a single surface. It just does
+not hold flows. `bun run verify:core-flows` enforces the single location, and
+`bun run walkthrough:capture` captures from it.
+
+See [`docs/testing.md`](./testing.md) for what each suite covers and how CI gates
+on them.
 
 ## Anatomy of a flow
 
@@ -101,7 +109,7 @@ browser, it is written at the wrong altitude.
 ```markdown
 ### CF-0NN — Short title in the user's language
 
-**Issue:** #NN · **Suite:** `tests/e2e/mock/flows/CF-0NN.spec.ts` · **Entrypoint:** the public landing page
+**Issue:** #NN · **Suite:** `tests/e2e/emulator/flows/CF-0NN.spec.ts` · **Entrypoint:** the public landing page
 
 **Preconditions:** what must already be true. "None" is a good answer.
 
@@ -128,7 +136,7 @@ separate errand.
 ### CF-001 — A visitor with no account reaches a playing loop
 
 **Issue:** — (pre-dates this register; describes shipped `FND-009`/`LOOP-010`
-behavior) · **Suite:** `tests/e2e/mock/flows/CF-001.spec.ts` · **Entrypoint:** the public
+behavior) · **Suite:** `tests/e2e/emulator/flows/CF-001.spec.ts` · **Entrypoint:** the public
 landing page
 
 **Preconditions:** none. No account, no existing project.
@@ -154,7 +162,7 @@ mock backend, which is empty again on the next page load.
 
 ### CF-002 — A producer turns a loop into a song outline
 
-**Issue:** #61 · **Suite:** `tests/e2e/mock/flows/CF-002.spec.ts` · **Entrypoint:** the
+**Issue:** #61 · **Suite:** `tests/e2e/emulator/flows/CF-002.spec.ts` · **Entrypoint:** the
 project dashboard
 
 **Preconditions:** signed in as a guest with no projects — where CF-001 ends.
@@ -197,7 +205,7 @@ mean a break in any of those surfaces will surface here as an `ARR-003` failure.
 
 ### CF-003 — A producer names and rearranges the parts of their song
 
-**Issue:** #61 · **Suite:** `tests/e2e/mock/flows/CF-003.spec.ts` · **Entrypoint:** the
+**Issue:** #61 · **Suite:** `tests/e2e/emulator/flows/CF-003.spec.ts` · **Entrypoint:** the
 project dashboard
 
 **Preconditions:** signed in as a guest with no projects.

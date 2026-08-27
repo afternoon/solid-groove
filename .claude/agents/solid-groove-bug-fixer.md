@@ -24,7 +24,7 @@ nobody can tell the difference six months later when it regresses.
   principles only — useful for judging which of two behaviors fits the product,
   never a specification. If none of them says, see "When the correct behavior is
   not decided" below.
-- `docs/core-flows.md` and the flow specs in `tests/e2e/mock/flows` / `tests/e2e/emulator/flows`
+- `docs/core-flows.md` and the flow specs in `tests/e2e/emulator/flows`
   are **frozen**, exactly as they are for a feature. They are the product owner's.
 - `CLAUDE.md` is authoritative for stack conventions, SolidJS patterns, and
   commands.

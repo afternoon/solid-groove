@@ -93,7 +93,7 @@ Before you report success, all of these must hold:
 - **If your task changes anything a user sees**, the PR that closes the issue carries a screenshot walkthrough. You do not assemble it by hand: it is a byproduct of the now-passing flow specs. Once the `test.fixme` markers are gone and the flows pass, run
 
   ```sh
-  bun run walkthrough:capture              # or walkthrough:capture:emulator
+  bun run walkthrough:capture              # every flow runs against the emulator
   bun run walkthrough:publish -- --issue <n>
   ```
 

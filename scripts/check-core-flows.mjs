@@ -3,6 +3,10 @@
  * Guard the 1:1 mapping between the core flows registered in
  * `docs/core-flows.md` and the E2E specs that reproduce them.
  *
+ * Every core flow lives in `tests/e2e/emulator/flows/` and nowhere else
+ * (`TEST-001`): a flow's outcome includes surviving a reload, which only a real
+ * backend can answer.
+ *
  * `docs/core-flows.md` is the durable QA record and the specification a feature
  * is accepted against, so the expensive failure is *silent drift*: a flow that
  * nobody ever wrote a test for, a spec asserting a journey the register no
@@ -27,7 +31,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const REGISTER = "docs/core-flows.md";
-const SUITES = ["tests/e2e/mock/flows", "tests/e2e/emulator/flows"];
+const SUITE = "tests/e2e/emulator/flows";
 const FLOW_HEADING = /^### (CF-\d{3}) — (.+)$/gm;
 
 const failures = [];
@@ -62,30 +66,36 @@ if (registered.size === 0) notes.push(`${REGISTER} registers no flows yet.`);
 
 // Specs on disk, keyed by the ID in their filename.
 const specs = new Map();
-for (const suite of SUITES) {
-  if (!existsSync(suite)) continue;
-  for (const file of readdirSync(suite)) {
-    const match = file.match(/^(CF-\d{3})\.spec\.ts$/);
-    if (!match) {
-      failures.push(
-        `${join(suite, file)}: every file in a flows/ directory is one core-flow spec named for its ID, e.g. CF-001.spec.ts.`,
-      );
-      continue;
-    }
-    const [, id] = match;
-    const path = join(suite, file);
-    if (specs.has(id))
-      failures.push(
-        `${id} has two specs: ${specs.get(id).path} and ${path}. A flow has exactly one.`,
-      );
-    else specs.set(id, { path, code: stripComments(readFileSync(path, "utf8")) });
+for (const file of existsSync(SUITE) ? readdirSync(SUITE) : []) {
+  const match = file.match(/^(CF-\d{3})\.spec\.ts$/);
+  if (!match) {
+    failures.push(
+      `${join(SUITE, file)}: every file in a flows/ directory is one core-flow spec named for its ID, e.g. CF-001.spec.ts.`,
+    );
+    continue;
   }
+  const [, id] = match;
+  const path = join(SUITE, file);
+  if (specs.has(id))
+    failures.push(
+      `${id} has two specs: ${specs.get(id).path} and ${path}. A flow has exactly one.`,
+    );
+  else specs.set(id, { path, code: stripComments(readFileSync(path, "utf8")) });
 }
+
+// A flow left behind in the retired mock flows directory would otherwise be
+// invisible here: it is not in SUITE, so its ID reads as "registered with no
+// spec" and the real cause — the wrong directory — goes unsaid.
+const RETIRED_SUITE = "tests/e2e/mock/flows";
+if (existsSync(RETIRED_SUITE))
+  failures.push(
+    `${RETIRED_SUITE} still exists. Every core flow lives in ${SUITE} (TEST-001), because a flow's outcome includes surviving a reload and the mock backend cannot answer one.`,
+  );
 
 for (const [id, title] of registered)
   if (!specs.has(id))
     failures.push(
-      `${id} ("${title}") is registered in ${REGISTER} but has no spec. Add tests/e2e/mock/flows/${id}.spec.ts (or tests/e2e/emulator/flows/${id}.spec.ts), marked test.fixme until it passes.`,
+      `${id} ("${title}") is registered in ${REGISTER} but has no spec. Add ${join(SUITE, `${id}.spec.ts`)}, marked test.fixme until it passes.`,
     );
 
 for (const [id, spec] of specs) {

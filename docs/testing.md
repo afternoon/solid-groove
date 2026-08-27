@@ -75,9 +75,12 @@ Each suite is isolated on purpose: `bun run test` never needs a browser or an em
 
 A **core flow** is one user journey that must work end to end when a feature is
 finished, registered in [`docs/core-flows.md`](./core-flows.md) with a stable ID
-(`CF-001`, …). Flows are not a fourth suite: they live *inside* the two browser
-suites, in `tests/e2e/mock/flows/` and `tests/e2e/emulator/flows/`, one spec per flow named for
-its ID. What makes them different is their role, not their runner —
+(`CF-001`, …). Flows are not a fourth suite: they live *inside* the emulator
+browser suite, in `tests/e2e/emulator/flows/`, one spec per flow named for its
+ID. All of them do, and nowhere else — persistence is part of every flow's
+outcome, so every flow ends by reloading the page, and the mock backend is a
+fresh, empty store on every page load. What makes them different is their role,
+not their runner —
 
 - they are written **before** the implementation, from the register, and reviewed
   on their own as the first PR in a feature's stack;
@@ -100,8 +103,7 @@ screenshot per `step()` call, so the images cannot drift from what shipped and
 always start where the flow starts.
 
 ```sh
-bun run walkthrough:capture                  # tests/e2e/mock/flows, Chromium, one worker
-bun run walkthrough:capture:emulator         # tests/e2e/emulator/flows
+bun run walkthrough:capture                  # tests/e2e/emulator/flows, Chromium, one worker
 bun run walkthrough:publish -- --issue 123   # push the images, print the Markdown
 ```
 

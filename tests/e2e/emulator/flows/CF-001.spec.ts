@@ -25,9 +25,11 @@ import { walkthrough } from "../../support/walkthrough";
  * PR that closes the issue removes the marker in the same diff that makes it
  * pass.
  *
- * Runs against the in-memory mock backend (see `playwright.config.ts`), which
- * is a fresh, empty store on every page load — so this flow deliberately proves
- * nothing about persistence. `tests/e2e/emulator/` is where that belongs.
+ * Runs against the Firestore/Auth emulator, like every core flow (`TEST-001`):
+ * a flow's outcome includes surviving a reload, and the in-memory mock backend
+ * this spec used to live over is a fresh, empty store on every page load. The
+ * journey itself is unchanged — CF-001's register entry still claims nothing
+ * about persistence, and this spec still asserts nothing about it.
  */
 test.describe("CF-001", () => {
   test("a visitor with no account reaches a playing loop", async ({

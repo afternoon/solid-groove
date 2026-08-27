@@ -25,7 +25,7 @@ scrutiny than the implementation does, not less.
   below.
 - The issue body carries the acceptance criteria and names the flows. Read it in
   full first.
-- `tests/e2e/mock/flows/CF-001.spec.ts` is the worked example. Copy its shape.
+- `tests/e2e/emulator/flows/CF-001.spec.ts` is the worked example. Copy its shape.
 
 **You may not edit `docs/core-flows.md` or `docs/prd.md`.** They are the product
 owner's. A spec that quietly disagrees with the register is the one failure this
@@ -35,11 +35,10 @@ whole convention exists to prevent.
 
 One spec per flow, named for its ID:
 
-- `tests/e2e/mock/flows/<ID>.spec.ts` — against the in-memory mock backend. The default.
-- `tests/e2e/emulator/flows/<ID>.spec.ts` — against the emulated Firestore/Auth. Use
-  this when the flow's outcome involves saving, reloading, revisions, sign-in, or
-  security rules. The mock backend is a fresh empty store on every page load and
-  **cannot** prove persistence.
+- `tests/e2e/emulator/flows/<ID>.spec.ts` — against the emulated Firestore/Auth.
+  Every core flow lives here and nowhere else (`TEST-001`): persistence is part
+  of a flow's outcome, so a flow ends by reloading the page, and the in-memory
+  mock backend is a fresh empty store on every page load and **cannot** prove it.
 
 Each spec:
 
