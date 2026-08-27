@@ -214,6 +214,130 @@ its clips moving with it, and a single undo puts the order back.
 automation (`ARR-004`); and whether sections survive a reload, which would belong
 to a flow in `tests/e2e/emulator/flows/`.
 
+### CF-004 — A producer sets the span they are working in
+
+**Issue:** #280 · **Suite:** `tests/e2e/emulator/flows/CF-004.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. Above the tracks, the ruler carries a loop brace spanning
+   the first bar, and looping is on.
+2. Start playback. The playhead runs to the end of bar 1 and jumps back to the
+   start, over and over.
+3. Drag the right-hand edge of the brace out to the end of bar 2.
+4. The brace now spans two bars. Playback never stopped, and the playhead now
+   turns around at the end of bar 2.
+5. Switch looping off. The playhead runs past the end of the brace and keeps
+   going; the brace stays where it is.
+6. Switch looping back on, stop, and reload the page.
+7. The project reopens with the brace still spanning bars 1 and 2, and looping
+   still on.
+
+**Outcome:** the producer chose the span they are working inside, changed it
+without interrupting playback, and found it exactly as they left it when they
+came back.
+
+**Out of scope:** that any of it is *audible* — a headless browser records no
+audio, so this proves the playhead and the transport, not that a sound reached a
+speaker (see [`docs/testing.md`](./testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap)
+and issue #43). It also does not prove that anything else in the product moves
+the brace: nothing does, deliberately, and CF-005 is where that is asserted from
+the other side.
+
+### CF-005 — A producer drops a loop from the library onto a new track
+
+**Issue:** #281 · **Suite:** `tests/e2e/emulator/flows/CF-005.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects. The library contains a
+tempo-labelled loop whose source tempo is not the tempo a new project opens at.
+
+1. Create a new project. It opens on the starter kick pattern.
+2. In the library browser, find a drum loop that was recorded at a different
+   tempo from the project's.
+3. Drag it out of the browser and drop it on empty space in the track area.
+4. A new track appears at the bottom of the track list, carrying that loop as a
+   clip starting at bar 1, marked as a loop that follows the project tempo
+   rather than a pitched one-shot.
+5. Nothing else moved: the project tempo is unchanged, the loop brace is where it
+   was, and the transport is still stopped.
+6. Reload the page. The new track and its loop are still there.
+
+**Outcome:** a producer brought a loop out of the library into their project with
+one drag, and the project it landed in is otherwise exactly as they left it.
+
+**Out of scope:** playback of any kind — pressing play belongs to CF-004, and
+audibility is not provable here in any case. Dropping a one-shot, which loads
+onto the track under the pointer instead and is asserted at the command layer.
+Dropping at the bar under the mouse, which the product deliberately does not do
+yet. And whether the stretched loop *sounds* right, which no browser test can
+tell you.
+
+### CF-006 — A producer brings their own sounds into a pack
+
+**Issue:** #282 · **Suite:** `tests/e2e/emulator/flows/CF-006.spec.ts` · **Entrypoint:** the
+public landing page
+
+**Preconditions:** a registered account whose personal library is empty. Importing
+requires an account: a guest is offered the upgrade path instead, which is
+asserted at the component layer rather than walked here.
+
+1. Open the landing page and sign in.
+2. Open a project, so the library browser is on screen.
+3. Choose "Add pack". A new pack appears in the browser with its name in an
+   input, waiting to be typed.
+4. Type a name for the pack and press Return. The pack is now listed, and empty.
+5. Drag three audio files from the desktop onto that pack. Each shows its own
+   progress, and each lands as a sound in the pack when it finishes.
+6. Audition one of them from the browser, and find it by searching the library
+   the same way you would find a factory sound.
+7. Reload the page. The pack and all three sounds are still there.
+
+**Outcome:** the producer's own audio is in their library, in a pack they named,
+sitting alongside the factory content and reachable the same way — which means
+the next thing they can do is CF-005 with a sound of their own.
+
+**Out of scope:** using one of those sounds in a project, which is CF-005 and is
+not re-proved here. Dropping files on empty space to create a pack called "My
+Sounds", the file-picker fallback, renaming, deleting, and every rejection path
+(unsupported file, oversized file, the account storage cap, a cancelled upload) —
+all required, all covered at the component, repository and rules layers, none of
+them the path that must not break.
+
+### CF-007 — A producer drives the whole mix through an overdrive
+
+**Issue:** #283 · **Suite:** `tests/e2e/emulator/flows/CF-007.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and drop a library loop onto the track area, so the
+   starter kick and a loop are playing together.
+2. Start playback. The two parts repeat over the loop brace.
+3. Switch the main region from the arrangement to the master.
+4. The master's effects are on screen, with an empty chain. Add an overdrive to
+   it.
+5. While it is still playing, drive the overdrive up. The control follows,
+   playback never drops out, and the meter keeps moving.
+6. Undo once. The overdrive comes off the master chain.
+7. Redo. It is back, at the drive you had set.
+8. Reload the page. The overdrive is still on the master chain, still at that
+   drive.
+
+**Outcome:** a producer reached the master, put an effect across everything they
+had made, pushed it while it played, and found the whole thing intact when they
+came back.
+
+**Out of scope:** that the overdrive *sounds* like anything — a headless browser
+records no audio, so this proves the chain, the controls, and the state, not the
+processing, which is asserted in the audio suite. Track device chains (#241),
+the other five device types, device presets, and reordering a chain, all of which
+are tested at their own layers. Note that the undo happens before the reload
+because history is session-local: a reload legitimately ends the undo stack, and
+a flow that undid afterwards would be asserting something the product does not
+promise.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
