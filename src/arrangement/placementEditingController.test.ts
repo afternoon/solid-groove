@@ -120,3 +120,43 @@ describe("discrete operations", () => {
     expect(h.getProject().song.placements[0].looped).toBe(false);
   });
 });
+
+describe("paste anchor (#258)", () => {
+  /**
+   * Reported from the preview: with a placement selected at bar 2 and the
+   * playhead at bar 1, paste landed at bar 1. The playhead is the right anchor
+   * only "with no explicit target selected", which the handler's own comment
+   * says — a live selection *is* that explicit target, and `edit.paste`
+   * declares `ableton: { kind: "follows" }`, where Ableton pastes at the
+   * selection. Verified against Ableton by the reporter.
+   */
+  it("pastes at the selection, not the playhead, when something is selected", () => {
+    const h = harness();
+    const first = h.placementId();
+    h.editing.select(first);
+    h.editing.copy();
+
+    // The playhead is somewhere else entirely.
+    h.editing.paste(TICKS_PER_BAR * 4);
+
+    const placements = h.getProject().song.placements;
+    expect(placements).toHaveLength(2);
+    const selectedStart = placements.find((p) => p.id === first)?.startTicks;
+    const pasted = placements.find((p) => p.id !== first);
+    expect(pasted?.startTicks).toBe(selectedStart);
+  });
+
+  it("still pastes at the caller's anchor when nothing is selected", () => {
+    const h = harness();
+    h.editing.select(h.placementId());
+    h.editing.copy();
+    h.editing.clearSelection();
+
+    h.editing.paste(TICKS_PER_BAR * 4);
+
+    const pasted = h
+      .getProject()
+      .song.placements.find((p) => p.startTicks === TICKS_PER_BAR * 4);
+    expect(pasted).toBeDefined();
+  });
+});

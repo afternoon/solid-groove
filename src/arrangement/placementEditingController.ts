@@ -232,10 +232,36 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     return true;
   };
 
+  /**
+   * Where a paste lands: the start of the current selection when there is one,
+   * and only otherwise the caller's anchor (the playhead).
+   *
+   * The playhead is the right anchor "with no explicit target selected", as
+   * the shortcut handler's own comment puts it — but a live placement
+   * selection *is* that explicit target, and ignoring it sent every paste to
+   * the playhead however deliberately the user had picked a spot (#258).
+   * `edit.paste` declares `ableton: { kind: "follows" }`, and Ableton pastes
+   * at the selection.
+   */
+  function pasteAnchor(current: Project, fallbackTicks: number): number {
+    if (selected.length === 0) return fallbackTicks;
+    const starts = current.song.placements
+      .filter((placement) => selected.includes(placement.id))
+      .map((placement) => placement.startTicks);
+    return starts.length === 0 ? fallbackTicks : Math.min(...starts);
+  }
+
   const paste = (targetTicks: number): boolean => {
     const current = project();
     return current
-      ? run(pastePlacements(current, clipboard, targetTicks, options.ids))
+      ? run(
+          pastePlacements(
+            current,
+            clipboard,
+            pasteAnchor(current, targetTicks),
+            options.ids,
+          ),
+        )
       : false;
   };
 
