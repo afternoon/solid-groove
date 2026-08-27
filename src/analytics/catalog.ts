@@ -140,6 +140,33 @@ function slugParam<const R extends string>(reserved: readonly R[]): SlugParam<fa
 export const SURFACES = ["landing", "dashboard", "editor"] as const;
 export type Surface = (typeof SURFACES)[number];
 
+/**
+ * The views the editor's main region can show (LOOP-020, PRD section 6).
+ *
+ * The region is a switcher rather than a sixth region, so this is the one place
+ * the set of views is named for analytics. A view added later — instrument
+ * editing is the planned next one — adds its key here with the view.
+ */
+export const MAIN_VIEWS = ["arrangement", "master"] as const;
+export type MainView = (typeof MAIN_VIEWS)[number];
+
+/**
+ * The device-chain edits that can fail, as `device_edit_failed`'s `operation`.
+ *
+ * One value per `device.*` command the chain UI dispatches, so a failure can be
+ * attributed to the edit that caused it without carrying the command id (which
+ * `first_edit` already owns) or any chain, track, or project identity.
+ */
+export const DEVICE_OPERATIONS = [
+  "add",
+  "remove",
+  "reorder",
+  "duplicate",
+  "bypass",
+  "reset",
+] as const;
+export type DeviceOperation = (typeof DEVICE_OPERATIONS)[number];
+
 /** Non-identifying account facts, logged as a GA4 user property. */
 export const ACCOUNT_TYPES = ["anonymous", "registered", "unknown"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -500,6 +527,19 @@ export const ANALYTICS_EVENTS = {
     },
   },
 
+  main_view_changed: {
+    phase: 1,
+    owners: ["LOOP-020"],
+    params: {
+      view: enumParam(MAIN_VIEWS),
+      // Both routes to the master view are first-class (LOOP-020), and which
+      // one producers actually use is the thing worth knowing: a tab nobody
+      // presses because the mixer already gets them there is a different
+      // design problem from a mixer strip nobody connects to the panel.
+      via: enumParam(["tab", "mixer"]),
+    },
+  },
+
   library_audition: {
     phase: 1,
     owners: ["LOOP-013"],
@@ -717,6 +757,15 @@ export const ANALYTICS_EVENTS = {
     owners: ["LOOP-006", "LOOP-013"],
     params: {
       asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
+      error_code: enumParam(ERROR_CODES),
+    },
+  },
+
+  device_edit_failed: {
+    phase: 1,
+    owners: ["LOOP-020"],
+    params: {
+      operation: enumParam(DEVICE_OPERATIONS),
       error_code: enumParam(ERROR_CODES),
     },
   },
