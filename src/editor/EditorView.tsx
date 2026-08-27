@@ -197,8 +197,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // internal (non-signal) state, so this must be re-evaluated live on every
   // call — the same reason `pianoRollActions()?.hasSelection()` is called
   // directly rather than memoized elsewhere in this file.
+  //
+  // Deliberately *not* gated on `showPianoRoll()` (#258). `showPianoRoll()`
+  // says which editor is mounted *below* the arrangement, not which surface
+  // has focus, and the arrangement is on screen either way — so gating on it
+  // made a placement selected on a synth track invisible to the shortcut
+  // layer and undeletable. Which surface a selection-scoped shortcut acts on
+  // is `useEditorShortcuts`' to decide, from the selections that exist.
   const hasArrangementSelection = (): boolean =>
-    !showPianoRoll() && (arrangementEditingActions()?.hasSelection() ?? false);
+    arrangementEditingActions()?.hasSelection() ?? false;
 
   const { shortcuts, editorContexts, keyHint } = useEditorShortcuts({
     audio,
