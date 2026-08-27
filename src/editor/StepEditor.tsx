@@ -2,12 +2,13 @@ import { For, type JSX, Show } from "@solidjs/web";
 import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
-import { removeNotes, updateClip, updateNote } from "../commands";
+import { createControlGesture, removeNotes, updateClip, updateNote } from "../commands";
 import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import FillSlider from "../instrument/FillSlider";
 import {
   barCount,
   isBarStart,
@@ -176,14 +177,25 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     return note.velocity;
   }
 
-  function applyVelocity(note: NoteEvent, value: number): void {
-    if (!Number.isFinite(value)) return;
-    props.dispatch(
-      updateNote(props.clip.id, note.id, {
+  /**
+   * The selected step's velocity, as one gesture per drag (#255). Dispatching
+   * a `note.update` straight from `input` made every pointer sample its own
+   * transaction — dozens of revisions, dozens of autosaves, and one undo press
+   * per sample to get back. The control gesture applies each step live inside
+   * a single open gesture and commits it once on release.
+   */
+  const velocityControl = createControlGesture({
+    beginGesture: (options) => props.beginGesture(options),
+    dispatch: (commands) => {
+      props.dispatch(commands);
+      return undefined;
+    },
+    summary: () => "Set velocity",
+    command: (value) =>
+      updateNote(props.clip.id, selectedNote()?.id as EventId, {
         velocity: value as NoteEvent["velocity"],
       }),
-    );
-  }
+  });
 
   function resizeToBars(nextBars: number): void {
     const clamped = Math.min(MAX_BARS, Math.max(MIN_BARS, Math.round(nextBars)));
@@ -227,23 +239,21 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
         </label>
         <Show when={selectedNote()}>
           {(note) => (
-            <label class="step-editor-velocity">
-              <span class="step-editor-velocity-label">Velocity</span>
-              <input
-                class="step-editor-velocity-input"
-                type="range"
-                min={NOTE_VELOCITY.min}
-                max={NOTE_VELOCITY.max}
-                step={0.01}
+            <div class="step-editor-velocity">
+              <FillSlider
+                definition={NOTE_VELOCITY}
+                inputId="step-editor-velocity"
+                label="Velocity"
+                // The value already reads as a left-right axis, as the mixer's
+                // pan does, and the toolbar is a single row.
+                orientation="horizontal"
                 value={velocityFor(note())}
-                onInput={(event) =>
-                  applyVelocity(note(), event.currentTarget.valueAsNumber)
-                }
+                // MIDI velocity, which is what the readout always showed.
+                displayValue={String(Math.round(velocityFor(note()) * 127))}
+                onInput={(value) => velocityControl.input(value)}
+                onCommit={(value) => velocityControl.commit(value)}
               />
-              <span class="step-editor-velocity-value" aria-hidden="true">
-                {Math.round(velocityFor(note()) * 127)}
-              </span>
-            </label>
+            </div>
           )}
         </Show>
       </div>

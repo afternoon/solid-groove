@@ -421,7 +421,7 @@ describe("PianoRoll", () => {
     const { container } = renderRoll();
     const note = noteEvents(session.project.clips[0])[0];
     const el = noteEl(container, note.id);
-    const slider = el.querySelector(".pr-note-velocity") as HTMLInputElement;
+    const slider = el.querySelector(".pr-note-velocity input") as HTMLInputElement;
 
     fireEvent.input(slider, { target: { value: "0.3" } });
     // `change` fires when the slider settles, committing the gesture.
@@ -460,7 +460,7 @@ describe("PianoRoll", () => {
     const { container } = renderRoll();
     const note = noteEvents(session.project.clips[0])[0];
     const el = noteEl(container, note.id);
-    const slider = el.querySelector(".pr-note-velocity") as HTMLInputElement;
+    const slider = el.querySelector(".pr-note-velocity input") as HTMLInputElement;
     const startRevision = session.project.metadata.revision;
     const startUndoDepth = session.history.entries.length;
     const startEdited = clipEditedEvents(transport).length;
@@ -542,7 +542,9 @@ describe("PianoRoll", () => {
       beginGesture: wrappedBeginGesture,
     });
     const reenterEl = noteEl(reenterContainer, note.id);
-    reenterSlider = reenterEl.querySelector(".pr-note-velocity") as HTMLInputElement;
+    reenterSlider = reenterEl.querySelector(
+      ".pr-note-velocity input",
+    ) as HTMLInputElement;
 
     reenter = true;
     expect(() => {
@@ -670,7 +672,7 @@ describe("PianoRoll", () => {
       });
       const note = noteEvents(session.project.clips[0])[0];
       const slider = noteEl(container, note.id).querySelector(
-        ".pr-note-velocity",
+        ".pr-note-velocity input",
       ) as HTMLInputElement;
       fireEvent.input(slider, { target: { value: "0.2" } });
 

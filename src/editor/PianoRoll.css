@@ -154,12 +154,21 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* The note's velocity fill slider, in the compact shape: a 4px track and no
+   chrome, so it fits inside the note block without changing its height. */
 .pr-note-velocity {
+  --fill-slider-track-thickness: 4px;
+
   width: 100%;
-  height: 4px;
-  margin: 0;
-  accent-color: rgba(0, 0, 0, 0.55);
   cursor: pointer;
+}
+
+.pr-note-velocity .fill-slider-track {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.pr-note-velocity .fill-slider-fill {
+  background-color: rgba(0, 0, 0, 0.55);
 }
 
 .pr-marquee {
