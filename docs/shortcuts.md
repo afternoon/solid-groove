@@ -1,10 +1,16 @@
 # Keyboard shortcuts
 
-Solid Groove's keyboard mappings (PRD `KEY-01`, `KEY-02`) live in one typed
-registry, [`src/shortcuts/registry.ts`](../src/shortcuts/registry.ts). Event
-handling, tooltips, menu labels, the in-app `?` guide, the `shortcut_used`
-analytics `action_id` set, and the table below are all derived from it — a key
-combination is never written down twice.
+Solid Groove's keyboard mappings live in one typed registry,
+[`src/shortcuts/registry.ts`](../src/shortcuts/registry.ts). Event handling,
+tooltips, menu labels, the in-app `?` guide, the `shortcut_used` analytics
+`action_id` set, and the table below are all derived from it — a key combination
+is never written down twice.
+
+This page and that registry are the source for the shortcut contract. It was
+originally specified as `KEY-01` (the Ableton-familiar mapping) and `KEY-02` (the
+`?` mapping guide) in `docs/prd.md`; that text was removed when the PRD became a
+principles document, so the `KEY-01`/`KEY-02` citations still in `src/` comments
+point here.
 
 This page is the *human* copy of that registry, for reviewers and for anyone
 deciding a new mapping. `src/shortcuts/docs.test.ts` fails if it drifts from the
@@ -113,14 +119,14 @@ override recorded on the entry:
 
 ## Recorded deviation: enabled state is not in the registry
 
-`KEY-01` lists "enabled state" among what an entry declares. Solid Groove keeps
+The `KEY-01` specification listed "enabled state" among what an entry declares. Solid Groove keeps
 it on the *handler* instead: a surface passes `isEnabled()` alongside `run()`,
 and an action with no registered handler is simply unavailable. Whether Undo can
 run is a property of the open session, not of the mapping, and the registry is
 imported by tests, docs generation, and the guide, none of which should have to
 reach into session state to be built.
 
-The observable behaviour `KEY-01` asks for is unchanged: a disabled action does
+The observable behaviour it asked for is unchanged: a disabled action does
 not run and does not suppress the browser default (`ShortcutController`), and
 the guide marks it "Not available here" from `controller.isEnabled()`.
 
