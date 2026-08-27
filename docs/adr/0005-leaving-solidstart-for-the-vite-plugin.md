@@ -6,7 +6,7 @@
 | Date | 2026-08-26 |
 | Decides | Which serving layer builds and runs the app on Solid 2, and which Sentry SDK sits behind the `OPS-03` reporting boundary |
 | Supersedes | The SDK named in [ADR 0001](./0001-sentry-for-error-monitoring.md)'s Decision paragraph (`@sentry/solidstart`) — that clause only. Every numbered decision in ADR 0001 stands unchanged, including decision 1's boundary, decision 2's system of record, and decision 5's `@sentry/node` option for the `AI-001` gateway |
-| Affects | `vite.config.ts`, `src/app.tsx`, `src/router.tsx`, `src/routes/`, `src/monitoring/sentrySink.ts`; PRD section 9.1's "Application framework" row, section 7.10's error-monitoring paragraph, section 16's "Decisions made for implementation" list, and the "Current prototype baseline" — all four name SolidStart and now need a PRD edit |
+| Affects | `vite.config.ts`, `src/app.tsx`, `src/router.tsx`, `src/routes/`, `src/monitoring/sentrySink.ts`; PRD section 9.1's "Application framework" row, section 7.10's error-monitoring paragraph, section 16's "Decisions made for implementation" list, and the "Current prototype baseline" — all four named SolidStart and have since been amended by the PRD owner |
 
 ## Context
 
@@ -36,7 +36,7 @@ One further consequence falls out of the plugin: **there is no file-based routin
 - **It does not reopen client-only rendering.** The PRD's decision that the app never renders on the server stands. Flipping this project to SSR start mode is a single boolean upstream (`ssr: true`), and it would be its own decision with its own consequences.
 - **It does not enable performance tracing.** The sink still runs with no tracing integration, exactly as ADR 0001 decision 5 left it ("that is a separate decision and is not made here"). What changed is the *cost* of turning it on later — see below.
 - **It does not authorize server functions.** `serverFunctions` stays off; a static `dist/client` with no server bundle is the deployable, which is what `firebase.json`'s `hosting.public` points at.
-- **It does not amend the PRD.** Section 9.1's "Committed alpha stack" framework row, section 7.10's "through the official SolidStart SDK", section 16's "Decisions made for implementation", and the "Current prototype baseline" paragraph all still name SolidStart. Section 9.1's own rule is that "a decision that changes a row in the table below updates that row to point at its ADR" — so the framework row should end up pointing here, the way the error-monitoring row points at ADR 0001. That edit is the PRD owner's to make; the PRD is read-only to implementers.
+- **It does not itself amend the PRD.** Section 9.1's "Committed alpha stack" framework row, section 7.10's "through the official SolidStart SDK", section 16's "Decisions made for implementation", and the "Current prototype baseline" paragraph each named SolidStart. Section 9.1's own rule is that "a decision that changes a row in the table below updates that row to point at its ADR" — so the framework row points here, the way the error-monitoring row points at ADR 0001. The PRD is read-only to implementers, so that edit was the PRD owner's to make; they have since made it, and all four now read against this ADR.
 
 ## Consequences
 
