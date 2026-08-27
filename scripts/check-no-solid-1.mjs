@@ -40,10 +40,17 @@ const SKIP_DIRS = new Set([
   "public",
 ]);
 
-const SOURCE_EXT = /\.(ts|tsx|js|jsx|mjs)$/;
+const SOURCE_EXT = /\.(ts|tsx|js|jsx|mjs|json)$/;
 
 /**
  * One rule per removed or renamed API.
+ *
+ * `solidOnly` marks a rule whose pattern is an ordinary English identifier --
+ * `batch`, `produce`, `unwrap`. Those are only wrong in a file that is Solid
+ * code; a `Result.unwrap()` or an array `batch(rows, 10)` in the framework-free
+ * layers is entirely legitimate, and a gate that blocks it is worse than no
+ * gate. They are checked only where the file imports Solid, which is exactly
+ * the context the rule is about.
  *
  * `pattern` runs against a single line. `hint` is the whole error message a
  * developer gets, so it says what to do rather than only what is wrong -- the
@@ -66,41 +73,49 @@ const RULES = [
   },
   {
     id: "onMount",
+    solidOnly: true,
     pattern: /\bonMount\s*\(/,
     hint: "`onMount` is `onSettled` in 2.0, and it returns its cleanup instead of nesting `onCleanup` inside.",
   },
   {
     id: "createResource",
+    solidOnly: true,
     pattern: /\bcreateResource\s*\(/,
     hint: "`createResource` is gone. Use an async `createMemo` and, where the read happens in render, a `<Loading>` boundary.",
   },
   {
     id: "batch",
+    solidOnly: true,
     pattern: /(?<![.\w])batch\s*\(/,
     hint: "Batching is automatic in 2.0 -- just drop the wrapper. `flush()` forces a synchronous apply and belongs in tests, not product code.",
   },
   {
     id: "createComputed",
+    solidOnly: true,
     pattern: /\bcreateComputed\s*\(/,
     hint: "`createComputed` is gone. Use `createMemo` to derive, a split `createEffect` for a side effect, or function-form `createSignal` for derive-with-writeback.",
   },
   {
     id: "createMutable",
+    solidOnly: true,
     pattern: /\bcreate(Mutable|Deferred|Selector)\s*\(/,
     hint: "`createMutable`, `createDeferred` and `createSelector` are gone. See the 2.0 migration guide for the replacement that fits.",
   },
   {
     id: "produce",
+    solidOnly: true,
     pattern: /(?<![.\w])produce\s*\(/,
     hint: "Store setters are draft-first in 2.0 -- `produce` is the default behaviour, so the wrapper just goes.",
   },
   {
     id: "mergeProps/splitProps",
+    solidOnly: true,
     pattern: /\b(mergeProps|splitProps)\s*\(/,
     hint: "`mergeProps` is `merge` (note: `undefined` now overrides rather than skips) and `splitProps` is `omit`.",
   },
   {
     id: "unwrap",
+    solidOnly: true,
     pattern: /(?<![.\w])unwrap\s*\(/,
     hint: "`unwrap` is `snapshot`.",
   },
@@ -138,10 +153,6 @@ const RULES = [
     id: "vinxi",
     pattern: /(?<![\w-])vinxi(?![\w-])/,
     hint: "vinxi was removed with SolidStart. The dev server and build are `vite`.",
-    allow: [
-      // The ADR that records why it went, and the migration notes explaining it.
-      "docs/adr/0005-leaving-solidstart-for-the-vite-plugin.md",
-    ],
   },
   {
     id: "solid-firebase",
@@ -152,10 +163,6 @@ const RULES = [
     id: "@sentry/solidstart",
     pattern: /@sentry\/solid(start)?/,
     hint: "Both `@sentry/solidstart` and `@sentry/solid` peer-depend on Solid 1. The SDK is `@sentry/browser`. See ADR 0005.",
-    allow: [
-      "docs/adr/0005-leaving-solidstart-for-the-vite-plugin.md",
-      "docs/adr/0001-sentry-for-error-monitoring.md",
-    ],
   },
 ];
 
@@ -171,9 +178,35 @@ function* walk(dir) {
 
 const failures = [];
 
-for (const file of walk(join(ROOT, "src"))) {
+/**
+ * Everything worth scanning.
+ *
+ * `src/` alone was not enough: four of the rules below are about *dependencies*
+ * (`vinxi`, `@solidjs/start`, `@sentry/solidstart`, `solid-firebase`), and a
+ * dependency is named in `package.json`, in build config, and in `scripts/` --
+ * never in a component. Scanning only `src/` left those four unable to fire at
+ * all, which is how a stale `@sentry/solidstart` reference sat in
+ * `scripts/verify-bundle-budget.mjs` with this script exiting 0.
+ */
+function* targets() {
+  for (const dir of ["src", "scripts", "tests"]) yield* walk(join(ROOT, dir));
+  for (const f of [
+    "package.json",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "tsconfig.json",
+  ]) {
+    yield join(ROOT, f);
+  }
+}
+
+for (const file of targets()) {
   const rel = relative(ROOT, file);
-  const lines = readFileSync(file, "utf8").split("\n");
+  // This file necessarily spells out every banned API.
+  if (rel === join("scripts", "check-no-solid-1.mjs")) continue;
+  const source = readFileSync(file, "utf8");
+  const isSolidFile = /from\s+["'](solid-js|@solidjs\/)/.test(source);
+  const lines = source.split("\n");
 
   for (const [i, line] of lines.entries()) {
     // A line that is only a comment documents the old API rather than using
@@ -182,6 +215,7 @@ for (const file of walk(join(ROOT, "src"))) {
 
     for (const rule of RULES) {
       if (rule.allow?.some((p) => rel === p || rel.startsWith(p))) continue;
+      if (rule.solidOnly && !isSolidFile) continue;
       if (!rule.pattern.test(line)) continue;
       failures.push({ file: rel, line: i + 1, rule, text: line.trim() });
     }
@@ -189,7 +223,7 @@ for (const file of walk(join(ROOT, "src"))) {
 }
 
 if (failures.length === 0) {
-  console.log("check-no-solid-1 — no Solid 1 idioms found in src/.");
+  console.log("check-no-solid-1 — no Solid 1 idioms found.");
   process.exit(0);
 }
 

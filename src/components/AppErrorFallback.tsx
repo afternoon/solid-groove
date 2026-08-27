@@ -13,7 +13,7 @@ type AppErrorFallbackProps = {
 };
 
 /**
- * Root-level fallback for the app's <ErrorBoundary>. Shown when a render-time
+ * Root-level fallback for the app's <Errored> boundary. Shown when a render-time
  * throw would otherwise leave the app blank. Offers a retry that clears the
  * boundary and re-renders its children.
  *
