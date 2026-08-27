@@ -1,10 +1,29 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
-import type { RawCommandInput, TransactionResult } from "../commands";
-import { setPadAsset, setPadChoke, setPadFlag, setPadParameter } from "../commands";
+import type {
+  Gesture,
+  GestureOptions,
+  RawCommandInput,
+  TransactionResult,
+} from "../commands";
+import {
+  createControlGesture,
+  setPadAsset,
+  setPadChoke,
+  setPadFlag,
+  setPadParameter,
+} from "../commands";
 import type { Asset, DrumPad, Track } from "../domain/entities";
+import { formatDb, formatPan } from "../domain/faders";
 import type { AssetId, PadId } from "../domain/ids";
-import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
+import {
+  PAD_PITCH,
+  type ParameterDefinition,
+  TRACK_PAN,
+  TRACK_VOLUME,
+} from "../domain/parameters";
+import FillSlider from "../instrument/FillSlider";
+import { formatInstrumentValue } from "../instrument/formatValue";
 import "./DrumMachinePanel.css";
 import { ariaBool } from "../shared/aria";
 
@@ -18,6 +37,8 @@ export interface DrumMachinePanelProps {
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
+  /** Opens a pad-control drag that commits as one history entry (#255). */
+  beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Plays one pad immediately so the user hears their choice (audition). */
   audition?(padId: PadId): void;
   /** Defaults to the application's singleton; injectable for tests. */
@@ -50,16 +71,6 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     analytics().log("instrument_changed", { instrument_type: "drum_machine" });
   }
 
-  function setParameter(
-    pad: DrumPad,
-    parameterId: Parameters<typeof setPadParameter>[2],
-    value: number,
-  ): void {
-    if (!Number.isFinite(value)) return;
-    markFeatureUse();
-    props.dispatch(setPadParameter(props.track.id, pad.id, parameterId, value));
-  }
-
   function toggleFlag(pad: DrumPad, flag: "muted" | "soloed"): void {
     markFeatureUse();
     props.dispatch(setPadFlag(props.track.id, pad.id, flag, !pad.mixer[flag]));
@@ -82,26 +93,30 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
 
   return (
     <section class="drum-machine" aria-label={`Drum machine: ${props.track.name}`}>
-      <For each={pads(props.track)}>
+      {/* Keyed on the pad's own id, so an edit to a pad updates its lane in
+			    place. Keyed on the pad *object* — the default — every parameter edit
+			    rebuilds that lane, and a drag applying live would lose the very input
+			    it is moving on its first sample. */}
+      <For each={pads(props.track)} keyed={(pad) => pad.id}>
         {(pad) => (
-          <div class={["drum-pad", { muted: pad.mixer.muted }]}>
+          <div class={["drum-pad", { muted: pad().mixer.muted }]}>
             <button
               type="button"
               class="pad-audition"
-              onClick={() => audition(pad)}
-              aria-label={`Audition ${pad.name}`}
-              title={`Audition ${pad.name}`}
+              onClick={() => audition(pad())}
+              aria-label={`Audition ${pad().name}`}
+              title={`Audition ${pad().name}`}
             >
-              <span class="pad-name">{pad.name}</span>
+              <span class="pad-name">{pad().name}</span>
             </button>
 
             <label class="pad-control pad-sample">
               <span class="pad-control-label">Sample</span>
               <select
-                value={pad.assetId ?? ""}
+                value={pad().assetId ?? ""}
                 onChange={(event) =>
                   changePadAsset(
-                    pad,
+                    pad(),
                     event.currentTarget.value === ""
                       ? null
                       : (event.currentTarget.value as AssetId),
@@ -115,55 +130,54 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               </select>
             </label>
 
-            <label class="pad-control">
-              <span class="pad-control-label">Pitch</span>
-              <input
-                type="range"
-                min={PAD_PITCH.min}
-                max={PAD_PITCH.max}
-                step={PAD_PITCH.step ?? 1}
-                value={padParam(pad, "pitch", PAD_PITCH.defaultValue)}
-                onInput={(event) =>
-                  setParameter(pad, PAD_PITCH.id, event.currentTarget.valueAsNumber)
-                }
-              />
-            </label>
+            <PadControl
+              trackId={props.track.id}
+              pad={pad()}
+              definition={PAD_PITCH}
+              label="Pitch"
+              value={padParam(pad(), "pitch", PAD_PITCH.defaultValue)}
+              displayValue={formatInstrumentValue(
+                PAD_PITCH,
+                padParam(pad(), "pitch", PAD_PITCH.defaultValue),
+              )}
+              onFirstUse={markFeatureUse}
+              dispatch={(commands) => props.dispatch(commands)}
+              beginGesture={(options) => props.beginGesture(options)}
+            />
 
-            <label class="pad-control">
-              <span class="pad-control-label">Level</span>
-              <input
-                type="range"
-                min={TRACK_VOLUME.min}
-                max={TRACK_VOLUME.max}
-                step={0.5}
-                value={pad.mixer.volume}
-                onInput={(event) =>
-                  setParameter(pad, TRACK_VOLUME.id, event.currentTarget.valueAsNumber)
-                }
-              />
-            </label>
+            <PadControl
+              trackId={props.track.id}
+              pad={pad()}
+              definition={TRACK_VOLUME}
+              label="Level"
+              value={pad().mixer.volume}
+              displayValue={formatDb(TRACK_VOLUME, pad().mixer.volume)}
+              onFirstUse={markFeatureUse}
+              dispatch={(commands) => props.dispatch(commands)}
+              beginGesture={(options) => props.beginGesture(options)}
+            />
 
-            <label class="pad-control">
-              <span class="pad-control-label">Pan</span>
-              <input
-                type="range"
-                min={TRACK_PAN.min}
-                max={TRACK_PAN.max}
-                step={0.01}
-                value={pad.mixer.pan}
-                onInput={(event) =>
-                  setParameter(pad, TRACK_PAN.id, event.currentTarget.valueAsNumber)
-                }
-              />
-            </label>
+            <PadControl
+              trackId={props.track.id}
+              pad={pad()}
+              definition={TRACK_PAN}
+              label="Pan"
+              // Pan's range *is* the stereo field, so it fills from centre.
+              bipolar
+              value={pad().mixer.pan}
+              displayValue={formatPan(pad().mixer.pan)}
+              onFirstUse={markFeatureUse}
+              dispatch={(commands) => props.dispatch(commands)}
+              beginGesture={(options) => props.beginGesture(options)}
+            />
 
             <label class="pad-control pad-choke">
               <span class="pad-control-label">Choke</span>
               <select
-                value={pad.chokeGroup === null ? "" : String(pad.chokeGroup)}
+                value={pad().chokeGroup === null ? "" : String(pad().chokeGroup)}
                 onChange={(event) =>
                   changeChoke(
-                    pad,
+                    pad(),
                     event.currentTarget.value === ""
                       ? null
                       : Number(event.currentTarget.value),
@@ -180,20 +194,20 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
             <div class="pad-flags">
               <button
                 type="button"
-                class={["pad-flag", { active: pad.mixer.muted }]}
-                aria-pressed={ariaBool(pad.mixer.muted)}
-                aria-label={`Mute ${pad.name}`}
-                onClick={() => toggleFlag(pad, "muted")}
+                class={["pad-flag", { active: pad().mixer.muted }]}
+                aria-pressed={ariaBool(pad().mixer.muted)}
+                aria-label={`Mute ${pad().name}`}
+                onClick={() => toggleFlag(pad(), "muted")}
                 title="Mute"
               >
                 M
               </button>
               <button
                 type="button"
-                class={["pad-flag", { active: pad.mixer.soloed }]}
-                aria-pressed={ariaBool(pad.mixer.soloed)}
-                aria-label={`Solo ${pad.name}`}
-                onClick={() => toggleFlag(pad, "soloed")}
+                class={["pad-flag", { active: pad().mixer.soloed }]}
+                aria-pressed={ariaBool(pad().mixer.soloed)}
+                aria-label={`Solo ${pad().name}`}
+                onClick={() => toggleFlag(pad(), "soloed")}
                 title="Solo"
               >
                 S
@@ -206,5 +220,63 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
         <p class="drum-machine-empty">This track has no drum pads yet.</p>
       </Show>
     </section>
+  );
+}
+
+interface PadControlProps {
+  readonly trackId: Track["id"];
+  readonly pad: DrumPad;
+  readonly definition: ParameterDefinition;
+  readonly label: string;
+  readonly value: number;
+  readonly displayValue: string;
+  readonly bipolar?: boolean;
+  onFirstUse(): void;
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
+}
+
+/**
+ * One continuous pad control (#255): the same thumbless fill slider as every
+ * other continuous control in the editor, on its side to fit the pad lane, and
+ * driven as one gesture per drag. Each pointer sample applies live inside the
+ * open gesture — so the value follows the pointer on screen and in the audio
+ * graph — and release commits the whole drag as one history entry, one revision
+ * and one save. Dispatching a command straight from `input`, as this did, made
+ * one drag dozens of revisions and dozens of undo steps.
+ */
+function PadControl(props: PadControlProps): JSX.Element {
+  const control = createControlGesture({
+    beginGesture: (options) => props.beginGesture(options),
+    dispatch: (commands) => props.dispatch(commands),
+    summary: () => `Set ${props.definition.label} on a pad`,
+    command: (value) =>
+      setPadParameter(
+        props.trackId,
+        props.pad.id,
+        props.definition.id as Parameters<typeof setPadParameter>[2],
+        value,
+      ),
+  });
+
+  return (
+    <FillSlider
+      definition={props.definition}
+      inputId={`pad-${props.pad.id}-${props.label.toLowerCase()}`}
+      label={props.label}
+      // Every pad shows a "Pitch", so the name has to say whose.
+      ariaLabel={`${props.label} for ${props.pad.name}`}
+      orientation="horizontal"
+      bipolar={props.bipolar}
+      value={props.value}
+      displayValue={props.displayValue}
+      onInput={(value) => {
+        props.onFirstUse();
+        control.input(value);
+      }}
+      onCommit={(value) => control.commit(value)}
+    />
   );
 }

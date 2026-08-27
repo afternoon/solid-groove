@@ -373,6 +373,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                             track={drum()}
                             assets={sampleAssets()}
                             dispatch={session.dispatch}
+                            beginGesture={session.beginGesture}
                             audition={(padId) => void audio.auditionPad(drum().id, padId)}
                           />
                         </div>
