@@ -10,7 +10,7 @@ import {
 import type { CommandActor, CommandEnvelope, RawCommandInput } from "./types";
 
 /**
- * Local undo/redo history (PRD section 8, "Undo and redo").
+ * Local undo/redo history.
  *
  * Session-scoped and bounded: history holds commands and their generated
  * inverses, never project snapshots, so undoing is replaying an inverse rather

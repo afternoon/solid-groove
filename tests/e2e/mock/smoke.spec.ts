@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 // FND-001's isolated example for the browser E2E suite. It exercises the
-// "anonymous start" journey from PRD section 14's required end-to-end test
+// The required "anonymous start" end-to-end journey
 // layer: landing page -> anonymous session -> dashboard, all against the
 // in-memory mock backend (see playwright.config.ts). `LOOP-001b` replaced the
 // placeholder landing page with the PRD PRJ-06 marketing front door, so these

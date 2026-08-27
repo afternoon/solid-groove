@@ -24,7 +24,7 @@
 // An empty enum's value type is `never`, so the event is declared, reportable,
 // and documented — but physically un-loggable until its owning task adds its
 // keys in the same change that adds the call site. That is the "analytics ships
-// with the feature" rule (PRD section 14) enforced by the compiler rather than
+// with the feature" rule (CLAUDE.md's definition of done) enforced by the compiler rather than
 // by review.
 //
 // ## Changing this file

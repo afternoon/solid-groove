@@ -106,7 +106,7 @@ src/
 ├── selection/          # Selection/focus state (UI-only, never persisted)
 │   ├── types.ts             # SelectionScope union and SelectionState
 │   └── selection.ts         # Pure selection ops + project-driven reconciliation
-├── shortcuts/          # The one typed keyboard-shortcut registry (PRD KEY-01, KEY-02)
+├── shortcuts/          # The one typed keyboard-shortcut registry (see docs/shortcuts.md)
 │   ├── types.ts             # Contexts, guide groups, Ableton parity, browser conflicts
 │   ├── keys.ts              # Chord parsing, layout-aware matching, platform labels
 │   ├── registry.ts          # The mapping table itself, plus lookups and reserved chords
@@ -462,7 +462,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 - `src/editor/useProjectAudio.ts` is the one place a component wires a `Project` onto `ProjectAudioGraph`: it rebuilds the `AudioSongProjection` (passing the previous one through, so an unrelated edit reuses unchanged entries) on every project change, and its `play()` is the allowed user gesture that resumes the shared `AudioRuntime` context. The prototype `SongPlayer`/`ToneInstrument`/`AudioProvider.tsx` playback path this superseded was removed by `FND-009`; do not reintroduce a component-owned Tone lifecycle.
 
 ### Shortcut registry (`src/shortcuts`)
-- `src/shortcuts/registry.ts` is the only place a key combination is written down (PRD KEY-01). Event handling, tooltips, menu labels, the `?` guide, the `shortcut_used` analytics `action_id` set, and [`docs/shortcuts.md`](./docs/shortcuts.md) are all derived from it; a component never compares `event.key` itself and never adds its own `keydown` listener — modals included, which register `view.close_surface` for `Escape` (see `src/components/ConfirmDialog.tsx`) rather than owning a per-modal listener.
+- `src/shortcuts/registry.ts` is the only place a key combination is written down ([`docs/shortcuts.md`](./docs/shortcuts.md) is its human copy). Event handling, tooltips, menu labels, the `?` guide, the `shortcut_used` analytics `action_id` set, and [`docs/shortcuts.md`](./docs/shortcuts.md) are all derived from it; a component never compares `event.key` itself and never adds its own `keydown` listener — modals included, which register `view.close_surface` for `Escape` (see `src/components/ConfirmDialog.tsx`) rather than owning a per-modal listener.
 - An entry declares action ID, per-platform keys, valid contexts, guide group, and whether it follows or intentionally differs from Ableton Live. Enabled state is not in the registry — the surface that owns the action supplies a handler with an optional `isEnabled()`, and an action with no handler simply does not fire.
 - `ShortcutController` is framework-free and owns every dispatch rule: `global` is always active, `dialog` suppresses every other context, typing targets keep their keys (only `Escape` is marked `textEntry: "allowed"`), auto-repeat is ignored unless the mapping opts in, and a disabled or unhandled action leaves the browser default alone. `useShortcuts` is the thin Solid adapter that installs it on the window.
 - Matching reads `KeyboardEvent.key`, never `code`, and ignores the Shift modifier for punctuation, so `?` and `+` work on any keyboard layout.

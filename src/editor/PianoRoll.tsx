@@ -147,7 +147,7 @@ interface VelocityGestureState {
  * `note.update`, `note.remove`, `notes.duplicate` — never a direct project
  * mutation (PRD section 9.6). A continuous drag (move or resize) is one undo
  * transaction: it opens a gesture, applies each frame immediately so the UI
- * stays live, and commits once on pointer-up (PRD section 8). Pixel <-> tick /
+ * stays live, and commits once on pointer-up. Pixel <-> tick /
  * pitch geometry lives in the pure `pianoRollGeometry` module, and the
  * clip-and-viewport maths behind move, resize, selection, and the marquee in
  * the pure `pianoRollGestures` module, so both stay correct under scroll and
