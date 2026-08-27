@@ -1,5 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
@@ -75,7 +75,7 @@ export interface PianoRollProps {
    * Called once with the roll's keyboard operations, for the host to wire into
    * the shortcut registry (`edit.delete`, `edit.duplicate`, `edit.select_all`).
    */
-  registerActions?(actions: PianoRollActions): void;
+  registerActions?(actions: PianoRollActions | null): void;
   /**
    * Reports the roll's selection outward whenever it changes, so a host can
    * act on the same notes the roll has highlighted (the CLP-04 transformation
@@ -457,11 +457,23 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
   // surface that hosts the roll (EditorView) installs one window controller and
   // supplies these operations as its handlers. The roll exposes them, plus a
   // reactive "has selection" for the handlers' `isEnabled`, and nothing more.
-  props.registerActions?.({
-    deleteSelection,
-    duplicateSelection,
-    selectAll,
-    hasSelection: () => selection().size > 0,
+  // Registered from `onSettled`, not from the component body. `EditorView`
+  // holds these in a signal, so `registerActions` *is* a signal setter -- and
+  // calling it during render is a write inside an owned scope, which Solid 2
+  // throws on. That throw halts the reactive system for the whole page, so it
+  // does not present as a piano-roll bug: it presents as everything after it
+  // going dead. Registering after render settles puts the write outside the
+  // tracking scope, and the returned cleanup deregisters on unmount so a
+  // stale roll's operations cannot outlive it. `ArrangementView` wires its
+  // `onEditingActionsReady` the same way.
+  onSettled(() => {
+    props.registerActions?.({
+      deleteSelection,
+      duplicateSelection,
+      selectAll,
+      hasSelection: () => selection().size > 0,
+    });
+    return () => props.registerActions?.(null);
   });
 
   // --- Render helpers ----------------------------------------------------

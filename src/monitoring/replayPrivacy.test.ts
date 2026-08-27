@@ -207,7 +207,16 @@ const DELIBERATELY_UNMARKED: readonly {
   },
   {
     file: "editor/Mixer.tsx",
-    literal: 'class="mixer-strip"',
+    // Pinned as the bare quoted class name rather than `class="mixer-strip"`.
+    // Solid 2 removed `classList`, so a static class and its conditional
+    // siblings can no longer be two attributes -- they merge into one
+    // `class={["mixer-strip", { muted, selected }]}` array, and the old
+    // `class="..."` spelling cannot exist here any more. The property this
+    // assertion actually rests on is unchanged and is why the quotes are part
+    // of the literal: re-broadening masking over this surface means
+    // interpolating into a template literal, and a template literal contains
+    // no `"mixer-strip"`. The surface itself is as unmarked as it ever was.
+    literal: '"mixer-strip",',
   },
   {
     file: "components/ProjectList.tsx",

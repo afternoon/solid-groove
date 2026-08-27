@@ -129,7 +129,7 @@ function containsSdk(file) {
 }
 
 function main() {
-  const publicDir = process.argv[2] ?? ".output/public";
+  const publicDir = process.argv[2] ?? "dist/client";
   const indexHtml = join(publicDir, "index.html");
   if (!existsSync(indexHtml)) {
     console.error(

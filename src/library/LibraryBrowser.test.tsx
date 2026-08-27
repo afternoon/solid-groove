@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -275,7 +282,20 @@ describe("the pack browser entrypoint", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     // The host is told, so it can hand the keyboard to the dialog context.
     expect(openChanges).toEqual([true]);
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    // Scoped to the footer control this test is named for. Under Solid 1 the
+    // dialog was still half-settled when the query ran, so only the header's
+    // dismiss X existed and the bare name matched it -- the test read as
+    // covering the secondary action while actually exercising the header.
+    // Solid 2 settles the dialog before `findByRole` returns, so `PackDetail`
+    // has rendered and both controls are legitimately present. Naming the
+    // footer resolves the ambiguity in favour of what the test says it does.
+    // The header X is now uncovered here; that is a real gap, recorded rather
+    // than papered over by asserting both from one case.
+    const detailActions = document.querySelector(".pack-detail-actions");
+    expect(detailActions).not.toBeNull();
+    fireEvent.click(
+      within(detailActions as HTMLElement).getByRole("button", { name: "Close" }),
+    );
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(openChanges).toEqual([true, false]);
   });

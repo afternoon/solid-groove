@@ -4,8 +4,7 @@
     "includes": [
       "**",
       "!.claude",
-      "!.output",
-      "!.vinxi",
+      "!dist",
       "!public",
       "!docs/design",
       "!playwright-report",

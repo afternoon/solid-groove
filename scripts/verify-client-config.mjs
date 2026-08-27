@@ -23,7 +23,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const BUILD_DIR = ".output/public";
+const BUILD_DIR = "dist/client";
 
 // Only the fields whose absence breaks app startup. `databaseURL` (unused, the
 // project has no Realtime Database) and `measurementId` (analytics-only, and

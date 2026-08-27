@@ -4,8 +4,6 @@
 
 # build dirs
 node_modules/
-.output/
-.vinxi/
 package-lock.json
 # Vinxi transpiles app.config.ts to a fresh timestamped file next to it on
 # every dev/build run; these are transient artifacts, never source.
@@ -62,5 +60,5 @@ tmp/
 # big fat blobs
 public/samples
 
-# Vite/start-mode build output (replaces .vinxi and .output).
+# Vite/start-mode build output.
 dist

@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -367,6 +368,11 @@ describe("EditorView", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(mixerSelect(breakTrack.name));
+    // Solid 2 publishes a write on the next microtask, and
+    // `@solidjs/testing-library` 1.x re-exports `@testing-library/dom`'s raw
+    // `fireEvent`, so nothing flushes it for us. Without this the assertions
+    // below read the selection as it was before the click.
+    flush();
 
     // The editor follows: the second track's name, and no drum pads, because
     // the pads belong to a track that is no longer the one being edited.
@@ -381,6 +387,7 @@ describe("EditorView", () => {
 
     // And back, from the same control on the other strip.
     fireEvent.click(mixerSelect(drums.name));
+    flush();
     expect(
       screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).toBeInTheDocument();
@@ -405,6 +412,7 @@ describe("EditorView", () => {
         name: `Edit ${breakTrack.name}`,
       }),
     );
+    flush();
 
     expect(
       screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),

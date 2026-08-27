@@ -2,7 +2,7 @@
 // PRD `OPS-01` / `9.1` / `10` Security and privacy: "no secret, provider
 // credential, or privileged configuration reaches the client bundle; a check
 // fails the build if one does." This scans a built Hosting output directory
-// (`.output/public` by default, matching `firebase.json`'s `hosting.public`)
+// (`dist/client` by default, matching `firebase.json`'s `hosting.public`)
 // for the *shape* of server-only credentials.
 //
 //   node scripts/verify-no-secrets-in-bundle.mjs [dir]
@@ -107,7 +107,7 @@ export function scanForSecrets(dir) {
 }
 
 function main() {
-  const dir = process.argv[2] ?? ".output/public";
+  const dir = process.argv[2] ?? "dist/client";
   if (!existsSync(dir)) {
     console.error(
       `verify-no-secrets-in-bundle: "${dir}" does not exist. Run \`bun run build\` first.`,
