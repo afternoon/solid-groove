@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Project } from "../../domain/entities";
+import type { Device, Project } from "../../domain/entities";
 import { deviceIdSchema, returnIdSchema, trackIdSchema } from "../../domain/ids";
 import {
   coerceParameterValue,
@@ -69,6 +69,15 @@ export const parameterTargetSchema = z.discriminatedUnion("scope", [
     scope: z.literal("master"),
     parameterId: z.string().min(1),
   }),
+  // A device in the master's own insert chain (LOOP-020). `master` above is
+  // the bus itself — its volume — and `trackDevice` is the same idea one
+  // chain over; this is the third chain kind the `device.*` commands already
+  // write to, made writable at the parameter level too.
+  z.strictObject({
+    scope: z.literal("masterDevice"),
+    deviceId: deviceIdSchema,
+    parameterId: z.string().min(1),
+  }),
 ]);
 export type ParameterTarget = z.infer<typeof parameterTargetSchema>;
 
@@ -77,6 +86,36 @@ export const parameterSetPayloadSchema = z.strictObject({
   value: z.number(),
 });
 export type ParameterSetPayload = z.infer<typeof parameterSetPayloadSchema>;
+
+/**
+ * Resolves one parameter on a device in any insert chain.
+ *
+ * A device's parameters are namespaced by its `type` — exactly how the domain
+ * validates a stored device parameter value and how `src/domain/devices.ts`
+ * registers them — so which chain the device sits in changes only *where the
+ * new parameter map is written back*, never how the definition is found. That
+ * is the entire difference between the `trackDevice` and `masterDevice` cases
+ * below, which is why they share this and differ only in their `write`.
+ */
+function resolveDeviceParameter(
+  device: Device | undefined,
+  parameterId: string,
+  missing: string,
+  write: (parameters: Record<string, number>) => Project,
+): Resolution {
+  if (!device) return { error: missing };
+  const definition = getParameterDefinition(`${device.type}.${parameterId}`);
+  if (!definition) {
+    return {
+      error: `Device ${device.type} has no registered parameter "${parameterId}"`,
+    };
+  }
+  return {
+    definition,
+    current: device.parameters[parameterId] ?? definition.defaultValue,
+    write: (value) => write({ ...device.parameters, [parameterId]: value }),
+  };
+}
 
 interface ResolvedParameter {
   readonly definition: ParameterDefinition;
@@ -232,39 +271,38 @@ function resolveParameter(project: Project, target: ParameterTarget): Resolution
       if (!track) {
         return { error: `Track ${target.trackId} does not exist` };
       }
-      const device = track.devices.find((candidate) => candidate.id === target.deviceId);
-      if (!device) {
-        return {
-          error: `Track ${track.id} has no device ${target.deviceId}`,
-        };
-      }
-      // Device parameters are namespaced by device type, matching how the
-      // domain validates a stored device parameter value.
-      const definition = getParameterDefinition(`${device.type}.${target.parameterId}`);
-      if (!definition) {
-        return {
-          error: `Device ${device.type} has no registered parameter "${target.parameterId}"`,
-        };
-      }
-      return {
-        definition,
-        current: device.parameters[target.parameterId] ?? definition.defaultValue,
-        write: (value) =>
+      return resolveDeviceParameter(
+        track.devices.find((candidate) => candidate.id === target.deviceId),
+        target.parameterId,
+        `Track ${track.id} has no device ${target.deviceId}`,
+        (parameters) =>
           replaceTrack(project, {
             ...track,
             devices: track.devices.map((candidate) =>
-              candidate.id === device.id
-                ? {
-                    ...candidate,
-                    parameters: {
-                      ...candidate.parameters,
-                      [target.parameterId]: value,
-                    },
-                  }
-                : candidate,
+              candidate.id === target.deviceId ? { ...candidate, parameters } : candidate,
             ),
           }),
-      };
+      );
+    }
+    case "masterDevice": {
+      const master = project.song.master;
+      return resolveDeviceParameter(
+        master.devices.find((candidate) => candidate.id === target.deviceId),
+        target.parameterId,
+        `The master chain has no device ${target.deviceId}`,
+        (parameters) =>
+          withSong(project, {
+            ...project.song,
+            master: {
+              ...master,
+              devices: master.devices.map((candidate) =>
+                candidate.id === target.deviceId
+                  ? { ...candidate, parameters }
+                  : candidate,
+              ),
+            },
+          }),
+      );
     }
   }
 }

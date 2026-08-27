@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  bareParameterId,
+  createDevice,
+  type DeviceId,
+  deviceParameters,
   MASTER_VOLUME,
   type Project,
   RETURN_VOLUME,
@@ -9,13 +13,14 @@ import {
   TRACK_SEND_LEVEL,
   TRACK_VOLUME,
 } from "../domain";
-import { setParameter } from ".";
+import { addDevice, masterChain, setParameter } from ".";
 import { executeCommand } from "./execute";
 import { findTrack } from "./projectEdits";
 import {
   ABSENT_IDS,
   type CommandTestProject,
   createCommandTestProject,
+  createTestFactoryContext,
   TEST_DEVICE_PARAMETER,
   TEST_DEVICE_TYPE,
 } from "./testProjects";
@@ -138,6 +143,111 @@ describe("parameter.set", () => {
       findTrack(next, fixture.trackAId)?.devices[0].parameters[TEST_DEVICE_PARAMETER],
     ).toBe(1.5);
     expect(DEVICE_TIME.max).toBe(2);
+  });
+
+  describe("a device on the master chain (LOOP-020)", () => {
+    // A real registered type, not the fixture's stand-in: the master panel
+    // generates its controls from `deviceParameters("overdrive")`, so the scope
+    // has to resolve the same `${type}.${id}` namespace those definitions are
+    // registered under.
+    const DRIVE = "drive";
+    let deviceId: DeviceId;
+    let withOverdrive: Project;
+
+    beforeEach(() => {
+      deviceId = createTestFactoryContext("loop-020").ids("device");
+      withOverdrive = apply(
+        fixture.project,
+        addDevice(masterChain, createDevice(deviceId, "overdrive", 0)),
+      );
+    });
+
+    it("writes the value onto the master's device and nothing else", () => {
+      const next = apply(
+        withOverdrive,
+        setParameter({ scope: "masterDevice", deviceId, parameterId: DRIVE }, 0.8),
+      );
+      expect(next.song.master.devices[0].parameters[DRIVE]).toBe(0.8);
+      // The bus itself, and every track's own chain, are untouched: this
+      // scope reaches one device's parameter map and no other state.
+      expect(next.song.master.volume).toBe(withOverdrive.song.master.volume);
+      expect(next.song.tracks).toEqual(withOverdrive.song.tracks);
+    });
+
+    it("reads its range from the device's own definition, and clamps to it", () => {
+      // `overdrive.drive` is 0..1 (`src/domain/devices.ts`). The command never
+      // repeats that bound — it resolves the registered definition — so an
+      // out-of-range value lands on the definition's max rather than being
+      // stored or rejected.
+      const definition = deviceParameters("overdrive").find(
+        (candidate) => bareParameterId(candidate.id) === DRIVE,
+      );
+      expect(definition?.max).toBe(1);
+      const next = apply(
+        withOverdrive,
+        setParameter({ scope: "masterDevice", deviceId, parameterId: DRIVE }, 99),
+      );
+      expect(next.song.master.devices[0].parameters[DRIVE]).toBe(1);
+    });
+
+    it("inverts to the value the device held before, so one drag is one undo", () => {
+      const before = withOverdrive.song.master.devices[0].parameters[DRIVE];
+      const result = executeCommand(
+        withOverdrive,
+        setParameter({ scope: "masterDevice", deviceId, parameterId: DRIVE }, 0.8),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const undone = apply(result.project, result.inverse[0]);
+      expect(undone.song.master.devices[0].parameters[DRIVE]).toBe(before);
+    });
+
+    it("summarizes with the device parameter's own label", () => {
+      const result = executeCommand(
+        withOverdrive,
+        setParameter({ scope: "masterDevice", deviceId, parameterId: DRIVE }, 0.8),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.summary).toBe("Set Drive to 0.8");
+    });
+
+    it("rejects an absent device and an unregistered parameter", () => {
+      const absent = executeCommand(
+        withOverdrive,
+        setParameter(
+          { scope: "masterDevice", deviceId: ABSENT_IDS.device, parameterId: DRIVE },
+          0.5,
+        ),
+      );
+      expect(absent.ok).toBe(false);
+      if (!absent.ok) {
+        expect(absent.issues[0].message).toMatch(/master chain has no device/);
+      }
+
+      const unknown = executeCommand(
+        withOverdrive,
+        setParameter({ scope: "masterDevice", deviceId, parameterId: "mystery" }, 0.5),
+      );
+      expect(unknown.ok).toBe(false);
+      if (!unknown.ok) {
+        expect(unknown.issues[0].message).toMatch(/no registered parameter/);
+      }
+    });
+
+    it("does not reach a track's device, which keeps its own scope", () => {
+      // The two device scopes name different chains: a `masterDevice` target
+      // carrying a track device's id resolves to nothing rather than silently
+      // editing the track.
+      const result = executeCommand(
+        withOverdrive,
+        setParameter(
+          { scope: "masterDevice", deviceId: fixture.deviceId, parameterId: DRIVE },
+          0.5,
+        ),
+      );
+      expect(result.ok).toBe(false);
+    });
   });
 
   it("clamps to the definition's range instead of storing an illegal value", () => {
