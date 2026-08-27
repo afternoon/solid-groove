@@ -76,6 +76,10 @@ function renderMixer(initial: Project = createSliceFixtureProject()) {
   // asks for and feeding the answer back in.
   const selected: TrackId[] = [];
   const [selectedTrackId, setSelectedTrackId] = createSignal<TrackId | null>(null);
+  // The master's selected state is the host's too (`EditorView` derives it from
+  // which view the main region shows); the harness plays that host here as well.
+  const [masterSelected, setMasterSelected] = createSignal(false);
+  let masterSelections = 0;
 
   render(() => (
     <Mixer
@@ -92,10 +96,21 @@ function renderMixer(initial: Project = createSliceFixtureProject()) {
         selected.push(trackId);
         setSelectedTrackId(trackId);
       }}
+      masterSelected={masterSelected()}
+      onSelectMaster={() => {
+        masterSelections += 1;
+        setMasterSelected(true);
+      }}
     />
   ));
 
-  return { history, project, transport, selected };
+  return {
+    history,
+    project,
+    transport,
+    selected,
+    masterSelections: () => masterSelections,
+  };
 }
 
 describe("Mixer track management (TRK-01)", () => {
@@ -338,8 +353,9 @@ describe("Mixer controls (TRK-02)", () => {
   it("shows a human-readable dB value and a pan readout", () => {
     const { history } = renderMixer();
     const track = history.project.song.tracks[0];
-    // Default volume 0 dB, default pan centre.
-    expect(screen.getByText("0.0 dB")).toBeInTheDocument();
+    // Default volume 0 dB, default pan centre. The master's fader reads in the
+    // same units and also starts at 0 dB (#283), so this is "at least one".
+    expect(screen.getAllByText("0.0 dB").length).toBeGreaterThan(0);
     expect(screen.getAllByText("C").length).toBeGreaterThan(0);
     // The fader carries the readable value for assistive tech.
     const fader = screen.getByLabelText(`Volume for ${track.name}`);
@@ -355,7 +371,9 @@ describe("Mixer controls (TRK-02)", () => {
     const sliders = Array.from(
       document.querySelectorAll<HTMLInputElement>(".fill-slider-input"),
     );
-    expect(sliders).toHaveLength(trackCount * 2);
+    // Volume and pan per track, plus the master's single volume fader (#283) —
+    // the master is a bus, so it has no pan of its own here.
+    expect(sliders).toHaveLength(trackCount * 2 + 1);
     // Volume and pan appear once per track, so their ids have to be per-track:
     // a duplicated id would point every strip's <label> at the same input.
     const ids = sliders.map((input) => input.id);
@@ -474,5 +492,61 @@ describe("Mixer track selection (#228)", () => {
     expect(events[0]?.params.feature).toBe("mixer");
     // Selection is not a tracked action of its own: nothing else is logged.
     expect(transport.events).toHaveLength(1);
+  });
+});
+
+describe("the master channel (#283)", () => {
+  it("is always present, after the track strips", () => {
+    // The master always exists, so it is always here — no project state makes
+    // it appear or disappear.
+    renderMixer(createDrumMachineFixtureProject());
+    expect(screen.getByRole("button", { name: "Edit Master" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Volume for Master" })).toBeInTheDocument();
+  });
+
+  it("reports a master selection rather than deciding it", () => {
+    const { masterSelections } = renderMixer(createDrumMachineFixtureProject());
+    const select = screen.getByRole("button", { name: "Edit Master" });
+    expect(select).toHaveAttribute("aria-pressed", "false");
+
+    clickAndFlush(select);
+
+    // The mixer's half of #283's two entrypoints: it asks the host to show the
+    // master view, and reflects the answer the host gives back.
+    expect(masterSelections()).toBe(1);
+    expect(screen.getByRole("button", { name: "Edit Master" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("writes the master volume through parameter.set, as one history entry", () => {
+    const { history } = renderMixer(createDrumMachineFixtureProject());
+    const before = history.project.song.master.volume;
+    const entriesBefore = history.entries.length;
+    const fader = screen.getByRole("slider", {
+      name: "Volume for Master",
+    }) as HTMLInputElement;
+
+    // A drag: every move applies live inside one gesture, the release commits.
+    fireEvent.input(fader, { target: { value: "0.5" } });
+    flush();
+    fireEvent.input(fader, { target: { value: "0.4" } });
+    flush();
+    fireEvent.change(fader, { target: { value: "0.4" } });
+    flush();
+
+    expect(history.project.song.master.volume).not.toBe(before);
+    expect(history.entries.length).toBe(entriesBefore + 1);
+  });
+
+  it("carries no track affordance that does not apply to a bus", () => {
+    // There is one master: it cannot be reordered, duplicated or deleted, and
+    // muting it is what the transport is for.
+    renderMixer(createDrumMachineFixtureProject());
+    for (const action of ["Mute Master", "Solo Master", "Delete Master"]) {
+      expect(screen.queryByRole("button", { name: action })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole("slider", { name: "Pan for Master" })).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import {
   Switch,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import type { MainView } from "../analytics/catalog";
 import ArrangementView, {
   type PlacementEditingActions,
 } from "../arrangement/ArrangementView";
@@ -34,11 +35,13 @@ import {
   type SelectionState,
   selectOnly,
 } from "../selection";
+import { ariaBool } from "../shared/aria";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
 import * as model from "./editorViewModel";
 import LoopInfo from "./LoopInfo";
+import MasterPanel from "./MasterPanel";
 import Mixer from "./Mixer";
 import type { PianoRollActions } from "./PianoRoll";
 import ProjectLoadStates from "./ProjectLoadStates";
@@ -49,6 +52,12 @@ import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
 import "./EditorView.css";
+
+/** The main region's views, in tab order (#283). */
+const MAIN_VIEW_TABS: readonly { view: MainView; label: string }[] = [
+  { view: "arrangement", label: "Arrangement" },
+  { view: "master", label: "Master" },
+];
 
 export interface EditorViewProps {
   readonly projectId: string;
@@ -148,6 +157,22 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // the clip editor, the instrument panel, and (once it lands) the device
   // chain together. Nothing is selected on arrival; `model.editedTrack` then
   // falls back to the project's first track.
+  // Which view the main region is showing (#283). Session state, never
+  // persisted: the arrangement is where a project opens, and switching is a
+  // change to what is on screen, not to the song.
+  const [mainView, setMainView] = createSignal<MainView>("arrangement");
+  /**
+   * Shows one main view and reports which entrypoint reached it. Both land in
+   * the same state — the point of one signal rather than one per surface — but
+   * which route producers use is worth knowing, so `via` travels with the
+   * event. Re-selecting the view already showing logs nothing.
+   */
+  function showMainView(view: MainView, via: "tab" | "mixer"): void {
+    if (mainView() === view) return;
+    setMainView(view);
+    (props.analytics ?? defaultAnalytics).log("main_view_changed", { view, via });
+  }
+
   const [selection, setSelection] = createSignal<SelectionState>(emptySelection());
   // A track deleted by this session, an undo, or a remote edit must not leave
   // the editor pointed at it: `reconcileSelection` drops the dead scope, and
@@ -339,17 +364,64 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                  * rather than a band beneath the arrangement (#221).
                  */}
                 <div class="editor-main">
-                  <div class="arrangement-panel">
-                    <ArrangementView
-                      project={currentProject()}
-                      playheadTicks={audio.positionTicks}
-                      isPlaying={audio.isPlaying}
-                      dispatch={session.dispatch}
-                      beginGesture={session.beginGesture}
-                      onEditingActionsReady={setArrangementEditingActions}
-                      selectedTrackId={track()?.id ?? null}
-                      onSelectTrack={selectTrack}
-                    />
+                  {/* The main region is a switcher, not a sixth region (#283,
+                      PRD section 6): whichever view is showing sits in the slot
+                      the arrangement always had, so the editor stays at five
+                      regions and the thing you are working on is front and
+                      centre. */}
+                  <div class="main-view-tabs" role="tablist" aria-label="Main view">
+                    <For each={MAIN_VIEW_TABS}>
+                      {(tab) => (
+                        // Every tab is focusable and activates on Enter, Space
+                        // or click. No `keydown` of its own: key handling lives
+                        // in the KEY-01 registry, and a tablist whose tabs are
+                        // all in the tab order conforms without one.
+                        <button
+                          type="button"
+                          role="tab"
+                          id={`main-view-tab-${tab.view}`}
+                          class={["main-view-tab", { active: mainView() === tab.view }]}
+                          aria-selected={ariaBool(mainView() === tab.view)}
+                          aria-controls={`main-view-panel-${tab.view}`}
+                          onClick={() => showMainView(tab.view, "tab")}
+                        >
+                          {tab.label}
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                  <div
+                    class="arrangement-panel"
+                    role="tabpanel"
+                    id={`main-view-panel-${mainView()}`}
+                    aria-labelledby={`main-view-tab-${mainView()}`}
+                  >
+                    <Switch>
+                      <Match when={mainView() === "arrangement"}>
+                        <ArrangementView
+                          project={currentProject()}
+                          playheadTicks={audio.positionTicks}
+                          isPlaying={audio.isPlaying}
+                          dispatch={session.dispatch}
+                          beginGesture={session.beginGesture}
+                          onEditingActionsReady={setArrangementEditingActions}
+                          selectedTrackId={track()?.id ?? null}
+                          onSelectTrack={selectTrack}
+                        />
+                      </Match>
+                      <Match when={mainView() === "master"}>
+                        {/* Swapping the view unmounts the arrangement, which
+                            touches no audio: the graph, the transport and the
+                            playhead are owned by `useProjectAudio` above both
+                            views, so playback runs across a switch. */}
+                        <MasterPanel
+                          project={currentProject()}
+                          dispatch={session.dispatch}
+                          beginGesture={session.beginGesture}
+                          analytics={props.analytics}
+                        />
+                      </Match>
+                    </Switch>
                   </div>
                   <div class="workspace">
                     <For each={loopClips()}>
@@ -421,6 +493,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       isPlaying={audio.isPlaying}
                       selectedTrackId={track()?.id ?? null}
                       onSelectTrack={selectTrack}
+                      masterSelected={mainView() === "master"}
+                      onSelectMaster={() => showMainView("master", "mixer")}
                     />
                   </div>
                 </div>

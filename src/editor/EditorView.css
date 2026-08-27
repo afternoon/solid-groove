@@ -296,3 +296,31 @@
   overflow: hidden;
   background-color: var(--color-background-secondary);
 }
+
+/* The main region's view switcher (#283). A thin strip of tabs above the
+   region, so the editor stays at five regions rather than gaining a sixth. */
+.main-view-tabs {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+  background-color: var(--color-background-secondary);
+}
+.main-view-tab {
+  border: none;
+  background-color: var(--color-background-secondary);
+  color: var(--color-foreground);
+  font-family: inherit;
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+/* The selected tab carries the same cyan accent a selected mixer strip does,
+   on the edge nearest its panel. */
+.main-view-tab:hover,
+.main-view-tab.active {
+  background-color: var(--color-background-highlight);
+  color: var(--color-text);
+  box-shadow: inset 0 -2px 0 var(--color-accent, #20c8e8);
+}

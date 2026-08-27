@@ -28,7 +28,7 @@ import {
   formatPan,
 } from "../domain/faders";
 import type { TrackId } from "../domain/ids";
-import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
+import { MASTER_VOLUME, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
@@ -75,6 +75,14 @@ export interface MixerProps {
   readonly selectedTrackId?: TrackId | null;
   /** Called with the track a strip belongs to when the user clicks it. */
   onSelectTrack?(trackId: TrackId): void;
+  /** Whether the main region is showing the master (LOOP-020). */
+  readonly masterSelected?: boolean;
+  /**
+   * Called when the master strip is selected — the mixer's half of the two
+   * entrypoints into the master view. Omitted, the strip still mixes; it just
+   * does not move the region.
+   */
+  onSelectMaster?(): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
   /** Overrides the meter poll scheduler; injectable for tests. */
@@ -239,6 +247,13 @@ export default function Mixer(props: MixerProps): JSX.Element {
             );
           }}
         </For>
+        <MasterStrip
+          volumeDb={props.project.song.master.volume}
+          selected={props.masterSelected === true}
+          onSelect={() => props.onSelectMaster?.()}
+          dispatch={props.dispatch}
+          beginGesture={props.beginGesture}
+        />
       </div>
       <Show when={pendingDelete()}>
         {(track) => (
@@ -252,6 +267,73 @@ export default function Mixer(props: MixerProps): JSX.Element {
         )}
       </Show>
     </section>
+  );
+}
+
+interface MasterStripProps {
+  readonly volumeDb: number;
+  /** Whether the main region is currently showing the master (LOOP-020). */
+  readonly selected: boolean;
+  onSelect(): void;
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
+}
+
+/**
+ * The master channel, at the end of the strips (PRD AUD-08; LOOP-020).
+ *
+ * The master always exists, so it is always here — and selecting it is the
+ * mixer's route into the main region's master view, the second of that view's
+ * two entrypoints. The mixer reports the selection rather than deciding it,
+ * exactly as it does for a track. Its fader writes `master.volume` through the
+ * same `parameter.set` command and gesture a track's does, so a drag is one
+ * history entry.
+ */
+function MasterStrip(props: MasterStripProps): JSX.Element {
+  const control = createControlGesture({
+    beginGesture: (options) => props.beginGesture(options),
+    dispatch: (commands) => props.dispatch(commands),
+    summary: () => "Set master volume",
+    command: (value) =>
+      setParameter(
+        { scope: "master", parameterId: MASTER_VOLUME.id },
+        faderPositionToDb(MASTER_VOLUME, value),
+      ),
+  });
+
+  return (
+    <div class={["mixer-strip mixer-master", { selected: props.selected }]}>
+      <div class="mixer-strip-head">
+        <button
+          type="button"
+          class="mixer-strip-select mixer-master-select"
+          aria-pressed={ariaBool(props.selected)}
+          aria-label="Edit Master"
+          title="Edit Master"
+          onClick={() => props.onSelect()}
+        >
+          <span class="mixer-master-name">Master</span>
+        </button>
+      </div>
+      <div class="mixer-strip-controls">
+        {/* `FillSlider` directly, not `VolumeFader`: that one is written
+            against a `Track`, and widening it to take a bus too is a refactor
+            of a landed control rather than this task's work. */}
+        <FillSlider
+          definition={MASTER_VOLUME}
+          inputId="mixer-volume-master"
+          label="Vol"
+          ariaLabel="Volume for Master"
+          range={FADER_RANGE}
+          value={dbToFaderPosition(MASTER_VOLUME, props.volumeDb)}
+          displayValue={formatDb(MASTER_VOLUME, props.volumeDb)}
+          onInput={(value) => control.input(value)}
+          onCommit={(value) => control.commit(value)}
+        />
+      </div>
+    </div>
   );
 }
 

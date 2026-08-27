@@ -293,3 +293,18 @@
   background-color: var(--color-error);
   color: var(--color-background-secondary);
 }
+
+/* The master channel, at the end of the strips (LOOP-020). It carries no
+   colour chip, mute, solo, pan or delete: there is one master, it cannot be
+   reordered or removed, and muting it is what the transport is for. */
+.mixer-master .mixer-strip-select {
+  width: auto;
+  height: auto;
+  padding: 2px 4px;
+}
+.mixer-master-name {
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text);
+}

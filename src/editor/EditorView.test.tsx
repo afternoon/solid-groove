@@ -933,3 +933,99 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("the main region's view switcher (#283)", () => {
+  const masterTab = () => screen.getByRole("tab", { name: "Master" });
+  const arrangementTab = () => screen.getByRole("tab", { name: "Arrangement" });
+
+  async function renderSlice(analytics?: Analytics) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      analytics,
+    });
+    await screen.findByRole("region", { name: "Step editor" });
+  }
+
+  it("opens on the arrangement, with both views named and announced", async () => {
+    await renderSlice();
+    // Both tabs are focusable and activate from the keyboard; the panel is
+    // named by whichever tab is selected.
+    expect(arrangementTab()).toHaveAttribute("aria-selected", "true");
+    expect(masterTab()).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tabpanel", { name: "Arrangement" })).toBeInTheDocument();
+  });
+
+  it("switches to the master view from the tab", async () => {
+    await renderSlice();
+    fireEvent.click(masterTab());
+    expect(await screen.findByRole("tabpanel", { name: "Master" })).toBeInTheDocument();
+    expect(masterTab()).toHaveAttribute("aria-selected", "true");
+    // CF-007 step 4: the master's effects are on screen with an empty chain.
+    const chain = screen.getByRole("list", { name: "Master chain" });
+    expect(within(chain).queryAllByRole("listitem")).toHaveLength(0);
+  });
+
+  it("reaches the same state from the mixer's master strip", async () => {
+    await renderSlice();
+    fireEvent.click(screen.getByRole("button", { name: "Edit Master" }));
+    // The second entrypoint lands in exactly the state the tab does.
+    expect(await screen.findByRole("tabpanel", { name: "Master" })).toBeInTheDocument();
+    expect(masterTab()).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Edit Master" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("logs one main_view_changed per switch, saying how it was reached", async () => {
+    const transport = createRecordingTransport();
+    await renderSlice(recordingAnalytics(transport));
+    fireEvent.click(masterTab());
+    await screen.findByRole("tabpanel", { name: "Master" });
+    fireEvent.click(arrangementTab());
+    await screen.findByRole("tabpanel", { name: "Arrangement" });
+    // Switching back takes the master panel off screen with it.
+    expect(screen.queryByRole("list", { name: "Master chain" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit Master" }));
+    await screen.findByRole("tabpanel", { name: "Master" });
+
+    const switches = transport.events.filter((e) => e.name === "main_view_changed");
+    expect(switches.map((event) => event.params.view)).toEqual([
+      "master",
+      "arrangement",
+      "master",
+    ]);
+    expect(switches.map((event) => event.params.via)).toEqual(["tab", "tab", "mixer"]);
+  });
+
+  it("logs nothing for re-selecting the view already showing", async () => {
+    const transport = createRecordingTransport();
+    await renderSlice(recordingAnalytics(transport));
+    fireEvent.click(masterTab());
+    await screen.findByRole("tabpanel", { name: "Master" });
+    fireEvent.click(masterTab());
+    fireEvent.click(screen.getByRole("button", { name: "Edit Master" }));
+    // Re-selecting is not a change; a view switch is counted once.
+    expect(transport.events.filter((e) => e.name === "main_view_changed")).toHaveLength(
+      1,
+    );
+  });
+
+  it("leaves the transport and the playhead alone across a switch", async () => {
+    await renderSlice();
+    // Audio is owned by `useProjectAudio` above both views, so swapping the
+    // view cannot touch the graph, the transport, or the position.
+    const playhead = () => document.querySelector(".playhead-position")?.textContent;
+    const before = playhead();
+    expect(before).toBeTruthy();
+    fireEvent.click(masterTab());
+    await screen.findByRole("tabpanel", { name: "Master" });
+    expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Enable metronome" })).toBeInTheDocument();
+    expect(playhead()).toBe(before);
+  });
+});
