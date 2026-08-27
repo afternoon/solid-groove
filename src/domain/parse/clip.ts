@@ -1,3 +1,4 @@
+import { MAX_CLIP_LENGTH_BARS, MAX_CLIP_LENGTH_TICKS } from "../clipLength";
 import type { Clip, Track } from "../entities";
 import { TICKS_PER_BAR } from "../time";
 import { claimId, type DomainIssue, issue } from "./primitives";
@@ -16,6 +17,18 @@ export function checkClipInvariants(
   seenIds: Set<string> = new Set(),
 ): DomainIssue[] {
   const issues: DomainIssue[] = [];
+  // The clip-length bound is checked here as well as in the schema, so every
+  // path that writes a length obeys it: `executeTransaction` runs the
+  // invariants over the project a command produced, not its schemas.
+  if (clip.lengthTicks > MAX_CLIP_LENGTH_TICKS) {
+    issues.push(
+      issue(
+        "invalid_musical_time",
+        [...path, "lengthTicks"],
+        `Clip ${clip.id} is ${clip.lengthTicks} ticks long, past the ${MAX_CLIP_LENGTH_BARS}-bar maximum of ${MAX_CLIP_LENGTH_TICKS} ticks`,
+      ),
+    );
+  }
   if (clip.content.kind !== "notes") {
     return issues;
   }

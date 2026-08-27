@@ -10,6 +10,7 @@ import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import {
   barCount,
+  barOptions,
   isBarStart,
   isBeatStart,
   lanesFor,
@@ -53,7 +54,7 @@ export interface StepEditorProps {
 }
 
 /**
- * The CLP-02 step editor: a 1-8 bar, 16th-note grid for sampler and
+ * The CLP-02 step editor: a 1-32 bar, 16th-note grid for sampler and
  * drum-machine clips. Replaces the `FND-009` slice's minimal 16-step
  * `StepGrid`.
  *
@@ -215,12 +216,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
             value={bars()}
             onChange={(event) => resizeToBars(Number(event.currentTarget.value))}
           >
-            <For
-              each={Array.from(
-                { length: MAX_BARS - MIN_BARS + 1 },
-                (_, index) => MIN_BARS + index,
-              )}
-            >
+            <For each={barOptions(props.clip)}>
               {(count) => <option value={count}>{count}</option>}
             </For>
           </select>

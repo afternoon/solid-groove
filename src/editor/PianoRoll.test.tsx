@@ -7,6 +7,7 @@ import {
   createRecordingTransport,
   type RecordingTransport,
 } from "../analytics/transport";
+import { updateClip } from "../commands";
 import type { Clip, NoteEvent } from "../domain/entities";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
@@ -391,6 +392,34 @@ describe("PianoRoll", () => {
     const copy = after.find((n) => n.startTicks === first.startTicks + TICKS_PER_BAR);
     expect(copy).toBeDefined();
     expect(copy?.trigger).toEqual(first.trigger);
+  });
+
+  it("extends a full clip rather than refusing to duplicate", async () => {
+    const { session, renderRoll, getActions } = await setUp();
+    // A one-bar clip with a bar of notes — the starter project's shape, where
+    // every copy lands at the clip end and duplicating used to be refused
+    // outright (#256).
+    session.dispatch(
+      updateClip(session.project.clips[0].id, {
+        lengthTicks: TICKS_PER_BAR as Clip["lengthTicks"],
+      }),
+    );
+    flush();
+    renderRoll();
+
+    getActions()?.selectAll();
+    flush();
+    getActions()?.duplicateSelection();
+    flush();
+
+    const clip = session.project.clips[0];
+    expect(noteEvents(clip)).toHaveLength(8);
+    expect(clip.lengthTicks).toBe(TICKS_PER_BAR * 2);
+    // One transaction, so one undo puts the copies and the extension back.
+    session.undo();
+    flush();
+    expect(noteEvents(session.project.clips[0])).toHaveLength(4);
+    expect(session.project.clips[0].lengthTicks).toBe(TICKS_PER_BAR);
   });
 
   it("deletes the selection from the toolbar Delete button", async () => {

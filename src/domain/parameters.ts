@@ -15,6 +15,7 @@ import { z } from "zod";
  */
 
 export type ParameterUnit =
+  | "bars"
   | "bpm"
   | "decibels"
   | "normalized"
@@ -108,6 +109,23 @@ export const SONG_TEMPO = register({
   min: 20,
   max: 300,
   defaultValue: 120,
+  automatable: false,
+});
+
+/**
+ * How long a clip may be. Declared here so the domain schema, the step
+ * editor's bar control, and `notes.duplicate`'s auto-extend all read one
+ * number; `src/domain/clipLength.ts` derives the tick forms.
+ */
+export const CLIP_LENGTH = register({
+  id: "clip.length",
+  label: "Clip length",
+  unit: "bars",
+  min: 1,
+  max: 32,
+  defaultValue: 1,
+  step: 1,
+  clampPolicy: "reject",
   automatable: false,
 });
 

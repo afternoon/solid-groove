@@ -30,10 +30,7 @@ function eventsOf(
   return clip ? (noteEventsOf(clip) ?? []) : [];
 }
 
-function clipLengthOf(
-  project: Project,
-  clipId: CommandTestProject["clipAId"],
-): number {
+function clipLengthOf(project: Project, clipId: CommandTestProject["clipAId"]): number {
   return findClip(project, clipId)?.lengthTicks ?? -1;
 }
 
