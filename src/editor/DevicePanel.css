@@ -53,3 +53,96 @@
   font-size: var(--font-size-small);
   color: var(--color-foreground);
 }
+
+/* The master FX panel: the chain down the region, in order. */
+
+.master-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background-color: var(--color-background-secondary);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.master-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The region heading, in the same small-caps the instrument panels use. */
+.master-panel-heading {
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-foreground);
+}
+
+/* The menu is positioned against this, not the page. */
+.master-panel-add {
+  position: relative;
+}
+.master-panel-add-button,
+.master-panel-menu-item {
+  border: none;
+  font-family: inherit;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+  cursor: pointer;
+  text-align: left;
+}
+
+.master-panel-add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--color-background-highlight);
+}
+.master-panel-menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 2px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 128px;
+  background-color: var(--color-background-tertiary);
+}
+
+.master-panel-menu-item {
+  background: none;
+  color: var(--color-text);
+  padding: 6px 10px;
+}
+
+.master-panel-menu-item:hover {
+  background-color: var(--color-background-hover);
+}
+
+.master-chain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.master-chain-item {
+  padding: 10px;
+  background-color: var(--color-background-highlight);
+}
+.master-device-name {
+  font-size: var(--font-size-small);
+  color: var(--color-text);
+}
+
+.master-chain-empty {
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  color: var(--color-foreground);
+}
