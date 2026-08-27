@@ -859,6 +859,105 @@ describe("EditorView keyboard shortcuts", () => {
       loaded.value.song.placements.find((p) => p.id === placementId),
     ).toBeUndefined();
   });
+
+  /**
+   * Clicks the first bar of the first arrangement row, where the piano-roll
+   * fixture's placement sits, and waits for the accessible selection mirror to
+   * show it. The geometry constants mirror the renderer's own — the canvas has
+   * no DOM nodes to query for a hit.
+   */
+  async function selectPlacementInArrangement(placementId: string): Promise<void> {
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    const PIXELS_PER_TICK = 0.08;
+    const RULER_HEIGHT_PX = 22;
+    const ROW_HEIGHT_PX = 28;
+    const TICKS_PER_BAR = 768;
+    const down = new MouseEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    });
+    Object.defineProperty(down, "pointerId", { value: 1 });
+    fireEvent(canvas, down);
+    const up = new MouseEvent("pointerup", { bubbles: true, cancelable: true });
+    Object.defineProperty(up, "pointerId", { value: 1 });
+    fireEvent(canvas, up);
+    await waitFor(() => {
+      expect(
+        document.querySelector(`[data-selected-placement="${placementId}"]`),
+      ).not.toBeNull();
+    });
+  }
+
+  // #258. The reporter hit this by selecting a placement on one track, deleting
+  // it, then selecting one on another track — but moving between tracks is
+  // incidental. What decides it is the *edited* track's instrument, which
+  // clicking a placement re-points (#228): once that track is one the editor
+  // shows the piano roll for, the arrangement's placement selection stopped
+  // reaching `edit.delete` at all, so Delete did nothing. The piano-roll
+  // fixture is the smallest case — one synth track, one placement, no track
+  // switching anywhere.
+  it("deletes a selected placement while the piano roll is showing (#258)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByRole("region", { name: /^Piano roll:/ });
+
+    const placementId = project.song.placements[0].id;
+    await selectPlacementInArrangement(placementId);
+
+    fireEvent.keyDown(window, { key: "Delete" });
+
+    // Asserted against the stored project rather than the "Saved" indicator, so
+    // a failure names the placement that is still there instead of dumping the
+    // editor's DOM.
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        expect(loaded.value.song.placements.map((p) => p.id)).not.toContain(placementId);
+      },
+      { timeout: 3_000 },
+    );
+  });
+
+  // #258 again, found by walking the preview channel: Delete, Cut and Copy all
+  // came back, but Paste stayed dead on a piano-roll track. Its `isEnabled`
+  // carried the same `!showPianoRoll()` term the rest of this handler block
+  // shed — and because a disabled mapping leaves the browser default alone,
+  // the failure is silent. The registry lists `edit.paste` under both
+  // `selection` and `arrangement`, so the context was active the whole time
+  // and only this gate stood in the way. Nothing is stolen from the roll: it
+  // registers no clipboard action of its own (`PianoRollActions` is delete,
+  // duplicate, select-all, has-selection).
+  it("pastes a copied placement while the piano roll is showing (#258)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByRole("region", { name: /^Piano roll:/ });
+
+    const placementId = project.song.placements[0].id;
+    await selectPlacementInArrangement(placementId);
+
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
+
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        expect(loaded.value.song.placements).toHaveLength(2);
+      },
+      { timeout: 3_000 },
+    );
+  });
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */

@@ -25,9 +25,11 @@ export interface UseEditorShortcutsOptions {
    * `ArrangementView` the same way `pianoRollActions` is lifted from the
    * piano roll. */
   readonly arrangementEditingActions: Accessor<PlacementEditingActions | null>;
-  /** Whether the arrangement (not the piano roll) currently has a placement
-   * selection — gates the `arrangement` shortcut context, mirroring how
-   * `selection` is only added while the piano roll shows a selection. */
+  /** Whether the arrangement currently has a placement selection — gates the
+   * `arrangement` shortcut context, mirroring how `selection` is only added
+   * while the piano roll shows a selection. Live whichever editor is mounted
+   * below the arrangement, because the arrangement is on screen either way
+   * (#258). */
   readonly hasArrangementSelection: () => boolean;
 }
 
@@ -65,6 +67,28 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     hasArrangementSelection,
   } = options;
 
+  /**
+   * Which surface a selection-scoped edit acts on right now (#258).
+   *
+   * Precedence, not visibility: the piano roll takes it while it is showing
+   * *and* holds a note selection, otherwise the arrangement's placement
+   * selection wins, and the step editor's lifted note selection is the last
+   * resort (only while its grid is the one showing). Asking "is the piano roll
+   * showing?" first is what broke Delete — that answers which editor is
+   * mounted below the arrangement, not which surface the user selected in, so
+   * a placement selected on a synth track was routed to a piano roll with
+   * nothing selected and the keypress did nothing.
+   */
+  type SelectionOwner = "piano_roll" | "arrangement" | "step_editor";
+  const selectionOwner = (): SelectionOwner | null => {
+    if (showPianoRoll() && (pianoRollActions()?.hasSelection() ?? false)) {
+      return "piano_roll";
+    }
+    if (hasArrangementSelection()) return "arrangement";
+    if (!showPianoRoll() && selectedNoteIds().length > 0) return "step_editor";
+    return null;
+  };
+
   // The KEY-01 registry owns every mapping; this component only says which
   // actions exist here and what they do. An action the slice does not
   // implement yet simply has no handler and never fires.
@@ -86,20 +110,17 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // a selection: the piano roll keeps its own and hands the operation up
     // through `registerActions` (CLP-03), the step editor's is lifted into this
     // component (CLP-02), and the arrangement's placement selection is lifted
-    // the same way (ARR-002). Each only fires when its own selection is
+    // the same way (ARR-002). Only fires when some surface's selection is
     // non-empty, so an empty-selection Delete leaves the browser default alone
     // (PRD KEY-02).
     "edit.delete": {
       run: () => {
-        if (showPianoRoll()) pianoRollActions()?.deleteSelection();
-        else if (hasArrangementSelection())
-          arrangementEditingActions()?.deleteSelection();
-        else deleteSelection();
+        const owner = selectionOwner();
+        if (owner === "piano_roll") pianoRollActions()?.deleteSelection();
+        else if (owner === "arrangement") arrangementEditingActions()?.deleteSelection();
+        else if (owner === "step_editor") deleteSelection();
       },
-      isEnabled: () =>
-        showPianoRoll()
-          ? (pianoRollActions()?.hasSelection() ?? false)
-          : hasArrangementSelection() || selectedNoteIds().length > 0,
+      isEnabled: () => selectionOwner() !== null,
     },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
     "view.close_surface": {
@@ -121,22 +142,24 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // (CLP-01's actual UI requirement) right above the arrangement.
     "edit.duplicate": {
       run: () => {
-        if (showPianoRoll()) pianoRollActions()?.duplicateSelection();
-        else if (hasArrangementSelection())
+        const owner = selectionOwner();
+        if (owner === "piano_roll") pianoRollActions()?.duplicateSelection();
+        else if (owner === "arrangement")
           arrangementEditingActions()?.duplicate("linked");
       },
-      isEnabled: () =>
-        showPianoRoll()
-          ? (pianoRollActions()?.hasSelection() ?? false)
-          : hasArrangementSelection(),
+      isEnabled: () => {
+        const owner = selectionOwner();
+        return owner === "piano_roll" || owner === "arrangement";
+      },
     },
     "edit.select_all": {
       run: () => pianoRollActions()?.selectAll(),
       isEnabled: () => pianoRollActions() !== null,
     },
     // The arrangement's clipboard (ARR-002). Only active while the arrangement
-    // itself has a selection and the piano roll is not showing, matching
-    // `edit.delete`/`edit.duplicate` above.
+    // itself has a selection — whichever editor is mounted below it, matching
+    // `edit.delete`/`edit.duplicate` above (#258). Nothing is stolen from the
+    // piano roll: it registers no cut/copy handler of its own.
     "edit.cut": {
       run: () => arrangementEditingActions()?.cut(),
       isEnabled: () => hasArrangementSelection(),
@@ -149,8 +172,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       // Pastes at the live playhead position, the same anchor most DAWs use
       // with no explicit target selected.
       run: () => arrangementEditingActions()?.paste(audio.positionTicks()),
-      isEnabled: () =>
-        !showPianoRoll() && (arrangementEditingActions()?.getClipboard().length ?? 0) > 0,
+      // Gated on the clipboard alone (#258), not on which editor is mounted
+      // below the arrangement — the same term the rest of this block shed.
+      // Nothing is stolen from the piano roll: it registers no clipboard
+      // action of its own, so Mod+V has exactly one meaning in the editor.
+      isEnabled: () => (arrangementEditingActions()?.getClipboard().length ?? 0) > 0,
     },
   });
 
@@ -158,18 +184,19 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // so "shortcuts valid in the current context" means the editor underneath
   // rather than the modal covering it. The piano roll adds its own contexts:
   // `piano_roll` (where `edit.delete` lives) and `selection` (where
-  // `edit.duplicate`/`edit.select_all` live). `arrangement` is added only
-  // while the arrangement plausibly has focus — a live placement selection —
-  // the same conditional pattern `selection` already follows for the piano
-  // roll, so cut/copy/paste/delete/duplicate never steal a keystroke from an
-  // editor that has nothing selected.
+  // `edit.duplicate`/`edit.select_all` live). `arrangement` is added while the
+  // arrangement holds a live placement selection, the same conditional pattern
+  // `selection` already follows for the piano roll, so
+  // cut/copy/paste/delete/duplicate never steal a keystroke from an editor
+  // that has nothing selected.
   const editorContexts = (): readonly ShortcutContext[] => {
-    if (showPianoRoll()) {
-      return ["editor", "step_editor", "piano_roll", "selection"];
-    }
-    return hasArrangementSelection()
-      ? ["editor", "step_editor", "arrangement"]
+    const base: readonly ShortcutContext[] = showPianoRoll()
+      ? ["editor", "step_editor", "piano_roll", "selection"]
       : ["editor", "step_editor"];
+    // A live placement selection makes the arrangement's own mappings active
+    // whichever editor is mounted below it (#258), not only when that editor
+    // happens to be the step grid.
+    return hasArrangementSelection() ? [...base, "arrangement"] : base;
   };
 
   // While a modal is open it is the only active context, so nothing behind it

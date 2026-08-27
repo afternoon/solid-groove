@@ -120,3 +120,26 @@ describe("discrete operations", () => {
     expect(h.getProject().song.placements[0].looped).toBe(false);
   });
 });
+
+describe("paste anchor", () => {
+  /**
+   * Paste lands at the anchor the caller passes — the playhead, from
+   * `edit.paste`. PR #285 briefly anchored it at the selection instead, to
+   * match Ableton; that produced a copy stacked invisibly on its own source,
+   * and dodging the stack needed rules this schema cannot express yet (no
+   * overlap invariant, no overwrite semantics). The anchoring question is
+   * #290/#291; until they are settled, paste stays predictable.
+   */
+  it("pastes at the caller's anchor", () => {
+    const h = harness();
+    h.editing.select(h.placementId());
+    h.editing.copy();
+
+    h.editing.paste(TICKS_PER_BAR * 4);
+
+    const pasted = h
+      .getProject()
+      .song.placements.find((p) => p.startTicks === TICKS_PER_BAR * 4);
+    expect(pasted).toBeDefined();
+  });
+});

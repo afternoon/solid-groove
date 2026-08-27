@@ -224,6 +224,41 @@ describe("placement editing wiring (ARR-002)", () => {
     expect(selectedPlacementIds(container)).toEqual([placementId]);
   });
 
+  /**
+   * The preview showed two cyan boxes on one track at once: the shell's ARR-01
+   * bar range and the ARR-002 placement selection, each left standing by the
+   * click that made the other. "There should only be a single selection."
+   */
+  it("keeps exactly one arrangement selection live at a time", async () => {
+    const { renderView, placementId } = await setUpEditing();
+    const { container } = renderView();
+    const canvas = interactionCanvasOf(container);
+    const rowY = RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2;
+    const barRangeText = () =>
+      screen.getByTestId("arrangement-selection-live").textContent;
+    const clickAt = (ticks: number) => {
+      firePointer(canvas, "pointerdown", {
+        clientX: ticks * PIXELS_PER_TICK,
+        clientY: rowY,
+      });
+      firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
+    };
+
+    // Empty space, three bars along: the shell takes a bar range.
+    clickAt(TICKS_PER_BAR * 3);
+    expect(barRangeText()).toMatch(/^Selected /);
+
+    // The placement now becomes the only selection.
+    clickAt(TICKS_PER_BAR / 2);
+    expect(selectedPlacementIds(container)).toEqual([placementId]);
+    expect(barRangeText()).toBe("No selection");
+
+    // And back out to empty space: the bar range is the only one again.
+    clickAt(TICKS_PER_BAR * 3);
+    expect(barRangeText()).toMatch(/^Selected /);
+    expect(selectedPlacementIds(container)).toEqual([]);
+  });
+
   it("dragging a placement's body moves it, bar-snapped, through the command layer", async () => {
     const { session, renderView, placementId } = await setUpEditing();
     const { container } = renderView();
