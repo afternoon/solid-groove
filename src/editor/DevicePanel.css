@@ -1,0 +1,55 @@
+/* Device chains and their controls (PRD FX-01/FX-02, mocks 05a/06c). Flat,
+   square, one cyan accent; regions separate by elevation tint, not borders —
+   the same language the instrument panels are drawn in, because a device panel
+   is the same kind of object one chain over. */
+
+.device-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.device-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.device-control-choice {
+  align-items: stretch;
+  gap: 4px;
+}
+
+.device-control-label {
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground);
+}
+
+.device-control-select {
+  background-color: var(--color-background-highlight);
+  color: var(--color-foreground);
+  border: none;
+  padding: 4px 6px;
+  font-size: var(--font-size-small);
+  font-family: inherit;
+}
+
+/* FX-02: a value driven to a bound is said out loud rather than eased back,
+   so this is real text in the flow, not a colour change on the fill. */
+.device-control-extreme {
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.04em;
+  color: var(--color-accent, #20c8e8);
+  text-transform: uppercase;
+}
+
+.device-controls-empty {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+}
