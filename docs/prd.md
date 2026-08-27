@@ -73,6 +73,17 @@ Solid Groove should become the best environment for learning music production by
 9. **Opinionated, not restrictive.** Good defaults and focused workflows reduce decisions, but users can always modify the result.
 10. **Make room for the unexpected.** Genre-aware starting points must never become genre rules. Device chains and broad parameter ranges should support abrasive, unusual, and surprising results as well as polished ones.
 
+### Legible controls in practice
+
+Principle 5 is the one most easily lost in the detail of a panel, so it is written out. One of the steepest parts of learning electronic music production is discovering what each instrument and effect control does and how it changes the sound. The assistant helps, but the controls themselves should carry as much of that teaching as possible. These rules apply to instrument, device, and mixer controls throughout the editor.
+
+- **No acronyms or jargon shorthand.** Every control has a clear label using either a well-known full term (for example, `Lowpass`, not `LP`; `Resonance`, not `Q`; `Attack`, not `A`) or plain lay language. Abbreviations are only acceptable when they are the term users actually learn (for example, `BPM`), and the full meaning is available on hover or in an on-demand definition.
+- **Consistent control shape and layout.** Controls of the same kind share size, styling, and layout across every instrument and device. Continuous parameters use vertical sliders with the label above and the current value shown below, so a user can read any control the same way once they have learned one.
+- **Labelled option groups with icons.** A choice among discrete options (for example, an oscillator waveform or a filter type) is presented as a group of clearly labelled options rather than a bare dropdown, and each option carries a recognisable icon where one exists — such as sine, square, sawtooth, and triangle waveform glyphs on the synth wave selector.
+- **Show the effect on the sound.** Where a control shapes the sound in a way that can be drawn, the UI shows that shape and updates it live as the control changes — for example, an envelope's attack/decay/sustain/release curve, a filter's frequency-response curve, or a waveform preview. The visual is a supporting cue, never the only way to read or set the value.
+
+These are the standard a control is judged against, not a checklist a task ticks off: how a given panel meets them is the issue's business, and the design mocks are authoritative for how it ends up looking.
+
 ## 4. Target user
 
 ### Primary user
