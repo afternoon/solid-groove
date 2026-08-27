@@ -859,6 +859,62 @@ describe("EditorView keyboard shortcuts", () => {
       loaded.value.song.placements.find((p) => p.id === placementId),
     ).toBeUndefined();
   });
+
+  // #258. The reporter hit this by selecting a placement on one track, deleting
+  // it, then selecting one on another track — but moving between tracks is
+  // incidental. What decides it is the *edited* track's instrument, which
+  // clicking a placement re-points (#228): once that track is one the editor
+  // shows the piano roll for, the arrangement's placement selection stopped
+  // reaching `edit.delete` at all, so Delete did nothing. The piano-roll
+  // fixture is the smallest case — one synth track, one placement, no track
+  // switching anywhere.
+  it("deletes a selected placement while the piano roll is showing (#258)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByRole("region", { name: /^Piano roll:/ });
+
+    const placementId = project.song.placements[0].id;
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    const PIXELS_PER_TICK = 0.08;
+    const RULER_HEIGHT_PX = 22;
+    const ROW_HEIGHT_PX = 28;
+    const TICKS_PER_BAR = 768;
+    const down = new MouseEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    });
+    Object.defineProperty(down, "pointerId", { value: 1 });
+    fireEvent(canvas, down);
+    const up = new MouseEvent("pointerup", { bubbles: true, cancelable: true });
+    Object.defineProperty(up, "pointerId", { value: 1 });
+    fireEvent(canvas, up);
+    await waitFor(() => {
+      expect(
+        document.querySelector(`[data-selected-placement="${placementId}"]`),
+      ).not.toBeNull();
+    });
+
+    fireEvent.keyDown(window, { key: "Delete" });
+
+    // Asserted against the stored project rather than the "Saved" indicator, so
+    // a failure names the placement that is still there instead of dumping the
+    // editor's DOM.
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        expect(loaded.value.song.placements.map((p) => p.id)).not.toContain(placementId);
+      },
+      { timeout: 3_000 },
+    );
+  });
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */
