@@ -131,7 +131,21 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           step={scale().step ?? "any"}
           value={props.value}
           onInput={(event) => props.onInput(coerce(event.currentTarget.valueAsNumber))}
+          // `change` settles a drag or a keyboard nudge, but it does not fire
+          // at all when a drag ends somewhere the input never hears about —
+          // released off-element, or the panel unmounted mid-drag by a track
+          // switch. That left the gesture open forever, and the next control
+          // touched anywhere in the editor threw "a gesture is already in
+          // progress" out of its own `input` handler and locked up. Pointer
+          // up/cancel close the same gesture; extra commits are a safe no-op.
+          // (`PianoRollNote` already covers its velocity slider this way.)
           onChange={(event) => props.onCommit(coerce(event.currentTarget.valueAsNumber))}
+          onPointerUp={(event) =>
+            props.onCommit(coerce(event.currentTarget.valueAsNumber))
+          }
+          onPointerCancel={(event) =>
+            props.onCommit(coerce(event.currentTarget.valueAsNumber))
+          }
         />
       </div>
       <output class="fill-slider-value" for={id()}>

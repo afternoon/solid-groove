@@ -1,7 +1,12 @@
 import { For, type JSX } from "@solidjs/web";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
-import type { RawCommandInput, TransactionResult } from "../commands";
-import { setParameter } from "../commands";
+import type {
+  Gesture,
+  GestureOptions,
+  RawCommandInput,
+  TransactionResult,
+} from "../commands";
+import { createControlGesture, setParameter } from "../commands";
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import {
@@ -29,6 +34,7 @@ export interface SynthPanelProps {
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Plays one preview note through the track. */
   audition(): void;
   /** Defaults to the application singleton; injectable for tests. */
@@ -52,17 +58,25 @@ const SLIDERS = [
  * Every control dispatches a validated `parameter.set` command in the
  * `instrument` scope — never a direct project mutation — so edits are
  * revision-checked and undoable, and the audio graph reuses its nodes with
- * smoothing. A continuous slider commits once per gesture (on release/blur), so
- * a drag is one command, one history entry, and emits nothing per tick;
+ * smoothing. A continuous slider runs the whole drag as one history gesture
+ * (`createControlGesture`): every move applies live, so the fill, the readout
+ * and the filter follow the pointer, and the release (or blur) commits the lot
+ * as one history entry, one revision and one analytics event (#254).
  * `feature_first_use` for `synth` fires once, on the first edit, not per render.
  */
 export default function SynthPanel(props: SynthPanelProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
 
-  function commit(parameterId: string, value: number): void {
-    props.dispatch(
-      setParameter({ scope: "instrument", trackId: props.trackId, parameterId }, value),
+  function parameterCommand(parameterId: string, value: number) {
+    return setParameter(
+      { scope: "instrument", trackId: props.trackId, parameterId },
+      value,
     );
+  }
+
+  /** A discrete choice: one command, no gesture to hold open. */
+  function commit(parameterId: string, value: number): void {
+    props.dispatch(parameterCommand(parameterId, value));
     analytics().logFeatureFirstUse("synth");
   }
 
@@ -97,15 +111,23 @@ export default function SynthPanel(props: SynthPanelProps): JSX.Element {
               {(definition) => {
                 const value = () =>
                   readInstrumentParameter(definition, props.instrument.parameters);
+                const control = createControlGesture({
+                  beginGesture: (options) => props.beginGesture(options),
+                  dispatch: (commands) => props.dispatch(commands),
+                  summary: () => `Set ${definition.label}`,
+                  command: (next) =>
+                    parameterCommand(bareParameterId(definition.id), next),
+                });
                 return (
                   <FillSlider
                     definition={definition}
                     value={value()}
                     displayValue={formatInstrumentValue(definition, value())}
-                    onInput={() => {
-                      /* live audio follows on commit; nothing per tick */
+                    onInput={(next) => control.input(next)}
+                    onCommit={(next) => {
+                      control.commit(next);
+                      analytics().logFeatureFirstUse("synth");
                     }}
-                    onCommit={(next) => commit(bareParameterId(definition.id), next)}
                   />
                 );
               }}

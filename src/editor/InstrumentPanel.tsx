@@ -1,5 +1,10 @@
 import { Match, Switch } from "@solidjs/web";
-import type { RawCommandInput, TransactionResult } from "../commands";
+import type {
+  Gesture,
+  GestureOptions,
+  RawCommandInput,
+  TransactionResult,
+} from "../commands";
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import SamplerPanel from "../instrument/SamplerPanel";
@@ -13,6 +18,8 @@ export interface InstrumentPanelProps {
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
+  /** Opens the one history gesture a slider drag commits as (#254). */
+  beginGesture(options?: GestureOptions): Gesture | undefined;
   audition(): void;
 }
 
@@ -41,6 +48,7 @@ export default function InstrumentPanel(props: InstrumentPanelProps) {
             instrument={sampler()}
             sampleName={props.sampleName}
             dispatch={props.dispatch}
+            beginGesture={props.beginGesture}
             audition={props.audition}
           />
         )}
@@ -56,6 +64,7 @@ export default function InstrumentPanel(props: InstrumentPanelProps) {
             trackId={props.trackId}
             instrument={synth()}
             dispatch={props.dispatch}
+            beginGesture={props.beginGesture}
             audition={props.audition}
           />
         )}

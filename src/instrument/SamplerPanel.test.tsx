@@ -1,12 +1,22 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import type { RawCommandInput, TransactionResult } from "../commands";
+import {
+  CommandHistory,
+  type Gesture,
+  type RawCommandInput,
+  type TransactionResult,
+} from "../commands";
 import type { Instrument } from "../domain/entities";
+import { createSliceFixtureProject } from "../domain/fixtures";
 import type { AssetId, TrackId } from "../domain/ids";
+import { readInstrumentParameter, SAMPLER_PITCH } from "../domain/parameters";
+import { fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { fillExtent, moveTo, recordingGesture, testAnalytics } from "./panelTesting";
 import SamplerPanel from "./SamplerPanel";
 
 afterEach(() => cleanup());
@@ -28,6 +38,7 @@ function renderPanel(
     ) => TransactionResult | undefined
   >(() => ({ ok: true }) as TransactionResult);
   const audition = vi.fn();
+  const applied: RawCommandInput[] = [];
   const transport = createRecordingTransport();
   const consent = new ConsentStore(memoryStorage());
   const analytics = new Analytics({
@@ -42,11 +53,36 @@ function renderPanel(
       instrument={instrument}
       sampleName={sampleName}
       dispatch={dispatch}
+      beginGesture={(): Gesture => recordingGesture(applied)}
       audition={audition}
       analytics={analytics}
     />
   ));
-  return { dispatch, audition, transport };
+  return { dispatch, applied, audition, transport };
+}
+
+/**
+ * The panel over a real command history, so the slider's `value` comes back
+ * out of the project it edits — which is what a drag has to move.
+ */
+function renderLivePanel() {
+  const history = new CommandHistory(createSliceFixtureProject());
+  const [project, setProject] = createSignal(history.project);
+  history.subscribe(() => setProject(history.project));
+  const track = () => project().song.tracks[0];
+  const instrument = () => track().instrument as Extract<Instrument, { kind: "sampler" }>;
+  render(() => (
+    <SamplerPanel
+      trackId={track().id}
+      instrument={instrument()}
+      sampleName="909 Bass Drum"
+      dispatch={(commands) => history.execute(commands)}
+      beginGesture={(options) => history.beginGesture(options)}
+      audition={() => {}}
+      analytics={testAnalytics().analytics}
+    />
+  ));
+  return { history, project, instrument };
 }
 
 describe("SamplerPanel", () => {
@@ -66,13 +102,13 @@ describe("SamplerPanel", () => {
   });
 
   it("dispatches an instrument parameter.set once when a slider commits", () => {
-    const { dispatch, transport } = renderPanel();
+    const { applied, transport } = renderPanel();
     const pitch = screen.getByLabelText("Pitch") as HTMLInputElement;
     fireEvent.input(pitch, { target: { value: "5" } });
     fireEvent.change(pitch, { target: { value: "5" } });
 
-    expect(dispatch).toHaveBeenCalledTimes(1);
-    const command = dispatch.mock.calls[0][0] as {
+    expect(applied).toHaveLength(1);
+    const command = applied[0] as {
       type: string;
       payload: { target: { scope: string; parameterId: string } };
     };
@@ -90,6 +126,49 @@ describe("SamplerPanel", () => {
     fireEvent.input(pitch, { target: { value: "2" } });
     expect(dispatch).not.toHaveBeenCalled();
     expect(transport.events).toHaveLength(0);
+  });
+
+  it("follows the pointer mid-drag, and still commits once (#254)", () => {
+    const { history, project, instrument } = renderLivePanel();
+    const startRevision = project().metadata.revision;
+    const pitch = screen.getByLabelText("Pitch") as HTMLInputElement;
+    expect(screen.getByText("0 st")).toBeInTheDocument();
+    const restingFill = fillExtent(pitch);
+
+    // Mid-drag: `input` has fired, `change` has not.
+    moveTo(pitch, "5");
+    expect(screen.getByText("+5 st")).toBeInTheDocument();
+    expect(fillExtent(pitch)).not.toBe(restingFill);
+    // The audio graph reads the same project state, so the pitch is audible.
+    expect(readInstrumentParameter(SAMPLER_PITCH, instrument().parameters)).toBe(5);
+
+    moveTo(pitch, "7");
+    expect(screen.getByText("+7 st")).toBeInTheDocument();
+    expect(history.entries).toHaveLength(0);
+
+    // One drag = one history entry and one revision, however many moves it took.
+    fireAndFlush(() => {
+      fireEvent.change(pitch, { target: { value: "7" } });
+    });
+    expect(history.entries).toHaveLength(1);
+    expect(project().metadata.revision).toBe(startRevision + 1);
+    expect(readInstrumentParameter(SAMPLER_PITCH, instrument().parameters)).toBe(7);
+  });
+
+  // The orphan half of the same defect: a drag that ends without a `change`
+  // (released off-element, or the panel unmounted by a track switch) used to
+  // leave its gesture open forever, and the next control touched anywhere in
+  // the editor threw out of its own `input` handler and locked up.
+  it("commits its gesture on pointer-up, with no change event (#254)", () => {
+    const { history } = renderLivePanel();
+    const pitch = screen.getByLabelText("Pitch") as HTMLInputElement;
+
+    moveTo(pitch, "5");
+    expect(history.gestureActive).toBe(true);
+
+    fireEvent.pointerUp(pitch);
+    expect(history.gestureActive).toBe(false);
+    expect(history.entries).toHaveLength(1);
   });
 
   it("auditions on the audition button", () => {

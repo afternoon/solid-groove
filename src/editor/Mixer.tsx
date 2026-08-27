@@ -10,6 +10,7 @@ import type {
 } from "../commands";
 import {
   addTrack,
+  createControlGesture,
   removeTrack,
   reorderTrack,
   setParameter,
@@ -442,51 +443,6 @@ interface FaderProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
-}
-
-/**
- * Drives one continuous mixer control through the command layer.
- *
- * A drag is one gesture: the first `input` opens it, every later `input`
- * applies live inside it, and the `change` the browser fires on release closes
- * it — so the whole drag is one history entry, one revision, one save, and at
- * most one analytics event, however many pointer moves it took. A keyboard
- * arrow fires `input` then `change`, so it is one gesture per press.
- */
-function createControlGesture(props: {
-  beginGesture(options?: GestureOptions): Gesture | undefined;
-  dispatch(
-    commands: RawCommandInput | readonly RawCommandInput[],
-  ): TransactionResult | undefined;
-  summary(): string;
-  command(value: number): RawCommandInput;
-}) {
-  let gesture: Gesture | undefined;
-
-  return {
-    input(value: number): void {
-      if (!gesture?.active) {
-        gesture = props.beginGesture({ summary: props.summary() });
-      }
-      const command = props.command(value);
-      if (gesture?.active) {
-        gesture.apply(command);
-      } else {
-        props.dispatch(command);
-      }
-    },
-    commit(value: number): void {
-      // The final `input` already applied this exact value inside the gesture;
-      // closing it is all that is left. With no gesture open (a `change` with
-      // no preceding `input`) the value still has to land.
-      if (gesture?.active) {
-        gesture.commit();
-      } else {
-        props.dispatch(props.command(value));
-      }
-      gesture = undefined;
-    },
-  };
 }
 
 function VolumeFader(props: FaderProps): JSX.Element {
