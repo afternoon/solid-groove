@@ -56,7 +56,7 @@ This is a real cost and it is accepted rather than mitigated: a track named for 
 >
 > Solid Groove sends Anthropic — the AI service behind the assistant — your message along with a description of the project you're working in: its name, your track and section names, the tempo and structure, your mixer settings, and the notes in whatever you currently have selected. It does not send your audio, and it does not send the rest of your project.
 >
-> *[One sentence stating Anthropic's actual retention and training posture, written from their published terms on the day this ships.]*
+> Anthropic does not use anything we send it to train their AI models, and they delete it within 30 days — unless their automated safety systems flag something, in which case they can keep it for up to two years.
 >
 > Separately, Solid Groove keeps your conversations — your messages, the assistant's replies, and the changes it proposes, including any notes it writes for you — for 30 days. Our goal is to make the assistant better. The team may read them. After 30 days they are deleted.
 >
@@ -72,6 +72,13 @@ Wording stays tweakable without reopening this ADR; what may not change is that 
 `AI-006` reads Anthropic's published terms on the day it ships, writes that one sentence from what they actually say, and cites what it read in its PR. Shipping the bracketed placeholder is a defect; so is shipping a posture claim nobody checked.
 
 `DEC-005` recorded a *permission* — that the provider may retain and train on our requests — and permission is not knowledge. If the terms say Anthropic does not train on API traffic, then telling the cohort it might would be a false statement in the frightening direction, which fails ADR 0003 decision 5's standard exactly as a reassuring falsehood would.
+
+**Verification record — 2026-08-27.** Read on that date:
+[commercial terms](https://www.anthropic.com/legal/commercial-terms),
+[privacy policy](https://www.anthropic.com/legal/privacy),
+[commercial data retention](https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-personal-data),
+[API and data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention).
+Finding: the commercial terms state "Anthropic may not train models on Customer Content from Services," where Customer Content is defined as Inputs and Outputs together — so the no-training posture is a term of the standard commercial agreement our API access already falls under, not an enterprise upgrade or an opt-out we have to request. Inputs and outputs are deleted within 30 days by default; content flagged by automated trust-and-safety systems is retained up to 2 years. Zero-data-retention agreements shorten the default but do not change the training answer, which is already "no" without one. **This check does not discharge the standing requirement above:** the terms can change under us, so `AI-006` re-reads them on the day it ships and corrects the sentence if they have.
 
 ### 7. The `AI-006` draft copy's central claim is withdrawn
 
