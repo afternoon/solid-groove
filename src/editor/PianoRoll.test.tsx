@@ -431,6 +431,30 @@ describe("PianoRoll", () => {
     expect(updated?.velocity).toBeCloseTo(0.3);
   });
 
+  // #255: the note's velocity was a raw `<input type="range">` — a native
+  // thumb where every other continuous control in the editor is a thumbless
+  // fill. It has to be the same control, in a compact shape that fits inside a
+  // note block, and it has to keep its per-note accessible name.
+  it("paints the note velocity as a compact thumbless fill slider (#255)", async () => {
+    const { session, renderRoll } = await setUp();
+    const { container } = renderRoll();
+    const note = noteEvents(session.project.clips[0])[0];
+    const el = noteEl(container, note.id);
+    // Found structurally, so this reads the raw input of the broken note block
+    // as well as the fill slider of the fixed one.
+    const slider = el.querySelector('input[type="range"]') as HTMLInputElement;
+
+    expect(slider.closest(".fill-slider-track")).not.toBeNull();
+    const wrapper = slider.closest(".fill-slider");
+    expect(wrapper?.querySelector(".fill-slider-fill")).not.toBeNull();
+    // Compact: the label row and value readout are suppressed, so the control
+    // still fits a note rectangle a few pixels tall…
+    expect(wrapper?.classList.contains("compact")).toBe(true);
+    expect(wrapper?.querySelector("output")).toBeNull();
+    // …and the accessible name survives without a visible label.
+    expect(slider.getAttribute("aria-label")).toMatch(/^Velocity of /);
+  });
+
   it("sets velocity across a slider drag as ONE undo transaction and ONE clip_edited", async () => {
     const { session, renderRoll, transport } = await setUp();
     const { container } = renderRoll();
