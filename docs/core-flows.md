@@ -318,10 +318,10 @@ project dashboard
 3. Switch the main region from the arrangement to the master.
 4. The master's effects are on screen, with an empty chain. Add an overdrive to
    it.
-5. While it is still playing, drive the overdrive up. The control follows,
-   playback never drops out, and the meter keeps moving.
-6. Undo once. The overdrive comes off the master chain.
-7. Redo. It is back, at the drive you had set.
+5. Undo once. The overdrive comes off the master chain.
+6. Redo. It is back.
+7. While it is still playing, drive the overdrive up. The control follows and
+   playback never drops out.
 8. Reload the page. The overdrive is still on the master chain, still at that
    drive.
 
@@ -333,10 +333,13 @@ came back.
 records no audio, so this proves the chain, the controls, and the state, not the
 processing, which is asserted in the audio suite. Track device chains (#241),
 the other five device types, device presets, and reordering a chain, all of which
-are tested at their own layers. Note that the undo happens before the reload
-because history is session-local: a reload legitimately ends the undo stack, and
-a flow that undid afterwards would be asserting something the product does not
-promise.
+are tested at their own layers. Two orderings here are deliberate rather than
+incidental. The undo and redo come *before* the drive is pushed, because a
+parameter gesture is its own history entry: undoing after it would take back the
+drive rather than the device, and redoing an add restores the device as its
+payload described it. And both come before the reload, because history is
+session-local — a reload legitimately ends the undo stack, so a flow that undid
+afterwards would assert something the product does not promise.
 
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a

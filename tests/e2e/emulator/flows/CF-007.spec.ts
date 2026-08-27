@@ -29,15 +29,14 @@ import { walkthrough } from "../../support/walkthrough";
  *
  * ---
  *
- * **A query on step 6, raised with the product owner and not yet resolved.**
- * Step 5 changes a parameter, which is a command and therefore its own history
- * entry (PRD 9.6; #283's own criterion that a control gesture "commits as one
- * history entry per gesture"). One undo after it must therefore put the drive
- * back, leaving the overdrive on the chain — not take the device off, which is
- * two undos away. The steps below transcribe the flow as written rather than
- * guess at which of the two the flow means; resolving the query may change this
- * file, which is expected and is why it is called out here rather than quietly
- * bent to fit.
+ * **Why the undo comes before the drive is pushed.** A parameter gesture is a
+ * command and therefore its own history entry (PRD 9.6; #283's criterion that a
+ * control gesture "commits as one history entry per gesture"). Undoing after it
+ * would put the drive back rather than take the device off, and redoing an
+ * `device.add` restores the device as its payload described it, not as a later
+ * edit left it. The flow undoes and redoes the add first, then pushes the drive,
+ * so each of its claims is literally true. The register was corrected to match
+ * before this spec was written; see CF-007's "Out of scope".
  */
 
 /** The main region's master view, and the tab that reaches it (#283). */
@@ -167,8 +166,22 @@ test.describe("CF-007", () => {
       await expect(masterChain(page)).toContainText("Overdrive");
       await step("Add an overdrive to the master chain");
 
-      // 5. While it is still playing, drive the overdrive up. The control
-      //    follows, playback never drops out, and the meter keeps moving.
+      // 5. Undo once. The overdrive comes off the master chain.
+      //
+      // Nothing has been edited since the add, so the one entry on the stack is
+      // the add itself.
+      await page.getByRole("button", { name: /^Undo/ }).click();
+      await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
+      await step("Undo once — the overdrive comes off");
+
+      // 6. Redo. It is back.
+      await page.getByRole("button", { name: /^Redo/ }).click();
+      await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+      await expect(masterChain(page)).toContainText("Overdrive");
+      await step("Redo — it is back");
+
+      // 7. While it is still playing, drive the overdrive up. The control
+      //    follows and playback never drops out.
       //
       // "Drive" is the overdrive's own parameter definition
       // (`src/domain/devices.ts`), normalized 0-1 and defaulting to 0.3, and
@@ -180,13 +193,13 @@ test.describe("CF-007", () => {
       await expect(drive).toHaveValue("0.8");
 
       if (canAssertPlayback) {
-        // "Playback never drops out, and the meter keeps moving", observed
-        // through the transport rather than a level reading: a meter in a
-        // headless browser with no output device is not evidence of anything,
-        // and this flow's own "Out of scope" says it proves the chain, the
-        // controls and the state — not the processing, which the audio suite
-        // asserts. A playhead that is still advancing after the edit is the
-        // claim that matters here: the graph did not stall or rebuild.
+        // "Playback never drops out", observed through the transport rather
+        // than a level reading: a meter in a headless browser with no output
+        // device is not evidence of anything, and this flow's own "Out of
+        // scope" says it proves the chain, the controls and the state — not the
+        // processing, which the audio suite asserts. A playhead still advancing
+        // after the edit is the claim that matters: the graph did not stall or
+        // rebuild.
         await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
         const before = (await playheadReadout(page).textContent()) ?? "";
         await expect
@@ -201,23 +214,6 @@ test.describe("CF-007", () => {
         await page.getByRole("button", { name: "Stop playback" }).click();
         await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
       }
-
-      // 6. Undo once. The overdrive comes off the master chain.
-      //
-      // See the query at the top of this file: step 5 was itself an undoable
-      // edit, so whether *one* undo removes the device is the open question
-      // this transcribes rather than resolves.
-      await page.getByRole("button", { name: /^Undo/ }).click();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
-      await step("Undo once — the overdrive comes off");
-
-      // 7. Redo. It is back, at the drive you had set.
-      await page.getByRole("button", { name: /^Redo/ }).click();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
-      await expect(masterView(page).getByRole("slider", { name: "Drive" })).toHaveValue(
-        "0.8",
-      );
-      await step("Redo — it is back, at the drive you had set");
 
       // 8. Reload the page. The overdrive is still on the master chain, still
       //    at that drive.
