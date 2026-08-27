@@ -1,5 +1,5 @@
+import { type JSX, Show } from "@solidjs/web";
 import { HiSolidPlay, HiSolidPlus, HiSolidStop } from "solid-icons/hi";
-import { type JSX, Show } from "solid-js";
 import { writeLibrarySampleDrag } from "./assetDrag";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset } from "./manifest";
@@ -9,6 +9,7 @@ import type { LibraryAsset } from "./manifest";
 // sheet — so it must be imported here, by the component that owns these class
 // names, rather than relied on from whichever view happened to mount first.
 import "./LibraryBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * One auditionable sound. Shared by the panel tree and the pack browser.
@@ -30,11 +31,13 @@ export default function AssetRow(props: {
 }): JSX.Element {
   return (
     <li
-      class="library-row"
-      classList={{
-        "library-row-active": props.active,
-        "library-row-error": props.error !== null,
-      }}
+      class={[
+        "library-row",
+        {
+          "library-row-active": props.active,
+          "library-row-error": props.error !== null,
+        },
+      ]}
       draggable="true"
       onDragStart={(event) => {
         // A sound with no master audio (a preset) carries nothing an
@@ -51,7 +54,7 @@ export default function AssetRow(props: {
         aria-label={
           props.active ? `Stop ${props.asset.name}` : `Audition ${props.asset.name}`
         }
-        aria-pressed={props.active}
+        aria-pressed={ariaBool(props.active)}
         onClick={() => (props.active ? props.onStop() : props.onPlay())}
       >
         <Show when={props.active} fallback={<HiSolidPlay size={12} />}>

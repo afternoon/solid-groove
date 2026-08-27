@@ -1,11 +1,19 @@
-import { MemoryRouter, Route } from "@solidjs/router";
+import { createRouter, memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectMetadata } from "../domain/entities";
 import { createFactoryContext, createProjectMetadata } from "../domain/factories";
+import { clickAndFlush } from "../testing/events";
 import ProjectList, { type ProjectActionResult } from "./ProjectList";
 
 afterEach(() => cleanup());
+
+// Solid 2 batches writes: a handler's `setState` is invisible to the DOM — and
+// to the next handler's own reads — until the batch flushes on the microtask.
+// The DOM testing library's `fireEvent` does no flushing of its own the way
+// Solid 1's testing-library wrapper did, so each `fireEvent` below that a
+// later line depends on is followed by an explicit `flush()`.
 
 function makeProjectMetadata(overrides: Partial<ProjectMetadata> = {}): ProjectMetadata {
   const context = createFactoryContext();
@@ -15,8 +23,11 @@ function makeProjectMetadata(overrides: Partial<ProjectMetadata> = {}): ProjectM
   };
 }
 
-// ProjectList links to project routes with <A>, which needs a matched Route
-// context to resolve against — a bare MemoryRouter isn't enough.
+// ProjectList links to project routes with a plain <a>, which router 2 claims
+// and resolves against the matched route — so the list still needs to render
+// inside a router. Router 2 has no component API (`<MemoryRouter>`/`<Route>`
+// are gone): `createRouter` is the only way to build one, and `memoryHistory`
+// keeps the location out of jsdom's global.
 function renderWithRouter(
   projects: ProjectMetadata[],
   handlers: {
@@ -28,21 +39,23 @@ function renderWithRouter(
     onDelete?: (id: string) => Promise<ProjectActionResult> | ProjectActionResult;
   } = {},
 ) {
-  return render(() => (
-    <MemoryRouter>
-      <Route
-        path="/"
-        component={() => (
+  const Router = createRouter({
+    history: memoryHistory("/"),
+    routes: [
+      {
+        path: "/",
+        component: () => (
           <ProjectList
             projects={projects}
             onRename={handlers.onRename}
             onDuplicate={handlers.onDuplicate}
             onDelete={handlers.onDelete}
           />
-        )}
-      />
-    </MemoryRouter>
-  ));
+        ),
+      },
+    ],
+  });
+  return render(() => <Router />);
 }
 
 describe("ProjectList", () => {
@@ -80,9 +93,10 @@ describe("ProjectList", () => {
     const onRename = vi.fn().mockResolvedValue({ ok: true });
     renderWithRouter([project], { onRename });
 
-    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
+    clickAndFlush(screen.getByRole("button", { name: /rename/i }));
     const input = screen.getByRole("textbox", { name: /rename old name/i });
     fireEvent.input(input, { target: { value: "New Name" } });
+    flush();
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
     await vi.waitFor(() => expect(onRename).toHaveBeenCalledWith(project.id, "New Name"));
@@ -93,8 +107,8 @@ describe("ProjectList", () => {
     const onRename = vi.fn();
     renderWithRouter([project], { onRename });
 
-    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    clickAndFlush(screen.getByRole("button", { name: /rename/i }));
+    clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
     expect(onRename).not.toHaveBeenCalled();
     expect(screen.getByText("Old Name")).toBeInTheDocument();
@@ -108,10 +122,11 @@ describe("ProjectList", () => {
     });
     renderWithRouter([project], { onRename });
 
-    fireEvent.click(screen.getByRole("button", { name: /rename/i }));
+    clickAndFlush(screen.getByRole("button", { name: /rename/i }));
     fireEvent.input(screen.getByRole("textbox", { name: /rename old name/i }), {
       target: { value: "New Name" },
     });
+    flush();
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(
@@ -135,7 +150,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn();
       renderWithRouter([project], { onDelete });
 
-      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
 
       expect(
         screen.getByRole("alertdialog", { name: /delete this project/i }),
@@ -151,7 +166,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn().mockResolvedValue({ ok: true });
       renderWithRouter([project], { onDelete });
 
-      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
       const dialog = screen.getByRole("alertdialog", {
         name: /delete this project/i,
       });
@@ -165,8 +180,8 @@ describe("ProjectList", () => {
       const onDelete = vi.fn();
       renderWithRouter([project], { onDelete });
 
-      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-      fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
       expect(onDelete).not.toHaveBeenCalled();

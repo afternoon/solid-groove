@@ -214,6 +214,13 @@ bun run check          # tsc --noEmit && biome check --write  (auto-fixes)
 bun run test           # unit + component suites
 ```
 
+Writing a component test? Solid 2 batches reactive updates onto the microtask
+queue, and `@solidjs/testing-library` no longer wraps `fireEvent` in a flush —
+so a test that fires an event and then asserts synchronously reads the state
+from *before* the event, silently. Call `flush()` from `solid-js` between them;
+[`docs/testing.md`](./docs/testing.md#fireevent-no-longer-flushes--call-flush-before-you-assert)
+has the detail.
+
 Run the heavier suites when your change touches what they cover — browser,
 Firebase, audio, performance, or export behavior:
 

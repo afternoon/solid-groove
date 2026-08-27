@@ -1,4 +1,4 @@
-import { For, type JSX } from "solid-js";
+import { For, type JSX } from "@solidjs/web";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import { setParameter } from "../commands";

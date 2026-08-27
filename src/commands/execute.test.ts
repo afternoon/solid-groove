@@ -274,3 +274,61 @@ describe("command execution", () => {
     expect(result.project.metadata.modifiedAt).toBe(fixture.project.metadata.createdAt);
   });
 });
+
+/**
+ * The invariant the audio graph and the arrangement renderer now depend on.
+ *
+ * Under Solid 1 both `useProjectAudio` and `ArrangementView` tracked the store
+ * proxy directly, so they re-ran when *any* read field changed and it did not
+ * matter whether an edit replaced the project root or mutated it in place.
+ * Solid 2 only tracks an effect's compute half, and both compute halves now
+ * read a single value whose **identity** is the trigger.
+ *
+ * That is correct precisely as long as an edit always produces a new root. If
+ * anything ever mutates a `Project` in place instead, the audio graph silently
+ * stops reconciling and the arrangement silently stops repainting -- no throw,
+ * no failing assertion anywhere, because every value involved is still
+ * correct. It is the worst failure shape this migration can produce, and the
+ * invariant that prevents it was, until now, written down nowhere near the
+ * code that would break it.
+ *
+ * These assertions are cheap. Losing them is not.
+ */
+describe("an edit replaces the project root rather than mutating it", () => {
+  let fixture: CommandTestProject;
+
+  beforeEach(() => {
+    fixture = createCommandTestProject();
+  });
+
+  it("returns a new root, and leaves the input untouched", () => {
+    const before = fixture.project;
+    const beforeSignature = contentSignature(before);
+
+    const result = executeCommand(
+      before,
+      updateTrack(fixture.trackAId, { name: "Renamed" }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A new root: this identity change is the whole audio/arrangement trigger.
+    expect(result.project).not.toBe(before);
+    // And the caller's copy is genuinely unchanged, not merely a stale alias.
+    expect(contentSignature(before)).toBe(beforeSignature);
+    expect(findTrack(before, fixture.trackAId)?.name).not.toBe("Renamed");
+  });
+
+  it("holds for a multi-command transaction too", () => {
+    const before = fixture.project;
+    const result = executeTransaction(before, [
+      updateTrack(fixture.trackAId, { name: "One" }),
+      updateTrack(fixture.trackBId, { name: "Two" }),
+    ]);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.project).not.toBe(before);
+    expect(findTrack(before, fixture.trackAId)?.name).not.toBe("One");
+  });
+});

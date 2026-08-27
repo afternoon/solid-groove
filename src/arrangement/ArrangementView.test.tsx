@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -13,6 +13,7 @@ import { TICKS_PER_BAR } from "../domain/time";
 import { EditorSession } from "../editor/EditorSession";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import ArrangementView, { type PlacementEditingActions } from "./ArrangementView";
 
@@ -42,6 +43,7 @@ function firePointer(
   });
   Object.defineProperty(event, "pointerId", { value: init.pointerId ?? 1 });
   fireEvent(el, event);
+  flush();
 }
 
 /** A one-placement fixture wired to a real `EditorSession`, so a test asserts
@@ -160,7 +162,7 @@ describe("ArrangementView shell", () => {
       "button[data-track-select]",
     );
     if (!firstSelect) throw new Error("no track-select control rendered");
-    fireEvent.click(firstSelect);
+    clickAndFlush(firstSelect);
     const live = screen.getByTestId("arrangement-selection-live");
     expect(live.textContent).toMatch(/^Selected /);
     expect(live.textContent).toMatch(/bars 1 to/);
@@ -174,12 +176,12 @@ describe("arrangement feature_first_use analytics (PRD OPS-02)", () => {
     // No interaction yet: nothing logged.
     expect(featureUses(transport)).toEqual([]);
 
-    fireEvent.click(screen.getByLabelText("Zoom in"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
     expect(featureUses(transport)).toEqual(["arrangement"]);
 
     // Further interactions do not re-fire it.
-    fireEvent.click(screen.getByLabelText("Zoom out"));
-    fireEvent.click(screen.getByLabelText("Zoom in"));
+    clickAndFlush(screen.getByLabelText("Zoom out"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
     expect(featureUses(transport)).toEqual(["arrangement"]);
   });
 
@@ -195,8 +197,8 @@ describe("arrangement feature_first_use analytics (PRD OPS-02)", () => {
       storage: memoryStorage(),
     });
     renderView(analytics);
-    fireEvent.click(screen.getByLabelText("Zoom in"));
-    fireEvent.click(screen.getByLabelText("Zoom out"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
+    clickAndFlush(screen.getByLabelText("Zoom out"));
     expect(transport.events).toEqual([]);
   });
 });
@@ -299,13 +301,13 @@ describe("placement editing wiring (ARR-002)", () => {
       (p) => p.id === placementId,
     );
 
-    fireEvent.click(screen.getByText(/Duplicate as a linked copy/));
+    clickAndFlush(screen.getByText(/Duplicate as a linked copy/));
     expect(session.project.clips.length).toBe(originalClipCount);
     expect(session.project.song.placements.length).toBe(2);
     const linkedCopy = session.project.song.placements.find((p) => p.id !== placementId);
     expect(linkedCopy?.clipId).toBe(sourcePlacement?.clipId);
 
-    fireEvent.click(screen.getByText(/Duplicate as an independent copy/));
+    clickAndFlush(screen.getByText(/Duplicate as an independent copy/));
     expect(session.project.clips.length).toBe(originalClipCount + 1);
     expect(session.project.song.placements.length).toBe(3);
   });
@@ -343,7 +345,7 @@ describe("arrangement track selection (#228)", () => {
     const second = project.song.tracks[1];
 
     expect(headerButton(second.name)).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(headerButton(second.name));
+    clickAndFlush(headerButton(second.name));
 
     expect(selected).toEqual([second.id]);
     expect(headerButton(second.name)).toHaveAttribute("aria-pressed", "true");
@@ -370,7 +372,7 @@ describe("arrangement track selection (#228)", () => {
     const list = screen.getByLabelText("Arrangement tracks");
     const buttons = list.querySelectorAll<HTMLButtonElement>("button[data-track-select]");
 
-    fireEvent.click(buttons[1]);
+    clickAndFlush(buttons[1]);
 
     expect(selected).toEqual([project.song.tracks[1].id]);
     // The bar-range selection it already made is unchanged.
@@ -382,7 +384,7 @@ describe("arrangement track selection (#228)", () => {
   it("counts selecting a track as arrangement use, with no event of its own", () => {
     const { project, transport } = renderSelectable();
 
-    fireEvent.click(headerButton(project.song.tracks[1].name));
+    clickAndFlush(headerButton(project.song.tracks[1].name));
 
     expect(featureUses(transport)).toEqual(["arrangement"]);
     expect(transport.events).toHaveLength(1);

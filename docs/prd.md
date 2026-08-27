@@ -117,7 +117,7 @@ Typical behaviors:
 
 ### Current prototype baseline
 
-The repository is an experiment, not a backwards-compatibility contract. It currently provides SolidStart/SolidJS UI, Tone.js/Web Audio playback, Firebase authentication and Firestore persistence, an anonymous-user path, a project dashboard, a fixed 16-step pattern, basic sampler/synth/clip instruments, a small bundled sample library, track volume, simple transport, and a set of model/audio/component tests.
+The repository is an experiment, not a backwards-compatibility contract. It currently provides SolidJS UI, Tone.js/Web Audio playback, Firebase authentication and Firestore persistence, an anonymous-user path, a project dashboard, a fixed 16-step pattern, basic sampler/synth/clip instruments, a small bundled sample library, track volume, simple transport, and a set of model/audio/component tests.
 
 The current editor renders only the first pattern, uses track and sequence array indexes as identity, and has placeholder browser and assistant panels. Arrangement, robust history, structured AI actions, export, and most P0 workflows in this document do not yet exist. Agents should preserve verified behavior where it supports this PRD, but may replace prototype structures without a migration or backwards-compatibility path. Existing prototype projects and stored documents may be discarded when the v1 model is introduced.
 
@@ -812,7 +812,7 @@ Acceptance criteria:
 **OPS-03 - Error and crash monitoring (P0)**  
 Crash-free sessions, save success, and successful audio start are release gates in section 11. They are only gates if they are observable, so the alpha reports uncaught errors and the specific failures those gates depend on.
 
-Firebase Crashlytics does not support the Firebase Web SDK, so "crash reporting" here means browser error reporting, not Crashlytics. The alpha uses **Sentry**, through the official SolidStart SDK, as its error and crash monitoring platform. This is a committed decision recorded in [ADR 0001](./adr/0001-sentry-for-error-monitoring.md); replacing it requires a superseding ADR under the section 9.1 rules.
+Firebase Crashlytics does not support the Firebase Web SDK, so "crash reporting" here means browser error reporting, not Crashlytics. The alpha uses **Sentry**, through the core browser SDK (`@sentry/browser`), as its error and crash monitoring platform. Sentry itself is a committed decision recorded in [ADR 0001](./adr/0001-sentry-for-error-monitoring.md); which SDK carries it was superseded by [ADR 0005](./adr/0005-leaving-solidstart-for-the-vite-plugin.md), because the SolidStart wrapper ADR 0001 originally named peer-depends on Solid 1 and cannot be installed against Solid 2. That is the fallback ADR 0001's own risk list anticipated, and it changes nothing else in ADR 0001. Replacing the platform still requires a superseding ADR under the section 9.1 rules.
 
 The application's own reporting boundary — global `error` and `unhandledrejection` handlers plus the section 10 error boundaries — remains the single place errors are captured. Sentry is the transport and backend behind that boundary, not a substitute for it, so application code never calls the Sentry SDK directly and the platform stays replaceable. Google Analytics keeps the `exception` counter event from OPS-02 so the section 11 measures compute from one catalog; Sentry is where an engineer debugs a specific error, not where the product dashboard is assembled.
 
@@ -939,7 +939,7 @@ Approved ADRs live in [`docs/adr`](./adr), numbered and named after the decision
 | Area | Alpha decision | Commitment |
 | --- | --- | --- |
 | Product surface | Desktop web application | No Electron/native wrapper or mobile-editor parity in the alpha |
-| Application framework | SolidStart, SolidJS, and TypeScript | Solid owns application UI and reactivity; no second component framework |
+| Application framework | SolidJS 2 and TypeScript, served by `@solidjs/vite-plugin`'s client start mode | Solid owns application UI and reactivity; no second component framework; the app never renders on the server; see [ADR 0005](./adr/0005-leaving-solidstart-for-the-vite-plugin.md) |
 | Audio | Web Audio API orchestrated through Tone.js | Tone/Web Audio owns live scheduling, instruments, processing, metering, and offline render behind the engine boundary |
 | Authentication | Firebase Authentication | Anonymous sessions and account upgrades remain Firebase identities |
 | Structured persistence | Cloud Firestore | Project metadata, versioned domain state, revisions, save acknowledgements, and permissions use Firestore |
@@ -1514,7 +1514,7 @@ A feature is done only when:
 - Ableton export targets the oldest Live version that can correctly support the implemented handoff; an exporter compatibility spike establishes and documents that minimum version.
 - Native Live Set generation is built and maintained directly as our own `.als` serializer rather than through a supported partner/integration route: Ableton publishes no partner API or SDK that can produce a native Live Set on our behalf, so that route cannot meet `SHR-02`'s self-contained-file acceptance criteria and would in practice degrade to shipping MIDI and stems for manual reassembly. `P1-001` surveys existing open-source `.als` parsing/writing libraries across Live versions and builds on one where its schema coverage and licence are adequate, to minimize the maintenance burden of an unofficial, reverse-engineered file format (`DEC-007`).
 - Real-time collaboration follows validation of the single-user creation workflow.
-- SolidStart/SolidJS/TypeScript, Tone.js over Web Audio, and Firebase Auth/Firestore/Storage/Functions are committed alpha technologies.
+- SolidJS/TypeScript served by `@solidjs/vite-plugin`'s client start mode ([ADR 0005](./adr/0005-leaving-solidstart-for-the-vite-plugin.md)), Tone.js over Web Audio, and Firebase Auth/Firestore/Storage/Functions are committed alpha technologies.
 - One long-lived real-time Tone/Web Audio context per document and stable, incrementally reconciled audio graphs are hard alpha architecture decisions.
 - The alpha arrangement is a hybrid virtualized DOM plus layered Canvas 2D renderer; WebGL/WebGPU and WASM require measured failure plus an approved ADR.
 - An anonymous project is retained until 180 days after its last access; opening or otherwise accessing it resets the timer. Deletion is scoped to anonymous projects only, and authenticating as an account owner before expiry keeps the project indefinitely (`DEC-001`).

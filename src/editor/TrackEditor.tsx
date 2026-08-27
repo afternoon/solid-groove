@@ -33,7 +33,7 @@ export interface TrackEditorProps {
   readonly setSelectedNoteIds: (ids: readonly EventId[]) => void;
   readonly project: Project;
   readonly playheadTicks: number;
-  readonly registerPianoRollActions: (actions: PianoRollActions) => void;
+  readonly registerPianoRollActions: (actions: PianoRollActions | null) => void;
   /** The edited track, when there is one; null while no project is open. */
   readonly instrumentPanelTrackId: TrackId | null;
   readonly sampleName: string | null;

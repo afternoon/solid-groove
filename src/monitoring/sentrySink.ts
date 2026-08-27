@@ -73,7 +73,7 @@ import {
   scrubSentryEvent,
 } from "./scrub";
 
-type SentryModule = typeof import("@sentry/solidstart");
+type SentryModule = typeof import("@sentry/browser");
 
 export interface SentrySinkOptions {
   dsn?: string;
@@ -203,7 +203,7 @@ export class SentrySink implements ErrorSink {
     const dsn = this.options.dsn ?? readEnv("VITE_SENTRY_DSN");
     if (!dsn) return false;
 
-    const load = this.options.load ?? (() => import("@sentry/solidstart"));
+    const load = this.options.load ?? (() => import("@sentry/browser"));
     const sentry = await load();
 
     // ADR 0002 decision 4: consent is honoured at the source. A declined

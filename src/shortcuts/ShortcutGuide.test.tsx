@@ -6,6 +6,7 @@ import {
   createRecordingTransport,
   type RecordingTransport,
 } from "../analytics/transport";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import type { ShortcutActionId } from "./registry";
 import ShortcutGuide from "./ShortcutGuide";
@@ -109,9 +110,11 @@ describe("search and context filter", () => {
   it("searches by action name", () => {
     renderGuide();
 
-    fireEvent.input(screen.getByLabelText("Search shortcuts"), {
-      target: { value: "quantize" },
-    });
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Search shortcuts"), {
+        target: { value: "quantize" },
+      }),
+    );
 
     expect(document.querySelectorAll("[data-action]")).toHaveLength(1);
     expect(rowFor("clip.quantize")).toBeInTheDocument();
@@ -120,9 +123,11 @@ describe("search and context filter", () => {
   it("searches by key combination", () => {
     renderGuide({ platform: "other" });
 
-    fireEvent.input(screen.getByLabelText("Search shortcuts"), {
-      target: { value: "ctrl+shift" },
-    });
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Search shortcuts"), {
+        target: { value: "ctrl+shift" },
+      }),
+    );
 
     expect(rowFor("edit.redo")).toBeInTheDocument();
     expect(document.querySelector('[data-action="edit.undo"]')).toBeNull();
@@ -131,9 +136,11 @@ describe("search and context filter", () => {
   it("reports when nothing matches", () => {
     renderGuide();
 
-    fireEvent.input(screen.getByLabelText("Search shortcuts"), {
-      target: { value: "sidechain" },
-    });
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Search shortcuts"), {
+        target: { value: "sidechain" },
+      }),
+    );
 
     expect(screen.getByText("No shortcuts match your search.")).toBeVisible();
   });
@@ -160,7 +167,7 @@ describe("search and context filter", () => {
   it("filters to what is available right now on request", () => {
     renderGuide({ contexts: ["editor"] });
 
-    fireEvent.click(
+    clickAndFlush(
       screen.getByLabelText("Only shortcuts available here", { exact: false }),
     );
 

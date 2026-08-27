@@ -1,4 +1,5 @@
 import { cleanup, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   clickTransform,
@@ -64,6 +65,7 @@ describe("TransformPanel history", () => {
     expect(session.project.metadata.revision).toBe(revisionBefore + 1);
 
     session.undo();
+    flush();
 
     expect(pitches(session)).toEqual(before);
   });
@@ -82,6 +84,7 @@ describe("TransformPanel history", () => {
     // The message described the clip as it was at the click. An undo (or any
     // other edit) can make it untrue, so it must not linger.
     session.undo();
+    flush();
 
     expect(screen.getByRole("alert").textContent).toBe("");
   });
@@ -94,7 +97,9 @@ describe("TransformPanel history", () => {
     const applied = rhythmOf(session);
 
     session.undo();
+    flush();
     session.redo();
+    flush();
 
     expect(rhythmOf(session)).toEqual(applied);
   });
@@ -109,9 +114,11 @@ describe("TransformPanel history", () => {
     expect(duplicated).toHaveLength(before * 2);
 
     session.undo();
+    flush();
     expect(currentNotes(session)).toHaveLength(before);
 
     session.redo();
+    flush();
     // The new ids live in the payload, so redo reproduces them exactly rather
     // than minting fresh ones.
     expect(currentNotes(session).map((event) => event.id)).toEqual(duplicated);

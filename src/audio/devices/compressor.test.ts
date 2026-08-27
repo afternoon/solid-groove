@@ -1,3 +1,4 @@
+import type { ToneAudioNode } from "tone";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createDevice, defaultDeviceParameters } from "../../domain/devices";
 import type { Device } from "../../domain/entities";
@@ -27,21 +28,32 @@ function device(overrides: Record<string, number> = {}): Device {
 }
 
 /**
- * Renders a sine that steps from quiet to loud halfway through, so the
- * compressor has something to actually clamp down on and the two halves can be
- * compared against each other within one render.
+ * A sine that steps from quiet to loud halfway through, fed through `d`, with
+ * the device's output handed to `sink`.
+ *
+ * The step is what gives the compressor something to actually clamp down on,
+ * so the two halves can be compared against each other within one render.
+ * Taking a `sink` rather than going straight to the destination is what lets a
+ * test put two settings on two channels of a single render -- see the makeup
+ * test below for why that matters.
  */
+function buildStep(d: Device, sink: (output: ToneAudioNode) => void): void {
+  const node = deviceNode.buildDeviceNode(d, context, compressor.createCompressorCore);
+  const osc = new Tone.Oscillator({ type: "sine", frequency: 220 });
+  const gain = new Tone.Gain(0.05);
+  osc.connect(gain);
+  gain.connect(node.input);
+  sink(node.output);
+  osc.start(0);
+  gain.gain.setValueAtTime(0.05, 0);
+  gain.gain.setValueAtTime(1, 0.5);
+}
+
 async function renderStep(d: Device): Promise<Float32Array> {
   const buffer = await Tone.Offline(() => {
-    const node = deviceNode.buildDeviceNode(d, context, compressor.createCompressorCore);
-    const osc = new Tone.Oscillator({ type: "sine", frequency: 220 });
-    const gain = new Tone.Gain(0.05);
-    osc.connect(gain);
-    gain.connect(node.input);
-    node.output.toDestination();
-    osc.start(0);
-    gain.gain.setValueAtTime(0.05, 0);
-    gain.gain.setValueAtTime(1, 0.5);
+    buildStep(d, (output) => {
+      output.toDestination();
+    });
   }, 1);
   return buffer.getChannelData(0);
 }
@@ -81,9 +93,39 @@ describe("compressor (FX-01)", () => {
   });
 
   it("applies makeup gain on top of the compressed signal", async () => {
-    const flat = await renderStep(device({ threshold: -30, ratio: 8 }));
-    const loud = await renderStep(device({ threshold: -30, ratio: 8, makeup: 12 }));
-    expect(rms(loud) / rms(flat)).toBeGreaterThan(3);
+    // Both settings in *one* render, on two channels, for the same reason the
+    // two tests above measure within a single render -- and this one learned
+    // it the hard way. It compared two sequential `Tone.Offline` calls until
+    // the Vite 8 toolchain shifted their timing, after which roughly one run
+    // in four came back with the second render silent (ratios of 1e-23,
+    // 1e-30, NaN). The DSP was never involved: on the same commit, a clean
+    // run produces flat=2.098432e-1 and loud=8.354009e-1 on both toolchains,
+    // bit for bit. What was unreliable was asking the shared global context
+    // for two renders in a row and assuming they were independent.
+    //
+    // `Tone.Merge` gives each chain its own channel of a two-channel render,
+    // so the comparison is between two paths of the same render rather than
+    // between two renders.
+    const buffer = await Tone.Offline(
+      () => {
+        const merge = new Tone.Merge().toDestination();
+        for (const [channel, makeup] of [
+          [0, 0],
+          [1, 12],
+        ] as const) {
+          buildStep(device({ threshold: -30, ratio: 8, makeup }), (output) => {
+            output.connect(merge, 0, channel);
+          });
+        }
+      },
+      1,
+      2,
+    );
+    // 12 dB is a factor of ~3.98, and makeup sits after the compressor, so it
+    // scales the whole compressed signal rather than being clamped by it.
+    expect(rms(buffer.getChannelData(1)) / rms(buffer.getChannelData(0))).toBeGreaterThan(
+      3,
+    );
   });
 
   it("exposes a gain-reduction read for metering", () => {

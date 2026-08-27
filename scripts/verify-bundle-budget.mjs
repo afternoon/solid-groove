@@ -35,7 +35,7 @@ import { brotliCompressSync, constants } from "node:zlib";
  * Wire-protocol names and exported integration identifiers, chosen because a
  * minifier rewrites local identifiers but not string literals or the public
  * export names other chunks import by name. A package specifier like
- * `"@sentry/solidstart"` does not survive bundling, so it is not used here.
+ * `"@sentry/browser"` does not survive bundling, so it is not used here.
  */
 const SDK_MARKERS = [
   "sentry-trace",
@@ -47,10 +47,17 @@ const SDK_MARKERS = [
 /**
  * Brotli ceiling for the lazily-loaded monitoring chunks, combined.
  *
- * Set from the measured size of `@sentry/solidstart` 10.68.0 with the minimal
+ * Still set from the measured size of `@sentry/solidstart` 10.68.0 with the
+ * minimal
  * integration set in `src/monitoring/sentrySink.ts` (~125 KiB brotli), plus
  * room for patch upgrades. Raising it is a deliberate edit with a reason, which
  * is the point. Lowering the real number means dropping an integration.
+ *
+ * NOT re-measured since the Solid 2 migration swapped the SDK to
+ * `@sentry/browser`, which is a strict subset of what `@sentry/solidstart`
+ * pulled in. The gate is therefore still safe -- it is a ceiling, and the real
+ * payload only shrank -- but the headroom is larger than intended. Re-measure
+ * before treating a pass here as evidence the budget is tight.
  */
 const LAZY_MONITORING_BROTLI_BUDGET = 150 * 1024;
 
@@ -129,7 +136,7 @@ function containsSdk(file) {
 }
 
 function main() {
-  const publicDir = process.argv[2] ?? ".output/public";
+  const publicDir = process.argv[2] ?? "dist/client";
   const indexHtml = join(publicDir, "index.html");
   if (!existsSync(indexHtml)) {
     console.error(

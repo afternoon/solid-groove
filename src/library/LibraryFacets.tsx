@@ -1,4 +1,5 @@
-import { createMemo, For, type JSX, Show } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { createMemo } from "solid-js";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { LibraryAssetType } from "./manifest";
 import type { PackKind } from "./search";
@@ -13,6 +14,7 @@ import type { useLibraryBrowser } from "./useLibraryBrowser";
 // first, exactly as it did when these views imported one another.
 import "./LibraryBrowser.css";
 import "./PackBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 export const TYPE_LABELS: Record<LibraryAssetType, string> = {
   "one-shot": "One-shots",
@@ -107,9 +109,8 @@ export function FacetGroup(props: {
             return (
               <button
                 type="button"
-                class="library-chip"
-                classList={{ "library-chip-active": isActive() }}
-                aria-pressed={isActive()}
+                class={["library-chip", { "library-chip-active": isActive() }]}
+                aria-pressed={ariaBool(isActive())}
                 onClick={() => props.onToggle(value)}
               >
                 {props.display ? props.display(value) : value}

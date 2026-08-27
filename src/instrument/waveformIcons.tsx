@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { SynthWaveform } from "../domain/parameters";
 
 /** Small decorative waveform glyphs for the oscillator option group (mock 05a). */

@@ -1,11 +1,13 @@
+import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidCheckCircle } from "solid-icons/hi";
-import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { KIND_LABELS } from "./LibraryFacets";
 import type { LibraryPackSummary } from "./manifest";
 import { EMPTY_PACK_FILTER, filterPacks, type PackKind } from "./search";
 import type { useLibraryBrowser } from "./useLibraryBrowser";
 import "./PackBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * The pack browser's left rail: every pack, narrowed by name and by kind, plus
@@ -66,9 +68,8 @@ export default function PackList(props: {
             return (
               <button
                 type="button"
-                class="library-chip"
-                classList={{ "library-chip-active": active() }}
-                aria-pressed={active()}
+                class={["library-chip", { "library-chip-active": active() }]}
+                aria-pressed={ariaBool(active())}
                 onClick={() => toggleKind(kind)}
               >
                 {KIND_LABELS[kind]}
@@ -81,11 +82,13 @@ export default function PackList(props: {
         <li>
           <button
             type="button"
-            class="pack-browser-pack"
-            classList={{
-              "pack-browser-pack-active": browser.selectedPackSlug() === null,
-            }}
-            aria-pressed={browser.selectedPackSlug() === null}
+            class={[
+              "pack-browser-pack",
+              {
+                "pack-browser-pack-active": browser.selectedPackSlug() === null,
+              },
+            ]}
+            aria-pressed={ariaBool(browser.selectedPackSlug() === null)}
             onClick={() => void browser.selectPack(null)}
           >
             <span class="pack-browser-pack-name">All sounds</span>
@@ -101,12 +104,17 @@ export default function PackList(props: {
               <li>
                 <button
                   type="button"
-                  class="pack-browser-pack"
-                  classList={{
-                    "pack-browser-pack-active": browser.selectedPackSlug() === pack.slug,
-                    "pack-browser-pack-failed": failed(),
-                  }}
-                  aria-pressed={browser.selectedPackSlug() === pack.slug}
+                  class={[
+                    "pack-browser-pack",
+                    {
+                      "pack-browser-pack-active":
+                        browser.selectedPackSlug() === pack.slug,
+                      "pack-browser-pack-failed": failed(),
+                    },
+                  ]}
+                  aria-pressed={
+                    browser.selectedPackSlug() === pack.slug ? "true" : "false"
+                  }
                   onClick={() => void browser.selectPack(pack.slug)}
                 >
                   <span class="pack-browser-pack-name">{pack.name}</span>

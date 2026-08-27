@@ -1,13 +1,6 @@
+import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidDocumentDuplicate, HiSolidPlus, HiSolidTrash } from "solid-icons/hi";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  For,
-  type JSX,
-  onCleanup,
-  Show,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -44,6 +37,7 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import "./Mixer.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * The volume fader's own coordinate space: a normalized fader position, not the
@@ -286,8 +280,10 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 
   return (
     <div
-      class="mixer-strip"
-      classList={{ muted: props.track.mixer.muted, selected: props.selected }}
+      class={[
+        "mixer-strip",
+        { muted: props.track.mixer.muted, selected: props.selected },
+      ]}
     >
       <div class="mixer-strip-head">
         {/* The colour chip is also the keyboard route to selecting a track:
@@ -308,7 +304,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         <button
           type="button"
           class="mixer-strip-select"
-          aria-pressed={props.selected}
+          aria-pressed={ariaBool(props.selected)}
           aria-label={`Edit ${props.track.name}`}
           title={`Edit ${props.track.name}`}
           onClick={() => props.onSelect()}
@@ -361,9 +357,8 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         </button>
         <button
           type="button"
-          class="mixer-strip-button mixer-mute"
-          classList={{ active: props.track.mixer.muted }}
-          aria-pressed={props.track.mixer.muted}
+          class={["mixer-strip-button mixer-mute", { active: props.track.mixer.muted }]}
+          aria-pressed={ariaBool(props.track.mixer.muted)}
           aria-label={`Mute ${props.track.name}`}
           onClick={() =>
             props.dispatch(
@@ -375,9 +370,8 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         </button>
         <button
           type="button"
-          class="mixer-strip-button mixer-solo"
-          classList={{ active: props.track.mixer.soloed }}
-          aria-pressed={props.track.mixer.soloed}
+          class={["mixer-strip-button mixer-solo", { active: props.track.mixer.soloed }]}
+          aria-pressed={ariaBool(props.track.mixer.soloed)}
           aria-label={`Solo ${props.track.name}`}
           onClick={() =>
             props.dispatch(
@@ -599,13 +593,23 @@ function LevelMeter(props: LevelMeterProps): JSX.Element {
   }
 
   // Restart the poll loop whenever playback begins; the loop stops itself when
-  // playback ends (see `poll`).
-  createEffect(() => {
-    if (props.isPlaying() && frame === null) {
-      frame = requestFrame(poll);
-    }
-  });
+  // playback ends (see `poll`). `props.isPlaying()` is the effect's only
+  // reactive read, so it is the whole compute half; scheduling the frame is a
+  // side effect and belongs in the apply half.
+  createEffect(
+    () => props.isPlaying(),
+    (playing) => {
+      if (playing && frame === null) {
+        frame = requestFrame(poll);
+      }
+    },
+  );
 
+  // This stays a component-scoped `onCleanup` rather than riding the apply
+  // half's return: it cancels an outstanding frame when the meter goes away,
+  // not on every `isPlaying` change. Returning it from the apply would cancel
+  // the loop the instant playback stopped, and `poll` would never get its
+  // final tick to reset the meter to the floor.
   onCleanup(() => {
     if (frame !== null) cancelFrame(frame);
     frame = null;

@@ -1,4 +1,4 @@
-import { type Accessor, batch, createMemo, createSignal, onCleanup } from "solid-js";
+import { type Accessor, createMemo, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { toErrorCode } from "../analytics/errorCodes";
 import { packAnalyticsIdentity } from "../analytics/packIdentity";
@@ -172,16 +172,10 @@ export function useLibraryBrowser(
   const results = createMemo(() => filterAssets(assets(), filter()));
   const facets = createMemo(() => facetValues(assets()));
 
-  /**
-   * The packs the project has added, resolved against the index. Matching is by
-   * pack *id* rather than slug because that is what a project records
-   * (`metadata.packDependencies`), and a slug is a URL convenience that a rename
-   * may change while the id never does (sample-library section 5.1).
-   */
-  const addedPacks = createMemo<readonly LibraryPackSummary[]>(() => {
-    const wanted = new Set(options.addedPackIds?.() ?? []);
-    return packs().filter((pack) => wanted.has(pack.id));
-  });
+  /** The packs the project has added, resolved against the live index. */
+  const addedPacks = createMemo<readonly LibraryPackSummary[]>(() =>
+    packsAddedTo(packs(), options.addedPackIds?.() ?? []),
+  );
 
   /**
    * One pack's index entry by slug, or `undefined` before the index has loaded
@@ -215,8 +209,17 @@ export function useLibraryBrowser(
       // manifest — still the index plus one pack, never every pack's metadata
       // (sample-library section 12). A project with no packs fetches nothing
       // beyond the index.
-      const first = addedPacks()[0];
-      if (first) await togglePackNode(first.slug);
+      //
+      // The pack is resolved from `summaries` rather than by reading
+      // `addedPacks()` back, and expanded directly rather than through
+      // `togglePackNode`: Solid 2 defers reads until the batch flushes, so both
+      // accessors would still report the pre-`setPacks` empty index here and
+      // the panel would open onto nothing.
+      const first = packsAddedTo(summaries, options.addedPackIds?.() ?? [])[0];
+      if (first) {
+        setNodeExpanded(first.slug, true);
+        await loadPackIntoPanel(first);
+      }
     } catch (error) {
       setIndexError(reasonOfIndexError(error));
     } finally {
@@ -250,6 +253,24 @@ export function useLibraryBrowser(
   }
 
   async function selectPack(slug: string | null): Promise<void> {
+    // The pack list is read *first*, before any write, and used from here
+    // rather than re-read after the awaits.
+    //
+    // `setSelectedPackSlug(slug)` below is a write, and under Solid 2 a read
+    // after it in the same tick sees the old value. Nothing reads
+    // `selectedPackSlug()` further down today, so this is not a live bug --
+    // reading up front is what keeps it from becoming one when someone adds a
+    // read here, and it is the same shape the `open()` fix took after that
+    // exact pattern silently broke the panel.
+    //
+    // It does *not* quiet the STRICT_READ_UNTRACKED warnings this function
+    // raises when called from `PackBrowser`'s effect apply half: reading a
+    // reactive value in an untracked callback warns wherever in the function
+    // it happens, so ordering cannot help. Those warnings belong to the wider
+    // question of projections and view models reading store proxies from
+    // untracked scopes, which is a data-flow decision rather than a migration
+    // step.
+    const available = packs();
     setSelectedPackSlug(slug);
     // Selecting a pack narrows the pack facet to it; "all packs" clears it.
     setFilter((prev) => ({ ...prev, packSlug: slug }));
@@ -258,9 +279,9 @@ export function useLibraryBrowser(
       if (slug === null) {
         // Cross-pack search needs every pack's manifest; load the ones that
         // have not loaded yet, isolating any that fail.
-        await Promise.all(packs().map((summary) => loadPack(summary)));
+        await Promise.all(available.map((summary) => loadPack(summary)));
       } else {
-        const summary = packs().find((candidate) => candidate.slug === slug);
+        const summary = available.find((candidate) => candidate.slug === slug);
         if (summary) await loadPack(summary);
       }
     } finally {
@@ -295,7 +316,7 @@ export function useLibraryBrowser(
     // Keep the selected pack; clearing *filters* must not silently jump the
     // user out of the pack they opened. Clearing genres/roles/etc. re-exposes
     // every asset the current pack scope holds (LIB-02).
-    batch(() => setFilter((prev) => ({ ...EMPTY_FILTER, packSlug: prev.packSlug })));
+    setFilter((prev) => ({ ...EMPTY_FILTER, packSlug: prev.packSlug }));
   }
 
   async function auditionAsset(asset: LibraryAsset): Promise<void> {
@@ -350,7 +371,12 @@ export function useLibraryBrowser(
     setNodeExpanded(slug, open);
     if (!open) return;
     const summary = packs().find((candidate) => candidate.slug === slug);
-    if (!summary || loadedByPack().has(slug)) return;
+    if (summary) await loadPackIntoPanel(summary);
+  }
+
+  /** Load one pack's manifest, showing the panel's loading state while it runs. */
+  async function loadPackIntoPanel(summary: LibraryPackSummary): Promise<void> {
+    if (loadedByPack().has(summary.slug)) return;
     setAssetsLoading(true);
     try {
       await loadPack(summary);
@@ -427,6 +453,25 @@ export function useLibraryBrowser(
     addPack,
     retryPack,
   };
+}
+
+/**
+ * The subset of `available` the project has added, in index order.
+ *
+ * Matching is by pack *id* rather than slug because that is what a project
+ * records (`metadata.packDependencies`), and a slug is a URL convenience that a
+ * rename may change while the id never does (sample-library section 5.1).
+ *
+ * A free function over an explicit pack list rather than a closure over the
+ * `packs` signal, so `open()` can resolve it against the index it just fetched
+ * instead of a `packs()` read that has not flushed yet.
+ */
+function packsAddedTo(
+  available: readonly LibraryPackSummary[],
+  addedIds: readonly string[],
+): readonly LibraryPackSummary[] {
+  const wanted = new Set(addedIds);
+  return available.filter((pack) => wanted.has(pack.id));
 }
 
 /** The catalog's `asset_type` for a library asset (LOOP-013 analytics). */

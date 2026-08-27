@@ -1,4 +1,5 @@
 import { cleanup, renderHook } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { removeNotes } from "../commands";
 import { createSliceFixtureProject } from "../domain/fixtures";
@@ -42,6 +43,11 @@ describe("useEditorSession navigation flush", () => {
     await vi.waitFor(() => expect(result.state.loading).toBe(false));
 
     result.dispatch(removeNotes(clipId, [eventId]));
+    // Solid 2 batches writes: the autosave subscription has already written
+    // the queued status into the store, but a read only sees it once the
+    // batch flushes. `flush()` is that synchronous catch-up point, and a test
+    // asserting immediately after an action is exactly what it is for.
+    flush();
     expect(result.state.saveStatus?.pending).toBe(1);
     // Nothing has reached the repository yet — the default coalescing
     // window (400ms) has not elapsed and no real time has passed in this
@@ -122,5 +128,33 @@ describe("useEditorSession navigation flush", () => {
     cleanupHook();
 
     await vi.waitFor(() => expect(repository.writes.length).toBeGreaterThan(0));
+  });
+});
+
+describe("useEditorSession when the repository itself fails to load", () => {
+  it("surfaces an error instead of sitting on the loading state for ever", async () => {
+    // `EditorView` hands this hook an async `createMemo` over
+    // `getProjectRepository()`, whose dynamic imports can reject -- a chunk
+    // that 404s after a redeploy is the realistic trigger. A rejected read
+    // arrives as a *compute-phase* error, so the effect body never runs: with
+    // no error arm on the effect, `loading` stayed true and the editor showed
+    // its spinner for ever, with no error surface and nothing reported. Solid
+    // 1's `createResource` propagated a rejected read to the app's error
+    // boundary, so this keeps that failure visible rather than silent.
+    const failing = () => {
+      throw new Error("repository chunk failed to load");
+    };
+
+    const { result } = renderHook(
+      () => useEditorSession(() => "prj_whatever", failing as never),
+      {},
+    );
+
+    await Promise.resolve();
+    flush();
+
+    expect(result.state.loading).toBe(false);
+    expect(result.state.error).not.toBeNull();
+    expect(result.state.notFound).toBe(false);
   });
 });

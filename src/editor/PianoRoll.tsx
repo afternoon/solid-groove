@@ -1,4 +1,5 @@
-import { createEffect, createMemo, createSignal, For, type JSX, Show } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
@@ -74,7 +75,7 @@ export interface PianoRollProps {
    * Called once with the roll's keyboard operations, for the host to wire into
    * the shortcut registry (`edit.delete`, `edit.duplicate`, `edit.select_all`).
    */
-  registerActions?(actions: PianoRollActions): void;
+  registerActions?(actions: PianoRollActions | null): void;
   /**
    * Reports the roll's selection outward whenever it changes, so a host can
    * act on the same notes the roll has highlighted (the CLP-04 transformation
@@ -107,6 +108,20 @@ interface DragState {
   readonly pointerStartY: number;
   /** Whether any command has been applied yet (for the empty-commit case). */
   moved: boolean;
+  /**
+   * Set the instant the gesture is committed or cancelled, and read as the
+   * re-entrancy guard for both.
+   *
+   * A plain field rather than a signal, deliberately. A pointerup on a note
+   * runs the note's own handler and then the grid's as it bubbles, and both
+   * end the drag. Under Solid 1 the first call's `setDrag(null)` was visible
+   * to the second synchronously, so `if (drag())` short-circuited it. Solid 2
+   * publishes that write on the next microtask, so the second call still sees
+   * the old state, passes the guard, and commits an already-finished gesture
+   * -- which throws. A signal read cannot serve as a same-tick mutex any
+   * more; a plain field can, because it is not batched.
+   */
+  finished: boolean;
 }
 
 interface MarqueeState {
@@ -213,13 +228,19 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     return [...selection()];
   }
 
-  // Mirrors the selection outward for the transformation panel. Tracking
-  // `selection()` alone keeps this to one call per selection change, and the
-  // roll never reads back what it published, so there is no feedback loop.
-  createEffect(() => {
-    const ids = [...selection()];
-    props.onSelectionChange?.(ids);
-  });
+  // Mirrors the selection outward for the transformation panel. `selection()`
+  // is the compute half's only read, which is what keeps this to one call per
+  // selection change: reading `props.onSelectionChange` from the apply half
+  // leaves it untracked, so swapping the callback does not re-notify. The
+  // notification is also a write into the parent, and the apply half is where
+  // Solid 2 sanctions one. The roll never reads back what it published, so
+  // there is no feedback loop.
+  createEffect(
+    () => [...selection()],
+    (ids) => {
+      props.onSelectionChange?.(ids);
+    },
+  );
 
   function isSelected(note: NoteEvent): boolean {
     return selection().has(note.id);
@@ -281,6 +302,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
       pointerStartX: event.clientX,
       pointerStartY: event.clientY,
       moved: false,
+      finished: false,
     });
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
   }
@@ -309,7 +331,8 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
 
   function endDrag(): void {
     const state = drag();
-    if (!state) return;
+    if (!state || state.finished) return;
+    state.finished = true;
     setDrag(null);
     if (state.moved) {
       state.gesture.commit();
@@ -450,11 +473,23 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
   // surface that hosts the roll (EditorView) installs one window controller and
   // supplies these operations as its handlers. The roll exposes them, plus a
   // reactive "has selection" for the handlers' `isEnabled`, and nothing more.
-  props.registerActions?.({
-    deleteSelection,
-    duplicateSelection,
-    selectAll,
-    hasSelection: () => selection().size > 0,
+  // Registered from `onSettled`, not from the component body. `EditorView`
+  // holds these in a signal, so `registerActions` *is* a signal setter -- and
+  // calling it during render is a write inside an owned scope, which Solid 2
+  // throws on. That throw halts the reactive system for the whole page, so it
+  // does not present as a piano-roll bug: it presents as everything after it
+  // going dead. Registering after render settles puts the write outside the
+  // tracking scope, and the returned cleanup deregisters on unmount so a
+  // stale roll's operations cannot outlive it. `ArrangementView` wires its
+  // `onEditingActionsReady` the same way.
+  onSettled(() => {
+    props.registerActions?.({
+      deleteSelection,
+      duplicateSelection,
+      selectAll,
+      hasSelection: () => selection().size > 0,
+    });
+    return () => props.registerActions?.(null);
   });
 
   // --- Render helpers ----------------------------------------------------
@@ -530,11 +565,10 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
           <For each={pitches}>
             {(pitch) => (
               <div
-                class="pr-key"
-                classList={{
-                  black: isBlackKey(pitch),
-                  "out-of-key": outOfKey(pitch),
-                }}
+                class={[
+                  "pr-key",
+                  { black: isBlackKey(pitch), "out-of-key": outOfKey(pitch) },
+                ]}
                 style={rowStyle(pitch)}
               >
                 <span class="pr-key-label">{pitchLabel(pitch)}</span>
@@ -570,21 +604,22 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
             else if (marquee()) endMarquee();
           }}
           onPointerCancel={() => {
-            if (drag()) {
-              drag()?.gesture.cancel();
-              setDrag(null);
+            const state = drag();
+            if (state && !state.finished) {
+              state.finished = true;
+              state.gesture.cancel();
             }
+            setDrag(null);
             setMarquee(null);
           }}
         >
           <For each={pitches}>
             {(pitch) => (
               <div
-                class="pr-row"
-                classList={{
-                  black: isBlackKey(pitch),
-                  "out-of-key": outOfKey(pitch),
-                }}
+                class={[
+                  "pr-row",
+                  { black: isBlackKey(pitch), "out-of-key": outOfKey(pitch) },
+                ]}
                 style={rowStyle(pitch)}
                 aria-hidden="true"
               />

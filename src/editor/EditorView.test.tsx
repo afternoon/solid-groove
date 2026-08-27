@@ -1,4 +1,4 @@
-import { MemoryRouter, Route } from "@solidjs/router";
+import { createRouter, memoryHistory } from "@solidjs/router";
 import {
   cleanup,
   fireEvent,
@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -24,6 +25,7 @@ import type { PreviewEngine } from "../library/audition";
 import { LibraryClient } from "../library/libraryClient";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
@@ -99,8 +101,10 @@ function saveRetryButton(): HTMLElement | null {
   return within(saveStatusGroup()).queryByRole("button", { name: "Retry" });
 }
 
-// EditorView links back to the dashboard with <A>, which needs a matched Route
-// context to resolve against — a bare MemoryRouter isn't enough.
+// EditorView links back to the dashboard with a plain anchor, which the router
+// only resolves from inside a matched route — so the editor is mounted as the
+// component of a one-route router over an in-memory history, which is Router
+// 2's replacement for the old `<MemoryRouter><Route .../></MemoryRouter>` pair.
 function renderEditor(
   projectId: string,
   options: {
@@ -110,21 +114,23 @@ function renderEditor(
   } = {},
 ) {
   const EditorView = EditorViewModule.default;
-  return render(() => (
-    <MemoryRouter>
-      <Route
-        path="/"
-        component={() => (
+  const TestRouter = createRouter({
+    history: memoryHistory("/"),
+    routes: [
+      {
+        path: "/",
+        component: () => (
           <EditorView
             projectId={projectId}
             createAuditionEngine={options.createAuditionEngine}
             libraryClient={options.libraryClient}
             analytics={options.analytics}
           />
-        )}
-      />
-    </MemoryRouter>
-  ));
+        ),
+      },
+    ],
+  });
+  return render(() => <TestRouter />);
 }
 
 /** A library sound as a drag hands it over, already in its wire form (#225). */
@@ -363,6 +369,11 @@ describe("EditorView", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(mixerSelect(breakTrack.name));
+    // Solid 2 publishes a write on the next microtask, and
+    // `@solidjs/testing-library` 1.x re-exports `@testing-library/dom`'s raw
+    // `fireEvent`, so nothing flushes it for us. Without this the assertions
+    // below read the selection as it was before the click.
+    flush();
 
     // The editor follows: the second track's name, and no drum pads, because
     // the pads belong to a track that is no longer the one being edited.
@@ -376,7 +387,7 @@ describe("EditorView", () => {
     ).not.toBeInTheDocument();
 
     // And back, from the same control on the other strip.
-    fireEvent.click(mixerSelect(drums.name));
+    clickAndFlush(mixerSelect(drums.name));
     expect(
       screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).toBeInTheDocument();
@@ -396,7 +407,7 @@ describe("EditorView", () => {
 
     // The arrangement's track header column: the same click a pointer makes
     // on a row, from the DOM side of the hybrid surface.
-    fireEvent.click(
+    clickAndFlush(
       within(screen.getByLabelText("Tracks")).getByRole("button", {
         name: `Edit ${breakTrack.name}`,
       }),

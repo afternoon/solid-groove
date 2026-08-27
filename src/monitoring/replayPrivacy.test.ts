@@ -207,7 +207,16 @@ const DELIBERATELY_UNMARKED: readonly {
   },
   {
     file: "editor/Mixer.tsx",
-    literal: 'class="mixer-strip"',
+    // Pinned as the bare quoted class name rather than `class="mixer-strip"`.
+    // Solid 2 removed `classList`, so a static class and its conditional
+    // siblings can no longer be two attributes -- they merge into one
+    // `class={["mixer-strip", { muted, selected }]}` array, and the old
+    // `class="..."` spelling cannot exist here any more. The property this
+    // assertion actually rests on is unchanged and is why the quotes are part
+    // of the literal: re-broadening masking over this surface means
+    // interpolating into a template literal, and a template literal contains
+    // no `"mixer-strip"`. The surface itself is as unmarked as it ever was.
+    literal: '"mixer-strip",',
   },
   {
     file: "components/ProjectList.tsx",
@@ -277,13 +286,41 @@ describe("user-authored names are masked (ADR 0002 decision 2)", () => {
 describe("the interface stays visible (ADR 0002 decision 1)", () => {
   for (const surface of DELIBERATELY_UNMARKED) {
     it(`leaves ${surface.literal} in ${surface.file} unmarked`, () => {
+      const source = read(surface.file);
+
+      // Half one: the surface still exists under the name this row pins.
       expect(
-        read(surface.file),
-        `${surface.literal} in ${surface.file} appears to have been masked or ` +
-          "blocked. It is unmarked on purpose: replay is worth having only " +
-          "while the interface around a masked name stays legible (ADR 0002 " +
-          "decision 1).",
+        source,
+        `${surface.literal} in ${surface.file} is gone. If it was renamed, ` +
+          "update this row; if it was removed, remove the row.",
       ).toContain(surface.literal);
+
+      // Half two, and the half that actually holds ADR 0002 decision 1: the
+      // element carries no masking. Stated as the *absence of MASK_CONTENT*
+      // rather than as the presence of a particular spelling, deliberately.
+      // A spelling pin is only fail-closed while masking cannot be added
+      // without disturbing it. That held while `class="..."` was a plain
+      // attribute and `classList` carried the conditional half; with Solid 2's
+      // array form, appending MASK_CONTENT beside the class name is both
+      // possible and the natural edit, so a spelling pin would keep passing
+      // while the surface went dark. Fail-open is the one thing a privacy
+      // guard must never be. This mirrors how MASKED_NAMES asserts the
+      // opposite property, so the two suites now fail for the same reason in
+      // opposite directions.
+      // The literal, not a bare class name, is what locates the tag: this
+      // file also pins `mixer-strip-name`, which *is* masked, and a substring
+      // match on "mixer-strip" would find it and fail for the wrong reason.
+      const tags = openingTagsAround(source, surface.literal);
+      expect(
+        tags.length,
+        `${surface.literal} was not found on an element in ${surface.file}`,
+      ).toBeGreaterThan(0);
+      expect(
+        tags.some((tag) => tag.includes("MASK_CONTENT")),
+        `${surface.literal} in ${surface.file} now carries ${MASK_CONTENT}. ` +
+          "It is unmarked on purpose: replay is worth having only while the " +
+          "interface around a masked name stays legible (ADR 0002 decision 1).",
+      ).toBe(false);
     });
   }
 });

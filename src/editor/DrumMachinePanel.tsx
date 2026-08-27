@@ -1,4 +1,4 @@
-import { For, type JSX, Show } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
 import { setPadAsset, setPadChoke, setPadFlag, setPadParameter } from "../commands";
@@ -6,6 +6,7 @@ import type { Asset, DrumPad, Track } from "../domain/entities";
 import type { AssetId, PadId } from "../domain/ids";
 import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import "./DrumMachinePanel.css";
+import { ariaBool } from "../shared/aria";
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
 const CHOKE_GROUPS = Array.from({ length: 8 }, (_, i) => i);
@@ -83,7 +84,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     <section class="drum-machine" aria-label={`Drum machine: ${props.track.name}`}>
       <For each={pads(props.track)}>
         {(pad) => (
-          <div class="drum-pad" classList={{ muted: pad.mixer.muted }}>
+          <div class={["drum-pad", { muted: pad.mixer.muted }]}>
             <button
               type="button"
               class="pad-audition"
@@ -179,9 +180,8 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
             <div class="pad-flags">
               <button
                 type="button"
-                class="pad-flag"
-                classList={{ active: pad.mixer.muted }}
-                aria-pressed={pad.mixer.muted}
+                class={["pad-flag", { active: pad.mixer.muted }]}
+                aria-pressed={ariaBool(pad.mixer.muted)}
                 aria-label={`Mute ${pad.name}`}
                 onClick={() => toggleFlag(pad, "muted")}
                 title="Mute"
@@ -190,9 +190,8 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               </button>
               <button
                 type="button"
-                class="pad-flag"
-                classList={{ active: pad.mixer.soloed }}
-                aria-pressed={pad.mixer.soloed}
+                class={["pad-flag", { active: pad.mixer.soloed }]}
+                aria-pressed={ariaBool(pad.mixer.soloed)}
                 aria-label={`Solo ${pad.name}`}
                 onClick={() => toggleFlag(pad, "soloed")}
                 title="Solo"

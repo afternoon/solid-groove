@@ -1,19 +1,11 @@
+import { For, type JSX, Show } from "@solidjs/web";
 import {
   HiSolidChevronDown,
   HiSolidChevronRight,
   HiSolidExclamationTriangle,
   HiSolidSquares2x2,
 } from "solid-icons/hi";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  For,
-  type JSX,
-  onCleanup,
-  onMount,
-  Show,
-} from "solid-js";
+import { createMemo, createSignal, onCleanup, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -26,6 +18,7 @@ import PackBrowser from "./PackBrowser";
 import type { LibraryTreeGroup, LibraryTreePack } from "./tree";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import "./LibraryBrowser.css";
+import { ariaBool } from "../shared/aria";
 
 export interface LibraryBrowserProps {
   /** Injected in tests; the browser builds its own client/engine otherwise. */
@@ -95,7 +88,7 @@ export default function LibraryBrowser(props: LibraryBrowserProps): JSX.Element 
     props.onPackBrowserOpenChange?.(false);
   }
 
-  onMount(() => void browser.open());
+  onSettled(() => void browser.open());
 
   // Leaving the panel open while the surface unmounts already stops audition
   // (`useLibraryBrowser` disposes it on cleanup); tell the host the modal is
@@ -106,11 +99,15 @@ export default function LibraryBrowser(props: LibraryBrowserProps): JSX.Element 
   // route change unmounts the component; `useLibraryBrowser`'s onCleanup then
   // disposes audition). A hard pagehide also stops it, matching the AC's
   // "stops on ... navigation".
-  createEffect(() => {
+  //
+  // `onSettled` rather than an effect: the listener depends on nothing
+  // reactive, so there is no compute half to split out, and its teardown is now
+  // the returned cleanup rather than a nested `onCleanup`.
+  onSettled(() => {
     if (typeof window === "undefined") return;
     const stop = () => browser.stopAudition();
     window.addEventListener("pagehide", stop);
-    onCleanup(() => window.removeEventListener("pagehide", stop));
+    return () => window.removeEventListener("pagehide", stop);
   });
 
   const hasQuery = createMemo(() => browser.treeQuery().trim() !== "");
@@ -216,7 +213,7 @@ function PackNode(props: {
       <button
         type="button"
         class="library-node library-node-pack"
-        aria-expanded={expanded()}
+        aria-expanded={ariaBool(expanded())}
         onClick={() => void props.browser.togglePackNode(props.pack.slug)}
       >
         <Chevron expanded={expanded()} />
@@ -289,7 +286,7 @@ function GroupNode(props: {
       <button
         type="button"
         class="library-node library-node-group"
-        aria-expanded={expanded()}
+        aria-expanded={ariaBool(expanded())}
         onClick={() => props.browser.toggleGroupNode(props.group.key)}
       >
         <Chevron expanded={expanded()} />

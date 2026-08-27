@@ -1,4 +1,4 @@
-import { onCleanup, onMount } from "solid-js";
+import { onSettled } from "solid-js";
 import { ShortcutController, type ShortcutControllerOptions } from "./ShortcutController";
 
 /**
@@ -9,12 +9,13 @@ import { ShortcutController, type ShortcutControllerOptions } from "./ShortcutCo
  * shortcut work while focus sits on a transport button or a fader; the
  * controller's own context and text-entry rules decide whether it acts, so
  * "listens everywhere" never means "fires everywhere".
+ *
+ * `attach` returns its own detach function, and in Solid 2 the value an
+ * `onSettled` callback returns *is* its cleanup — so handing the detach back is
+ * the whole teardown, in place of 1.x's nested `onCleanup`.
  */
 export function useShortcuts(options: ShortcutControllerOptions): ShortcutController {
   const controller = new ShortcutController(options);
-  onMount(() => {
-    const detach = controller.attach(window);
-    onCleanup(detach);
-  });
+  onSettled(() => controller.attach(window));
   return controller;
 }

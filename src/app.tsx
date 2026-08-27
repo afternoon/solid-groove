@@ -1,20 +1,13 @@
-import { MetaProvider, Title } from "@solidjs/meta";
-import { Router, useLocation } from "@solidjs/router";
-import { FileRoutes } from "@solidjs/start/router";
-import {
-  type Accessor,
-  createEffect,
-  createSignal,
-  ErrorBoundary,
-  onCleanup,
-  onMount,
-  Suspense,
-} from "solid-js";
+import { Title } from "@solidjs/meta";
+import { useLocation } from "@solidjs/router";
+import { Errored, Loading } from "@solidjs/web";
+import { type Accessor, createEffect, createSignal, onSettled } from "solid-js";
 import { analytics } from "./analytics/analytics";
 import AppErrorFallback from "./components/AppErrorFallback";
 import FloatingTelemetryDisclosure from "./components/FloatingTelemetryDisclosure";
 import ReleaseBadge from "./components/ReleaseBadge";
 import TapeLoader from "./components/TapeLoader";
+import { Router } from "./router";
 import { syncInternalTraffic } from "./shared/internalTraffic";
 import { initTelemetry, surfaceForPath, type Telemetry } from "./telemetry";
 import "./app.css";
@@ -30,21 +23,28 @@ import "./app.css";
  * surface to `Telemetry` rather than to `analytics` directly is what makes that
  * one decision instead of three.
  *
- * The effect reads the telemetry accessor, so it re-runs with the current
- * pathname once `initTelemetry` has finished; until then the surface still
- * reaches the analytics boundary directly and nothing is lost to mount order.
+ * The compute phase reads both the pathname and the telemetry accessor, so the
+ * effect re-runs with the current pathname once `initTelemetry` has finished;
+ * until then the surface still reaches the analytics boundary directly and
+ * nothing is lost to mount order. Both reads must stay in the compute half:
+ * Solid 2 only tracks what the compute function touches, so a read moved into
+ * the apply half below would silently stop the effect reacting to it.
  */
 function SurfaceTracker(props: { telemetry: Accessor<Telemetry | null> }) {
   const location = useLocation();
-  createEffect(() => {
-    const surface = surfaceForPath(location.pathname);
-    const telemetry = props.telemetry();
-    if (telemetry) {
-      telemetry.setSurface(surface);
-    } else {
-      analytics.setSurface(surface);
-    }
-  });
+  createEffect(
+    () => ({
+      surface: surfaceForPath(location.pathname),
+      telemetry: props.telemetry(),
+    }),
+    ({ surface, telemetry }) => {
+      if (telemetry) {
+        telemetry.setSurface(surface);
+      } else {
+        analytics.setSurface(surface);
+      }
+    },
+  );
   return null;
 }
 
@@ -52,10 +52,15 @@ export default function App() {
   const [telemetry, setTelemetry] = createSignal<Telemetry | null>(null);
 
   // PRD `OPS-01`: mark internal/team traffic once per app load so it can be
-  // excluded from the section 11 measures. Outside the Router's `root` render
+  // excluded from the section 11 measures. Outside the Router's layout render
   // prop so it runs once regardless of which route was entered, not once per
   // navigation.
-  onMount(() => {
+  //
+  // `onSettled` rather than 1.x's `onMount`, and the teardown is the returned
+  // cleanup rather than a nested `onCleanup` — in Solid 2 that nesting is no
+  // longer the idiom, and the returned function is what the lifecycle actually
+  // honours.
+  onSettled(() => {
     syncInternalTraffic();
 
     // PRD `OPS-02`/`OPS-03`: install the global error handlers and the
@@ -68,27 +73,25 @@ export default function App() {
     });
     setTelemetry(() => instance);
 
-    onCleanup(() => {
+    return () => {
       void instance.dispose();
-    });
+    };
   });
 
   return (
-    <Router
-      root={(props) => (
-        <MetaProvider>
+    <Router>
+      {(props) => (
+        <>
           <Title>Groove</Title>
           <SurfaceTracker telemetry={telemetry} />
-          <ErrorBoundary
+          <Errored
             fallback={(err, reset) => (
-              <AppErrorFallback error={err} reset={reset} area="shell" />
+              <AppErrorFallback error={err()} reset={reset} area="shell" />
             )}
           >
-            <Suspense fallback={<TapeLoader label="Loading" />}>
-              {props.children}
-            </Suspense>
-          </ErrorBoundary>
-          {/* Outside the ErrorBoundary/Suspense so the deployed revision
+            <Loading fallback={<TapeLoader label="Loading" />}>{props.children}</Loading>
+          </Errored>
+          {/* Outside the Errored/Loading boundary so the deployed revision
 					    stays visible/inspectable even while the app is loading or has
 					    hit an error -- exactly when knowing the build matters most. */}
           <ReleaseBadge />
@@ -98,10 +101,8 @@ export default function App() {
 					    DEC-009) only while that copy is actually mounted, rather than
 					    for the whole route. */}
           <FloatingTelemetryDisclosure />
-        </MetaProvider>
+        </>
       )}
-    >
-      <FileRoutes />
     </Router>
   );
 }

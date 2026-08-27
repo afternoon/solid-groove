@@ -1,12 +1,5 @@
-import {
-  type Accessor,
-  batch,
-  createMemo,
-  createSignal,
-  For,
-  type JSX,
-  Show,
-} from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
 import { removeNotes, updateClip, updateNote } from "../commands";
@@ -29,6 +22,7 @@ import {
 } from "./stepEditorModel";
 import { createStroke } from "./stepStroke";
 import "./StepEditor.css";
+import { ariaBool } from "../shared/aria";
 
 /**
  * Mints note-event IDs for notes the editor paints. A module singleton, not
@@ -166,12 +160,16 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
       return;
     }
     event.preventDefault();
-    batch(() => stroke.begin(lane, step));
+    // No `batch` wrapper any more: Solid 2 batches every write to the end of
+    // the microtask, so the step's project write and the selection write it
+    // triggers still land together — over a wider span than the old explicit
+    // batch, which only covered this one call.
+    stroke.begin(lane, step);
   }
 
   function onCellPointerEnter(lane: StepLane, step: number): void {
     if (!stroke.active) return;
-    batch(() => stroke.paint(lane, step));
+    stroke.paint(lane, step);
   }
 
   function velocityFor(note: NoteEvent): number {
@@ -272,14 +270,16 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                     return (
                       <button
                         type="button"
-                        class="step-cell"
-                        classList={{
-                          active: active(),
-                          selected: selected(),
-                          playing: playing(),
-                          "bar-start": isBarStart(step),
-                          "beat-start": isBeatStart(step),
-                        }}
+                        class={[
+                          "step-cell",
+                          {
+                            active: active(),
+                            selected: selected(),
+                            playing: playing(),
+                            "bar-start": isBarStart(step),
+                            "beat-start": isBeatStart(step),
+                          },
+                        ]}
                         style={
                           active()
                             ? {
@@ -287,7 +287,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                               }
                             : undefined
                         }
-                        aria-pressed={active()}
+                        aria-pressed={ariaBool(active())}
                         aria-label={`${lane.name}, step ${step + 1}${
                           active() ? ", on" : ", off"
                         }`}

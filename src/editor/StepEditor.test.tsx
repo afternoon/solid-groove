@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -80,7 +80,9 @@ function cell(name: string): HTMLElement {
 function stroke(name: string): void {
   const target = cell(name);
   fireEvent.pointerDown(target, { button: 0 });
+  flush();
   fireEvent.pointerUp(target);
+  flush();
 }
 
 /**
@@ -92,10 +94,13 @@ function stroke(name: string): void {
 function dragStroke(names: readonly string[]): void {
   const first = cell(names[0]);
   fireEvent.pointerDown(first, { button: 0 });
+  flush();
   for (const name of names.slice(1)) {
     fireEvent.pointerEnter(cell(name));
+    flush();
   }
   fireEvent.pointerUp(screen.getByRole("region", { name: "Step editor" }));
+  flush();
 }
 
 function clipEditedEvents(transport: ReturnType<typeof createRecordingTransport>) {
@@ -249,6 +254,7 @@ describe("StepEditor", () => {
     // A velocity slider appears for the freshly-selected note.
     const velocity = screen.getByRole("slider", { name: "Velocity" });
     fireEvent.input(velocity, { target: { value: "0.25" } });
+    flush();
 
     const content = clip().content;
     if (content.kind !== "notes") throw new Error("expected a note clip");
@@ -265,7 +271,9 @@ describe("StepEditor", () => {
     const down = new Event("pointerdown", { bubbles: true, cancelable: true });
     Object.assign(down, { button: 0, shiftKey: true });
     target.dispatchEvent(down);
+    flush();
     fireEvent.pointerUp(target);
+    flush();
 
     // Still on (not erased), and now selected.
     expect(cell("Notes, step 1, on")).toBeInTheDocument();
@@ -279,6 +287,7 @@ describe("StepEditor", () => {
 
     const select = screen.getByRole("combobox", { name: "Bars" });
     fireEvent.change(select, { target: { value: "4" } });
+    flush();
 
     expect(clip().lengthTicks).toBe(TICKS_PER_BAR * 4);
     // The grid now shows 4 bars × 16 steps on the single lane.
@@ -289,6 +298,7 @@ describe("StepEditor", () => {
   it("marks the current playback step while playing", () => {
     const { setPlaybackStep } = renderEditor(createSliceFixtureProject());
     setPlaybackStep(3);
+    flush();
     // The playing class lands on the cell at step 4 (index 3).
     const playingCell = cell("Notes, step 4, off");
     expect(playingCell.className).toContain("playing");
