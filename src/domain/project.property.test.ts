@@ -256,17 +256,24 @@ describe("generated projects and their packs", () => {
         const available = project.metadata.packDependencies
           .slice(0, availableCount % (shape.packCount + 1))
           .map((dependency, index) => ({
-            id: dependency.packId,
-            name: `Generated pack ${index + 1}`,
-            version: dependency.version,
-            publisher: "Solid Groove",
-            kind: "factory" as const,
-            description: "",
-            rights: {
-              licence: "solid-groove-owned",
-              rawRedistribution: true,
-              attributionRequired: false,
+            pack: {
+              id: dependency.packId,
+              name: `Generated pack ${index + 1}`,
+              version: dependency.version,
+              publisher: "Solid Groove",
+              kind: "factory" as const,
+              description: "",
+              rights: {
+                licence: "solid-groove-owned",
+                rawRedistribution: true,
+                attributionRequired: false,
+              },
             },
+            // Every pack the caller holds still holds all of its own assets, so
+            // the only thing this property varies is which packs are present.
+            assetIds: project.song.assets
+              .filter((asset) => asset.packId === dependency.packId)
+              .map((asset) => asset.id),
           }));
 
         const report = resolvePackAvailability(project, available);
@@ -274,6 +281,7 @@ describe("generated projects and their packs", () => {
         expect(report.missing).toHaveLength(
           project.metadata.packDependencies.length - available.length,
         );
+        expect(report.missingAssets).toEqual([]);
         expect(report.satisfied).toBe(report.missing.length === 0);
         // The project itself is untouched: no substitution, no repair.
         expect(parseProject(project).ok).toBe(true);
