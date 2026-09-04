@@ -190,3 +190,18 @@
   height: 100%;
   cursor: ew-resize;
 }
+
+/* The fill track on its own, for a control with nowhere to put a label row or
+   a readout — a piano-roll note block. It claims the width of whatever holds
+   it and no height beyond the track, so it cannot change that block's layout;
+   the host sets `--fill-slider-track-thickness` to whatever it can spare. */
+.fill-slider.compact {
+  display: block;
+  width: 100%;
+  gap: 0;
+}
+
+.fill-slider.compact .fill-slider-track {
+  width: auto;
+  height: var(--fill-slider-track-thickness, 10px);
+}

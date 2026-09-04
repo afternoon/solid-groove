@@ -13,6 +13,8 @@ import {
 } from "../domain/fixtures";
 import type { EventId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import { fillExtent, moveTo } from "../instrument/panelTesting";
+import { fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import StepEditor from "./StepEditor";
 
@@ -74,6 +76,13 @@ function renderEditor(project: Project) {
 
 function cell(name: string): HTMLElement {
   return screen.getByRole("button", { name });
+}
+
+/** The velocity of the note starting on the given tick, as the clip holds it. */
+function velocityAt(clip: Clip, startTicks: number): number | undefined {
+  const content = clip.content;
+  if (content.kind !== "notes") throw new Error("expected a note clip");
+  return content.events.find((event) => event.startTicks === startTicks)?.velocity;
 }
 
 /** A complete paint/erase stroke: down on the first cell, up to commit. */
@@ -255,6 +264,9 @@ describe("StepEditor", () => {
     const velocity = screen.getByRole("slider", { name: "Velocity" });
     fireEvent.input(velocity, { target: { value: "0.25" } });
     flush();
+    // The drag settles: `change` is what closes the slider's gesture (#255).
+    fireEvent.change(velocity, { target: { value: "0.25" } });
+    flush();
 
     const content = clip().content;
     if (content.kind !== "notes") throw new Error("expected a note clip");
@@ -262,6 +274,42 @@ describe("StepEditor", () => {
     expect(painted?.velocity).toBeCloseTo(0.25, 2);
     // The paint stroke and the velocity edit are two separate history entries.
     expect(history.entries.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // #255: the selected step's velocity was a raw `<input type="range">` with a
+  // native thumb and no fill, and every pointer move dispatched its own
+  // `note.update` — dozens of revisions and undo steps for one drag.
+  it("paints the step velocity as a thumbless fill slider (#255)", () => {
+    renderEditor(createSliceFixtureProject());
+    stroke("Notes, step 2, off");
+
+    const velocity = screen.getByRole("slider", { name: "Velocity" }) as HTMLInputElement;
+    expect(velocity.closest(".fill-slider-track")).not.toBeNull();
+    expect(fillExtent(velocity)).not.toBe("");
+    const readout = velocity.closest(".fill-slider")?.querySelector("output");
+    expect(readout?.textContent ?? "").not.toBe("");
+  });
+
+  it("runs one velocity drag as one history entry and one revision (#255)", () => {
+    const { history, clip } = renderEditor(createSliceFixtureProject());
+    stroke("Notes, step 2, off");
+    const afterStroke = history.entries.length;
+    const startRevision = history.project.metadata.revision;
+
+    const velocity = screen.getByRole("slider", { name: "Velocity" }) as HTMLInputElement;
+    moveTo(velocity, "0.4");
+    moveTo(velocity, "0.25");
+    // Mid-drag the value has to follow the pointer, in the project the audio
+    // graph reads…
+    expect(velocityAt(clip(), 48)).toBeCloseTo(0.25, 2);
+    // …but nothing is committed until the drag ends.
+    expect(history.entries).toHaveLength(afterStroke);
+
+    fireAndFlush(() => {
+      fireEvent.change(velocity, { target: { value: "0.25" } });
+    });
+    expect(history.entries).toHaveLength(afterStroke + 1);
+    expect(history.project.metadata.revision).toBe(startRevision + 1);
   });
 
   it("shift-click selects an existing note without erasing it", () => {

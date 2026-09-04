@@ -1,4 +1,4 @@
-import type { JSX } from "@solidjs/web";
+import { type JSX, Show } from "@solidjs/web";
 import { createMemo } from "solid-js";
 import { clampParameterValue, type ParameterDefinition } from "../domain/parameters";
 import "./FillSlider.css";
@@ -50,6 +50,13 @@ export interface FillSliderProps {
    * filled from the left would read "half loud" at centre.
    */
   readonly bipolar?: boolean;
+  /**
+   * Drop the label row and the value readout, leaving the fill track alone,
+   * for a control with nowhere to put them — a piano-roll note block is a few
+   * pixels tall. `ariaLabel` then carries the name the visible label would
+   * have, so the control is still announced and still keyboard-operable.
+   */
+  readonly compact?: boolean;
 }
 
 /**
@@ -108,12 +115,18 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     <div
       class={[
         "fill-slider",
-        { horizontal: horizontal(), bipolar: props.bipolar === true },
+        {
+          horizontal: horizontal(),
+          bipolar: props.bipolar === true,
+          compact: props.compact === true,
+        },
       ]}
     >
-      <label class="fill-slider-label" for={id()}>
-        {props.label ?? props.definition.label}
-      </label>
+      <Show when={props.compact !== true}>
+        <label class="fill-slider-label" for={id()}>
+          {props.label ?? props.definition.label}
+        </label>
+      </Show>
       <div class="fill-slider-track">
         <div class="fill-slider-fill" style={fillStyle()} aria-hidden="true" />
         <input
@@ -148,9 +161,11 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           }
         />
       </div>
-      <output class="fill-slider-value" for={id()}>
-        {props.displayValue}
-      </output>
+      <Show when={props.compact !== true}>
+        <output class="fill-slider-value" for={id()}>
+          {props.displayValue}
+        </output>
+      </Show>
     </div>
   );
 }

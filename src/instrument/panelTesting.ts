@@ -41,10 +41,14 @@ export function moveTo(slider: HTMLInputElement, value: string): void {
   });
 }
 
-/** The painted fill's own extent, which is what a fill-slider's value *is*. */
+/**
+ * The painted fill's own extent along its axis, which is what a fill-slider's
+ * value *is* — height for the vertical shape, width for the horizontal one.
+ */
 export function fillExtent(slider: HTMLInputElement): string {
   const fill = slider
     .closest(".fill-slider")
     ?.querySelector<HTMLElement>(".fill-slider-fill");
-  return fill?.style.height ?? "";
+  if (!fill) return "";
+  return fill.style.height || fill.style.width;
 }

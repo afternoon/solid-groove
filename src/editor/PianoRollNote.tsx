@@ -1,6 +1,7 @@
 import type { JSX } from "@solidjs/web";
 import type { NoteEvent } from "../domain/entities";
 import { NOTE_VELOCITY } from "../domain/parameters";
+import FillSlider from "../instrument/FillSlider";
 import { pitchOf } from "./pianoRollGestures";
 import { pitchLabel } from "./pitchClass";
 
@@ -38,25 +39,26 @@ export default function PianoRollNote(props: PianoRollNoteProps): JSX.Element {
       onPointerUp={() => props.onPointerUp()}
     >
       <span class="pr-note-resize" aria-hidden="true" />
-      <input
-        class="pr-note-velocity"
-        type="range"
-        min={NOTE_VELOCITY.min}
-        max={NOTE_VELOCITY.max}
-        step={0.01}
-        value={props.note.velocity}
-        aria-label={`Velocity of ${pitchLabel(pitchOf(props.note))}`}
-        onPointerDown={(event) => event.stopPropagation()}
-        onInput={(event) =>
-          props.applyVelocity(props.note, event.currentTarget.valueAsNumber)
-        }
-        // `change` fires once the drag (or keyboard nudge) settles;
-        // pointer-up/cancel cover the mouse path. All commit the one
-        // open gesture — extra calls are a safe no-op.
-        onChange={() => props.commitVelocity()}
-        onPointerUp={() => props.commitVelocity()}
-        onPointerCancel={() => props.commitVelocity()}
-      />
+      {/* The same fill slider as every other continuous control in the editor,
+			    in its compact shape — the note block has no room for a label row or a
+			    readout, and a native thumb here read as a different control language
+			    entirely (#255). Pressing it must not also start dragging the note, so
+			    the wrapper swallows `pointerdown` before it reaches the note body.
+			    `change` / pointer-up / pointer-cancel all reach `onCommit`, which
+			    closes the one open gesture; extra commits are a safe no-op. */}
+      <div class="pr-note-velocity" onPointerDown={(event) => event.stopPropagation()}>
+        <FillSlider
+          definition={NOTE_VELOCITY}
+          inputId={`pr-note-velocity-${props.note.id}`}
+          compact
+          orientation="horizontal"
+          ariaLabel={`Velocity of ${pitchLabel(pitchOf(props.note))}`}
+          value={props.note.velocity}
+          displayValue={String(Math.round(props.note.velocity * 127))}
+          onInput={(value) => props.applyVelocity(props.note, value)}
+          onCommit={() => props.commitVelocity()}
+        />
+      </div>
     </div>
   );
 }
