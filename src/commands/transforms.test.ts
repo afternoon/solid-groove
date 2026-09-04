@@ -14,10 +14,11 @@ import {
   quantizeNotes,
   scaleNoteVelocity,
   transposeNotes,
+  updateClip,
   updateNote,
   varyNotes,
 } from ".";
-import { executeCommand } from "./execute";
+import { executeCommand, executeTransaction } from "./execute";
 import { findClip, noteEventsOf } from "./projectEdits";
 import { type CommandTestProject, createCommandTestProject } from "./testProjects";
 
@@ -27,6 +28,10 @@ function eventsOf(
 ): readonly NoteEvent[] {
   const clip = findClip(project, clipId);
   return clip ? (noteEventsOf(clip) ?? []) : [];
+}
+
+function clipLengthOf(project: Project, clipId: CommandTestProject["clipAId"]): number {
+  return findClip(project, clipId)?.lengthTicks ?? -1;
 }
 
 function pitchesOf(project: Project, clipId: CommandTestProject["clipAId"]): number[] {
@@ -206,10 +211,78 @@ describe("musical transformations (CLP-04)", () => {
       expect(eventsOf(next, fixture.clipAId)).toHaveLength(8);
     });
 
-    it("refuses to push a copy past the end of the clip", () => {
+    // Issue #256. This used to assert the opposite: a duplicate with no room
+    // rejected the whole transaction, which is the bug — the user's intent is
+    // unambiguous, so the clip grows to hold the copies instead.
+    it("extends the clip to the next listed length instead of rejecting", () => {
       const command = duplicateNotes(createIdFactory(), fixture.project, {
         clipId: fixture.clipAId,
         offsetTicks: TICKS_PER_BAR,
+      });
+      const result = executeCommand(fixture.project, command);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(clipLengthOf(result.project, fixture.clipAId)).toBe(TICKS_PER_BAR * 2);
+      expect(eventsOf(result.project, fixture.clipAId)).toHaveLength(8);
+      // One transaction, so one revision and one history entry.
+      expect(result.revision).toBe(fixture.project.metadata.revision + 1);
+      expect(result.commands).toHaveLength(1);
+    });
+
+    it("rounds the extension up to a listed length, never an unlisted one", () => {
+      const wider = apply(
+        fixture.project,
+        updateClip(fixture.clipAId, { lengthTicks: toTicks(TICKS_PER_BAR * 2) }),
+      );
+      // The copies land in the third bar, which 1/2/4/8/16/32 cannot express.
+      const next = apply(
+        wider,
+        duplicateNotes(createIdFactory(), wider, {
+          clipId: fixture.clipAId,
+          offsetTicks: TICKS_PER_BAR * 2,
+        }),
+      );
+      expect(clipLengthOf(next, fixture.clipAId)).toBe(TICKS_PER_BAR * 4);
+    });
+
+    it("undoes the extension and the copies as one step", () => {
+      const result = executeCommand(
+        fixture.project,
+        duplicateNotes(createIdFactory(), fixture.project, {
+          clipId: fixture.clipAId,
+          offsetTicks: TICKS_PER_BAR,
+        }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const undone = executeTransaction(result.project, result.inverse);
+      expect(undone.ok).toBe(true);
+      if (!undone.ok) return;
+      expect(clipLengthOf(undone.project, fixture.clipAId)).toBe(TICKS_PER_BAR);
+      expect(eventsOf(undone.project, fixture.clipAId)).toHaveLength(4);
+    });
+
+    it("leaves the clip length alone when the copies already fit", () => {
+      const wider = apply(
+        fixture.project,
+        updateClip(fixture.clipAId, { lengthTicks: toTicks(TICKS_PER_BAR * 2) }),
+      );
+      const next = apply(
+        wider,
+        duplicateNotes(createIdFactory(), wider, {
+          clipId: fixture.clipAId,
+          offsetTicks: TICKS_PER_BAR,
+        }),
+      );
+      expect(clipLengthOf(next, fixture.clipAId)).toBe(TICKS_PER_BAR * 2);
+    });
+
+    it("still refuses to push a copy past the 32-bar clip maximum", () => {
+      const command = duplicateNotes(createIdFactory(), fixture.project, {
+        clipId: fixture.clipAId,
+        offsetTicks: TICKS_PER_BAR * 32,
       });
       const result = executeCommand(fixture.project, command);
       expect(result.ok).toBe(false);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { clipLengthTickSchema } from "./clipLength";
 import {
   assetIdSchema,
   automationIdSchema,
@@ -369,7 +370,7 @@ export const clipSchema = z.strictObject({
   trackId: trackIdSchema,
   name: displayName,
   color: colorSchema,
-  lengthTicks: durationTickSchema,
+  lengthTicks: clipLengthTickSchema,
   content: clipContentSchema,
 });
 export type Clip = z.infer<typeof clipSchema>;

@@ -295,6 +295,15 @@ describe("StepEditor", () => {
     expect(history.entries.at(-1)?.commands[0].type).toBe("clip.update");
   });
 
+  it("offers the musical bar lengths up to 32 rather than every integer", () => {
+    renderEditor(createSliceFixtureProject());
+    const select = screen.getByRole("combobox", { name: "Bars" });
+    const options = Array.from(select.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+    expect(options).toEqual(["1", "2", "4", "8", "16", "32"]);
+  });
+
   it("marks the current playback step while playing", () => {
     const { setPlaybackStep } = renderEditor(createSliceFixtureProject());
     setPlaybackStep(3);

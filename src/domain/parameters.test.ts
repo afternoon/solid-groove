@@ -41,6 +41,7 @@ describe("parameter definitions", () => {
 
   it("registers exactly the parameters the alpha needs so far", () => {
     expect([...parameterDefinitions().keys()].sort()).toEqual([
+      "clip.length",
       "master.volume",
       "note.probability",
       "note.velocity",
