@@ -6,17 +6,13 @@ import type {
   TransactionResult,
 } from "../commands";
 import type { Clip, Instrument, Project } from "../domain/entities";
-import type { EventId, TrackId } from "../domain/ids";
-import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
-import type { LibrarySample } from "../library/assetDrag";
+import type { EventId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
-import InstrumentArea from "./InstrumentArea";
-import InstrumentPanel from "./InstrumentPanel";
 import PianoRoll, { type PianoRollActions } from "./PianoRoll";
 import StepEditor from "./StepEditor";
 import TransformPanel from "./TransformPanel";
 
-export interface TrackEditorProps {
+export interface TrackClipEditorProps {
   /** The edited track's clip, or null when it has none yet (#228). */
   readonly clip: Clip | null;
   readonly trackName: string | undefined;
@@ -34,23 +30,20 @@ export interface TrackEditorProps {
   readonly project: Project;
   readonly playheadTicks: number;
   readonly registerPianoRollActions: (actions: PianoRollActions | null) => void;
-  /** The edited track, when there is one; null while no project is open. */
-  readonly instrumentPanelTrackId: TrackId | null;
-  readonly sampleName: string | null;
-  /** Loads a sound dropped from the library onto this track's sampler (#225). */
-  readonly loadSample: (sample: LibrarySample) => void;
-  readonly auditionInstrument: () => void;
 }
 
 /**
- * One track's editing surface: track info (name, pack dependency), the
- * CLP-02 step grid or CLP-03 piano roll switch, and the instrument panel.
+ * One track's clip: its name and pack dependency, and whichever of the two
+ * editors that clip takes — the `CLP-02` step grid or the `CLP-03` piano roll —
+ * with `CLP-04`'s transformations beneath.
  *
- * Split out of `EditorView` (`REFACTOR-001`); every prop here mirrors the
- * exact value/handler `EditorView` used to close over directly, so this is a
- * pure structural move.
+ * Split out of `TrackEditor` (`UI-001`), which used to carry this *and* the
+ * track's instrument. The two are going to different places: sequencing becomes
+ * a modal over the arrangement, and the instrument becomes a view of its own.
+ * Every prop here is the exact value `TrackEditor` passed through, so this half
+ * of the split is a pure relocation.
  */
-export default function TrackEditor(props: TrackEditorProps) {
+export default function TrackClipEditor(props: TrackClipEditorProps) {
   // The piano roll owns its own selection (the step editor's is lifted into
   // `EditorView`), so the roll mirrors it out here for the transformation
   // panel. Which of the two feeds the panel follows the editor on screen.
@@ -59,7 +52,7 @@ export default function TrackEditor(props: TrackEditorProps) {
     props.showPianoRoll() ? rollSelection() : props.selectedNoteIds();
 
   return (
-    <div class="track-editor">
+    <div class="track-clip-editor">
       <div class="track-info">
         {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
         <span class={`track-name ${MASK_CONTENT}`}>{props.trackName}</span>
@@ -69,8 +62,8 @@ export default function TrackEditor(props: TrackEditorProps) {
       </div>
       {/*
        * A track carries no clip until one is placed on it — a track added
-       * from the mixer starts empty (#228). Its instrument panel below still
-       * renders: the clip editor is what has nothing to show, not the track.
+       * from the mixer starts empty (#228). Its instrument still has a home
+       * elsewhere: the clip editor is what has nothing to show, not the track.
        */}
       <Show
         when={props.clip}
@@ -123,45 +116,6 @@ export default function TrackEditor(props: TrackEditorProps) {
           </>
         )}
       </Show>
-      {/*
-       * The track's instrument controls, in one region named for the track so
-       * a sound dragged from the library lands on a particular one (#225).
-       *
-       * The kind picker leads them (#224). It sits outside `InstrumentPanel`
-       * because that component is the switch *between* instrument panels and
-       * the picker is what chooses which one — it must also show for a drum
-       * machine and for a track with no instrument, neither of which reaches
-       * that switch. Outside the clip `Show` above, too: a track with no clip
-       * still has an instrument to choose (#228).
-       */}
-      <InstrumentArea
-        trackName={props.trackName ?? "Track"}
-        instrument={props.instrument}
-        loadSample={props.loadSample}
-      >
-        <Show when={props.instrumentPanelTrackId}>
-          {(trackId) => (
-            <InstrumentKindPicker
-              trackId={trackId()}
-              project={props.project}
-              instrument={props.instrument}
-              dispatch={props.dispatch}
-            />
-          )}
-        </Show>
-        <Show when={props.instrumentPanelTrackId}>
-          {(trackId) => (
-            <InstrumentPanel
-              trackId={trackId()}
-              instrument={props.instrument}
-              sampleName={props.sampleName}
-              dispatch={props.dispatch}
-              beginGesture={props.beginGesture}
-              audition={props.auditionInstrument}
-            />
-          )}
-        </Show>
-      </InstrumentArea>
     </div>
   );
 }
