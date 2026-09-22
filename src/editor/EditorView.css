@@ -301,3 +301,23 @@
   overflow: hidden;
   background-color: var(--color-background-secondary);
 }
+
+/* The Instrument and Mixer views (UI-001). Only one view is on the page at a
+   time, so each takes the whole body rather than a band of it — the room the
+   instrument controls exist to be given. Both scroll inside themselves. */
+.instrument-view,
+.mixer-view {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: var(--size-divider);
+  background-color: var(--color-background-secondary);
+}
+
+.instrument-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-divider);
+}

@@ -1,5 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { walkthrough } from "../support/walkthrough";
+
+/**
+ * The editor shows one view at a time (`UI-001`), so a track's instrument is
+ * reached through the dock rather than found under the arrangement.
+ */
+async function goToInstrument(page: Page): Promise<void> {
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("link", { name: "Instrument" })
+    .click();
+  await expect(page).toHaveURL(/\/instrument$/);
+}
 
 // #224: a track's instrument used to be fixed for its whole life — the
 // `instrument.change` command existed but nothing dispatched it. This walks the
@@ -13,12 +25,13 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Project" }).click();
-  await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
+  await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
+  await goToInstrument(page);
 
   // `exact` because the track's instrument controls now sit in a region named
   // "<track> instrument" (#225), which a substring match would also select.
   const picker = page.getByRole("region", { name: "Instrument", exact: true });
-  // The workspace scrolls inside a viewport-height app, so each capture
+  // The instrument view scrolls inside a viewport-height app, so each capture
   // scrolls that container and then returns the page itself to the top —
   // otherwise the shot is framed on empty page below the editor.
   const show = async (name: string | RegExp): Promise<void> => {
@@ -68,6 +81,8 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 test("keeps the sampler's parameter groups on one row", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Project" }).click();
+  await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
+  await goToInstrument(page);
   await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
 
   const groups = page.locator(".sampler-panel .instrument-panel-group");

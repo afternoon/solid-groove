@@ -97,6 +97,19 @@ function mixerSelect(trackName: string): HTMLElement {
   });
 }
 
+/**
+ * Moves to a view through the dock, the way a person does (`UI-001`): the
+ * editor shows exactly one, so a test wanting another has to go there.
+ */
+async function goToView(label: "Arrangement" | "Instrument" | "Mixer"): Promise<void> {
+  // The dock exists only once the project is open, so this is also the wait.
+  const dock = await screen.findByRole("navigation", { name: "Views" });
+  clickAndFlush(within(dock).getByRole("link", { name: label }));
+  await vi.waitFor(() =>
+    expect(dock.querySelector("[aria-current='page']")).toHaveTextContent(label),
+  );
+}
+
 /** Null when the save state offers no retry: non-retryable, or not failed. */
 function saveRetryButton(): HTMLElement | null {
   return within(saveStatusGroup()).queryByRole("button", { name: "Retry" });
@@ -265,6 +278,8 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
+    await screen.findByRole("region", { name: "Step editor" });
+    await goToView("Instrument");
 
     // Named for its track, because a drop has to land on a particular one.
     expect(
@@ -292,6 +307,8 @@ describe("EditorView", () => {
     renderEditor(project.metadata.id, {
       analytics: recordingAnalytics(transport),
     });
+    await screen.findByRole("region", { name: "Step editor" });
+    await goToView("Instrument");
     const panel = await screen.findByRole("region", {
       name: "BD instrument",
     });
@@ -336,6 +353,7 @@ describe("EditorView", () => {
     const name = (insert.getAttribute("aria-label") ?? "").replace("Insert ", "");
     fireEvent.click(insert);
 
+    await goToView("Instrument");
     const panel = await screen.findByRole("region", { name: "BD instrument" });
     expect(await within(panel).findByText(name)).toBeInTheDocument();
   });
@@ -356,13 +374,17 @@ describe("EditorView", () => {
 
     renderEditor(project.metadata.id);
 
-    expect(
-      await screen.findByRole("region", { name: "Synth voice" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("This track has no clip yet.")).toBeInTheDocument();
+    // The arrangement has nothing to program, and says so.
+    expect(await screen.findByText("This track has no clip yet.")).toBeInTheDocument();
     // Neither clip editor is on screen: there is no clip to program.
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Piano roll/ })).not.toBeInTheDocument();
+
+    // The instrument is still there to reach, which is the point (#228).
+    await goToView("Instrument");
+    expect(
+      await screen.findByRole("region", { name: "Synth voice" }),
+    ).toBeInTheDocument();
   });
 
   it("switches the editor to a track selected in the mixer (#228)", async () => {
@@ -375,13 +397,17 @@ describe("EditorView", () => {
 
     renderEditor(project.metadata.id);
 
-    // It opens on the first track: the drum machine's pads.
+    // It opens on the first track: the instrument view shows its pads.
+    await goToView("Instrument");
     expect(
       await screen.findByRole("region", {
         name: `Drum machine: ${drums.name}`,
       }),
     ).toBeInTheDocument();
 
+    // Selection is one piece of state across all three views (UI-001), so a
+    // track chosen in the mixer is the one the instrument view shows.
+    await goToView("Mixer");
     fireEvent.click(mixerSelect(breakTrack.name));
     // Solid 2 publishes a write on the next microtask, and
     // `@solidjs/testing-library` 1.x re-exports `@testing-library/dom`'s raw
@@ -389,19 +415,18 @@ describe("EditorView", () => {
     // below read the selection as it was before the click.
     flush();
 
-    // The editor follows: the second track's name, and no drum pads, because
-    // the pads belong to a track that is no longer the one being edited.
-    const trackEditor = document.querySelector(".track-editor");
-    expect(trackEditor).not.toBeNull();
-    expect(
-      within(trackEditor as HTMLElement).getByText(breakTrack.name),
-    ).toBeInTheDocument();
+    await goToView("Instrument");
     expect(
       screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: `${breakTrack.name} instrument` }),
+    ).toBeInTheDocument();
 
     // And back, from the same control on the other strip.
+    await goToView("Mixer");
     clickAndFlush(mixerSelect(drums.name));
+    await goToView("Instrument");
     expect(
       screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).toBeInTheDocument();
@@ -415,9 +440,7 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", {
-      name: `Drum machine: ${drums.name}`,
-    });
+    await screen.findByTestId("arrangement-view-ready");
 
     // The arrangement's track header column: the same click a pointer makes
     // on a row, from the DOM side of the hybrid surface.
@@ -427,10 +450,13 @@ describe("EditorView", () => {
       }),
     );
 
+    // Every view agrees on which track is selected (UI-001): the instrument
+    // view has left the drum machine, and the mixer marks the new strip.
+    await goToView("Instrument");
     expect(
       screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).not.toBeInTheDocument();
-    // Both surfaces agree on which track is selected: the mixer marks it too.
+    await goToView("Mixer");
     expect(mixerSelect(breakTrack.name)).toHaveAttribute("aria-pressed", "true");
   });
 

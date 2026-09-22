@@ -81,6 +81,11 @@ export interface EditorViewProps {
   readonly analytics?: Analytics;
 }
 
+/** What the arrangement and the instrument view both show for an empty song. */
+function NoTracks(): JSX.Element {
+  return <p class="no-track">This project has no tracks yet. Add one in the mixer.</p>;
+}
+
 /**
  * The project editor: open a schema-v1 project, program its clip — on the
  * CLP-02 step editor for a sampler or drum machine, on the CLP-03 piano roll
@@ -368,139 +373,141 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onRetrySave={() => void session.retry()}
               />
               <div class="editor-body">
-                <Show when={libraryOpen()}>
-                  {/*
-                   * One engine per mount: `Show` disposes and recreates this
-                   * child branch on each false->true transition, so
-                   * `createAuditionEngine()` runs once per open. Closing the
-                   * panel unmounts `LibraryBrowser`, whose `useLibraryBrowser`
-                   * disposes the engine — so each reopen must get a fresh,
-                   * undisposed engine, never a cached (now-dead) one.
-                   */}
-                  <aside class="library-panel" aria-label="Library">
-                    <LibraryBrowser
-                      client={props.libraryClient}
-                      previewEngine={createAuditionEngine()}
-                      analytics={props.analytics}
-                      /*
-                       * The keyboard-reachable half of the drag (PRD 9.3):
-                       * "Insert" loads the sound onto the track being
-                       * edited, through the same path a drop takes.
-                       */
-                      onInsert={(asset) => {
-                        const sample = toLibrarySample(asset);
-                        if (sample) loadLibrarySample(sample);
-                      }}
-                      addedPackIds={addedPackIds()}
-                      onAddPack={(pack) =>
-                        setSessionPackIds((previous) =>
-                          previous.includes(pack.id) ? previous : [...previous, pack.id],
-                        )
-                      }
-                      onPackBrowserOpenChange={setPackBrowserOpen}
-                    />
-                  </aside>
-                </Show>
                 {/*
-                 * Arrangement and workspace stack vertically to the right of the
-                 * library, so the library is a full-height column beside them
-                 * rather than a band beneath the arrangement (#221).
+                 * One view at a time (`UI-001`). A view you are not on is not
+                 * on the page at all rather than hidden behind the one you
+                 * are — the bet this change exists to test.
                  */}
-                <div class="editor-main">
-                  <div class="arrangement-panel">
-                    <ArrangementView
-                      project={currentProject()}
-                      playheadTicks={audio.positionTicks}
-                      isPlaying={audio.isPlaying}
-                      dispatch={session.dispatch}
-                      beginGesture={session.beginGesture}
-                      onEditingActionsReady={setArrangementEditingActions}
-                      selectedTrackId={track()?.id ?? null}
-                      onSelectTrack={selectTrack}
-                    />
-                  </div>
-                  <div class="workspace">
-                    <For each={loopClips()}>
-                      {(entry) => (
-                        <LoopInfo
-                          clip={entry.clip}
-                          asset={entry.asset}
-                          songTempo={tempo()}
+                <Switch>
+                  <Match when={props.view === "arrangement"}>
+                    <Show when={libraryOpen()}>
+                      {/* One engine per mount: closing the panel — or leaving
+                       * the view — disposes `LibraryBrowser`'s engine, so each
+                       * reopen must get a fresh one, never a cached dead one. */}
+                      <aside class="library-panel" aria-label="Library">
+                        <LibraryBrowser
+                          client={props.libraryClient}
+                          previewEngine={createAuditionEngine()}
+                          analytics={props.analytics}
+                          /* The keyboard-reachable half of the drag (PRD 9.3). */
+                          onInsert={(asset) => {
+                            const sample = toLibrarySample(asset);
+                            if (sample) loadLibrarySample(sample);
+                          }}
+                          addedPackIds={addedPackIds()}
+                          onAddPack={(pack) =>
+                            setSessionPackIds((previous) =>
+                              previous.includes(pack.id)
+                                ? previous
+                                : [...previous, pack.id],
+                            )
+                          }
+                          onPackBrowserOpenChange={setPackBrowserOpen}
                         />
-                      )}
-                    </For>
-                    <Show when={drumTrack()}>
-                      {(drum) => (
-                        <div class="drum-machine-editor">
-                          <div class="track-info">
-                            <span class={`track-name ${MASK_CONTENT}`}>
-                              {drum().name}
-                            </span>
-                          </div>
-                          <DrumMachinePanel
-                            track={drum()}
-                            assets={sampleAssets()}
-                            dispatch={session.dispatch}
-                            audition={(padId) => void audio.auditionPad(drum().id, padId)}
-                          />
-                        </div>
-                      )}
+                      </aside>
                     </Show>
-                    {/*
-                     * The *selected* track's editor (#228), not the project's
-                     * first. A track with no clip still gets one: its
-                     * instrument is the reason to select it.
-                     */}
-                    <Show
-                      when={track()}
-                      fallback={
-                        <p class="no-track">
-                          This project has no tracks yet. Add one in the mixer.
-                        </p>
-                      }
-                    >
-                      {(currentTrack) => (
-                        <div class="track-editor">
-                          <TrackClipEditor
-                            clip={clip()}
-                            trackName={currentTrack().name}
-                            packDependencyLabel={packDependencyLabel()}
-                            showPianoRoll={showPianoRoll}
-                            instrument={instrument()}
-                            dispatch={session.dispatch}
-                            beginGesture={session.beginGesture}
-                            editorPlaybackStep={editorPlaybackStep}
-                            selectedNoteIds={selectedNoteIds}
-                            setSelectedNoteIds={setSelectedNoteIds}
-                            project={currentProject()}
-                            playheadTicks={audio.positionTicks()}
-                            registerPianoRollActions={setPianoRollActions}
-                          />
-                          <TrackInstrument
-                            trackName={currentTrack().name}
-                            instrument={instrument()}
-                            project={currentProject()}
-                            trackId={instrumentPanelTrackId()}
-                            sampleName={sampleName()}
-                            loadSample={loadLibrarySample}
-                            audition={auditionInstrument}
-                            dispatch={session.dispatch}
-                            beginGesture={session.beginGesture}
-                          />
-                        </div>
-                      )}
-                    </Show>
-                    <Mixer
-                      project={currentProject()}
-                      dispatch={session.dispatch}
-                      beginGesture={session.beginGesture}
-                      trackLevelDb={audio.trackLevelDb}
-                      isPlaying={audio.isPlaying}
-                      selectedTrackId={track()?.id ?? null}
-                      onSelectTrack={selectTrack}
-                    />
-                  </div>
-                </div>
+                    <div class="editor-main">
+                      <div class="arrangement-panel">
+                        <ArrangementView
+                          project={currentProject()}
+                          playheadTicks={audio.positionTicks}
+                          isPlaying={audio.isPlaying}
+                          dispatch={session.dispatch}
+                          beginGesture={session.beginGesture}
+                          onEditingActionsReady={setArrangementEditingActions}
+                          selectedTrackId={track()?.id ?? null}
+                          onSelectTrack={selectTrack}
+                        />
+                      </div>
+                      <div class="workspace">
+                        <For each={loopClips()}>
+                          {(entry) => (
+                            <LoopInfo
+                              clip={entry.clip}
+                              asset={entry.asset}
+                              songTempo={tempo()}
+                            />
+                          )}
+                        </For>
+                        {/* The *selected* track's clip (#228), not the first. */}
+                        <Show when={track()} fallback={<NoTracks />}>
+                          {(currentTrack) => (
+                            <div class="track-editor">
+                              <TrackClipEditor
+                                clip={clip()}
+                                trackName={currentTrack().name}
+                                packDependencyLabel={packDependencyLabel()}
+                                showPianoRoll={showPianoRoll}
+                                instrument={instrument()}
+                                dispatch={session.dispatch}
+                                beginGesture={session.beginGesture}
+                                editorPlaybackStep={editorPlaybackStep}
+                                selectedNoteIds={selectedNoteIds}
+                                setSelectedNoteIds={setSelectedNoteIds}
+                                project={currentProject()}
+                                playheadTicks={audio.positionTicks()}
+                                registerPianoRollActions={setPianoRollActions}
+                              />
+                            </div>
+                          )}
+                        </Show>
+                      </div>
+                    </div>
+                  </Match>
+                  <Match when={props.view === "instrument"}>
+                    <div class="instrument-view">
+                      <Show when={track()} fallback={<NoTracks />}>
+                        {(currentTrack) => (
+                          <>
+                            <Show when={drumTrack()}>
+                              {(drum) => (
+                                <div class="drum-machine-editor">
+                                  <div class="track-info">
+                                    <span class={`track-name ${MASK_CONTENT}`}>
+                                      {drum().name}
+                                    </span>
+                                  </div>
+                                  <DrumMachinePanel
+                                    track={drum()}
+                                    assets={sampleAssets()}
+                                    dispatch={session.dispatch}
+                                    audition={(padId) =>
+                                      void audio.auditionPad(drum().id, padId)
+                                    }
+                                  />
+                                </div>
+                              )}
+                            </Show>
+                            <TrackInstrument
+                              trackName={currentTrack().name}
+                              instrument={instrument()}
+                              project={currentProject()}
+                              trackId={instrumentPanelTrackId()}
+                              sampleName={sampleName()}
+                              loadSample={loadLibrarySample}
+                              audition={auditionInstrument}
+                              dispatch={session.dispatch}
+                              beginGesture={session.beginGesture}
+                            />
+                          </>
+                        )}
+                      </Show>
+                    </div>
+                  </Match>
+                  <Match when={props.view === "mixer"}>
+                    <div class="mixer-view">
+                      <Mixer
+                        project={currentProject()}
+                        dispatch={session.dispatch}
+                        beginGesture={session.beginGesture}
+                        trackLevelDb={audio.trackLevelDb}
+                        isPlaying={audio.isPlaying}
+                        selectedTrackId={track()?.id ?? null}
+                        onSelectTrack={selectTrack}
+                      />
+                    </div>
+                  </Match>
+                </Switch>
               </div>
               <ViewDock
                 view={props.view}
