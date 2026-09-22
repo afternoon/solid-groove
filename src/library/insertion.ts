@@ -1,10 +1,17 @@
 import { z } from "zod";
-import { addAsset, type RawCommandInput, setSample } from "../commands";
+import { addAsset, addTrack, type RawCommandInput, setSample } from "../commands";
 import type { Asset, Project } from "../domain/entities";
 import { assetKindSchema, packVersionSchema } from "../domain/entities";
 import type { DomainFactoryContext } from "../domain/factories";
-import { createAsset } from "../domain/factories";
+import {
+  createAsset,
+  createAudioLoopClip,
+  createPlacement,
+  createTrack,
+} from "../domain/factories";
 import { packIdSchema, type TrackId } from "../domain/ids";
+import { SONG_TEMPO } from "../domain/parameters";
+import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { assetStorageRef, type LibraryAsset } from "./manifest";
 
 /**
@@ -46,6 +53,22 @@ export const librarySampleSchema = z.strictObject({
   sampleRate: z.int().min(1).nullable(),
   channelCount: z.int().min(1).max(2).nullable(),
   licence: z.string().min(1),
+  /**
+   * The tempo the loop was recorded at, when the manifest states one. It is
+   * what an `audioLoop` clip stores as its `sourceTempo`, and therefore what
+   * decides the stretch ratio at playback — a loop that states nothing plays
+   * unstretched rather than guessing (see {@link insertLoopCommands}).
+   *
+   * Absent and `null` mean the same thing, so a payload written before this
+   * field existed still parses. This shape travels on a `DataTransfer` that a
+   * drag begun in another tab may have written, so a field added here must
+   * never turn an otherwise valid drop into a refusal.
+   */
+  bpm: z
+    .number()
+    .positive()
+    .nullish()
+    .transform((value) => value ?? null),
 });
 export type LibrarySample = z.infer<typeof librarySampleSchema>;
 
@@ -73,6 +96,7 @@ export function toLibrarySample(asset: LibraryAsset): LibrarySample | null {
     sampleRate: asset.sampleRate,
     channelCount: asset.channelCount,
     licence: asset.licence ?? UNSTATED_LICENCE,
+    bpm: asset.bpm,
   });
   return parsed.success ? parsed.data : null;
 }
@@ -132,4 +156,102 @@ export function loadSampleCommands(
   }
   const asset = createLibraryAsset(context, sample);
   return [addAsset(asset), setSample(trackId, asset.id)];
+}
+
+/** What a loop insertion needs to know about the project it is landing in. */
+export interface InsertLoopOptions {
+  /** The new track's position: the number of tracks the song already has. */
+  readonly order: number;
+  /** Names already taken, so the new track is distinguishable. */
+  readonly existingNames: readonly string[];
+  /** The song's tempo, used to size the clip and as the fallback source tempo. */
+  readonly songTempo: number;
+}
+
+/**
+ * How long the loop's clip is, in ticks, rounded to whole bars.
+ *
+ * A loop is musical material, so its clip is sized in bars rather than in the
+ * seconds the file happens to occupy: a 2-bar loop stays 2 bars whatever tempo
+ * the song is at, which is the whole point of following the tempo. The bar
+ * count comes from the loop's *own* tempo — the one it was recorded at — not
+ * the song's, because that is the timebase its samples are in.
+ *
+ * Anything that cannot be derived falls back to one bar. A loop that states no
+ * tempo, or no duration, is not a reason to refuse it; it is a reason not to
+ * pretend to know how long it is.
+ */
+export function loopClipLengthTicks(sample: LibrarySample): number {
+  const { durationSeconds, bpm } = sample;
+  if (!durationSeconds || !bpm) return TICKS_PER_BAR;
+  const beats = (durationSeconds * bpm) / 60;
+  const bars = Math.round((beats * TICKS_PER_QUARTER) / TICKS_PER_BAR);
+  return Math.max(1, bars) * TICKS_PER_BAR;
+}
+
+/**
+ * The commands that bring a library **loop** into a project as a new track, as
+ * one transaction: carry the asset if the project does not already, then add a
+ * track whose clip is that loop, placed at bar 1.
+ *
+ * This is the other half of {@link loadSampleCommands}, and the asset's `kind`
+ * is what chooses between them. A one-shot loads onto a sampler the producer
+ * has selected; a loop has no instrument to load onto — it *is* the material —
+ * so it arrives as an audio track (`type: "audio"`, no instrument) carrying an
+ * `audioLoop` clip. No existing track is touched either way.
+ *
+ * The new track deliberately gets **no empty note clip**. `createNewTrack`
+ * mints one so a fresh instrument track is immediately programmable; an audio
+ * track has nothing to program, and an empty note clip on it would be a second,
+ * silent thing on the timeline that the producer did not ask for.
+ *
+ * `sourceTempo` is the loop's own tempo where it states one, and the song's
+ * where it does not — which makes the stretch ratio exactly 1 and leaves the
+ * audio untouched, rather than guessing a tempo and stretching to a fiction.
+ */
+export function insertLoopCommands(
+  project: Project,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+  options: InsertLoopOptions,
+): readonly RawCommandInput[] {
+  const existing = carriedAsset(project, sample);
+  const asset = existing ?? createLibraryAsset(context, sample);
+
+  const name = uniqueName(sample.name, options.existingNames);
+  const track = createTrack(context, {
+    name,
+    order: options.order,
+    type: "audio",
+    instrument: null,
+  });
+  const lengthTicks = loopClipLengthTicks(sample);
+  const clip = createAudioLoopClip(context, {
+    trackId: track.id,
+    name,
+    assetId: asset.id,
+    sourceTempo: sample.bpm ?? options.songTempo,
+    lengthTicks,
+  });
+  const placement = createPlacement(context, {
+    clipId: clip.id,
+    trackId: track.id,
+    startTicks: 0,
+    durationTicks: lengthTicks,
+  });
+
+  // The track carries its clip and placement in the one command, so the whole
+  // insertion is one revision and one undo — take it back and the track, the
+  // clip and the asset go together, leaving nothing orphaned.
+  const create = addTrack(track, { clips: [clip], placements: [placement] });
+  return existing ? [create] : [addAsset(asset), create];
+}
+
+/** `Hat`, then `Hat 2`, `Hat 3`, ... — the rule `createNewTrack` uses. */
+function uniqueName(base: string, taken: readonly string[]): string {
+  if (!taken.includes(base)) return base;
+  for (let suffix = 2; ; suffix += 1) {
+    const candidate = `${base} ${suffix}`;
+    if (!taken.includes(candidate)) return candidate;
+  }
 }
