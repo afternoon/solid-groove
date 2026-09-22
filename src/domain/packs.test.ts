@@ -10,12 +10,14 @@ import {
   packDependencyOf,
 } from "./factories";
 import {
+  availablePacksFor,
   createDrumMachineFixtureProject,
   createSliceFixtureProject,
   drumMachineFixturePacks,
   sliceFixturePacks,
 } from "./fixtures";
 import { createSeededIdFactory, idPattern } from "./ids";
+import type { AvailablePack } from "./packs";
 import {
   derivePackDependencies,
   packDependenciesEqual,
@@ -23,6 +25,7 @@ import {
   withDerivedPackDependencies,
 } from "./packs";
 import { isProject } from "./parse";
+import { serializeProject } from "./serialize";
 
 /**
  * The pack model (PRD LIB-05, section 9.4, invariant 12).
@@ -221,25 +224,50 @@ describe("withDerivedPackDependencies", () => {
 describe("resolvePackAvailability", () => {
   const project = createDrumMachineFixtureProject();
   const packs = drumMachineFixturePacks();
-  const allPacks: Pack[] = [packs.drums, packs.loops];
+  const allPacks = availablePacksFor(project, [packs.drums, packs.loops]);
 
-  it("is satisfied when every declared pack is available at its version", () => {
+  /** The library above with `pack` republished at `version`, contents unchanged. */
+  function republished(pack: Pack, version: string): AvailablePack[] {
+    return allPacks.map((entry) =>
+      entry.pack.id === pack.id
+        ? { ...entry, pack: { ...entry.pack, version: packVersion(version) } }
+        : entry,
+    );
+  }
+
+  /** The library above with `name` deleted from the pack that held it. */
+  function withoutAsset(available: readonly AvailablePack[], name: string) {
+    const asset = project.song.assets.find((candidate) => candidate.name === name);
+    if (!asset) {
+      throw new Error(`No fixture asset named ${name}`);
+    }
+    return available.map((entry) => ({
+      ...entry,
+      assetIds: entry.assetIds.filter((assetId) => assetId !== asset.id),
+    }));
+  }
+
+  it("is satisfied when every pack still holds the assets the project uses", () => {
     expect(resolvePackAvailability(project, allPacks)).toEqual({
       satisfied: true,
       missing: [],
+      missingAssets: [],
     });
   });
 
   it("names the tracks and clips a missing pack affects", () => {
-    const report = resolvePackAvailability(project, [packs.loops]);
+    const report = resolvePackAvailability(
+      project,
+      allPacks.filter((entry) => entry.pack.id !== packs.drums.id),
+    );
 
     expect(report.satisfied).toBe(false);
+    expect(report.missingAssets).toEqual([]);
     expect(report.missing).toHaveLength(1);
     const [missing] = report.missing;
     expect(missing.packId).toBe(packs.drums.id);
     expect(missing.version).toBe(packs.drums.version);
     expect(missing.reason).toBe("pack_unavailable");
-    expect(missing.availableVersions).toEqual([]);
     expect(missing.assets.map((asset) => asset.name)).toEqual([
       "909 Bass Drum",
       "909 Clap",
@@ -249,7 +277,10 @@ describe("resolvePackAvailability", () => {
   });
 
   it("scopes the report to the missing pack, not every track in the project", () => {
-    const report = resolvePackAvailability(project, [packs.drums]);
+    const report = resolvePackAvailability(
+      project,
+      allPacks.filter((entry) => entry.pack.id !== packs.loops.id),
+    );
 
     expect(report.missing).toHaveLength(1);
     const [missing] = report.missing;
@@ -260,32 +291,68 @@ describe("resolvePackAvailability", () => {
     expect(missing.clips.map((clip) => clip.name)).toEqual(["Break loop"]);
   });
 
-  it("distinguishes a withdrawn pack from a pack at the wrong version", () => {
-    const otherVersion: Pack = {
-      ...packs.drums,
-      version: packVersion("9.0.0"),
-    };
-    const report = resolvePackAvailability(project, [otherVersion, packs.loops]);
+  it("resolves a later pack version that still holds every referenced asset", () => {
+    // The personal-pack case: someone dropped one more sound into the pack, so
+    // it republished at a version this project never pinned. Nothing is missing.
+    const report = resolvePackAvailability(project, [
+      ...republished(packs.drums, "9.0.0").filter(
+        (entry) => entry.pack.id === packs.drums.id,
+      ),
+      ...allPacks.filter((entry) => entry.pack.id !== packs.drums.id),
+    ]);
 
-    expect(report.missing).toHaveLength(1);
-    expect(report.missing[0].reason).toBe("version_unavailable");
-    expect(report.missing[0].version).toBe(packs.drums.version);
-    expect(report.missing[0].availableVersions).toEqual(["9.0.0"]);
+    expect(report).toEqual({ satisfied: true, missing: [], missingAssets: [] });
   });
 
-  it("does not substitute a later version of the same pack", () => {
-    const later: Pack = { ...packs.drums, version: packVersion("99.0.0") };
-
-    const report = resolvePackAvailability(project, [later, packs.loops]);
+  it("reports an asset deleted from the pack, with the tracks and clips using it", () => {
+    const report = resolvePackAvailability(
+      project,
+      withoutAsset(republished(packs.drums, "9.0.0"), "909 Clap"),
+    );
 
     expect(report.satisfied).toBe(false);
-    // The project still declares and still references the version it was built
-    // with; nothing was rewritten to the version that happens to exist.
+    // The pack itself is here, so this is not a missing pack.
+    expect(report.missing).toEqual([]);
+    expect(report.missingAssets).toHaveLength(1);
+    const [missing] = report.missingAssets;
+    expect(missing.name).toBe("909 Clap");
+    expect(missing.packId).toBe(packs.drums.id);
+    // The version the project pinned, not the version that exists.
+    expect(missing.version).toBe(packs.drums.version);
+    expect(missing.availableVersions).toEqual(["9.0.0"]);
+    expect(missing.tracks.map((track) => track.name)).toEqual(["Drums"]);
+    expect(missing.clips.map((clip) => clip.name)).toEqual(["Beat"]);
+  });
+
+  it("leaves the unaffected pack, track and clip out of a missing-asset report", () => {
+    const report = resolvePackAvailability(project, withoutAsset(allPacks, "Break loop"));
+
+    expect(report.missing).toEqual([]);
+    expect(report.missingAssets).toHaveLength(1);
+    const [missing] = report.missingAssets;
+    expect(missing.name).toBe("Break loop");
+    // An audio track has no instrument, so only the clip that plays the loop is
+    // affected — the drum track and its clip are untouched.
+    expect(missing.tracks).toEqual([]);
+    expect(missing.clips.map((clip) => clip.name)).toEqual(["Break loop"]);
+  });
+
+  it("does not upgrade or rewrite the project when a later version resolves it", () => {
+    // A later version may have re-labelled a sound (loop to one-shot, say) or
+    // renamed it. None of that reaches this function — it is handed asset IDs,
+    // not asset records — and resolving against that version changes nothing
+    // the project stores: it still pins the version it was built with.
+    const before = JSON.stringify(serializeProject(project));
+
+    const report = resolvePackAvailability(project, republished(packs.drums, "9.0.0"));
+
+    expect(report.satisfied).toBe(true);
+    expect(JSON.stringify(serializeProject(project))).toBe(before);
     expect(project.metadata.packDependencies).toContainEqual({
       packId: packs.drums.id,
       version: packs.drums.version,
     });
-    expect(report.missing[0].assets).not.toHaveLength(0);
+    expect(isProject(project)).toBe(true);
   });
 
   it("reports every missing pack at once rather than the first", () => {
@@ -302,7 +369,10 @@ describe("resolvePackAvailability", () => {
   });
 
   it("ignores packs the caller holds that the project does not need", () => {
-    const spare = createPack(context("spare"), { name: "Unused Pack" });
+    const spare: AvailablePack = {
+      pack: createPack(context("spare"), { name: "Unused Pack" }),
+      assetIds: [],
+    };
 
     expect(resolvePackAvailability(project, [...allPacks, spare]).satisfied).toBe(true);
   });
@@ -310,11 +380,19 @@ describe("resolvePackAvailability", () => {
   it("covers the single-pack slice fixture too", () => {
     const slice = createSliceFixtureProject();
     const slicePacks = sliceFixturePacks();
+    const available = availablePacksFor(slice, [slicePacks.drums]);
 
-    expect(resolvePackAvailability(slice, [slicePacks.drums]).satisfied).toBe(true);
+    expect(resolvePackAvailability(slice, available).satisfied).toBe(true);
     const report = resolvePackAvailability(slice, []);
     expect(report.missing[0].tracks.map((track) => track.name)).toEqual(["BD"]);
     expect(report.missing[0].clips.map((clip) => clip.name)).toEqual([
+      "Four on the floor",
+    ]);
+
+    const deleted = resolvePackAvailability(slice, [{ ...available[0], assetIds: [] }]);
+    expect(deleted.missing).toEqual([]);
+    expect(deleted.missingAssets[0].tracks.map((track) => track.name)).toEqual(["BD"]);
+    expect(deleted.missingAssets[0].clips.map((clip) => clip.name)).toEqual([
       "Four on the floor",
     ]);
   });

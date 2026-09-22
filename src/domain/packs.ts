@@ -22,10 +22,12 @@ import type { AssetId, ClipId, PackId, TrackId } from "./ids";
  *    {@link derivePackDependencies} computes them from `song.assets` alone, so
  *    the list on the metadata tier cannot drift from the assets actually
  *    referenced. `checkProjectIntegrity` rejects a project where it has.
- * 3. **An unavailable pack is reported, never dangling or substituted.**
+ * 3. **Unresolvable audio is reported, never dangling or substituted.**
  *    {@link resolvePackAvailability} answers "can this project's audio be
  *    resolved from the packs I have?" with a report naming the affected tracks
- *    and clips. It never throws and never falls back to another version.
+ *    and clips. It never throws. It answers per *asset*, so a pack that has
+ *    gained sounds since the project pinned it still resolves, while one that
+ *    has lost a sound the project uses reports that asset by name.
  *
  * Nothing here consults a library: every function is a pure read over project
  * state plus, for availability, an explicit list of the packs the caller holds.
@@ -136,13 +138,32 @@ export function reconcilePackShelf(
 
 // --- Availability -----------------------------------------------------
 
+/**
+ * One pack version the caller holds, together with the assets it contains.
+ *
+ * Availability is judged per *asset*, not per version string (LIB-10), so the
+ * pack record alone cannot answer it: a personal pack grows every time its
+ * owner drops a file in, and the pack the project pinned yesterday is the same
+ * pack with one more sound in it today. The caller therefore supplies what each
+ * version it holds actually contains, and the library — not this module — is
+ * where that list comes from.
+ */
+export interface AvailablePack {
+  readonly pack: Pack;
+  /** IDs of the assets this pack version contains. */
+  readonly assetIds: readonly AssetId[];
+}
+
+/**
+ * Why a pack could not be resolved. One member today — a pack that is present
+ * at *some* version is no longer missing, because the assets a project actually
+ * references are looked for across every version the caller holds.
+ */
 export type MissingPackReason =
   /** No version of the pack is available at all. */
-  | "pack_unavailable"
-  /** The pack is available, but not at the version the project pinned. */
-  | "version_unavailable";
+  "pack_unavailable";
 
-/** An entity a missing pack affects, named so a warning can be specific. */
+/** An entity a missing pack or asset affects, named so a warning can be specific. */
 export interface NamedEntity<Id extends string> {
   readonly id: Id;
   readonly name: string;
@@ -153,70 +174,146 @@ export interface MissingPack {
   /** The version the project depends on, not a version that is available. */
   readonly version: PackVersion;
   readonly reason: MissingPackReason;
-  /** Versions of this pack the caller does hold, for an actionable message. */
-  readonly availableVersions: readonly PackVersion[];
   readonly assets: readonly NamedEntity<AssetId>[];
   readonly tracks: readonly NamedEntity<TrackId>[];
   readonly clips: readonly NamedEntity<ClipId>[];
 }
 
+/**
+ * One asset the project references that no available version of its pack holds
+ * any more — the pack is installed, the sound was deleted from it.
+ */
+export interface MissingAsset {
+  readonly assetId: AssetId;
+  readonly name: string;
+  readonly packId: PackId;
+  /** The pack version the project resolved this asset from. */
+  readonly version: PackVersion;
+  /** Versions of the pack the caller holds, none of which contain the asset. */
+  readonly availableVersions: readonly PackVersion[];
+  readonly tracks: readonly NamedEntity<TrackId>[];
+  readonly clips: readonly NamedEntity<ClipId>[];
+}
+
 export interface PackAvailability {
-  /** True when every declared pack is available at its declared version. */
+  /** True when no pack and no referenced asset is missing. */
   readonly satisfied: boolean;
+  /** Packs the caller holds at no version at all. */
   readonly missing: readonly MissingPack[];
+  /** Assets deleted from every version of a pack the caller does hold. */
+  readonly missingAssets: readonly MissingAsset[];
 }
 
 /**
- * Reports which of a project's pack dependencies the given packs cannot satisfy.
+ * Reports what of a project's audio the given packs cannot resolve.
  *
- * The contract is deliberately narrow, because invariant 12 rules out the three
- * tempting alternatives: this returns a *report* rather than throwing (a project
- * whose pack is offline still opens, edits, and plays its other tracks), it
- * resolves the exact declared version rather than the nearest available one, and
- * the project's own asset references stay intact rather than being rewritten to
- * something that exists.
+ * Resolution is **per asset** (LIB-10): a dependency is satisfied when every
+ * asset the project references from that pack is present in some version of it
+ * the caller holds. A pack version that gained sounds since the project pinned
+ * it therefore resolves silently — which is the common case for a personal pack
+ * — while a sound *deleted* from the pack is reported loudly, named, with the
+ * tracks and clips that use it. LIB-05 still holds either way: an asset is
+ * immutable content, so finding it in a later version returns the same audio,
+ * and the project keeps recording the version it resolved from. Nothing here
+ * rewrites project state, upgrades a pinned version, or adopts a later version's
+ * metadata for an asset.
+ *
+ * The contract stays deliberately narrow otherwise: this returns a *report*
+ * rather than throwing (a project whose pack is offline still opens, edits, and
+ * plays its other tracks), and it never substitutes a different sound for one
+ * that has gone.
  *
  * An affected **track** is one whose instrument — sampler asset or drum pad —
- * resolves from the missing pack. An affected **clip** either references a
- * missing asset in its own audio-loop content, or lives on an affected track,
- * since a note clip cannot sound without its track's instrument.
+ * resolves from the missing pack or asset. An affected **clip** either
+ * references a missing asset in its own audio-loop content, or lives on an
+ * affected track, since a note clip cannot sound without its track's instrument.
  */
 export function resolvePackAvailability(
   project: Project,
-  availablePacks: readonly Pack[],
+  availablePacks: readonly AvailablePack[],
 ): PackAvailability {
-  const versionsByPack = new Map<string, Set<string>>();
-  for (const pack of availablePacks) {
-    const versions = versionsByPack.get(pack.id) ?? new Set<string>();
-    versions.add(pack.version);
-    versionsByPack.set(pack.id, versions);
-  }
+  const held = indexAvailablePacks(availablePacks);
 
   const missing: MissingPack[] = [];
+  const missingAssets: MissingAsset[] = [];
   for (const dependency of project.metadata.packDependencies) {
-    const available = versionsByPack.get(dependency.packId);
-    if (available?.has(dependency.version)) {
-      continue;
-    }
+    const holding = held.get(dependency.packId);
     const assets = project.song.assets.filter(
       (asset) =>
         asset.packId === dependency.packId && asset.packVersion === dependency.version,
     );
-    const affectedTracks = project.song.tracks.filter((track) =>
-      trackUsesAssets(track, assets),
-    );
-    missing.push({
-      packId: dependency.packId,
-      version: dependency.version,
-      reason: available ? "version_unavailable" : "pack_unavailable",
-      availableVersions: [...(available ?? [])].sort() as PackVersion[],
-      assets: assets.map(named),
-      tracks: affectedTracks.map(named),
-      clips: affectedClips(project.clips, assets, affectedTracks).map(named),
-    });
+
+    if (!holding) {
+      missing.push({
+        packId: dependency.packId,
+        version: dependency.version,
+        reason: "pack_unavailable",
+        assets: assets.map(named),
+        ...affected(project, assets),
+      });
+      continue;
+    }
+
+    for (const asset of assets) {
+      if (holding.assetIds.has(asset.id)) {
+        continue;
+      }
+      missingAssets.push({
+        assetId: asset.id,
+        name: asset.name,
+        packId: dependency.packId,
+        version: dependency.version,
+        availableVersions: [...holding.versions].sort() as PackVersion[],
+        ...affected(project, [asset]),
+      });
+    }
   }
 
-  return { satisfied: missing.length === 0, missing };
+  return {
+    satisfied: missing.length === 0 && missingAssets.length === 0,
+    missing,
+    missingAssets,
+  };
+}
+
+interface HeldPack {
+  /** Every version of this pack the caller holds. */
+  readonly versions: Set<string>;
+  /** The union of the assets those versions contain. */
+  readonly assetIds: Set<string>;
+}
+
+function indexAvailablePacks(
+  availablePacks: readonly AvailablePack[],
+): Map<string, HeldPack> {
+  const held = new Map<string, HeldPack>();
+  for (const entry of availablePacks) {
+    const existing = held.get(entry.pack.id) ?? {
+      versions: new Set<string>(),
+      assetIds: new Set<string>(),
+    };
+    existing.versions.add(entry.pack.version);
+    for (const assetId of entry.assetIds) {
+      existing.assetIds.add(assetId);
+    }
+    held.set(entry.pack.id, existing);
+  }
+  return held;
+}
+
+/** The tracks and clips a set of unresolvable assets takes down with it. */
+function affected(
+  project: Project,
+  assets: readonly Asset[],
+): {
+  tracks: readonly NamedEntity<TrackId>[];
+  clips: readonly NamedEntity<ClipId>[];
+} {
+  const tracks = project.song.tracks.filter((track) => trackUsesAssets(track, assets));
+  return {
+    tracks: tracks.map(named),
+    clips: affectedClips(project.clips, assets, tracks).map(named),
+  };
 }
 
 /** Every asset ID a track's instrument resolves, sampler or drum pad. */

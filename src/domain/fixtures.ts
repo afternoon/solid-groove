@@ -28,6 +28,7 @@ import {
   type DomainFactoryContext,
 } from "./factories";
 import { createSeededIdFactory, type IdFactory } from "./ids";
+import type { AvailablePack } from "./packs";
 import { derivePackDependencies } from "./packs";
 import { TRACK_PAN, TRACK_VOLUME } from "./parameters";
 import { assertProject } from "./parse";
@@ -359,6 +360,28 @@ export function drumMachineFixturePacks(options: FixtureOptions = {}): FixturePa
 /** The pack {@link createSliceFixtureProject}'s sampler asset resolves from. */
 export function sliceFixturePacks(options: FixtureOptions = {}): FixturePacks {
   return fixturePacks(fixtureContext(options, "slice-fixture"));
+}
+
+/**
+ * The packs `packs` as a library that still holds every asset `project` draws
+ * from them — the "nothing has changed" input to `resolvePackAvailability`.
+ *
+ * Availability is judged per asset (LIB-10), so a test cannot hand bare `Pack`
+ * records over any more; it starts here and then perturbs one entry to describe
+ * the case it is about. A pack that gained a sound is this list with a bumped
+ * `pack.version`; a pack that lost one is this list with that ID filtered out of
+ * `assetIds`; a pack that is gone entirely is this list with the entry dropped.
+ */
+export function availablePacksFor(
+  project: Project,
+  packs: readonly Pack[],
+): AvailablePack[] {
+  return packs.map((pack) => ({
+    pack,
+    assetIds: project.song.assets
+      .filter((asset) => asset.packId === pack.id)
+      .map((asset) => asset.id),
+  }));
 }
 
 /** Bars in the dense step-editor fixture — the CLP-02 upper bound. */
