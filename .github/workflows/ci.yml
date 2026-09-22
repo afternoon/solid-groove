@@ -379,15 +379,34 @@ jobs:
 
       - name: Install Playwright browser (chromium) for the post-deploy smoke test
         run: bunx playwright install --with-deps chromium
+      # The origin visitors actually reach: the custom domain, not the
+      # Firebase-issued `<project-id>.web.app` subdomain. Read from
+      # `site.config.mjs` -- the same constant the prerendered landing page
+      # names as its canonical URL (ADR 0008) -- rather than composed from the
+      # project ID here, so moving the site to another domain stays a one-line
+      # change in one file instead of a second copy that can drift.
+      - name: Resolve the public origin
+        id: site
+        run: |
+          origin=$(node --input-type=module \
+            -e "import { SITE_ORIGIN } from './site.config.mjs'; process.stdout.write(SITE_ORIGIN);")
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
+          echo "Smoke-testing against $origin"
       # PRD OPS-01: "a deployed build is smoke-tested against the hosted
       # environment ... and a failed smoke test is treated as a failed
       # deploy." This step runs after `firebase deploy` succeeds and before
       # the job is considered successful, so a failure here fails the
       # workflow -- there is no separate "mark the deploy failed" step needed.
+      #
+      # Because it targets the public origin, DNS, certificate and CDN
+      # failures now fail the deploy too, not only Hosting ones. That is the
+      # point: if a visitor cannot reach the site, the deploy did not succeed.
+      # The `.web.app` origin keeps serving, and is still how you isolate
+      # Hosting from DNS when diagnosing one.
       - name: Post-deploy smoke test against the hosted URL
         run: bun run smoke:hosted
         env:
-          SMOKE_URL: https://${{ vars.FIREBASE_PROJECT_ID }}.web.app
+          SMOKE_URL: ${{ steps.site.outputs.origin }}
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
