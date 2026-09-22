@@ -160,6 +160,17 @@ a sound reached a speaker. Playback is asserted in Chromium only — see
 and issue #43. It also does not prove persistence: this flow runs against the
 mock backend, which is empty again on the next page load.
 
+**Changing in #304.** The three-view shell replaces the editor this flow walks:
+a new project will open on the *arrangement*, and the pattern edit in steps 6-7
+will happen in the sequence editor opened from the clip on the timeline. This
+entry and its spec are rewritten **together**, in the #304 stack, in the same
+diff that makes the new wording true — which is why they are the only things in
+this register the shell PR leaves alone. It is recorded here so the reviewer of
+that PR knows the change was authorised in advance rather than retro-fitted to
+what got built. CF-008 is the flow that walks the new shell itself, and it is
+`test.fixme` until #304 lands; CF-001 stays live in the meantime, which is the
+whole reason for this arrangement.
+
 ### CF-002 — A producer turns a loop into a song outline
 
 **Issue:** #61 · **Suite:** `tests/e2e/emulator/flows/CF-002.spec.ts` · **Entrypoint:** the
@@ -258,34 +269,44 @@ and issue #43). It also does not prove that anything else in the product moves
 the brace: nothing does, deliberately, and CF-005 is where that is asserted from
 the other side.
 
-### CF-005 — A producer drops a loop from the library onto a new track
+### CF-005 — A producer brings a library loop into their project
 
 **Issue:** #281 · **Suite:** `tests/e2e/emulator/flows/CF-005.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Retitled and rewritten by #304**, which makes the library a modal opened from a
+slot rather than a panel standing open beside the arrangement. The journey is
+unchanged — a loop out of the library lands on a new track at bar 1 and nothing
+else in the project moves — but the drag this flow used to describe no longer
+exists, so the producer asks the arrangement for a loop and picks one instead.
+
 **Preconditions:** signed in with no projects. The library contains a
 tempo-labelled loop whose source tempo is not the tempo a new project opens at.
 
-1. Create a new project. It opens on the starter kick pattern.
-2. In the library browser, find a drum loop that was recorded at a different
-   tempo from the project's.
-3. Drag it out of the browser and drop it on empty space in the track area.
-4. A new track appears at the bottom of the track list, carrying that loop as a
-   clip starting at bar 1, marked as a loop that follows the project tempo
-   rather than a pitched one-shot.
-5. Nothing else moved: the project tempo is unchanged, the loop brace is where it
+1. Create a new project. It opens on the arrangement, carrying the starter kick
+   pattern.
+2. Choose to add a loop from the library. The library opens over the arrangement.
+3. Find a drum loop that was recorded at a different tempo from the project's,
+   and insert it.
+4. The library closes. A new track appears at the bottom of the track list,
+   carrying that loop as a clip starting at bar 1.
+5. Open that clip. It is named as a loop that follows the project tempo rather
+   than a pitched one-shot, and it states the tempo it was recorded at. Close it
+   again.
+6. Nothing else moved: the project tempo is unchanged, the loop brace is where it
    was, and the transport is still stopped.
-6. Reload the page. The new track and its loop are still there.
+7. Reload the page. The new track and its loop are still there.
 
-**Outcome:** a producer brought a loop out of the library into their project with
-one drag, and the project it landed in is otherwise exactly as they left it.
+**Outcome:** a producer brought a loop out of the library into their project
+without leaving the arrangement, and the project it landed in is otherwise
+exactly as they left it.
 
 **Out of scope:** playback of any kind — pressing play belongs to CF-004, and
-audibility is not provable here in any case. Dropping a one-shot, which loads
-onto the track under the pointer instead and is asserted at the command layer.
-Dropping at the bar under the mouse, which the product deliberately does not do
-yet. And whether the stretched loop *sounds* right, which no browser test can
-tell you.
+audibility is not provable here in any case. Loading a one-shot onto a sampler
+from its instrument slot, which is the library modal's other entrypoint and is
+asserted at the command layer. Choosing which bar the clip lands at, which the
+product deliberately does not offer. And whether the stretched loop *sounds*
+right, which no browser test can tell you.
 
 ### CF-006 — A producer brings their own sounds into a pack
 
@@ -323,36 +344,76 @@ them the path that must not break.
 **Issue:** #283 · **Suite:** `tests/e2e/emulator/flows/CF-007.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Rewritten by #304.** The master chain is reached by selecting the master strip
+in the **mixer view**, not by switching a main-region tab — #304 replaces that
+tab with the three-view shell — and step 1 brings its loop in through the library
+modal, as CF-005 now does. What the flow proves is unchanged.
+
 **Preconditions:** signed in with no projects.
 
-1. Create a new project and drop a library loop onto the track area, so the
-   starter kick and a loop are playing together.
+1. Create a new project and bring a library loop into it, so the starter kick and
+   a loop are in the project together.
 2. Start playback. The two parts repeat over the loop brace.
-3. Switch the main region from the arrangement to the master.
-4. The master's effects are on screen, with an empty chain. Add an overdrive to
-   it.
+3. Switch to the mixer.
+4. Select the master strip. The master's effects are on screen, with an empty
+   chain. Add an overdrive to it.
 5. Undo once. The overdrive comes off the master chain.
 6. Redo. It is back.
 7. While it is still playing, drive the overdrive up. The control follows and
    playback never drops out.
-8. Reload the page. The overdrive is still on the master chain, still at that
-   drive.
+8. Reload the page. The project reopens on the mixer, and the overdrive is still
+   on the master chain, still at that drive.
 
 **Outcome:** a producer reached the master, put an effect across everything they
-had made, pushed it while it played, and found the whole thing intact when they
-came back.
+had made, pushed it while it played, and found the whole thing intact — on the
+view they left it on — when they came back.
 
 **Out of scope:** that the overdrive *sounds* like anything — a headless browser
 records no audio, so this proves the chain, the controls, and the state, not the
 processing, which is asserted in the audio suite. Track device chains (#241),
 the other five device types, device presets, and reordering a chain, all of which
-are tested at their own layers. Two orderings here are deliberate rather than
+are tested at their own layers. Moving between the three views, which is CF-008's
+subject and is only used here. Two orderings here are deliberate rather than
 incidental. The undo and redo come *before* the drive is pushed, because a
 parameter gesture is its own history entry: undoing after it would take back the
 drive rather than the device, and redoing an add restores the device as its
 payload described it. And both come before the reload, because history is
 session-local — a reload legitimately ends the undo stack, so a flow that undid
 afterwards would assert something the product does not promise.
+
+### CF-008 — A producer works across the arrangement, the instrument and the mixer
+
+**Issue:** #304 · **Suite:** `tests/e2e/emulator/flows/CF-008.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. It opens on the arrangement, which fills the page, with
+   the starter pattern sitting on the only track and a dock floating along the
+   bottom naming the three views.
+2. Open the clip on the timeline. The sequence editor comes up over the
+   arrangement, nearly filling the window, showing the four-on-the-floor pattern.
+3. Turn on a step that was off, then close the editor. The arrangement is
+   underneath, exactly as it was apart from the edit.
+4. Go to the instrument view with the keyboard. The track's instrument fills the
+   page, with a list of the project's tracks down the left edge and the dock
+   still showing which view you are on.
+5. Go to the mixer with the keyboard, and pull the track's volume fader down.
+6. Go back to the arrangement from the dock. The timeline is as you left it, and
+   the dock marks the arrangement as the view you are on.
+7. Return to the mixer and reload the page. The project reopens on the mixer,
+   with the fader still where you put it.
+
+**Outcome:** a producer did three different jobs on three uncluttered screens,
+moved between them by dock and by keyboard without losing anything they had done,
+and the view they were on survived a reload because it is part of the address.
+
+**Out of scope:** that any of it is *audible*, as in every other flow here. The
+library modal, which is CF-005's. Device chains, which the instrument view only
+reserves a place for — #241 and #283 own those and have their own flows. Touch
+and tablet layouts, which #304 explicitly does not claim. And the sequence
+editor's own editing behavior beyond one step toggling, which CLP-02 and CLP-03
+already cover at the component layer.
 
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a

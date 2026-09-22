@@ -9,18 +9,25 @@ import { walkthrough } from "../../support/walkthrough";
  * and is frozen once it lands: a later PR that changes an assertion here has to
  * say so in its body and justify it.
  *
+ * **Rewritten by #304**, which replaces the editor's main region with three
+ * views. The master chain is reached by going to the **mixer** and selecting
+ * the master strip, not by switching a tab inside the arrangement; and step 1
+ * brings its loop in through the library modal, as CF-005 now does. Everything
+ * this flow proves — the chain, the commands behind it, the control, the
+ * reload — is unchanged.
+ *
  * `test.fixme` because the surface is entirely missing — #283 is the PR that
  * removes this marker. What is *not* missing is the processing: `LOOP-009`
  * shipped all six device types with real DSP (`src/audio/devices/`) and
  * `device.add/remove/reorder/duplicate/setBypass/reset` are registered commands
  * (`src/commands/definitions/devices.ts`). This flow is blocked on UI only:
  *
- *  - **The main region is not switchable.** `EditorView` renders the
- *    arrangement and nothing else in that slot; there are no view tabs.
- *  - **There is no master panel.** `Mixer` has no master channel and nothing
+ *  - **There is no master strip.** `Mixer` has no master channel and nothing
  *    anywhere renders a device chain, so a producer cannot reach an insert
  *    chain at all today (#241 tracks the same gap for tracks).
- *  - **Step 1 depends on #281** (CF-005's loop drop), which is how a second
+ *  - **There are no views to switch between**, which is #304 — this flow is
+ *    blocked on it and only uses the shell CF-008 proves.
+ *  - **Step 1 depends on #281** (CF-005's insertion), which is how a second
  *    part gets into the project without a track-creation detour.
  *
  * Runs against the Firestore/Auth emulator rather than the mock backend,
@@ -39,10 +46,23 @@ import { walkthrough } from "../../support/walkthrough";
  * before this spec was written; see CF-007's "Out of scope".
  */
 
-/** The main region's master view, and the tab that reaches it (#283). */
-const masterTab = (page: Page): Locator => page.getByRole("tab", { name: "Master" });
+/** The mixer view, and the dock link that reaches it (#304). */
+const mixerLink = (page: Page): Locator =>
+  page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Mixer" });
+const mixer = (page: Page): Locator => page.getByRole("region", { name: "Mixer" });
+
+/**
+ * The master channel strip, and the panel selecting it reveals (#283).
+ *
+ * The master is a strip in the mixer like any other, which is what makes it
+ * reachable without a selection model of its own; its effects appear beside the
+ * strips rather than replacing them, so the producer keeps the mix in view
+ * while they glue it together.
+ */
+const masterStrip = (page: Page): Locator =>
+  mixer(page).getByRole("button", { name: "Master" });
 const masterView = (page: Page): Locator =>
-  page.getByRole("tabpanel", { name: "Master" });
+  page.getByRole("region", { name: "Master effects" });
 
 /**
  * The master's device chain, in order.
@@ -53,14 +73,10 @@ const masterView = (page: Page): Locator =>
 const masterChain = (page: Page): Locator =>
   masterView(page).getByRole("list", { name: "Master chain" });
 
-/** The interaction canvas the tracks are drawn on — see CF-005 on why a class. */
-const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
-
-/** The ruler strip's height in CSS pixels (`canvasRenderer.RULER_HEIGHT_PX`). */
-const RULER_HEIGHT_PX = 22;
-
-/** One track row's height (`ArrangementView.ROW_METRICS.trackHeightPx`). */
-const ROW_HEIGHT_PX = 28;
+/** The arrangement's way into the library, and the library itself — see CF-005. */
+const addFromLibrary = (page: Page): Locator =>
+  page.getByRole("button", { name: /library/i }).first();
+const library = (page: Page): Locator => page.getByRole("dialog", { name: "Library" });
 
 /** The transport's playhead readout, by the accessible text `EditorHeader` gives it. */
 const playheadReadout = (page: Page): Locator =>
@@ -97,34 +113,35 @@ test.describe("CF-007", () => {
           : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
       });
 
-      // 1. Create a new project and drop a library loop onto the track area, so
-      //    the starter kick and a loop are playing together.
+      // 1. Create a new project and bring a library loop into it, so the
+      //    starter kick and a loop are in the project together.
       await page.goto("/dashboard");
       await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
       await page.getByRole("button", { name: "New Project" }).click();
       await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await expect(page.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
       await page.getByTestId("arrangement-view-ready").waitFor();
 
-      const libraryPanel = page.getByRole("region", { name: "Library" });
-      await libraryPanel.getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-      await libraryPanel.getByRole("button", { expanded: false }).first().click();
+      await addFromLibrary(page).click();
+      await expect(library(page)).toBeVisible();
+      await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
+      await library(page).getByRole("button", { expanded: false }).first().click();
       // A loop states the tempo it was recorded at; a one-shot has none, and a
-      // one-shot dropped here would load a sampler instead of making a track.
-      const loopRow = libraryPanel
+      // one-shot inserted here would load a sampler instead of making a track.
+      // Which loop does not matter to this flow — CF-005 is where the tempo
+      // relationship is the subject — so it takes the first one that is one.
+      const loopName = await library(page)
         .getByRole("button", { name: /^Audition / })
         .locator("..")
         .filter({ hasText: /BPM/ })
-        .first();
-      const box = await timeline(page).boundingBox();
-      if (!box) throw new Error("The arrangement timeline has no box to drop on.");
-      await loopRow.dragTo(timeline(page), {
-        targetPosition: {
-          x: Math.min(box.width - 8, box.width / 2),
-          y: RULER_HEIGHT_PX + ROW_HEIGHT_PX * 3,
-        },
-      });
+        .first()
+        .getByRole("button", { name: /^Audition / })
+        .getAttribute("aria-label");
+      await library(page)
+        .getByRole("button", {
+          name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
+        })
+        .click();
+      await expect(library(page)).toHaveCount(0);
       await expect(
         page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
       ).toHaveCount(2);
@@ -140,12 +157,16 @@ test.describe("CF-007", () => {
         await step("Both parts play over the loop brace");
       }
 
-      // 3. Switch the main region from the arrangement to the master.
-      await masterTab(page).click();
-      await expect(masterTab(page)).toHaveAttribute("aria-selected", "true");
+      // 3. Switch to the mixer.
+      await mixerLink(page).click();
+      await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/mixer$/);
+      const mixerUrl = page.url();
+      await expect(mixer(page)).toBeVisible();
+      await step("Switch to the mixer");
 
-      // 4. The master's effects are on screen, with an empty chain. Add an
-      //    overdrive to it.
+      // 4. Select the master strip. The master's effects are on screen, with an
+      //    empty chain. Add an overdrive to it.
+      await masterStrip(page).click();
       await expect(masterView(page)).toBeVisible();
       await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
       await step("The master is on screen, with an empty chain");
@@ -224,8 +245,11 @@ test.describe("CF-007", () => {
         timeout: 10_000,
       });
       await page.reload();
-      await expect(page).toHaveURL(projectUrl);
-      await masterTab(page).click();
+      // The view is part of the address (#304), so the reload lands back on the
+      // mixer; only the strip selection, which is UI state and deliberately not
+      // persisted, has to be made again.
+      await expect(page).toHaveURL(mixerUrl);
+      await masterStrip(page).click();
       await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
       await expect(masterChain(page)).toContainText("Overdrive");
       await expect(masterView(page).getByRole("slider", { name: "Drive" })).toHaveValue(
