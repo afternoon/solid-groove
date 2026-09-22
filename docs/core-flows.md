@@ -311,13 +311,22 @@ right, which no browser test can tell you.
 ### CF-006 — A producer brings their own sounds into a pack
 
 **Issue:** #282 · **Suite:** `tests/e2e/emulator/flows/CF-006.spec.ts` · **Entrypoint:** the
-public landing page
+project dashboard
 
-**Preconditions:** a registered account whose personal library is empty. Importing
-requires an account: a guest is offered the upgrade path instead, which is
-asserted at the component layer rather than walked here.
+**Rewritten by #308.** This flow used to start on the landing page and log in
+through the identity provider. Logging in was never what it set out to prove, and
+depending on it made this flow answer for the login control's markup and for
+Google's own account chooser — so a change to either reddened a flow about
+importing sounds. Being signed in is now a precondition, the way "signed in with
+no projects" already is for its neighbours, and the flow starts where the producer
+starts. What it proves is unchanged.
 
-1. Open the landing page and sign in.
+**Preconditions:** signed in to a registered account whose personal library is
+empty. Importing requires an account: a guest is offered the upgrade path instead,
+which is asserted at the component layer rather than walked here.
+
+1. You arrive on the dashboard signed in to your own account, not working as a
+   guest.
 2. Open a project, so the library browser is on screen.
 3. Choose "Add pack". A new pack appears in the browser with its name in an
    input, waiting to be typed.
@@ -332,12 +341,14 @@ asserted at the component layer rather than walked here.
 sitting alongside the factory content and reachable the same way — which means
 the next thing they can do is CF-005 with a sound of their own.
 
-**Out of scope:** using one of those sounds in a project, which is CF-005 and is
-not re-proved here. Dropping files on empty space to create a pack called "My
-Sounds", the file-picker fallback, renaming, deleting, and every rejection path
-(unsupported file, oversized file, the account storage cap, a cancelled upload) —
-all required, all covered at the component, repository and rules layers, none of
-them the path that must not break.
+**Out of scope:** logging in — reaching an account through the identity provider
+is a journey of its own and belongs to a flow of its own, so this one asserts only
+that it begins signed in. Using one of those sounds in a project, which is CF-005
+and is not re-proved here. Dropping files on empty space to create a pack called
+"My Sounds", the file-picker fallback, renaming, deleting, and every rejection
+path (unsupported file, oversized file, the account storage cap, a cancelled
+upload) — all required, all covered at the component, repository and rules layers,
+none of them the path that must not break.
 
 ### CF-007 — A producer drives the whole mix through an overdrive
 
