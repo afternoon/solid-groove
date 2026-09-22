@@ -132,6 +132,8 @@ src/
 │   └── schema.ts             # Shared Zod parse helper
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
+├── theme.css           # The palette: every colour named once, shared with the static pages
+├── app.css             # The base layer over the theme: typography, document shell, element defaults
 ├── app.tsx             # Root application component; the plugin generates the entries from it
 ├── Document.tsx        # The prerendered document shell: the statically generated landing page + its meta (ADR 0008)
 ├── router.tsx          # The explicit route table (see "Routing" below)
@@ -470,6 +472,16 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 - Matching reads `KeyboardEvent.key`, never `code`, and ignores the Shift modifier for punctuation, so `?` and `+` work on any keyboard layout.
 - `ShortcutController` logs `shortcut_used` with the matched entry's own `action_id`; handlers never log analytics. Adding a mapping means adding its ID to `SHORTCUT_ACTION_IDS` in both the registry and `src/analytics/catalog.ts`, or `catalog.test.ts` fails.
 - Adding a shortcut also means updating `docs/shortcuts.md` — `src/shortcuts/docs.test.ts` fails if the two drift.
+
+### The palette (`src/theme.css`)
+- `src/theme.css` is the only place a colour is written down. It holds custom properties and nothing else, so a static page (`docs/architecture.html`) can link it without dragging the app's base styles along. `src/app.css` `@import`s it, and Vite inlines that at build time.
+- **The interface is literally monochrome: every token is a neutral grey with R, G and B equal.** No tinted greys, no coloured accent, no coloured status. Black and white are the anchors; the ramp between them (`--mono-00` … `--mono-100`) is nine steps, each with exactly one job, and mid-greys are what it spends least.
+- **State is brightness, not hue.** Selected, focused, active and playing are the brightest thing in their neighbourhood — usually a white fill with `--color-on-accent` (black) on it. `--color-accent-dim` and `--color-accent-deep` are the steps below for a fill under the pointer and for material that is present but not chosen.
+- Status is monochrome too, so an error signals through emphasis and framing (`--color-danger-wash`/`-edge`) and through its wording — not through being red. A destructive action is a white fill with black on it, the loudest control on screen. If a pairing puts a bright fill under bright text, that is a bug: check the `color` beside every `background`.
+- **A track's own colour is the one hue in the product, and it is not theme** — it is persisted domain data (`TRACK_COLORS` in `src/domain/factories.ts`), so changing it is a schema change. Against a colourless interface it is unmissable, which is the point.
+- Style against a **semantic alias** (`--color-background-secondary`, `--color-text`, `--color-accent`), not a ramp step. The ramp is the vocabulary; only the aliases survive a re-theme. Never introduce a near-duplicate of a step that already exists, and never a local alias for a token that already says the same thing.
+- `src/theme.test.ts` enforces all of it: a colour literal in any other stylesheet, a token read but never defined, a token whose channels are not all equal, a tint borrowing anything but black or white, a tenth ramp step, or an arrangement-canvas fallback that has drifted from the theme each fail there.
+- A canvas cannot read a custom property, so `src/arrangement/canvasRenderer.ts` resolves the tokens off the document once and caches them; its literals are fallbacks for a context with no stylesheet (jsdom), pinned to the theme by that test.
 
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)

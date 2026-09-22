@@ -1,0 +1,128 @@
+/* The palette. Every colour the product paints is named here, once.
+ *
+ * This file is the *only* place a colour literal belongs. A stylesheet, a
+ * component, or a static page states which token it wants and never what that
+ * token resolves to, so a palette change is one edit here rather than a sweep
+ * across twenty-odd files.
+ *
+ * It holds custom properties and nothing else — no selectors, no rules, no
+ * layout — so it is safe to link from anything: the bundled app pulls it in
+ * through `app.css`, and a standalone page (`docs/architecture.html`) links it
+ * directly without dragging the application's base styles along with it.
+ *
+ * ## The shape of it
+ *
+ * The product is monochrome, and literally so: **every token below is a
+ * neutral grey with R, G and B equal.** There is no hue anywhere in the
+ * interface chrome — no tinted greys, no coloured accent, no coloured status.
+ * Black and white are the anchors and carry the work; the greys between them
+ * are a short ladder used sparingly, each step earning its place by being a
+ * surface, a rule, or a level of text emphasis that nothing else provides.
+ *
+ * State is signalled by **brightness**, not by colour: what is selected,
+ * focused, active, or playing is the brightest thing in its neighbourhood,
+ * usually a white fill with black on it.
+ *
+ * The one deliberate exception in the product is a **track's own colour**,
+ * which is not theme at all — it is persisted domain data (`TRACK_COLORS` in
+ * `src/domain/factories.ts`), it is the user's, and it is the only hue on
+ * screen. That is the point: against a colourless interface, the colour a
+ * producer assigns to their own material is unmissable.
+ *
+ * Rules that keep it that way:
+ *   1. Style against a *semantic* alias (`--color-background-secondary`,
+ *      `--color-text`), not a ramp step. The ramp is the vocabulary; the
+ *      aliases are the meaning, and only the aliases survive a re-theme.
+ *   2. Reach for a ramp step directly only where no alias fits, and consider
+ *      adding the alias instead.
+ *   3. Never introduce a near-duplicate of a step that already exists. If a
+ *      surface needs to sit between two steps, it almost certainly does not —
+ *      mid-greys are the thing this palette spends least.
+ *   4. A token whose R, G and B are not all equal does not belong here.
+ *      `theme.test.ts` fails the build over it.
+ */
+
+:root {
+  /* ---- The ramp ---------------------------------------------------------
+   * Pure neutral greys, black to white, named for their approximate
+   * lightness. Nine steps for the whole interface: two anchors and seven
+   * working shades, each with exactly one job. Adding a tenth is a design
+   * decision, not a styling detail. */
+  --mono-00: #000000; /* the ground: app canvas, the grid, every well */
+  --mono-08: #141414; /* a panel lifted off the ground */
+  --mono-16: #292929; /* a raised card, and every hairline rule */
+  --mono-28: #474747; /* a border that has to be seen; a control under the pointer */
+  --mono-47: #787878; /* deliberately dimmed text; the recessive accent step */
+  --mono-65: #a6a6a6; /* label text */
+  --mono-85: #d9d9d9; /* secondary text */
+  --mono-96: #f6f6f6; /* primary text */
+  --mono-100: #ffffff; /* full strength: the accent, and emphasis over a fill */
+
+  /* ---- The accent -------------------------------------------------------
+   * White. Selection, focus, the active value and the playhead are simply the
+   * brightest thing present, and `--color-on-accent` is what sits on a
+   * full-strength fill. The two steps below it are for a fill under the
+   * pointer and for material that should read as present but not chosen. */
+  --color-accent: var(--mono-100);
+  --color-accent-dim: var(--mono-85);
+  --color-accent-deep: var(--mono-47);
+  --color-on-accent: var(--mono-00);
+  --color-accent-wash: rgb(255 255 255 / 15%);
+  --color-accent-wash-strong: rgb(255 255 255 / 28%);
+
+  /* ---- Status -----------------------------------------------------------
+   * Monochrome too, so these signal by *emphasis* rather than by hue: an
+   * error is the brightest text in its block and carries a washed frame, and
+   * a destructive action is a white fill with black on it — the loudest
+   * control on screen. The meaning lives in the wording and the framing,
+   * which is where it has to live when nothing is allowed to be red. */
+  --color-danger: var(--mono-100);
+  --color-danger-solid: var(--mono-100);
+  --color-danger-wash: rgb(255 255 255 / 10%);
+  --color-danger-edge: rgb(255 255 255 / 30%);
+  --color-warning: var(--mono-85);
+  --color-success: var(--mono-65);
+  --color-success-wash: rgb(255 255 255 / 12%);
+
+  /* ---- Tints and scrims -------------------------------------------------
+   * Translucent white and black. They borrow whatever is underneath, so they
+   * cost no new step — prefer one of these over a new grey whenever the
+   * surface below can show through. */
+  --tint-subtle: rgb(255 255 255 / 4%);
+  --tint-soft: rgb(255 255 255 / 8%);
+  --tint-medium: rgb(255 255 255 / 12%);
+  --tint-strong: rgb(255 255 255 / 20%);
+  --tint-stronger: rgb(255 255 255 / 25%);
+  --scrim: rgb(0 0 0 / 70%);
+  --shade-soft: rgb(0 0 0 / 28%);
+  --shade-medium: rgb(0 0 0 / 45%);
+
+  /* ---- Semantic aliases -------------------------------------------------
+   * What stylesheets actually use. Each one names a role, so a rule reads as
+   * intent ("this is a raised surface") rather than as a value. */
+
+  /* Surfaces, in elevation order. The ground is black; everything rises. */
+  --color-background: var(--mono-00);
+  --color-background-sunken: var(--mono-00);
+  --color-background-well: var(--mono-08);
+  --color-background-secondary: var(--mono-08);
+  --color-background-tertiary: var(--mono-16);
+  --color-background-highlight: var(--mono-16);
+  --color-background-hover: var(--mono-28);
+
+  /* Rules and outlines. A border is a hairline unless it has to be read. */
+  --color-border: var(--mono-16);
+  --color-border-strong: var(--mono-28);
+  --color-divider: var(--mono-16);
+
+  /* Text, brightest to quietest. */
+  --color-foreground-bright: var(--mono-100);
+  --color-text: var(--mono-96);
+  --color-text-primary: var(--mono-96);
+  --color-text-secondary: var(--mono-85);
+  --color-foreground: var(--mono-65);
+  --color-foreground-muted: var(--mono-47);
+
+  /* The error text colour, kept under its historic name. */
+  --color-error: var(--color-danger);
+}

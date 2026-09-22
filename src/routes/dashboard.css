@@ -22,9 +22,9 @@
   gap: 10px;
   padding: 16px 20px;
   margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--tint-medium);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tint-subtle);
 }
 
 .upgrade-prompt .upgrade-message {
@@ -68,7 +68,7 @@
 .dashboard-actions .create-error {
   margin: 0;
   font-size: var(--font-size-small);
-  color: #ff8a8a;
+  color: var(--color-danger);
 }
 
 .project-list {
@@ -83,7 +83,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--tint-soft);
   border-radius: 12px;
   background: var(--color-background-secondary);
   transition:
@@ -93,7 +93,7 @@
 }
 
 .project-card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: var(--tint-medium);
   background: var(--color-background-highlight);
   transform: translateY(-2px);
 }
@@ -131,13 +131,13 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--tint-soft);
   color: var(--color-text-secondary);
 }
 
 .project-card .project-badge.is-public {
-  background: rgba(90, 170, 120, 0.18);
-  color: #7fd6a0;
+  background: var(--color-success-wash);
+  color: var(--color-success);
 }
 
 .empty-projects {
@@ -149,7 +149,7 @@
   padding: 56px 24px;
   text-align: center;
   color: var(--color-foreground);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed var(--tint-medium);
   border-radius: 12px;
 }
 
@@ -172,14 +172,14 @@
   gap: 16px;
   padding: 40px 24px;
   text-align: center;
-  border: 1px solid rgba(255, 122, 122, 0.25);
+  border: 1px solid var(--color-danger-edge);
   border-radius: 12px;
-  background: rgba(255, 122, 122, 0.06);
+  background: var(--color-danger-wash);
 }
 
 .projects-error-message {
   margin: 0;
-  color: #ff8a8a;
+  color: var(--color-danger);
 }
 
 .projects-error .retry-button {
@@ -211,8 +211,8 @@
   padding: 6px 10px;
   border-radius: 6px;
   font-size: var(--font-size-small);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--tint-soft);
+  border: 1px solid var(--tint-medium);
   color: var(--color-text);
   cursor: pointer;
 }
@@ -223,7 +223,7 @@
 }
 
 .project-card-actions .project-action-destructive {
-  color: #ff9a9a;
+  color: var(--color-danger);
 }
 
 .project-rename-form .project-rename-input {
@@ -231,7 +231,7 @@
   min-width: 0;
   padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--tint-strong);
   background: var(--color-background);
   color: var(--color-text);
 }
@@ -247,5 +247,5 @@
   z-index: 1;
   margin: 0;
   font-size: var(--font-size-small);
-  color: #ff8a8a;
+  color: var(--color-danger);
 }

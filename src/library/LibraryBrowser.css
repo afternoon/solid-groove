@@ -51,7 +51,7 @@
 }
 
 .library-search:focus-visible {
-  outline: 2px solid #20c8e8;
+  outline: 2px solid var(--color-accent);
   outline-offset: -1px;
 }
 
@@ -160,7 +160,7 @@
 }
 
 .library-row-active {
-  box-shadow: inset 2px 0 0 #20c8e8;
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
 .library-row-error {
@@ -187,8 +187,8 @@
 }
 
 .library-audition[aria-pressed="true"] {
-  background: #20c8e8;
-  color: #06232a;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .library-row-meta {

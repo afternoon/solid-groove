@@ -1,17 +1,9 @@
+/* The palette lives in `theme.css` and is shared with the static pages; this
+   file is the application's base layer on top of it — typography, the document
+   shell, and the element defaults every surface inherits. */
+@import "./theme.css";
+
 * {
-  --color-background: #0f1017;
-  --color-background-secondary: #1a1c25;
-  --color-background-tertiary: #3a3d4a;
-  --color-background-highlight: #2f323e;
-  --color-background-hover: #444859;
-
-  --color-foreground: #8d92a6;
-  --color-foreground-bright: white;
-
-  --color-text: white;
-  --color-text-secondary: lightgrey;
-  --color-error: #ff6b6b;
-
   --font-size-tiny: 10px;
   --font-size-small: 11px;
   --font-size-base: 14px;
@@ -27,7 +19,7 @@
   font-weight: 400;
 
   color-scheme: dark light;
-  color: white;
+  color: var(--color-text);
   background-color: var(--color-background);
 
   font-synthesis: none;

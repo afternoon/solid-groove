@@ -45,12 +45,14 @@ test.describe("landing page", () => {
     // Pins `.landing button:focus-visible` specifically, not merely "some ring
     // is drawn": a UA default ring, or an `outline: none` replaced by a
     // `box-shadow`, does not match the page's own accent-coloured 2px rule.
-    // The accent is read from the custom property and normalised through a
-    // probe element so the expectation is not a second copy of the hex.
+    // The accent is read from the theme's own custom property and normalised
+    // through a probe element so the expectation is not a second copy of the
+    // hex. (It read `--landing-accent` until the page stopped aliasing the
+    // theme token for one surface; the assertion itself is unchanged.)
     const ring = await cta.evaluate((element) => {
       const styles = getComputedStyle(element);
       const probe = document.createElement("span");
-      probe.style.color = styles.getPropertyValue("--landing-accent").trim();
+      probe.style.color = styles.getPropertyValue("--color-accent").trim();
       document.body.append(probe);
       const accent = getComputedStyle(probe).color;
       probe.remove();

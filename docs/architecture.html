@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Solid Groove — System Architecture</title>
+<!-- The product palette, shared with the app. This page is read in both
+     colour schemes, so it keeps its own light values below and maps its dark
+     ones onto the theme's neutral ramp rather than restating them. -->
+<link rel="stylesheet" href="../src/theme.css" />
 <style>
   :root {
     --bg: #f6f5f2;
@@ -25,12 +29,12 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #191816;
-      --surface: #23221f;
-      --ink: #e8e5df;
-      --muted: #a09b91;
-      --line: #3a3833;
-      --band: #201f1c;
+      --bg: var(--mono-00);
+      --surface: var(--mono-16);
+      --ink: var(--mono-96);
+      --muted: var(--mono-65);
+      --line: var(--mono-28);
+      --band: var(--mono-08);
 
       --ui: #8fb0dd;
       --session: #b49ede;
