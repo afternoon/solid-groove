@@ -1,5 +1,6 @@
 import { createRouter } from "@solidjs/router";
 import { lazy } from "solid-js";
+import IndexPage from "./routes/index";
 
 /**
  * The application's route table.
@@ -17,14 +18,26 @@ import { lazy } from "solid-js";
  * and with nothing reading it, it only suggested a convention the app no
  * longer has. The patterns live here instead, where they are matched.
  *
- * Every page stays `lazy` so each route is still its own chunk, exactly as
- * file-based routing gave us for free. The landing page is the one surface
- * with a first-paint budget (PRD `PRJ-06`), and keeping it in its own chunk is
- * what keeps the dashboard's Firebase graph off that path.
+ * Every page but the landing page stays `lazy`, so each route is still its own
+ * chunk, exactly as file-based routing gave us for free. The landing page is
+ * the one surface with a first-paint budget (PRD `PRJ-06`) and the one that is
+ * prerendered into the shell, so it is eager instead -- see the note on its
+ * entry below. Nothing about that puts the dashboard's Firebase graph on the
+ * landing path: that separation comes from the dashboard's own chunk, and from
+ * the landing page reaching `authService` through a dynamic `import()`.
  */
 export const Router = createRouter({
   routes: [
-    { path: "/", component: lazy(() => import("./routes/index")) },
+    // The one route that is NOT lazy. `src/Document.tsx` prerenders this page
+    // into `index.html`, and prerendered markup is only worth having if it is
+    // styled and replaced in one frame: as a lazy route its stylesheet lived in
+    // a chunk that first paint could not wait for, so the static copy flashed
+    // unstyled and then flashed again through the loading fallback before the
+    // live page arrived. Eager, its CSS is in the entry graph's stylesheet --
+    // already in the shell's `<head>` -- and `App` can drop the static copy the
+    // moment the live tree renders. The cost is this page's few kilobytes in
+    // the entry chunk on every route, which is the smaller of the two.
+    { path: "/", component: IndexPage },
     { path: "/dashboard", component: lazy(() => import("./routes/dashboard")) },
     {
       path: "/projects/:id",

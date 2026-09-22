@@ -85,10 +85,12 @@
     "verify:client-config": "node --env-file-if-exists=.env scripts/verify-client-config.mjs",
     "verify:core-flows": "node scripts/check-core-flows.mjs",
     "verify:test-projects": "node scripts/check-test-projects.mjs",
-    "predeploy": "bun run build && bun run verify:bundle && bun run verify:client-config",
+    "predeploy": "bun run build && bun run verify:bundle && bun run verify:client-config && bun run verify:landing-static",
     "deploy": "firebase deploy --only hosting,firestore,storage --non-interactive --project \"$FIREBASE_PROJECT_ID\"",
     "smoke:hosted": "playwright test --config=tests/e2e/hosted/playwright.config.ts",
-    "verify:no-solid-1": "node scripts/check-no-solid-1.mjs"
+    "verify:no-solid-1": "node scripts/check-no-solid-1.mjs",
+    "postbuild": "node scripts/emit-app-shell.mjs",
+    "verify:landing-static": "node scripts/verify-landing-static.mjs"
   },
   "type": "module",
   "trustedDependencies": [

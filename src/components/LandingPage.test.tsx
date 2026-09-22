@@ -134,9 +134,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
     it("drops the visitor into the anonymous-start flow with no account", async () => {
       setup();
 
-      await userEvent.click(
-        screen.getByRole("button", { name: "Start in your browser" }),
-      );
+      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
 
       expect(navigate).toHaveBeenCalledWith("/dashboard");
     });
@@ -144,9 +142,9 @@ describe("LandingPage (PRD PRJ-06)", () => {
     it("offers the same start from the header and the closing section", async () => {
       setup();
 
-      await userEvent.click(screen.getByRole("button", { name: "Start free" }));
+      await userEvent.click(screen.getByRole("link", { name: "Start free" }));
       await userEvent.click(
-        screen.getByRole("button", { name: "Start free — no account needed" }),
+        screen.getByRole("link", { name: "Start free — no account needed" }),
       );
 
       expect(navigate).toHaveBeenCalledTimes(2);
@@ -159,9 +157,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
     it("does not sign in on the start path", async () => {
       const { signInWithGoogle } = setup();
 
-      await userEvent.click(
-        screen.getByRole("button", { name: "Start in your browser" }),
-      );
+      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
 
       expect(signInWithGoogle).not.toHaveBeenCalled();
     });
@@ -191,7 +187,9 @@ describe("LandingPage (PRD PRJ-06)", () => {
         fatal: false,
       });
       // And both paths are available again afterwards.
-      expect(screen.getByRole("button", { name: "Start in your browser" })).toBeEnabled();
+      expect(
+        screen.getByRole("link", { name: "Start in your browser" }),
+      ).not.toHaveAttribute("aria-disabled");
       expect(screen.getByRole("button", { name: "Log in" })).toBeEnabled();
     });
   });
@@ -200,9 +198,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
     it("emits landing_cta_click once per start-free activation", async () => {
       const { transport } = setup();
 
-      await userEvent.click(
-        screen.getByRole("button", { name: "Start in your browser" }),
-      );
+      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
 
       const events = transport.named("landing_cta_click");
       expect(events).toHaveLength(1);
@@ -248,9 +244,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
         />
       ));
 
-      await userEvent.click(
-        screen.getByRole("button", { name: "Start in your browser" }),
-      );
+      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
       expect(navigate).toHaveBeenCalledWith("/dashboard");
 
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
@@ -285,14 +279,16 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
     it("gives every call to action a real accessible name", () => {
       setup();
+      // The start paths are links because they lead somewhere; "Log in" is a
+      // button because it opens a provider popup and goes nowhere on its own.
       for (const name of [
         "Start free",
         "Start in your browser",
         "Start free — no account needed",
-        "Log in",
       ]) {
-        expect(screen.getByRole("button", { name })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name })).toBeInTheDocument();
       }
+      expect(screen.getByRole("button", { name: "Log in" })).toBeInTheDocument();
     });
 
     it("announces a failed log-in to assistive technology", async () => {
@@ -301,6 +297,77 @@ describe("LandingPage (PRD PRJ-06)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
 
       expect(await screen.findByRole("alert")).toBeInTheDocument();
+    });
+  });
+
+  // The start controls are anchors with a real destination, so a visitor who
+  // clicks during the window before this page's JavaScript has loaded still
+  // gets where they were going -- the browser takes the click instead.
+  describe("the start path survives without JavaScript", () => {
+    it("points every start control at the dashboard", () => {
+      setup();
+
+      for (const name of [
+        "Start free",
+        "Start in your browser",
+        "Start free — no account needed",
+      ]) {
+        expect(screen.getByRole("link", { name })).toHaveAttribute("href", "/dashboard");
+      }
+    });
+
+    it("cancels the browser's own navigation once it can route in place", async () => {
+      setup();
+
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      screen.getByRole("link", { name: "Start in your browser" }).dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigate).toHaveBeenCalledWith("/dashboard");
+    });
+
+    it("leaves a new-tab click to the browser, and still counts the intent", () => {
+      const { transport } = setup();
+
+      // Read whether the page cancelled the click, then cancel it ourselves so
+      // jsdom does not try to perform the navigation it cannot perform. The
+      // listener is on `document`, so it runs after the anchor's own handler.
+      let cancelledByThePage: boolean | undefined;
+      document.addEventListener(
+        "click",
+        (bubbled) => {
+          cancelledByThePage = bubbled.defaultPrevented;
+          bubbled.preventDefault();
+        },
+        { once: true },
+      );
+
+      const event = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        metaKey: true,
+      });
+      screen.getByRole("link", { name: "Start in your browser" }).dispatchEvent(event);
+
+      expect(cancelledByThePage).toBe(false);
+      expect(navigate).not.toHaveBeenCalled();
+      const events = transport.named("landing_cta_click");
+      expect(events).toHaveLength(1);
+      expect(events[0]?.params.cta_id).toBe("start_free");
+    });
+
+    it("cancels a start click while a log-in is still in flight", async () => {
+      setup({ signInWithGoogle: () => new Promise(() => {}) });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      const cta = screen.getByRole("link", { name: "Start in your browser" });
+      await waitFor(() => expect(cta).toHaveAttribute("aria-disabled", "true"));
+
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      cta.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(navigate).not.toHaveBeenCalled();
     });
   });
 });

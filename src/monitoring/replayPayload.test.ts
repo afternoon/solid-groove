@@ -336,6 +336,14 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       "project.id",
       // A caller-supplied route constant with a static fallback.
       'props.homeHref ?? "/dashboard"',
+      // The landing page's start destination: a module-level constant in
+      // `LandingPageContent.tsx` holding the literal "/dashboard". Bound rather
+      // than repeated inline because three controls share it.
+      "START_HREF",
+      // The site's own public origin, from `site.config.mjs`, in the
+      // prerendered shell's canonical URL. A build-time constant, and the
+      // shell is not a surface a session replay can record in the first place.
+      "SITE_ORIGIN",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

@@ -18,9 +18,7 @@ test.describe("landing page", () => {
     await expect(page.getByText(/music studio that runs in your browser/i)).toBeVisible();
     await expect(page.getByText("Private alpha · browser-based")).toBeVisible();
     await expect(page.getByText(/Chrome, Edge and Firefox/)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Start in your browser" }),
-    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Start in your browser" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
   });
 
@@ -29,7 +27,7 @@ test.describe("landing page", () => {
   test("starts from the keyboard, with visible focus", async ({ page }) => {
     await page.goto("/");
 
-    const cta = page.getByRole("button", { name: "Start in your browser" });
+    const cta = page.getByRole("link", { name: "Start in your browser" });
     // The unfocused baseline, so the assertions below cannot be satisfied by
     // a ring that was always there.
     expect(await cta.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe(
@@ -104,7 +102,7 @@ test.describe("anonymous start", () => {
   test("the landing CTA reaches a playable project with no account", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByRole("button", { name: "Start in your browser" }).click();
+    await page.getByRole("link", { name: "Start in your browser" }).click();
 
     // PRJ-01's anonymous start: the dashboard signs the visitor in as a guest.
     await expect(page).toHaveURL(/\/dashboard$/);
