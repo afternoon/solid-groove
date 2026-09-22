@@ -1,0 +1,26 @@
+{
+  "id": "CF-001",
+  "title": "A visitor with no account reaches a playing loop",
+  "steps": [
+    {
+      "file": "01-open-the-landing-page.png",
+      "caption": "Open the landing page"
+    },
+    {
+      "file": "02-you-arrive-at-the-dashboard-as-a-guest-with-no-projects-yet.png",
+      "caption": "You arrive at the dashboard as a guest, with no projects yet"
+    },
+    {
+      "file": "03-the-new-project-opens-on-a-step-editor-with-a-starter-patter.png",
+      "caption": "The new project opens on a step editor with a starter pattern"
+    },
+    {
+      "file": "04-turn-on-a-step-that-was-off.png",
+      "caption": "Turn on a step that was off"
+    },
+    {
+      "file": "05-start-playback-the-transport-is-running.png",
+      "caption": "Start playback — the transport is running"
+    }
+  ]
+}
