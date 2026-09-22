@@ -476,3 +476,40 @@ describe("Mixer track selection (#228)", () => {
     expect(transport.events).toHaveLength(1);
   });
 });
+
+/** The master, and the route to its chain (`UI-001`). */
+describe("Mixer master strip", () => {
+  it("opens the master's chain when the master strip is selected", () => {
+    renderMixer();
+    const master = screen.getByRole("button", { name: "Master" });
+
+    // Closed until asked for: the chain is #283's, and an always-open empty
+    // panel would be shouting about a feature that does not exist yet.
+    expect(master).toHaveAttribute("aria-pressed", "false");
+    expect(
+      screen.queryByRole("region", { name: "Master device chain" }),
+    ).not.toBeInTheDocument();
+
+    clickAndFlush(master);
+
+    expect(master).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("region", { name: "Master device chain" })).toBeVisible();
+  });
+
+  it("leaves the master when a track's own strip is chosen", () => {
+    const { history } = renderMixer();
+    clickAndFlush(screen.getByRole("button", { name: "Master" }));
+
+    clickAndFlush(
+      screen.getByRole("button", { name: `Edit ${history.project.song.tracks[0].name}` }),
+    );
+
+    expect(screen.getByRole("button", { name: "Master" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Master device chain" }),
+    ).not.toBeInTheDocument();
+  });
+});

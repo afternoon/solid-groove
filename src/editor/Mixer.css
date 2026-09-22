@@ -265,3 +265,30 @@
   background-color: var(--color-error);
   color: var(--color-background-secondary);
 }
+
+/* The master strip, at the end of the strips where a console puts it. It is a
+   route to a chain rather than a channel strip of its own for now: #283 fills
+   what selecting it opens. */
+.mixer-master {
+  display: flex;
+  padding: var(--size-divider) 0 0;
+}
+
+.mixer-master-select {
+  height: 26px;
+  padding: 0 14px;
+  border-radius: 0;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mixer-master-select[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
