@@ -45,6 +45,18 @@ export interface LandingPageProps {
   reportError?: typeof defaultReportError;
 }
 
+/**
+ * Whether a click on a link asks for it to be opened somewhere other than this
+ * tab, in which case intercepting it would take away what the visitor asked
+ * for. `button !== 0` covers a middle-click, which fires `click` in Chromium
+ * with `auxclick` semantics elsewhere; the modifier keys cover the rest.
+ */
+function opensElsewhere(event: MouseEvent): boolean {
+  return (
+    event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+  );
+}
+
 export default function LandingPage(props: LandingPageProps) {
   const analytics = props.analytics ?? defaultAnalytics;
   const loadAuthService =
@@ -59,10 +71,27 @@ export default function LandingPage(props: LandingPageProps) {
    * PRD `OPS-02`: `landing_cta_click` "a visitor activates a landing-page call
    * to action". Logged once per activation, before the path it starts, so a
    * failing sign-in still counts the intent.
+   *
+   * The control is an anchor pointing at `/dashboard` (see `START_HREF` in
+   * `LandingPageContent`), so this handler's job is to *upgrade* a click that
+   * the browser would otherwise serve as a full page load. It takes the click
+   * only when it is the plain left-click that means "go there in this tab":
+   *
+   * - A modified click (new tab, new window, download, or a non-primary
+   *   button) is left to the browser, which is the whole point of having a
+   *   real `href`. The activation is still counted -- the visitor did choose
+   *   the call to action -- but this tab does not navigate.
+   * - While a sign-in is in flight the page is busy, so the click is
+   *   cancelled outright rather than racing the popup it would abandon.
    */
-  const startFree = () => {
-    if (busy()) return;
+  const startFree = (event: MouseEvent) => {
+    if (busy()) {
+      event.preventDefault();
+      return;
+    }
     analytics.log("landing_cta_click", { cta_id: "start_free" });
+    if (opensElsewhere(event)) return;
+    event.preventDefault();
     navigate("/dashboard");
   };
 

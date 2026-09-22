@@ -286,3 +286,39 @@
 .landing-footer-brand {
   margin: 0;
 }
+
+/* The three "start" calls to action are anchors, not buttons (see `START_HREF`
+   in `LandingPageContent.tsx`), so that a click works before this page's
+   JavaScript has loaded. They must still look exactly like the buttons beside
+   them, and `src/app.css`'s base `button` rule does not reach an `<a>`.
+   `:where()` contributes no specificity, so this restatement sits at plain
+   element weight -- exactly where the base `button` rule sits -- and the
+   `.landing-button*` rules above continue to override it unchanged. */
+a:where(.landing-button) {
+  display: inline-block;
+  padding: 12px 20px;
+  cursor: pointer;
+  background-color: var(--color-background-secondary);
+  color: var(--color-text);
+  border: none;
+  border-radius: 4px;
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.1s ease;
+}
+
+a:where(.landing-button):hover {
+  background-color: var(--color-background-highlight);
+}
+
+/* An anchor cannot be `disabled`, so the busy state is announced with
+   `aria-disabled` and styled to match `.landing-button:disabled`. The click
+   itself is cancelled in `LandingPage`; `pointer-events` is deliberately left
+   alone so the control keeps its focus ring and stays reachable. */
+.landing-button[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}

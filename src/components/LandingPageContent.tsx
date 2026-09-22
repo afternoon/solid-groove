@@ -48,13 +48,36 @@ const WHAT_IS_BEING_BUILT = [
  */
 const GATING_BROWSERS = "Chrome, Edge and Firefox";
 
+/**
+ * Where every "start" call to action points.
+ *
+ * A real destination rather than an `onClick` alone, for three reasons: the
+ * control works before this page's JavaScript has loaded, it behaves like a
+ * link when a visitor middle-clicks or opens it in a new tab, and a crawler
+ * that does not execute scripts can see that the front door leads somewhere.
+ * `AuthProvider` runs the PRJ-01 anonymous start on arrival either way.
+ *
+ * "Log in" stays a `<button>`: it opens an identity-provider popup and goes
+ * nowhere on its own, so it is an action, not a destination.
+ */
+const START_HREF = "/dashboard";
+
 export interface LandingPageContentProps {
   /** Whether a sign-in is in flight; disables every control while it is. */
   busy?: boolean;
   /** Shown in the hero when a sign-in attempt failed. */
   loginError?: string | null;
-  /** Starts the PRJ-01 anonymous session. */
-  onStartFree?: () => void;
+  /**
+   * Starts the PRJ-01 anonymous session.
+   *
+   * The three start controls are anchors with a real `href`, so a click that
+   * lands before the page's JavaScript has loaded is still honoured -- by the
+   * browser, as an ordinary navigation. This handler is the enhancement on top:
+   * it is what makes the same click a client-side navigation once the app is
+   * running, and it receives the event so it can decide whether to take it
+   * (see `LandingPage`). Absent, every click is a plain navigation.
+   */
+  onStartFree?: (event: MouseEvent) => void;
   /** Signs in an existing account. */
   onLogIn?: () => void;
   /**
@@ -85,14 +108,14 @@ export default function LandingPageContent(props: LandingPageContentProps) {
           >
             {props.busy ? "Logging in…" : "Log in"}
           </button>
-          <button
-            type="button"
+          <a
             class="landing-button landing-button-primary"
-            disabled={props.busy}
-            onClick={() => props.onStartFree?.()}
+            href={START_HREF}
+            aria-disabled={props.busy ? "true" : undefined}
+            onClick={(event) => props.onStartFree?.(event)}
           >
             Start free
-          </button>
+          </a>
         </nav>
       </header>
 
@@ -110,14 +133,14 @@ export default function LandingPageContent(props: LandingPageContentProps) {
             idea into a finished track and understand how it was made.
           </p>
           <div class="landing-hero-actions">
-            <button
-              type="button"
+            <a
               class="landing-button landing-button-primary landing-button-large"
-              disabled={props.busy}
-              onClick={() => props.onStartFree?.()}
+              href={START_HREF}
+              aria-disabled={props.busy ? "true" : undefined}
+              onClick={(event) => props.onStartFree?.(event)}
             >
               Start in your browser
-            </button>
+            </a>
             <p class="landing-hero-hint">
               No account, no install. You land on your projects and can open one in a
               couple of clicks.
@@ -166,14 +189,14 @@ export default function LandingPageContent(props: LandingPageContentProps) {
               Open a project and hear it play. Nothing to install, nothing to sign up for.
             </p>
           </div>
-          <button
-            type="button"
+          <a
             class="landing-button landing-button-primary landing-button-large"
-            disabled={props.busy}
-            onClick={() => props.onStartFree?.()}
+            href={START_HREF}
+            aria-disabled={props.busy ? "true" : undefined}
+            onClick={(event) => props.onStartFree?.(event)}
           >
             Start free — no account needed
-          </button>
+          </a>
         </section>
       </main>
 
