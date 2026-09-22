@@ -4,7 +4,11 @@ import type { Analytics } from "../analytics/analytics";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import type { LibraryClient } from "../library/libraryClient";
-import type { LibraryAsset, LibraryPackSummary } from "../library/manifest";
+import type {
+  LibraryAsset,
+  LibraryAssetType,
+  LibraryPackSummary,
+} from "../library/manifest";
 import "./LibraryModal.css";
 
 export interface LibraryModalProps {
@@ -17,6 +21,9 @@ export interface LibraryModalProps {
   readonly addedPackIds: readonly string[];
   onAddPack(pack: LibraryPackSummary): void;
   onPackBrowserOpenChange(open: boolean): void;
+  /** Restrict to these asset types — the Loop button opens it on loops. */
+  readonly assetTypes?: readonly LibraryAssetType[];
+  readonly heading?: string;
   onClose(): void;
 }
 
@@ -56,6 +63,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             addedPackIds={props.addedPackIds}
             onAddPack={(pack) => props.onAddPack(pack)}
             onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}
+            assetTypes={props.assetTypes}
+            heading={props.heading}
           />
         </div>
         <footer class="library-modal-footer">

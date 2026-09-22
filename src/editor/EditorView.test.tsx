@@ -744,6 +744,27 @@ describe("EditorView new-track unit", () => {
     );
   });
 
+  it("opens the library on loops from the Loop button beside them", async () => {
+    // An audio track needs content to exist, so the way to start one is to
+    // pick the loop (UI-001). Creating the track from it is #281's.
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    await screen.findByTestId("arrangement-view-ready");
+
+    clickAndFlush(screen.getByRole("button", { name: "Add loop track" }));
+
+    const library = await screen.findByRole("dialog", { name: "Library" });
+    // It says what it is showing, without renaming the region underneath it.
+    expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
+    expect(within(library).getByRole("region", { name: "Library" })).toBeVisible();
+  });
+
   it("reaches the same outcome from the mixer, through the same route", async () => {
     const transport = createRecordingTransport();
     await renderSlice(transport);

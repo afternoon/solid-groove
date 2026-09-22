@@ -165,3 +165,24 @@ describe("groupLabel", () => {
     expect(groupLabel("drums", "percussion", false)).toBe("Percussion");
   });
 });
+
+describe("restricting the tree to asset types (UI-001)", () => {
+  it("shows only the types asked for, and every type when none is", () => {
+    const loop = asset({ id: "a", type: "loop", name: "Break 120" });
+    const oneShot = asset({ id: "b", type: "one-shot", name: "Deep Kick" });
+    const assetsByPack = new Map([["pack-one", [loop, oneShot]]]);
+
+    const all = buildLibraryTree({ packs: [PACK_ONE], assetsByPack });
+    expect(all[0].matchCount).toBe(2);
+
+    // The arrangement's Loop button opens the library on loops alone: what
+    // can go in the slot, rather than everything and a refusal afterwards.
+    const loopsOnly = buildLibraryTree({
+      packs: [PACK_ONE],
+      assetsByPack,
+      types: ["loop"],
+    });
+    expect(loopsOnly[0].matchCount).toBe(1);
+    expect(loopsOnly[0].groups.flatMap((group) => group.assets)).toEqual([loop]);
+  });
+});
