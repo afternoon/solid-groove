@@ -152,6 +152,28 @@ export const INSTRUMENT_TYPES = ["synth", "sampler", "drum_machine"] as const;
 export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
 
 /**
+ * The editor's three views (`UI-001`), as `view_changed`'s `view`.
+ *
+ * A view is a low-cardinality *place in the editor*, not a surface: `SURFACES`
+ * stays `landing / dashboard / editor`, because every one of these is the
+ * editor. `src/editor/editorViews.ts` builds the view table — label, URL
+ * segment, dock order — over this list, so the analytics vocabulary and the
+ * addresses cannot drift apart.
+ */
+export const EDITOR_VIEWS = ["arrangement", "instrument", "mixer"] as const;
+export type EditorViewName = (typeof EDITOR_VIEWS)[number];
+
+/**
+ * How a view was reached. Three entrypoints exist and they must stay
+ * equivalent, so the one that was used is the interesting half of the event:
+ * `dock` is the floating tab bar, `keyboard` is `1`/`2`/`3`, and `url` is
+ * everything the address bar does on its own — the back button, a deep link
+ * followed within the session, a restored session.
+ */
+export const VIEW_CHANGE_SOURCES = ["dock", "keyboard", "url"] as const;
+export type ViewChangeSource = (typeof VIEW_CHANGE_SOURCES)[number];
+
+/**
  * `feature_first_use` keys (PRD `OPS-02`). One low-cardinality key rather than
  * an event name per feature, so first-use is comparable across features in one
  * report and the catalog stays well inside GA4's distinct-event-name limit.
@@ -262,6 +284,9 @@ export const SHORTCUT_ACTION_IDS = [
   "view.zoom_back",
   "view.zoom_in",
   "view.zoom_out",
+  "view.show_arrangement",
+  "view.show_instrument",
+  "view.show_mixer",
   "view.close_surface",
   "help.shortcut_guide",
 ] as const;
@@ -536,6 +561,21 @@ export const ANALYTICS_EVENTS = {
     params: {
       editor: enumParam(["step", "piano_roll"]),
       event_count_bucket: bucketParam("event_count"),
+    },
+  },
+
+  view_changed: {
+    phase: 1,
+    owners: ["UI-001"],
+    // Which view, and how it was reached. The editor is one job at a time
+    // (UI-001), so how often a producer switches — and whether the dock or the
+    // keyboard is what they reach for — is the measure that says whether the
+    // bet paid off. Both parameters are closed sets; nothing user-entered can
+    // reach this event, since `view` is an address segment and `via` is an
+    // entrypoint.
+    params: {
+      view: enumParam(EDITOR_VIEWS),
+      via: enumParam(VIEW_CHANGE_SOURCES),
     },
   },
 

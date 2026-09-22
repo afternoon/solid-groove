@@ -13,6 +13,14 @@
  * to every resolution. `dialog` is special — while it is active it is the
  * *only* context considered, so an open modal or menu receives normal typing
  * behavior and cannot have an editor shortcut fire underneath it.
+ *
+ * `sequence_editor` is the one surface that is a window over the page without
+ * being a `dialog` (`UI-001`). It is `role="dialog"` to a screen reader —
+ * which is an accessibility fact about a window over content — but the
+ * transport, the note shortcuts and the view switches all have to keep working
+ * while a producer programs a clip in it, and `dialog` is precisely the
+ * context that would stop them. The two words are unrelated: one describes
+ * what the surface *is*, the other what the keyboard does while it is open.
  */
 export const SHORTCUT_CONTEXTS = [
   "global",
@@ -23,6 +31,7 @@ export const SHORTCUT_CONTEXTS = [
   "automation_lane",
   "timeline",
   "selection",
+  "sequence_editor",
   "dialog",
   "gesture",
 ] as const;

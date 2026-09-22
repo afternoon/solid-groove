@@ -235,6 +235,7 @@ describe("context resolution", () => {
         automation_lane: { key: "b", id: "clip.toggle_draw_mode" },
         timeline: { key: "+", id: "view.zoom_in" },
         selection: { key: "x", mod: true, id: "edit.cut" },
+        sequence_editor: { key: "1", id: "view.show_arrangement" },
         dialog: { key: "escape", id: "view.close_surface" },
         gesture: { key: "escape", id: "view.close_surface" },
       };
