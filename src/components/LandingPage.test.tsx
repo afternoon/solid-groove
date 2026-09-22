@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import type { User } from "firebase/auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
-import type { AuthService } from "../auth/authService";
 import { ConsentStore } from "../analytics/consent";
 import { createFailingTransport, createRecordingTransport } from "../analytics/transport";
+import type { AuthService } from "../auth/authService";
 import { memoryStorage } from "../testing/storage";
 import LandingPage from "./LandingPage";
 
@@ -45,6 +45,8 @@ function setup(
     restoredUser?: User | null;
     /** For the case where the restored state never arrives at all. */
     onAuthStateChanged?: AuthService["onAuthStateChanged"];
+    /** Shortened where a test waits the restore budget out. */
+    sessionRestoreTimeoutMs?: number;
     analyticsTransport?: ReturnType<typeof createRecordingTransport>;
   } = {},
 ) {
@@ -74,6 +76,7 @@ function setup(
       analytics={analytics}
       loadAuthService={() => Promise.resolve({ signInWithGoogle, onAuthStateChanged })}
       reportError={reportError}
+      sessionRestoreTimeoutMs={options.sessionRestoreTimeoutMs}
     />
   ));
   return { transport, signInWithGoogle, onAuthStateChanged, unsubscribe, reportError };
@@ -227,6 +230,22 @@ describe("LandingPage (PRD PRJ-06)", () => {
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
     });
 
+    // A restored state that never arrives must not leave the button on
+    // "Logging in…" forever: the click falls back to the provider.
+    it("signs in anyway when the session state never resolves", async () => {
+      const unsubscribe = vi.fn();
+      const { signInWithGoogle } = setup({
+        onAuthStateChanged: () => unsubscribe,
+        sessionRestoreTimeoutMs: 5,
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      expect(unsubscribe).toHaveBeenCalled();
+    });
+
     it("emits landing_cta_click once for a session it recognises", async () => {
       const { transport } = setup({ restoredUser: persistedUser(false) });
 
@@ -309,7 +328,15 @@ describe("LandingPage (PRD PRJ-06)", () => {
       render(() => (
         <LandingPage
           analytics={analytics}
-          loadAuthService={() => Promise.resolve({ signInWithGoogle })}
+          loadAuthService={() =>
+            Promise.resolve({
+              signInWithGoogle,
+              onAuthStateChanged: (callback) => {
+                queueMicrotask(() => callback(null));
+                return () => {};
+              },
+            })
+          }
           reportError={vi.fn()}
         />
       ));
