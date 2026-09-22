@@ -6,6 +6,7 @@ import {
 } from "solid-icons/hi";
 import { createEffect, createMemo, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import Dialog from "../components/Dialog";
 import TapeLoader from "../components/TapeLoader";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { useShortcuts } from "../shortcuts";
@@ -99,63 +100,34 @@ export default function PackBrowser(props: PackBrowserProps): JSX.Element {
   const isAdded = (pack: LibraryPackSummary) => props.addedPackIds.includes(pack.id);
 
   return (
-    <div class="pack-browser">
-      {/*
-       * The scrim is a real button rather than a click handler on a div, so
-       * "click outside to dismiss" is one accessible affordance instead of a
-       * mouse-only one. It is not in the tab order — `Escape` and the dialog's
-       * own Close button are the keyboard paths.
-       */}
-      <button
-        type="button"
-        class="pack-browser-scrim"
-        tabindex={-1}
-        aria-label="Close pack browser"
-        onClick={() => props.onClose()}
-      />
-      <div
-        class="pack-browser-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pack-browser-title"
-      >
-        <header class="pack-browser-header">
-          <h2 class="pack-browser-title" id="pack-browser-title">
-            Packs
-          </h2>
-          <button
-            type="button"
-            class="pack-browser-close"
-            aria-label="Close"
-            onClick={() => props.onClose()}
+    <Dialog
+      label="Packs"
+      size="jumbo"
+      onClose={() => props.onClose()}
+      header={<h2 class="pack-browser-title">Packs</h2>}
+    >
+      <div class="pack-browser-body">
+        <PackList browser={browser} isAdded={isAdded} />
+
+        <section class="pack-browser-detail" aria-label="Pack">
+          <Show
+            when={selectedPack()}
+            fallback={<AllSoundsView browser={browser} onInsert={props.onInsert} />}
           >
-            <HiSolidXMark size={18} />
-          </button>
-        </header>
-
-        <div class="pack-browser-body">
-          <PackList browser={browser} isAdded={isAdded} />
-
-          <section class="pack-browser-detail" aria-label="Pack">
-            <Show
-              when={selectedPack()}
-              fallback={<AllSoundsView browser={browser} onInsert={props.onInsert} />}
-            >
-              {(pack) => (
-                <PackDetail
-                  pack={pack()}
-                  browser={browser}
-                  added={isAdded(pack())}
-                  onAdd={() => void browser.addPack(pack())}
-                  onInsert={props.onInsert}
-                  onClose={() => props.onClose()}
-                />
-              )}
-            </Show>
-          </section>
-        </div>
+            {(pack) => (
+              <PackDetail
+                pack={pack()}
+                browser={browser}
+                added={isAdded(pack())}
+                onAdd={() => void browser.addPack(pack())}
+                onInsert={props.onInsert}
+                onClose={() => props.onClose()}
+              />
+            )}
+          </Show>
+        </section>
       </div>
-    </div>
+    </Dialog>
   );
 }
 

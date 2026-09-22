@@ -255,7 +255,7 @@ describe("dismissal", () => {
 
   it("closes on a click outside the dialog", async () => {
     await openPackBrowser();
-    fireEvent.click(screen.getByRole("button", { name: "Close pack browser" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss packs" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
