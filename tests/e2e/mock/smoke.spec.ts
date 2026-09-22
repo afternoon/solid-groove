@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 // FND-001's isolated example for the browser E2E suite. It exercises the
 // The required "anonymous start" end-to-end journey
@@ -116,7 +116,7 @@ test.describe("anonymous start", () => {
     // promise true end to end.
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
-    await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
+    await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
     await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
   });
 });
@@ -128,6 +128,28 @@ test.describe("anonymous start", () => {
 // is a fresh store on every page load, so it cannot prove persistence across
 // a real reload; tests/e2e/emulator/slice.spec.ts covers that against a real
 // (emulated) backend instead.
+/** One bar at 192 PPQ, `canvasRenderer.RULER_HEIGHT_PX`, `ROW_METRICS`. */
+const TICKS_PER_BAR = 4 * 192;
+const RULER_HEIGHT_PX = 22;
+const ROW_HEIGHT_PX = 28;
+
+/** Opens the first row's clip the way a producer does — a double-click on the
+ * timeline (`UI-001`). A clip is canvas pixels, reachable only as a point. */
+async function openStarterClip(page: Page): Promise<Locator> {
+  const ready = page.getByTestId("arrangement-view-ready");
+  await expect(ready).toBeVisible();
+  const pixelsPerTick = Number(await ready.getAttribute("data-pixels-per-tick"));
+  await page.locator(".arrangement-layer-interactive").dblclick({
+    position: {
+      x: (TICKS_PER_BAR / 2) * pixelsPerTick,
+      y: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    },
+  });
+  const editor = page.getByRole("dialog", { name: "Sequence editor" });
+  await expect(editor).toBeVisible();
+  return editor;
+}
+
 test.describe("new project", () => {
   test("creates a project with a working sampler step editor", async ({ page }) => {
     await page.goto("/dashboard");
@@ -135,29 +157,34 @@ test.describe("new project", () => {
     await page.getByRole("button", { name: "New Project" }).click();
 
     await expect(page).toHaveURL(/\/projects\/prj_/);
-    const grid = page.getByRole("region", { name: "Step editor" });
-    await expect(grid).toBeVisible();
+    const editor = await openStarterClip(page);
+    await expect(editor.getByRole("region", { name: "Step editor" })).toBeVisible();
     // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on.
-    await expect(page.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Notes, step 2, off" })).toBeVisible();
+    await expect(editor.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
+    await expect(
+      editor.getByRole("button", { name: "Notes, step 2, off" }),
+    ).toBeVisible();
 
     // Toggling a step dispatches through the command layer and is visible
     // immediately.
-    await page.getByRole("button", { name: "Notes, step 2, off" }).click();
-    await expect(page.getByRole("button", { name: "Notes, step 2, on" })).toBeVisible();
+    await editor.getByRole("button", { name: "Notes, step 2, off" }).click();
+    await expect(editor.getByRole("button", { name: "Notes, step 2, on" })).toBeVisible();
 
-    // Undo reverts it through the same shared history the toggle used.
-    await page.getByRole("button", { name: /^Undo/ }).click();
-    await expect(page.getByRole("button", { name: "Notes, step 2, off" })).toBeVisible();
+    // Undo reverts it through the same shared history the toggle used. From
+    // the keyboard, because the editor is a modal over the header the button
+    // lives in — and because `edit.undo` reaching through it is exactly what
+    // the `sequence_editor` context is for (UI-001).
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(
+      editor.getByRole("button", { name: "Notes, step 2, off" }),
+    ).toBeVisible();
   });
 
-  // `ARR-001`: the arrangement shell is a bounded strip above the step editor.
-  // Real layout is the only place this can be proved — jsdom has no layout, so
-  // a shell that overflowed its panel would look fine to the component tests
-  // while silently covering the workspace and swallowing its clicks.
-  test("keeps the arrangement shell inside its panel, above the step grid", async ({
-    page,
-  }) => {
+  // `ARR-001`: the arrangement shell stays inside the panel it is given. Real
+  // layout is the only place this can be proved — jsdom has no layout, so a
+  // shell that overflowed its panel would look fine to the component tests
+  // while silently covering its neighbours and swallowing their clicks.
+  test("keeps the arrangement shell inside its panel", async ({ page }) => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
@@ -167,19 +194,17 @@ test.describe("new project", () => {
 
     const panelBox = await page.locator(".arrangement-panel").boundingBox();
     const shellBox = await shell.boundingBox();
-    const gridBox = await page.getByRole("region", { name: "Step editor" }).boundingBox();
     expect(panelBox).not.toBeNull();
     expect(shellBox).not.toBeNull();
-    expect(gridBox).not.toBeNull();
-    if (!panelBox || !shellBox || !gridBox) return;
+    if (!panelBox || !shellBox) return;
 
     // The shell fills its panel and stops there.
     expect(shellBox.height).toBeLessThanOrEqual(panelBox.height + 1);
     expect(shellBox.y + shellBox.height).toBeLessThanOrEqual(
       panelBox.y + panelBox.height + 1,
     );
-    // ...and the step grid below it is clear of the panel entirely.
-    expect(gridBox.y).toBeGreaterThanOrEqual(panelBox.y + panelBox.height);
+    // Sequencing is a modal now (UI-001): nothing is stacked beneath it.
+    await expect(page.getByRole("region", { name: "Step editor" })).toHaveCount(0);
   });
 });
 
@@ -286,7 +311,7 @@ test.describe("keyboard shortcuts", () => {
 
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
-    await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
+    await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
     // Space toggles playback from the registry, not from a component's own
     // listener, and the transport button reflects it.
@@ -299,7 +324,7 @@ test.describe("keyboard shortcuts", () => {
 
     // `?` opens the guide, generated from the registry.
     await page.keyboard.press("?");
-    const guide = page.getByRole("dialog");
+    const guide = page.getByRole("dialog", { name: "Keyboard shortcuts" });
     await expect(guide).toBeVisible();
     await expect(
       guide.getByRole("heading", { name: "Keyboard shortcuts" }),
@@ -314,7 +339,7 @@ test.describe("keyboard shortcuts", () => {
     // Escape closes it from inside its own search box, and playback is
     // untouched.
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
   });
 
@@ -326,10 +351,10 @@ test.describe("keyboard shortcuts", () => {
   }) => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
-    await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
+    await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
     await page.keyboard.press("?");
-    const guide = page.getByRole("dialog");
+    const guide = page.getByRole("dialog", { name: "Keyboard shortcuts" });
     await expect(guide).toBeVisible();
     const search = guide.getByRole("searchbox", { name: "Search shortcuts" });
     await expect(search).toBeFocused();
@@ -342,7 +367,7 @@ test.describe("keyboard shortcuts", () => {
     await expect(guide).toBeVisible();
 
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
   });
 
@@ -405,7 +430,7 @@ test.describe("transport bar", () => {
   }) => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
-    await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
+    await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
     // The fixed 4/4 display and the bar.beat playhead at the arrangement start.
     await expect(page.getByTitle("Time signature (fixed at 4/4)")).toHaveText(
@@ -464,7 +489,7 @@ test.describe("transport bar", () => {
   }) => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
-    await expect(page.getByRole("region", { name: "Step editor" })).toBeVisible();
+    await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
     const tempo = page.getByRole("spinbutton", { name: "Tempo (BPM)" });
     await tempo.focus();
