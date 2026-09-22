@@ -14,7 +14,7 @@
   /* The floating dock is `position: fixed`, so it reserves no space of its
 	   own. This is the space each view leaves for it, which is what keeps the
 	   bottom of a full-bleed view from being permanently covered (UI-001). */
-  --view-dock-clearance: 68px;
+  --view-dock-clearance: 120px;
 
   width: 100vw;
   height: 100vh;
@@ -212,6 +212,13 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  /* Runs to the bottom of the window rather than stopping at the padded edge,
+     so the grid continues to the end of the view instead of leaving a dead
+     band under it. The dock floats over that lowest strip, which is why the
+     arrangement keeps `BELOW_TRACKS_CLEARANCE_PX` of empty timeline below the
+     last track — the strip under the dock is never a track. */
+  margin-bottom: calc(-1 * var(--view-dock-clearance));
+  padding-bottom: var(--view-dock-clearance);
 }
 
 .track-editor {

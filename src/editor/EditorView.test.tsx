@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
+import { ROW_METRICS } from "../arrangement/ArrangementView";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
   createDrumMachineFixtureProject,
@@ -111,7 +112,9 @@ async function openSequenceEditor(rowIndex = 0): Promise<HTMLElement> {
   if (!canvas) throw new Error("no arrangement interaction canvas rendered");
   const PIXELS_PER_TICK = 0.08;
   const RULER_HEIGHT_PX = 22;
-  const ROW_HEIGHT_PX = 28;
+  // The arrangement's own row height, so aiming at row N keeps hitting row N
+  // when the rows change size.
+  const ROW_HEIGHT_PX = ROW_METRICS.trackHeightPx;
   const TICKS_PER_BAR = 768;
   fireAndFlush(() =>
     fireEvent.dblClick(canvas, {

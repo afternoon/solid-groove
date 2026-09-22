@@ -1,4 +1,4 @@
-import { For, Show } from "@solidjs/web";
+import { For, type JSX, Show } from "@solidjs/web";
 import {
   type Accessor,
   createEffect,
@@ -65,14 +65,40 @@ export type PlacementEditingActions = PlacementEditing;
  * gestures on this shell.
  */
 
-/** Uniform per-row sizing. Header height equals the canvas row height so the
- * windowed header column lines up pixel-for-pixel with the timeline. */
+/**
+ * Uniform per-row sizing. Header height equals the canvas row height so the
+ * windowed header column lines up pixel-for-pixel with the timeline.
+ *
+ * A row is deliberately tall. At 28px a track was a pinstripe: its name barely
+ * fit, its clips had no room to show a waveform, and a song read as a dense
+ * grey mat rather than as parts you can tell apart at a glance. The arrangement
+ * has the whole page now (`UI-001`), so it can spend that height on being
+ * legible — which is the point of giving it the page.
+ */
 export const ROW_METRICS: RowMetrics = {
-  trackHeightPx: 28,
-  headerHeightPx: 28,
+  trackHeightPx: 84,
+  headerHeightPx: 84,
 };
 
-const HEADER_WIDTH_PX = 160;
+/**
+ * The track header column's width. Exported because the instrument view's
+ * track rail is the same column in another view — a track occupies the same
+ * space wherever the producer meets it, so moving between views does not move
+ * the list under their pointer.
+ */
+export const HEADER_WIDTH_PX = 160;
+
+/**
+ * Scrollable space kept below the last track (`UI-001`).
+ *
+ * The arrangement runs to the bottom of the window so its grid does not stop
+ * at a panel edge, which means the floating dock hovers over its lowest
+ * strip. This is what stops that strip ever being a track: there is always
+ * this much empty timeline underneath the song, so the last track can be
+ * scrolled clear of the dock. It also gives the add-track unit somewhere to
+ * sit. Matches `--view-dock-clearance` in `EditorView.css`.
+ */
+const BELOW_TRACKS_CLEARANCE_PX = 120;
 const INITIAL_PIXELS_PER_TICK = 0.08;
 
 export interface ArrangementViewProps {
@@ -109,6 +135,13 @@ export interface ArrangementViewProps {
    * what opening a clip means is the editor's to decide.
    */
   readonly onOpenPlacement?: (placementId: PlacementId) => void;
+  /**
+   * Rendered in the header column immediately below the last track, scrolling
+   * with it — where the way to add a track belongs, because that is where the
+   * song ends and the next track would go. The arrangement positions it and
+   * knows nothing else about it; what adding a track means stays the editor's.
+   */
+  readonly belowTracks?: JSX.Element;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -341,7 +374,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
     const proj = projection();
     const logicalWidth = proj.lengthTicks * port.pixelsPerTick;
     const logicalHeight =
-      (proj.rowOffsets[proj.rowOffsets.length - 1] ?? 0) + RULER_HEIGHT_PX;
+      (proj.rowOffsets[proj.rowOffsets.length - 1] ?? 0) +
+      RULER_HEIGHT_PX +
+      BELOW_TRACKS_CLEARANCE_PX;
     if (scrollEl) {
       spacerWidth = Math.max(logicalWidth, port.width);
       spacerHeight = Math.max(logicalHeight, port.height);
@@ -656,6 +691,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
               )}
             </For>
           </ul>
+          {/* Outside the list on purpose: it is not a track, and putting it in
+              would make the "Tracks" list count one more item than the song
+              has. Carries the same scroll transform so it stays pinned to the
+              bottom of the song rather than to the bottom of the viewport. */}
+          <Show when={props.belowTracks}>
+            <div
+              class="arrangement-below-tracks"
+              style={{
+                transform: `translateY(${-scrollTopMemo()}px)`,
+                top: `${RULER_HEIGHT_PX + headerRows().length * ROW_METRICS.headerHeightPx}px`,
+              }}
+            >
+              {props.belowTracks}
+            </div>
+          </Show>
         </div>
         <div
           class="arrangement-viewport"

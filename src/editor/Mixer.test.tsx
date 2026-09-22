@@ -477,39 +477,28 @@ describe("Mixer track selection (#228)", () => {
   });
 });
 
-/** The master, and the route to its chain (`UI-001`). */
+/** The master, and its chain (`UI-001`). */
 describe("Mixer master strip", () => {
-  it("opens the master's chain when the master strip is selected", () => {
+  it("shows the master's chain without being asked", () => {
     renderMixer();
-    const master = screen.getByRole("button", { name: "Master" });
 
-    // Closed until asked for: the chain is #283's, and an always-open empty
-    // panel would be shouting about a feature that does not exist yet.
-    expect(master).toHaveAttribute("aria-pressed", "false");
-    expect(
-      screen.queryByRole("region", { name: "Master device chain" }),
-    ).not.toBeInTheDocument();
-
-    clickAndFlush(master);
-
-    expect(master).toHaveAttribute("aria-pressed", "true");
+    // There is exactly one master and exactly one master chain, so there is
+    // nothing to choose between: it is on screen with the strips it applies
+    // to. It used to be behind a toggle, which made the one chain every
+    // project has the only part of the mixer you had to go looking for.
+    expect(screen.getByRole("heading", { name: "Master" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Master device chain" })).toBeVisible();
   });
 
-  it("leaves the master when a track's own strip is chosen", () => {
+  it("keeps the master's chain on screen while a track's strip is chosen", () => {
     const { history } = renderMixer();
-    clickAndFlush(screen.getByRole("button", { name: "Master" }));
 
     clickAndFlush(
       screen.getByRole("button", { name: `Edit ${history.project.song.tracks[0].name}` }),
     );
 
-    expect(screen.getByRole("button", { name: "Master" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(
-      screen.queryByRole("region", { name: "Master device chain" }),
-    ).not.toBeInTheDocument();
+    // Choosing a track is not a reason to hide the master: the master is what
+    // everything, including that track, is going through.
+    expect(screen.getByRole("region", { name: "Master device chain" })).toBeVisible();
   });
 });
