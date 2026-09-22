@@ -135,9 +135,18 @@ separate errand.
 
 ### CF-001 — A visitor with no account reaches a playing loop
 
-**Issue:** — (pre-dates this register; describes shipped `FND-009`/`LOOP-010`
-behavior) · **Suite:** `tests/e2e/emulator/flows/CF-001.spec.ts` · **Entrypoint:** the public
-landing page
+**Issue:** #304 for this revision (the flow itself pre-dates the register and
+described shipped `FND-009`/`LOOP-010` behavior) · **Suite:**
+`tests/e2e/emulator/flows/CF-001.spec.ts` · **Entrypoint:** the public landing page
+
+**Rewritten for the three-view shell (#304).** The journey is the one it always
+was — arrive with no account, edit a pattern, hear it — but the editor it walks
+through is being replaced: a project now opens on the arrangement, and the
+pattern is edited in the sequence editor opened from the clip. Parked at
+`test.fixme` until #304's stack lands, which is the only way a flow can describe
+a shell that does not exist yet without reddening `main`. It is the register's
+one flow that was live before this, so getting it back to live is part of what
+#304 is finished by.
 
 **Preconditions:** none. No account, no existing project.
 
@@ -145,10 +154,12 @@ landing page
 2. Choose to start in your browser.
 3. You arrive at the dashboard, signed in as a guest, with no projects yet.
 4. Create a new project.
-5. The project opens on a step editor already carrying a four-on-the-floor
-   starter pattern.
-6. Turn on a step that was off.
-7. Start playback.
+5. The project opens on the arrangement, with a four-on-the-floor starter
+   pattern sitting on its only track.
+6. Open that clip. The sequence editor comes up over the arrangement, showing
+   the pattern.
+7. Turn on a step that was off, and close the editor.
+8. Start playback.
 
 **Outcome:** a visitor who arrived with no account is listening to a loop they
 just edited, and the transport shows it is running.
@@ -157,19 +168,9 @@ just edited, and the transport shows it is running.
 and Playwright captures none, so this flow proves the transport starts, not that
 a sound reached a speaker. Playback is asserted in Chromium only — see
 [`docs/testing.md`](./testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap)
-and issue #43. It also does not prove persistence: this flow runs against the
-mock backend, which is empty again on the next page load.
-
-**Changing in #304.** The three-view shell replaces the editor this flow walks:
-a new project will open on the *arrangement*, and the pattern edit in steps 6-7
-will happen in the sequence editor opened from the clip on the timeline. This
-entry and its spec are rewritten **together**, in the #304 stack, in the same
-diff that makes the new wording true — which is why they are the only things in
-this register the shell PR leaves alone. It is recorded here so the reviewer of
-that PR knows the change was authorised in advance rather than retro-fitted to
-what got built. CF-008 is the flow that walks the new shell itself, and it is
-`test.fixme` until #304 lands; CF-001 stays live in the meantime, which is the
-whole reason for this arrangement.
+and issue #43. Moving between the three views, which is CF-008's subject: this
+flow only ever sees the arrangement. And persistence — it never reloads, and
+CF-004 onwards are where coming back to your work is proved.
 
 ### CF-002 — A producer turns a loop into a song outline
 
