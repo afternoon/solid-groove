@@ -1,5 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { HiSolidDocumentDuplicate, HiSolidPlus, HiSolidTrash } from "solid-icons/hi";
+import { HiSolidDocumentDuplicate, HiSolidTrash } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
@@ -31,10 +31,10 @@ import type { TrackId } from "../domain/ids";
 import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import NewTrackButtons from "./NewTrackButtons";
 import {
-  createNewTrack,
+  addTrackOfKind,
   instrumentTypeKey,
-  NEW_TRACK_KINDS,
   type NewTrackKindSpec,
 } from "./trackCreation";
 import "./Mixer.css";
@@ -112,29 +112,17 @@ export default function Mixer(props: MixerProps): JSX.Element {
     return props.project.clips.filter((clip) => clip.trackId === trackId).length;
   }
 
-  // Creating a track says which instrument it carries (#223). The new track
-  // arrives with an empty one-bar clip so it can be programmed straight away,
-  // and the whole thing is one `track.add` command: one revision, one undo.
+  /** Creating a track says which instrument it carries (#223), through the
+   * one route the arrangement's buttons take too (`UI-001`). */
   function handleAddTrack(spec: NewTrackKindSpec): void {
-    const added = createNewTrack(factoryContext, {
-      kind: spec.kind,
-      order: tracks().length,
-      existingNames: tracks().map((track) => track.name),
+    addTrackOfKind(spec.kind, {
+      project: props.project,
+      context: factoryContext,
+      dispatch: props.dispatch,
+      analytics: analytics(),
+      feature: "mixer",
+      onSelect: selectTrack,
     });
-    props.dispatch(
-      addTrack(added.track, {
-        clips: [added.clip],
-        placements: [added.placement],
-      }),
-    );
-    analytics().log("track_added", {
-      track_type: "instrument",
-      instrument_type: spec.analyticsType,
-    });
-    analytics().logFeatureFirstUse("mixer");
-    // A track you just added is the one you want to set up, so the editor
-    // follows it rather than staying on whatever was on screen (#228).
-    selectTrack(added.track.id);
   }
 
   /**
@@ -190,26 +178,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
         <span class="mixer-track-count">
           {trackIds().length} {trackIds().length === 1 ? "track" : "tracks"}
         </span>
-        {/* One button per instrument rather than one "Add track" plus a kind
-				    picker: adding a track is a two-decision action ("another track",
-				    "a sampler"), and a button per kind makes the second decision the
-				    click itself instead of a mode set beforehand. */}
-        <fieldset class="mixer-add-track-group" aria-label="Add track">
-          <For each={NEW_TRACK_KINDS}>
-            {(spec) => (
-              <button
-                type="button"
-                class="mixer-add-track"
-                aria-label={spec.actionLabel}
-                title={spec.actionLabel}
-                onClick={() => handleAddTrack(spec)}
-              >
-                <HiSolidPlus size={13} />
-                <span>{spec.label}</span>
-              </button>
-            )}
-          </For>
-        </fieldset>
+        <NewTrackButtons label="Add track" onAdd={handleAddTrack} />
       </header>
       <div class="mixer-tracks">
         <For each={trackIds()}>
