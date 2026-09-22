@@ -1,0 +1,9 @@
+# The marketing landing page is prerendered into `/` and is meant to be found
+# (task #297). Everything else the app serves is a client-rendered shell with
+# no content to index, behind a session: `/dashboard` is one person's project
+# list and `/projects/*` is one project's editor. Neither has anything for a
+# crawler, and neither should turn up in a search result.
+User-agent: *
+Allow: /$
+Disallow: /dashboard
+Disallow: /projects/

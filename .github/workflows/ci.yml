@@ -227,6 +227,13 @@ jobs:
       # the budget declared in the script. Needs no credentials.
       - name: Measure the error-monitoring SDK's bundle cost
         run: bun run verify:budget
+      # #297: the landing page is statically generated into `index.html`, and
+      # every other path is served a shell with that markup stripped out. Both
+      # halves are properties of the build output, so both are checked against
+      # it -- a shell that silently stopped prerendering, or a landing-only tag
+      # added without `data-landing`, is a green build otherwise.
+      - name: Verify the landing page is statically generated
+        run: bun run verify:landing-static
 
   # FND-001b (PRD OPS-01): deploys to the alpha's one hosted environment --
   # the production Firebase project -- from CI on every merge to `main`, never
