@@ -548,6 +548,17 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return rows;
   });
 
+  /**
+   * The timeline's horizontal scale, published so a test can turn a musical
+   * position into the pixel a gesture has to land on. Clips are canvas pixels
+   * with no DOM node to aim at, so without this every browser test would
+   * hard-code the zoom the shell happened to start at.
+   */
+  const pixelsPerTick = createMemo(() => {
+    stateVersion();
+    return shell?.getViewport().pixelsPerTick ?? INITIAL_PIXELS_PER_TICK;
+  });
+
   const scrollTopMemo = createMemo(() => {
     stateVersion();
     return shell?.getViewport().scrollTop ?? 0;
@@ -572,7 +583,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
   });
 
   return (
-    <div class="arrangement-view" data-testid="arrangement-view-ready">
+    <div
+      class="arrangement-view"
+      data-testid="arrangement-view-ready"
+      data-pixels-per-tick={pixelsPerTick()}
+    >
       <ArrangementToolbar
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
