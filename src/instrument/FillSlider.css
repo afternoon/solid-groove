@@ -38,13 +38,13 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: color-mix(in srgb, var(--color-accent, #20c8e8) 55%, #1b6b7a);
+  background-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-accent-deep));
   pointer-events: none;
 }
 
 .fill-slider-track:hover .fill-slider-fill,
 .fill-slider-track:focus-within .fill-slider-fill {
-  background-color: var(--color-accent, #20c8e8);
+  background-color: var(--color-accent);
 }
 
 /* The real range input, restyled to an invisible thumbless overlay so the fill
@@ -83,7 +83,7 @@
 }
 
 .fill-slider-input:focus-visible {
-  outline: 2px solid var(--color-accent, #20c8e8);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 

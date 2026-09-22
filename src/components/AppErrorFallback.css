@@ -49,7 +49,7 @@
   color: var(--color-text);
   font-size: var(--font-size-base);
   font-family: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--tint-medium);
   cursor: pointer;
   transition:
     background-color 0.15s ease,
@@ -58,5 +58,5 @@
 
 .app-error-retry:hover {
   background-color: var(--color-background-highlight);
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: var(--tint-stronger);
 }

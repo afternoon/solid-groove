@@ -132,6 +132,8 @@ src/
 │   └── schema.ts             # Shared Zod parse helper
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
+├── theme.css           # The palette: every colour named once, shared with the static pages
+├── app.css             # The base layer over the theme: typography, document shell, element defaults
 ├── app.tsx             # Root application component; the plugin generates the entries from it
 ├── router.tsx          # The explicit route table (see "Routing" below)
 ├── firebaseConfig.ts   # Firebase configuration (+ local emulator wiring)
@@ -466,6 +468,14 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 - Matching reads `KeyboardEvent.key`, never `code`, and ignores the Shift modifier for punctuation, so `?` and `+` work on any keyboard layout.
 - `ShortcutController` logs `shortcut_used` with the matched entry's own `action_id`; handlers never log analytics. Adding a mapping means adding its ID to `SHORTCUT_ACTION_IDS` in both the registry and `src/analytics/catalog.ts`, or `catalog.test.ts` fails.
 - Adding a shortcut also means updating `docs/shortcuts.md` — `src/shortcuts/docs.test.ts` fails if the two drift.
+
+### The palette (`src/theme.css`)
+- `src/theme.css` is the only place a colour is written down. It holds custom properties and nothing else, so a static page (`docs/architecture.html`) can link it without dragging the app's base styles along. `src/app.css` `@import`s it, and Vite inlines that at build time.
+- The product is monochromatic (`docs/design/README.md`): one neutral ramp (`--grey-*`), one cyan accent, three status hues, and translucent white/black tints. Adding a sixth hue is a design decision, not a styling detail.
+- Style against a **semantic alias** (`--color-background-secondary`, `--color-text`, `--color-accent`), not a ramp step. The ramp is the vocabulary; only the aliases survive a re-theme. Never introduce a near-duplicate of a step that already exists, and never a local alias for a token that already says the same thing.
+- `src/theme.test.ts` enforces it: a colour literal in any other stylesheet, a token read but never defined, or an arrangement-canvas fallback that has drifted from the theme all fail there.
+- A canvas cannot read a custom property, so `src/arrangement/canvasRenderer.ts` resolves the tokens off the document once and caches them; its literals are fallbacks for a context with no stylesheet (jsdom), pinned to the theme by that test.
+- A track's own colour is **not** theme — it is persisted domain data (`TRACK_COLORS` in `src/domain/factories.ts`), and changing it is a schema change, not a styling one.
 
 ### Service Layer
 - Create service modules for external integrations (authService, dataService)

@@ -5,7 +5,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--scrim);
   z-index: 100;
 }
 
@@ -15,8 +15,8 @@
   padding: 20px;
   border-radius: 12px;
   background: var(--color-background-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--tint-medium);
+  box-shadow: 0 12px 40px var(--shade-medium);
 }
 
 .confirm-dialog-title {
@@ -49,13 +49,13 @@
 }
 
 .confirm-dialog-confirm {
-  background: #d64545;
-  color: #fff;
-  border: 1px solid #d64545;
+  background: var(--color-danger-solid);
+  color: var(--color-foreground-bright);
+  border: 1px solid var(--color-danger-solid);
 }
 
 .confirm-dialog-cancel {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--tint-strong);
   color: var(--color-text);
 }

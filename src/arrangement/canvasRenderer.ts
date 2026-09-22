@@ -47,20 +47,59 @@ export interface InteractionState {
   readonly selectedPlacementIds: ReadonlySet<PlacementId>;
 }
 
-const COLORS = {
-  background: "#141414",
-  ruler: "#101010",
-  rowAlt: "#181818",
-  gridBeat: "#262626",
-  gridBar: "#383838",
-  text: "#8a8a8a",
-  rulerText: "#b4b4b4",
-  playhead: "#20c8e8",
-  selection: "rgba(32, 200, 232, 0.18)",
-  selectionBorder: "#20c8e8",
-  hover: "#e6e6e6",
-  placementSelection: "rgba(32, 200, 232, 0.28)",
-};
+/**
+ * The palette, resolved from `src/theme.css` at runtime.
+ *
+ * A canvas cannot consume a CSS custom property, so the tokens are read off the
+ * document once and cached. The literals below are fallbacks for a context that
+ * has no stylesheet applied — jsdom under the unit suite — and are pinned to the
+ * theme by `canvasRenderer.test.ts`, so they cannot drift away from it silently.
+ */
+export const COLOR_TOKENS = {
+  background: ["--color-background", "#141414"],
+  ruler: ["--color-background-sunken", "#101010"],
+  rowAlt: ["--color-background-well", "#181818"],
+  gridBeat: ["--color-background-tertiary", "#262626"],
+  gridBar: ["--color-border-strong", "#383838"],
+  text: ["--color-foreground", "#8a8a8a"],
+  rulerText: ["--color-text-secondary", "#b4b4b4"],
+  playhead: ["--color-accent", "#20c8e8"],
+  selection: ["--color-accent-wash", "rgb(32 200 232 / 15%)"],
+  selectionBorder: ["--color-accent", "#20c8e8"],
+  hover: ["--color-text", "#e6e6e6"],
+  placementSelection: ["--color-accent-wash-strong", "rgb(32 200 232 / 28%)"],
+  /* Note ticks and the waveform centre line are drawn over a track's own
+     colour, so they shade what is beneath rather than naming a colour. */
+  onPlacement: ["--shade-medium", "rgb(0 0 0 / 40%)"],
+  onPlacementStrong: ["--scrim", "rgb(0 0 0 / 55%)"],
+} as const satisfies Record<string, readonly [string, string]>;
+
+type ColorName = keyof typeof COLOR_TOKENS;
+
+let resolved: Record<ColorName, string> | null = null;
+
+/** Drop the cached palette so the next draw re-reads the theme. Tests only. */
+export function resetArrangementPalette(): void {
+  resolved = null;
+}
+
+function resolvePalette(): Record<ColorName, string> {
+  const style =
+    typeof window === "undefined"
+      ? null
+      : window.getComputedStyle(document.documentElement);
+  const palette = {} as Record<ColorName, string>;
+  for (const name of Object.keys(COLOR_TOKENS) as ColorName[]) {
+    const [token, fallback] = COLOR_TOKENS[name];
+    palette[name] = style?.getPropertyValue(token).trim() || fallback;
+  }
+  return palette;
+}
+
+function colors(): Record<ColorName, string> {
+  resolved ??= resolvePalette();
+  return resolved;
+}
 
 /** Rows begin below the ruler; the ruler is a fixed strip that does not scroll. */
 function contentTopOffset(): number {
@@ -88,14 +127,14 @@ export function clearLayer(env: DrawEnvironment): void {
 export function drawBackgroundLayer(env: DrawEnvironment): void {
   const { ctx, viewport, projection, rowRange } = env;
   clearLayer(env);
-  ctx.fillStyle = COLORS.background;
+  ctx.fillStyle = colors().background;
   ctx.fillRect(0, 0, viewport.width, viewport.height);
 
   const top = contentTopOffset();
   for (let rowIndex = rowRange.startRow; rowIndex <= rowRange.endRow; rowIndex += 1) {
     if (rowIndex % 2 === 1) {
       const y = rowTop(rowIndex, projection) - viewport.scrollTop;
-      ctx.fillStyle = COLORS.rowAlt;
+      ctx.fillStyle = colors().rowAlt;
       ctx.fillRect(0, y, viewport.width, projection.rowMetrics.trackHeightPx);
     }
   }
@@ -105,7 +144,7 @@ export function drawBackgroundLayer(env: DrawEnvironment): void {
   ctx.lineWidth = 1;
   for (let bar = firstBar; bar <= lastBar; bar += 1) {
     const x = Math.round(screenX(bar * TICKS_PER_BAR, viewport)) + 0.5;
-    ctx.strokeStyle = bar % 4 === 0 ? COLORS.gridBar : COLORS.gridBeat;
+    ctx.strokeStyle = bar % 4 === 0 ? colors().gridBar : colors().gridBeat;
     ctx.beginPath();
     ctx.moveTo(x, top);
     ctx.lineTo(x, viewport.height);
@@ -118,7 +157,7 @@ export function drawBackgroundLayer(env: DrawEnvironment): void {
 /** The bar-number and section-label strip across the top of the timeline. */
 function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): void {
   const { ctx, viewport, projection } = env;
-  ctx.fillStyle = COLORS.ruler;
+  ctx.fillStyle = colors().ruler;
   ctx.fillRect(0, 0, viewport.width, RULER_HEIGHT_PX);
 
   // Section ranges labelled in their own color; sections that fall entirely
@@ -131,14 +170,14 @@ function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): voi
     ctx.globalAlpha = 0.9;
     ctx.fillRect(Math.max(0, left), 0, Math.max(1, right - left), 4);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = COLORS.rulerText;
+    ctx.fillStyle = colors().rulerText;
     ctx.font = "11px system-ui, sans-serif";
     ctx.textBaseline = "middle";
     ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX - 7);
   }
 
   // Bar numbers every 4 bars, so labels do not crowd at small zoom.
-  ctx.fillStyle = COLORS.text;
+  ctx.fillStyle = colors().text;
   ctx.font = "10px system-ui, sans-serif";
   ctx.textBaseline = "top";
   for (let bar = firstBar; bar <= lastBar; bar += 1) {
@@ -181,7 +220,7 @@ function drawNotePreview(
   const { ctx } = env;
   const durationTicks = placement.endTicks - placement.startTicks;
   if (durationTicks <= 0) return;
-  ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+  ctx.fillStyle = colors().onPlacement;
   for (const noteTick of placement.preview.noteStartTicks) {
     const fraction = noteTick / durationTicks;
     const x = left + fraction * width;
@@ -208,7 +247,7 @@ function drawWaveformPreview(
   const level = selectPeakLevel(peaks, targetBuckets);
   const mid = top + height / 2;
 
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.strokeStyle = colors().onPlacementStrong;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let bucket = 0; bucket < level.bucketCount; bucket += 1) {
@@ -242,7 +281,7 @@ function drawAutomationLanes(env: DrawEnvironment): void {
 
     const top = rowTop(rowIndex, projection) - viewport.scrollTop;
     const height = projection.rowMetrics.trackHeightPx;
-    ctx.strokeStyle = COLORS.playhead;
+    ctx.strokeStyle = colors().playhead;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     let previousY: number | null = null;
@@ -282,9 +321,9 @@ export function drawInteractionLayer(
       const left = screenX(startTick, viewport);
       const right = screenX(endTick, viewport);
       const top = rowTop(rowIndex, projection) - viewport.scrollTop;
-      ctx.fillStyle = COLORS.selection;
+      ctx.fillStyle = colors().selection;
       ctx.fillRect(left, top, right - left, projection.rowMetrics.trackHeightPx);
-      ctx.strokeStyle = COLORS.selectionBorder;
+      ctx.strokeStyle = colors().selectionBorder;
       ctx.strokeRect(left, top, right - left, projection.rowMetrics.trackHeightPx);
     }
   }
@@ -299,9 +338,9 @@ export function drawInteractionLayer(
     const right = screenX(placement.endTicks, viewport);
     const top = rowTop(placement.rowIndex, projection) - viewport.scrollTop;
     const height = projection.rowMetrics.trackHeightPx;
-    ctx.fillStyle = COLORS.placementSelection;
+    ctx.fillStyle = colors().placementSelection;
     ctx.fillRect(left, top, Math.max(1, right - left), height);
-    ctx.strokeStyle = COLORS.selectionBorder;
+    ctx.strokeStyle = colors().selectionBorder;
     ctx.lineWidth = 3;
     ctx.strokeRect(left + 1.5, top + 1.5, Math.max(1, right - left - 3), height - 3);
   }
@@ -312,7 +351,7 @@ export function drawInteractionLayer(
       const left = screenX(placement.startTicks, viewport);
       const right = screenX(placement.endTicks, viewport);
       const top = rowTop(placement.rowIndex, projection) - viewport.scrollTop;
-      ctx.strokeStyle = COLORS.hover;
+      ctx.strokeStyle = colors().hover;
       ctx.lineWidth = 2;
       ctx.strokeRect(
         left + 1,
@@ -325,7 +364,7 @@ export function drawInteractionLayer(
 
   if (interaction.playheadTicks !== null) {
     const x = Math.round(screenX(interaction.playheadTicks, viewport)) + 0.5;
-    ctx.strokeStyle = COLORS.playhead;
+    ctx.strokeStyle = colors().playhead;
     ctx.lineWidth = 2;
     ctx.beginPath();
     // The playhead spans the ruler too, so it reads as one line from the top.

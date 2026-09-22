@@ -97,7 +97,7 @@
    row of strips, without recolouring a control or the track's own chip. */
 .mixer-strip.selected {
   background-color: var(--color-background-tertiary);
-  box-shadow: inset 2px 0 0 var(--color-accent, #20c8e8);
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
 /* Track identity, the way the mocks mark it: a small square colour chip beside
@@ -123,7 +123,7 @@
 }
 
 .mixer-strip-select[aria-pressed="true"] {
-  background-color: var(--color-accent, #20c8e8);
+  background-color: var(--color-accent);
 }
 
 .mixer-strip-chip {
@@ -150,7 +150,7 @@
 
 .mixer-strip-name:focus {
   background-color: var(--color-background);
-  outline: 1px solid var(--color-accent, #20c8e8);
+  outline: 1px solid var(--color-accent);
 }
 
 .mixer-strip-buttons {
@@ -263,7 +263,7 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: var(--color-accent, #20c8e8);
+  background-color: var(--color-accent);
   transition: height 0.06s linear;
 }
 

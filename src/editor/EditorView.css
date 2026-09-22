@@ -103,7 +103,7 @@
 .editor-header .transport-toggle[aria-pressed="true"],
 .editor-header .loop-toggle[aria-pressed="true"],
 .editor-header .metronome-toggle[aria-pressed="true"] {
-  color: var(--color-accent, #6ea8fe);
+  color: var(--color-accent);
   opacity: 1;
 }
 
@@ -127,7 +127,7 @@
 }
 
 .editor-header .tempo-input:focus {
-  border-color: var(--color-accent, #6ea8fe);
+  border-color: var(--color-accent);
   outline: none;
 }
 
@@ -161,7 +161,7 @@
 }
 
 .editor-header .save-status[data-state="failed"] {
-  color: #e08a87;
+  color: var(--color-danger);
 }
 
 .editor-header .save-recovery {
@@ -169,7 +169,7 @@
   align-items: center;
   gap: 6px;
   font-size: var(--font-size-small);
-  color: #e08a87;
+  color: var(--color-danger);
 }
 
 .editor-header .save-retry-button {
@@ -212,7 +212,7 @@
 	   swallowing pointer events destined for — the workspace). */
   flex-shrink: 0;
   overflow: hidden;
-  border-bottom: 1px solid var(--color-divider, #262626);
+  border-bottom: 1px solid var(--color-divider);
 }
 
 .workspace {

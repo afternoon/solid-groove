@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--scrim);
   z-index: 100;
 }
 
@@ -23,13 +23,13 @@
   max-height: 100%;
   border-radius: 12px;
   background: var(--color-background-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--tint-medium);
+  box-shadow: 0 12px 40px var(--shade-medium);
 }
 
 .shortcut-guide-header {
   padding: 1.25rem 1.25rem 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--tint-soft);
 }
 
 .shortcut-guide-title {
@@ -55,7 +55,7 @@
   flex: 1 1 14rem;
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--tint-strong);
   background: transparent;
   color: var(--color-text);
 }
@@ -94,7 +94,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--tint-soft);
 }
 
 .shortcut-guide-action {
@@ -126,7 +126,7 @@
 .shortcut-guide-keys kbd {
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--tint-stronger);
   font-family: inherit;
   font-size: var(--font-size-small);
   white-space: nowrap;
@@ -146,14 +146,14 @@
   display: flex;
   justify-content: flex-end;
   padding: 0.75rem 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--tint-soft);
 }
 
 .shortcut-guide-close {
   padding: 0.5rem 0.9rem;
   border-radius: 8px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--tint-strong);
   color: var(--color-text);
   cursor: pointer;
 }

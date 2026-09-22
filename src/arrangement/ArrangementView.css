@@ -12,8 +12,8 @@
 	   rect, so a shell taller than its host would both paint over whatever sits
 	   below it and desynchronize the canvas size from the visible area. */
   min-height: 0;
-  background: #141414;
-  color: #e6e6e6;
+  background: var(--color-background);
+  color: var(--color-text);
   font-family: system-ui, -apple-system, sans-serif;
   overflow: hidden;
 }
@@ -22,16 +22,16 @@
   display: flex;
   gap: 8px;
   padding: 6px 8px;
-  background: #181818;
-  border-bottom: 1px solid #262626;
+  background: var(--color-background-well);
+  border-bottom: 1px solid var(--color-background-tertiary);
   flex-shrink: 0;
 }
 
 .arrangement-action {
   appearance: none;
-  background: #202020;
-  color: #e6e6e6;
-  border: 1px solid #303030;
+  background: var(--color-background-secondary);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
   border-radius: 0;
   padding: 4px 10px;
   font-size: 12px;
@@ -39,7 +39,7 @@
 }
 
 .arrangement-action:hover:not(:disabled) {
-  border-color: #20c8e8;
+  border-color: var(--color-accent);
 }
 
 .arrangement-action:disabled {
@@ -48,7 +48,7 @@
 }
 
 .arrangement-action:focus-visible {
-  outline: 2px solid #20c8e8;
+  outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
 
@@ -63,8 +63,8 @@
 .arrangement-headers {
   position: relative;
   flex-shrink: 0;
-  background: #181818;
-  border-right: 1px solid #262626;
+  background: var(--color-background-well);
+  border-right: 1px solid var(--color-background-tertiary);
   overflow: hidden;
 }
 
@@ -72,8 +72,8 @@
    canvas rows, which begin below the ruler. */
 .arrangement-headers-ruler-spacer {
   height: 22px;
-  background: #101010;
-  border-bottom: 1px solid #262626;
+  background: var(--color-background-sunken);
+  border-bottom: 1px solid var(--color-background-tertiary);
 }
 
 .arrangement-headers-inner {
@@ -90,7 +90,7 @@
   align-items: center;
   font-size: 12px;
   box-sizing: border-box;
-  border-bottom: 1px solid #1e1e1e;
+  border-bottom: 1px solid var(--color-background-secondary);
 }
 
 /* The whole row is the select control (#228): it fills the header cell and
@@ -112,12 +112,12 @@
 }
 
 .arrangement-header-select:hover {
-  background-color: #232323;
+  background-color: var(--color-background-tertiary);
 }
 
 .arrangement-header-select[aria-pressed="true"] {
-  background-color: #232323;
-  box-shadow: inset 2px 0 0 var(--color-accent, #20c8e8);
+  background-color: var(--color-background-tertiary);
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
 .arrangement-header-swatch {

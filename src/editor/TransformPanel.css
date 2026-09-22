@@ -5,7 +5,7 @@
   padding: 12px;
   margin-top: 12px;
   background-color: var(--color-background-secondary);
-  border-left: 3px solid var(--color-accent, #20c8e8);
+  border-left: 3px solid var(--color-accent);
 }
 
 .transform-row {
@@ -67,5 +67,5 @@
 }
 
 .transform-error:not(:empty) {
-  color: var(--color-warning, #e8a020);
+  color: var(--color-warning);
 }
