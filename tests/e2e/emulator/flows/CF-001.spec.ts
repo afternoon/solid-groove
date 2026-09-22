@@ -49,7 +49,7 @@ test.describe("CF-001", () => {
     await step("Open the landing page");
 
     // 2. Choose to start in your browser.
-    await page.getByRole("button", { name: "Start in your browser" }).click();
+    await page.getByRole("link", { name: "Start in your browser" }).click();
 
     // 3. You arrive at the dashboard, signed in as a guest, with no projects.
     await expect(page).toHaveURL(/\/dashboard$/);
