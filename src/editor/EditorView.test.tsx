@@ -705,6 +705,59 @@ describe("EditorView library audition engine lifecycle", () => {
   });
 });
 
+/** The Instrument view's own layout (`UI-001`, CF-008). */
+describe("EditorView instrument view", () => {
+  async function renderDrums() {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await goToView("Instrument");
+    return project;
+  }
+
+  const rail = () => screen.getByRole("list", { name: "Tracks" });
+
+  it("lists every track down the rail and marks the one on screen", async () => {
+    const project = await renderDrums();
+    const [drums, breakTrack] = project.song.tracks;
+
+    expect(within(rail()).getAllByRole("listitem")).toHaveLength(2);
+    expect(rail()).toHaveTextContent(drums.name);
+    expect(rail()).toHaveTextContent(breakTrack.name);
+    expect(within(rail()).getByRole("button", { name: drums.name })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("switches tracks from the rail, which every other view follows", async () => {
+    const project = await renderDrums();
+    const [drums, breakTrack] = project.song.tracks;
+
+    clickAndFlush(within(rail()).getByRole("button", { name: breakTrack.name }));
+
+    expect(
+      screen.getByRole("region", { name: `${breakTrack.name} instrument` }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
+    ).not.toBeInTheDocument();
+    // Selection is one piece of state (UI-001): the mixer marks it too.
+    await goToView("Mixer");
+    expect(mixerSelect(breakTrack.name)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("shows only the instrument: the timeline is not on the page", async () => {
+    await renderDrums();
+
+    expect(screen.queryByTestId("arrangement-view-ready")).not.toBeInTheDocument();
+    // ...and the device chain has a labelled home waiting for #241.
+    expect(screen.getByRole("region", { name: "Device chain" })).toBeVisible();
+  });
+});
+
 /** Adding a track, from either surface that offers it (`UI-001`, #223). */
 describe("EditorView new-track unit", () => {
   async function renderSlice(transport: ReturnType<typeof createRecordingTransport>) {
