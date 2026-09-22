@@ -48,6 +48,9 @@ an omission.
 - [ ] **Create the project.** Firebase console → Add project. The project ID
       becomes the Hosting subdomain (`https://<project-id>.web.app`) and the
       value of `FIREBASE_PROJECT_ID` everywhere below. It is not sensitive.
+      That subdomain keeps serving after a custom domain is connected; the
+      alpha's public origin is `https://groove.ben2.com` (`SITE_ORIGIN` in
+      `site.config.mjs`), and that is what the smoke gate targets.
 - [ ] **Enable Google Analytics** during creation, or link it afterwards under
       Project Settings → Integrations. This is what produces the GA4 property and
       the measurement ID; `FND-001c` rides the Firebase config rather than
@@ -185,7 +188,8 @@ turn that into a build failure instead.
 - [ ] Watch it through its steps: write the credential → `bun run deploy`
       (builds, scans for secrets, ships Hosting + Firestore rules/indexes +
       Storage rules in one command) → mark the release deployed in Sentry →
-      install Chromium → smoke test against `https://<project-id>.web.app`.
+      install Chromium → smoke test against the public origin
+      (`site.config.mjs`'s `SITE_ORIGIN`, `https://groove.ben2.com`).
 - [ ] Confirm the site loads and `ReleaseBadge` shows the deployed commit SHA.
 
 The smoke test (`tests/e2e/hosted/smoke.spec.ts`) has never been run against a real
@@ -224,7 +228,7 @@ In short:
       collection (`page_view`, `session_start`), and confirm no `_ga` cookie is
       written for a session that declined before the SDK initialized.
 - [ ] Confirm no source map is publicly fetchable:
-      `curl -sI https://<project-id>.web.app/_build/assets/<chunk>.js.map` must
+      `curl -sI https://groove.ben2.com/_build/assets/<chunk>.js.map` must
       not return 200.
 
 Minified frames in Sentry mean the source-map upload did not run — check
@@ -264,7 +268,7 @@ rollback take effect, then:
       Then immediately commit the reverted rules, or `git checkout HEAD --
       firestore.rules` once the incident is over, so the working tree and the
       deployed rules do not silently diverge.
-- [ ] **Confirm.** `SMOKE_URL=https://<project-id>.web.app bun run smoke:hosted`
+- [ ] **Confirm.** `SMOKE_URL=https://groove.ben2.com bun run smoke:hosted`
       before calling the rollback complete.
 - [ ] Roll forward again and record the drill in `FND-001b`'s checklist.
 

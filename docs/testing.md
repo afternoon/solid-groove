@@ -464,7 +464,7 @@ Once the project and its secrets exist, `deploy`:
 1. Writes the `FIREBASE_DEPLOY_SERVICE_ACCOUNT` secret to a runner-local temp file and points `GOOGLE_APPLICATION_CREDENTIALS` at it (never committed, never logged).
 2. Runs `bun run deploy` with `VITE_RELEASE_SHA` pinned to `github.sha` — the exact commit being deployed, alongside the `VITE_FIREBASE_*` client config that gets inlined into the bundle. `predeploy` builds and re-runs `verify:bundle` and `verify:client-config` against that build before `firebase deploy --only hosting,firestore,storage` ships it.
 3. Marks the release deployed in Sentry (`sentry-cli releases deploys … new --env alpha`), after the deploy succeeded so a release that never shipped is never recorded as live. Skipped when the Sentry variables are unset. See "Source maps and release registration" below.
-4. Installs Chromium and runs `bun run smoke:hosted` against `https://$FIREBASE_PROJECT_ID.web.app`. A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01).
+4. Installs Chromium and runs `bun run smoke:hosted` against the **public origin** — `site.config.mjs`'s `SITE_ORIGIN` (`https://groove.ben2.com`), resolved by the job rather than written into it, so the domain lives in one place (ADR 0008). A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01). Targeting the public origin means DNS, certificate and CDN failures fail the deploy too, not only Hosting ones; the Firebase-issued `https://$FIREBASE_PROJECT_ID.web.app` subdomain still serves the same build and is how you isolate Hosting from DNS when diagnosing one.
 
 Required GitHub Actions configuration, all of it scoped to the **`prod` environment** (`afternoon/solid-groove` → Settings → Environments → `prod`), named but never set by this task. Setting any of these at repository scope instead has no effect on the `deploy` job, which reads them through `environment: prod`:
 
@@ -512,7 +512,7 @@ That is exactly what shipped on `d65077c`, where a fully green deploy put an app
 
 ### Marking internal/team traffic
 
-Visiting the hosted alpha with `?internal=1` (e.g. `https://<project-id>.web.app/?internal=1`) persists a flag in that browser's `localStorage` (`src/shared/internalTraffic.ts`), so team members can mark their own sessions once rather than on every visit; `?internal=0` clears it. `FND-001c` reads `isInternalTraffic()` to set the GA4 `internal` user property so team traffic can be excluded from the PRD section 11 measures — this task only owns detection and persistence of the flag, not the analytics wiring.
+Visiting the hosted alpha with `?internal=1` (e.g. `https://groove.ben2.com/?internal=1`) persists a flag in that browser's `localStorage` (`src/shared/internalTraffic.ts`), so team members can mark their own sessions once rather than on every visit; `?internal=0` clears it. `FND-001c` reads `isInternalTraffic()` to set the GA4 `internal` user property so team traffic can be excluded from the PRD section 11 measures — this task only owns detection and persistence of the flag, not the analytics wiring.
 
 ### Post-deploy smoke test
 
@@ -628,8 +628,8 @@ Check GA4's *automatic* collection too, not just the custom events: it is a sepa
 **4. No source map is public.** Fetch a bundle and its would-be map directly:
 
 ```sh
-curl -s "https://<project-id>.web.app/_build/assets/<chunk>.js" | head -c 60
-curl -s "https://<project-id>.web.app/_build/assets/<chunk>.js.map" | head -c 60
+curl -s "https://groove.ben2.com/_build/assets/<chunk>.js" | head -c 60
+curl -s "https://groove.ben2.com/_build/assets/<chunk>.js.map" | head -c 60
 ```
 
 The first must return JavaScript. The second must return the SPA shell — `<!DOCTYPE html>...` — and **not** JSON beginning `{"version":3,...`.
