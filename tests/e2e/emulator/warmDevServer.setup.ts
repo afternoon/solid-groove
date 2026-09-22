@@ -78,13 +78,16 @@ test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
     await newProject.waitFor({ state: "visible", timeout: 90_000 });
     await newProject.click();
 
-    // Reaching the grid means the editor mounted and `tone` has been pulled in
-    // and optimized. Re-check after a settle so that if this very navigation
-    // triggered the reload, the post-reload page is the one left warm.
-    const grid = page.getByRole("region", { name: "Step editor" });
-    await grid.waitFor({ state: "visible", timeout: 60_000 });
+    // Reaching the arrangement means the editor mounted and `tone` has been
+    // pulled in and optimized. Re-check after a settle so that if this very
+    // navigation triggered the reload, the post-reload page is the one left
+    // warm. (It waited for the step editor until `UI-001` moved sequencing
+    // into an editor you open from a clip; the arrangement is what a project
+    // opens on now, and it is the same mount that imports `tone`.)
+    const arrangement = page.getByTestId("arrangement-view-ready");
+    await arrangement.waitFor({ state: "visible", timeout: 60_000 });
     await page.waitForTimeout(2_000);
-    await grid.waitFor({ state: "visible", timeout: 60_000 });
+    await arrangement.waitFor({ state: "visible", timeout: 60_000 });
 
     console.log(
       `[warmDevServer] editor reached in ${browserName}; dependency graph is warm`,
