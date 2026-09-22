@@ -133,6 +133,7 @@ src/
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
 ├── app.tsx             # Root application component; the plugin generates the entries from it
+├── Document.tsx        # The prerendered document shell: the statically generated landing page + its meta (ADR 0008)
 ├── router.tsx          # The explicit route table (see "Routing" below)
 ├── firebaseConfig.ts   # Firebase configuration (+ local emulator wiring)
 └── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
@@ -151,6 +152,8 @@ tests/                  # Every suite that is not a src/ unit or component test
 └── emulator/           # Firebase Emulator suite (Firestore rules, etc.)
     └── vitest.config.ts
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
+public/robots.txt       # Allows `/`, disallows the app's own routes (ADR 0008)
+site.config.mjs         # The public origin, titles, and description. One place to change the domain
 ```
 
 ## Task tracking and landing work
@@ -323,6 +326,7 @@ bun run test:browser:emulator:chromium  # (see "Which browsers run where" in doc
 bun run test:browser:install  # One-time: download Playwright's browser binaries
 
 # Core flows and PR walkthroughs
+bun run verify:landing-static                # `/` is statically generated, and no other path carries its markup
 bun run verify:core-flows                    # Every flow in docs/core-flows.md has exactly one spec, and vice versa
 bun run walkthrough:capture                  # Screenshot each step() of the passing tests/e2e/emulator/flows specs
 bun run walkthrough:publish -- --issue <n>   # Push the images and print the Markdown for the PR body
@@ -479,7 +483,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 
 ### Routing
 - **There is no file-based routing.** `<FileRoutes />` came from `@solidjs/start/router`, and SolidStart has no Solid 2 release. Router 2 does ship a `fileRoutes()` adapter in `@solidjs/router/fs`, but it reads a `virtual:file-routes` manifest that `@solidjs/vite-plugin` does not emit, so there is nothing for it to consume
-- Routes are an explicit table in `src/router.tsx`: a path and a `lazy()` page module per entry. Every page stays `lazy`, so each route is still its own chunk
+- Routes are an explicit table in `src/router.tsx`: a path and a `lazy()` page module per entry. Every page stays `lazy` — **except `/`**, which is eager because it is prerendered into the shell and its stylesheet has to be in the entry graph for that markup to paint styled (ADR 0008)
 - Page modules live in `src/routes/`, but their filenames are only names — the `[param]`/`[...404]` spelling is gone, because nothing reads it. The patterns live in the table
 - Use `useParams()` from `@solidjs/router` to read route parameters. Router 2 types them as `string | undefined`; narrow with `Show` rather than asserting (see `src/routes/projects/Project.tsx`)
 
@@ -503,7 +507,9 @@ That is an environment problem, not a test bug — **do not "fix" it by mocking 
 
 ## Important Configuration Notes
 
-1. **The app runs client-side only** - `solid({ start: true })` with no `ssr` in `vite.config.ts` is the plugin's **client start mode**. `vite build` emits a static `dist/client` whose `index.html` is the shell prerendered once through the built handler; deep links get that same shell by history fallback, and the client `render()`s (never hydrates) into it. The app itself never renders on the server, which is the PRD's client-only decision unchanged
+1. **The app runs client-side only** - `solid({ start: true })` with no `ssr` in `vite.config.ts` is the plugin's **client start mode**. `vite build` emits a static `dist/client` whose `index.html` is the shell prerendered once through the built handler, and the client `render()`s (never hydrates) into it. The app itself never renders on the server, which is the PRD's client-only decision unchanged.
+
+   That shell is **not empty**: `src/Document.tsx` renders the landing page's markup and metadata into it, so `/` is indexable, unfurls, and paints with JavaScript disabled (ADR 0008). Only the document goes through the SSR transforms — the app does not. Because the generated entry renders `<Document />` with no request, the shell cannot be path-aware, so `scripts/emit-app-shell.mjs` writes a stripped `app.html` after the build and `firebase.json` serves `/` from `index.html` and every other path from `app.html`; the dev server and `vite preview` serve one shell and an inline script removes the markup during parse. `bun run verify:landing-static` gates both halves. A landing-only tag added to the document **must** carry `data-landing="true"` or it ships on every deep link
 2. **Module system** - Using ESNext with bundler resolution
 3. **JSX** - Preserved with `@solidjs/web` as the import source (`tsconfig.json`'s `jsxImportSource`)
 4. **Strict TypeScript** - All strict checks enabled
@@ -517,6 +523,7 @@ That is an environment problem, not a test bug — **do not "fix" it by mocking 
 ### Adding a new route
 1. Create the page module in `src/routes/`, with the component as its default export
 2. Add its path to the `routes` table in `src/router.tsx`, wrapping the import in `lazy()` so it stays its own chunk. The filename does not define the route — the table does
+3. It is served the `app.html` shell, not the prerendered landing document, so it renders entirely on the client
 
 ### Adding a new data model
 1. Define the entity's shape and Zod schema in `src/domain/entities.ts`, and add any invariants it needs to `src/domain/parse.ts`
