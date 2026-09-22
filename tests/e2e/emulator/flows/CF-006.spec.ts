@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { seedRegisteredSession } from "../support/authSession";
 
 /**
  * `CF-006` — a producer brings their own sounds into a pack.
@@ -25,15 +26,18 @@ import { walkthrough } from "../../support/walkthrough";
  *    along with the `storage.rules` the import writes under.
  *
  * Runs against the emulator rather than the mock backend for two reasons at
- * once: step 1 signs in for real, and step 7 is a real `page.reload()`.
+ * once: the account in its precondition is a real one, and step 7 is a real
+ * `page.reload()`.
  *
  * Two things about how this flow is driven, neither of which is an assertion
  * about our product:
  *
- *  - **Signing in drives the Auth emulator's own account-chooser popup**, which
- *    is Firebase's UI, not ours. The selectors in {@link signIn} describe *it*.
- *    Adjusting them to match the emulator is not a change to this flow's
- *    assertions.
+ *  - **The signed-in account is installed, not logged into.** `seedRegisteredSession`
+ *    puts a persisted session in the browser the way a returning visitor already
+ *    has one, so this flow never touches the login control — see that module for
+ *    why a flow about importing sounds should not answer for the login UI. What
+ *    the flow does assert is that it *starts* signed in to an account rather than
+ *    as a guest, which is step 1.
  *  - **The files are synthesised and dropped through a `DataTransfer`.** No
  *    browser automation can drag a file off a real desktop, so
  *    {@link dropAudioFiles} builds real, decodable WAV files in the page and
@@ -69,26 +73,8 @@ const soundFrom = (within: Locator, fileName: string): Locator => {
   });
 };
 
-/**
- * Signs in with Google through the Auth emulator's account-chooser popup.
- *
- * A fresh account per run and per browser: two gating browsers share one
- * emulator, and the flow's precondition is an account whose personal library is
- * empty — an account reused across runs would arrive with the last run's pack
- * already in it.
- */
-async function signIn(page: Page, browserName: string): Promise<void> {
-  const popupOpened = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Log in" }).click();
-  const popup = await popupOpened;
-  await popup.getByRole("button", { name: /add new account/i }).click();
-  await popup
-    .getByRole("textbox", { name: /email/i })
-    .fill(`cf-006-${browserName}-${Date.now()}@example.test`);
-  await popup.getByRole("textbox", { name: /display name/i }).fill("Flow Producer");
-  await popup.getByRole("button", { name: /sign in with google/i }).click();
-  await popup.waitForEvent("close");
-}
+/** What a guest is told, and a signed-in account is not (`UpgradeAccountPrompt`). */
+const GUEST_NOTICE = /You're working as a guest/;
 
 /**
  * Drops files on a target the way the operating system would.
@@ -148,26 +134,27 @@ test.describe("CF-006", () => {
   test.fixme(
     "a producer brings their own sounds into a pack",
     async ({ page, browserName }) => {
-      // Three uploads and a sign-in round trip: more than the default per-test
-      // timeout allows for, even against a local emulator.
+      // Three uploads against a local emulator: more than the default per-test
+      // timeout allows for.
       test.setTimeout(120_000);
+
+      // Precondition: signed in to a registered account whose personal library
+      // is empty. A fresh account per run and per browser — the two gating
+      // browsers share one emulator, and an account reused across runs would
+      // arrive with the last run's pack already in it.
+      await seedRegisteredSession(page, { label: `cf-006-${browserName}` });
 
       const step = walkthrough(page, {
         id: "CF-006",
         title: "A producer brings their own sounds into a pack",
       });
 
-      // 1. Open the landing page and sign in.
-      await page.goto("/");
-      await expect(
-        page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
-      ).toBeVisible();
-      await step("Open the landing page");
-
-      await signIn(page, browserName);
-      await expect(page).toHaveURL(/\/dashboard$/);
+      // 1. You arrive on the dashboard signed in to your own account, not
+      //    working as a guest.
+      await page.goto("/dashboard");
       await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await step("Sign in");
+      await expect(page.getByText(GUEST_NOTICE)).toHaveCount(0);
+      await step("You arrive on the dashboard, signed in to your own account");
 
       // 2. Open a project, so the library browser is on screen.
       await page.getByRole("button", { name: "New Project" }).click();
