@@ -368,8 +368,9 @@ describe("EditorView", () => {
     });
 
     // The project's own pack is a fixture pack with no delivered manifest, so
-    // reach a real sound the way a user does with an empty shelf: the pack
-    // browser.
+    // reach a real sound the way a user does with an empty shelf: open the
+    // library from the slot, then the pack browser.
+    await openLibrary();
     fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(
@@ -383,7 +384,11 @@ describe("EditorView", () => {
     const name = (insert.getAttribute("aria-label") ?? "").replace("Insert ", "");
     fireEvent.click(insert);
 
-    await goToView("Instrument");
+    // Inserting is what the library was opened for, so it closes on insert
+    // and the slot behind it names the sound that landed.
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+    );
     const panel = await screen.findByRole("region", { name: "BD instrument" });
     expect(await within(panel).findByText(name)).toBeInTheDocument();
   });
@@ -656,39 +661,36 @@ describe("EditorView library audition engine lifecycle", () => {
         return engine;
       },
     });
-    await openSequenceEditor();
     return { engines };
   }
 
-  function toggleLibrary() {
-    fireEvent.click(screen.getByRole("button", { name: "Library" }));
+  async function closeLibrary() {
+    clickAndFlush(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+    );
   }
 
   it("builds a fresh, live engine on each open and disposes the closed one", async () => {
     const { engines } = await renderWithLibrary();
 
-    // The panel is open from the first paint (#221), so mounting the editor is
-    // itself the first open and builds one engine.
-    await screen.findByRole("complementary", { name: "Library" });
+    // The library is closed until a slot opens it (UI-001), so no engine
+    // exists until then.
+    expect(engines).toHaveLength(0);
+    await openLibrary();
     expect(engines).toHaveLength(1);
     expect(engines[0].disposed()).toBe(false);
 
-    // Closing the panel unmounts LibraryBrowser, which disposes that engine.
-    toggleLibrary();
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("complementary", { name: "Library" }),
-      ).not.toBeInTheDocument(),
-    );
+    // Closing unmounts LibraryBrowser, which disposes that engine.
+    await closeLibrary();
     await waitFor(() => expect(engines[0].disposed()).toBe(true));
 
     // Reopening builds a second, distinct, undisposed engine — never the dead
     // first one. Under the old cached-singleton bug this would still be
     // engines[0], now disposed, and audition would fail for the rest of the
-    // session. Opening by default does not change that: the toggle still
-    // unmounts and remounts the panel.
-    toggleLibrary();
-    await screen.findByRole("complementary", { name: "Library" });
+    // session.
+    clickAndFlush(screen.getByRole("button", { name: "Load a sound" }));
+    await screen.findByRole("dialog", { name: "Library" });
     expect(engines).toHaveLength(2);
     expect(engines[1]).not.toBe(engines[0]);
     expect(engines[1].disposed()).toBe(false);
@@ -702,12 +704,8 @@ describe("EditorView library audition engine lifecycle", () => {
   });
 });
 
-/**
- * Where the library sits and whether it is there to begin with (#221). A sound
- * browser is the first thing a new project needs, so it is open on arrival, and
- * it is a column to the left of the arrangement rather than a band under it.
- */
-describe("EditorView library panel placement", () => {
+/** The library, as a window opened from a slot (`UI-001`). */
+describe("EditorView library modal", () => {
   async function renderSlice() {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();
@@ -715,61 +713,31 @@ describe("EditorView library panel placement", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id, {
       createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
     });
-    await openSequenceEditor();
   }
 
-  it("shows the library without anyone touching the toggle", async () => {
+  it("is not on the page until a slot asks for it", async () => {
     await renderSlice();
+    await screen.findByTestId("arrangement-view-ready");
 
-    expect(
-      await screen.findByRole("complementary", { name: "Library" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Library" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    // The arrangement is full bleed: the column that used to live beside it
+    // is gone, and so is the header toggle that opened and closed it.
+    expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Library" })).not.toBeInTheDocument();
   });
 
-  it("puts the library beside the arrangement, not above or below it", async () => {
+  it("opens from the sampler's sample slot, and closes again", async () => {
     await renderSlice();
-    const library = await screen.findByRole("complementary", {
-      name: "Library",
-    });
-    const arrangement = screen.getByTestId("arrangement-view-ready");
 
-    // Siblings in the same row: the library's parent is the flex row that also
-    // holds the column the arrangement lives in. If the arrangement were still
-    // stacked above the library, the two would not share a row — the library
-    // would sit inside a container that follows the arrangement's own.
-    const row = library.parentElement;
-    expect(row).not.toBeNull();
-    expect(row).toHaveClass("editor-body");
-    const arrangementColumn = row?.querySelector(".editor-main");
-    expect(arrangementColumn).not.toBeNull();
-    expect(arrangementColumn?.contains(arrangement)).toBe(true);
-    // To the left: the library comes first among that row's children.
-    expect(row?.firstElementChild).toBe(library);
-  });
+    const library = await openLibrary();
+    expect(library).toHaveAttribute("aria-modal", "true");
+    expect(within(library).getByRole("region", { name: "Library" })).toBeVisible();
 
-  it("still closes and reopens from the header toggle", async () => {
-    await renderSlice();
-    const toggle = screen.getByRole("button", { name: "Library" });
-
-    fireEvent.click(toggle);
-
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("complementary", { name: "Library" }),
-      ).not.toBeInTheDocument(),
+    clickAndFlush(within(library).getByRole("button", { name: "Close" }));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
     );
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-
-    fireEvent.click(toggle);
-
-    expect(
-      await screen.findByRole("complementary", { name: "Library" }),
-    ).toBeInTheDocument();
   });
 });
 
@@ -859,16 +827,23 @@ describe("EditorView keyboard shortcuts", () => {
     await renderSlice();
 
     // The pack browser is a modal surface like the guide, so it takes the
-    // keyboard the same way (PRD KEY-02). The library panel it opens from is
-    // already on screen — it starts open (#221).
+    // keyboard the same way (PRD KEY-02). It opens from the library, which
+    // since UI-001 is itself a modal opened from a slot.
+    await openLibrary();
     fireEvent.click(await screen.findByRole("button", { name: /Browse packs/ }));
-    await screen.findByRole("dialog");
+    await screen.findByRole("dialog", { name: /packs/i });
 
     fireEvent.keyDown(window, { key: " " });
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Escape" });
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /packs/i })).not.toBeInTheDocument(),
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+    );
     // With the modal gone the editor context has the keyboard back: `?` is an
     // `editor`-context mapping, so it only fires once nothing is suppressing it.
     fireEvent.keyDown(window, { key: "?", shiftKey: true });
@@ -1038,6 +1013,16 @@ describe("EditorView keyboard shortcuts", () => {
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */
+/**
+ * Opens the library from the sampler's sample slot (`UI-001`), which is the
+ * only way in now that the always-on column is gone.
+ */
+async function openLibrary(): Promise<HTMLElement> {
+  await goToView("Instrument");
+  clickAndFlush(await screen.findByRole("button", { name: "Load a sound" }));
+  return screen.findByRole("dialog", { name: "Library" });
+}
+
 /** A pointer event at bar 1 of the first arrangement row, where the slice
  * fixture's only placement sits. The canvas has no DOM node to aim at. */
 function firePointerAtStarterClip(canvas: Element, type: string): void {

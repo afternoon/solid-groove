@@ -38,6 +38,7 @@ function renderPanel(
     ) => TransactionResult | undefined
   >(() => ({ ok: true }) as TransactionResult);
   const audition = vi.fn();
+  const onBrowse = vi.fn();
   const applied: RawCommandInput[] = [];
   const transport = createRecordingTransport();
   const consent = new ConsentStore(memoryStorage());
@@ -55,10 +56,11 @@ function renderPanel(
       dispatch={dispatch}
       beginGesture={(): Gesture => recordingGesture(applied)}
       audition={audition}
+      onBrowse={onBrowse}
       analytics={analytics}
     />
   ));
-  return { dispatch, applied, audition, transport };
+  return { dispatch, applied, audition, onBrowse, transport };
 }
 
 /**
@@ -98,7 +100,14 @@ describe("SamplerPanel", () => {
   it("says so when it is holding nothing, and how to fill it", () => {
     renderPanel({ kind: "sampler", assetId: null, parameters: {} }, null);
     expect(screen.getByText("No sample loaded")).toBeInTheDocument();
-    expect(screen.getByText("Drag a sound here from the library")).toBeInTheDocument();
+    // The slot is the way into the library (UI-001), not a hint about a drag.
+    expect(screen.getByRole("button", { name: "Load a sound" })).toBeInTheDocument();
+  });
+
+  it("opens the library from its sample slot", () => {
+    const { onBrowse } = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Load a sound" }));
+    expect(onBrowse).toHaveBeenCalledTimes(1);
   });
 
   it("dispatches an instrument parameter.set once when a slider commits", () => {

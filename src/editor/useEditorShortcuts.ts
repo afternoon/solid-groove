@@ -22,6 +22,9 @@ export interface UseEditorShortcutsOptions {
   readonly guideOpen: Accessor<boolean>;
   readonly setGuideOpen: (open: boolean) => void;
   readonly packBrowserOpen: Accessor<boolean>;
+  /** Whether the `UI-001` library modal is open, and how to close it. */
+  readonly libraryOpen: Accessor<boolean>;
+  readonly closeLibrary: () => void;
   /** The arrangement's placement-editing operations (ARR-002), lifted from
    * `ArrangementView` the same way `pianoRollActions` is lifted from the
    * piano roll. */
@@ -70,6 +73,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     guideOpen,
     setGuideOpen,
     packBrowserOpen,
+    libraryOpen,
+    closeLibrary,
     arrangementEditingActions,
     hasArrangementSelection,
     selectView,
@@ -138,15 +143,16 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
-    // Escape closes the innermost surface: the guide if it is over everything
-    // else, otherwise the sequence editor. Nothing here compares a key — this
+    // Escape closes the innermost surface: the guide, then the library, then
+    // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close.
     "view.close_surface": {
       run: () => {
         if (guideOpen()) setGuideOpen(false);
+        else if (libraryOpen()) closeLibrary();
         else closeSequenceEditor();
       },
-      isEnabled: () => guideOpen() || sequenceEditorOpen(),
+      isEnabled: () => guideOpen() || libraryOpen() || sequenceEditorOpen(),
     },
     // The piano roll's remaining note operations, dispatched by the registry
     // (KEY-01), not by a listener the roll owns. Each is enabled only while the
@@ -232,7 +238,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // can fire — including playback and selection (PRD KEY-02). The pack browser
   // is a modal surface like the guide, so it takes the keyboard the same way.
   const contexts = (): readonly ShortcutContext[] =>
-    guideOpen() || packBrowserOpen() ? ["dialog"] : editorContexts();
+    guideOpen() || packBrowserOpen() || libraryOpen() ? ["dialog"] : editorContexts();
 
   const shortcuts = useShortcuts({ handlers, contexts });
   const keyHint = (action: Parameters<typeof shortcutLabel>[0]) =>
