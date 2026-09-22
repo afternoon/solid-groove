@@ -6,14 +6,20 @@
 
 .instrument-view {
   display: flex;
+  flex-direction: row;
   align-items: stretch;
   gap: var(--size-divider);
+  min-height: 0;
 }
 
+/* The rail stays put; this is what scrolls, so a long instrument never carries
+   the track list off the page with it. */
 .instrument-view-body {
   display: flex;
   flex-direction: column;
   gap: var(--size-divider);
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
 }

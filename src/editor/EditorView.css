@@ -264,16 +264,15 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
   box-sizing: border-box;
   padding: var(--size-divider);
   background-color: var(--color-background-secondary);
 }
 
-.instrument-view {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-divider);
+/* The mixer scrolls as a whole; the instrument view keeps its rail fixed and
+   scrolls only the instrument beside it (`EditorInstrument.css`). */
+.mixer-view {
+  overflow-y: auto;
 }
 
 /* The arrangement's new-track unit (UI-001): a thin strip above the timeline,
