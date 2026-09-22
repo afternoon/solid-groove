@@ -1,5 +1,7 @@
 import { Title } from "@solidjs/meta";
 import { useNavigate } from "@solidjs/router";
+// Type-only, so nothing of Firebase reaches the landing path's bundle.
+import type { User } from "firebase/auth";
 import { createSignal } from "solid-js";
 import { SITE_TITLE } from "../../site.config.mjs";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
@@ -42,9 +44,59 @@ export interface LandingPageProps {
   /** Overridden in tests; defaults to the app-wide analytics boundary. */
   analytics?: Analytics;
   /** Overridden in tests; defaults to the dynamically imported auth service. */
-  loadAuthService?: () => Promise<Pick<AuthService, "signInWithGoogle">>;
+  loadAuthService?: () => Promise<
+    Pick<AuthService, "signInWithGoogle" | "onAuthStateChanged">
+  >;
   /** Overridden in tests; defaults to the app-wide reporting boundary. */
   reportError?: typeof defaultReportError;
+  /**
+   * How long to wait for the persisted session to restore before giving up on
+   * it and signing in instead (see {@link restoreSession}). Overridden in tests
+   * so the fallback can be proven without waiting out the real budget.
+   */
+  sessionRestoreTimeoutMs?: number;
+}
+
+/**
+ * How long a persisted session gets to restore before the click falls back to
+ * signing in. Long enough for an IndexedDB read behind a freshly imported SDK,
+ * short enough that a visitor whose session never resolves gets the provider
+ * rather than a button stuck on "Logging in…".
+ */
+const SESSION_RESTORE_TIMEOUT_MS = 3_000;
+
+/**
+ * The session the auth service restores, or `null` if there is none — or if it
+ * does not arrive within `timeoutMs`.
+ *
+ * `getCurrentUser()` is not the read to use here: it returns
+ * `auth.currentUser`, which is `null` immediately after the dynamic import
+ * because restoring the persisted session is asynchronous, so it would report
+ * "no session" for exactly the returning visitor this page has to recognise.
+ * The first `onAuthStateChanged` emission is the restored state. Subscribing is
+ * a read and creates nothing: it is `AuthProvider`'s no-user branch, not the
+ * subscription, that mints an anonymous session.
+ */
+function restoreSession(
+  auth: Pick<AuthService, "onAuthStateChanged">,
+  timeoutMs: number,
+): Promise<User | null> {
+  return new Promise((resolve) => {
+    let unsubscribe: (() => void) | null = null;
+    let settled = false;
+    const settle = (user: User | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe?.();
+      resolve(user);
+    };
+    const timer = setTimeout(() => settle(null), timeoutMs);
+    unsubscribe = auth.onAuthStateChanged(settle);
+    // A service that emits synchronously settles before `unsubscribe` is
+    // assigned above, so the teardown happens here instead of leaking.
+    if (settled) unsubscribe();
+  });
 }
 
 /**
@@ -100,6 +152,18 @@ export default function LandingPage(props: LandingPageProps) {
   /**
    * The path for someone who already has an account.
    *
+   * It starts by asking whether they are *already* signed in, because they
+   * often are: sessions persist (`browserLocalPersistence`), so a visitor who
+   * logged in last week and came back to `/` still has one. Sending them
+   * through the identity provider again for a session the browser already holds
+   * is what #308 reports. A registered session goes straight to the dashboard;
+   * a guest session or none at all signs in exactly as before, since logging in
+   * over a guest is a real sign-in (see the uid-swap note below).
+   *
+   * Reading the session here costs nothing extra: `authService` was already
+   * behind a dynamic `import()` on this click, so `/` still ships no Firebase
+   * to a visitor who never presses this button.
+   *
    * It signs in, and signing in with Google is *not* the same as upgrading a
    * guest session: Firebase does not auto-link, so it swaps the uid and leaves
    * any projects made in this browser as a guest owned by the anonymous one.
@@ -121,6 +185,14 @@ export default function LandingPage(props: LandingPageProps) {
     setLoginError(null);
     try {
       const authService = await loadAuthService();
+      const session = await restoreSession(
+        authService,
+        props.sessionRestoreTimeoutMs ?? SESSION_RESTORE_TIMEOUT_MS,
+      );
+      if (session && !session.isAnonymous) {
+        navigate("/dashboard");
+        return;
+      }
       await authService.signInWithGoogle();
       navigate("/dashboard");
     } catch (error) {

@@ -1,9 +1,11 @@
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
+import type { User } from "firebase/auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createFailingTransport, createRecordingTransport } from "../analytics/transport";
+import type { AuthService } from "../auth/authService";
 import { memoryStorage } from "../testing/storage";
 import LandingPage from "./LandingPage";
 
@@ -24,9 +26,27 @@ vi.mock("@solidjs/router", () => ({
   useNavigate: () => navigate,
 }));
 
+/**
+ * A persisted session as the auth service reports it. Only `isAnonymous` and a
+ * uid matter to this page, so the rest of `User` is not worth standing up.
+ */
+function persistedUser(isAnonymous: boolean): User {
+  return { uid: isAnonymous ? "anon-1" : "registered-1", isAnonymous } as User;
+}
+
 function setup(
   options: {
     signInWithGoogle?: () => Promise<void>;
+    /**
+     * The session the injected auth service restores, reported the way Firebase
+     * reports it: on the first `onAuthStateChanged` emission, asynchronously.
+     * Omitted means "no session at all", which is what a first-time visitor has.
+     */
+    restoredUser?: User | null;
+    /** For the case where the restored state never arrives at all. */
+    onAuthStateChanged?: AuthService["onAuthStateChanged"];
+    /** Shortened where a test waits the restore budget out. */
+    sessionRestoreTimeoutMs?: number;
     analyticsTransport?: ReturnType<typeof createRecordingTransport>;
   } = {},
 ) {
@@ -39,15 +59,27 @@ function setup(
     surface: "landing",
   });
   const signInWithGoogle = vi.fn(options.signInWithGoogle ?? (() => Promise.resolve()));
+  const unsubscribe = vi.fn();
+  const onAuthStateChanged = vi.fn<AuthService["onAuthStateChanged"]>(
+    options.onAuthStateChanged ??
+      ((callback) => {
+        // Asynchronously, deliberately: Firebase restores the persisted session
+        // after the SDK loads, which is why a synchronous `getCurrentUser()`
+        // read reports "no session" for exactly the visitor #308 is about.
+        queueMicrotask(() => callback(options.restoredUser ?? null));
+        return unsubscribe;
+      }),
+  );
   const reportError = vi.fn();
   render(() => (
     <LandingPage
       analytics={analytics}
-      loadAuthService={() => Promise.resolve({ signInWithGoogle })}
+      loadAuthService={() => Promise.resolve({ signInWithGoogle, onAuthStateChanged })}
       reportError={reportError}
+      sessionRestoreTimeoutMs={options.sessionRestoreTimeoutMs}
     />
   ));
-  return { transport, signInWithGoogle, reportError };
+  return { transport, signInWithGoogle, onAuthStateChanged, unsubscribe, reportError };
 }
 
 describe("LandingPage (PRD PRJ-06)", () => {
@@ -171,6 +203,63 @@ describe("LandingPage (PRD PRJ-06)", () => {
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
     });
 
+    // #308: a returning visitor who was already signed in went through Google's
+    // account chooser again, because this handler never asked whether a session
+    // existed before starting one.
+    it("recognises a persisted registered session instead of signing in again", async () => {
+      const { signInWithGoogle, unsubscribe } = setup({
+        restoredUser: persistedUser(false),
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      expect(signInWithGoogle).not.toHaveBeenCalled();
+      // One emission read, not a standing subscription on a page that is leaving.
+      expect(unsubscribe).toHaveBeenCalled();
+    });
+
+    // Logging in over a guest session is still a real sign-in: Firebase does not
+    // auto-link, so this is the uid swap this page's copy warns about.
+    it("still signs in when the persisted session is only a guest", async () => {
+      const { signInWithGoogle } = setup({ restoredUser: persistedUser(true) });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+    });
+
+    // A restored state that never arrives must not leave the button on
+    // "Logging in…" forever: the click falls back to the provider.
+    it("signs in anyway when the session state never resolves", async () => {
+      const unsubscribe = vi.fn();
+      const { signInWithGoogle } = setup({
+        onAuthStateChanged: () => unsubscribe,
+        sessionRestoreTimeoutMs: 5,
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      expect(unsubscribe).toHaveBeenCalled();
+    });
+
+    it("emits landing_cta_click once for a session it recognises", async () => {
+      const { transport } = setup({ restoredUser: persistedUser(false) });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      const events = transport.named("landing_cta_click");
+      expect(events).toHaveLength(1);
+      expect(events[0]?.params.cta_id).toBe("log_in");
+      // Reading the session creates nothing: minting a guest is
+      // `AuthProvider`'s no-user branch, not this subscription.
+      expect(transport.named("anon_session_created")).toHaveLength(0);
+    });
+
     it("recovers from a failed log-in without leaving the page", async () => {
       const { reportError } = setup({
         signInWithGoogle: () => Promise.reject(new Error("popup closed")),
@@ -239,7 +328,15 @@ describe("LandingPage (PRD PRJ-06)", () => {
       render(() => (
         <LandingPage
           analytics={analytics}
-          loadAuthService={() => Promise.resolve({ signInWithGoogle })}
+          loadAuthService={() =>
+            Promise.resolve({
+              signInWithGoogle,
+              onAuthStateChanged: (callback) => {
+                queueMicrotask(() => callback(null));
+                return () => {};
+              },
+            })
+          }
           reportError={vi.fn()}
         />
       ));
