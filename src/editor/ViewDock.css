@@ -1,0 +1,59 @@
+/* The floating dock (UI-001). It hovers over the content rather than taking a
+   band out of the layout, and being `position: fixed`, nothing beneath it can
+   reserve space: each view pads itself by `--view-dock-clearance` instead. */
+
+.view-dock {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 60;
+}
+
+.view-dock-list {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--tint-medium);
+  box-shadow: 0 10px 32px var(--shade-medium);
+}
+
+.view-dock-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 76px;
+  padding: 7px 14px 6px;
+  border-radius: 10px;
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.view-dock-icon {
+  display: flex;
+  line-height: 0;
+}
+
+.view-dock-link:hover {
+  background: var(--color-accent-wash);
+  color: var(--color-text);
+}
+
+/* State is brightness, not hue: the current view is the brightest thing here. */
+.view-dock-link[aria-current="page"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.view-dock-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

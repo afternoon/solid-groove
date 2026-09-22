@@ -340,6 +340,11 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // `LandingPageContent.tsx` holding the literal "/dashboard". Bound rather
       // than repeated inline because three controls share it.
       "START_HREF",
+      // The view dock's addresses (UI-001). `props.href` is handed
+      // `editorViewPath(projectId, view)` — a prefixed project ID and one of
+      // three fixed segments — so the URL is built entirely from opaque IDs
+      // and our own literals, never from a project, track, or clip name.
+      "props.href(spec.view)",
       // The site's own public origin, from `site.config.mjs`, in the
       // prerendered shell's canonical URL. A build-time constant, and the
       // shell is not a surface a session replay can record in the first place.
