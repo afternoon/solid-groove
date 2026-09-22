@@ -38,6 +38,11 @@ import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
 import * as model from "./editorViewModel";
+import {
+  type EditorViewName,
+  editorViewSpec,
+  type ViewChangeSource,
+} from "./editorViews";
 import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
 import type { PianoRollActions } from "./PianoRoll";
@@ -49,10 +54,21 @@ import TrackInstrument from "./TrackInstrument";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
+import ViewDock from "./ViewDock";
 import "./EditorView.css";
 
 export interface EditorViewProps {
   readonly projectId: string;
+  /**
+   * Which of the three views is on screen (`UI-001`). It comes from the URL —
+   * the route decides, this component only renders — so a deep link opens that
+   * view, the back button moves between them, and a reload returns to it.
+   */
+  readonly view: EditorViewName;
+  /** Where each view lives, so the dock's entries are real addresses. */
+  viewHref(view: EditorViewName): string;
+  /** Navigates to a view. The editor asks; the route is what actually moves. */
+  onSelectView(view: EditorViewName): void;
   /**
    * Builds the audition engine each time the Library panel mounts. Defaults to
    * a Tone-backed engine on the shared runtime; injected in tests so the
@@ -89,6 +105,47 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const project = createMemo(() => session.state.project);
   const audio = useProjectAudio(project);
   const [guideOpen, setGuideOpen] = createSignal(false);
+
+  // --- Views (UI-001) -------------------------------------------------------
+  //
+  // The view lives in the URL, so switching is a navigation and this component
+  // holds no "current view" state to fall out of step with the address bar.
+  // What it does hold is *how* the next switch was asked for, because the
+  // address alone cannot say whether the dock, the keyboard, or the back button
+  // moved you — and which entrypoint producers actually reach for is the
+  // measure `view_changed` exists to take.
+  let lastView: EditorViewName | undefined;
+  let pendingVia: ViewChangeSource | null = null;
+
+  function selectView(next: EditorViewName, via: ViewChangeSource): void {
+    // Asking for the view you are already on is not a switch, so it neither
+    // navigates nor logs — otherwise clicking the current dock entry twice
+    // would report two switches that never happened.
+    if (next === props.view) return;
+    pendingVia = via;
+    props.onSelectView(next);
+  }
+
+  // One event per switch, whatever moved: the dock and the keyboard set
+  // `pendingVia` on their way through `selectView`, and anything else — the
+  // back button, a deep link followed in-session — is `url` by elimination.
+  // The first run only records where we arrived: opening a project is not a
+  // switch, and `project_opened` already measures it.
+  createEffect(
+    // Both reactive reads are in the compute half, which is the only tracked
+    // one: an `props.analytics` read moved into the apply half below would be
+    // read once and never again.
+    () => ({ view: props.view, analytics: props.analytics ?? defaultAnalytics }),
+    ({ view, analytics }) => {
+      const previous = lastView;
+      lastView = view;
+      const via = pendingVia ?? "url";
+      pendingVia = null;
+      if (previous === undefined || previous === view) return;
+      analytics.log("view_changed", { view, via });
+    },
+  );
+
   // The piano roll owns its own note selection, but the KEY-01 registry — not
   // the roll — dispatches delete/duplicate/select-all. The roll hands its
   // operations up through `registerActions`; this holds them so the shortcut
@@ -220,6 +277,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     packBrowserOpen,
     arrangementEditingActions,
     hasArrangementSelection,
+    // `1`/`2`/`3` reach the same `selectView` the dock does, so the two
+    // entrypoints cannot drift into different states (CF-008).
+    selectView: (view) => selectView(view, "keyboard"),
   });
 
   const instrumentPanelTrackId = createMemo(() => model.instrumentPanelTrackId(track()));
@@ -442,6 +502,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   </div>
                 </div>
               </div>
+              <ViewDock
+                view={props.view}
+                href={props.viewHref}
+                onSelect={(view) => selectView(view, "dock")}
+                keyHint={(view) => keyHint(editorViewSpec(view).actionId)}
+              />
               <Show when={guideOpen()}>
                 <ShortcutGuide
                   contexts={editorContexts()}

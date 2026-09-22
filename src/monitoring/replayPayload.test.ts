@@ -345,6 +345,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // three fixed segments — so the URL is built entirely from opaque IDs
       // and our own literals, never from a project, track, or clip name.
       "props.href(spec.view)",
+      // ...and the function `EditorView` hands it, which is
+      // `editorViewPath(projectId, view)` with the id closed over.
+      "props.viewHref",
       // The site's own public origin, from `site.config.mjs`, in the
       // prerendered shell's canonical URL. A build-time constant, and the
       // shell is not a surface a session replay can record in the first place.

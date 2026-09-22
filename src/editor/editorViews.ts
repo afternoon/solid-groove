@@ -82,3 +82,16 @@ export function editorViewFromPath(pathname: string): EditorViewName {
     DEFAULT_EDITOR_VIEW
   );
 }
+
+/**
+ * The non-empty path segments, for the route table's `matchFilters`.
+ *
+ * The three views are **one** route (`/projects/:id/:view?`), not three: the
+ * router unmounts a route's component when it leaves it, and remounting the
+ * editor on every switch would reload the project and rebuild the audio graph —
+ * the one thing switching views must never do. A filter is what keeps that
+ * single route from also matching `/projects/:id/anything`.
+ */
+export const EDITOR_VIEW_SEGMENTS: readonly string[] = EDITOR_VIEW_SPECS.map(
+  (spec) => spec.segment,
+).filter((segment) => segment !== "");

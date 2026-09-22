@@ -1,4 +1,4 @@
-import { createRouter, memoryHistory } from "@solidjs/router";
+import { createRouter, memoryHistory, useLocation, useNavigate } from "@solidjs/router";
 import {
   cleanup,
   fireEvent,
@@ -25,8 +25,9 @@ import type { PreviewEngine } from "../library/audition";
 import { LibraryClient } from "../library/libraryClient";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
-import { clickAndFlush } from "../testing/events";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { editorViewFromPath, editorViewPath } from "./editorViews";
 
 installWebAudioGlobals();
 
@@ -102,9 +103,15 @@ function saveRetryButton(): HTMLElement | null {
 }
 
 // EditorView links back to the dashboard with a plain anchor, which the router
-// only resolves from inside a matched route — so the editor is mounted as the
-// component of a one-route router over an in-memory history, which is Router
-// 2's replacement for the old `<MemoryRouter><Route .../></MemoryRouter>` pair.
+// only resolves from inside a matched route — so the editor is mounted over an
+// in-memory history, which is Router 2's replacement for the old
+// `<MemoryRouter><Route .../></MemoryRouter>` pair.
+//
+// The router carries the same three project paths the real table does
+// (`src/router.tsx`) and derives the view from the address exactly as
+// `routes/projects/Project.tsx` does, because the view *is* the address
+// (`UI-001`): a harness that passed a view prop directly could not tell a
+// working dock from one that navigates nowhere.
 function renderEditor(
   projectId: string,
   options: {
@@ -114,23 +121,29 @@ function renderEditor(
   } = {},
 ) {
   const EditorView = EditorViewModule.default;
+  const location = memoryHistory(editorViewPath(projectId, "arrangement"));
+  const Page = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    return (
+      <EditorView
+        projectId={projectId}
+        view={editorViewFromPath(location.pathname)}
+        viewHref={(view) => editorViewPath(projectId, view)}
+        onSelectView={(view) => navigate(editorViewPath(projectId, view))}
+        createAuditionEngine={options.createAuditionEngine}
+        libraryClient={options.libraryClient}
+        analytics={options.analytics}
+      />
+    );
+  };
   const TestRouter = createRouter({
-    history: memoryHistory("/"),
-    routes: [
-      {
-        path: "/",
-        component: () => (
-          <EditorView
-            projectId={projectId}
-            createAuditionEngine={options.createAuditionEngine}
-            libraryClient={options.libraryClient}
-            analytics={options.analytics}
-          />
-        ),
-      },
-    ],
+    history: location,
+    // The real table's shape (`src/router.tsx`): one route, not one per view,
+    // so a switch does not remount the editor.
+    routes: [{ path: "/projects/:id/:view?", component: Page }],
   });
-  return render(() => <TestRouter />);
+  return { ...render(() => <TestRouter />), location };
 }
 
 /** A library sound as a drag hands it over, already in its wire form (#225). */
@@ -159,10 +172,11 @@ function transferCarrying(sample: unknown) {
 
 function recordingAnalytics(
   transport: ReturnType<typeof createRecordingTransport>,
+  consent: ConsentStore = new ConsentStore(memoryStorage()),
 ): Analytics {
   const analytics = new Analytics({
     transport,
-    consent: new ConsentStore(memoryStorage()),
+    consent,
     storage: memoryStorage(),
   });
   analytics.setAccountType("anonymous");
@@ -961,6 +975,126 @@ describe("EditorView keyboard shortcuts", () => {
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */
+/** The three views and the dock that names them (`UI-001`, CF-008). */
+describe("EditorView views", () => {
+  async function renderViews(analytics?: Analytics) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    const rendered = renderEditor(project.metadata.id, { analytics });
+    await screen.findByRole("region", { name: "Step editor" });
+    return { ...rendered, projectId: project.metadata.id };
+  }
+
+  const dock = () => screen.getByRole("navigation", { name: "Views" });
+  const currentView = () => dock().querySelector("[aria-current='page']");
+  const viewLink = (name: string) => within(dock()).getByRole("link", { name });
+
+  /** Router 2 navigates on its own schedule, so the address and the dock's
+   * marker are awaited together rather than read the instant an event fires. */
+  async function atView(
+    location: { get(): string },
+    path: string,
+    label: string,
+  ): Promise<void> {
+    await vi.waitFor(() => {
+      expect(location.get()).toBe(path);
+      expect(currentView()).toHaveTextContent(label);
+    });
+  }
+
+  it("opens a project on the arrangement, at the bare project address", async () => {
+    const { location, projectId } = await renderViews();
+
+    expect(location.get()).toBe(`/projects/${projectId}`);
+    expect(currentView()).toHaveTextContent("Arrangement");
+  });
+
+  it("moves to a view from the dock, and the address follows", async () => {
+    const { location, projectId } = await renderViews();
+
+    clickAndFlush(viewLink("Mixer"));
+
+    await atView(location, `/projects/${projectId}/mixer`, "Mixer");
+  });
+
+  it("moves to a view with 1/2/3, through the shortcut registry", async () => {
+    const { location, projectId } = await renderViews();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    await atView(location, `/projects/${projectId}/instrument`, "Instrument");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
+    await atView(location, `/projects/${projectId}`, "Arrangement");
+  });
+
+  it("logs view_changed once per switch, saying how the view was reached", async () => {
+    const transport = createRecordingTransport();
+    await renderViews(recordingAnalytics(transport));
+
+    clickAndFlush(viewLink("Mixer"));
+    await vi.waitFor(() => expect(currentView()).toHaveTextContent("Mixer"));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    await vi.waitFor(() => expect(currentView()).toHaveTextContent("Instrument"));
+
+    const switches = transport.events.filter((event) => event.name === "view_changed");
+    expect(switches.map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "mixer", via: "dock" }),
+      expect.objectContaining({ view: "instrument", via: "keyboard" }),
+    ]);
+  });
+
+  it("logs nothing for arriving, or for asking for the view already on screen", async () => {
+    const transport = createRecordingTransport();
+    await renderViews(recordingAnalytics(transport));
+
+    // Opening a project is not a switch — `project_opened` measures that.
+    expect(transport.events.some((event) => event.name === "view_changed")).toBe(false);
+
+    clickAndFlush(viewLink("Arrangement"));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
+    await Promise.resolve();
+
+    expect(transport.events.some((event) => event.name === "view_changed")).toBe(false);
+  });
+
+  it("keeps one editing session across a switch, rather than remounting", async () => {
+    const { location, projectId } = await renderViews();
+
+    // Undo history is session-local and dies with the component, so an undo
+    // that survives a switch is proof the editor was not remounted — which is
+    // what "switching views never rebuilds audio nodes or loses transport
+    // position" rests on, since the audio graph has the same lifetime.
+    paintStep("Notes, step 2, off");
+    await screen.findByRole("button", { name: "Notes, step 2, on" });
+    const undoBefore = screen.getByRole("button", { name: /^Undo / });
+
+    clickAndFlush(viewLink("Mixer"));
+    await atView(location, `/projects/${projectId}/mixer`, "Mixer");
+
+    const undoAfter = screen.getByRole("button", { name: /^Undo / });
+    expect(undoAfter).toBeEnabled();
+    expect(undoAfter.getAttribute("aria-label")).toBe(
+      undoBefore.getAttribute("aria-label"),
+    );
+  });
+
+  it("changes nothing about switching when analytics is disabled", async () => {
+    const transport = createRecordingTransport();
+    const consent = new ConsentStore(memoryStorage());
+    consent.set({ productAnalytics: false });
+    const { location, projectId } = await renderViews(
+      recordingAnalytics(transport, consent),
+    );
+
+    clickAndFlush(viewLink("Mixer"));
+
+    await atView(location, `/projects/${projectId}/mixer`, "Mixer");
+    expect(transport.events).toHaveLength(0);
+  });
+});
+
 describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
   async function renderSlice() {
     repository = inMemoryModule.createInMemoryProjectRepository();
