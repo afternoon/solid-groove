@@ -72,7 +72,7 @@
 }
 
 .landing-button-primary:hover {
-  background-color: var(--color-accent-bright);
+  background-color: var(--color-accent-dim);
 }
 
 .landing-button-quiet {

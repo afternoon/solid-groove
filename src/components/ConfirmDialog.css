@@ -48,9 +48,13 @@
   cursor: default;
 }
 
+/* The destructive action is the loudest control in the dialog: a full-strength
+   fill, which in a monochrome palette means white with black on it rather than
+   a red one. Nothing here is allowed to be a hue, so the button's wording and
+   the dialog's copy carry the warning. */
 .confirm-dialog-confirm {
   background: var(--color-danger-solid);
-  color: var(--color-foreground-bright);
+  color: var(--color-on-accent);
   border: 1px solid var(--color-danger-solid);
 }
 

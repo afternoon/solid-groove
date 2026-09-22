@@ -416,7 +416,7 @@
 }
 
 .pack-detail-primary:hover:not(:disabled) {
-  background: var(--color-accent-bright);
+  background: var(--color-accent-dim);
 }
 
 .pack-detail-primary:disabled {

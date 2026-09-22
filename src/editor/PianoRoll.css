@@ -139,7 +139,7 @@
 }
 
 .pr-note.selected {
-  background: var(--color-accent-bright);
+  background: var(--color-accent-dim);
   border-color: var(--color-foreground-bright);
   z-index: 2;
 }

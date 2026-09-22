@@ -56,22 +56,27 @@ export interface InteractionState {
  * theme by `canvasRenderer.test.ts`, so they cannot drift away from it silently.
  */
 export const COLOR_TOKENS = {
-  background: ["--color-background", "#141414"],
-  ruler: ["--color-background-sunken", "#101010"],
-  rowAlt: ["--color-background-well", "#181818"],
-  gridBeat: ["--color-background-tertiary", "#262626"],
-  gridBar: ["--color-border-strong", "#383838"],
-  text: ["--color-foreground", "#8a8a8a"],
-  rulerText: ["--color-text-secondary", "#b4b4b4"],
-  playhead: ["--color-accent", "#20c8e8"],
-  selection: ["--color-accent-wash", "rgb(32 200 232 / 15%)"],
-  selectionBorder: ["--color-accent", "#20c8e8"],
-  hover: ["--color-text", "#e6e6e6"],
-  placementSelection: ["--color-accent-wash-strong", "rgb(32 200 232 / 28%)"],
+  /* The grid is the ground, so it is black and the ruler rises off it — the
+     inverse of a palette whose darkest surface is a well. */
+  background: ["--color-background", "#000000"],
+  ruler: ["--color-background-secondary", "#141414"],
+  /* Alternating rows are a tint rather than a step: nothing sits below black,
+     and borrowing the ground costs no shade. */
+  rowAlt: ["--tint-subtle", "rgb(255 255 255 / 4%)"],
+  gridBeat: ["--color-border", "#292929"],
+  gridBar: ["--color-border-strong", "#474747"],
+  text: ["--color-foreground", "#a6a6a6"],
+  rulerText: ["--color-text-secondary", "#d9d9d9"],
+  playhead: ["--color-accent", "#ffffff"],
+  selection: ["--color-accent-wash", "rgb(255 255 255 / 15%)"],
+  selectionBorder: ["--color-accent", "#ffffff"],
+  hover: ["--color-text", "#f6f6f6"],
+  placementSelection: ["--color-accent-wash-strong", "rgb(255 255 255 / 28%)"],
   /* Note ticks and the waveform centre line are drawn over a track's own
-     colour, so they shade what is beneath rather than naming a colour. */
-  onPlacement: ["--shade-medium", "rgb(0 0 0 / 40%)"],
-  onPlacementStrong: ["--scrim", "rgb(0 0 0 / 55%)"],
+     colour — the one hue on screen — so they shade what is beneath rather
+     than naming a colour of their own. */
+  onPlacement: ["--shade-medium", "rgb(0 0 0 / 45%)"],
+  onPlacementStrong: ["--scrim", "rgb(0 0 0 / 70%)"],
 } as const satisfies Record<string, readonly [string, string]>;
 
 type ColorName = keyof typeof COLOR_TOKENS;

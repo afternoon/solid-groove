@@ -93,24 +93,44 @@ describe("the theme is the only place a colour is written down", () => {
     }
   });
 
-  it("keeps the palette small — one neutral ramp and four hues", () => {
-    const hues = new Set<string>();
-    for (const [, value] of themeTokens()) {
-      const rgb = /^#([0-9a-f]{6})$/i.exec(value);
-      if (!rgb?.[1]) continue;
-      const [r, g, b] = [0, 2, 4].map((i) =>
-        Number.parseInt(rgb[1].slice(i, i + 2), 16),
-      ) as [number, number, number];
-      hues.add(
-        Math.max(r, g, b) - Math.min(r, g, b) <= 8
-          ? "neutral"
-          : `${Math.round(r / 32)}-${Math.round(g / 32)}-${Math.round(b / 32)}`,
-      );
+  it("is literally monochrome — every colour is a neutral grey", () => {
+    // The whole point of the palette: no hue anywhere in the interface
+    // chrome. A tinted grey is as much a violation as a blue one, so this
+    // asserts R === G === B rather than merely "low saturation".
+    const coloured: string[] = [];
+    for (const [name, value] of themeTokens()) {
+      const hex = /^#([0-9a-f]{6})$/i.exec(resolveToken(name));
+      if (!hex?.[1]) continue;
+      const [r, g, b] = [0, 2, 4].map((i) => Number.parseInt(hex[1].slice(i, i + 2), 16));
+      if (r !== g || g !== b) coloured.push(`${name}: ${value}`);
     }
-    // Neutral, cyan (three steps plus the colour that sits on it), and the
-    // red/amber/green that mean something. Adding a hue is a design decision.
-    expect(hues.size).toBeLessThanOrEqual(9);
-    expect(hues).toContain("neutral");
+    expect(coloured).toEqual([]);
+  });
+
+  it("spends mid-greys sparingly — a short ramp between black and white", () => {
+    const ramp = [...themeTokens().keys()].filter((name) => name.startsWith("--mono-"));
+    expect(ramp).toContain("--mono-00");
+    expect(ramp).toContain("--mono-100");
+    expect(resolveToken("--mono-00")).toBe("#000000");
+    expect(resolveToken("--mono-100")).toBe("#ffffff");
+    // Two anchors and a handful of working shades. Adding a step is a design
+    // decision, so it should have to come past this line to do it.
+    expect(ramp.length).toBeLessThanOrEqual(9);
+  });
+
+  it("only ever borrows black or white for a translucent tint", () => {
+    // A tint composites over whatever is beneath it, so a *tinted* tint would
+    // smuggle hue in through the back door.
+    const offenders: string[] = [];
+    for (const [name, value] of themeTokens()) {
+      const rgb = /^rgba?\(\s*(\d+)\s+(\d+)\s+(\d+)\s*\//.exec(value);
+      if (!rgb) continue;
+      const [r, g, b] = rgb.slice(1, 4).map(Number) as [number, number, number];
+      const neutral =
+        (r === 0 && g === 0 && b === 0) || (r === 255 && g === 255 && b === 255);
+      if (!neutral) offenders.push(`${name}: ${value}`);
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("leaves no colour literal in any other stylesheet", () => {
