@@ -2,6 +2,7 @@ import { Title } from "@solidjs/meta";
 import { useLocation } from "@solidjs/router";
 import { Errored, Loading } from "@solidjs/web";
 import { type Accessor, createEffect, createSignal, onSettled } from "solid-js";
+import { APP_TITLE } from "../site.config.mjs";
 import { analytics } from "./analytics/analytics";
 import AppErrorFallback from "./components/AppErrorFallback";
 import FloatingTelemetryDisclosure from "./components/FloatingTelemetryDisclosure";
@@ -49,6 +50,18 @@ function SurfaceTracker(props: { telemetry: Accessor<Telemetry | null> }) {
 }
 
 export default function App() {
+  // Drop the prerendered landing markup (`src/Document.tsx`) now that the live
+  // tree is about to replace it. Synchronous and in the component body rather
+  // than in `onSettled`, because this runs inside the same task as the client
+  // `render()` that inserts the app: the browser never gets a chance to paint
+  // a frame with both copies in it, or with neither.
+  //
+  // In production the shell for a deep link never contains this node at all
+  // (`scripts/emit-app-shell.mjs`), and the dev server's copy has already
+  // removed itself. This is the landing path's case, and the backstop for the
+  // other two.
+  document.getElementById("landing-static")?.remove();
+
   const [telemetry, setTelemetry] = createSignal<Telemetry | null>(null);
 
   // PRD `OPS-01`: mark internal/team traffic once per app load so it can be
@@ -82,7 +95,7 @@ export default function App() {
     <Router>
       {(props) => (
         <>
-          <Title>Groove</Title>
+          <Title>{APP_TITLE}</Title>
           <SurfaceTracker telemetry={telemetry} />
           <Errored
             fallback={(err, reset) => (
