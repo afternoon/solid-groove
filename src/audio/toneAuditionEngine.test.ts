@@ -50,7 +50,7 @@ function loopAsset(overrides: Partial<LibraryAsset> = {}): LibraryAsset {
 }
 
 /** Serve `samples` as the decoded audio for every asset URL the engine loads. */
-function serveDecodedAudio(samples: Float32Array): void {
+function serveDecodedAudio(samples: Float32Array<ArrayBuffer>): void {
   vi.spyOn(Tone.ToneAudioBuffer, "load").mockImplementation(async () => {
     const context = Tone.getContext().rawContext as unknown as {
       createBuffer(channels: number, length: number, rate: number): AudioBuffer;
@@ -62,7 +62,7 @@ function serveDecodedAudio(samples: Float32Array): void {
 }
 
 /** Two seconds of a 220 Hz sine at half scale: a loop that is plainly audible. */
-function sineLoop(): Float32Array {
+function sineLoop(): Float32Array<ArrayBuffer> {
   const samples = new Float32Array(SAMPLE_RATE * 2);
   for (let i = 0; i < samples.length; i++) {
     samples[i] = 0.5 * Math.sin((2 * Math.PI * 220 * i) / SAMPLE_RATE);
