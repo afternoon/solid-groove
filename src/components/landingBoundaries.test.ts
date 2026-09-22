@@ -118,3 +118,47 @@ describe("the landing page's first-paint cost (PRD PRJ-06, section 10)", () => {
     );
   });
 });
+
+/**
+ * The same walk, applied to the prerendered document shell (task `#297`).
+ *
+ * `src/Document.tsx` is rendered by Node during `vite build`, so its static
+ * import closure is server code: anything in it that expects a browser breaks
+ * the build rather than a page, and anything heavy in it is paid for by a build
+ * that does not need it. `LandingPageContent` was extracted so this graph could
+ * stay that small while still being the *same* markup the live page renders --
+ * which is what stops the prerendered HTML from drifting away from the app's.
+ */
+describe("the prerendered document shell (task #297)", () => {
+  const documentShell = join(sourceRoot, "Document.tsx");
+  const { files, packages } = staticClosure(documentShell);
+  const reachable = [...files].map((file) => relative(sourceRoot, file));
+
+  it("prerenders the very markup the live page renders", () => {
+    expect(reachable).toContain(join("components", "LandingPageContent.tsx"));
+  });
+
+  it("reaches no module that expects a browser", () => {
+    // Each of these reads `localStorage`, constructs an SDK, or expects a
+    // router above it, and would fail or mislead in a Node build.
+    for (const forbidden of [
+      join("components", "LandingPage.tsx"),
+      join("components", "TelemetryDisclosure.tsx"),
+      join("analytics", "analytics.ts"),
+      join("analytics", "consent.ts"),
+      join("auth", "authService.ts"),
+      "firebaseConfig.ts",
+      "app.tsx",
+    ]) {
+      expect(reachable).not.toContain(forbidden);
+    }
+  });
+
+  it("imports no package that expects a browser", () => {
+    expect(
+      [...packages].filter((specifier) =>
+        /^(firebase|@sentry\/|tone|@solidjs\/router)/.test(specifier),
+      ),
+    ).toEqual([]);
+  });
+});

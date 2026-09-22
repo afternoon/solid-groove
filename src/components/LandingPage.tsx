@@ -1,5 +1,7 @@
+import { Title } from "@solidjs/meta";
 import { useNavigate } from "@solidjs/router";
 import { createSignal } from "solid-js";
+import { SITE_TITLE } from "../../site.config.mjs";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { AuthService } from "../auth/authService";
 import { reportError as defaultReportError } from "../monitoring/errorReporting";
@@ -132,12 +134,19 @@ export default function LandingPage(props: LandingPageProps) {
   };
 
   return (
-    <LandingPageContent
-      busy={busy()}
-      loginError={loginError()}
-      onStartFree={startFree}
-      onLogIn={() => void logIn()}
-      disclosure={<TelemetryDisclosure placement="inline" />}
-    />
+    <>
+      {/* The shell's prerendered `<title>` says this (`src/Document.tsx`), and
+          the app's default says "Groove". Without this the two would disagree
+          the moment the client mounts, and a crawler that executes JavaScript
+          would index the wrong one. */}
+      <Title>{SITE_TITLE}</Title>
+      <LandingPageContent
+        busy={busy()}
+        loginError={loginError()}
+        onStartFree={startFree}
+        onLogIn={() => void logIn()}
+        disclosure={<TelemetryDisclosure placement="inline" />}
+      />
+    </>
   );
 }
