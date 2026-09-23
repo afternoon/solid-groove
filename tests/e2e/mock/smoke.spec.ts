@@ -128,10 +128,21 @@ test.describe("anonymous start", () => {
 // is a fresh store on every page load, so it cannot prove persistence across
 // a real reload; tests/e2e/emulator/slice.spec.ts covers that against a real
 // (emulated) backend instead.
-/** One bar at 192 PPQ, `canvasRenderer.RULER_HEIGHT_PX`, `ROW_METRICS`. */
+/** One bar at 192 PPQ. */
 const TICKS_PER_BAR = 4 * 192;
-const RULER_HEIGHT_PX = 22;
-const ROW_HEIGHT_PX = 28;
+
+/**
+ * The vertical middle of the first track row, read off the arrangement root
+ * rather than copied here — the row height moved from 28 to 84 and every copy
+ * of it went on passing, because the old centre still landed inside the taller
+ * row. The horizontal scale was already read this way.
+ */
+async function firstRowCentreY(ready: Locator): Promise<number> {
+  const rulerHeight = Number(await ready.getAttribute("data-ruler-height"));
+  const rowHeight = Number(await ready.getAttribute("data-row-height"));
+  expect(rowHeight).toBeGreaterThan(0);
+  return rulerHeight + rowHeight / 2;
+}
 
 /** Opens the first row's clip the way a producer does — a double-click on the
  * timeline (`UI-001`). A clip is canvas pixels, reachable only as a point. */
@@ -142,7 +153,7 @@ async function openStarterClip(page: Page): Promise<Locator> {
   await page.locator(".arrangement-layer-interactive").dblclick({
     position: {
       x: (TICKS_PER_BAR / 2) * pixelsPerTick,
-      y: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+      y: await firstRowCentreY(ready),
     },
   });
   const editor = page.getByRole("dialog", { name: "Sequence editor" });
