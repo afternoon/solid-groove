@@ -131,12 +131,17 @@ const MASKED_NAMES: readonly {
     renders: "the track name, editable in place",
   },
   {
+    file: "editor/TrackRail.tsx",
+    anchor: "track-rail-name",
+    renders: "track names down the instrument view's rail",
+  },
+  {
     file: "editor/TrackClipEditor.tsx",
     anchor: "track-name",
     renders: "the selected track's name",
   },
   {
-    file: "editor/EditorView.tsx",
+    file: "editor/EditorInstrument.tsx",
     anchor: "track-name",
     renders: "the drum track's name",
   },

@@ -19,7 +19,6 @@ import { loadSampleCommands, toLibrarySample } from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
 import type { LibraryAssetType } from "../library/manifest";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { getProjectRepository } from "../projectRepositoryClient";
 import {
   emptySelection,
@@ -28,8 +27,8 @@ import {
   selectOnly,
 } from "../selection";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
-import DrumMachinePanel from "./DrumMachinePanel";
 import EditorHeader from "./EditorHeader";
+import EditorInstrument from "./EditorInstrument";
 import * as model from "./editorViewModel";
 import {
   type EditorViewName,
@@ -44,7 +43,6 @@ import ProjectLoadStates from "./ProjectLoadStates";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
-import TrackInstrument from "./TrackInstrument";
 import { addTrackOfKind } from "./trackCreation";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
@@ -463,45 +461,24 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     </div>
                   </Match>
                   <Match when={props.view === "instrument"}>
-                    <div class="instrument-view">
-                      <Show when={track()} fallback={<NoTracks />}>
-                        {(currentTrack) => (
-                          <>
-                            <Show when={drumTrack()}>
-                              {(drum) => (
-                                <div class="drum-machine-editor">
-                                  <div class="track-info">
-                                    <span class={`track-name ${MASK_CONTENT}`}>
-                                      {drum().name}
-                                    </span>
-                                  </div>
-                                  <DrumMachinePanel
-                                    track={drum()}
-                                    assets={sampleAssets()}
-                                    dispatch={session.dispatch}
-                                    audition={(padId) =>
-                                      void audio.auditionPad(drum().id, padId)
-                                    }
-                                  />
-                                </div>
-                              )}
-                            </Show>
-                            <TrackInstrument
-                              trackName={currentTrack().name}
-                              instrument={instrument()}
-                              project={currentProject()}
-                              trackId={instrumentPanelTrackId()}
-                              sampleName={sampleName()}
-                              loadSample={loadLibrarySample}
-                              audition={auditionInstrument}
-                              onBrowse={() => openLibrary()}
-                              dispatch={session.dispatch}
-                              beginGesture={session.beginGesture}
-                            />
-                          </>
-                        )}
-                      </Show>
-                    </div>
+                    <EditorInstrument
+                      project={currentProject()}
+                      track={track() ?? null}
+                      drumTrack={drumTrack() ?? null}
+                      sampleAssets={sampleAssets()}
+                      instrument={instrument()}
+                      instrumentTrackId={instrumentPanelTrackId()}
+                      sampleName={sampleName()}
+                      loadSample={loadLibrarySample}
+                      audition={auditionInstrument}
+                      auditionPad={(trackId, padId) =>
+                        void audio.auditionPad(trackId, padId)
+                      }
+                      onBrowse={() => openLibrary()}
+                      onSelectTrack={selectTrack}
+                      dispatch={session.dispatch}
+                      beginGesture={session.beginGesture}
+                    />
                   </Match>
                   <Match when={props.view === "mixer"}>
                     <div class="mixer-view">

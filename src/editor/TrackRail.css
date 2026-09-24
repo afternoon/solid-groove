@@ -1,0 +1,57 @@
+/* The instrument view's track rail (UI-001): a narrow column down the left
+   edge, scrolling on its own so a long project never pushes the instrument
+   off the page. A track's colour is the one hue in the product, and this is
+   what makes a row identifiable at a glance. */
+
+.track-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 0 0 9rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border-right: 1px solid var(--color-divider);
+}
+
+.track-rail-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.track-rail-button:hover {
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+}
+
+/* State is brightness: the track you are looking at is the brightest row. */
+.track-rail-button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.track-rail-swatch {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.track-rail-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
