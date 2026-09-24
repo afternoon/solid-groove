@@ -3,6 +3,7 @@ import type { Project } from "../domain/entities";
 import {
   createDrumMachineFixtureProject,
   createLargeArrangementProject,
+  createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import { TICKS_PER_BAR } from "../domain/time";
@@ -52,6 +53,16 @@ describe("buildArrangementProjection", () => {
     const projection = buildArrangementProjection(project, rowMetrics);
     const [placement] = [...projection.placementsById.values()];
     expect(placement.preview.kind).toBe("notes");
+  });
+
+  it("places a note preview's notes on rows by pitch, highest on top (#351)", () => {
+    // C4, E4, G4, C5: a 13-semitone span, so C5 is row 0 and C4 row 12.
+    const project = createPianoRollFixtureProject();
+    const projection = buildArrangementProjection(project, rowMetrics);
+    const [placement] = [...projection.placementsById.values()];
+    if (placement.preview.kind !== "notes") throw new Error("expected notes");
+    expect(placement.preview.laneCount).toBe(13);
+    expect(placement.preview.notes.map((note) => note.lane)).toEqual([12, 8, 5, 0]);
   });
 
   it("labels an audioLoop clip's placement with a waveform preview", () => {
