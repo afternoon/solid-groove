@@ -136,11 +136,32 @@ export function drawBackgroundLayer(env: DrawEnvironment): void {
   ctx.fillRect(0, 0, viewport.width, viewport.height);
 
   const top = contentTopOffset();
+  const rowHeight = projection.rowMetrics.trackHeightPx;
   for (let rowIndex = rowRange.startRow; rowIndex <= rowRange.endRow; rowIndex += 1) {
     if (rowIndex % 2 === 1) {
       const y = rowTop(rowIndex, projection) - viewport.scrollTop;
       ctx.fillStyle = colors().rowAlt;
-      ctx.fillRect(0, y, viewport.width, projection.rowMetrics.trackHeightPx);
+      ctx.fillRect(0, y, viewport.width, rowHeight);
+    }
+  }
+
+  // One line per row boundary, continuing past the last track to the bottom of
+  // the view. Tall rows need the horizontal rule the alternating fill used to
+  // stand in for: with 84px of space a clip no longer touches its neighbours,
+  // so without a line there is nothing to say where one track's lane ends.
+  // Drawn beyond the last row on purpose — the empty area below the song is
+  // still the timeline, and a grid that stops mid-view reads as a broken edge.
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = colors().gridBeat;
+  const firstLine = Math.max(0, Math.floor((viewport.scrollTop - top) / rowHeight));
+  for (let line = firstLine; ; line += 1) {
+    const y = Math.round(top + line * rowHeight - viewport.scrollTop) + 0.5;
+    if (y > viewport.height) break;
+    if (y >= top) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(viewport.width, y);
+      ctx.stroke();
     }
   }
 

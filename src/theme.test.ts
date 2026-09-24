@@ -147,7 +147,15 @@ describe("the theme is the only place a colour is written down", () => {
 
   it("resolves every token those stylesheets read", () => {
     // Set on an element from TSX (`StepEditor`, `FillSlider`), never in CSS.
-    const setFromMarkup = new Set(["--step-count", "--velocity"]);
+    // `TrackRail` sets the last two from the arrangement's own `ROW_METRICS`
+    // and `HEADER_WIDTH_PX`, so a track's row is the same size in both views
+    // without either one writing the numbers down twice (`UI-001`).
+    const setFromMarkup = new Set([
+      "--step-count",
+      "--velocity",
+      "--track-row-height",
+      "--track-column-width",
+    ]);
     const declared = new Set(
       Object.values(stylesheets).flatMap((source) =>
         [...source.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map(([, name]) => String(name)),

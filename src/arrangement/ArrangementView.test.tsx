@@ -15,7 +15,10 @@ import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectR
 import { createManualClock } from "../shared/clock";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
-import ArrangementView, { type PlacementEditingActions } from "./ArrangementView";
+import ArrangementView, {
+  type PlacementEditingActions,
+  ROW_METRICS,
+} from "./ArrangementView";
 
 afterEach(() => {
   cleanup();
@@ -24,7 +27,9 @@ afterEach(() => {
 
 const PIXELS_PER_TICK = 0.08;
 const RULER_HEIGHT_PX = 22;
-const ROW_HEIGHT_PX = 28;
+// The view's own metric, not a copy of it: these coordinates only mean
+// anything if they agree with the rows actually being drawn.
+const ROW_HEIGHT_PX = ROW_METRICS.trackHeightPx;
 
 /** jsdom's `PointerEvent` drops `clientX`/`button`; a `MouseEvent` bubbles to
  * the same `onPointer*` handlers and carries them, exactly like `PianoRoll`'s

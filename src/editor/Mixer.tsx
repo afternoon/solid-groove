@@ -108,16 +108,6 @@ export default function Mixer(props: MixerProps): JSX.Element {
   const trackById = (id: TrackId): Track | undefined =>
     props.project.song.tracks.find((track) => track.id === id);
   const [pendingDelete, setPendingDelete] = createSignal<Track | null>(null);
-  /**
-   * Whether the master strip is the one being looked at (`UI-001`).
-   *
-   * Mixer-local rather than part of the shared selection model: `master` is
-   * not a `SelectionScope`, and the selection model is a published contract
-   * that a layout change has no business widening. What it decides is which
-   * chain this view shows — nothing outside the mixer follows it.
-   */
-  const [masterSelected, setMasterSelected] = createSignal(false);
-
   function clipCount(trackId: TrackId): number {
     return props.project.clips.filter((clip) => clip.trackId === trackId).length;
   }
@@ -141,8 +131,6 @@ export default function Mixer(props: MixerProps): JSX.Element {
    * the OPS-02 `feature_first_use` measure, like every other strip interaction.
    */
   function selectTrack(trackId: TrackId): void {
-    // One strip at a time: choosing a track's chain leaves the master's.
-    setMasterSelected(false);
     if (!props.onSelectTrack) return;
     props.onSelectTrack(trackId);
     analytics().logFeatureFirstUse("mixer");
@@ -223,22 +211,21 @@ export default function Mixer(props: MixerProps): JSX.Element {
       </div>
       {/* The master, at the end of the strips where a console puts it.
 			    Selecting it is the route to its chain, which #283 fills. */}
+      {/*
+       * The master and its chain, always on screen (`UI-001`). It used to be
+       * a button you pressed to reveal the chain, which made the one thing
+       * every project has — and the one chain that is always there — the only
+       * part of the mixer you had to go looking for. There is exactly one
+       * master, so there is nothing to choose: showing it costs a strip's
+       * width and saves a click every time.
+       */}
       <div class="mixer-master">
-        <button
-          type="button"
-          class="mixer-master-select"
-          aria-pressed={ariaBool(masterSelected())}
-          onClick={() => setMasterSelected((selected) => !selected)}
-        >
-          Master
-        </button>
-      </div>
-      <Show when={masterSelected()}>
+        <h3 class="mixer-master-title">Master</h3>
         <DeviceChainSlot
           label="Master device chain"
           emptyMessage="No devices on the master yet."
         />
-      </Show>
+      </div>
       <Show when={pendingDelete()}>
         {(track) => (
           <ConfirmDialog

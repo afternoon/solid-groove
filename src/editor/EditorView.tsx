@@ -437,40 +437,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 <Switch>
                   <Match when={props.view === "arrangement"}>
                     <div class="editor-main">
-                      {/* The arrangement's own way to add a track (`UI-001`),
-                          the same unit and the same route the mixer uses. */}
-                      <div class="arrangement-new-track">
-                        <NewTrackButtons
-                          label="Add track to the arrangement"
-                          onAdd={(spec) =>
-                            addTrackOfKind(spec.kind, {
-                              project: currentProject(),
-                              context: factoryContext,
-                              dispatch: session.dispatch,
-                              analytics: props.analytics ?? defaultAnalytics,
-                              feature: "arrangement",
-                              onSelect: selectTrack,
-                            })
-                          }
-                        >
-                          {/*
-                           * An audio track needs content to exist, so the way
-                           * to start one is to pick the loop (`UI-001`). This
-                           * is also the arrangement's general way into the
-                           * library, which #281 builds the insertion on.
-                           */}
-                          <button
-                            type="button"
-                            class="new-track-button"
-                            aria-label="Add loop track"
-                            title="Add loop track"
-                            onClick={() => openLibrary(["loop"])}
-                          >
-                            <HiSolidPlus size={13} />
-                            <span>Loop</span>
-                          </button>
-                        </NewTrackButtons>
-                      </div>
                       <div class="arrangement-panel">
                         <ArrangementView
                           project={currentProject()}
@@ -482,6 +448,42 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           selectedTrackId={track()?.id ?? null}
                           onSelectTrack={selectTrack}
                           onOpenPlacement={openPlacement}
+                          /* The arrangement's own way to add a track
+                             (`UI-001`), the same unit and the same route the
+                             mixer uses — rendered by the arrangement directly
+                             below the last track, where the next one would
+                             go, rather than in a band above the timeline. */
+                          belowTracks={
+                            <NewTrackButtons
+                              label="Add track to the arrangement"
+                              onAdd={(spec) =>
+                                addTrackOfKind(spec.kind, {
+                                  project: currentProject(),
+                                  context: factoryContext,
+                                  dispatch: session.dispatch,
+                                  analytics: props.analytics ?? defaultAnalytics,
+                                  feature: "arrangement",
+                                  onSelect: selectTrack,
+                                })
+                              }
+                            >
+                              {/*
+                               * An audio track needs content to exist, so the
+                               * way to start one is to pick the loop
+                               * (`UI-001`); inserting it makes the track.
+                               */}
+                              <button
+                                type="button"
+                                class="new-track-button"
+                                aria-label="Add loop track"
+                                title="Add loop track"
+                                onClick={() => openLibrary(["loop"])}
+                              >
+                                <HiSolidPlus size={13} />
+                                <span>Loop</span>
+                              </button>
+                            </NewTrackButtons>
+                          }
                         />
                       </div>
                       <Show when={currentProject().song.tracks.length === 0}>
