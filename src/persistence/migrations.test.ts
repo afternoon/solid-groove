@@ -12,7 +12,7 @@ import {
 
 describe("migration harness", () => {
   it("passes a current-schema project through untouched", async () => {
-    const stored = await loadStoredProjectFixture("v2-slice-project.json");
+    const stored = await loadStoredProjectFixture("v3-slice-project.json");
 
     const result = migrateProjectDocuments(stored);
 
@@ -25,7 +25,7 @@ describe("migration harness", () => {
   it("decodes the checked-in current-schema fixture into the fixture project", async () => {
     // This pins the stored wire format: if encoding changes shape, the file on
     // disk stops decoding and the change has to be a deliberate migration.
-    const stored = await loadStoredProjectFixture("v2-slice-project.json");
+    const stored = await loadStoredProjectFixture("v3-slice-project.json");
 
     const decoded = decodeProject(stored);
 
@@ -45,7 +45,7 @@ describe("migration harness", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.applied).toHaveLength(1);
+    expect(result.applied).toHaveLength(2);
 
     const decoded = decodeProject(result.documents);
     expect(decoded.ok).toBe(true);
@@ -91,14 +91,14 @@ describe("migration harness", () => {
   });
 
   it("refuses a newer schema version without touching it", async () => {
-    const stored = await loadStoredProjectFixture("v3-future-project.json");
+    const stored = await loadStoredProjectFixture("v4-future-project.json");
 
     const result = migrateProjectDocuments(stored);
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe("future_version");
-    expect(result.storedVersion).toBe(3);
+    expect(result.storedVersion).toBe(4);
     expect(result.message).toContain("will not read or overwrite it");
   });
 

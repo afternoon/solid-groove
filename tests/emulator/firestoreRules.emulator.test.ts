@@ -312,7 +312,7 @@ describe("firestore.rules: song, clip, and arrangement tiers", () => {
     await assertFails(
       setDoc(
         doc(db, "projects", PROJECT_A, "song", "current"),
-        childDocument(PROJECT_A, { schemaVersion: 3 }),
+        childDocument(PROJECT_A, { schemaVersion: 4 }),
       ),
     );
     await assertFails(

@@ -234,7 +234,9 @@ describe("structural commands", () => {
       const result = executeCommand(fixture.project, addPlacement(placement));
       expect(result.ok).toBe(false);
       if (result.ok) return;
-      expect(result.issues[0].domainIssues?.[0].code).toBe("dangling_reference");
+      expect(result.issues[0].domainIssues?.map((found) => found.code)).toContain(
+        "dangling_reference",
+      );
     });
 
     it("moves a placement along the timeline", () => {
@@ -256,7 +258,9 @@ describe("structural commands", () => {
       );
       expect(result.ok).toBe(false);
       if (result.ok) return;
-      expect(result.issues[0].domainIssues?.[0].code).toBe("cross_owner_reference");
+      expect(result.issues[0].domainIssues?.map((found) => found.code)).toContain(
+        "cross_owner_reference",
+      );
     });
 
     it("removes a placement without touching its clip", () => {

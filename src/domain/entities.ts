@@ -44,9 +44,11 @@ import { durationTickSchema, tickSchema } from "./time";
  *
  * v1 was the first production schema. v2 (LIB-08) adds `metadata.addedPacks`,
  * the project's pack shelf; a v1 project migrates forward by seeding its shelf
- * from its derived pack dependencies (`persistence/migrations.ts`).
+ * from its derived pack dependencies (`persistence/migrations.ts`). v3 (#290)
+ * makes a track's placements disjoint in time; a v2 project migrates forward by
+ * trimming the later-starting placement of each overlapping pair.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);

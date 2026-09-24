@@ -1,4 +1,5 @@
 import { type Project, type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
+import { type PlacementSpan, trimLaterOverlaps } from "../domain/placementOverlap";
 import {
   type DecodeResult,
   decodeProject,
@@ -40,6 +41,47 @@ const migrateV1ToV2: ProjectMigration = {
   migrate: (document, tier) =>
     tier === "metadata" ? metadataV1ToV2(document) : bumpVersion(document, 2),
 };
+
+/**
+ * v2 -> v3 (#290): a track's placements become disjoint in time.
+ *
+ * Nothing stopped a v2 project stacking placements on one track, and the v3
+ * invariant rejects that, so the migration resolves each overlap as the product
+ * owner decided: the placement that starts earlier is kept intact and the
+ * overlapping part of the later one is trimmed away, or removed if fully
+ * covered; on a tie the one earlier in the array is kept. A track's placements
+ * live in one list — the song document's, or that track's arrangement chunk —
+ * so each stored list is resolved on its own.
+ */
+const migrateV2ToV3: ProjectMigration = {
+  from: 2,
+  to: 3,
+  description: "Trim overlapping placements so each track's placements are disjoint",
+  migrate(document) {
+    const record = bumpVersion(document, 3);
+    return Array.isArray(record.placements)
+      ? { ...record, placements: trimStoredPlacements(record.placements) }
+      : record;
+  },
+};
+
+/**
+ * Trims a stored placement list, or leaves it untouched when any entry is
+ * malformed: reporting bad shape is the decoder's job, not the migration's.
+ */
+function trimStoredPlacements(placements: readonly unknown[]): unknown[] {
+  const records = placements.map(asRecord);
+  const spans = records.every(
+    (record) =>
+      typeof record.trackId === "string" &&
+      Number.isInteger(record.startTicks) &&
+      Number.isInteger(record.durationTicks) &&
+      Number.isInteger(record.clipOffsetTicks),
+  );
+  return spans
+    ? trimLaterOverlaps(records as (PlacementSpan & Record<string, unknown>)[])
+    : [...placements];
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -90,7 +132,10 @@ export interface ProjectMigration {
 }
 
 /** Ordered, gap-free chain of migrations up to `SCHEMA_VERSION`. */
-export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [migrateV1ToV2];
+export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [
+  migrateV1ToV2,
+  migrateV2ToV3,
+];
 
 export type MigrationFailureReason =
   | "future_version"

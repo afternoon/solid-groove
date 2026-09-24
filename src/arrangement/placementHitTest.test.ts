@@ -20,7 +20,7 @@ import type { Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
-import { minutesToTicks, TICKS_PER_BAR, ticksToSeconds } from "../domain/time";
+import { minutesToTicks, TICKS_PER_BAR, ticksToSeconds, toTicks } from "../domain/time";
 import {
   pixelsToTicks,
   type RowMetrics,
@@ -66,6 +66,21 @@ function withPlacementAt(project: Project, startTicks: number): Project {
   return apply(project, commands);
 }
 
+/**
+ * A second placement stacked at `startTicks` *without* going through the
+ * kernel. Overlap is illegal since #290, so no command can build this state;
+ * the hit tester still has to resolve it deterministically if it is handed one.
+ */
+function stackedUnchecked(project: Project, startTicks: number): Project {
+  const [first] = project.song.placements;
+  const extra = {
+    ...first,
+    id: createSeededIdFactory("stacked")("placement"),
+    startTicks: toTicks(startTicks),
+  };
+  return { ...project, song: { ...project.song, placements: [first, extra] } };
+}
+
 function projectionOf(project: Project) {
   return buildArrangementProjection(project, rowMetrics);
 }
@@ -85,7 +100,7 @@ describe("overlap: two placements sharing a tick", () => {
       base,
       resizePlacement(base, placementId, "end", TICKS_PER_BAR * 4),
     );
-    const overlapped = withPlacementAt(grown, TICKS_PER_BAR * 2);
+    const overlapped = stackedUnchecked(grown, TICKS_PER_BAR * 2);
     const projection = projectionOf(overlapped);
 
     const result = hitTestArrangement(
@@ -113,7 +128,7 @@ describe("overlap: two placements sharing a tick", () => {
       base,
       resizePlacement(base, placementId, "end", TICKS_PER_BAR * 4),
     );
-    const overlapped = withPlacementAt(grown, TICKS_PER_BAR * 2);
+    const overlapped = stackedUnchecked(grown, TICKS_PER_BAR * 2);
     const projection = projectionOf(overlapped);
     const index = projection.placementsByTrack.get(projection.tracks[0].id);
     expect(index).toBeDefined();

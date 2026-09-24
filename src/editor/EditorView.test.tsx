@@ -12,13 +12,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import { ROW_METRICS } from "../arrangement/ArrangementView";
+import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import {
   createDrumMachineFixtureProject,
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
+import { toTicks } from "../domain/time";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import { fixtureFetcher, fixturePackManifest } from "../library/__fixtures__/fixtures";
 import { LIBRARY_SAMPLE_MIME } from "../library/assetDrag";
@@ -1131,18 +1132,20 @@ describe("EditorView keyboard shortcuts", () => {
    * show it. The geometry constants mirror the renderer's own — the canvas has
    * no DOM nodes to query for a hit.
    */
-  async function selectPlacementInArrangement(placementId: string): Promise<void> {
+  async function selectPlacementInArrangement(
+    placementId: string,
+    atTicks = 768 / 2,
+  ): Promise<void> {
     const canvas = document.querySelector(".arrangement-layer-interactive");
     if (!canvas) throw new Error("no arrangement interaction canvas rendered");
-    const PIXELS_PER_TICK = 0.08;
+    const PIXELS_PER_TICK = INITIAL_PIXELS_PER_TICK;
     const RULER_HEIGHT_PX = 22;
     const ROW_HEIGHT_PX = 28;
-    const TICKS_PER_BAR = 768;
     const down = new MouseEvent("pointerdown", {
       bubbles: true,
       cancelable: true,
       button: 0,
-      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientX: atTicks * PIXELS_PER_TICK,
       clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
     });
     Object.defineProperty(down, "pointerId", { value: 1 });
@@ -1202,14 +1205,19 @@ describe("EditorView keyboard shortcuts", () => {
   // duplicate, select-all, has-selection).
   it("pastes a copied placement while the piano roll is showing (#258)", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createPianoRollFixtureProject();
+    // The source is a one-bar placement starting at bar 2, so the paste at the
+    // playhead (tick 0) lands on empty ticks rather than on its own source,
+    // which #290 forbids.
+    const fixture = createPianoRollFixtureProject();
+    const [source] = fixture.song.placements;
+    const moved = { ...source, startTicks: toTicks(768), durationTicks: toTicks(768) };
+    const project = { ...fixture, song: { ...fixture.song, placements: [moved] } };
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
     await screen.findByTestId("arrangement-view-ready");
 
-    const placementId = project.song.placements[0].id;
-    await selectPlacementInArrangement(placementId);
+    await selectPlacementInArrangement(source.id, 768 * 1.5);
 
     fireEvent.keyDown(window, { key: "c", ctrlKey: true });
     fireEvent.keyDown(window, { key: "v", ctrlKey: true });
