@@ -367,7 +367,6 @@ Make it a trade, not a favour — that's what makes it repeat.
 
 - Free permanent access, for him and his students.
 - Advisor credit, if he wants it.
-- **Co-designing the starter templates.** `DEC-002 - Featured alpha templates` is still an open decision. Let him shape them around his curriculum: he gets syllabus-matched teaching material, you get educator-designed entry points. Costs you nothing you weren't already doing, and it's the most valuable thing you can offer.
 - A tool that **shows a student exactly what changed and why** — hard to demonstrate live in Ableton, and precisely what a teacher wants.
 - Paid advisory hours (§9).
 
@@ -417,7 +416,7 @@ Reuse the ladder for each. Once three teachers say yes, you can largely stop doi
 
 Reddit's self-serve ads take a £5/day minimum and typical CPCs land around £1.00–£1.50, but meaningful data needs roughly £40–80/day for two to three weeks. Your whole budget is one week of a real test. **You cannot afford to learn anything from Reddit ads, so don't try.**
 
-Every other line buys a human with an existing audience and existing trust. A small producer-YouTuber with 5,000 engaged subscribers will make an honest first-look video for £75–150: a real audience, a trusted voice, and a permanent asset. £200 of a teacher's time buys curriculum input, the `DEC-002` templates, and a relationship that keeps producing the right users every term. For a pre-launch tool with a visual product, both beat paid ads by a wide margin.
+Every other line buys a human with an existing audience and existing trust. A small producer-YouTuber with 5,000 engaged subscribers will make an honest first-look video for £75–150: a real audience, a trusted voice, and a permanent asset. £200 of a teacher's time buys curriculum input and a relationship that keeps producing the right users every term. For a pre-launch tool with a visual product, both beat paid ads by a wide margin.
 
 ### The rule for the held-back £190
 

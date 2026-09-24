@@ -99,10 +99,10 @@ This task depends on ${decisions.map((d) => `\`${d.id}\` (${d.issue ? `#${d.issu
 Implement everything that does not depend on the decision — the structure, the commands, the tests, the states that hold under any answer — and design the boundary so the decision drops in as configuration rather than a rewrite. Then list every acceptance checkbox you could not close in \`unmet\`, naming the decision as the reason, and comment the same on your issue. An honest \`unmet\` entry is the correct outcome here, not a failure.`
 
 // Only decisions that are still OPEN belong here. `DEC-001` (anonymous
-// retention, #30), `DEC-002` (featured templates, #31) and `DEC-004` (export
-// gain, #33) were answered by the product owner and are recorded in the PRD and
-// in the LOOP-001/HARD-003/AUD-05/AUD-06 acceptance criteria, so LOOP-001 and
-// LOOP-015 are ordinary tasks now — their briefs must not tell an agent to hold
+// retention, #30) and `DEC-004` (export gain, #33) were answered by the
+// product owner and are recorded in the PRD and in the
+// LOOP-001/HARD-003/AUD-05/AUD-06 acceptance criteria, so LOOP-001 is an
+// ordinary task now — their briefs must not tell an agent to hold
 // back on a decision that exists. The agent reads the decided criteria straight
 // from its GitHub issue body, which is the specification.
 const DEC = {

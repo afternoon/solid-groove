@@ -113,8 +113,7 @@ export default function Dashboard(props: DashboardProps = {}) {
 
   /**
    * `source: "blank"` creates a genuinely empty project; `source: "template"`
-   * uses the `FND-009` starter — audible content with no genre attached (the
-   * `DEC-002` featured genre templates are `LOOP-015`'s scope, not this one's).
+   * uses the `FND-009` starter — audible content with no genre attached.
    * Both are the PRD `PRJ-01`/`PRJ-02` creation paths this task owns.
    */
   const createProject = async (source: "blank" | "template") => {
