@@ -94,7 +94,7 @@ test.describe("CF-003", () => {
       await page.getByRole("button", { name: "Select the placements in Drop" }).click();
       await expect(selectedPlacements(page)).toHaveCount(1);
       await expect(page.getByTestId("arrangement-selection-live")).toContainText(
-        "bars 1 to 1",
+        "Selected clip on BD, bar 1",
       );
       await step("The sections swap, and their clips travel with them");
 

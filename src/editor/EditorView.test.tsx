@@ -1548,7 +1548,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     const off = await screen.findByRole("button", { name: "Enable loop" });
     expect(off).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
-      "Loop over bars 1 to 1, looping off",
+      "Loop over bar 1, looping off",
     );
     expect(transport.named("loop_toggled")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
@@ -1557,7 +1557,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
   it("moves and resizes the loop brace from its keyboard controls", async () => {
     const transport = await renderLooping();
     const live = screen.getByTestId("arrangement-loop-live");
-    expect(live).toHaveTextContent("Loop over bars 1 to 1, looping on");
+    expect(live).toHaveTextContent("Loop over bar 1, looping on");
     const length = screen.getByRole("spinbutton", { name: "Loop length" });
     const start = screen.getByRole("spinbutton", { name: "Loop start" });
     // A new project's brace spans the first bar.

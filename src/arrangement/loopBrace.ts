@@ -19,6 +19,7 @@ import { setLoopRange } from "../commands/definitions/loop";
 import type { RawCommandInput } from "../commands/types";
 import { TICKS_PER_BAR, toTicks } from "../domain/time";
 import { ticksToPixels, type Viewport } from "./geometry";
+import { describeSpan } from "./selectionAnnouncement";
 
 /** Which part of the brace a pointer grabbed: an edge resizes, the middle moves. */
 export type LoopBraceHandle = "start" | "end" | "body";
@@ -27,15 +28,14 @@ export type LoopBraceHandle = "start" | "end" | "body";
 export const LOOP_HANDLE_HIT_PX = 6;
 
 /**
- * The one wording of a loop range: the first and last bar it covers, 1-based
- * and inclusive, as a person counts bars. A brace over the first bar alone
- * reads "bars 1 to 1". The accessible mirror on the arrangement is the single
+ * The wording of a loop range: the arrangement's one bar-counting rule
+ * (`describeSpan`, #292), so a brace over the first bar alone reads "bar 1"
+ * and one over bars 1 and 2 reads "bars 1 to 2", exactly as a selection over
+ * the same bars does. The accessible mirror on the arrangement is the single
  * place this text is shown.
  */
 export function describeLoopBars(range: LoopRange): string {
-  const first = Math.floor(range.startTicks / TICKS_PER_BAR) + 1;
-  const last = Math.ceil(range.endTicks / TICKS_PER_BAR);
-  return `bars ${first} to ${last}`;
+  return describeSpan(range.startTicks, range.endTicks);
 }
 
 /**
