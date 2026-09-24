@@ -3,15 +3,13 @@ import { type Analytics, analytics as defaultAnalytics } from "../analytics/anal
 import { type AudioHost, getAudioRuntime } from "../audio/AudioRuntime";
 import { ProjectAudioGraph } from "../audio/ProjectAudioGraph";
 import {
-  type LoopRange,
   liveTransportEngine,
   TransportController,
   TransportMetronome,
 } from "../audio/Transport";
 import { UnderrunMonitor } from "../audio/underrun";
-import type { NoteTrigger, Project } from "../domain/entities";
+import type { NoteTrigger, Project, SongLoop } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
-import { TICKS_PER_BAR } from "../domain/time";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
 import type { AudioAssetProjection } from "../projection/audioProjection";
 import {
@@ -32,8 +30,8 @@ export interface ProjectAudioControls {
   readonly isPlaying: Accessor<boolean>;
   /** The playhead position in ticks, updated per animation frame while playing. */
   readonly positionTicks: Accessor<number>;
-  readonly loopEnabled: Accessor<boolean>;
-  readonly loop: Accessor<LoopRange | null>;
+  /** The song's loop, mirrored onto the transport. `null` before a project loads. */
+  readonly loop: Accessor<SongLoop | null>;
   readonly metronomeEnabled: Accessor<boolean>;
   play(): Promise<void>;
   pause(): void;
@@ -48,16 +46,6 @@ export interface ProjectAudioControls {
    * per-track level display (PRD TRK-02); reading a meter emits no telemetry.
    */
   trackLevelDb(trackId: string): number | null;
-  /**
-   * Redefine the (bar-aligned) loop range. No surface calls this yet: the
-   * `FND-009` slice renders a 16-step grid and no timeline, so there is nothing
-   * to drag a range on — the loop is the one bar the grid shows. The range
-   * *selection* UI belongs with the timeline that owns range select and range
-   * loop (`ARR-002`); `setLoop`/`barAlignedLoop` are the engine side of it and
-   * are exercised by `Transport.test.ts`.
-   */
-  setLoop(startTicks: number, endTicks: number): void;
-  toggleLoop(): void;
   toggleMetronome(): void;
   /**
    * Plays one drum pad immediately (a panel audition, PRD INS-01). It resumes
@@ -163,8 +151,7 @@ export function useProjectAudio(
 
   const [isPlaying, setIsPlaying] = createSignal(false);
   const [positionTicks, setPositionTicks] = createSignal(0);
-  const [loopEnabled, setLoopEnabled] = createSignal(false);
-  const [loop, setLoop] = createSignal<LoopRange | null>(null);
+  const [loop, setLoop] = createSignal<SongLoop | null>(null);
   const [metronomeEnabled, setMetronomeEnabled] = createSignal(false);
 
   let graph: ProjectAudioGraph | null = null;
@@ -237,13 +224,6 @@ export function useProjectAudio(
           graph.masterInput,
         );
         transport = new TransportController({ metronome });
-        // The slice's loop is the one bar its 16-step grid shows. Enabling it
-        // is a user gesture, but the range is fixed here rather than selected:
-        // there is no timeline to drag a range on until `ARR-002`, which owns
-        // range select and range loop. See `setLoop` on the controls above.
-        transport.setLoop(0, TICKS_PER_BAR);
-        setLoop(transport.loop);
-        setLoopEnabled(false);
         setMetronomeEnabled(false);
         lastProjection = undefined;
       }
@@ -251,6 +231,12 @@ export function useProjectAudio(
       graph.reconcile(lastProjection);
       // Mirror the song tempo onto the transport without restarting it.
       transport?.setTempo(current.song.tempo);
+      // Same for the loop (LOOP-017): the range and the toggle are project
+      // state, so an edit to either is mirrored in place on every reconcile.
+      // Widening the brace mid-playback is honoured from the transport's next
+      // pass — nothing here restarts the song or rebuilds a node.
+      transport?.applyLoop(current.song.loop);
+      setLoop(current.song.loop);
 
       // `audio_loop` first-use (PRD OPS-02, INS-02): the first time a project
       // with a tempo-labelled loop clip is wired onto the audio graph. Fired
@@ -403,16 +389,6 @@ export function useProjectAudio(
     setPositionTicks(transport?.positionTicks ?? 0);
   }
 
-  function setLoopRange(startTicks: number, endTicks: number): void {
-    const range = transport?.setLoop(startTicks, endTicks);
-    if (range) setLoop(range);
-  }
-
-  function toggleLoop(): void {
-    transport?.toggleLoop();
-    setLoopEnabled(transport?.loopEnabled ?? false);
-  }
-
   function toggleMetronome(): void {
     transport?.toggleMetronome();
     setMetronomeEnabled(transport?.metronomeEnabled ?? false);
@@ -455,7 +431,6 @@ export function useProjectAudio(
   return {
     isPlaying,
     positionTicks,
-    loopEnabled,
     loop,
     metronomeEnabled,
     play,
@@ -465,8 +440,6 @@ export function useProjectAudio(
     continueFromStop,
     seekTicks,
     trackLevelDb,
-    setLoop: setLoopRange,
-    toggleLoop,
     toggleMetronome,
     auditionPad,
     auditionTrack,

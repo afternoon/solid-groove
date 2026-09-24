@@ -7,6 +7,7 @@ import ArrangementView, {
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
+import { setLoopEnabled } from "../commands/definitions/loop";
 import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
@@ -216,6 +217,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     );
   };
 
+  // The loop is project state (LOOP-017), so the button dispatches a command
+  // and reads the answer back off the project — it never holds the toggle
+  // itself, and the setting survives a reload. `loop.setEnabled` carries the
+  // state to set rather than being a toggle, so the surface that owns the
+  // button is the one that reads the current value.
+  const loopEnabled = createMemo(() => project()?.song.loop.enabled ?? false);
+  const toggleLoop = () => {
+    session.dispatch(setLoopEnabled(!loopEnabled()));
+  };
+
   const playheadLabel = createMemo(() => model.playheadLabel(audio.positionTicks()));
 
   // Which track the editor is pointed at (#228). UI-only state held in the
@@ -416,8 +427,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onRedo={() => session.redo()}
                 isPlaying={audio.isPlaying}
                 onTogglePlay={() => void audio.toggle()}
-                loopEnabled={audio.loopEnabled}
-                onToggleLoop={() => audio.toggleLoop()}
+                loopEnabled={loopEnabled}
+                onToggleLoop={toggleLoop}
                 metronomeEnabled={audio.metronomeEnabled}
                 onToggleMetronome={() => audio.toggleMetronome()}
                 tempo={tempo}

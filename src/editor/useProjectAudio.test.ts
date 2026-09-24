@@ -1,12 +1,17 @@
 import { cleanup, renderHook } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import type { AudioHost, AudioProjectScope } from "../audio/AudioRuntime";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
+import { setLoopEnabled, setLoopRange } from "../commands/definitions/loop";
+import { executeTransaction } from "../commands/execute";
+import type { RawCommandInput } from "../commands/types";
 import type { Project } from "../domain/entities";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
+import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
@@ -29,6 +34,13 @@ afterEach(async () => {
   }
   AudioRuntimeModule.__resetAudioRuntimeForTests();
 });
+
+/** Commits one command against a project, or fails the test loudly. */
+function applyOrThrow(project: Project, command: RawCommandInput): Project {
+  const result = executeTransaction(project, [command]);
+  if (!result.ok) throw new Error(result.issues[0].message);
+  return result.project;
+}
 
 function fakeAnalytics() {
   const transport = createRecordingTransport();
@@ -259,6 +271,50 @@ describe("useProjectAudio", () => {
     expect(afterDispose.byType.node ?? 0).toBe(0);
     expect(afterDispose.byType.schedule ?? 0).toBe(0);
     expect(afterDispose.byType.subscription ?? 0).toBe(0);
+  });
+
+  it("mirrors the song's loop and follows an edit without rebuilding the graph", async () => {
+    // LOOP-017: the range and the toggle are project state, so the hook reads
+    // them off the project on every reconcile rather than owning them. An edit
+    // to either must be an in-place mirror — the same graph, no new nodes.
+    const runtime = AudioRuntimeModule.getAudioRuntime();
+    const opened = createSliceFixtureProject();
+    const [project, setProject] = createSignal<Project>(opened);
+
+    const { result } = renderHook(
+      () => useProjectAudioModule.useProjectAudio(project),
+      {},
+    );
+    void result.isPlaying();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(result.loop()).toEqual(opened.song.loop);
+    const nodesOnOpen = runtime.diagnostics().resources.byOwner[opened.metadata.id];
+
+    const widened = applyOrThrow(
+      opened,
+      setLoopRange(TICKS_PER_BAR * 2, TICKS_PER_BAR * 6),
+    );
+    setProject(widened);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(result.loop()).toEqual({
+      startTicks: TICKS_PER_BAR * 2,
+      endTicks: TICKS_PER_BAR * 6,
+      enabled: true,
+    });
+    expect(runtime.diagnostics().resources.byOwner[opened.metadata.id]).toBe(nodesOnOpen);
+
+    setProject(applyOrThrow(widened, setLoopEnabled(false)));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(result.loop()?.enabled).toBe(false);
+    // Switching looping off leaves the brace exactly where the producer put it.
+    expect(result.loop()?.startTicks).toBe(TICKS_PER_BAR * 2);
+    expect(runtime.diagnostics().resources.byOwner[opened.metadata.id]).toBe(nodesOnOpen);
   });
 
   // LOOP-006 / INS-02 analytics: a project with a tempo-labelled loop reports

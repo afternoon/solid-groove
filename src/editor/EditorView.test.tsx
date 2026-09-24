@@ -1479,14 +1479,33 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     );
   });
 
-  it("toggles the loop and the metronome, reflecting their pressed state", async () => {
+  it("toggles the loop through the command layer, reflecting its pressed state", async () => {
     await renderSlice();
 
-    const loop = screen.getByRole("button", { name: "Enable loop" });
-    expect(loop).toHaveAttribute("aria-pressed", "false");
+    // LOOP-017: a project opens with looping on, and the button reads the
+    // toggle off the project rather than holding it.
+    const loop = screen.getByRole("button", { name: "Disable loop" });
+    expect(loop).toHaveAttribute("aria-pressed", "true");
+
     fireEvent.click(loop);
-    const loopOn = await screen.findByRole("button", { name: "Disable loop" });
-    expect(loopOn).toHaveAttribute("aria-pressed", "true");
+
+    const loopOff = await screen.findByRole("button", { name: "Enable loop" });
+    expect(loopOff).toHaveAttribute("aria-pressed", "false");
+    // Undoable, so the toggle really travelled through a command rather than
+    // being written onto the transport behind the project's back.
+    expect(
+      await screen.findByRole("button", { name: "Undo Turn looping off" }),
+    ).not.toBeDisabled();
+
+    fireEvent.click(loopOff);
+    expect(await screen.findByRole("button", { name: "Disable loop" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("toggles the metronome, reflecting its pressed state", async () => {
+    await renderSlice();
 
     const metronome = screen.getByRole("button", { name: "Enable metronome" });
     expect(metronome).toHaveAttribute("aria-pressed", "false");

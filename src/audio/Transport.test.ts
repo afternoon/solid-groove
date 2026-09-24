@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
+import type { SongLoop } from "../domain/entities";
+import { TICKS_PER_BAR, TICKS_PER_QUARTER, toTicks } from "../domain/time";
 import type { AudioProjectScope } from "./AudioRuntime";
 import type { MetronomeVoice, TransportEngine, TransportState } from "./Transport";
 import { installWebAudioGlobals } from "./testAudioContext";
@@ -18,6 +19,15 @@ beforeAll(async () => {
  * A deterministic transport double that records every write and lets a test
  * fire the scheduled repeat callback at a chosen tick. No Tone, no wall clock.
  */
+/** A song loop spanning bars `[startBar, endBar)`, zero-based. */
+function loopOf(startBar: number, endBar: number, enabled: boolean): SongLoop {
+  return {
+    startTicks: toTicks(startBar * TICKS_PER_BAR),
+    endTicks: toTicks(endBar * TICKS_PER_BAR),
+    enabled,
+  };
+}
+
 function fakeEngine(): TransportEngine & {
   fireRepeat(atTicks: number, time: number): void;
   scheduled: { intervalTicks: number; startTicks: number } | null;
@@ -82,28 +92,6 @@ function fakeScope(): AudioProjectScope {
   };
 }
 
-describe("barAlignedLoop (PRD AUD-02)", () => {
-  it("snaps the start down and the end up to whole bars", () => {
-    const range = TransportModule.barAlignedLoop(
-      TICKS_PER_BAR + 10,
-      2 * TICKS_PER_BAR + 5,
-    );
-    expect(range.startTicks).toBe(TICKS_PER_BAR);
-    expect(range.endTicks).toBe(3 * TICKS_PER_BAR);
-  });
-
-  it("always encloses at least one bar, even for an empty range", () => {
-    const range = TransportModule.barAlignedLoop(100, 100);
-    expect(range.endTicks - range.startTicks).toBe(TICKS_PER_BAR);
-  });
-
-  it("loopOfBars produces a bar-aligned range of the requested length", () => {
-    const range = TransportModule.loopOfBars(2, 4);
-    expect(range.startTicks).toBe(2 * TICKS_PER_BAR);
-    expect(range.endTicks).toBe(6 * TICKS_PER_BAR);
-  });
-});
-
 describe("clampTempo (PRD AUD-02)", () => {
   it("clamps to the supported 40-240 BPM range", () => {
     expect(TransportModule.clampTempo(20)).toBe(40);
@@ -136,8 +124,7 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
   it("stop returns to the loop start when looping is enabled", () => {
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });
-    transport.setLoop(2 * TICKS_PER_BAR, 4 * TICKS_PER_BAR);
-    transport.setLoopEnabled(true);
+    transport.applyLoop(loopOf(2, 4, true));
     engine.ticks = 3 * TICKS_PER_BAR;
 
     transport.stop();
@@ -204,26 +191,53 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
     expect(transport.isPlaying).toBe(true);
   });
 
-  it("setLoop bar-aligns the range and writes it to the engine as tick notation", () => {
+  it("applyLoop writes the song's range to the engine as tick notation", () => {
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });
-    const range = transport.setLoop(TICKS_PER_BAR + 10, 2 * TICKS_PER_BAR + 5);
-    expect(range.startTicks).toBe(TICKS_PER_BAR);
-    expect(range.endTicks).toBe(3 * TICKS_PER_BAR);
+
+    transport.applyLoop(loopOf(1, 3, true));
+
     expect(engine.loopStart).toBe(`${TICKS_PER_BAR}i`);
     expect(engine.loopEnd).toBe(`${3 * TICKS_PER_BAR}i`);
+    expect(engine.loop).toBe(true);
+    expect(transport.loop).toEqual(loopOf(1, 3, true));
   });
 
-  it("toggleLoop enables and disables looping without touching the run state", () => {
+  it("applyLoop moves the range mid-playback without restarting or seeking", () => {
+    // LOOP-017: widening the brace while the transport runs is honoured from
+    // its next pass. The playhead must not move and the song must not restart,
+    // or the producer loses their place every time they drag an edge.
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });
-    transport.setLoop(0, TICKS_PER_BAR);
+    transport.applyLoop(loopOf(0, 1, true));
+    transport.play();
+    engine.ticks = TICKS_PER_QUARTER * 2;
+
+    transport.applyLoop(loopOf(0, 2, true));
+
+    expect(engine.loopEnd).toBe(`${2 * TICKS_PER_BAR}i`);
+    expect(transport.positionTicks).toBe(TICKS_PER_QUARTER * 2);
+    expect(engine.startCalls).toBe(1);
+    expect(engine.stopCalls).toBe(0);
+    expect(engine.pauseCalls).toBe(0);
+    expect(transport.isPlaying).toBe(true);
+  });
+
+  it("applyLoop switches looping off and back on without touching the run state", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    transport.applyLoop(loopOf(0, 1, true));
     transport.play();
 
-    transport.toggleLoop();
-    expect(engine.loop).toBe(true);
-    transport.toggleLoop();
+    transport.applyLoop(loopOf(0, 1, false));
     expect(engine.loop).toBe(false);
+    // The range stays where it is while looping is off, so switching back on
+    // returns to the same brace rather than to a default.
+    expect(engine.loopStart).toBe("0i");
+    expect(engine.loopEnd).toBe(`${TICKS_PER_BAR}i`);
+
+    transport.applyLoop(loopOf(0, 1, true));
+    expect(engine.loop).toBe(true);
     expect(engine.startCalls).toBe(1);
     expect(engine.stopCalls).toBe(0);
   });

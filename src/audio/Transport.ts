@@ -1,5 +1,6 @@
 import * as Tone from "tone";
-import { barAlignedRange, PPQ, TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
+import type { SongLoop } from "../domain/entities";
+import { PPQ, TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { ticksToToneTime } from "./scheduling";
 
@@ -106,31 +107,6 @@ export const liveTransportEngine: TransportEngine = {
     Tone.getTransport().clear(id);
   },
 };
-
-/** A bar-aligned loop range, in absolute ticks. */
-export interface LoopRange {
-  readonly startTicks: number;
-  readonly endTicks: number;
-}
-
-/**
- * Snaps an arbitrary loop range to whole bars (PRD AUD-02: "an arrangement
- * loop range aligned to bars").
- *
- * The rule itself lives in the domain, next to the invariant that enforces it
- * and the `loop.setRange` command that applies it, so a stored range and an
- * engine-side one can never disagree about where a bar line is.
- */
-export function barAlignedLoop(startTicks: number, endTicks: number): LoopRange {
-  return barAlignedRange(startTicks, endTicks);
-}
-
-/** A loop spanning `barCount` bars from bar `startBar` (both zero-based). */
-export function loopOfBars(startBar: number, barCount: number): LoopRange {
-  const start = Math.max(0, Math.floor(startBar)) * TICKS_PER_BAR;
-  const bars = Math.max(1, Math.floor(barCount));
-  return { startTicks: start, endTicks: start + bars * TICKS_PER_BAR };
-}
 
 /** The AUD-02 supported tempo range. The domain `song.tempo` parameter allows a
  * wider band for migration headroom; the transport surface clamps to the range
@@ -259,7 +235,7 @@ export interface TransportControllerOptions {
 export class TransportController {
   private readonly engine: TransportEngine;
   private readonly metronome: Metronome | null;
-  private loopRange: LoopRange | null = null;
+  private loopRange: SongLoop | null = null;
   /** Where the playhead was when `stop()` last ran, so `continueFromStop()`
    * can resume there rather than from the position `stop()` rewound to. */
   private stoppedAtTicks = 0;
@@ -282,7 +258,8 @@ export class TransportController {
     return Math.max(0, Math.round(this.engine.ticks));
   }
 
-  get loop(): LoopRange | null {
+  /** The loop the transport is currently obeying, as last applied. */
+  get loop(): SongLoop | null {
     return this.loopRange;
   }
 
@@ -347,26 +324,26 @@ export class TransportController {
     this.engine.bpm.value = clampTempo(bpm);
   }
 
-  /** Set (and bar-align) the loop range, applying it if looping is on. */
-  setLoop(startTicks: number, endTicks: number): LoopRange {
-    const range = barAlignedLoop(startTicks, endTicks);
-    this.loopRange = range;
-    this.engine.loopStart = ticksToToneTime(range.startTicks);
-    this.engine.loopEnd = ticksToToneTime(range.endTicks);
-    return range;
-  }
-
-  /** Enable or disable looping without touching the transport's run state. */
-  setLoopEnabled(enabled: boolean): void {
-    if (enabled && this.loopRange) {
-      this.engine.loopStart = ticksToToneTime(this.loopRange.startTicks);
-      this.engine.loopEnd = ticksToToneTime(this.loopRange.endTicks);
-    }
-    this.engine.loop = enabled;
-  }
-
-  toggleLoop(): void {
-    this.setLoopEnabled(!this.engine.loop);
+  /**
+   * Mirror the song's loop onto the transport (LOOP-017).
+   *
+   * The range and the toggle are project state — the transport reads them, it
+   * does not own them — so this is the same kind of in-place mirror
+   * {@link setTempo} is: it writes the engine's loop bounds and flag and
+   * nothing else. It never starts, stops, or seeks, and it rebuilds no node,
+   * so widening the brace mid-playback is honoured from the transport's next
+   * pass without interrupting the song (PRD AUD-02).
+   *
+   * The range arrives already bar-aligned — `loop.setRange` snapped it and
+   * `checkSongIntegrity` refuses a project where it is not — so there is
+   * nothing to re-align here, and one edit produces exactly one pair of bound
+   * writes rather than a rebuild that could re-fire events at the boundary.
+   */
+  applyLoop(loop: SongLoop): void {
+    this.loopRange = loop;
+    this.engine.loopStart = ticksToToneTime(loop.startTicks);
+    this.engine.loopEnd = ticksToToneTime(loop.endTicks);
+    this.engine.loop = loop.enabled;
   }
 
   /** Turn the metronome click on or off without stopping playback. */
