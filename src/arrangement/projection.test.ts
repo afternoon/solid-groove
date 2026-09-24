@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { addTrack, updateTrack } from "../commands/definitions/tracks";
+import { executeTransaction } from "../commands/execute";
 import type { Project } from "../domain/entities";
+import {
+  createFactoryContext,
+  createNoteClip,
+  createPlacement,
+  createTrack,
+} from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
   createLargeArrangementProject,
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
+import { createSeededIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import type { RowMetrics } from "./geometry";
 import {
@@ -255,5 +264,58 @@ describe("hitTestArrangement", () => {
       5,
     );
     expect(result).toEqual({ kind: "empty" });
+  });
+});
+
+describe("placement colour follows the track (#365)", () => {
+  function apply(project: Project, commands: Parameters<typeof executeTransaction>[1]) {
+    const result = executeTransaction(project, commands);
+    expect(result.ok, JSON.stringify((result as { issues?: unknown }).issues)).toBe(true);
+    return result.project;
+  }
+
+  /** The slice fixture plus a second track (order 1, so a different default
+   * colour) carrying a default-coloured clip placed on it — the way a clip
+   * added to any track after the first is made. */
+  function twoTrackProject() {
+    const base = createSliceFixtureProject();
+    const context = createFactoryContext({ ids: createSeededIdFactory("issue-365") });
+    const track = createTrack(context, { name: "Keys", order: 1 });
+    const clip = createNoteClip(context, { trackId: track.id, name: "Chords" });
+    const placement = createPlacement(context, {
+      clipId: clip.id,
+      trackId: track.id,
+      startTicks: 0,
+      durationTicks: TICKS_PER_BAR,
+    });
+    const project = apply(base, [
+      addTrack(track, { clips: [clip], placements: [placement] }),
+    ]);
+    return { project, trackId: track.id, placementId: placement.id };
+  }
+
+  it("draws a clip on any track in that track's colour, not the first track's", () => {
+    const { project, trackId, placementId } = twoTrackProject();
+    const [first, second] = project.song.tracks;
+    expect(second.color).not.toBe(first.color);
+
+    const projection = buildArrangementProjection(project, rowMetrics);
+
+    const track = project.song.tracks.find((candidate) => candidate.id === trackId);
+    expect(projection.placementsById.get(placementId)?.color).toBe(track?.color);
+  });
+
+  it("redraws a track's clips in its new colour after the track is recoloured", () => {
+    const { project, trackId, placementId } = twoTrackProject();
+    const before = buildArrangementProjection(project, rowMetrics);
+
+    const recoloured = apply(project, [updateTrack(trackId, { color: "#123456" })]);
+    const after = buildArrangementProjection(recoloured, rowMetrics);
+
+    const placement = after.placementsById.get(placementId);
+    expect(placement?.color).toBe("#123456");
+    expect(placement?.revision).not.toBe(
+      before.placementsById.get(placementId)?.revision,
+    );
   });
 });
