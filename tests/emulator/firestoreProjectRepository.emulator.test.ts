@@ -6,7 +6,7 @@
 // watch notifications all have to work the same way here.
 import type { RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import type { Firestore } from "firebase/firestore";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createSliceFixtureProject } from "../../src/domain/fixtures";
 import { FirestoreProjectRepository } from "../../src/persistence/firestoreProjectRepository";
@@ -43,6 +43,13 @@ function repositoryFor(uid = "user_fixture"): FirestoreProjectRepository {
 describeProjectRepositoryContract("firestore", () => ({
   repositoryFor,
   reset: async () => testEnv.clearFirestore(),
+  seedStoredDocuments: async (documents) =>
+    testEnv.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore() as unknown as Firestore;
+      for (const { path, data } of documents) {
+        await setDoc(doc(db, path), data);
+      }
+    }),
 }));
 
 describe("FirestoreProjectRepository against the emulator", () => {
