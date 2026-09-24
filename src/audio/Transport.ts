@@ -356,28 +356,6 @@ export class TransportController {
     this.engine.bpm.value = clampTempo(bpm);
   }
 
-  /** Set (and bar-align) the loop range, applying it if looping is on. */
-  setLoop(startTicks: number, endTicks: number): LoopRange {
-    const range = barAlignedLoop(startTicks, endTicks);
-    this.loopRange = range;
-    this.engine.loopStart = ticksToToneTime(range.startTicks);
-    this.engine.loopEnd = ticksToToneTime(range.endTicks);
-    return range;
-  }
-
-  /** Enable or disable looping without touching the transport's run state. */
-  setLoopEnabled(enabled: boolean): void {
-    if (enabled && this.loopRange) {
-      this.engine.loopStart = ticksToToneTime(this.loopRange.startTicks);
-      this.engine.loopEnd = ticksToToneTime(this.loopRange.endTicks);
-    }
-    this.engine.loop = enabled;
-  }
-
-  toggleLoop(): void {
-    this.setLoopEnabled(!this.engine.loop);
-  }
-
   /**
    * Mirror the song's loop (`song.loop`, LOOP-017) onto the transport. The
    * loop is project state, written only by the `loop.setRange` and

@@ -473,13 +473,13 @@ test.describe("transport bar", () => {
     await expect(tempo).toHaveValue("144");
 
     // Loop and metronome are toggles with real pressed state, and neither
-    // needs playback to be running.
-    const loop = page.getByRole("button", { name: "Enable loop" });
-    await expect(loop).toHaveAttribute("aria-pressed", "false");
+    // needs playback to be running. A new project loops by default (LOOP-017).
+    const loop = page.getByRole("button", { name: "Disable loop" });
+    await expect(loop).toHaveAttribute("aria-pressed", "true");
     await loop.click();
-    await expect(page.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
+    await expect(page.getByRole("button", { name: "Enable loop" })).toHaveAttribute(
       "aria-pressed",
-      "true",
+      "false",
     );
 
     const metronome = page.getByRole("button", { name: "Enable metronome" });

@@ -1,12 +1,16 @@
 import { cleanup, renderHook } from "@solidjs/testing-library";
+import { createSignal, flush } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import type { AudioHost, AudioProjectScope } from "../audio/AudioRuntime";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
+import { executeTransaction, setLoopEnabled, setLoopRange } from "../commands";
 import type { Project } from "../domain/entities";
+import { bars } from "../domain/factories";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
+import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
@@ -259,6 +263,48 @@ describe("useProjectAudio", () => {
     expect(afterDispose.byType.node ?? 0).toBe(0);
     expect(afterDispose.byType.schedule ?? 0).toBe(0);
     expect(afterDispose.byType.subscription ?? 0).toBe(0);
+  });
+
+  it("mirrors song.loop onto the transport, and follows a loop edit in place (LOOP-017)", async () => {
+    const Tone = await import("tone");
+    const runtime = AudioRuntimeModule.getAudioRuntime();
+    const [project, setProject] = createSignal<Project>(createSliceFixtureProject());
+    const toneTicks = (time: unknown) => Math.round(Tone.Time(time as number).toTicks());
+
+    const { result, cleanup: cleanupHook } = renderHook(
+      () => useProjectAudioModule.useProjectAudio(project),
+      {},
+    );
+    void result.isPlaying();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // A new project's loop is one bar from tick 0, on — and the transport
+    // obeys it from the first reconcile, not from a hard-coded session value.
+    const tone = Tone.getTransport();
+    expect(result.loopEnabled()).toBe(true);
+    expect(result.loop()).toEqual({ startTicks: 0, endTicks: TICKS_PER_BAR });
+    expect(tone.loop).toBe(true);
+    expect(toneTicks(tone.loopEnd)).toBe(TICKS_PER_BAR);
+    const nodesBefore = runtime.diagnostics().resources.byType.node;
+
+    const edited = executeTransaction(project(), [
+      setLoopRange(bars(2), bars(4)),
+      setLoopEnabled(false),
+    ]);
+    if (!edited.ok) throw new Error(edited.issues[0].message);
+    setProject(edited.project);
+    flush();
+
+    expect(result.loop()).toEqual({ startTicks: bars(2), endTicks: bars(4) });
+    expect(result.loopEnabled()).toBe(false);
+    expect(tone.loop).toBe(false);
+    expect(toneTicks(tone.loopStart)).toBe(bars(2));
+    expect(toneTicks(tone.loopEnd)).toBe(bars(4));
+    // Updated in place: no audio node was created or disposed for it.
+    expect(runtime.diagnostics().resources.byType.node).toBe(nodesBefore);
+
+    cleanupHook();
   });
 
   // LOOP-006 / INS-02 analytics: a project with a tempo-labelled loop reports

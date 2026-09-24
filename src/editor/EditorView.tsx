@@ -40,6 +40,7 @@ import {
   type ViewChangeSource,
 } from "./editorViews";
 import LibraryModal from "./LibraryModal";
+import { type LoopActionContext, toggleLooping } from "./loopActions";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import type { PianoRollActions } from "./PianoRoll";
@@ -214,6 +215,17 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     session.dispatch(
       setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, clampTempo(value)),
     );
+  };
+
+  // The loop is song state too (LOOP-017): the header's toggle dispatches
+  // `loop.setEnabled` and `useProjectAudio` mirrors `song.loop` onto the
+  // transport, so this surface never touches the transport's loop itself.
+  const loopActions: LoopActionContext = {
+    project,
+    dispatch: (commands) => session.dispatch(commands),
+    get analytics() {
+      return props.analytics ?? defaultAnalytics;
+    },
   };
 
   const playheadLabel = createMemo(() => model.playheadLabel(audio.positionTicks()));
@@ -417,7 +429,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 isPlaying={audio.isPlaying}
                 onTogglePlay={() => void audio.toggle()}
                 loopEnabled={audio.loopEnabled}
-                onToggleLoop={() => audio.toggleLoop()}
+                onToggleLoop={() => toggleLooping(loopActions)}
                 metronomeEnabled={audio.metronomeEnabled}
                 onToggleMetronome={() => audio.toggleMetronome()}
                 tempo={tempo}
