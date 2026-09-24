@@ -209,7 +209,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // project change, so a running song re-times without restarting and without
   // this surface writing the tempo a second time.
   const tempo = createMemo(() => project()?.song.tempo ?? SONG_TEMPO.defaultValue);
-  const timeSignature = createMemo(() => project()?.song.timeSignature ?? null);
   const applyTempo = (value: number) => {
     if (!Number.isFinite(value)) return;
     session.dispatch(
@@ -227,8 +226,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       return props.analytics ?? defaultAnalytics;
     },
   };
-
-  const playheadLabel = createMemo(() => model.playheadLabel(audio.positionTicks()));
 
   // Which track the editor is pointed at (#228). UI-only state held in the
   // shared PRD 9.2 selection model — never in the project — so one click moves
@@ -401,8 +398,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 
   const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
 
-  const saveStatus = createMemo(() => session.state.saveStatus);
-
   return (
     <main class="editor">
       <Switch>
@@ -420,26 +415,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
             <>
               <EditorHeader
                 projectName={currentProject().metadata.name}
-                canUndo={session.state.canUndo}
-                undoSummary={session.state.undoSummary}
-                canRedo={session.state.canRedo}
-                redoSummary={session.state.redoSummary}
-                onUndo={() => session.undo()}
-                onRedo={() => session.redo()}
-                isPlaying={audio.isPlaying}
-                onTogglePlay={() => void audio.toggle()}
-                loopEnabled={audio.loopEnabled}
+                session={session}
+                audio={audio}
                 onToggleLoop={() => toggleLooping(loopActions)}
-                metronomeEnabled={audio.metronomeEnabled}
-                onToggleMetronome={() => audio.toggleMetronome()}
                 tempo={tempo}
                 onTempoChange={applyTempo}
-                timeSignature={timeSignature}
-                playheadLabel={playheadLabel}
                 onOpenGuide={() => setGuideOpen(true)}
                 keyHint={keyHint}
-                saveStatus={saveStatus}
-                onRetrySave={() => void session.retry()}
               />
               <div class="editor-body">
                 {/*

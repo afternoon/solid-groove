@@ -10,46 +10,62 @@ import {
 } from "solid-icons/hi";
 import { type Accessor, Show } from "solid-js";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
-import type { TimeSignature } from "../domain/entities";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
-import type { SaveStatus as SaveStatusValue } from "../persistence/autosave";
 import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
+import { playheadLabel } from "./editorViewModel";
 import SaveStatus from "./SaveStatus";
+import type { UseEditorSessionResult } from "./useEditorSession";
+import type { ProjectAudioControls } from "./useProjectAudio";
+
+/**
+ * The slice of the audio module the header drives. It is handed the module
+ * whole (`REFACTOR-006`, ADR 0004) — never destructured at the seam, so every
+ * accessor keeps its tracking — and narrowed here only so a test fake need not
+ * build the whole engine. A new transport control widens this `Pick` and adds
+ * its button; nothing between `useProjectAudio` and the header changes.
+ */
+export type HeaderAudio = Pick<
+  ProjectAudioControls,
+  | "isPlaying"
+  | "positionTicks"
+  | "loopEnabled"
+  | "metronomeEnabled"
+  | "toggle"
+  | "toggleMetronome"
+>;
+
+/** The slice of the editor session the header reads: history and save state. */
+export type HeaderSession = Pick<
+  UseEditorSessionResult,
+  "state" | "undo" | "redo" | "retry"
+>;
 
 export interface EditorHeaderProps {
   readonly projectName: string;
-  readonly canUndo: boolean;
-  readonly undoSummary: string | null;
-  readonly canRedo: boolean;
-  readonly redoSummary: string | null;
-  readonly onUndo: () => void;
-  readonly onRedo: () => void;
-  readonly isPlaying: Accessor<boolean>;
-  readonly onTogglePlay: () => void;
-  readonly loopEnabled: Accessor<boolean>;
+  readonly session: HeaderSession;
+  readonly audio: HeaderAudio;
+  /**
+   * The loop is song state (LOOP-017), toggled through a `loop.setEnabled`
+   * command rather than the audio module, so its action comes from the editor.
+   */
   readonly onToggleLoop: () => void;
-  readonly metronomeEnabled: Accessor<boolean>;
-  readonly onToggleMetronome: () => void;
   readonly tempo: Accessor<number>;
   readonly onTempoChange: (value: number) => void;
-  readonly timeSignature: Accessor<TimeSignature | null>;
-  readonly playheadLabel: Accessor<string>;
   readonly onOpenGuide: () => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
-  readonly saveStatus: Accessor<SaveStatusValue | null>;
-  readonly onRetrySave: () => void;
 }
 
 /**
  * The editor's top bar: back link, project name, transport controls, tempo,
- * time signature, playhead, the Library/shortcut-guide toggles, and the
- * `SaveStatus` group. Split out of `EditorView` (`REFACTOR-001`) purely to
- * shrink the parent's merge-clash surface — no behavior changed, so every
- * prop here mirrors the exact value/handler `EditorView` used to close over
- * directly.
+ * time signature, playhead, the shortcut-guide toggle, and the `SaveStatus`
+ * group. Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
+ * merge-clash surface, then handed the audio and session modules whole
+ * (`REFACTOR-006`) rather than one prop per field. Props are read as
+ * `props.audio.isPlaying()`, never destructured, so Solid keeps tracking them.
  */
 export default function EditorHeader(props: EditorHeaderProps) {
+  const history = () => props.session.state;
   return (
     <header class="editor-header">
       {/*
@@ -72,34 +88,34 @@ export default function EditorHeader(props: EditorHeaderProps) {
         <button
           type="button"
           class="undo-button"
-          disabled={!props.canUndo}
-          aria-label={props.undoSummary ? `Undo ${props.undoSummary}` : "Undo"}
-          title={`${props.undoSummary ?? "Undo"} (${props.keyHint("edit.undo")})`}
-          onClick={() => props.onUndo()}
+          disabled={!history().canUndo}
+          aria-label={history().undoSummary ? `Undo ${history().undoSummary}` : "Undo"}
+          title={`${history().undoSummary ?? "Undo"} (${props.keyHint("edit.undo")})`}
+          onClick={() => props.session.undo()}
         >
           <HiSolidArrowUturnLeft size={18} />
         </button>
         <button
           type="button"
           class="redo-button"
-          disabled={!props.canRedo}
-          aria-label={props.redoSummary ? `Redo ${props.redoSummary}` : "Redo"}
-          title={`${props.redoSummary ?? "Redo"} (${props.keyHint("edit.redo")})`}
-          onClick={() => props.onRedo()}
+          disabled={!history().canRedo}
+          aria-label={history().redoSummary ? `Redo ${history().redoSummary}` : "Redo"}
+          title={`${history().redoSummary ?? "Redo"} (${props.keyHint("edit.redo")})`}
+          onClick={() => props.session.redo()}
         >
           <HiSolidArrowUturnRight size={18} />
         </button>
         <button
           type="button"
           class="transport-toggle"
-          onClick={() => props.onTogglePlay()}
-          aria-pressed={ariaBool(props.isPlaying())}
-          aria-label={props.isPlaying() ? "Stop playback" : "Start playback"}
-          title={`${props.isPlaying() ? "Stop" : "Play"} (${props.keyHint(
+          onClick={() => void props.audio.toggle()}
+          aria-pressed={ariaBool(props.audio.isPlaying())}
+          aria-label={props.audio.isPlaying() ? "Stop playback" : "Start playback"}
+          title={`${props.audio.isPlaying() ? "Stop" : "Play"} (${props.keyHint(
             "transport.play_stop",
           )})`}
         >
-          <Show when={props.isPlaying()} fallback={<HiSolidPlay size={22} />}>
+          <Show when={props.audio.isPlaying()} fallback={<HiSolidPlay size={22} />}>
             <HiSolidStop size={22} />
           </Show>
         </button>
@@ -107,18 +123,20 @@ export default function EditorHeader(props: EditorHeaderProps) {
           type="button"
           class="loop-toggle"
           onClick={() => props.onToggleLoop()}
-          aria-pressed={ariaBool(props.loopEnabled())}
-          aria-label={props.loopEnabled() ? "Disable loop" : "Enable loop"}
-          title={props.loopEnabled() ? "Disable loop" : "Enable loop"}
+          aria-pressed={ariaBool(props.audio.loopEnabled())}
+          aria-label={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
+          title={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
         >
           <HiSolidArrowPathRoundedSquare size={18} />
         </button>
         <button
           type="button"
           class="metronome-toggle"
-          onClick={() => props.onToggleMetronome()}
-          aria-pressed={ariaBool(props.metronomeEnabled())}
-          aria-label={props.metronomeEnabled() ? "Disable metronome" : "Enable metronome"}
+          onClick={() => props.audio.toggleMetronome()}
+          aria-pressed={ariaBool(props.audio.metronomeEnabled())}
+          aria-label={
+            props.audio.metronomeEnabled() ? "Disable metronome" : "Enable metronome"
+          }
           title={`Metronome (${props.keyHint("transport.metronome")})`}
         >
           <HiSolidMusicalNote size={18} />
@@ -144,7 +162,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
             BPM
           </span>
         </div>
-        <Show when={props.timeSignature()}>
+        <Show when={history().project?.song.timeSignature}>
           {(signature) => (
             <span class="time-signature" title="Time signature (fixed at 4/4)">
               <span class="visually-hidden">Time signature </span>
@@ -154,7 +172,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
         </Show>
         <span class="playhead-position" title="Playhead (bar.beat)">
           <span class="visually-hidden">Playhead at bar </span>
-          {props.playheadLabel()}
+          {playheadLabel(props.audio.positionTicks())}
         </span>
       </div>
       <button
@@ -166,7 +184,10 @@ export default function EditorHeader(props: EditorHeaderProps) {
       >
         <HiSolidQuestionMarkCircle size={18} />
       </button>
-      <SaveStatus saveStatus={props.saveStatus} onRetry={props.onRetrySave} />
+      <SaveStatus
+        saveStatus={() => history().saveStatus}
+        onRetry={() => void props.session.retry()}
+      />
     </header>
   );
 }
