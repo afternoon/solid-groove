@@ -47,6 +47,8 @@ import {
   resetDevice,
   scaleNoteVelocity,
   setDeviceBypass,
+  setLoopEnabled,
+  setLoopRange,
   setPadAsset,
   setPadChoke,
   setPadFlag,
@@ -245,6 +247,15 @@ const cases: InverseCase[] = [
         },
         -11,
       ),
+  },
+  {
+    type: "loop.setRange",
+    build: () => setLoopRange(bars(2), bars(6)),
+  },
+  {
+    type: "loop.setEnabled",
+    // The fixture starts from the new-project default, looping on.
+    build: () => setLoopEnabled(false),
   },
   {
     type: "drum.setPadAsset",
