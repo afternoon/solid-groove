@@ -168,3 +168,56 @@ describe("duplicate and add overwrite what they land on (#290)", () => {
     expect(spans()).toEqual([[0, 4, 0]]);
   });
 });
+
+describe("undo brings back what an overwrite took (#290)", () => {
+  it("restores a placement a duplicate removed, exactly as it was", () => {
+    const { history, editing, source, place } = setup();
+    const covered = place(1, 1);
+    const before = history.project.song.placements;
+    editing.select(source.id);
+    expect(editing.duplicate("linked")).toBe(true);
+    expect(history.project.song.placements.map((p) => p.id)).not.toContain(covered.id);
+
+    history.undo();
+    expect(history.project.song.placements).toEqual(before);
+
+    // Redo takes it away again, from the same single history entry.
+    history.redo();
+    expect(history.project.song.placements.map((p) => p.id)).not.toContain(covered.id);
+  });
+
+  it("restores a placement a resize trimmed to its original span and offset", () => {
+    const { history, editing, source, place } = setup();
+    const trimmed = place(1, 2);
+    editing.beginDrag(source.id, "end", BAR);
+    editing.updateDrag(2 * BAR);
+    editing.endDrag();
+    expect(
+      history.project.song.placements.find((p) => p.id === trimmed.id),
+    ).toMatchObject({
+      startTicks: 2 * BAR,
+      durationTicks: BAR,
+      clipOffsetTicks: BAR,
+    });
+
+    history.undo();
+    expect(history.project.song.placements.find((p) => p.id === trimmed.id)).toEqual(
+      trimmed,
+    );
+    expect(history.project.song.placements.find((p) => p.id === source.id)).toEqual(
+      source,
+    );
+  });
+
+  it("restores a placement an add split in two, and drops the split's tail", () => {
+    const { history, ids, source } = setup();
+    history.execute(resizePlacement(history.project, source.id, "end", 4 * BAR));
+    const before = history.project.song.placements;
+    const { commands } = createPlacementAt(history.project, source.clipId, BAR, ids);
+    expect(history.execute(commands).ok).toBe(true);
+    expect(history.project.song.placements).toHaveLength(3);
+
+    history.undo();
+    expect(history.project.song.placements).toEqual(before);
+  });
+});
