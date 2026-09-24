@@ -1547,22 +1547,32 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
 
     const off = await screen.findByRole("button", { name: "Enable loop" });
     expect(off).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
+      "Loop over bars 1 to 1, looping off",
+    );
     expect(transport.named("loop_toggled")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
   });
 
   it("moves and resizes the loop brace from its keyboard controls", async () => {
     const transport = await renderLooping();
+    const live = screen.getByTestId("arrangement-loop-live");
+    expect(live).toHaveTextContent("Loop over bars 1 to 1, looping on");
     const length = screen.getByRole("spinbutton", { name: "Loop length" });
     const start = screen.getByRole("spinbutton", { name: "Loop start" });
     // A new project's brace spans the first bar.
     expect(start).toHaveValue(1);
     expect(length).toHaveValue(1);
+    // Each control is described by the one readout of the range.
+    expect(start).toHaveAttribute("aria-describedby", live.id);
+    expect(length).toHaveAttribute("aria-describedby", live.id);
 
     fireEvent.change(length, { target: { value: "2" } });
     await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
+    expect(live).toHaveTextContent("Loop over bars 1 to 2, looping on");
     fireEvent.change(start, { target: { value: "3" } });
     await screen.findByRole("button", { name: "Undo Loop bars 3-4" });
+    expect(live).toHaveTextContent("Loop over bars 3 to 4, looping on");
     // Both read back from the song, so the brace moved without changing length.
     expect(start).toHaveValue(3);
     expect(length).toHaveValue(2);

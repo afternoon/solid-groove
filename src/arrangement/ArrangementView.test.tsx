@@ -521,6 +521,14 @@ describe("ArrangementView loop brace (LOOP-018)", () => {
   const rulerY = RULER_HEIGHT_PX / 2;
   const barLine = (bar: number) => (bar - 1) * TICKS_PER_BAR * PIXELS_PER_TICK;
 
+  it("reads the brace out in inclusive bars, since the ruler is only pixels", async () => {
+    const { renderView } = await setUpEditing();
+    renderView();
+    expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
+      "Loop over bars 1 to 1, looping on",
+    );
+  });
+
   it("drags the brace's right edge out a bar, as one entry and one revision", async () => {
     const { session, transport, renderView } = await setUpEditing();
     const { container } = renderView();
