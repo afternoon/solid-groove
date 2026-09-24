@@ -1260,7 +1260,7 @@ describe("EditorView views", () => {
   /** Router 2 navigates on its own schedule, so the address and the dock's
    * marker are awaited together rather than read the instant an event fires. */
   async function atView(
-    location: { get(): string },
+    location: { get(): string; back(): void },
     path: string,
     label: string,
   ): Promise<void> {
@@ -1292,6 +1292,22 @@ describe("EditorView views", () => {
     await atView(location, `/projects/${projectId}/instrument`, "Instrument");
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
+    await atView(location, `/projects/${projectId}`, "Arrangement");
+  });
+
+  it("moves back through the views with the browser's back button", async () => {
+    // A view is an address, so the history stack is what moving between them
+    // produces — the half of "in the URL" a session-scoped signal would fail.
+    const { location, projectId } = await renderViews();
+
+    clickAndFlush(viewLink("Mixer"));
+    await atView(location, `/projects/${projectId}/mixer`, "Mixer");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    await atView(location, `/projects/${projectId}/instrument`, "Instrument");
+
+    location.back();
+    await atView(location, `/projects/${projectId}/mixer`, "Mixer");
+    location.back();
     await atView(location, `/projects/${projectId}`, "Arrangement");
   });
 
