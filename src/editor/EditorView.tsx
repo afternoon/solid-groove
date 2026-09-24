@@ -44,7 +44,8 @@ import type { PianoRollActions } from "./PianoRoll";
 import ProjectLoadStates from "./ProjectLoadStates";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
-import TrackEditor from "./TrackEditor";
+import TrackClipEditor from "./TrackClipEditor";
+import TrackInstrument from "./TrackInstrument";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
@@ -399,25 +400,34 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       }
                     >
                       {(currentTrack) => (
-                        <TrackEditor
-                          clip={clip()}
-                          trackName={currentTrack().name}
-                          packDependencyLabel={packDependencyLabel()}
-                          showPianoRoll={showPianoRoll}
-                          instrument={instrument()}
-                          dispatch={session.dispatch}
-                          beginGesture={session.beginGesture}
-                          editorPlaybackStep={editorPlaybackStep}
-                          selectedNoteIds={selectedNoteIds}
-                          setSelectedNoteIds={setSelectedNoteIds}
-                          project={currentProject()}
-                          playheadTicks={audio.positionTicks()}
-                          registerPianoRollActions={setPianoRollActions}
-                          instrumentPanelTrackId={instrumentPanelTrackId()}
-                          sampleName={sampleName()}
-                          loadSample={loadLibrarySample}
-                          auditionInstrument={auditionInstrument}
-                        />
+                        <div class="track-editor">
+                          <TrackClipEditor
+                            clip={clip()}
+                            trackName={currentTrack().name}
+                            packDependencyLabel={packDependencyLabel()}
+                            showPianoRoll={showPianoRoll}
+                            instrument={instrument()}
+                            dispatch={session.dispatch}
+                            beginGesture={session.beginGesture}
+                            editorPlaybackStep={editorPlaybackStep}
+                            selectedNoteIds={selectedNoteIds}
+                            setSelectedNoteIds={setSelectedNoteIds}
+                            project={currentProject()}
+                            playheadTicks={audio.positionTicks()}
+                            registerPianoRollActions={setPianoRollActions}
+                          />
+                          <TrackInstrument
+                            trackName={currentTrack().name}
+                            instrument={instrument()}
+                            project={currentProject()}
+                            trackId={instrumentPanelTrackId()}
+                            sampleName={sampleName()}
+                            loadSample={loadLibrarySample}
+                            audition={auditionInstrument}
+                            dispatch={session.dispatch}
+                            beginGesture={session.beginGesture}
+                          />
+                        </div>
                       )}
                     </Show>
                     <Mixer
