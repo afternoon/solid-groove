@@ -1,0 +1,119 @@
+/* The one dialog shell (UI-001). Every dialog in the editor is this chrome
+   with different contents, so a producer learns one shape: the same scrim, the
+   same corner, the same shadow, and the close control in the same corner. */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  background: var(--scrim);
+  /* One stacking level for every dialog. They are mutually exclusive except
+     when one opens another — the pack browser over the library — and that pair
+     is ordered by DOM position, not by two z-indexes that have to be kept in
+     agreement. */
+  z-index: 80;
+}
+
+/* Almost the whole view: what is left over reads as a frame, not a margin.
+   The working surfaces take this — the piano roll is why it exists. */
+.dialog-backdrop-jumbo {
+  padding: 16px;
+}
+
+.dialog-backdrop-panel {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* Click-outside as a real control rather than a handler on a div, so it is one
+   accessible affordance instead of a mouse-only one. Out of the tab order: the
+   close button is the keyboard path. */
+.dialog-scrim {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 12px;
+  background: var(--color-background-secondary);
+  border: 1px solid var(--tint-medium);
+  box-shadow: 0 16px 48px var(--shade-medium);
+  overflow: hidden;
+}
+
+.dialog-jumbo {
+  flex: 1 1 auto;
+}
+
+.dialog-panel {
+  width: min(560px, 100%);
+  max-height: 100%;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-divider);
+}
+
+.dialog-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-foreground);
+  cursor: pointer;
+}
+
+.dialog-close:hover {
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+}
+
+.dialog-close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* For a dialog whose contents carry their own heading: the control still sits
+   in the corner a producer has learned to look in. */
+.dialog-close-floating {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 1;
+}
