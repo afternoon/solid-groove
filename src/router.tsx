@@ -1,5 +1,6 @@
 import { createRouter } from "@solidjs/router";
 import { lazy } from "solid-js";
+import { EDITOR_VIEW_SEGMENTS } from "./editor/editorViews";
 import IndexPage from "./routes/index";
 
 /**
@@ -39,22 +40,21 @@ export const Router = createRouter({
     // the entry chunk on every route, which is the smaller of the two.
     { path: "/", component: IndexPage },
     { path: "/dashboard", component: lazy(() => import("./routes/dashboard")) },
-    // One page module, three addresses. A view *is* an address (`UI-001`), so
-    // the back button, a deep link, and a reload all land where they should
-    // without the editor keeping a second copy of "which view" in a signal.
-    // All three are the same `lazy()` import, so they share one chunk and
-    // switching views loads nothing; `src/editor/editorViews.ts` maps between
-    // the segment and the view.
+    // One route, three addresses. A view *is* an address (`UI-001`), so the
+    // back button, a deep link and a reload all land where they should without
+    // the editor keeping a second copy of "which view" in a signal.
+    //
+    // It is deliberately ONE definition with an optional segment rather than
+    // three definitions sharing a component: the router unmounts a route's
+    // component when it leaves that route, so three entries would remount the
+    // editor on every switch — reloading the project and rebuilding the audio
+    // graph, which is precisely what switching views must never do. The filter
+    // is what stops the optional segment from swallowing
+    // `/projects/:id/anything`; `src/editor/editorViews.ts` maps between the
+    // segment and the view.
     {
-      path: "/projects/:id",
-      component: lazy(() => import("./routes/projects/Project")),
-    },
-    {
-      path: "/projects/:id/instrument",
-      component: lazy(() => import("./routes/projects/Project")),
-    },
-    {
-      path: "/projects/:id/mixer",
+      path: "/projects/:id/:view?",
+      matchFilters: { view: EDITOR_VIEW_SEGMENTS },
       component: lazy(() => import("./routes/projects/Project")),
     },
     { path: "*404", component: lazy(() => import("./routes/CatchAll")) },

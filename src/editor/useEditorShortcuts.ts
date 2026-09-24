@@ -7,6 +7,7 @@ import {
   shortcutLabel,
   useShortcuts,
 } from "../shortcuts";
+import type { EditorViewName } from "./editorViews";
 import type { PianoRollActions } from "./PianoRoll";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
@@ -31,6 +32,9 @@ export interface UseEditorShortcutsOptions {
    * below the arrangement, because the arrangement is on screen either way
    * (#258). */
   readonly hasArrangementSelection: () => boolean;
+  /** Switches the editor to a view (`UI-001`), through the same path the dock
+   * takes — so `1`/`2`/`3` and the dock cannot reach different states. */
+  readonly selectView: (view: EditorViewName) => void;
 }
 
 /**
@@ -65,6 +69,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     packBrowserOpen,
     arrangementEditingActions,
     hasArrangementSelection,
+    selectView,
   } = options;
 
   /**
@@ -122,6 +127,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       },
       isEnabled: () => selectionOwner() !== null,
     },
+    // The three views (UI-001). No `isEnabled`: a view is always reachable,
+    // and asking for the one you are on is a no-op inside `selectView`.
+    "view.show_arrangement": { run: () => selectView("arrangement") },
+    "view.show_instrument": { run: () => selectView("instrument") },
+    "view.show_mixer": { run: () => selectView("mixer") },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
     "view.close_surface": {
       run: () => setGuideOpen(false),
