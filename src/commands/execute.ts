@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 import type { Project } from "../domain/entities";
 import { withDerivedPackDependencies } from "../domain/packs";
-import { checkProjectIntegrity } from "../domain/parse";
+import { checkProjectIntegrity, type DomainIssueCode } from "../domain/parse";
 import { type Clock, systemClock } from "../shared/clock";
 import { findCommand } from "./registry";
 import type {
@@ -47,6 +47,13 @@ export interface TransactionOptions {
    * when it ends.
    */
   readonly commitRevision?: boolean;
+  /**
+   * Invariants this step may leave violated. Only a gesture's intermediate
+   * steps pass it — a placement dragged over a neighbour overlaps it until the
+   * drop resolves the overwrite (#290) — and the gesture re-checks every
+   * invariant before it commits.
+   */
+  readonly deferredInvariants?: readonly DomainIssueCode[];
 }
 
 export interface TransactionSuccess {
@@ -252,7 +259,10 @@ export function executeTransaction(
       }
     : normalized;
 
-  const domainIssues = checkProjectIntegrity(committed);
+  const deferred = new Set(options.deferredInvariants);
+  const domainIssues = checkProjectIntegrity(committed).filter(
+    (found) => !deferred.has(found.code),
+  );
   if (domainIssues.length > 0) {
     return fail(
       project,

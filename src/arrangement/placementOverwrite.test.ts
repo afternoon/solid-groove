@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { addPlacement } from "../commands/definitions/placements";
+import { addPlacement, updatePlacement } from "../commands/definitions/placements";
 import { CommandHistory } from "../commands/history";
 import type { Placement } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
@@ -120,6 +120,23 @@ describe("drag overwrites on release (#290)", () => {
       [0, 2, 0],
       [2, 1, 1],
     ]);
+  });
+});
+
+describe("a gesture never commits an overlap (#290)", () => {
+  it("abandons a gesture that ends with placements still overlapping", () => {
+    const { history, source, place, spans } = setup();
+    place(2, 1);
+    const gesture = history.beginGesture();
+    expect(
+      gesture.apply(updatePlacement(source.id, { startTicks: toTicks(2 * BAR) })).ok,
+    ).toBe(true);
+    expect(gesture.commit()).toBeNull();
+    expect(spans()).toEqual([
+      [0, 1, 0],
+      [2, 1, 0],
+    ]);
+    expect(history.entries).toHaveLength(1);
   });
 });
 

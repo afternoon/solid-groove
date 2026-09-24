@@ -14,7 +14,7 @@
  * every created entity carries an explicit ID from the injected `IdFactory`.
  */
 
-import { addPlacement } from "../commands/definitions/placements";
+import { addPlacement, overwritePlacements } from "../commands/definitions/placements";
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Project } from "../domain/entities";
 import type { IdFactory, PlacementId, TrackId } from "../domain/ids";
@@ -133,17 +133,20 @@ export function createPlacementAt(
     return { commands: [], placementId: null };
   }
   const placementId = ids("placement");
+  const placement = {
+    id: placementId,
+    clipId: clip.id,
+    trackId: clip.trackId,
+    startTicks: start,
+    durationTicks,
+    clipOffsetTicks: toTicks(0),
+    looped: false,
+  };
+  // The new placement wins the ticks it lands on (#290 overwrite).
   return {
     commands: [
-      addPlacement({
-        id: placementId,
-        clipId: clip.id,
-        trackId: clip.trackId,
-        startTicks: start,
-        durationTicks,
-        clipOffsetTicks: toTicks(0),
-        looped: false,
-      }),
+      ...overwritePlacements(project, placement, () => ids("placement")),
+      addPlacement(placement),
     ],
     placementId,
   };
