@@ -16,26 +16,28 @@
   margin: 0;
   padding: 4px;
   list-style: none;
-  border-radius: 14px;
+  border-radius: 50px;
   background: var(--color-background-secondary);
   border: 1px solid var(--tint-medium);
   box-shadow: 0 10px 32px var(--shade-medium);
 }
 
-/* Set at twice the small size and in the words' own case. Shouting three
-   short nouns in capitals bought emphasis the dock does not need — it is the
-   only floating thing on the page — and cost legibility at a glance, which is
-   the one job a tab bar has. */
+/* The body size, in the words' own case. Shouting three short nouns in
+   capitals bought emphasis the dock does not need — it is the only floating
+   thing on the page — and cost legibility at a glance, which is the one job a
+   tab bar has. Capsules inside a capsule: the pill around the current view is
+   the same shape as the dock holding it, so the highlight reads as part of the
+   control rather than a box drawn on top of it. */
 .view-dock-link {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   min-width: 104px;
-  padding: 10px 18px 9px;
-  border-radius: 10px;
+  padding: 10px;
+  border-radius: 50px;
   color: var(--color-foreground);
-  font-size: calc(var(--font-size-small) * 2);
+  font-size: var(--font-size-base);
   letter-spacing: 0.01em;
   text-decoration: none;
 }

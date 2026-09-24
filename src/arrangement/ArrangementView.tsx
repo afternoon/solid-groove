@@ -118,7 +118,16 @@ export const HEADER_WIDTH_PX = 160;
  * sit. Matches `--view-dock-clearance` in `EditorView.css`.
  */
 const BELOW_TRACKS_CLEARANCE_PX = 120;
-const INITIAL_PIXELS_PER_TICK = 0.08;
+/**
+ * The horizontal scale the arrangement opens at, in CSS pixels per tick.
+ *
+ * A song is read in bars, so what this number really sets is how many of them
+ * a producer meets on arrival. It used to open on about thirty: enough to see
+ * a whole arrangement at once, and too many to see a clip. Roughly sixteen is
+ * the working view — two eight-bar sections side by side, with clips wide
+ * enough to read.
+ */
+export const INITIAL_PIXELS_PER_TICK = 0.143;
 
 export interface ArrangementViewProps {
   readonly project: Project;
@@ -711,21 +720,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
               )}
             </For>
           </ul>
-          {/* Outside the list on purpose: it is not a track, and putting it in
-              would make the "Tracks" list count one more item than the song
-              has. Carries the same scroll transform so it stays pinned to the
-              bottom of the song rather than to the bottom of the viewport. */}
-          <Show when={props.belowTracks}>
-            <div
-              class="arrangement-below-tracks"
-              style={{
-                transform: `translateY(${-scrollTopMemo()}px)`,
-                top: `${RULER_HEIGHT_PX + headerRows().length * ROW_METRICS.headerHeightPx}px`,
-              }}
-            >
-              {props.belowTracks}
-            </div>
-          </Show>
         </div>
         <div
           class="arrangement-viewport"
@@ -765,6 +759,25 @@ export default function ArrangementView(props: ArrangementViewProps) {
             />
           </div>
         </div>
+        {/* Outside the "Tracks" list on purpose: it is not a track, and
+            counting it as one would make the list longer than the song. It
+            sits over the timeline rather than in the header column, because
+            adding a track is something you do to the arrangement — and the
+            column is a list of what the song already has, not a place to put
+            controls. Carries the same scroll transform as the rows, so it
+            stays pinned under the last track rather than to the viewport. */}
+        <Show when={props.belowTracks}>
+          <div
+            class="arrangement-below-tracks"
+            style={{
+              left: `${HEADER_WIDTH_PX}px`,
+              transform: `translateY(${-scrollTopMemo()}px)`,
+              top: `${RULER_HEIGHT_PX + headerRows().length * ROW_METRICS.headerHeightPx}px`,
+            }}
+          >
+            {props.belowTracks}
+          </div>
+        </Show>
       </div>
       {/* Accessible mirror: the visible tracks and the current selection as
 			    real DOM, so assistive tech never has to read canvas pixels. Both
