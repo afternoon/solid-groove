@@ -250,7 +250,7 @@ library
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | Bootstrap | 80 | 12 | 4 | 2 | 12 | Replace the current two-sample prototype and exercise metadata/browser/audio paths |
 | Production seed | 250 | 60 | 12 | 8 | 36 | Build all editors, generators, export, caching, and curation workflows |
-| Private alpha | 600 | 360 | 24 | 30 | 72 | Rounded factory library with six featured starters and all required genre demos |
+| Private alpha | 600 | 360 | 24 | 30 | 72 | Rounded factory library with all required genre demos |
 
 Counts are minimums, not acquisition quotas. Duplicates, low-quality alternates, near-identical processing variations, and legally ambiguous files do not count.
 
@@ -287,7 +287,7 @@ Loops should not dominate the library. The assistant should normally combine edi
 - At least 15% must be explicitly experimental, abrasive, unstable-sounding, or cross-genre.
 - No more than 20% of the library may be near-identical variations of one source family.
 - At least half of drum loops must have separable or complementary top/percussion content.
-- Every featured genre must have usable options at low, medium, and high intensity.
+- Every genre in sections 7.1-7.6 must have usable options at low, medium, and high intensity.
 
 ### 6.5 Starter packs
 
@@ -650,16 +650,15 @@ Exit criteria: browser, sampler, drum machine, instruments, cache, missing-asset
 - Curate Producer Space non-vocal material and individually evidenced Signature Sounds packs.
 - Add targeted Freesound CC0 foley, ambience, and unusual percussion.
 - Build 12 coherent drum kits and initial processing chains.
-- Draft and test all six genre recipe schemas with deterministic generation and fallbacks.
 
-Exit criteria: every featured genre can produce at least three materially different playable loops using only approved assets.
+Exit criteria: every genre in sections 7.1-7.6 can produce at least three materially different playable loops using only approved assets.
 
 ### Phase D: rounded private-alpha library
 
 - Settle the shipped pack list against what has actually been cleared, and finish each pack against its coverage claim.
 - Reach the private-alpha asset targets without relaxing review standards.
 - Commission missing core drums, breaks, bass sources, transitions, and genre-specific material.
-- Complete all featured starter and supporting genre demo gates.
+- Complete all genre demo gates.
 - Run duplicate, loudness, licence, missing-file, decode, loop-boundary, and export audits.
 
 Exit criteria: every required genre demo opens, plays, saves, renders, exports stems, and exports to the supported Ableton handoff without a missing or unlicensed asset.
@@ -1003,7 +1002,6 @@ Open questions belong to the product owner and are listed in PRD section 16.
 - Every shipped pack meets its coverage claim, can build a usable idea for its stated purpose on its own, and states what it does not contain.
 - A project records the packs and versions it depends on; republishing a pack does not change an existing project, and an unavailable pack is reported with its affected tracks and clips rather than breaking playback or export.
 - Bootstrap, production-seed, and alpha counts are measured from approved unique assets only.
-- Six featured genre recipes generate editable, non-identical projects and have static fallbacks.
 - Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop demos pass using the shared library.
 - At least 15% of the approved collection is tagged and reviewed as experimental or cross-genre.
 - All loops pass BPM/bar/seam tests and all tonal assets have reviewed tuning metadata.
