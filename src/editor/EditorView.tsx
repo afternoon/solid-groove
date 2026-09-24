@@ -7,7 +7,6 @@ import ArrangementView, {
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
-import { setLoopEnabled } from "../commands/definitions/loop";
 import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
@@ -41,6 +40,7 @@ import {
   type ViewChangeSource,
 } from "./editorViews";
 import LibraryModal from "./LibraryModal";
+import { createLoopControls } from "./loopControls";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import type { PianoRollActions } from "./PianoRoll";
@@ -217,15 +217,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     );
   };
 
-  // The loop is project state (LOOP-017), so the button dispatches a command
-  // and reads the answer back off the project — it never holds the toggle
-  // itself, and the setting survives a reload. `loop.setEnabled` carries the
-  // state to set rather than being a toggle, so the surface that owns the
-  // button is the one that reads the current value.
-  const loopEnabled = createMemo(() => project()?.song.loop.enabled ?? false);
-  const toggleLoop = () => {
-    session.dispatch(setLoopEnabled(!loopEnabled()));
-  };
+  // Both loop edits, and the events they report, live in `loopControls` —
+  // the ruler's drag (#280) reaches the same two, so the button and the drag
+  // produce the same transaction and the same single event.
+  const loopControls = createLoopControls({
+    project,
+    dispatch: (commands) => session.dispatch(commands),
+    analytics: props.analytics ?? defaultAnalytics,
+  });
+  const loopEnabled = createMemo(() => loopControls.isEnabled());
 
   const playheadLabel = createMemo(() => model.playheadLabel(audio.positionTicks()));
 
@@ -428,7 +428,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 isPlaying={audio.isPlaying}
                 onTogglePlay={() => void audio.toggle()}
                 loopEnabled={loopEnabled}
-                onToggleLoop={toggleLoop}
+                onToggleLoop={() => loopControls.toggle()}
                 metronomeEnabled={audio.metronomeEnabled}
                 onToggleMetronome={() => audio.toggleMetronome()}
                 tempo={tempo}
