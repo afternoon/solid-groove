@@ -309,12 +309,9 @@ Pack-level rules:
 
 - Every genre in PRD `LIB-02` must be servable by some combination of available packs, whether or not it has a pack of its own. A genre without a dedicated pack is covered by the shared foundation packs plus tags, exactly as section 7.7 already describes for supporting genres.
 - The section 6.1 milestone counts and the section 6.4 character balances are measured across the whole approved library, not per pack. A pack is not required to hit 20% organic content on its own; the library is.
-- A featured dashboard starter (`DEC-002`) names the packs its template draws from, and those packs ship with it.
 - Every pack states what it does not contain, so a user picking "Techno Drums" is not surprised by the absence of tonal material.
 
 ## 7. Genre coverage
-
-The six featured dashboard starters are House, Techno, Hip Hop/Trap, Drum & Bass/Jungle, Dubstep/Bass, and Ambient, approved by the product owner (`DEC-002`). Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop remain required library/demo coverage even if they are not featured starter buttons.
 
 Assets can count toward multiple genres when the tags are honest. Dedicated counts below measure discoverable coverage, not necessarily unique files.
 
