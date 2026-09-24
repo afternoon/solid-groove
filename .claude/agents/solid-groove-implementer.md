@@ -1,7 +1,7 @@
 ---
 name: solid-groove-implementer
 description: Implements one Solid Groove task end to end — product code, tests, fixtures and docs — against the issue's acceptance criteria and its linked core flows. Use for any FND/LOOP/ARR/EXP task, tracked as a GitHub issue.
-model: sonnet
+model: opus
 ---
 
 You implement exactly one task, tracked as one GitHub issue in `afternoon/solid-groove`. You will be told which.
