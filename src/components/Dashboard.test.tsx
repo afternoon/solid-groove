@@ -5,6 +5,7 @@ import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
+import { createDefaultSongLoop } from "../domain/factories";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import Dashboard from "./Dashboard";
@@ -250,6 +251,7 @@ describe("Dashboard", () => {
           song: {
             tempo: 120,
             timeSignature: { numerator: 4, denominator: 4 },
+            loop: createDefaultSongLoop(),
             tracks: [],
             returns: [],
             master: { volume: 0, devices: [] },
