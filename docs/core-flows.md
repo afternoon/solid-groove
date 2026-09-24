@@ -427,6 +427,40 @@ and tablet layouts, which #304 explicitly does not claim. And the sequence
 editor's own editing behavior beyond one step toggling, which CLP-02 and CLP-03
 already cover at the component layer.
 
+### CF-009 — A producer clicks a clip and is told which one it is
+
+**Issue:** #292 · **Suite:** `tests/e2e/emulator/flows/CF-009.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. The starter clip sits on the "BD" track in bar 1, and
+   nothing is selected.
+2. Click the clip. It gets a solid outline, and the arrangement announces
+   "Selected clip on BD, bar 1".
+3. Click the empty space just after the start of bar 3 on the same track. The
+   clip's outline goes away, a cursor marks the point you clicked, and the
+   arrangement announces "Position 3.1.1".
+4. Drag along the same track from the second sixteenth of bar 3 to its last
+   sixteenth. A dotted outline marks the stretch you dragged over, and the
+   arrangement announces "Selected BD, 3.1.2 to 3.4.4".
+5. Click the clip again, then reload the page.
+6. The project reopens with nothing selected. Clicking the clip selects it and
+   announces it exactly as before.
+
+**Outcome:** there is one selection in the arrangement. Clicking a clip selects
+that clip and names its bars. Clicking empty space sets a point and names its
+position. Dragging over empty space selects a stretch of time and names where it
+starts and ends. Each replaces the last, the clip and the stretch look
+different, and a screen reader is told which one happened. The clip is still
+there after a reload, and the selection is not, because a selection belongs to
+the session and not to the song.
+
+**Out of scope:** what the outlines and the cursor look like. They are canvas
+pixels, so this flow shows them in its walkthrough and the renderer's own tests
+check them. Selecting several clips, which is CF-010. Zooming, which is CF-011.
+Keyboard-only selection from the accessible track list.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
