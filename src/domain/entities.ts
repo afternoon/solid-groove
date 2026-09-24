@@ -44,9 +44,11 @@ import { durationTickSchema, tickSchema } from "./time";
  *
  * v1 was the first production schema. v2 (LIB-08) adds `metadata.addedPacks`,
  * the project's pack shelf; a v1 project migrates forward by seeding its shelf
- * from its derived pack dependencies (`persistence/migrations.ts`).
+ * from its derived pack dependencies (`persistence/migrations.ts`). v3
+ * (LOOP-017) adds `song.loop`, the persisted loop range and toggle; a v2
+ * project migrates forward by taking the same default a new project opens with.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);
@@ -382,9 +384,27 @@ export const timeSignatureSchema = z.strictObject({
 });
 export type TimeSignature = z.infer<typeof timeSignatureSchema>;
 
+/**
+ * The span the transport loops over, and whether it obeys it (PRD AUD-02,
+ * LOOP-017).
+ *
+ * This is *project* state, not session state: a producer who sets a loop and
+ * comes back tomorrow — or opens the project on another machine — finds the
+ * same brace. `checkSongIntegrity` holds it to whole bars and to a non-empty
+ * `startTicks < endTicks` range, so no consumer has to defend against a
+ * zero-length or inverted loop.
+ */
+export const songLoopSchema = z.strictObject({
+  startTicks: tickSchema,
+  endTicks: tickSchema,
+  enabled: z.boolean(),
+});
+export type SongLoop = z.infer<typeof songLoopSchema>;
+
 export const songSchema = z.strictObject({
   tempo: parameterValueSchema(SONG_TEMPO),
   timeSignature: timeSignatureSchema,
+  loop: songLoopSchema,
   tracks: z.array(trackSchema),
   returns: z.array(returnBusSchema),
   master: masterSettingsSchema,

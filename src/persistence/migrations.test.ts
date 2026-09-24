@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SCHEMA_VERSION } from "../domain/entities";
+import { DEFAULT_SONG_LOOP } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { stringifyProject } from "../domain/serialize";
 import { loadStoredProjectFixture } from "../testing/fixtures";
@@ -12,7 +13,7 @@ import {
 
 describe("migration harness", () => {
   it("passes a current-schema project through untouched", async () => {
-    const stored = await loadStoredProjectFixture("v2-slice-project.json");
+    const stored = await loadStoredProjectFixture("v3-slice-project.json");
 
     const result = migrateProjectDocuments(stored);
 
@@ -25,7 +26,7 @@ describe("migration harness", () => {
   it("decodes the checked-in current-schema fixture into the fixture project", async () => {
     // This pins the stored wire format: if encoding changes shape, the file on
     // disk stops decoding and the change has to be a deliberate migration.
-    const stored = await loadStoredProjectFixture("v2-slice-project.json");
+    const stored = await loadStoredProjectFixture("v3-slice-project.json");
 
     const decoded = decodeProject(stored);
 
@@ -39,13 +40,14 @@ describe("migration harness", () => {
   it("migrates a schema-v1 project forward into a valid project (LIB-08)", async () => {
     // PRJ-04's fixture convention: the v1 source fixture is stored as it was
     // actually written, and migrating it must produce a project that decodes.
+    // v1 predates both post-v1 fields, so it runs the whole chain.
     const stored = await loadStoredProjectFixture("v1-slice-project.json");
 
     const result = migrateProjectDocuments(stored);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.applied).toHaveLength(1);
+    expect(result.applied).toHaveLength(2);
 
     const decoded = decodeProject(result.documents);
     expect(decoded.ok).toBe(true);
@@ -62,15 +64,39 @@ describe("migration harness", () => {
     );
   });
 
+  it("opens a project saved before the loop existed on the default loop (LOOP-017)", async () => {
+    // A v2 project was saved while the brace was still session state, so there
+    // is no stored range to carry forward: it opens on the same loop a new
+    // project does — one bar from bar 1, looping on — rather than failing to
+    // decode because it predates the field.
+    const stored = await loadStoredProjectFixture("v2-slice-project.json");
+
+    const result = migrateProjectDocuments(stored);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.applied).toHaveLength(1);
+
+    const decoded = decodeProject(result.documents);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.value.metadata.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(decoded.value.song.loop).toEqual(DEFAULT_SONG_LOOP);
+    // And nothing else moved: the migrated v2 fixture is the current fixture.
+    expect(stringifyProject(decoded.value)).toBe(
+      stringifyProject(createSliceFixtureProject()),
+    );
+  });
+
   it("refuses a newer schema version without touching it", async () => {
-    const stored = await loadStoredProjectFixture("v3-future-project.json");
+    const stored = await loadStoredProjectFixture("v4-future-project.json");
 
     const result = migrateProjectDocuments(stored);
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe("future_version");
-    expect(result.storedVersion).toBe(3);
+    expect(result.storedVersion).toBe(4);
     expect(result.message).toContain("will not read or overwrite it");
   });
 
@@ -111,8 +137,6 @@ describe("migration harness", () => {
   });
 
   it("registers a gap-free chain up to the current schema version", () => {
-    // Empty today: v1 is the first production schema. The assertion is the
-    // rule the first post-v1 migration has to keep satisfying.
     let version =
       PROJECT_MIGRATIONS.length > 0 ? PROJECT_MIGRATIONS[0].from : SCHEMA_VERSION;
     for (const migration of PROJECT_MIGRATIONS) {

@@ -95,6 +95,7 @@ function buildProjectWithDeviceAndAutomation(seed: string): {
     song: {
       tempo: 120,
       timeSignature: { numerator: 4, denominator: 4 },
+      loop: { startTicks: 0, endTicks: TICKS_PER_BAR, enabled: true },
       tracks: [track],
       returns: [],
       master: { volume: 0, devices: [] },

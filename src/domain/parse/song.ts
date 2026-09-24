@@ -7,6 +7,7 @@ import {
   SAMPLER_SAMPLE_END,
   SAMPLER_SAMPLE_START,
 } from "../parameters";
+import { TICKS_PER_BAR } from "../time";
 import { checkAutomationLane } from "./automation";
 import { checkOrdering, claimId, type DomainIssue, issue } from "./primitives";
 
@@ -146,6 +147,49 @@ export function checkSongIntegrity(
     issues.push(...checkAutomationLane(lane, lanePath, tracks, returnIds));
   });
 
+  issues.push(...checkLoop(song, path));
+
+  return issues;
+}
+
+/**
+ * The persisted loop range (PRD AUD-02, LOOP-017): whole bars, non-empty, and
+ * running forwards.
+ *
+ * These are validated rather than repaired, like every other domain invariant.
+ * A caller that has an arbitrary tick pair snaps it *before* it gets here — the
+ * `loop.setRange` command does, through `barAlignedLoop` — so the only way a
+ * bad range reaches this check is a hand-edited or corrupt document, where
+ * silently widening the brace would hide the corruption instead of reporting
+ * it.
+ */
+function checkLoop(song: Song, path: ReadonlyArray<string | number>): DomainIssue[] {
+  const issues: DomainIssue[] = [];
+  const loopPath = [...path, "loop"] as const;
+  const { startTicks, endTicks } = song.loop;
+  for (const [key, value] of [
+    ["startTicks", startTicks],
+    ["endTicks", endTicks],
+  ] as const) {
+    if (value % TICKS_PER_BAR !== 0) {
+      issues.push(
+        issue(
+          "invalid_musical_time",
+          [...loopPath, key],
+          `Loop ${key} must fall on a bar line (a multiple of ${TICKS_PER_BAR} ticks), found ${value}`,
+        ),
+      );
+    }
+  }
+  if (endTicks <= startTicks) {
+    issues.push(
+      issue(
+        "invalid_musical_time",
+        [...loopPath, "endTicks"],
+        `Loop end ${endTicks} must be after loop start ${startTicks}`,
+      ),
+    );
+  }
   return issues;
 }
 

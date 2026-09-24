@@ -16,7 +16,7 @@ Code: [`src/persistence/`](../src/persistence). The canonical domain model it st
 | Path | Contents | Written when |
 | --- | --- | --- |
 | `projects/{projectId}` | Name, owner, collaborators, created/modified time, schema version, current revision, template/genre, the pack dependency list (`packDependencies`: one pack ID and version per pack the project's assets resolve from), and the pack shelf (`addedPacks`: the packs the user has added to this project, a superset of the dependency list — [LIB-08](#packs-and-pack-qualified-assets)) | Metadata edits, and every `saveSong` — the dependency list is derived from the song's assets. The dashboard reads only this tier. |
-| `projects/{projectId}/song/current` | Tempo, time signature, sections, tracks with instrument state, device chains, sends, mixer state, return buses, master, assets, and — while it fits — arrangement placements and automation | Structural and arrangement edits |
+| `projects/{projectId}/song/current` | Tempo, time signature, the loop (`loop`: bar-aligned range plus the on/off toggle — [LOOP-017](#migrations)), sections, tracks with instrument state, device chains, sends, mixer state, return buses, master, assets, and — while it fits — arrangement placements and automation | Structural and arrangement edits |
 | `projects/{projectId}/clips/{clipId}` | One clip and its note or audio-loop content | Note and clip-content edits |
 | `projects/{projectId}/arrangement/{trackId}` | One track's placements and its track-owned automation lanes | Only when the song document exceeds its budget |
 
@@ -107,7 +107,7 @@ Reads report a permission denial as `not_found`, so the API never confirms the e
 
 ## Migrations
 
-The current schema is **v2**. v1 was the first production schema; **v2 ([LIB-08](#packs-and-pack-qualified-assets)) added `metadata.addedPacks`, the pack shelf.** `src/persistence/migrations.ts` provides the mechanism and its rules:
+The current schema is **v3**. v1 was the first production schema; **v2 ([LIB-08](#packs-and-pack-qualified-assets)) added `metadata.addedPacks`, the pack shelf**, and **v3 (LOOP-017) added `song.loop`, the persisted loop range and toggle.** `src/persistence/migrations.ts` provides the mechanism and its rules:
 
 - A **newer** schema version is never read and never overwritten — it is reported so the UI can ask the user to update.
 - An **older** version is upgraded by applying every registered migration in order; a gap in the chain is an error, not a partial upgrade.
@@ -117,7 +117,9 @@ The current schema is **v2**. v1 was the first production schema; **v2 ([LIB-08]
 
 **The v1 → v2 migration** bumps the `schemaVersion` envelope on every stored tier (metadata, song, arrangement chunks, clips) in lockstep and seeds `addedPacks` from the packs the project already depends on (`metadata.packDependencies`, which v1 stored). A migrated v1 project therefore starts with exactly its used packs on the shelf — satisfying the "every used pack is shelved" invariant on the first read, before any `pack.add`/`pack.remove` runs.
 
-**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v2-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v1-slice-project.json` is the v1 source fixture the v1 → v2 migration is tested against. `v3-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
+**The v2 → v3 migration** bumps the same envelopes and gives the song the loop a new project opens with: one bar from bar 1, looping on. A v2 project stored no range at all — the brace lived in the transport for the length of one session — so there is nothing to carry forward, and a reopened project behaves the way the producer's next new one will rather than inheriting a range invented from its content.
+
+**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v3-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v1-slice-project.json` and `v2-slice-project.json` are the source fixtures their migrations are tested against. `v4-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
 
 ## Security rules and indexes
 

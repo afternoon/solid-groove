@@ -18,6 +18,7 @@ import {
   SCHEMA_VERSION,
   type Section,
   type Song,
+  type SongLoop,
   type Track,
 } from "./entities";
 import {
@@ -452,10 +453,25 @@ export function createAsset(
   };
 }
 
+/**
+ * The loop a new project opens with (LOOP-017): one bar from bar 1, looping on.
+ *
+ * One bar because a short loop is the fast path into the workflow and is
+ * trivially widened, where a long default hides that looping is on at all. On
+ * by default for the same reason — a producer who presses play on a new project
+ * should hear the bar they are building come round again.
+ */
+export const DEFAULT_SONG_LOOP: SongLoop = {
+  startTicks: toTicks(0),
+  endTicks: toTicks(TICKS_PER_BAR),
+  enabled: true,
+};
+
 export function createEmptySong(tempo: number = SONG_TEMPO.defaultValue): Song {
   return {
     tempo: clampParameterValue(SONG_TEMPO, tempo),
     timeSignature: { numerator: 4, denominator: 4 },
+    loop: { ...DEFAULT_SONG_LOOP },
     tracks: [],
     returns: [],
     master: { volume: MASTER_VOLUME.defaultValue, devices: [] },

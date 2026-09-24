@@ -1,4 +1,5 @@
 import { type Project, type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
+import { DEFAULT_SONG_LOOP } from "../domain/factories";
 import {
   type DecodeResult,
   decodeProject,
@@ -55,11 +56,54 @@ const migrateV1ToV2: ProjectMigration = {
   },
 };
 
+/**
+ * v2 -> v3 (LOOP-017): the song gains its persisted loop, `song.loop`.
+ *
+ * A v2 project stored no loop at all — the brace lived in the transport for the
+ * length of one session — so there is nothing to carry forward and the migrated
+ * project takes exactly the loop a new project opens with: one bar from bar 1,
+ * looping on. That keeps a reopened project behaving the way the producer's
+ * next new one will, rather than inventing a range from the song's content.
+ *
+ * The loop lives in the song tier, so the metadata half of this migration only
+ * bumps the version envelope; `metadataV2ToV3` exists so the dashboard's
+ * metadata-only read path stays on the same chain.
+ */
+const migrateV2ToV3: ProjectMigration = {
+  from: 2,
+  to: 3,
+  description: "Add the persisted song loop range and toggle (song.loop)",
+  migrate(documents) {
+    return {
+      ...documents,
+      metadata: metadataV2ToV3(asRecord(documents.metadata)),
+      song: {
+        ...bumpVersion(documents.song, 3),
+        loop: { ...DEFAULT_SONG_LOOP },
+      },
+      clips: documents.clips.map((clip) => bumpVersion(clip, 3)),
+      ...(documents.arrangement
+        ? {
+            arrangement: documents.arrangement.map((chunk) => bumpVersion(chunk, 3)),
+          }
+        : {}),
+    };
+  },
+};
+
+/** The loop is song state, so the metadata tier only moves its version on. */
+function metadataV2ToV3(metadata: Record<string, unknown>): Record<string, unknown> {
+  return { ...metadata, schemaVersion: 3 };
+}
+
 /** The metadata-tier transform each migration applies, keyed by source version. */
 const METADATA_MIGRATIONS: ReadonlyMap<
   number,
   (metadata: Record<string, unknown>) => Record<string, unknown>
-> = new Map([[1, metadataV1ToV2]]);
+> = new Map([
+  [1, metadataV1ToV2],
+  [2, metadataV2ToV3],
+]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -106,7 +150,10 @@ export interface ProjectMigration {
 }
 
 /** Ordered, gap-free chain of migrations up to `SCHEMA_VERSION`. */
-export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [migrateV1ToV2];
+export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [
+  migrateV1ToV2,
+  migrateV2ToV3,
+];
 
 export type MigrationFailureReason =
   | "future_version"

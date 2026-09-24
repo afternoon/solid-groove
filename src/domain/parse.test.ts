@@ -16,6 +16,7 @@ import {
   parseSong,
 } from "./parse";
 import { serializeProject } from "./serialize";
+import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "./time";
 
 /**
  * Every invariant in PRD section 9.5 is exercised by mutating one field of a
@@ -36,6 +37,7 @@ interface MutableProject {
   song: {
     tempo: number;
     timeSignature: JsonRecord;
+    loop: { startTicks: number; endTicks: number; enabled: boolean };
     tracks: MutableTrack[];
     returns: JsonRecord[];
     master: JsonRecord;
@@ -461,6 +463,38 @@ describe("parseProject", () => {
     if (!sampler?.instrument) throw new Error("fixture has no sampler track");
     sampler.instrument.parameters = { sampleStart: 0.6, sampleEnd: 0.6 };
     expectIssue(parseProject(input), "invalid_parameter");
+  });
+
+  it("accepts a bar-aligned loop range and rejects one that is not (LOOP-017)", () => {
+    const widened = baseProject();
+    widened.song.loop = {
+      startTicks: TICKS_PER_BAR,
+      endTicks: TICKS_PER_BAR * 5,
+      enabled: false,
+    };
+    expect(parseProject(widened).ok).toBe(true);
+
+    const offStart = baseProject();
+    offStart.song.loop.startTicks = TICKS_PER_SIXTEENTH;
+    expectIssue(parseProject(offStart), "invalid_musical_time");
+
+    const offEnd = baseProject();
+    offEnd.song.loop.endTicks = TICKS_PER_BAR + TICKS_PER_SIXTEENTH;
+    expectIssue(parseProject(offEnd), "invalid_musical_time");
+  });
+
+  it("rejects an empty or inverted loop range rather than widening it (LOOP-017)", () => {
+    const empty = baseProject();
+    empty.song.loop = { startTicks: 0, endTicks: 0, enabled: true };
+    expectIssue(parseProject(empty), "invalid_musical_time");
+
+    const inverted = baseProject();
+    inverted.song.loop = {
+      startTicks: TICKS_PER_BAR * 2,
+      endTicks: TICKS_PER_BAR,
+      enabled: true,
+    };
+    expectIssue(parseProject(inverted), "invalid_musical_time");
   });
 
   it("rejects inconsistent project metadata", () => {
