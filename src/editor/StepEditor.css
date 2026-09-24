@@ -16,11 +16,18 @@
   min-height: 30px;
 }
 
-.step-editor-length,
-.step-editor-velocity {
+.step-editor-length {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+/* Wide enough for the fill slider to be draggable, narrow enough to leave the
+   toolbar room; the slider itself measures this box rather than setting it. */
+.step-editor-velocity {
+  width: 140px;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
 }
@@ -33,17 +40,6 @@
   border-radius: 0;
   padding: 0 8px;
   font-size: var(--font-size-small);
-}
-
-.step-editor-velocity-input {
-  accent-color: var(--color-accent);
-  width: 120px;
-}
-
-.step-editor-velocity-value {
-  min-width: 2ch;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text);
 }
 
 .step-editor-grid {
