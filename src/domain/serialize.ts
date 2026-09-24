@@ -83,6 +83,11 @@ export function serializeSong(song: Song): JsonObject {
       numerator: song.timeSignature.numerator,
       denominator: song.timeSignature.denominator,
     },
+    loop: {
+      startTicks: song.loop.startTicks,
+      endTicks: song.loop.endTicks,
+      enabled: song.loop.enabled,
+    },
     tracks: sortBy(song.tracks, (track) => [track.order, track.id]).map(serializeTrack),
     returns: sortBy(song.returns, (bus) => [bus.order, bus.id]).map(serializeReturnBus),
     master: {

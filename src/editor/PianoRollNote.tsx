@@ -1,6 +1,5 @@
 import type { JSX } from "@solidjs/web";
 import type { NoteEvent } from "../domain/entities";
-import { NOTE_VELOCITY } from "../domain/parameters";
 import { pitchOf } from "./pianoRollGestures";
 import { pitchLabel } from "./pitchClass";
 
@@ -12,15 +11,12 @@ export interface PianoRollNoteProps {
   onPointerDown(note: NoteEvent, event: PointerEvent): void;
   onPointerMove(event: PointerEvent): void;
   onPointerUp(): void;
-  /** One intermediate value from the velocity slider drag. */
-  applyVelocity(note: NoteEvent, velocity: number): void;
-  /** Commits (or cancels) the open velocity gesture. */
-  commitVelocity(): void;
 }
 
 /**
- * One note in the roll: the draggable body (whose right edge is the resize
- * handle) plus its velocity slider.
+ * One note in the roll: the draggable body, whose right edge is the resize
+ * handle. It carries no velocity control — a note block is a few pixels tall,
+ * too cramped for a usable slider (#255).
  *
  * Every pointer handler forwards to the roll, which owns the drag state and the
  * command dispatch — this component decides nothing, so a note added or removed
@@ -38,25 +34,6 @@ export default function PianoRollNote(props: PianoRollNoteProps): JSX.Element {
       onPointerUp={() => props.onPointerUp()}
     >
       <span class="pr-note-resize" aria-hidden="true" />
-      <input
-        class="pr-note-velocity"
-        type="range"
-        min={NOTE_VELOCITY.min}
-        max={NOTE_VELOCITY.max}
-        step={0.01}
-        value={props.note.velocity}
-        aria-label={`Velocity of ${pitchLabel(pitchOf(props.note))}`}
-        onPointerDown={(event) => event.stopPropagation()}
-        onInput={(event) =>
-          props.applyVelocity(props.note, event.currentTarget.valueAsNumber)
-        }
-        // `change` fires once the drag (or keyboard nudge) settles;
-        // pointer-up/cancel cover the mouse path. All commit the one
-        // open gesture — extra calls are a safe no-op.
-        onChange={() => props.commitVelocity()}
-        onPointerUp={() => props.commitVelocity()}
-        onPointerCancel={() => props.commitVelocity()}
-      />
     </div>
   );
 }

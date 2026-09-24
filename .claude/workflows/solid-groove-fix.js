@@ -524,7 +524,7 @@ for (let round = 0; round <= MAX_FIX_ROUNDS; round++) {
 }
 
 if (!review.approved) {
-  await agent(notifyPrompt(t, fix, review), { model: 'sonnet', label: `notify:#${t.issue}`, phase: 'Review' })
+  await agent(notifyPrompt(t, fix, review), { model: 'opus', label: `notify:#${t.issue}`, phase: 'Review' })
   return {
     issue: t.issue,
     title: t.title,
@@ -541,7 +541,7 @@ if (!review.approved) {
 }
 
 phase('Land')
-const landed = await agent(prPrompt(t, fix), { model: 'sonnet', label: `pr:#${t.issue}`, phase: 'Land', schema: PR_SCHEMA })
+const landed = await agent(prPrompt(t, fix), { model: 'opus', label: `pr:#${t.issue}`, phase: 'Land', schema: PR_SCHEMA })
 const pullRequests = landed?.pullRequests ?? []
 const closingPr = pullRequests.find((pr) => pr.closesIssue) ?? pullRequests[pullRequests.length - 1] ?? null
 
@@ -555,7 +555,7 @@ if (!closingPr) {
   log(`#${t.issue}: the fix changes nothing a user sees, so no walkthrough was captured.`)
 } else {
   walkthrough = await agent(walkthroughPrompt(t, fix, closingPr), {
-    model: 'sonnet',
+    model: 'opus',
     label: `walkthrough:#${t.issue}`,
     phase: 'Walkthrough',
     isolation: 'worktree',

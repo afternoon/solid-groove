@@ -51,7 +51,7 @@ service cloud.firestore {
     function validMetadata(data) {
       return data.keys().hasOnly(metadataFields())
         && data.keys().hasAll(metadataFields())
-        && data.schemaVersion == 3
+        && data.schemaVersion == 4
         && data.revision is int && data.revision >= 0
         && data.name is string && data.name.size() > 0 && data.name.size() <= 120
         && data.ownerId is string && data.ownerId.size() > 0
@@ -66,7 +66,7 @@ service cloud.firestore {
     // copied out of another project is rejected rather than silently adopted.
     function validChild(projectId, data) {
       return data.projectId == projectId
-        && data.schemaVersion == 3
+        && data.schemaVersion == 4
         && data.revision is int && data.revision >= 0
         && data.updatedAt is int && data.updatedAt >= 0;
     }

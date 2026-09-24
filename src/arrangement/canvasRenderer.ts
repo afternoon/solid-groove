@@ -25,6 +25,11 @@ import {
 /** Height in CSS pixels of the ruler strip across the top of the timeline. */
 export const RULER_HEIGHT_PX = 22;
 
+/** Space kept clear above and below a clip's note preview. */
+const NOTE_PREVIEW_INSET_PX = 6;
+/** The tallest a preview note bar gets, however few rows the clip uses. */
+const MAX_NOTE_BAR_HEIGHT_PX = 6;
+
 export interface DrawEnvironment {
   readonly ctx: CanvasRenderingContext2D;
   readonly viewport: Viewport;
@@ -242,15 +247,26 @@ function drawNotePreview(
   top: number,
   height: number,
 ): void {
-  if (placement.preview.kind !== "notes") return;
+  const { preview } = placement;
+  if (preview.kind !== "notes" || preview.laneCount === 0) return;
   const { ctx } = env;
   const durationTicks = placement.endTicks - placement.startTicks;
   if (durationTicks <= 0) return;
+  // A mini piano roll: each note is a bar across its own time span, on the row
+  // its pitch (or pad) maps to. Few rows would make fat blocks, so a bar is
+  // capped in height and centred on its row.
+  const innerTop = top + NOTE_PREVIEW_INSET_PX;
+  const laneHeight = (height - 2 * NOTE_PREVIEW_INSET_PX) / preview.laneCount;
+  const barHeight = Math.max(1, Math.min(laneHeight, MAX_NOTE_BAR_HEIGHT_PX));
+  const pixelsPerTick = width / durationTicks;
+  const right = left + width;
   ctx.fillStyle = colors().onPlacement;
-  for (const noteTick of placement.preview.noteStartTicks) {
-    const fraction = noteTick / durationTicks;
-    const x = left + fraction * width;
-    ctx.fillRect(x, top + 2, 2, height - 4);
+  for (const note of preview.notes) {
+    const x = left + note.startTicks * pixelsPerTick;
+    if (x >= right) continue;
+    const barWidth = Math.min(Math.max(1, note.durationTicks * pixelsPerTick), right - x);
+    const y = innerTop + (note.lane + 0.5) * laneHeight - barHeight / 2;
+    ctx.fillRect(x, y, barWidth, barHeight);
   }
 }
 
