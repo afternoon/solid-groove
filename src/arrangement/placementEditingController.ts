@@ -11,9 +11,10 @@
  * A drag applies through a `Gesture` when available, so dragging across ten
  * bars still commits as a single entry (PRD 9.6).
  *
- * Selection lives here rather than in the shell because the shell's
- * `ArrangementSelection` is the ARR-01 *bar range* — a span of time you loop or
- * zoom to — whereas placement editing selects *entities* by ID.
+ * It holds the arrangement's one selection (#292): a free range or point, or
+ * clicked clips (`src/selection/arrangement.ts`). Every operation acts on the
+ * clips that selection covers. Delete and cut on a range take out the covered
+ * time, trimming a clip it only partly covers, as in Ableton.
  */
 
 import type { Analytics } from "../analytics/analytics";
@@ -23,7 +24,14 @@ import type { RawCommandInput } from "../commands/types";
 import type { Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
 import {
-  copyPlacements,
+  type ArrangementSelection,
+  type ArrangementSpan,
+  clipsSelection,
+  coveredPlacementIds,
+  reconcileArrangementSelection,
+  selectionSpan,
+} from "../selection";
+import {
   cutPlacements,
   type PlacementClipboardEntry,
   pastePlacements,
@@ -39,6 +47,7 @@ import {
   resizePlacement,
   setPlacementLooped,
 } from "./placementGeometry";
+import { removePlacementRange } from "./placementRangeEdits";
 
 /** Applies commands as one transaction; returns whether anything landed. */
 export type DispatchCommands = (commands: readonly RawCommandInput[]) => void;
@@ -71,7 +80,7 @@ interface DragState {
 }
 
 export function createPlacementEditing(options: PlacementEditingOptions) {
-  let selected: readonly PlacementId[] = [];
+  let selection: ArrangementSelection | null = null;
   let clipboard: readonly PlacementClipboardEntry[] = [];
   let drag: DragState | null = null;
 
@@ -92,30 +101,54 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
 
   // --- Selection ------------------------------------------------------------
 
-  function select(placementId: PlacementId, additive = false): void {
-    selected = additive
-      ? selected.includes(placementId)
-        ? selected.filter((id) => id !== placementId)
-        : [...selected, placementId]
-      : [placementId];
+  /** The clips the selection covers, which every operation acts on. */
+  function covered(): PlacementId[] {
+    const current = project();
+    return current ? coveredPlacementIds(selection, current) : [];
+  }
+
+  /** Replace the one selection. The only place it is written. */
+  function setSelection(next: ArrangementSelection | null): void {
+    if (next === selection) return;
+    selection = next;
     changed();
+  }
+
+  /** Select one clip, or with `additive` toggle it in or out of the selection. */
+  function select(placementId: PlacementId, additive = false): void {
+    if (!additive) {
+      setSelection(clipsSelection([placementId]));
+      return;
+    }
+    const ids = covered();
+    setSelection(
+      clipsSelection(
+        ids.includes(placementId)
+          ? ids.filter((id) => id !== placementId)
+          : [...ids, placementId],
+      ),
+    );
   }
 
   function clearSelection(): void {
-    if (selected.length === 0) return;
-    selected = [];
-    changed();
+    setSelection(null);
   }
 
-  /** Drops selected IDs the project no longer contains (e.g. after an undo). */
+  /** Drops what the project no longer contains (e.g. after an undo). */
   function reconcile(): void {
     const current = project();
-    if (!current) return;
-    const live = new Set(current.song.placements.map((p) => p.id));
-    const next = selected.filter((id) => live.has(id));
-    if (next.length === selected.length) return;
-    selected = next;
-    changed();
+    if (current) setSelection(reconcileArrangementSelection(selection, current));
+  }
+
+  /** The stretch of time the selection stands for, for zoom to selection. */
+  function span(): ArrangementSpan | null {
+    const current = project();
+    return current ? selectionSpan(selection, current) : null;
+  }
+
+  /** The free range a delete or cut takes out, or null for a clip selection. */
+  function rangeToRemove(): ArrangementSpan | null {
+    return selection?.kind === "range" ? selection.span : null;
   }
 
   // --- Drag: move and resize ------------------------------------------------
@@ -130,7 +163,9 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
       (candidate) => candidate.id === placementId,
     );
     if (!placement) return;
-    if (!selected.includes(placementId)) select(placementId);
+    const held =
+      selection?.kind === "clips" && selection.placementIds.includes(placementId);
+    if (!held) select(placementId);
     drag = {
       placementId,
       handle,
@@ -201,21 +236,34 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
 
   // --- Discrete operations --------------------------------------------------
 
+  /** Delete what is selected: a clip selection's clips, or a range's time. The
+   * range stays selected, now covering nothing; a clip selection is cleared. */
   function deleteSelection(): boolean {
     const current = project();
     if (!current) return false;
-    const applied = run(deletePlacements(current, selected));
-    if (applied) clearSelection();
+    const range = rangeToRemove();
+    const commands = range
+      ? removePlacementRange(
+          current,
+          covered(),
+          range.startTicks,
+          range.endTicks,
+          options.ids,
+        ).commands
+      : deletePlacements(current, covered());
+    const applied = run(commands);
+    if (applied && !range) clearSelection();
     return applied;
   }
 
   function toggleLoop(): boolean {
     const current = project();
-    if (!current || selected.length === 0) return false;
-    const first = current.song.placements.find((p) => p.id === selected[0]);
+    const ids = covered();
+    if (!current || ids.length === 0) return false;
+    const first = current.song.placements.find((p) => p.id === ids[0]);
     if (!first) return false;
     const looped = !first.looped;
-    const commands = selected.flatMap((id) => setPlacementLooped(current, id, looped));
+    const commands = ids.flatMap((id) => setPlacementLooped(current, id, looped));
     return run(commands);
   }
 
@@ -223,40 +271,51 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
    * carrying only which of CLP-01's two operations ran — never a name. */
   function duplicate(mode: DuplicateMode): boolean {
     const current = project();
-    if (!current || selected.length === 0) return false;
-    const results = selected.map((id) =>
-      duplicatePlacement(current, id, mode, options.ids),
-    );
+    const ids = covered();
+    if (!current || ids.length === 0) return false;
+    const results = ids.map((id) => duplicatePlacement(current, id, mode, options.ids));
     const commands = results.flatMap((result) => result.commands);
     if (!run(commands)) return false;
     options.analytics?.log("placement_duplicated", { mode });
     const created = results
       .map((result) => result.placementId)
       .filter((id): id is PlacementId => id !== null);
-    if (created.length > 0) {
-      selected = created;
-      changed();
-    }
+    if (created.length > 0) setSelection(clipsSelection(created));
     return true;
   }
 
   // --- Clipboard ------------------------------------------------------------
 
+  /** What a copy or cut puts on the clipboard: a range's covered pieces, or a
+   * clip selection's whole clips. */
+  function selectedPieces(current: Project) {
+    const range = rangeToRemove();
+    return range
+      ? removePlacementRange(
+          current,
+          covered(),
+          range.startTicks,
+          range.endTicks,
+          options.ids,
+        )
+      : cutPlacements(current, covered());
+  }
+
   const copy = (): boolean => {
     const current = project();
-    if (!current || selected.length === 0) return false;
-    clipboard = copyPlacements(current, selected);
+    if (!current || covered().length === 0) return false;
+    clipboard = selectedPieces(current).clipboard;
     changed();
     return clipboard.length > 0;
   };
 
   const cut = (): boolean => {
     const current = project();
-    if (!current || selected.length === 0) return false;
-    const result = cutPlacements(current, selected);
+    if (!current || covered().length === 0) return false;
+    const result = selectedPieces(current);
     if (!run(result.commands)) return false;
     clipboard = result.clipboard;
-    clearSelection();
+    if (!rangeToRemove()) clearSelection();
     return true;
   };
 
@@ -268,13 +327,17 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
   };
 
   return {
-    getSelection: (): readonly PlacementId[] => selected,
+    /** The clips the selection covers, in song order. */
+    getSelection: (): readonly PlacementId[] => covered(),
+    getArrangementSelection: (): ArrangementSelection | null => selection,
+    selectionSpan: span,
     getClipboard: (): readonly PlacementClipboardEntry[] => clipboard,
     isDragging: (): boolean => drag !== null,
-    hasSelection: (): boolean => selected.length > 0,
+    hasSelection: (): boolean => covered().length > 0,
     /** The label the UI shows before a duplicate (CLP-01). */
     duplicateLabel: describeDuplicate,
     select,
+    setSelection,
     clearSelection,
     reconcile,
     beginDrag,
