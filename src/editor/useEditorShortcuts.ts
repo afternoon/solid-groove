@@ -35,6 +35,9 @@ export interface UseEditorShortcutsOptions {
   /** Switches the editor to a view (`UI-001`), through the same path the dock
    * takes — so `1`/`2`/`3` and the dock cannot reach different states. */
   readonly selectView: (view: EditorViewName) => void;
+  /** Whether the `UI-001` sequence editor is open over the current view. */
+  readonly sequenceEditorOpen: () => boolean;
+  readonly closeSequenceEditor: () => void;
 }
 
 /**
@@ -70,6 +73,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     arrangementEditingActions,
     hasArrangementSelection,
     selectView,
+    sequenceEditorOpen,
+    closeSequenceEditor,
   } = options;
 
   /**
@@ -133,9 +138,15 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
+    // Escape closes the innermost surface: the guide if it is over everything
+    // else, otherwise the sequence editor. Nothing here compares a key — this
+    // is the registry's `view.close_surface`, like every other close.
     "view.close_surface": {
-      run: () => setGuideOpen(false),
-      isEnabled: () => guideOpen(),
+      run: () => {
+        if (guideOpen()) setGuideOpen(false);
+        else closeSequenceEditor();
+      },
+      isEnabled: () => guideOpen() || sequenceEditorOpen(),
     },
     // The piano roll's remaining note operations, dispatched by the registry
     // (KEY-01), not by a listener the roll owns. Each is enabled only while the
@@ -206,7 +217,15 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // A live placement selection makes the arrangement's own mappings active
     // whichever editor is mounted below it (#258), not only when that editor
     // happens to be the step grid.
-    return hasArrangementSelection() ? [...base, "arrangement"] : base;
+    const withArrangement: readonly ShortcutContext[] = hasArrangementSelection()
+      ? [...base, "arrangement"]
+      : base;
+    // The sequence editor is a window over the page, but deliberately not the
+    // `dialog` context: the transport, the note shortcuts and the view
+    // switches all keep working while a producer programs in it (`UI-001`).
+    return sequenceEditorOpen()
+      ? [...withArrangement, "sequence_editor"]
+      : withArrangement;
   };
 
   // While a modal is open it is the only active context, so nothing behind it

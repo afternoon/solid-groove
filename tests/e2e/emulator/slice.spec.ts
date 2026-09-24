@@ -1,4 +1,30 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
+
+/** One bar at 192 PPQ, `canvasRenderer.RULER_HEIGHT_PX`, `ROW_METRICS`. */
+const TICKS_PER_BAR = 4 * 192;
+const RULER_HEIGHT_PX = 22;
+const ROW_HEIGHT_PX = 28;
+
+/**
+ * Opens the starter clip the way a producer does — a double-click on the
+ * timeline (`UI-001`) — and returns the sequence editor. Sequencing is a window
+ * over the arrangement now, so the grid has to be opened before it can be
+ * edited; a clip is canvas pixels, reachable only as a point.
+ */
+async function openStarterClip(page: Page): Promise<Locator> {
+  const ready = page.getByTestId("arrangement-view-ready");
+  await expect(ready).toBeVisible();
+  const pixelsPerTick = Number(await ready.getAttribute("data-pixels-per-tick"));
+  await page.locator(".arrangement-layer-interactive").dblclick({
+    position: {
+      x: (TICKS_PER_BAR / 2) * pixelsPerTick,
+      y: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    },
+  });
+  const editor = page.getByRole("dialog", { name: "Sequence editor" });
+  await expect(editor).toBeVisible();
+  return editor;
+}
 
 /**
  * `FND-009` — the foundation vertical slice, exercised against a real
@@ -38,11 +64,13 @@ test.describe("foundation vertical slice", () => {
     await expect(page).toHaveURL(/\/projects\/prj_/);
     const projectUrl = page.url();
 
-    const grid = page.getByRole("region", { name: "Step editor" });
-    await expect(grid).toBeVisible();
+    const editor = await openStarterClip(page);
+    await expect(editor.getByRole("region", { name: "Step editor" })).toBeVisible();
     // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on.
-    await expect(page.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Notes, step 3, off" })).toBeVisible();
+    await expect(editor.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
+    await expect(
+      editor.getByRole("button", { name: "Notes, step 3, off" }),
+    ).toBeVisible();
 
     // The reopened project must report the same pack dependency it saved
     // (PRD LIB-05, invariant 12) — visible as soon as the starter project
@@ -52,8 +80,8 @@ test.describe("foundation vertical slice", () => {
     const packDependencyText = await packLabel.textContent();
 
     // Add a note: dispatches note.add through the shared command layer.
-    await page.getByRole("button", { name: "Notes, step 3, off" }).click();
-    await expect(page.getByRole("button", { name: "Notes, step 3, on" })).toBeVisible();
+    await editor.getByRole("button", { name: "Notes, step 3, off" }).click();
+    await expect(editor.getByRole("button", { name: "Notes, step 3, on" })).toBeVisible();
 
     // The revision-checked write actually advances the persisted revision,
     // not just the visible save state.
@@ -63,6 +91,10 @@ test.describe("foundation vertical slice", () => {
     const revisionAfterAdd = Number(
       await page.locator(".save-status").getAttribute("data-revision"),
     );
+
+    // The transport is in the header, behind the editor, so close it first.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
 
     // Play it: the allowed user gesture resumes the shared AudioRuntime and
     // starts the transport.
@@ -140,9 +172,18 @@ test.describe("foundation vertical slice", () => {
       await page.getByRole("button", { name: "Stop playback" }).click();
     }
 
-    // Undo it: the added note is removed through the same history.
-    await page.getByRole("button", { name: /^Undo/ }).click();
-    await expect(page.getByRole("button", { name: "Notes, step 3, off" })).toBeVisible();
+    // Undo it: the added note is removed through the same history. The clip is
+    // opened again to watch it happen, and the undo comes from the keyboard,
+    // because the sequence editor is a window over the header the Undo button
+    // lives in — `edit.undo` reaching through it is what the `sequence_editor`
+    // shortcut context is for (`UI-001`).
+    const afterPlayback = await openStarterClip(page);
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(
+      afterPlayback.getByRole("button", { name: "Notes, step 3, off" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
 
     // Save it: the autosave status settles once the revision-checked write
     // against the emulator completes.
@@ -164,12 +205,19 @@ test.describe("foundation vertical slice", () => {
     // than by in-memory state the reload just discarded.
     await page.reload();
     await expect(page).toHaveURL(projectUrl);
-    await expect(page.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
+    const reopened = await openStarterClip(page);
+    await expect(
+      reopened.getByRole("button", { name: "Notes, step 1, on" }),
+    ).toBeVisible();
     // The undone note stayed undone — a stale echo of the pre-undo save
     // never got the chance to restore it, and the reload reads the
     // post-undo revision that was actually persisted.
-    await expect(page.getByRole("button", { name: "Notes, step 3, off" })).toBeVisible();
+    await expect(
+      reopened.getByRole("button", { name: "Notes, step 3, off" }),
+    ).toBeVisible();
     await expect(page.getByText(packDependencyText ?? "")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
 
     // Reproduce playback after reload, against the stable graph rebuilt
     // from the reloaded project. Chromium only, for the reason above.
