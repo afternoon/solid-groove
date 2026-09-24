@@ -27,22 +27,38 @@ const ROW_METRICS = { trackHeightPx: 28, headerHeightPx: 28 };
  * painted — not pixels — so a spy object is enough and keeps the suite free of
  * a native canvas dependency.
  */
-function fakeContext(): CanvasRenderingContext2D & {
+/** One `strokeRect`, with the line dash and width it was drawn under. */
+interface Stroke {
+  readonly x: number;
+  readonly dash: readonly number[];
+  readonly lineWidth: number;
+}
+
+type FakeContext = CanvasRenderingContext2D & {
   fillRectCalls: number;
   strokeRectCalls: number;
   moveToXs: number[];
-} {
+  strokes: Stroke[];
+};
+
+function fakeContext(): FakeContext {
   const fillRectSpy = vi.fn();
   const strokeRectSpy = vi.fn();
   const moveToXs: number[] = [];
+  const strokes: Stroke[] = [];
+  let dash: readonly number[] = [];
   const ctx = {
     setTransform: vi.fn(),
     clearRect: vi.fn(),
     fillRect: (x: number, _y: number, _w: number, _h: number) => {
       fillRectSpy(x);
     },
-    strokeRect: (x: number, _y: number, _w: number, _h: number) => {
+    strokeRect(this: { lineWidth: number }, x: number, _y: number, _w: number) {
       strokeRectSpy(x);
+      strokes.push({ x, dash, lineWidth: this.lineWidth });
+    },
+    setLineDash: (segments: number[]) => {
+      dash = [...segments];
     },
     beginPath: vi.fn(),
     moveTo: (x: number) => {
@@ -64,12 +80,9 @@ function fakeContext(): CanvasRenderingContext2D & {
       return strokeRectSpy.mock.calls.length;
     },
     moveToXs,
+    strokes,
   };
-  return ctx as unknown as CanvasRenderingContext2D & {
-    fillRectCalls: number;
-    strokeRectCalls: number;
-    moveToXs: number[];
-  };
+  return ctx as unknown as FakeContext;
 }
 
 function baseViewport(overrides: Partial<Viewport> = {}): Viewport {
@@ -83,9 +96,7 @@ function baseViewport(overrides: Partial<Viewport> = {}): Viewport {
   };
 }
 
-function envFor(
-  viewport: Viewport,
-): DrawEnvironment & { ctx: ReturnType<typeof fakeContext> } {
+function envFor(viewport: Viewport): DrawEnvironment & { ctx: FakeContext } {
   const project = createLargeArrangementProject(20);
   const projection = buildArrangementProjection(project, ROW_METRICS);
   return {
@@ -139,7 +150,7 @@ describe("drawInteractionLayer", () => {
     const env = envFor(baseViewport({ scrollLeft: 0 }));
     drawInteractionLayer(env, {
       playheadTicks: TICKS_PER_BAR * 2,
-      selection: null,
+      range: null,
       hoverPlacementId: null,
       selectedPlacementIds: new Set(),
     });
@@ -152,7 +163,7 @@ describe("drawInteractionLayer", () => {
     const env = envFor(baseViewport());
     drawInteractionLayer(env, {
       playheadTicks: null,
-      selection: null,
+      range: null,
       hoverPlacementId: null,
       selectedPlacementIds: new Set(),
     });
@@ -160,18 +171,50 @@ describe("drawInteractionLayer", () => {
     expect(env.ctx.fillRectCalls).toBe(0);
   });
 
-  it("draws a filled, thick-bordered highlight for a selected placement (ARR-002)", () => {
+  /**
+   * #292: the range and a selected clip must look different, so a producer can
+   * tell a stretch of time from a clip. The range is dotted, the clip solid.
+   */
+  it("outlines a range dotted and a selected clip solid, and thicker", () => {
     const env = envFor(baseViewport());
     const [placementId] = env.projection.placementsById.keys();
-    if (!placementId) throw new Error("fixture has no placement");
+    const placement = env.projection.placementsById.get(placementId);
+    if (!placement) throw new Error("fixture has no placement");
+    const second = env.projection.tracks[1];
     drawInteractionLayer(env, {
       playheadTicks: null,
-      selection: null,
+      range: {
+        trackIds: [env.projection.tracks[0].id, second.id],
+        startTicks: TICKS_PER_BAR * 4,
+        endTicks: TICKS_PER_BAR * 6,
+      },
       hoverPlacementId: null,
       selectedPlacementIds: new Set([placementId]),
     });
-    expect(env.ctx.fillRectCalls).toBeGreaterThan(0);
-    expect(env.ctx.strokeRectCalls).toBeGreaterThan(0);
+    const [range, clip] = env.ctx.strokes;
+    expect(env.ctx.strokes).toHaveLength(2);
+    expect(range.dash.length).toBeGreaterThan(0);
+    expect(range.x).toBeCloseTo(TICKS_PER_BAR * 4 * 0.08 + 0.5);
+    expect(clip.dash).toEqual([]);
+    expect(clip.lineWidth).toBeGreaterThan(range.lineWidth);
+    // The range's wash is filled; the clip's outline has no fill of its own.
+    expect(env.ctx.fillRectCalls).toBe(1);
+  });
+
+  it("draws a point as a cursor line, not an outline", () => {
+    const env = envFor(baseViewport());
+    drawInteractionLayer(env, {
+      playheadTicks: null,
+      range: {
+        trackIds: [env.projection.tracks[0].id],
+        startTicks: TICKS_PER_BAR * 2,
+        endTicks: TICKS_PER_BAR * 2,
+      },
+      hoverPlacementId: null,
+      selectedPlacementIds: new Set(),
+    });
+    expect(env.ctx.strokes).toEqual([]);
+    expect(env.ctx.moveToXs).toContain(Math.round(TICKS_PER_BAR * 2 * 0.08) + 0.5);
   });
 });
 

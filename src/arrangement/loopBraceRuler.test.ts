@@ -170,7 +170,7 @@ describe("the loop brace on the ruler", () => {
         canvases: () => canvases,
         interactionState: () => ({
           playheadTicks: null,
-          selection: null,
+          range: null,
           hoverPlacementId: null,
           selectedPlacementIds: new Set(),
         }),

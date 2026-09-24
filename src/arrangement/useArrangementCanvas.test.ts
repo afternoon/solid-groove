@@ -71,7 +71,7 @@ function harness() {
       canvases: () => canvases,
       interactionState: () => ({
         playheadTicks: 0,
-        selection: null,
+        range: null,
         hoverPlacementId: null,
         selectedPlacementIds: new Set(),
       }),

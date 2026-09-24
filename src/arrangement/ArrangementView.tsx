@@ -233,9 +233,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   function interactionState(): InteractionState {
     const state = shell?.getState();
+    const bars = state?.selection;
     return {
       playheadTicks: state?.playheadTicks ?? null,
-      selection: state?.selection ?? null,
+      range: bars
+        ? { trackIds: [bars.trackId], startTicks: bars.startTick, endTicks: bars.endTick }
+        : null,
       hoverPlacementId: state?.hoverPlacementId ?? null,
       selectedPlacementIds: new Set(editing?.getSelection() ?? []),
     };

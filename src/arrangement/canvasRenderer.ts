@@ -10,8 +10,9 @@
  * proportional to visible objects, not project duration (PRD 9.3).
  */
 
-import type { PlacementId, TrackId } from "../domain/ids";
+import type { PlacementId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import type { ArrangementSpan } from "../selection";
 import type { RowRange, TickRange, Viewport } from "./geometry";
 import { ticksToPixels } from "./geometry";
 import type { ArrangementProjection, PlacementGeometry } from "./projection";
@@ -53,14 +54,14 @@ export interface LoopBraceDrawState {
 
 export interface InteractionState {
   readonly playheadTicks: number | null;
-  readonly selection: {
-    readonly trackId: TrackId;
-    readonly startTick: number;
-    readonly endTick: number;
-  } | null;
+  /**
+   * The free range of the arrangement's one selection (#292), drawn as a
+   * dotted outline over the tracks it spans. Zero length is a point, drawn as
+   * a cursor. Null when the selection is clips, or when there is none.
+   */
+  readonly range: ArrangementSpan | null;
   readonly hoverPlacementId: PlacementId | null;
-  /** Placement-editing selection (`ARR-002`; PRD CLP-01) — entities selected
-   * by ID, distinct from `selection`'s bar range. */
+  /** The clips the selection selects, each drawn with a solid outline. */
   readonly selectedPlacementIds: ReadonlySet<PlacementId>;
 }
 
@@ -88,7 +89,6 @@ export const COLOR_TOKENS = {
   selection: ["--color-accent-wash", "rgb(255 255 255 / 15%)"],
   selectionBorder: ["--color-accent", "#ffffff"],
   hover: ["--color-text", "#f6f6f6"],
-  placementSelection: ["--color-accent-wash-strong", "rgb(255 255 255 / 28%)"],
   /* Note ticks and the waveform centre line are drawn over a track's own
      colour — the one hue on screen — so they shade what is beneath rather
      than naming a colour of their own. */
@@ -414,6 +414,44 @@ function drawAutomationLanes(env: DrawEnvironment): void {
   }
 }
 
+/** The dash a free range is outlined with, so it never reads as a clip's. */
+export const RANGE_LINE_DASH: readonly number[] = [4, 3];
+
+/**
+ * A free range (#292): a faint wash under a dotted outline, over every track
+ * it spans. A zero-length range is a point, drawn as a cursor down its track.
+ */
+function drawRange(env: DrawEnvironment, range: ArrangementSpan): void {
+  const { ctx, viewport, projection } = env;
+  const rows = projection.tracks
+    .filter((track) => range.trackIds.includes(track.id))
+    .map((track) => track.rowIndex);
+  if (rows.length === 0) return;
+  const top = rowTop(Math.min(...rows), projection) - viewport.scrollTop;
+  const bottom =
+    rowTop(Math.max(...rows), projection) -
+    viewport.scrollTop +
+    projection.rowMetrics.trackHeightPx;
+  const left = screenX(range.startTicks, viewport);
+  ctx.strokeStyle = colors().selectionBorder;
+  ctx.lineWidth = 1;
+  if (range.endTicks === range.startTicks) {
+    const x = Math.round(left) + 0.5;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+    return;
+  }
+  const width = screenX(range.endTicks, viewport) - left;
+  ctx.fillStyle = colors().selection;
+  ctx.fillRect(left, top, width, bottom - top);
+  ctx.setLineDash([...RANGE_LINE_DASH]);
+  ctx.strokeRect(left + 0.5, top + 0.5, width - 1, bottom - top - 1);
+  ctx.setLineDash([]);
+}
+
 /** Playhead, selection, and hover — the only layer redrawn on every pointer
  * move or transport tick, so it must stay cheap regardless of project size. */
 export function drawInteractionLayer(
@@ -424,23 +462,14 @@ export function drawInteractionLayer(
   const { ctx, viewport, projection } = env;
   const rulerTop = contentTopOffset();
 
-  if (interaction.selection) {
-    const { trackId, startTick, endTick } = interaction.selection;
-    const rowIndex = projection.tracks.find((track) => track.id === trackId)?.rowIndex;
-    if (rowIndex !== undefined) {
-      const left = screenX(startTick, viewport);
-      const right = screenX(endTick, viewport);
-      const top = rowTop(rowIndex, projection) - viewport.scrollTop;
-      ctx.fillStyle = colors().selection;
-      ctx.fillRect(left, top, right - left, projection.rowMetrics.trackHeightPx);
-      ctx.strokeStyle = colors().selectionBorder;
-      ctx.strokeRect(left, top, right - left, projection.rowMetrics.trackHeightPx);
-    }
-  }
+  if (interaction.range) drawRange(env, interaction.range);
 
-  // Selected placements (ARR-002): a thicker, filled border so the highlight
-  // reads as distinct from the plain hover outline below even when a
-  // placement is both selected and hovered at once.
+  // Selected clips (#292): a solid outline on the clip itself, thicker than
+  // the hover outline below so a clip both selected and hovered still reads as
+  // selected. No fill, so it cannot be mistaken for the range's wash.
+  ctx.strokeStyle = colors().selectionBorder;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
   for (const placementId of interaction.selectedPlacementIds) {
     const placement = projection.placementsById.get(placementId);
     if (!placement) continue;
@@ -448,10 +477,6 @@ export function drawInteractionLayer(
     const right = screenX(placement.endTicks, viewport);
     const top = rowTop(placement.rowIndex, projection) - viewport.scrollTop;
     const height = projection.rowMetrics.trackHeightPx;
-    ctx.fillStyle = colors().placementSelection;
-    ctx.fillRect(left, top, Math.max(1, right - left), height);
-    ctx.strokeStyle = colors().selectionBorder;
-    ctx.lineWidth = 3;
     ctx.strokeRect(left + 1.5, top + 1.5, Math.max(1, right - left - 3), height - 3);
   }
 
