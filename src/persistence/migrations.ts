@@ -31,35 +31,15 @@ function metadataV1ToV2(metadata: Record<string, unknown>): Record<string, unkno
 
 /**
  * v1 -> v2 (LIB-08): the project gains a pack shelf, `metadata.addedPacks`.
- *
- * Every stored tier carries a `schemaVersion` envelope (metadata, song,
- * arrangement chunks, clips), so all of them are bumped in lockstep; leaving one
- * behind would make the decoded aggregate fail its version check.
+ * Every other tier only has its `schemaVersion` envelope bumped.
  */
 const migrateV1ToV2: ProjectMigration = {
   from: 1,
   to: 2,
   description: "Add the project pack shelf (addedPacks), seeded from dependencies",
-  migrate(documents) {
-    return {
-      ...documents,
-      metadata: metadataV1ToV2(asRecord(documents.metadata)),
-      song: bumpVersion(documents.song, 2),
-      clips: documents.clips.map((clip) => bumpVersion(clip, 2)),
-      ...(documents.arrangement
-        ? {
-            arrangement: documents.arrangement.map((chunk) => bumpVersion(chunk, 2)),
-          }
-        : {}),
-    };
-  },
+  migrate: (document, tier) =>
+    tier === "metadata" ? metadataV1ToV2(document) : bumpVersion(document, 2),
 };
-
-/** The metadata-tier transform each migration applies, keyed by source version. */
-const METADATA_MIGRATIONS: ReadonlyMap<
-  number,
-  (metadata: Record<string, unknown>) => Record<string, unknown>
-> = new Map([[1, metadataV1ToV2]]);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -98,11 +78,15 @@ function bumpVersion(document: unknown, to: number): Record<string, unknown> {
  * after schema v1 has fixture-based tests from each supported source version".
  */
 
+/** The stored tiers; each document carries its own `schemaVersion` envelope. */
+export type StoredTier = "metadata" | "song" | "clip" | "arrangement";
+
 export interface ProjectMigration {
   readonly from: number;
   readonly to: number;
   readonly description: string;
-  migrate(documents: RawProjectDocuments): RawProjectDocuments;
+  /** Upgrades one stored document of `tier` from version `from` to `to`. */
+  migrate(document: Record<string, unknown>, tier: StoredTier): Record<string, unknown>;
 }
 
 /** Ordered, gap-free chain of migrations up to `SCHEMA_VERSION`. */
@@ -156,28 +140,55 @@ export function migrateProjectDocuments(documents: RawProjectDocuments): Migrati
       storedVersion,
     };
   }
-  if (storedVersion === SCHEMA_VERSION) {
-    return { ok: true, documents, applied: [] };
-  }
 
-  const applied: string[] = [];
-  let current = documents;
-  let version = storedVersion;
-  while (version < SCHEMA_VERSION) {
-    const migration = PROJECT_MIGRATIONS.find((entry) => entry.from === version);
-    if (!migration) {
-      return {
-        ok: false,
-        reason: "unknown_version",
-        message: `No migration is registered from schema version ${version}; stored state is left untouched`,
-        storedVersion,
-      };
+  // Every document is migrated from the version it declares itself, not the
+  // metadata's: saves are tier-local, so a project read at an older version
+  // and then saved one tier at a time is stored at mixed versions (#290).
+  const applied = new Set<string>();
+  let failure: MigrationResult | null = null;
+  const upgrade = (document: unknown, tier: StoredTier): unknown => {
+    const version = asRecord(document).schemaVersion;
+    if (failure || !Number.isInteger(version) || (version as number) >= SCHEMA_VERSION) {
+      // Current, future or malformed: the decoder reports what is wrong.
+      return document;
     }
-    current = migration.migrate(current);
-    applied.push(migration.description);
-    version = migration.to;
+    let current = asRecord(document);
+    for (let from = version as number; from < SCHEMA_VERSION; from += 1) {
+      const migration = PROJECT_MIGRATIONS.find((entry) => entry.from === from);
+      if (!migration) {
+        failure = {
+          ok: false,
+          reason: "unknown_version",
+          message: `No migration is registered from schema version ${from}; stored state is left untouched`,
+          storedVersion: version as number,
+        };
+        return document;
+      }
+      current = migration.migrate(current, tier);
+      applied.add(migration.description);
+    }
+    return current;
+  };
+
+  const migrated: RawProjectDocuments = {
+    ...documents,
+    metadata: upgrade(documents.metadata, "metadata"),
+    song: upgrade(documents.song, "song"),
+    clips: documents.clips.map((clip) => upgrade(clip, "clip")),
+    ...(documents.arrangement
+      ? {
+          arrangement: documents.arrangement.map((chunk) =>
+            upgrade(chunk, "arrangement"),
+          ),
+        }
+      : {}),
+  };
+  if (failure) {
+    return failure;
   }
-  return { ok: true, documents: current, applied };
+  return applied.size === 0
+    ? { ok: true, documents, applied: [] }
+    : { ok: true, documents: migrated, applied: [...applied] };
 }
 
 /**
@@ -187,9 +198,10 @@ export function migrateProjectDocuments(documents: RawProjectDocuments): Migrati
  * before validation, so opening it never fails just because it predates a field
  * this build added (LIB-08). A future or unmigratable version is a decode
  * failure the caller surfaces the same way any other unreadable state is — the
- * documents are never overwritten. Migration is read-time and pure: the upgraded
- * project persists at the new version the next time it is saved, not as a side
- * effect of loading it.
+ * documents are never overwritten. Migration is read-time and pure, and each
+ * document migrates from its own declared version: saves are tier-local, so an
+ * upgraded project reaches storage one tier at a time as each is next saved,
+ * and a load in between reads documents at mixed versions.
  */
 export function decodeStoredProject(
   documents: RawProjectDocuments,
@@ -234,14 +246,12 @@ export function decodeStoredProjectMetadata(
     return decodeProjectMetadata(projectId, raw);
   }
   let current = data;
-  let version = storedVersion;
-  while (version < SCHEMA_VERSION) {
-    const migrate = METADATA_MIGRATIONS.get(version);
-    if (!migrate) {
+  for (let version = storedVersion; version < SCHEMA_VERSION; version += 1) {
+    const migration = PROJECT_MIGRATIONS.find((entry) => entry.from === version);
+    if (!migration) {
       return decodeProjectMetadata(projectId, raw);
     }
-    current = migrate(current);
-    version += 1;
+    current = migration.migrate(current, "metadata");
   }
   return decodeProjectMetadata(projectId, current);
 }
