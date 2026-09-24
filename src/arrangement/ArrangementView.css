@@ -58,6 +58,11 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  /* Breathing room above the ruler, so the bar numbers are not jammed against
+     the toolbar's edge. A margin rather than padding: the add-track unit is
+     positioned against this box, and padding would shift its origin away from
+     the row grid it has to line up with. */
+  margin-top: 10px;
 }
 
 .arrangement-headers {
@@ -171,13 +176,22 @@
 }
 
 /* The way to add a track, pinned below the last one (`UI-001`). Absolutely
-   positioned in the header column and carrying the column's scroll transform,
-   so it sits where the song ends rather than where the viewport does. */
+   positioned over the timeline — `left` is set inline from the header column's
+   width — and carrying the rows' scroll transform, so it sits where the song
+   ends rather than where the viewport does.
+
+   It spans the timeline but must not swallow it: the empty grid underneath is
+   still somewhere you click and drag, so the strip is transparent to the
+   pointer and only the controls inside it are not. */
 .arrangement-below-tracks {
   position: absolute;
-  left: 0;
-  width: 100%;
+  right: 0;
   box-sizing: border-box;
   padding: 8px;
   will-change: transform;
+  pointer-events: none;
+}
+
+.arrangement-below-tracks > * {
+  pointer-events: auto;
 }

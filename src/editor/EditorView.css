@@ -216,9 +216,14 @@
      so the grid continues to the end of the view instead of leaving a dead
      band under it. The dock floats over that lowest strip, which is why the
      arrangement keeps `BELOW_TRACKS_CLEARANCE_PX` of empty timeline below the
-     last track — the strip under the dock is never a track. */
+     last track — the strip under the dock is never a track.
+
+     The negative margin alone is what does it. This used to pair it with an
+     equal `padding-bottom`, which put the dead band straight back: the panel
+     reached the bottom of the window, but its content box — where the
+     arrangement actually is — still stopped a dock's height short, so the
+     grid ended in a black strip with the dock floating below it. */
   margin-bottom: calc(-1 * var(--view-dock-clearance));
-  padding-bottom: var(--view-dock-clearance);
 }
 
 .track-editor {
