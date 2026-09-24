@@ -22,6 +22,8 @@ export interface TrackInstrumentProps {
   /** Loads a sound dropped from the library onto this track's sampler (#225). */
   readonly loadSample: (sample: LibrarySample) => void;
   readonly audition: () => void;
+  /** Opens the library on the sampler's sample slot (`UI-001`). */
+  readonly onBrowse: () => void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -70,6 +72,7 @@ export default function TrackInstrument(props: TrackInstrumentProps) {
             dispatch={props.dispatch}
             beginGesture={props.beginGesture}
             audition={props.audition}
+            onBrowse={props.onBrowse}
           />
         )}
       </Show>

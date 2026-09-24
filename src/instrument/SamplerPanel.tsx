@@ -1,4 +1,4 @@
-import { For, type JSX } from "@solidjs/web";
+import { For, type JSX, Show } from "@solidjs/web";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -35,6 +35,8 @@ export interface SamplerPanelProps {
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
   audition(): void;
+  /** Opens the library on this slot (`UI-001`). Absent where nothing can. */
+  readonly onBrowse?: () => void;
   readonly analytics?: Analytics;
 }
 
@@ -86,7 +88,19 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
           <p class={`sampler-sample-name ${MASK_CONTENT}`}>
             {props.sampleName ?? "No sample loaded"}
           </p>
-          <p class="sampler-load-hint">Drag a sound here from the library</p>
+          {/* The slot is the way into the library (UI-001): it names what is
+					    loaded, and opening it is how that changes. */}
+          <Show when={props.onBrowse}>
+            {(browse) => (
+              <button
+                type="button"
+                class="sampler-load-button"
+                onClick={() => browse()()}
+              >
+                Load a sound
+              </button>
+            )}
+          </Show>
         </div>
         <div class="instrument-panel-group instrument-panel-sliders">
           <h3 class="instrument-panel-heading">Playback</h3>

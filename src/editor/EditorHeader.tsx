@@ -5,7 +5,6 @@ import {
   HiSolidMusicalNote,
   HiSolidPlay,
   HiSolidQuestionMarkCircle,
-  HiSolidRectangleStack,
   HiSolidSquares2x2,
   HiSolidStop,
 } from "solid-icons/hi";
@@ -36,8 +35,6 @@ export interface EditorHeaderProps {
   readonly onTempoChange: (value: number) => void;
   readonly timeSignature: Accessor<TimeSignature | null>;
   readonly playheadLabel: Accessor<string>;
-  readonly libraryOpen: Accessor<boolean>;
-  readonly onToggleLibrary: () => void;
   readonly onOpenGuide: () => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
   readonly saveStatus: Accessor<SaveStatusValue | null>;
@@ -160,16 +157,6 @@ export default function EditorHeader(props: EditorHeaderProps) {
           {props.playheadLabel()}
         </span>
       </div>
-      <button
-        type="button"
-        class="library-toggle"
-        aria-label="Library"
-        aria-pressed={ariaBool(props.libraryOpen())}
-        title="Library"
-        onClick={() => props.onToggleLibrary()}
-      >
-        <HiSolidRectangleStack size={18} />
-      </button>
       <button
         type="button"
         class="shortcut-guide-button"
