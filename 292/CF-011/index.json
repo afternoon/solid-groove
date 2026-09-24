@@ -1,0 +1,26 @@
+{
+  "id": "CF-011",
+  "title": "A producer zooms in on what they selected",
+  "steps": [
+    {
+      "file": "01-bd-has-one-clip-in-bar-1-and-sampler-has-clips-in-bars-1-to-.png",
+      "caption": "BD has one clip in bar 1, and Sampler has clips in bars 1 to 3"
+    },
+    {
+      "file": "02-drag-from-mid-bar-2-on-bd-to-mid-bar-4-on-sampler-two-clips-.png",
+      "caption": "Drag from mid bar 2 on BD to mid bar 4 on Sampler: two clips selected"
+    },
+    {
+      "file": "03-zoom-to-selection-exactly-the-dragged-stretch-fills-the-time.png",
+      "caption": "Zoom to selection: exactly the dragged stretch fills the timeline"
+    },
+    {
+      "file": "04-click-the-clip-in-bar-3-and-press-z-bar-3-fills-the-timeline.png",
+      "caption": "Click the clip in bar 3 and press Z: bar 3 fills the timeline"
+    },
+    {
+      "file": "05-reopened-with-nothing-selected-so-there-is-nothing-to-zoom-t.png",
+      "caption": "Reopened with nothing selected, so there is nothing to zoom to"
+    }
+  ]
+}
