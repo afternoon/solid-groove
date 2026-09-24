@@ -188,7 +188,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // with `asset_missing` (LOOP-013). Auditions play through the same
   // destination the project does — never an export/offline context (LIB-01).
   const createAuditionEngine =
-    props.createAuditionEngine ?? (() => new ToneAuditionEngine(getAudioRuntime()));
+    props.createAuditionEngine ??
+    (() => new ToneAuditionEngine(getAudioRuntime(), { songTempo: () => tempo() }));
 
   // Tempo is written by a validated command (song.tempo), clamped to the
   // AUD-02 40-240 BPM supported range at this surface. The command is the only

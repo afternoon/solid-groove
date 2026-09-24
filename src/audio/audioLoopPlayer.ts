@@ -69,21 +69,25 @@ export interface AudioLoopPlayback {
  * Plays one scheduled audio-loop event, following the song tempo without
  * moving the loop's pitch. Like `playOneShot`, the node is the short-lived
  * source AUD-08 permits per event: it disposes itself once it has stopped, so
- * nothing accumulates across repeats.
+ * nothing accumulates across repeats. The started node is returned so a caller
+ * that must cut the loop short (a library audition) can stop it; `null` when
+ * there was nothing to play.
  */
 export function playAudioLoop(
   buffer: Tone.ToneAudioBuffer,
   playback: AudioLoopPlayback,
-): void {
+): Tone.Player | Tone.GrainPlayer | null {
   const { destination, time, durationSeconds, playbackRate, offsetSeconds } = playback;
-  if (durationSeconds <= 0) return;
+  if (durationSeconds <= 0) return null;
 
   if (!isLoopStretched(playbackRate)) {
     // Source tempo already matches the song: play the recording as recorded.
     const player = new Tone.Player(buffer).connect(destination);
-    player.onstop = () => player.dispose();
+    player.onstop = () => {
+      if (!player.disposed) player.dispose();
+    };
     player.start(time, offsetSeconds, durationSeconds);
-    return;
+    return player;
   }
 
   const player = new Tone.GrainPlayer(buffer).connect(destination);
@@ -103,6 +107,9 @@ export function playAudioLoop(
     // The last grains are scheduled up to one grain plus its crossfade past
     // the stop, so let them ring out instead of cutting the tail.
     const tailMs = (LOOP_GRAIN_SIZE_SECONDS + LOOP_GRAIN_OVERLAP_SECONDS) * 1000 + 50;
-    setTimeout(() => player.dispose(), tailMs);
+    setTimeout(() => {
+      if (!player.disposed) player.dispose();
+    }, tailMs);
   };
+  return player;
 }

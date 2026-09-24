@@ -1,5 +1,6 @@
 import * as Tone from "tone";
 import type { AudioHost, AudioProjectScope } from "../audio/AudioRuntime";
+import { playAudioLoop } from "../audio/audioLoopPlayer";
 import {
   AuditionError,
   type PreviewEngine,
@@ -23,11 +24,23 @@ import type { LibraryAsset } from "./manifest";
  * it keeps the audition *policy* (`AuditionController`) Web-Audio-free and
  * testable, and confines the Web Audio calls to this one file.
  */
+export interface ToneAuditionEngineOptions {
+  /**
+   * The open project's tempo, in BPM. A tempo-labelled loop auditions at this
+   * tempo, time-stretched with its pitch intact (INS-02); without it a loop
+   * plays at the tempo it was authored at.
+   */
+  readonly songTempo?: () => number;
+}
+
 export class ToneAuditionEngine implements PreviewEngine {
   private readonly scope: AudioProjectScope;
   private disposed = false;
 
-  constructor(private readonly runtime: AudioHost) {
+  constructor(
+    private readonly runtime: AudioHost,
+    private readonly options: ToneAuditionEngineOptions = {},
+  ) {
     this.scope = runtime.openProjectScope("library-audition");
   }
 
@@ -39,57 +52,89 @@ export class ToneAuditionEngine implements PreviewEngine {
       throw new AuditionError("asset_missing", `Asset "${asset.id}" has no audio`);
     }
 
-    const player = await this.load(asset.url);
+    const buffer = await this.load(asset.url);
     if (this.disposed) {
-      player.dispose();
+      buffer.dispose();
       throw new AuditionError("asset_missing", "Audition engine is disposed");
     }
+    if (!isAudible(buffer)) {
+      // A zero-length or all-zero decode would "play" and be heard as nothing,
+      // with no error anywhere. Report it as the failed load it is (#330).
+      buffer.dispose();
+      throw new AuditionError("decode_failed", `Asset "${asset.id}" decoded to silence`);
+    }
 
-    player.connect(this.runtime.getDestination());
+    const player = this.startPlayer(buffer, asset, options);
     const handle = this.scope.register("node", () => {
-      player.dispose();
+      if (!player.disposed) player.dispose();
+      buffer.dispose();
     });
 
     let stopped = false;
-    const voice: PreviewVoice = {
+    return {
       stop: () => {
         if (stopped) return;
         stopped = true;
         try {
           player.stop();
         } catch {
-          // A player that never started (e.g. a synced start that has not
-          // fired yet) throws on stop; releasing the scope handle disposes it.
+          // A player that has already stopped (or disposed itself) throws on
+          // stop; releasing the scope handle disposes whatever is left.
         }
         void this.scope.release(handle);
       },
     };
-
-    // Sync where appropriate (LIB-01): a loop drops in on the next beat so it
-    // sits with a running project; a one-shot fires immediately, which is what
-    // a producer expects when they click a hit.
-    if (options.sync) {
-      player.sync().start(quantizedStart());
-    } else {
-      player.start();
-    }
-    return voice;
   }
 
-  private async load(url: string): Promise<Tone.Player> {
+  /**
+   * Start the voice. A one-shot fires immediately, which is what a producer
+   * expects when they click a hit. A loop goes through `playAudioLoop` — the
+   * same path arrangement playback uses — so it follows the project tempo by
+   * time-stretching (INS-02). It drops in on the next bar when the transport is
+   * running (LIB-01 "in sync where appropriate") and starts now when it is not:
+   * a start scheduled on a stopped transport never fires, which is what made
+   * every loop audition silent (#330).
+   */
+  private startPlayer(
+    buffer: Tone.ToneAudioBuffer,
+    asset: LibraryAsset,
+    options: PreviewStartOptions,
+  ): Tone.Player | Tone.GrainPlayer {
+    const destination = this.runtime.getDestination();
+    if (!options.sync) {
+      const player = new Tone.Player(buffer).connect(destination);
+      player.start();
+      return player;
+    }
+    const transport = Tone.getTransport();
+    const playbackRate = loopPlaybackRate(asset.bpm, this.options.songTempo?.());
+    const player = playAudioLoop(buffer, {
+      destination,
+      time: transport.state === "started" ? transport.nextSubdivision("1m") : Tone.now(),
+      durationSeconds: buffer.duration / playbackRate,
+      playbackRate,
+      offsetSeconds: 0,
+    });
+    if (!player) {
+      throw new AuditionError("decode_failed", `Asset "${asset.id}" has no duration`);
+    }
+    return player;
+  }
+
+  private async load(url: string): Promise<Tone.ToneAudioBuffer> {
     try {
-      return await new Promise<Tone.Player>((resolve, reject) => {
-        const player = new Tone.Player({
+      return await new Promise<Tone.ToneAudioBuffer>((resolve, reject) => {
+        const buffer: Tone.ToneAudioBuffer = new Tone.ToneAudioBuffer(
           url,
-          onload: () => resolve(player),
-          onerror: (error) =>
+          () => resolve(buffer),
+          (error) =>
             reject(
               new AuditionError(
                 "decode_failed",
                 error instanceof Error ? error.message : "Decode failed",
               ),
             ),
-        });
+        );
       });
     } catch (error) {
       if (error instanceof AuditionError) throw error;
@@ -107,11 +152,24 @@ export class ToneAuditionEngine implements PreviewEngine {
   }
 }
 
-/**
- * The next musical grid point to drop a synced loop in on. Quantizing to the
- * next bar keeps a loop preview phase-aligned with a running transport rather
- * than starting mid-beat.
- */
-function quantizedStart(): string {
-  return "@1m";
+/** Song tempo over the loop's authored tempo; 1 when either is unknown. */
+function loopPlaybackRate(
+  sourceTempo: number | null,
+  songTempo: number | undefined,
+): number {
+  if (!sourceTempo || sourceTempo <= 0 || !songTempo || songTempo <= 0) return 1;
+  const rate = songTempo / sourceTempo;
+  return Number.isFinite(rate) ? rate : 1;
+}
+
+/** Whether a decoded buffer holds any sound at all. */
+function isAudible(buffer: Tone.ToneAudioBuffer): boolean {
+  if (buffer.length === 0) return false;
+  for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+    const samples = buffer.getChannelData(channel);
+    for (let i = 0; i < samples.length; i++) {
+      if (samples[i] !== 0) return true;
+    }
+  }
+  return false;
 }
