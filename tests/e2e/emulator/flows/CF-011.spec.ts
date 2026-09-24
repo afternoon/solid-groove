@@ -165,7 +165,7 @@ async function duplicateClip(page: Page, rowIndex: number, bar: number): Promise
 test.describe("CF-011", () => {
   // `test.fixme` until #292 lands: the PR that closes it removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme("a producer zooms in on what they selected", async ({ page }) => {
+  test("a producer zooms in on what they selected", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-011",
       title: "A producer zooms in on what they selected",

@@ -158,92 +158,89 @@ async function expectAfterDelete(page: Page): Promise<void> {
 test.describe("CF-010", () => {
   // `test.fixme` until #292 lands: the PR that closes it removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme(
-    "a producer selects a stretch of the song across tracks and deletes it",
-    async ({ page }) => {
-      const step = walkthrough(page, {
-        id: "CF-010",
-        title: "A producer selects a stretch of the song across tracks and deletes it",
-      });
+  test("a producer selects a stretch of the song across tracks and deletes it", async ({
+    page,
+  }) => {
+    const step = walkthrough(page, {
+      id: "CF-010",
+      title: "A producer selects a stretch of the song across tracks and deletes it",
+    });
 
-      // 1. Create a new project, duplicate the "BD" clip, and drag the copy
-      //    along to bar 3, so "BD" has a clip in bar 1 and another in bar 3
-      //    with bar 2 empty between them. Add a sampler track and drag the
-      //    right edge of its clip out to the end of bar 3, so "Sampler" has one
-      //    clip across bars 1 to 3.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await page.getByTestId("arrangement-view-ready").waitFor();
+    // 1. Create a new project, duplicate the "BD" clip, and drag the copy
+    //    along to bar 3, so "BD" has a clip in bar 1 and another in bar 3
+    //    with bar 2 empty between them. Add a sampler track and drag the
+    //    right edge of its clip out to the end of bar 3, so "Sampler" has one
+    //    clip across bars 1 to 3.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    const projectUrl = page.url();
+    await page.getByTestId("arrangement-view-ready").waitFor();
 
-      await clickAt(page, 0, midBar(1));
-      await page.getByRole("button", { name: /^Duplicate as a linked copy/ }).click();
-      // Pressing on a clip's body and dragging moves it, a bar at a time.
-      await drag(
-        page,
-        await pointAt(page, 0, midBar(2)),
-        await pointAt(page, 0, midBar(3)),
-      );
+    await clickAt(page, 0, midBar(1));
+    await page.getByRole("button", { name: /^Duplicate as a linked copy/ }).click();
+    // Pressing on a clip's body and dragging moves it, a bar at a time.
+    await drag(
+      page,
+      await pointAt(page, 0, midBar(2)),
+      await pointAt(page, 0, midBar(3)),
+    );
 
-      await page.getByRole("button", { name: "Add sampler track" }).click();
-      await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
-      // One pixel inside the clip's right edge, which is its resize handle.
-      const rightEdge = await pointAt(page, 1, TICKS_PER_BAR);
-      await drag(
-        page,
-        { ...rightEdge, x: rightEdge.x - 1 },
-        await pointAt(page, 1, 3 * TICKS_PER_BAR),
-      );
+    await page.getByRole("button", { name: "Add sampler track" }).click();
+    await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
+    // One pixel inside the clip's right edge, which is its resize handle.
+    const rightEdge = await pointAt(page, 1, TICKS_PER_BAR);
+    await drag(
+      page,
+      { ...rightEdge, x: rightEdge.x - 1 },
+      await pointAt(page, 1, 3 * TICKS_PER_BAR),
+    );
 
-      await clickAt(page, 0, midBar(3));
-      await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
-      await clickAt(page, 1, midBar(2));
-      await expect(announcement(page)).toHaveText(
-        "Selected clip on Sampler, bars 1 to 3",
-      );
-      await step("BD has clips in bars 1 and 3; Sampler has one clip across bars 1 to 3");
+    await clickAt(page, 0, midBar(3));
+    await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
+    await clickAt(page, 1, midBar(2));
+    await expect(announcement(page)).toHaveText("Selected clip on Sampler, bars 1 to 3");
+    await step("BD has clips in bars 1 and 3; Sampler has one clip across bars 1 to 3");
 
-      // 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along
-      //    to 4.3.1 on "Sampler". A dotted outline covers that stretch on both
-      //    tracks. The "BD" clip in bar 3, which is wholly inside it, and the
-      //    "Sampler" clip, which is only partly inside it, each get a solid
-      //    outline, and the arrangement announces "2 clips selected". The "BD"
-      //    clip in bar 1 is not selected.
-      await drag(
-        page,
-        await pointAt(page, 0, insideSixteenth(2, 3, 1)),
-        await pointAt(page, 1, insideSixteenth(4, 3, 1)),
-      );
-      // Two: the BD clip in bar 3 and the partly covered Sampler clip. Not
-      // three, because the BD clip in bar 1 ends before the range begins.
-      await expect(announcement(page)).toHaveText("2 clips selected");
-      await step("Drag across both tracks: the two clips it touches are selected");
+    // 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along
+    //    to 4.3.1 on "Sampler". A dotted outline covers that stretch on both
+    //    tracks. The "BD" clip in bar 3, which is wholly inside it, and the
+    //    "Sampler" clip, which is only partly inside it, each get a solid
+    //    outline, and the arrangement announces "2 clips selected". The "BD"
+    //    clip in bar 1 is not selected.
+    await drag(
+      page,
+      await pointAt(page, 0, insideSixteenth(2, 3, 1)),
+      await pointAt(page, 1, insideSixteenth(4, 3, 1)),
+    );
+    // Two: the BD clip in bar 3 and the partly covered Sampler clip. Not
+    // three, because the BD clip in bar 1 ends before the range begins.
+    await expect(announcement(page)).toHaveText("2 clips selected");
+    await step("Drag across both tracks: the two clips it touches are selected");
 
-      // 3. Press Delete. The "BD" clip in bar 3 is gone. The "Sampler" clip now
-      //    stops at 2.3.1, where the stretch began, and the "BD" clip in bar 1
-      //    is untouched.
-      await page.keyboard.press("Delete");
-      await expectAfterDelete(page);
-      await step("Press Delete: the BD clip in bar 3 is gone, the Sampler clip trimmed");
+    // 3. Press Delete. The "BD" clip in bar 3 is gone. The "Sampler" clip now
+    //    stops at 2.3.1, where the stretch began, and the "BD" clip in bar 1
+    //    is untouched.
+    await page.keyboard.press("Delete");
+    await expectAfterDelete(page);
+    await step("Press Delete: the BD clip in bar 3 is gone, the Sampler clip trimmed");
 
-      // 4. Reload the page.
-      //
-      // Not a step of the flow. The promise after the reload only means
-      // something once the delete has been written, and the save status is how
-      // the editor reports that a revision-checked write completed.
-      await expect(page.locator(".save-status")).toHaveText("Saved", {
-        timeout: 10_000,
-      });
-      await page.reload();
+    // 4. Reload the page.
+    //
+    // Not a step of the flow. The promise after the reload only means
+    // something once the delete has been written, and the save status is how
+    // the editor reports that a revision-checked write completed.
+    await expect(page.locator(".save-status")).toHaveText("Saved", {
+      timeout: 10_000,
+    });
+    await page.reload();
 
-      // 5. The project reopens exactly as step 3 left it.
-      await expect(page).toHaveURL(projectUrl);
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
-      await expectAfterDelete(page);
-      await step("Reopened exactly as the delete left it");
-    },
-  );
+    // 5. The project reopens exactly as step 3 left it.
+    await expect(page).toHaveURL(projectUrl);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
+    await expectAfterDelete(page);
+    await step("Reopened exactly as the delete left it");
+  });
 });
