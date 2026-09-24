@@ -135,6 +135,21 @@ describe("ArrangementView shell", () => {
     expect(screen.getByLabelText("Scroll to playhead")).toBeInTheDocument();
   });
 
+  /** UI-001/CF-004: a clip is canvas pixels with no node to aim at, so the
+   * timeline publishes its own scale and a browser test turns a bar into the
+   * pixel a gesture lands on — rather than hard-coding the starting zoom. */
+  it("publishes the timeline's horizontal scale, and keeps it current as it zooms", () => {
+    const { analytics } = analyticsAllowing();
+    const { container } = renderView(analytics);
+    const root = container.querySelector(".arrangement-view");
+    const scaleOf = () => Number(root?.getAttribute("data-pixels-per-tick"));
+    expect(scaleOf()).toBeGreaterThan(0);
+
+    const before = scaleOf();
+    clickAndFlush(screen.getByLabelText("Zoom in"));
+    expect(scaleOf()).toBeGreaterThan(before);
+  });
+
   it("windows the DOM track headers rather than rendering one per track", () => {
     const { analytics } = analyticsAllowing();
     // 50 tracks at 28px is 1,400px of content; the default 480px viewport
