@@ -98,7 +98,7 @@ describe("SequenceEditor", () => {
     expect(within(dialog).getByRole("region", { name: "Audio loop" })).toBeVisible();
   });
 
-  it("closes from its Done button", () => {
+  it("closes from its close control", () => {
     const onClose = vi.fn();
     renderEditorFor(createSliceFixtureProject(), starterClip, onClose);
 

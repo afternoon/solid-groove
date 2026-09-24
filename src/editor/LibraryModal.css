@@ -1,50 +1,14 @@
-/* The library as a window (UI-001). Narrower than the sequence editor and
-   taller than it is wide: the browser's contents are a tree and one full-width
-   button, so extra width buys nothing the panel did not already have. */
+/* The library as a window (UI-001), on the shared dialog chrome.
 
-.library-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: var(--scrim);
-  z-index: 90;
-}
-
-.library-modal {
-  display: flex;
-  flex-direction: column;
-  width: min(420px, 100%);
-  height: 100%;
-  max-height: 720px;
-  min-height: 0;
-  border-radius: 12px;
-  background: var(--color-background-secondary);
-  border: 1px solid var(--tint-medium);
-  box-shadow: 0 16px 48px var(--shade-medium);
-  overflow: hidden;
-}
+   It takes the `jumbo` size, like the sequence editor: the library is a tree
+   you read and search, not a prompt you answer, and the narrow column it used
+   to open as gave it no more room than the panel it replaced. Browsing is the
+   job while it is open, so it gets the page for the few seconds it has it. */
 
 .library-modal-body {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-}
-
-.library-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px 14px;
-  border-top: 1px solid var(--color-divider);
-}
-
-.library-modal-close {
-  padding: 5px 14px;
-  border-radius: 8px;
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  border: 1px solid var(--color-accent);
-  cursor: pointer;
+  overflow: hidden;
 }
