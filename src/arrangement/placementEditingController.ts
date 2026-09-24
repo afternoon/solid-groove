@@ -24,10 +24,13 @@ import type { RawCommandInput } from "../commands/types";
 import type { Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
 import {
+  type ArrangementPosition,
   type ArrangementSelection,
   type ArrangementSpan,
   clipsSelection,
   coveredPlacementIds,
+  pointSelection,
+  rangeSelection,
   reconcileArrangementSelection,
   selectionSpan,
 } from "../selection";
@@ -81,6 +84,8 @@ interface DragState {
 
 export function createPlacementEditing(options: PlacementEditingOptions) {
   let selection: ArrangementSelection | null = null;
+  // Where a range drag was pressed, while one is in flight.
+  let rangeAnchor: ArrangementPosition | null = null;
   let clipboard: readonly PlacementClipboardEntry[] = [];
   let drag: DragState | null = null;
 
@@ -144,6 +149,26 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
   function span(): ArrangementSpan | null {
     const current = project();
     return current ? selectionSpan(selection, current) : null;
+  }
+
+  /** Press in empty space: the selection becomes a point there, and a drag
+   * from it can stretch it into a range. */
+  function beginRange(position: ArrangementPosition): void {
+    rangeAnchor = position;
+    setSelection(pointSelection(position));
+  }
+
+  /** The pointer moved during a range drag: the range runs from the press to
+   * here, across every track between. Free, not snapped. */
+  function updateRange(position: ArrangementPosition): void {
+    const current = project();
+    if (!rangeAnchor || !current) return;
+    const next = rangeSelection(current, rangeAnchor, position);
+    if (next) setSelection(next);
+  }
+
+  function endRange(): void {
+    rangeAnchor = null;
   }
 
   /** The free range a delete or cut takes out, or null for a clip selection. */
@@ -333,12 +358,16 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     selectionSpan: span,
     getClipboard: (): readonly PlacementClipboardEntry[] => clipboard,
     isDragging: (): boolean => drag !== null,
+    isSelectingRange: (): boolean => rangeAnchor !== null,
     hasSelection: (): boolean => covered().length > 0,
     /** The label the UI shows before a duplicate (CLP-01). */
     duplicateLabel: describeDuplicate,
     select,
     setSelection,
     clearSelection,
+    beginRange,
+    updateRange,
+    endRange,
     reconcile,
     beginDrag,
     updateDrag,

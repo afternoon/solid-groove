@@ -122,4 +122,24 @@ describe("one arrangement selection (#292)", () => {
     expect(created).toHaveLength(1);
     expect(created[0]).not.toBe(placementIds[0][0]);
   });
+
+  it("stretches a press in empty space from a point into a range as it drags", () => {
+    const { h, trackIds } = withRange();
+    h.editing.beginRange({ trackId: trackIds[0], ticks: 1548 });
+    expect(h.editing.isSelectingRange()).toBe(true);
+    expect(h.editing.getArrangementSelection()).toEqual(
+      pointSelection({ trackId: trackIds[0], ticks: 1548 }),
+    );
+    h.editing.updateRange({ trackId: trackIds[1], ticks: 900 });
+    expect(h.editing.selectionSpan()).toEqual({
+      trackIds: [...trackIds],
+      startTicks: 900,
+      endTicks: 1548,
+    });
+    h.editing.endRange();
+    expect(h.editing.isSelectingRange()).toBe(false);
+    // Once released, a stray move changes nothing.
+    h.editing.updateRange({ trackId: trackIds[0], ticks: 0 });
+    expect(h.editing.selectionSpan()?.startTicks).toBe(900);
+  });
 });
