@@ -9,10 +9,11 @@ import { ticksToToneTime } from "./scheduling";
  * Dependable play/pause/stop/seek, tempo, a bar-aligned arrangement loop, and
  * a metronome all sit on top of the one shared `Tone.Transport`. The transport
  * is *not* project state — it is a session-scoped playhead over the arrangement
- * `ProjectAudioGraph` schedules, in the same category as selection. Tempo is
- * the exception: it lives in the song (a `parameter.set`/`song.tempo` command
- * writes it), and this layer only mirrors the song's tempo onto the transport
- * so the schedule already keyed to musical ticks plays at the right speed.
+ * `ProjectAudioGraph` schedules, in the same category as selection. Tempo and
+ * the loop are the exceptions: they live in the song (`parameter.set` writes
+ * `song.tempo`; `loop.setRange`/`loop.setEnabled` write `song.loop`), and this
+ * layer only mirrors them onto the transport, so the schedule already keyed to
+ * musical ticks plays at the right speed over the right range.
  *
  * Everything here is written against the injectable {@link TransportEngine}
  * interface rather than `Tone.getTransport()` directly, so seek alignment,
@@ -111,6 +112,11 @@ export const liveTransportEngine: TransportEngine = {
 export interface LoopRange {
   readonly startTicks: number;
   readonly endTicks: number;
+}
+
+/** The song's loop as the transport mirrors it: the range and the toggle. */
+export interface SongLoopState extends LoopRange {
+  readonly enabled: boolean;
 }
 
 /**
@@ -370,6 +376,44 @@ export class TransportController {
 
   toggleLoop(): void {
     this.setLoopEnabled(!this.engine.loop);
+  }
+
+  /**
+   * Mirror the song's loop (`song.loop`, LOOP-017) onto the transport. The
+   * loop is project state, written only by the `loop.setRange` and
+   * `loop.setEnabled` commands; this layer never owns one of its own, exactly
+   * like tempo.
+   *
+   * It updates the running transport in place — no stop, no start, no seek,
+   * no node rebuild — so a range dragged during playback takes effect on the
+   * transport's next pass through the loop end (PRD AUD-02). An unchanged
+   * value is not rewritten, so a reconcile for an unrelated edit touches
+   * nothing here. When both points move, the one that keeps the engine's
+   * range non-inverted is written first, so the transport never sees an end
+   * before its start, even for the instant between the two writes.
+   */
+  mirrorLoop(loop: SongLoopState): void {
+    const next: LoopRange = { startTicks: loop.startTicks, endTicks: loop.endTicks };
+    const current = this.loopRange;
+    if (current?.startTicks !== next.startTicks || current.endTicks !== next.endTicks) {
+      const writeStart = () => {
+        this.engine.loopStart = ticksToToneTime(next.startTicks);
+      };
+      const writeEnd = () => {
+        this.engine.loopEnd = ticksToToneTime(next.endTicks);
+      };
+      if (current && next.startTicks >= current.endTicks) {
+        writeEnd();
+        writeStart();
+      } else {
+        writeStart();
+        writeEnd();
+      }
+      this.loopRange = next;
+    }
+    if (this.engine.loop !== loop.enabled) {
+      this.engine.loop = loop.enabled;
+    }
   }
 
   /** Turn the metronome click on or off without stopping playback. */
