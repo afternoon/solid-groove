@@ -132,6 +132,24 @@ export const BUCKET_SCALES = {
     overflow: "60s_plus",
   },
 
+  /**
+   * How long a loop brace is, in bars (LOOP-017). The edges are the lengths a
+   * producer actually works in — one bar, a two- or four-bar phrase, an
+   * eight-bar section — so the report answers "how big is the span people
+   * build inside?" without carrying an exact arrangement length.
+   */
+  loop_length_bars: {
+    unit: "items",
+    boundaries: [
+      { label: "1", below: 2 },
+      { label: "2", below: 3 },
+      { label: "3_4", below: 5 },
+      { label: "5_8", below: 9 },
+      { label: "9_16", below: 17 },
+    ],
+    overflow: "16_plus",
+  },
+
   /** Scheduled audio events dropped or late in one sampled underrun report. */
   dropped_events: {
     unit: "items",

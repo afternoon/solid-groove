@@ -232,6 +232,8 @@ export const COMMAND_IDS = [
   "placement.delete",
   "placement.update",
   "parameter.set",
+  "loop.setRange",
+  "loop.setEnabled",
   "drum.setPadAsset",
   "drum.setPadFlag",
   "drum.setPadChoke",
@@ -484,6 +486,34 @@ export const ANALYTICS_EVENTS = {
     phase: 1,
     owners: ["LOOP-003"],
     params: { is_first_play_in_session: boolParam() },
+  },
+
+  /**
+   * The producer redefined the span they are working in (LOOP-017, PRD AUD-02).
+   *
+   * The length is bucketed in bars rather than reported exactly: what we need
+   * to know is whether people work in one bar, a phrase, or a whole section,
+   * and a bucket answers that without turning the event into a fingerprint of
+   * one person's arrangement. One event per completed edit — a drag is one
+   * gesture, so it reports the range the producer let go on, not every frame
+   * of the drag.
+   */
+  loop_range_set: {
+    phase: 1,
+    owners: ["LOOP-017"],
+    params: { length_bars_bucket: bucketParam("loop_length_bars") },
+  },
+
+  /**
+   * The producer turned looping on or off (LOOP-017). `enabled` is what it was
+   * switched *to*, so the two directions can be told apart: switching looping
+   * off to hear a part run past the brace is a different act from switching it
+   * back on.
+   */
+  loop_enabled_set: {
+    phase: 1,
+    owners: ["LOOP-017"],
+    params: { enabled: boolParam() },
   },
 
   track_added: {

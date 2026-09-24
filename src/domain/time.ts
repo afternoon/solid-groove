@@ -76,6 +76,31 @@ export function ticksToSixteenths(ticks: number): number {
   return ticks / TICKS_PER_SIXTEENTH;
 }
 
+/**
+ * Snaps an arbitrary tick pair out to whole bars (PRD AUD-02: "an arrangement
+ * loop range aligned to bars", LOOP-017).
+ *
+ * The start rounds down and the end rounds up, so a drag never trims musical
+ * time the user just enclosed, and a collapsed or inverted pair widens to a
+ * single bar rather than producing a loop with nothing in it. This is the one
+ * place the snapping rule is written: the `loop.setRange` command applies it so
+ * every stored range already satisfies the domain invariant, and no consumer
+ * downstream has to re-align what it reads.
+ */
+export function barAlignedRange(
+  startTicks: number,
+  endTicks: number,
+): { startTicks: Ticks; endTicks: Ticks } {
+  const low = Math.max(0, Math.min(startTicks, endTicks));
+  const high = Math.max(0, Math.max(startTicks, endTicks));
+  const start = Math.floor(low / TICKS_PER_BAR) * TICKS_PER_BAR;
+  const end = Math.ceil(high / TICKS_PER_BAR) * TICKS_PER_BAR;
+  return {
+    startTicks: roundToTicks(start),
+    endTicks: roundToTicks(end <= start ? start + TICKS_PER_BAR : end),
+  };
+}
+
 /** Seconds are a derived view: they depend on tempo and are never stored. */
 export function ticksToSeconds(ticks: number, bpm: number): number {
   assertTempo(bpm);

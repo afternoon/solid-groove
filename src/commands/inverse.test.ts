@@ -47,6 +47,8 @@ import {
   resetDevice,
   scaleNoteVelocity,
   setDeviceBypass,
+  setLoopEnabled,
+  setLoopRange,
   setPadAsset,
   setPadChoke,
   setPadFlag,
@@ -351,6 +353,14 @@ const cases: InverseCase[] = [
         fixture.deviceId,
         createSeededIdFactory("inverse-device-dup")("device"),
       ),
+  },
+  {
+    type: "loop.setRange",
+    build: () => setLoopRange(TICKS_PER_BAR * 2, TICKS_PER_BAR * 4),
+  },
+  {
+    type: "loop.setEnabled",
+    build: () => setLoopEnabled(false),
   },
   {
     type: "device.setBypass",

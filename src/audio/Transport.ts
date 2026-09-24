@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import { PPQ, TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
+import { barAlignedRange, PPQ, TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { ticksToToneTime } from "./scheduling";
 
@@ -115,17 +115,14 @@ export interface LoopRange {
 
 /**
  * Snaps an arbitrary loop range to whole bars (PRD AUD-02: "an arrangement
- * loop range aligned to bars"). The start rounds down and the end rounds up to
- * the nearest bar, and an empty or inverted range is widened to at least one
- * bar so the loop always encloses real musical time.
+ * loop range aligned to bars").
+ *
+ * The rule itself lives in the domain, next to the invariant that enforces it
+ * and the `loop.setRange` command that applies it, so a stored range and an
+ * engine-side one can never disagree about where a bar line is.
  */
 export function barAlignedLoop(startTicks: number, endTicks: number): LoopRange {
-  const rawStart = Math.max(0, Math.min(startTicks, endTicks));
-  const rawEnd = Math.max(startTicks, endTicks);
-  const start = Math.floor(rawStart / TICKS_PER_BAR) * TICKS_PER_BAR;
-  let end = Math.ceil(rawEnd / TICKS_PER_BAR) * TICKS_PER_BAR;
-  if (end <= start) end = start + TICKS_PER_BAR;
-  return { startTicks: start, endTicks: end };
+  return barAlignedRange(startTicks, endTicks);
 }
 
 /** A loop spanning `barCount` bars from bar `startBar` (both zero-based). */

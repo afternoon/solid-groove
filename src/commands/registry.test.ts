@@ -36,6 +36,8 @@ const EXPECTED_COMMANDS = [
   "placement.delete",
   "placement.update",
   "parameter.set",
+  "loop.setRange",
+  "loop.setEnabled",
   "drum.setPadAsset",
   "drum.setPadFlag",
   "drum.setPadChoke",
