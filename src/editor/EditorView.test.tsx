@@ -28,6 +28,7 @@ import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { editorViewFromPath, editorViewPath } from "./editorViews";
+import { NEW_TRACK_KINDS } from "./trackCreation";
 
 installWebAudioGlobals();
 
@@ -701,6 +702,66 @@ describe("EditorView library audition engine lifecycle", () => {
         sync: false,
       }),
     ).resolves.toBeDefined();
+  });
+});
+
+/** Adding a track, from either surface that offers it (`UI-001`, #223). */
+describe("EditorView new-track unit", () => {
+  async function renderSlice(transport: ReturnType<typeof createRecordingTransport>) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+    await screen.findByTestId("arrangement-view-ready");
+  }
+
+  const trackRows = () =>
+    within(screen.getByLabelText("Arrangement tracks")).getAllByRole("listitem");
+
+  it("offers every registered kind on the arrangement, and creates one", async () => {
+    const transport = createRecordingTransport();
+    await renderSlice(transport);
+    const unit = screen.getByRole("group", { name: "Add track to the arrangement" });
+
+    // From the shared kind table, not a list written into the view.
+    for (const spec of NEW_TRACK_KINDS) {
+      expect(within(unit).getByRole("button", { name: spec.actionLabel })).toBeVisible();
+    }
+    expect(trackRows()).toHaveLength(1);
+
+    clickAndFlush(within(unit).getByRole("button", { name: "Add sampler track" }));
+
+    await vi.waitFor(() => expect(trackRows()).toHaveLength(2));
+    // One `track.add`, so one undo takes the whole track back.
+    const undo = screen.getByRole("button", { name: /^Undo / });
+    clickAndFlush(undo);
+    await vi.waitFor(() => expect(trackRows()).toHaveLength(1));
+    const added = transport.events.filter((event) => event.name === "track_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toEqual(
+      expect.objectContaining({ track_type: "instrument", instrument_type: "sampler" }),
+    );
+  });
+
+  it("reaches the same outcome from the mixer, through the same route", async () => {
+    const transport = createRecordingTransport();
+    await renderSlice(transport);
+
+    await goToView("Mixer");
+    clickAndFlush(
+      within(screen.getByRole("group", { name: "Add track" })).getByRole("button", {
+        name: "Add synth track",
+      }),
+    );
+
+    await goToView("Arrangement");
+    await vi.waitFor(() => expect(trackRows()).toHaveLength(2));
+    const added = transport.events.filter((event) => event.name === "track_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toEqual(
+      expect.objectContaining({ track_type: "instrument", instrument_type: "synth" }),
+    );
   });
 });
 

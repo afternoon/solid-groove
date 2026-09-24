@@ -36,12 +36,14 @@ import {
 } from "./editorViews";
 import LibraryModal from "./LibraryModal";
 import Mixer from "./Mixer";
+import NewTrackButtons from "./NewTrackButtons";
 import type { PianoRollActions } from "./PianoRoll";
 import ProjectLoadStates from "./ProjectLoadStates";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import TrackInstrument from "./TrackInstrument";
+import { addTrackOfKind } from "./trackCreation";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
@@ -76,6 +78,9 @@ export interface EditorViewProps {
 function NoTracks(): JSX.Element {
   return <p class="no-track">This project has no tracks yet. Add one in the mixer.</p>;
 }
+
+/** Mints IDs for tracks the arrangement creates. A module singleton. */
+const factoryContext = createFactoryContext();
 
 /**
  * The project editor: open a schema-v1 project, program its clip — on the
@@ -392,6 +397,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 <Switch>
                   <Match when={props.view === "arrangement"}>
                     <div class="editor-main">
+                      {/* The arrangement's own way to add a track (`UI-001`),
+                          the same unit and the same route the mixer uses. */}
+                      <div class="arrangement-new-track">
+                        <NewTrackButtons
+                          label="Add track to the arrangement"
+                          onAdd={(spec) =>
+                            addTrackOfKind(spec.kind, {
+                              project: currentProject(),
+                              context: factoryContext,
+                              dispatch: session.dispatch,
+                              analytics: props.analytics ?? defaultAnalytics,
+                              feature: "arrangement",
+                              onSelect: selectTrack,
+                            })
+                          }
+                        />
+                      </div>
                       <div class="arrangement-panel">
                         <ArrangementView
                           project={currentProject()}
@@ -455,6 +477,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     <div class="mixer-view">
                       <Mixer
                         project={currentProject()}
+                        analytics={props.analytics}
                         dispatch={session.dispatch}
                         beginGesture={session.beginGesture}
                         trackLevelDb={audio.trackLevelDb}

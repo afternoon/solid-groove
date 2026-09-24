@@ -1,4 +1,7 @@
-import type { Clip, Placement, Track } from "../domain/entities";
+import type { Analytics } from "../analytics/analytics";
+import type { RawCommandInput, TransactionResult } from "../commands";
+import { addTrack } from "../commands";
+import type { Clip, Placement, Project, Track } from "../domain/entities";
 import {
   createNoteClip,
   createPlacement,
@@ -126,4 +129,43 @@ function uniqueTrackName(base: string, taken: readonly string[]): string {
     const candidate = `${base} ${suffix}`;
     if (!taken.includes(candidate)) return candidate;
   }
+}
+
+/** What a surface has to supply to add a track through the one route. */
+export interface AddTrackHost {
+  readonly project: Project;
+  readonly context: DomainFactoryContext;
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined;
+  readonly analytics: Analytics;
+  /** Which surface offered it, for the OPS-02 `feature_first_use` measure. */
+  readonly feature: "mixer" | "arrangement";
+  onSelect(trackId: Track["id"]): void;
+}
+
+/**
+ * Add a track of `kind` — the one route both the mixer's buttons and the
+ * arrangement's take (`UI-001`).
+ *
+ * The track, its empty one-bar clip and that clip's placement go out as a
+ * single `track.add` command: one revision, one undo. A track you just added
+ * is the one you want to set up, so the editor follows it (#228).
+ */
+export function addTrackOfKind(kind: NewTrackKind, host: AddTrackHost): void {
+  const tracks = host.project.song.tracks;
+  const added = createNewTrack(host.context, {
+    kind,
+    order: tracks.length,
+    existingNames: tracks.map((track) => track.name),
+  });
+  host.dispatch(
+    addTrack(added.track, { clips: [added.clip], placements: [added.placement] }),
+  );
+  host.analytics.log("track_added", {
+    track_type: "instrument",
+    instrument_type: newTrackKindSpec(kind).analyticsType,
+  });
+  host.analytics.logFeatureFirstUse(host.feature);
+  host.onSelect(added.track.id);
 }

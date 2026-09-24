@@ -36,34 +36,6 @@
 /* The three kinds sit together as one control, next to the count rather than
    across the panel, so they stay beside the strips they add to however wide the
    workspace gets. */
-.mixer-add-track-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 auto 0 0;
-  padding: 0;
-  border: 0;
-  min-inline-size: auto;
-}
-
-/* Ghost: no fill until hover, for a low-stakes repeated action (mock 06b). */
-.mixer-add-track {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 0;
-  background-color: transparent;
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-}
-
-.mixer-add-track:hover {
-  background-color: var(--color-background-tertiary);
-  color: var(--color-text);
-}
-
 .mixer-tracks {
   display: flex;
   align-items: flex-start;
