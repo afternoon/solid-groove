@@ -716,12 +716,17 @@ export default function ArrangementView(props: ArrangementViewProps) {
           <For each={headerRows()}>
             {(track) => (
               <li>
+                {/* The name is the item's text and `Select <name>` is the
+								    control's accessible name, which contains it (WCAG
+								    2.5.3). Reading the list gives the project's track
+								    names, not a column of the word "Select". */}
                 <button
                   type="button"
                   data-track-select={track.id}
+                  aria-label={`Select ${track.name}`}
                   onClick={() => selectTrackFromList(track.rowIndex)}
                 >
-                  {`Select ${track.name}`}
+                  {track.name}
                 </button>
               </li>
             )}

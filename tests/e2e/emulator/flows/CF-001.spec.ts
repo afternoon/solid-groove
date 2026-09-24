@@ -61,126 +61,126 @@ const sequenceEditor = (page: Page): Locator =>
 test.describe("CF-001", () => {
   // `test.fixme` until #304 (UI-001) lands: the PR that closes it removes this
   // marker in the same diff that makes the flow pass again.
-  test.fixme(
-    "a visitor with no account reaches a playing loop",
-    async ({ page, browserName }) => {
-      const step = walkthrough(page, {
-        id: "CF-001",
-        title: "A visitor with no account reaches a playing loop",
-      });
+  test("a visitor with no account reaches a playing loop", async ({
+    page,
+    browserName,
+  }) => {
+    const step = walkthrough(page, {
+      id: "CF-001",
+      title: "A visitor with no account reaches a playing loop",
+    });
 
-      // 1. Open the landing page.
-      await page.goto("/");
-      await expect(
-        page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
-      ).toBeVisible();
-      await step("Open the landing page");
+    // 1. Open the landing page.
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+    ).toBeVisible();
+    await step("Open the landing page");
 
-      // 2. Choose to start in your browser.
-      await page.getByRole("link", { name: "Start in your browser" }).click();
+    // 2. Choose to start in your browser.
+    await page.getByRole("link", { name: "Start in your browser" }).click();
 
-      // 3. You arrive at the dashboard, signed in as a guest, with no projects.
-      await expect(page).toHaveURL(/\/dashboard$/);
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await expect(page.getByText(/You're working as a guest/)).toBeVisible();
-      await expect(page.getByText("No projects yet")).toBeVisible();
-      await step("You arrive at the dashboard as a guest, with no projects yet");
+    // 3. You arrive at the dashboard, signed in as a guest, with no projects.
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await expect(page.getByText(/You're working as a guest/)).toBeVisible();
+    await expect(page.getByText("No projects yet")).toBeVisible();
+    await step("You arrive at the dashboard as a guest, with no projects yet");
 
-      // 4. Create a new project.
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
+    // 4. Create a new project.
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
 
-      // 5. It opens on the arrangement, with a starter pattern on its only
-      //    track.
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect(
-        page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
-      ).toHaveCount(1);
-      await step("The new project opens on the arrangement, with a starter pattern");
+    // 5. It opens on the arrangement, with a starter pattern on its only
+    //    track.
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect(
+      page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
+    ).toHaveCount(1);
+    await step("The new project opens on the arrangement, with a starter pattern");
 
-      // 6. Open that clip. The sequence editor comes up over the arrangement,
-      //    showing the pattern.
-      //
-      // Where the clip is drawn can only be reached as a coordinate: bar 1 of
-      // the first row, through the horizontal scale the arrangement publishes
-      // (`data-pixels-per-tick`, the hook CF-004 introduced).
-      const pixelsPerTick = Number(
-        await page
-          .getByTestId("arrangement-view-ready")
-          .getAttribute("data-pixels-per-tick"),
-      );
-      expect(pixelsPerTick).toBeGreaterThan(0);
-      await timeline(page).dblclick({
-        position: {
-          x: (TICKS_PER_BAR / 2) * pixelsPerTick,
-          y: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
-        },
-      });
+    // 6. Open that clip. The sequence editor comes up over the arrangement,
+    //    showing the pattern.
+    //
+    // Where the clip is drawn can only be reached as a coordinate: bar 1 of
+    // the first row, through the horizontal scale the arrangement publishes
+    // (`data-pixels-per-tick`, the hook CF-004 introduced).
+    const pixelsPerTick = Number(
+      await page
+        .getByTestId("arrangement-view-ready")
+        .getAttribute("data-pixels-per-tick"),
+    );
+    expect(pixelsPerTick).toBeGreaterThan(0);
+    await timeline(page).dblclick({
+      position: {
+        x: (TICKS_PER_BAR / 2) * pixelsPerTick,
+        y: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+      },
+    });
 
-      await expect(sequenceEditor(page)).toBeVisible();
-      // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on. Two
-      // of them, plus an off step, so this cannot pass against an empty grid.
-      await expect(
-        sequenceEditor(page).getByRole("button", { name: "Notes, step 1, on" }),
-      ).toBeVisible();
-      await expect(
-        sequenceEditor(page).getByRole("button", { name: "Notes, step 5, on" }),
-      ).toBeVisible();
-      await expect(
-        sequenceEditor(page).getByRole("button", { name: "Notes, step 2, off" }),
-      ).toBeVisible();
-      await step("Open the clip — the sequence editor shows the starter pattern");
+    await expect(sequenceEditor(page)).toBeVisible();
+    // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on. Two
+    // of them, plus an off step, so this cannot pass against an empty grid.
+    await expect(
+      sequenceEditor(page).getByRole("button", { name: "Notes, step 1, on" }),
+    ).toBeVisible();
+    await expect(
+      sequenceEditor(page).getByRole("button", { name: "Notes, step 5, on" }),
+    ).toBeVisible();
+    await expect(
+      sequenceEditor(page).getByRole("button", { name: "Notes, step 2, off" }),
+    ).toBeVisible();
+    await step("Open the clip — the sequence editor shows the starter pattern");
 
-      // 7. Turn on a step that was off, and close the editor.
-      await sequenceEditor(page)
-        .getByRole("button", { name: "Notes, step 2, off" })
-        .click();
-      await expect(
-        sequenceEditor(page).getByRole("button", { name: "Notes, step 2, on" }),
-      ).toBeVisible();
-      await step("Turn on a step that was off");
+    // 7. Turn on a step that was off, and close the editor.
+    await sequenceEditor(page)
+      .getByRole("button", { name: "Notes, step 2, off" })
+      .click();
+    await expect(
+      sequenceEditor(page).getByRole("button", { name: "Notes, step 2, on" }),
+    ).toBeVisible();
+    await step("Turn on a step that was off");
 
-      await page.keyboard.press("Escape");
-      await expect(sequenceEditor(page)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(sequenceEditor(page)).toHaveCount(0);
 
-      // 8. Start playback.
-      //
-      // The transport is what this asserts — that the button flips to its
-      // playing state, which only happens once `useProjectAudio.play()` has
-      // resumed the shared AudioRuntime and started the transport. It is NOT an
-      // assertion that a sound reached a speaker: a headless browser records no
-      // audio and Playwright captures none. See docs/core-flows.md's "Out of
-      // scope" for this flow, docs/testing.md, and issue #43.
-      //
-      // Asserted in Chromium only — the known, tracked gap this flow's own "Out
-      // of scope" already names, and the same guard `tests/e2e/mock/smoke.spec.ts` and
-      // `tests/e2e/emulator/slice.spec.ts` carry. In Firefox here `AudioContext`
-      // constructs but its `resume()` never settles, so `play()` times out into
-      // `audio_start_failed` and the button never becomes "Stop playback".
-      // `LOOP-003` bounded that hang; it did not make Firefox play. The cause is
-      // `HARD-001`'s real-hardware cross-browser pass — do not unguard this
-      // before then. See docs/testing.md, "Playback is asserted in Chromium
-      // only", and issue #43.
-      const canAssertPlayback = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
-        description: canAssertPlayback
-          ? `playback asserted in ${browserName}`
-          : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
+    // 8. Start playback.
+    //
+    // The transport is what this asserts — that the button flips to its
+    // playing state, which only happens once `useProjectAudio.play()` has
+    // resumed the shared AudioRuntime and started the transport. It is NOT an
+    // assertion that a sound reached a speaker: a headless browser records no
+    // audio and Playwright captures none. See docs/core-flows.md's "Out of
+    // scope" for this flow, docs/testing.md, and issue #43.
+    //
+    // Asserted in Chromium only — the known, tracked gap this flow's own "Out
+    // of scope" already names, and the same guard `tests/e2e/mock/smoke.spec.ts` and
+    // `tests/e2e/emulator/slice.spec.ts` carry. In Firefox here `AudioContext`
+    // constructs but its `resume()` never settles, so `play()` times out into
+    // `audio_start_failed` and the button never becomes "Stop playback".
+    // `LOOP-003` bounded that hang; it did not make Firefox play. The cause is
+    // `HARD-001`'s real-hardware cross-browser pass — do not unguard this
+    // before then. See docs/testing.md, "Playback is asserted in Chromium
+    // only", and issue #43.
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
 
-      // The click itself runs in every gating browser: the gesture, the command
-      // path behind it and the button staying mounted are real coverage, and a
-      // crash on click would still fail here. Only the transport's *playing*
-      // state is Chromium-only.
-      await page.getByRole("button", { name: "Start playback" }).click();
-      if (canAssertPlayback) {
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        // The walkthrough is captured from the Chromium run
-        // (`walkthrough:capture` passes `--project=chromium`), so this caption
-        // is only ever recorded from a run that actually asserted it.
-        await step("Start playback — the transport is running");
-      }
-    },
-  );
+    // The click itself runs in every gating browser: the gesture, the command
+    // path behind it and the button staying mounted are real coverage, and a
+    // crash on click would still fail here. Only the transport's *playing*
+    // state is Chromium-only.
+    await page.getByRole("button", { name: "Start playback" }).click();
+    if (canAssertPlayback) {
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      // The walkthrough is captured from the Chromium run
+      // (`walkthrough:capture` passes `--project=chromium`), so this caption
+      // is only ever recorded from a run that actually asserted it.
+      await step("Start playback — the transport is running");
+    }
+  });
 });
