@@ -10,6 +10,7 @@ import type { Asset, Instrument, Project, Track } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
 import type { LibrarySample } from "../library/assetDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import DeviceChainSlot from "./DeviceChainSlot";
 import DrumMachinePanel from "./DrumMachinePanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
@@ -95,10 +96,10 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                 dispatch={props.dispatch}
                 beginGesture={props.beginGesture}
               />
-              <section class="device-chain-slot" aria-label="Device chain">
-                <h3 class="device-chain-slot-heading">Device chain</h3>
-                <p class="device-chain-slot-empty">No devices on this track yet.</p>
-              </section>
+              <DeviceChainSlot
+                label="Device chain"
+                emptyMessage="No devices on this track yet."
+              />
             </>
           )}
         </Show>

@@ -1,0 +1,23 @@
+/* The reserved home for a device chain (UI-001). Dashed, because it is a space
+   kept rather than a thing that is there: #241 fills it for a track and #283
+   for the master. */
+
+.device-chain-slot {
+  padding: 10px 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+}
+
+.device-chain-slot-heading {
+  margin: 0 0 4px;
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.device-chain-slot-empty {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}
