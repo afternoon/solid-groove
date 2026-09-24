@@ -18,6 +18,7 @@ import type { Project } from "../domain/entities";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import { type ArrangementPosition, rangeSelection } from "../selection";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
 import {
@@ -40,6 +41,7 @@ import {
   type PlacementEditing,
 } from "./placementEditingController";
 import { type ArrangementProjection, buildArrangementProjection } from "./projection";
+import { describeArrangementSelection } from "./selectionAnnouncement";
 import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
 import { ariaBool } from "../shared/aria";
@@ -66,8 +68,8 @@ export type PlacementEditingActions = PlacementEditing & {
  *   backing stores that resize only on viewport/DPR change (DPR capped at 2);
  * - virtualized DOM track headers windowed to the visible rows, sharing the
  *   shell's row metrics and scroll;
- * - a transport-driven playhead that follows during playback, and a bar-range
- *   selection overlay;
+ * - a transport-driven playhead that follows during playback, and the one
+ *   arrangement selection (#292): a point, a free range, or clips;
  * - named DOM actions (zoom in/out, zoom to selection, scroll to playhead) and
  *   an accessible, virtualized track/selection list, so canvas pixels are never
  *   the sole representation of state (PRD 9.3 accessibility).
@@ -203,6 +205,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
   const [stateVersion, setStateVersion] = createSignal(0);
 
   let scrollEl!: HTMLDivElement;
+  let spacerEl: HTMLDivElement | undefined;
   let headerListEl!: HTMLUListElement;
   let backgroundCanvas!: HTMLCanvasElement;
   let contentCanvas!: HTMLCanvasElement;
@@ -224,6 +227,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // The loop brace on the ruler (LOOP-018): one drag at a time, one gesture
   // each. It only exists when the host supplies gestures.
   let loopDrag: LoopBraceDrag | null = null;
+  // A press in empty space, while its pointer is down: where it was pressed,
+  // so a jitter of a pixel or two stays a point rather than a sliver of range.
+  let rangePress: { pointerId: number; x: number; y: number } | null = null;
 
   function initialViewport(): Viewport {
     return {
@@ -237,12 +243,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   function interactionState(): InteractionState {
     const state = shell?.getState();
-    const bars = state?.selection;
+    const selection = editing?.getArrangementSelection() ?? null;
     return {
       playheadTicks: state?.playheadTicks ?? null,
-      range: bars
-        ? { trackIds: [bars.trackId], startTicks: bars.startTick, endTicks: bars.endTick }
-        : null,
+      range: selection?.kind === "range" ? selection.span : null,
       hoverPlacementId: state?.hoverPlacementId ?? null,
       selectedPlacementIds: new Set(editing?.getSelection() ?? []),
     };
@@ -327,24 +331,25 @@ export default function ArrangementView(props: ArrangementViewProps) {
       onDirty: () => canvas.scheduleDraw(),
     });
 
+    // Always created, because it holds the arrangement's one selection. Its
+    // edits are inert without `props.dispatch`, which is optional.
+    editing = createPlacementEditing({
+      getProject: () => props.project,
+      dispatch: (commands) => {
+        props.dispatch?.(commands);
+      },
+      beginGesture: (summary) => {
+        const gesture = props.beginGesture?.({ summary });
+        return gesture && adaptGesture(gesture);
+      },
+      ids,
+      analytics: analytics(),
+      onChange: () => {
+        shell?.markDirty("interaction");
+        bumpState();
+      },
+    });
     if (props.dispatch) {
-      const dispatch = props.dispatch;
-      editing = createPlacementEditing({
-        getProject: () => props.project,
-        dispatch: (commands) => {
-          dispatch(commands);
-        },
-        beginGesture: (summary) => {
-          const gesture = props.beginGesture?.({ summary });
-          return gesture && adaptGesture(gesture);
-        },
-        ids,
-        analytics: analytics(),
-        onChange: () => {
-          shell?.markDirty("interaction");
-          bumpState();
-        },
-      });
       props.onEditingActionsReady?.({
         ...editing,
         zoomToSelection,
@@ -459,20 +464,15 @@ export default function ArrangementView(props: ArrangementViewProps) {
       (proj.rowOffsets[proj.rowOffsets.length - 1] ?? 0) +
       RULER_HEIGHT_PX +
       BELOW_TRACKS_CLEARANCE_PX;
-    if (scrollEl) {
-      spacerWidth = Math.max(logicalWidth, port.width);
-      spacerHeight = Math.max(logicalHeight, port.height);
-      setSpacerSignal((value) => value + 1);
+    // Written straight onto the element rather than through a signal: a zoom
+    // sets the native `scrollLeft` right after this, and the browser clamps it
+    // to the spacer's size at that instant. A reactive write would land after
+    // the clamp, so zooming onto a range past the old width would snap back.
+    if (spacerEl) {
+      spacerEl.style.width = `${Math.max(logicalWidth, port.width)}px`;
+      spacerEl.style.height = `${Math.max(logicalHeight, port.height)}px`;
     }
   }
-
-  let spacerWidth = 0;
-  let spacerHeight = 0;
-  const [spacerSignal, setSpacerSignal] = createSignal(0);
-  const spacerStyle = createMemo(() => {
-    spacerSignal();
-    return { width: `${spacerWidth}px`, height: `${spacerHeight}px` };
-  });
 
   // --- Native scroll → shell (scrollbar synchronization) --------------------
   function handleScroll(): void {
@@ -516,6 +516,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
   }
 
   // --- Pointer over the interaction canvas ----------------------------------
+
+  /** How far the pointer must travel before a press becomes a range. */
+  const RANGE_DRAG_THRESHOLD_PX = 3;
+
   function localPoint(event: MouseEvent): { x: number; y: number } {
     const rect = interactionCanvas.getBoundingClientRect();
     // The ruler occupies the top strip and does not host rows.
@@ -525,10 +529,29 @@ export default function ArrangementView(props: ArrangementViewProps) {
     };
   }
 
+  /** The track and tick under a viewport-local point, with the row clamped to
+   * the song's tracks so a range dragged past the last one still ends on it. */
+  function positionAt(localX: number, localY: number): ArrangementPosition | null {
+    if (!shell) return null;
+    const { rowIndex, tick } = shell.pointToArrangement(localX, localY);
+    const tracks = projection().tracks;
+    const track = tracks[Math.max(0, Math.min(tracks.length - 1, rowIndex))];
+    return track ? { trackId: track.id, ticks: tick } : null;
+  }
+
   function handlePointerMove(event: PointerEvent): void {
     if (!shell) return;
     if (loopDrag?.isDragging() && event.pointerId === activePointerId) {
       loopDrag.update(shell.pointToArrangement(localPoint(event).x, 0).tick);
+      return;
+    }
+    if (rangePress && event.pointerId === rangePress.pointerId) {
+      const { x, y } = localPoint(event);
+      const moved = Math.hypot(x - rangePress.x, y - rangePress.y);
+      const position = positionAt(x, y);
+      if (position && (moved >= RANGE_DRAG_THRESHOLD_PX || !isPoint())) {
+        editing?.updateRange(position);
+      }
       return;
     }
     if (editing?.isDragging() && event.pointerId === activePointerId) {
@@ -598,37 +621,52 @@ export default function ArrangementView(props: ArrangementViewProps) {
     const trackId = trackAt(x, y);
     if (trackId) selectTrack(trackId);
 
-    // A placement hit starts a drag (move or resize) instead of the shell's
-    // own bar-range selection; anything else falls through to the existing
-    // behavior unchanged.
-    if (editing && (event.button ?? 0) === 0) {
-      const hit = shell.hitTestAt(x, y);
-      if (hit.kind === "placement") {
-        const { tick } = shell.pointToArrangement(x, y);
-        // One selection at a time: the placement becomes it, so the shell's
-        // bar range from an earlier click stops being painted alongside it.
-        shell.setSelection(null);
-        editing.beginDrag(hit.placementId, hit.handle, tick);
-        activePointerId = event.pointerId;
-        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-        bumpState();
-        noteFirstUse();
-        return;
-      }
+    if ((event.button ?? 0) !== 0 || !editing) return;
+    const target = event.currentTarget as Element;
+
+    // A press on a clip selects it and starts a drag that moves or resizes it.
+    const hit = shell.hitTestAt(x, y);
+    if (hit.kind === "placement") {
+      const { tick } = shell.pointToArrangement(x, y);
+      editing.beginDrag(hit.placementId, hit.handle, tick);
+      activePointerId = event.pointerId;
+      target.setPointerCapture?.(event.pointerId);
+      bumpState();
+      noteFirstUse();
+      return;
     }
 
-    // ...and the other way round: a bar range is the selection now, so the
-    // placement selection it replaces is dropped rather than left on screen.
-    editing?.clearSelection();
-    const selection = shell.handlePointerDown(x, y);
+    // A press in empty space sets a point, and dragging stretches it into a
+    // free range across every track the pointer passes (#292).
+    if (!trackId) {
+      editing.clearSelection();
+      return;
+    }
+    editing.beginRange({ trackId, ticks: shell.pointToArrangement(x, y).tick });
+    rangePress = { pointerId: event.pointerId, x, y };
+    target.setPointerCapture?.(event.pointerId);
     bumpState();
-    if (selection) noteFirstUse();
+    noteFirstUse();
+  }
+
+  /** Whether the selection is still the point a press set. */
+  function isPoint(): boolean {
+    const selection = editing?.getArrangementSelection();
+    return (
+      selection?.kind === "range" && selection.span.startTicks === selection.span.endTicks
+    );
   }
 
   function endActiveDrag(event: PointerEvent): void {
     if (loopDrag?.isDragging() && event.pointerId === activePointerId) {
       loopDrag.end();
       activePointerId = null;
+      (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+      return;
+    }
+    if (rangePress && event.pointerId === rangePress.pointerId) {
+      editing?.endRange();
+      rangePress = null;
       (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
       return;
     }
@@ -655,7 +693,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
     noteFirstUse();
   }
   function zoomToSelection(): void {
-    shell?.zoomToSelection();
+    const span = editing?.selectionSpan();
+    if (!span || span.endTicks <= span.startTicks) return;
+    shell?.zoomToSpan(span.startTicks, span.endTicks);
     syncSpacer();
     syncScrollElToShell();
     bumpState();
@@ -673,15 +713,15 @@ export default function ArrangementView(props: ArrangementViewProps) {
    * navigation updates selection through the same model as pointer hit
    * testing"). */
   function selectTrackFromList(rowIndex: number): void {
-    if (!shell) return;
     const track = projection().tracks[rowIndex];
-    if (!track) return;
-    editing?.clearSelection();
-    shell.setSelection({
-      trackId: track.id,
-      startTick: 0,
-      endTick: TICKS_PER_BAR,
-    });
+    if (!track || !editing) return;
+    editing.setSelection(
+      rangeSelection(
+        props.project,
+        { trackId: track.id, ticks: 0 },
+        { trackId: track.id, ticks: TICKS_PER_BAR },
+      ),
+    );
     // The same click a pointer makes on the row: it selects the bar range
     // *and* points the editor at the track (#228).
     selectTrack(track.id);
@@ -718,18 +758,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return shell?.getViewport().scrollTop ?? 0;
   });
 
-  const selectionSummary = createMemo(() => {
+  /** What the `aria-live` mirror says about the one selection (#292). */
+  const announcement = createMemo(() => {
     stateVersion();
-    const selection = shell?.getState().selection;
-    if (!selection) return null;
-    const track = projection().tracks.find((t) => t.id === selection.trackId);
-    const startBar = Math.floor(selection.startTick / TICKS_PER_BAR) + 1;
-    const endBar = Math.ceil(selection.endTick / TICKS_PER_BAR) + 1;
-    return { trackName: track?.name ?? "track", startBar, endBar };
+    return describeArrangementSelection(
+      editing?.getArrangementSelection() ?? null,
+      props.project,
+    );
   });
 
   /** Whether zoom to selection has anything to frame. */
-  const canZoomToSelection = createMemo(() => selectionSummary() !== null);
+  const canZoomToSelection = createMemo(() => {
+    stateVersion();
+    const span = props.project && editing?.selectionSpan();
+    return !!span && span.endTicks > span.startTicks;
+  });
 
   /** The placement-editing selection (CLP-01), for the duplicate-mode toolbar
    * and the accessible mirror below — canvas pixels are never the sole
@@ -834,7 +877,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
           {/* Logical-size spacer: gives the native scroll container real,
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
-          <div class="arrangement-spacer" style={spacerStyle()} />
+          <div class="arrangement-spacer" ref={spacerEl} />
           {/* Not blocked, and — since ADR 0003 — deliberately recorded. Canvas
 					    capture is on, so clip blocks, notes, waveforms, and the section
 					    names drawn here all reach the payload. That is the decision, not
@@ -891,11 +934,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
           aria-live="polite"
           data-testid="arrangement-selection-live"
         >
-          <Show when={selectionSummary()} fallback="No selection">
-            {(summary) =>
-              `Selected ${summary().trackName}, bars ${summary().startBar} to ${summary().endBar}`
-            }
-          </Show>
+          {announcement()}
         </p>
         {/* The loop brace, which is otherwise only canvas pixels (LOOP-018).
             `describeLoopBars` is the one wording of the range, and this is
