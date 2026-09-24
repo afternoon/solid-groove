@@ -169,3 +169,15 @@
   touch-action: none;
   cursor: default;
 }
+
+/* The way to add a track, pinned below the last one (`UI-001`). Absolutely
+   positioned in the header column and carrying the column's scroll transform,
+   so it sits where the song ends rather than where the viewport does. */
+.arrangement-below-tracks {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  will-change: transform;
+}

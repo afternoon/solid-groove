@@ -1,4 +1,5 @@
 import { For, type JSX } from "@solidjs/web";
+import { HEADER_WIDTH_PX, ROW_METRICS } from "../arrangement/ArrangementView";
 import type { Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -25,7 +26,17 @@ export interface TrackRailProps {
  */
 export default function TrackRail(props: TrackRailProps): JSX.Element {
   return (
-    <ul class="track-rail" aria-label="Tracks">
+    <ul
+      class="track-rail"
+      aria-label="Tracks"
+      /* The arrangement's own header metrics, not a second set of numbers
+         that would drift from them: a track's row is the same size and the
+         column the same width in both views (`UI-001`). */
+      style={{
+        "--track-row-height": `${ROW_METRICS.headerHeightPx}px`,
+        "--track-column-width": `${HEADER_WIDTH_PX}px`,
+      }}
+    >
       <For each={props.tracks}>
         {(track) => (
           <li class="track-rail-item">
