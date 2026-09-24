@@ -98,6 +98,29 @@ function mixerSelect(trackName: string): HTMLElement {
 }
 
 /**
+ * Opens the clip at bar 1 of the first arrangement row the way a producer does
+ * — a double-click on the timeline (`UI-001`) — and waits for the sequence
+ * editor it brings up. The coordinates mirror the renderer's own constants,
+ * because a canvas has no DOM node to query for a hit.
+ */
+async function openSequenceEditor(rowIndex = 0): Promise<HTMLElement> {
+  await screen.findByTestId("arrangement-view-ready");
+  const canvas = document.querySelector(".arrangement-layer-interactive");
+  if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+  const PIXELS_PER_TICK = 0.08;
+  const RULER_HEIGHT_PX = 22;
+  const ROW_HEIGHT_PX = 28;
+  const TICKS_PER_BAR = 768;
+  fireAndFlush(() =>
+    fireEvent.dblClick(canvas, {
+      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX * (rowIndex + 0.5),
+    }),
+  );
+  return screen.findByRole("dialog", { name: "Sequence editor" });
+}
+
+/**
  * Moves to a view through the dock, the way a person does (`UI-001`): the
  * editor shows exactly one, so a test wanting another has to go there.
  */
@@ -214,8 +237,9 @@ describe("EditorView", () => {
 
     renderEditor(project.metadata.id);
 
+    const editor = await openSequenceEditor();
     expect(
-      await screen.findByRole("region", { name: "Step editor" }),
+      within(editor).getByRole("region", { name: "Step editor" }),
     ).toBeInTheDocument();
     // The slice fixture's four-on-the-floor clip: steps 1, 5, 9, 13 on the
     // single pitched "Notes" lane.
@@ -226,10 +250,8 @@ describe("EditorView", () => {
     // The track name appears in the step-editor's track-info header. (The
     // ARR-001 arrangement shell also lists it in its virtualized headers and
     // accessible track list, so scope this to the track editor.)
-    const trackEditor = document.querySelector(".track-editor");
-    expect(trackEditor).not.toBeNull();
     expect(
-      within(trackEditor as HTMLElement).getByText(project.song.tracks[0].name),
+      within(editor).getByText(project.song.tracks[0].name, { selector: ".track-name" }),
     ).toBeInTheDocument();
     // The reopened project reports the pack dependency it saved.
     const dependency = project.metadata.packDependencies[0];
@@ -249,9 +271,14 @@ describe("EditorView", () => {
 
     renderEditor(project.metadata.id);
 
-    // The loop panel distinguishes a tempo-labelled loop from a pitched
-    // one-shot and documents the alpha's time-stretch behaviour.
-    expect(await screen.findByRole("region", { name: "Audio loop" })).toBeInTheDocument();
+    // The loop is on the fixture's second track, so it is that row's clip the
+    // sequence editor has to be opened on. The loop panel distinguishes a
+    // tempo-labelled loop from a pitched one-shot and documents the alpha's
+    // time-stretch behaviour.
+    const editor = await openSequenceEditor(1);
+    expect(
+      within(editor).getByRole("region", { name: "Audio loop" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/tempo-labelled loop/i)).toBeInTheDocument();
     expect(screen.getByText(/time-stretch/i)).toBeInTheDocument();
     expect(screen.getByText(/preserves pitch/i)).toBeInTheDocument();
@@ -265,7 +292,10 @@ describe("EditorView", () => {
 
     renderEditor(project.metadata.id);
 
-    expect(await screen.findByRole("region", { name: /Piano roll/ })).toBeInTheDocument();
+    const editor = await openSequenceEditor();
+    expect(
+      within(editor).getByRole("region", { name: /Piano roll/ }),
+    ).toBeInTheDocument();
     // The step editor is a two-dimensional pitch editor's poor fit, so a
     // synth note clip shows the piano roll instead.
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
@@ -278,7 +308,7 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
     await goToView("Instrument");
 
     // Named for its track, because a drop has to land on a particular one.
@@ -307,7 +337,7 @@ describe("EditorView", () => {
     renderEditor(project.metadata.id, {
       analytics: recordingAnalytics(transport),
     });
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
     await goToView("Instrument");
     const panel = await screen.findByRole("region", {
       name: "BD instrument",
@@ -373,10 +403,11 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
 
-    // The arrangement has nothing to program, and says so.
-    expect(await screen.findByText("This track has no clip yet.")).toBeInTheDocument();
-    // Neither clip editor is on screen: there is no clip to program.
+    // A track with no clip has nothing to open (UI-001): neither clip editor
+    // is anywhere on the page, and nothing is open over the arrangement.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /Piano roll/ })).not.toBeInTheDocument();
 
@@ -467,7 +498,7 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
 
     paintStep("Notes, step 2, off");
     expect(
@@ -491,7 +522,7 @@ describe("EditorView", () => {
     const startingRevision = project.metadata.revision;
 
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
 
     paintStep("Notes, step 2, off");
 
@@ -514,7 +545,7 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
 
     paintStep("Notes, step 2, off");
     await screen.findByText("Saved", {}, { timeout: 3_000 });
@@ -546,7 +577,7 @@ describe("EditorView", () => {
 
     repository.failNextWrites({ count: 1 });
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
 
     paintStep("Notes, step 2, off");
 
@@ -577,7 +608,7 @@ describe("EditorView", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
 
     // Another client's write lands in the store directly, without going
     // through `saveMetadata` (which would notify this session's own
@@ -625,7 +656,7 @@ describe("EditorView library audition engine lifecycle", () => {
         return engine;
       },
     });
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
     return { engines };
   }
 
@@ -685,7 +716,7 @@ describe("EditorView library panel placement", () => {
     renderEditor(project.metadata.id, {
       createAuditionEngine: () => fakePreviewEngine(),
     });
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
   }
 
   it("shows the library without anyone touching the toggle", async () => {
@@ -750,7 +781,7 @@ describe("EditorView keyboard shortcuts", () => {
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
     return project;
   }
 
@@ -785,7 +816,9 @@ describe("EditorView keyboard shortcuts", () => {
 
     fireEvent.keyDown(input, { key: "?" });
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
+    ).not.toBeInTheDocument();
     input.remove();
   });
 
@@ -796,13 +829,17 @@ describe("EditorView keyboard shortcuts", () => {
 
     fireEvent.keyDown(window, { key: "?", shiftKey: true });
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(document.activeElement).toBe(screen.getByLabelText("Search shortcuts"));
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await vi.waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
+      ).not.toBeInTheDocument(),
+    );
     expect(document.activeElement).toBe(opener);
   });
 
@@ -810,7 +847,7 @@ describe("EditorView keyboard shortcuts", () => {
     await renderSlice();
 
     fireEvent.keyDown(window, { key: "?", shiftKey: true });
-    await screen.findByRole("dialog");
+    await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
 
     fireEvent.keyDown(window, { key: " " });
 
@@ -946,7 +983,7 @@ describe("EditorView keyboard shortcuts", () => {
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: /^Piano roll:/ });
+    await screen.findByTestId("arrangement-view-ready");
 
     const placementId = project.song.placements[0].id;
     await selectPlacementInArrangement(placementId);
@@ -981,7 +1018,7 @@ describe("EditorView keyboard shortcuts", () => {
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: /^Piano roll:/ });
+    await screen.findByTestId("arrangement-view-ready");
 
     const placementId = project.song.placements[0].id;
     await selectPlacementInArrangement(placementId);
@@ -1001,6 +1038,89 @@ describe("EditorView keyboard shortcuts", () => {
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */
+/** A pointer event at bar 1 of the first arrangement row, where the slice
+ * fixture's only placement sits. The canvas has no DOM node to aim at. */
+function firePointerAtStarterClip(canvas: Element, type: string): void {
+  const event = new MouseEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    clientX: (768 / 2) * 0.08,
+    clientY: 22 + 28 / 2,
+  });
+  Object.defineProperty(event, "pointerId", { value: 1 });
+  fireAndFlush(() => fireEvent(canvas, event));
+}
+
+/** The sequence editor a clip opens into (`UI-001`, CF-001 and CF-008). */
+describe("EditorView sequence editor", () => {
+  async function renderSlice() {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    return { ...renderEditor(project.metadata.id), project };
+  }
+
+  it("is not on the page until a clip is opened", async () => {
+    await renderSlice();
+    await screen.findByTestId("arrangement-view-ready");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
+  });
+
+  it("opens on the clip that was double-clicked, and closes with Escape", async () => {
+    await renderSlice();
+    const editor = await openSequenceEditor();
+
+    expect(
+      within(editor).getByRole("button", { name: "Notes, step 1, on" }),
+    ).toBeVisible();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // The arrangement is underneath, exactly as it was.
+    expect(screen.getByTestId("arrangement-view-ready")).toBeInTheDocument();
+  });
+
+  it("keeps the transport and the view switches working while it is open", async () => {
+    // It is `role="dialog"` to a screen reader but NOT the shortcut layer's
+    // `dialog` context — the distinction UI-001 turns on, and the one a
+    // `dialog` context would silently undo.
+    const { location, project } = await renderSlice();
+    await openSequenceEditor();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
+    await vi.waitFor(() =>
+      expect(location.get()).toBe(`/projects/${project.metadata.id}/mixer`),
+    );
+
+    // The metronome rather than play/stop: both are `editor`-context transport
+    // mappings, and this one settles synchronously where starting playback in
+    // jsdom depends on an `AudioContext` that never resumes here.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "o" }));
+    expect(screen.getByRole("button", { name: "Disable metronome" })).toBeVisible();
+  });
+
+  it("closes when the placement it was opened on goes away", async () => {
+    await renderSlice();
+    await screen.findByTestId("arrangement-view-ready");
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    // Select the placement, then open it: deleting it leaves the editor with
+    // nothing to be open on, and it must go rather than sit on a clip the
+    // project no longer places.
+    firePointerAtStarterClip(canvas, "pointerdown");
+    firePointerAtStarterClip(canvas, "pointerup");
+    await openSequenceEditor();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Delete" }));
+
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+});
+
 /** The three views and the dock that names them (`UI-001`, CF-008). */
 describe("EditorView views", () => {
   async function renderViews(analytics?: Analytics) {
@@ -1009,7 +1129,7 @@ describe("EditorView views", () => {
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     const rendered = renderEditor(project.metadata.id, { analytics });
-    await screen.findByRole("region", { name: "Step editor" });
+    await screen.findByTestId("arrangement-view-ready");
     return { ...rendered, projectId: project.metadata.id };
   }
 
@@ -1092,6 +1212,7 @@ describe("EditorView views", () => {
     // that survives a switch is proof the editor was not remounted — which is
     // what "switching views never rebuilds audio nodes or loses transport
     // position" rests on, since the audio graph has the same lifetime.
+    await openSequenceEditor();
     paintStep("Notes, step 2, off");
     await screen.findByRole("button", { name: "Notes, step 2, on" });
     const undoBefore = screen.getByRole("button", { name: /^Undo / });
@@ -1128,7 +1249,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
-    await screen.findByRole("region", { name: "Step editor" });
+    await openSequenceEditor();
     return project;
   }
 

@@ -1,13 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  For,
-  Match,
-  Show,
-  Switch,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import ArrangementView, {
   type PlacementEditingActions,
@@ -17,7 +9,7 @@ import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import type { EventId, TrackId } from "../domain/ids";
+import type { EventId, PlacementId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
@@ -43,13 +35,12 @@ import {
   editorViewSpec,
   type ViewChangeSource,
 } from "./editorViews";
-import LoopInfo from "./LoopInfo";
 import Mixer from "./Mixer";
 import type { PianoRollActions } from "./PianoRoll";
 import ProjectLoadStates from "./ProjectLoadStates";
+import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
-import TrackClipEditor from "./TrackClipEditor";
 import TrackInstrument from "./TrackInstrument";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
@@ -232,10 +223,24 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
   const selectedTrackId = createMemo(() => model.focusedTrackId(selection()));
 
+  // Which placement's clip the sequence editor is open on (`UI-001`) — a
+  // placement id, not a clip id: opening is a gesture on the timeline.
+  const [openPlacementId, setOpenPlacementId] = createSignal<PlacementId | null>(null);
+  const opened = createMemo(() => model.openedClip(project(), openPlacementId()));
+
+  function openPlacement(placementId: PlacementId): void {
+    setOpenPlacementId(placementId);
+    const track = model.openedClip(project(), placementId)?.track;
+    // Opening a clip is also saying "this track": the instrument view and the
+    // mixer follow it, which is what keeps selection one piece of state.
+    if (track) selectTrack(track.id);
+  }
+
   const track = createMemo(() => model.editedTrack(project(), selectedTrackId()));
   const drumTrack = createMemo(() => model.drumTrack(track()));
   const sampleAssets = createMemo(() => model.sampleAssets(project()));
-  const clip = createMemo(() => model.editedClip(project(), track()));
+  /** The clip being programmed: the opened one, not the selection's. */
+  const clip = createMemo(() => opened()?.clip ?? null);
 
   // The step editor's live playback-step indicator (CLP-02): which 16th step of
   // the edited clip the playhead is currently passing, wrapped within the clip's
@@ -253,9 +258,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setSelectedNoteIds([]);
   }
 
-  const loopClips = createMemo(() => model.loopClips(project()));
   const instrument = createMemo(() => model.editedInstrument(track()));
-  const showPianoRoll = createMemo(() => model.showPianoRoll(track(), clip()));
+  const showPianoRoll = createMemo(() =>
+    model.showPianoRoll(opened()?.track ?? null, clip()),
+  );
 
   // Plain function, not a memo: `hasSelection()` reads the controller's
   // internal (non-signal) state, so this must be re-evaluated live on every
@@ -286,6 +292,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     // `1`/`2`/`3` reach the same `selectView` the dock does, so the two
     // entrypoints cannot drift into different states (CF-008).
     selectView: (view) => selectView(view, "keyboard"),
+    sequenceEditorOpen: () => opened() !== null,
+    closeSequenceEditor: () => setOpenPlacementId(null),
   });
 
   const instrumentPanelTrackId = createMemo(() => model.instrumentPanelTrackId(track()));
@@ -418,41 +426,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           onEditingActionsReady={setArrangementEditingActions}
                           selectedTrackId={track()?.id ?? null}
                           onSelectTrack={selectTrack}
+                          onOpenPlacement={openPlacement}
                         />
                       </div>
-                      <div class="workspace">
-                        <For each={loopClips()}>
-                          {(entry) => (
-                            <LoopInfo
-                              clip={entry.clip}
-                              asset={entry.asset}
-                              songTempo={tempo()}
-                            />
-                          )}
-                        </For>
-                        {/* The *selected* track's clip (#228), not the first. */}
-                        <Show when={track()} fallback={<NoTracks />}>
-                          {(currentTrack) => (
-                            <div class="track-editor">
-                              <TrackClipEditor
-                                clip={clip()}
-                                trackName={currentTrack().name}
-                                packDependencyLabel={packDependencyLabel()}
-                                showPianoRoll={showPianoRoll}
-                                instrument={instrument()}
-                                dispatch={session.dispatch}
-                                beginGesture={session.beginGesture}
-                                editorPlaybackStep={editorPlaybackStep}
-                                selectedNoteIds={selectedNoteIds}
-                                setSelectedNoteIds={setSelectedNoteIds}
-                                project={currentProject()}
-                                playheadTicks={audio.positionTicks()}
-                                registerPianoRollActions={setPianoRollActions}
-                              />
-                            </div>
-                          )}
-                        </Show>
-                      </div>
+                      <Show when={currentProject().song.tracks.length === 0}>
+                        <NoTracks />
+                      </Show>
                     </div>
                   </Match>
                   <Match when={props.view === "instrument"}>
@@ -510,6 +489,31 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   </Match>
                 </Switch>
               </div>
+              {/* The sequence editor, over whichever view opened it
+                  (`UI-001`). Keyed on the placement, so deleting or undoing
+                  one closes the editor rather than leaving it on a clip the
+                  project no longer places. */}
+              <Show when={opened()}>
+                {(open) => (
+                  <SequenceEditor
+                    clip={open().clip}
+                    track={open().track}
+                    project={currentProject()}
+                    packDependencyLabel={packDependencyLabel()}
+                    showPianoRoll={showPianoRoll}
+                    loop={model.loopEntryFor(currentProject(), open().clip)}
+                    songTempo={tempo()}
+                    editorPlaybackStep={editorPlaybackStep}
+                    selectedNoteIds={selectedNoteIds}
+                    setSelectedNoteIds={setSelectedNoteIds}
+                    playheadTicks={audio.positionTicks()}
+                    registerPianoRollActions={setPianoRollActions}
+                    dispatch={session.dispatch}
+                    beginGesture={session.beginGesture}
+                    onClose={() => setOpenPlacementId(null)}
+                  />
+                )}
+              </Show>
               <ViewDock
                 view={props.view}
                 href={props.viewHref}
