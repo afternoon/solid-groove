@@ -16,6 +16,7 @@ import { createManualClock } from "../shared/clock";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import ArrangementView, {
+  INITIAL_PIXELS_PER_TICK,
   type PlacementEditingActions,
   ROW_METRICS,
 } from "./ArrangementView";
@@ -25,7 +26,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const PIXELS_PER_TICK = 0.08;
+// The scale the view opens at, not a copy of it: a coordinate built from a
+// number written down here goes stale silently the moment the default zoom
+// moves, and the click lands on whatever happens to be under it instead.
+const PIXELS_PER_TICK = INITIAL_PIXELS_PER_TICK;
 const RULER_HEIGHT_PX = 22;
 // The view's own metric, not a copy of it: these coordinates only mean
 // anything if they agree with the rows actually being drawn.

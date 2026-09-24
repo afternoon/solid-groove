@@ -58,6 +58,17 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  /* Breathing room above the ruler, so the bar numbers are not jammed against
+     the toolbar's edge — painted in the ruler's own grey, so the strip reads
+     as headroom inside the ruler rather than a black gap above it. That is the
+     same token `canvasRenderer` fills the ruler with and the header column's
+     spacer uses, which is what keeps the three in step.
+
+     A border rather than padding or a margin: padding would move the origin
+     the add-track unit is positioned against off the row grid it lines up
+     with, and a margin cannot be painted. A border is outside the padding box,
+     so the origin stays put, and it is a surface. */
+  border-top: 10px solid var(--color-background-secondary);
 }
 
 .arrangement-headers {
@@ -171,13 +182,22 @@
 }
 
 /* The way to add a track, pinned below the last one (`UI-001`). Absolutely
-   positioned in the header column and carrying the column's scroll transform,
-   so it sits where the song ends rather than where the viewport does. */
+   positioned over the timeline — `left` is set inline from the header column's
+   width — and carrying the rows' scroll transform, so it sits where the song
+   ends rather than where the viewport does.
+
+   It spans the timeline but must not swallow it: the empty grid underneath is
+   still somewhere you click and drag, so the strip is transparent to the
+   pointer and only the controls inside it are not. */
 .arrangement-below-tracks {
   position: absolute;
-  left: 0;
-  width: 100%;
+  right: 0;
   box-sizing: border-box;
   padding: 8px;
   will-change: transform;
+  pointer-events: none;
+}
+
+.arrangement-below-tracks > * {
+  pointer-events: auto;
 }
