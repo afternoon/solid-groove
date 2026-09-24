@@ -44,11 +44,24 @@ import { walkthrough } from "../../support/walkthrough";
 /** One bar of the alpha's fixed 4/4 at 192 PPQ (`src/domain/time.ts`). */
 const TICKS_PER_BAR = 4 * 192;
 
-/** The ruler strip's height in CSS pixels (`canvasRenderer.RULER_HEIGHT_PX`). */
-const RULER_HEIGHT_PX = 22;
-
-/** One track row's height (`ArrangementView.ROW_METRICS.trackHeightPx`). */
-const ROW_HEIGHT_PX = 28;
+/**
+ * The vertical middle of one track row, in the timeline canvas's coordinates.
+ *
+ * Read off the arrangement root rather than written down here. These two
+ * numbers used to be copies — `22` and `28` — and when the row height became
+ * `84` the copies did not go red: the old centre of row 0 still landed inside
+ * the taller row 0, so a stale spec went on passing while describing a layout
+ * that no longer existed. The horizontal scale was never copied for exactly
+ * that reason (`data-pixels-per-tick`, the hook CF-004 introduced); this is
+ * the same hook on the other axis.
+ */
+const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
+  const root = page.getByTestId("arrangement-view-ready");
+  const rulerHeight = Number(await root.getAttribute("data-ruler-height"));
+  const rowHeight = Number(await root.getAttribute("data-row-height"));
+  expect(rowHeight).toBeGreaterThan(0);
+  return rulerHeight + rowIndex * rowHeight + rowHeight / 2;
+};
 
 /**
  * The view dock (#304): a landmark, and three links rather than tabs, because
@@ -139,7 +152,7 @@ test.describe("CF-008", () => {
     await timeline(page).dblclick({
       position: {
         x: (TICKS_PER_BAR / 2) * pixelsPerTick,
-        y: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+        y: await rowCentreY(page, 0),
       },
     });
 

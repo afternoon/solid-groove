@@ -81,6 +81,25 @@ export const ROW_METRICS: RowMetrics = {
 };
 
 /**
+ * The vertical scale, published on the arrangement root.
+ *
+ * The horizontal one already is (`data-pixels-per-tick`): a browser test
+ * reaching a track on the canvas has no role or name to aim at, only a
+ * coordinate, and a coordinate built from numbers copied into the spec goes
+ * stale without going red. Raising the row height from 28 to 84 proved it —
+ * every spec carrying its own copy of 28 kept passing, because the old centre
+ * of row 0 still landed somewhere inside the new row 0, and the one spec that
+ * reached past it for row 1 quietly started clicking row 0.
+ *
+ * Both halves of a row's centre live here, so a spec derives the whole
+ * coordinate from the app instead of half of it.
+ */
+const VERTICAL_SCALE = {
+  "data-row-height": ROW_METRICS.trackHeightPx,
+  "data-ruler-height": RULER_HEIGHT_PX,
+} as const;
+
+/**
  * The track header column's width. Exported because the instrument view's
  * track rail is the same column in another view — a track occupies the same
  * space wherever the producer meets it, so moving between views does not move
@@ -622,6 +641,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
       class="arrangement-view"
       data-testid="arrangement-view-ready"
       data-pixels-per-tick={pixelsPerTick()}
+      {...VERTICAL_SCALE}
     >
       <ArrangementToolbar
         onZoomIn={zoomIn}
