@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isEntityId } from "../domain/ids";
 import { assertProject } from "../domain/parse";
+import { TICKS_PER_BAR } from "../domain/time";
 import { createStarterProject } from "./starterProject";
 
 describe("createStarterProject", () => {
@@ -8,6 +9,16 @@ describe("createStarterProject", () => {
     const project = createStarterProject("user_1");
     // Throws if invalid; a successful call is the assertion.
     expect(() => assertProject(project)).not.toThrow();
+  });
+
+  it("starts with the loop on over bars 1-2 (LOOP-017)", () => {
+    const project = createStarterProject("user_1");
+
+    expect(project.song.loop).toEqual({
+      startTicks: 0,
+      endTicks: TICKS_PER_BAR,
+      enabled: true,
+    });
   });
 
   it("has one sampler track whose asset resolves through a pack", () => {

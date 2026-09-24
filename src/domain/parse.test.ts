@@ -16,6 +16,7 @@ import {
   parseSong,
 } from "./parse";
 import { serializeProject } from "./serialize";
+import { TICKS_PER_BAR } from "./time";
 
 /**
  * Every invariant in PRD section 9.5 is exercised by mutating one field of a
@@ -36,6 +37,7 @@ interface MutableProject {
   song: {
     tempo: number;
     timeSignature: JsonRecord;
+    loop: { startTicks: number; endTicks: number; enabled: boolean };
     tracks: MutableTrack[];
     returns: JsonRecord[];
     master: JsonRecord;
@@ -707,6 +709,41 @@ describe("pack shelf (addedPacks, LIB-08)", () => {
     const [first] = input.metadata.addedPacks;
     input.metadata.addedPacks = [...input.metadata.addedPacks, { ...first }];
     expectIssue(parseProject(input), "duplicate_id");
+  });
+});
+
+describe("song loop range and toggle (LOOP-017)", () => {
+  it("accepts a bar-aligned range with looping off", () => {
+    const input = baseProject();
+    input.song.loop = {
+      startTicks: 2 * TICKS_PER_BAR,
+      endTicks: 6 * TICKS_PER_BAR,
+      enabled: false,
+    };
+    expect(parseProject(input).ok).toBe(true);
+  });
+
+  it.each<[string, number, number, DomainIssueCode]>([
+    ["a start off a bar line", 100, TICKS_PER_BAR, "invalid_musical_time"],
+    ["an end off a bar line", 0, TICKS_PER_BAR + 1, "invalid_musical_time"],
+    ["an empty range", TICKS_PER_BAR, TICKS_PER_BAR, "invalid_musical_time"],
+    ["an inverted range", 2 * TICKS_PER_BAR, TICKS_PER_BAR, "invalid_musical_time"],
+    ["a negative start", -TICKS_PER_BAR, TICKS_PER_BAR, "invalid_shape"],
+  ])("rejects %s rather than repairing it", (_label, startTicks, endTicks, code) => {
+    const input = baseProject();
+    input.song.loop = { startTicks, endTicks, enabled: true };
+    expectIssue(parseProject(input), code);
+    expectIssue(parseSong(input.song), code);
+  });
+
+  it("rejects a song with no loop, and a loop with no toggle", () => {
+    const missing = baseProject();
+    delete (missing.song as Partial<MutableProject["song"]>).loop;
+    expectIssue(parseProject(missing), "invalid_shape");
+
+    const noToggle = baseProject();
+    delete (noToggle.song.loop as Partial<MutableProject["song"]["loop"]>).enabled;
+    expectIssue(parseProject(noToggle), "invalid_shape");
   });
 });
 

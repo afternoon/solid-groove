@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../domain/entities";
 import {
+  createDefaultSongLoop,
   createFactoryContext,
   createNoteClip,
   createNoteEvent,
@@ -95,6 +96,7 @@ function buildProjectWithDeviceAndAutomation(seed: string): {
     song: {
       tempo: 120,
       timeSignature: { numerator: 4, denominator: 4 },
+      loop: createDefaultSongLoop(),
       tracks: [track],
       returns: [],
       master: { volume: 0, devices: [] },

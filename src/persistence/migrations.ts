@@ -1,4 +1,5 @@
 import { type Project, type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
+import { createDefaultSongLoop } from "../domain/factories";
 import {
   type DecodeResult,
   decodeProject,
@@ -39,6 +40,20 @@ const migrateV1ToV2: ProjectMigration = {
   to: 2,
   description: "Add the project pack shelf (addedPacks), seeded from dependencies",
   metadata: metadataV1ToV2,
+};
+
+/**
+ * v2 -> v3 (LOOP-017): the song gains `loop`, the loop range and the loop
+ * toggle, which used to be session state. A project saved before it opens with
+ * the same loop a new project starts with — one bar from tick 0, looping on —
+ * rather than failing to decode. Only the song tier gains a field; every other
+ * tier just moves its version envelope.
+ */
+const migrateV2ToV3: ProjectMigration = {
+  from: 2,
+  to: 3,
+  description: "Add the song loop range and loop toggle, defaulting to one bar, on",
+  song: (song) => ({ ...song, loop: { ...createDefaultSongLoop() } }),
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -105,7 +120,10 @@ export interface ProjectMigration {
 }
 
 /** Ordered, gap-free chain of migrations up to `SCHEMA_VERSION`. */
-export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [migrateV1ToV2];
+export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [
+  migrateV1ToV2,
+  migrateV2ToV3,
+];
 
 export type MigrationFailureReason =
   | "future_version"
