@@ -15,7 +15,11 @@ import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
-import { loadSampleCommands, toLibrarySample } from "../library/insertion";
+import {
+  insertLoopCommands,
+  loadSampleCommands,
+  toLibrarySample,
+} from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
 import type { LibraryAssetType } from "../library/manifest";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
@@ -333,28 +337,54 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const sampleName = createMemo(() => model.sampleName(project(), track()));
 
   /**
-   * Loads a library sound onto the edited track's sampler — the one path both
-   * the drag onto the instrument panel and the browser's "Insert" button take,
-   * so the pointer gesture and its keyboard equivalent produce the same
-   * transaction (PRD 9.3) and log the same event once (#225).
+   * Puts a library sound into the project — the one path the drag onto the
+   * instrument panel and the browser's "Insert" button both take, so the
+   * pointer gesture and its keyboard equivalent produce the same transaction
+   * (PRD 9.3) and log the same event once (#225).
    *
-   * `loadSampleCommands` carries the asset and points the sampler at it in one
-   * transaction, so this is one revision and one undo. It is refused — leaving
-   * the project untouched — when the edited track has no sampler to load into.
+   * **The asset's kind chooses what inserting means.** A one-shot loads onto
+   * the sampler of the track the editor is pointed at; a loop has no
+   * instrument to load onto, so it arrives as its own audio track carrying an
+   * `audioLoop` clip at bar 1 (`LOOP-019`). Either way it is one transaction,
+   * so it is one revision and one undo.
+   *
+   * Both paths can decline, and a decline has to be visible: the Loop button
+   * used to reach a sampler-only path that returned silently, so inserting a
+   * loop closed the window and did nothing at all. `onInsert` now only closes
+   * on a committed transaction, and a refusal says why.
    */
-  function loadLibrarySample(sample: LibrarySample): void {
+  function loadLibrarySample(sample: LibrarySample): boolean {
     const currentProject = project();
+    if (!currentProject) return false;
+    const analytics = props.analytics ?? defaultAnalytics;
+
+    if (sample.kind === "loop") {
+      const result = session.dispatch(
+        insertLoopCommands(currentProject, sample, createFactoryContext(), {
+          order: currentProject.song.tracks.length,
+          existingNames: currentProject.song.tracks.map((entry) => entry.name),
+          songTempo: currentProject.song.tempo,
+        }),
+      );
+      if (!result?.ok) return false;
+      // No `instrument_type`: an audio track carries no instrument, which is
+      // the case the catalog leaves that param optional for.
+      analytics.log("track_added", { track_type: "audio" });
+      analytics.logFeatureFirstUse("audio_loop");
+      return true;
+    }
+
     // The track the editor is pointed at (#228), not the project's first —
     // so a drop lands on whichever track the user selected.
     const trackId = model.samplerTrackId(track());
-    if (!currentProject || !trackId) return;
+    if (!trackId) return false;
     const result = session.dispatch(
       loadSampleCommands(currentProject, trackId, sample, createFactoryContext()),
     );
-    if (!result?.ok) return;
-    const analytics = props.analytics ?? defaultAnalytics;
+    if (!result?.ok) return false;
     analytics.log("instrument_changed", { instrument_type: "sampler" });
     analytics.logFeatureFirstUse("sampler");
+    return true;
   }
 
   const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
@@ -509,9 +539,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   analytics={props.analytics}
                   onInsert={(asset) => {
                     const sample = toLibrarySample(asset);
-                    if (sample) loadLibrarySample(sample);
-                    // Inserting is what you opened it for, so it closes.
-                    setLibraryOpen(false);
+                    // Only a committed insertion closes the window. Closing
+                    // regardless is what made a refused insert look like a
+                    // successful one that lost the sound.
+                    if (sample && loadLibrarySample(sample)) setLibraryOpen(false);
                   }}
                   addedPackIds={addedPackIds()}
                   onAddPack={(pack) =>
