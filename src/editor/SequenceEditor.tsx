@@ -6,6 +6,7 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
+import Dialog from "../components/Dialog";
 import type { Clip, Project, Track } from "../domain/entities";
 import type { EventId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -55,70 +56,45 @@ export interface SequenceEditorProps {
  * programs. `Escape` closes it, through the registry's `view.close_surface`.
  */
 export default function SequenceEditor(props: SequenceEditorProps): JSX.Element {
-  let closeButton!: HTMLButtonElement;
-
-  // Focus moves in when it opens and back to whatever opened it when it
-  // closes: a double-click on the canvas leaves focus nowhere useful, and a
-  // keyboard user would otherwise be stranded behind the editor.
-  onSettled(() => {
-    const opener = document.activeElement;
-    closeButton.focus();
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  });
-
   return (
-    <div class="sequence-editor-backdrop">
-      <section
-        class="sequence-editor"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Sequence editor"
-      >
-        <header class="sequence-editor-header">
-          {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
-          <h2 class={`sequence-editor-title ${MASK_CONTENT}`}>{props.track.name}</h2>
-          <button
-            type="button"
-            class="sequence-editor-close"
-            ref={closeButton}
-            aria-label="Close sequence editor"
-            onClick={() => props.onClose()}
-          >
-            Done
-          </button>
-        </header>
-        <div class="sequence-editor-body">
-          <TrackClipEditor
-            clip={props.clip}
-            trackName={props.track.name}
-            packDependencyLabel={props.packDependencyLabel}
-            showPianoRoll={props.showPianoRoll}
-            instrument={props.track.instrument ?? null}
-            dispatch={props.dispatch}
-            beginGesture={props.beginGesture}
-            editorPlaybackStep={props.editorPlaybackStep}
-            selectedNoteIds={props.selectedNoteIds}
-            setSelectedNoteIds={props.setSelectedNoteIds}
-            project={props.project}
-            playheadTicks={props.playheadTicks}
-            registerPianoRollActions={props.registerPianoRollActions}
-          />
-          {/* An audio loop has no notes to program, so what it gets is what
+    <Dialog
+      label="Sequence editor"
+      size="jumbo"
+      onClose={() => props.onClose()}
+      header={
+        /* The track's name, chosen by the user (ADR 0002 decision 2). */
+        <h2 class={`sequence-editor-title ${MASK_CONTENT}`}>{props.track.name}</h2>
+      }
+    >
+      <div class="sequence-editor-body">
+        <TrackClipEditor
+          clip={props.clip}
+          trackName={props.track.name}
+          packDependencyLabel={props.packDependencyLabel}
+          showPianoRoll={props.showPianoRoll}
+          instrument={props.track.instrument ?? null}
+          dispatch={props.dispatch}
+          beginGesture={props.beginGesture}
+          editorPlaybackStep={props.editorPlaybackStep}
+          selectedNoteIds={props.selectedNoteIds}
+          setSelectedNoteIds={props.setSelectedNoteIds}
+          project={props.project}
+          playheadTicks={props.playheadTicks}
+          registerPianoRollActions={props.registerPianoRollActions}
+        />
+        {/* An audio loop has no notes to program, so what it gets is what
               LOOP-006 always showed: the tempo it was recorded at, and how
               following the song tempo will treat it. */}
-          <Show when={props.loop}>
-            {(entry) => (
-              <LoopInfo
-                clip={entry().clip}
-                asset={entry().asset}
-                songTempo={props.songTempo}
-              />
-            )}
-          </Show>
-        </div>
-      </section>
-    </div>
+        <Show when={props.loop}>
+          {(entry) => (
+            <LoopInfo
+              clip={entry().clip}
+              asset={entry().asset}
+              songTempo={props.songTempo}
+            />
+          )}
+        </Show>
+      </div>
+    </Dialog>
   );
 }

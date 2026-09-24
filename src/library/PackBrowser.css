@@ -1,77 +1,19 @@
 /*
- * The pack browser modal (LOOP-013). A full dialog surface rather than a panel
- * region: a pack is the unit the library is published in, and this is where a
- * producer sees one whole — what it is, what is in it, what it sounds like —
- * and decides to bring it into the project.
+ * The pack browser's contents (LOOP-013). A pack is the unit the library is
+ * published in, and this is where a producer sees one whole — what it is,
+ * what is in it, what it sounds like — and decides to bring it in.
  *
- * Sized in relative units and capped against the viewport, so it stays usable
- * at 200% zoom: the pack list and the detail pane each scroll on their own and
- * the primary action stays pinned instead of scrolling out of reach.
+ * Its window is the shared `Dialog` shell (UI-001); what is here is what goes
+ * inside it. Sized in relative units and capped against the viewport, so it
+ * stays usable at 200% zoom: the pack list and the detail pane each scroll on
+ * their own and the primary action stays pinned instead of scrolling out of
+ * reach.
  */
-
-.pack-browser {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-}
-
-/* The click-outside affordance. Not in the tab order — Escape and Close are. */
-.pack-browser-scrim {
-  position: absolute;
-  inset: 0;
-  border: none;
-  background: var(--scrim);
-  cursor: default;
-}
-
-.pack-browser-dialog {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: min(64rem, 100%);
-  height: min(40rem, 100%);
-  min-height: 0;
-  border: 1px solid var(--color-background-tertiary);
-  background: var(--color-background);
-  color: var(--color-text);
-  box-shadow: 0 1.5rem 3rem var(--scrim);
-}
-
-.pack-browser-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex: 0 0 auto;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-background-tertiary);
-}
 
 .pack-browser-title {
   margin: 0;
   font-size: var(--font-size-lg);
   font-weight: 600;
-}
-
-.pack-browser-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.pack-browser-close:hover {
-  background: var(--color-background-highlight);
-  color: var(--color-foreground-bright);
 }
 
 .pack-browser-body {

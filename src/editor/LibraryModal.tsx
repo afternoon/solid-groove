@@ -1,6 +1,6 @@
 import type { JSX } from "@solidjs/web";
-import { onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
+import Dialog from "../components/Dialog";
 import type { PreviewEngine } from "../library/audition";
 import LibraryBrowser from "../library/LibraryBrowser";
 import type { LibraryClient } from "../library/libraryClient";
@@ -41,43 +41,21 @@ export interface LibraryModalProps {
  * shortcut context and `Escape` closes it like any other dialog.
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
-  let closeButton!: HTMLButtonElement;
-
-  onSettled(() => {
-    const opener = document.activeElement;
-    closeButton.focus();
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  });
-
   return (
-    <div class="library-modal-backdrop">
-      <div class="library-modal" role="dialog" aria-modal="true" aria-label="Library">
-        <div class="library-modal-body">
-          <LibraryBrowser
-            client={props.client}
-            previewEngine={props.previewEngine}
-            analytics={props.analytics}
-            onInsert={(asset) => props.onInsert(asset)}
-            addedPackIds={props.addedPackIds}
-            onAddPack={(pack) => props.onAddPack(pack)}
-            onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}
-            assetTypes={props.assetTypes}
-            heading={props.heading}
-          />
-        </div>
-        <footer class="library-modal-footer">
-          <button
-            type="button"
-            class="library-modal-close"
-            ref={closeButton}
-            onClick={() => props.onClose()}
-          >
-            Close
-          </button>
-        </footer>
+    <Dialog label="Library" size="jumbo" onClose={() => props.onClose()}>
+      <div class="library-modal-body">
+        <LibraryBrowser
+          client={props.client}
+          previewEngine={props.previewEngine}
+          analytics={props.analytics}
+          onInsert={(asset) => props.onInsert(asset)}
+          addedPackIds={props.addedPackIds}
+          onAddPack={(pack) => props.onAddPack(pack)}
+          onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}
+          assetTypes={props.assetTypes}
+          heading={props.heading}
+        />
       </div>
-    </div>
+    </Dialog>
   );
 }

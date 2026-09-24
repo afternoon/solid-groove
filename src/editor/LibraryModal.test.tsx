@@ -39,11 +39,11 @@ describe("LibraryModal", () => {
     expect(within(dialog).getByRole("region", { name: "Library" })).toBeVisible();
   });
 
-  it("closes from its Close button", () => {
+  it("closes from its close control", () => {
     const onClose = vi.fn();
     renderModal({ onClose });
 
-    clickAndFlush(screen.getByRole("button", { name: "Close" }));
+    clickAndFlush(screen.getByRole("button", { name: "Close library" }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -54,7 +54,9 @@ describe("LibraryModal", () => {
     opener.focus();
 
     const { unmount } = renderModal();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close" }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Close library" }),
+    );
 
     unmount();
     expect(document.activeElement).toBe(opener);

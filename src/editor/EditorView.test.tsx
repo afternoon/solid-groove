@@ -684,7 +684,7 @@ describe("EditorView library audition engine lifecycle", () => {
   }
 
   async function closeLibrary() {
-    clickAndFlush(screen.getByRole("button", { name: "Close" }));
+    clickAndFlush(screen.getByRole("button", { name: "Close library" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
     );
@@ -947,7 +947,7 @@ describe("EditorView library modal", () => {
     expect(library).toHaveAttribute("aria-modal", "true");
     expect(within(library).getByRole("region", { name: "Library" })).toBeVisible();
 
-    clickAndFlush(within(library).getByRole("button", { name: "Close" }));
+    clickAndFlush(within(library).getByRole("button", { name: "Close library" }));
     await vi.waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
     );
