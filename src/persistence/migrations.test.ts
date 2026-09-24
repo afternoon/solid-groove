@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { SCHEMA_VERSION } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
-import { stringifyProject } from "../domain/serialize";
+import type { ProjectId } from "../domain/ids";
+import { type JsonObject, stringifyProject } from "../domain/serialize";
+import { createManualClock } from "../shared/clock";
 import { loadStoredProjectFixture } from "../testing/fixtures";
-import { decodeProject, type RawProjectDocuments } from "./documents";
 import {
+  clipDocumentPath,
+  decodeProject,
+  projectDocumentPath,
+  type RawProjectDocuments,
+  songDocumentPath,
+} from "./documents";
+import { InMemoryProjectRepository } from "./inMemoryProjectRepository";
+import {
+  decodeStoredProject,
   migrateProjectDocuments,
   PROJECT_MIGRATIONS,
   storedSchemaVersion,
@@ -121,5 +131,89 @@ describe("migration harness", () => {
       version = migration.to;
     }
     expect(version).toBe(SCHEMA_VERSION);
+  });
+});
+
+// Migration is read-time only and autosave writes one tier at a time, so the
+// first save of a migrated project leaves every other tier at its stored
+// version. Such a project has to keep opening.
+describe("a migrated project after its first partial save", () => {
+  async function seedStoredProject(fileName: string) {
+    const stored = await loadStoredProjectFixture(fileName);
+    const projectId = stored.projectId as ProjectId;
+    const repository = new InMemoryProjectRepository({
+      clock: createManualClock(1_700_000_100_000),
+    });
+    repository.writeDocument(
+      projectDocumentPath(projectId),
+      stored.metadata as JsonObject,
+    );
+    repository.writeDocument(songDocumentPath(projectId), stored.song as JsonObject);
+    for (const clip of stored.clips as JsonObject[]) {
+      repository.writeDocument(clipDocumentPath(projectId, String(clip.id)), clip);
+    }
+    const loaded = await repository.loadProject(projectId);
+    if (!loaded.ok) throw new Error(`seeded project did not load: ${loaded.message}`);
+    return { repository, projectId, project: loaded.value };
+  }
+
+  // Every supported older source version, with the version its tiers declare.
+  const OLDER_FIXTURES = [["v1-slice-project.json", 1]] as const;
+
+  it.each(OLDER_FIXTURES)(
+    "%s still opens after a song-tier save leaves the clips behind",
+    async (fileName, storedVersion) => {
+      const { repository, projectId, project } = await seedStoredProject(fileName);
+
+      const saved = await repository.saveSong(
+        projectId,
+        project.song,
+        project.metadata.revision,
+      );
+
+      expect(saved.ok).toBe(true);
+      const clipPath = clipDocumentPath(projectId, project.clips[0].id);
+      expect(repository.readDocument(clipPath)?.schemaVersion).toBe(storedVersion);
+      const reloaded = await repository.loadProject(projectId);
+      expect(reloaded.ok).toBe(true);
+    },
+  );
+
+  it.each(OLDER_FIXTURES)(
+    "%s still opens after a clip-tier save leaves the song behind",
+    async (fileName, storedVersion) => {
+      const { repository, projectId, project } = await seedStoredProject(fileName);
+
+      const saved = await repository.saveClip(
+        projectId,
+        project.clips[0],
+        project.metadata.revision,
+      );
+
+      expect(saved.ok).toBe(true);
+      const song = repository.readDocument(songDocumentPath(projectId));
+      expect(song?.schemaVersion).toBe(storedVersion);
+      const reloaded = await repository.loadProject(projectId);
+      expect(reloaded.ok).toBe(true);
+      if (!reloaded.ok) return;
+      expect(reloaded.value.metadata.schemaVersion).toBe(SCHEMA_VERSION);
+    },
+  );
+
+  it("refuses a child document from a newer schema under current metadata", async () => {
+    const stored = await loadStoredProjectFixture("v1-slice-project.json");
+    const clip = (stored.clips as JsonObject[])[0];
+
+    const decoded = decodeStoredProject({
+      ...stored,
+      clips: [{ ...clip, schemaVersion: SCHEMA_VERSION + 1 }],
+    });
+
+    expect(decoded.ok).toBe(false);
+    if (decoded.ok) return;
+    expect(decoded.issues[0]).toMatchObject({
+      code: "unsupported_schema_version",
+      path: ["clips", 0, "schemaVersion"],
+    });
   });
 });
