@@ -74,6 +74,9 @@ export const SHORTCUT_ACTION_IDS = [
   "view.zoom_back",
   "view.zoom_in",
   "view.zoom_out",
+  "view.show_arrangement",
+  "view.show_instrument",
+  "view.show_mixer",
   "view.close_surface",
   "help.shortcut_guide",
 ] as const;
@@ -339,6 +342,45 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     keys: "-",
     repeatable: true,
     ableton: { kind: "follows", abletonKeys: "-" },
+  }),
+  define({
+    id: "view.show_arrangement",
+    label: "Show the arrangement",
+    description: "Switches the editor to the arrangement.",
+    group: "navigation",
+    contexts: ["editor", "sequence_editor"],
+    keys: "1",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live shows everything at once and has no view to switch to; 1/2/3 is the hardware idiom UI-001 borrows.",
+    },
+  }),
+  define({
+    id: "view.show_instrument",
+    label: "Show the instrument",
+    description: "Switches the editor to the selected track's instrument.",
+    group: "navigation",
+    contexts: ["editor", "sequence_editor"],
+    keys: "2",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live shows everything at once and has no view to switch to; 1/2/3 is the hardware idiom UI-001 borrows.",
+    },
+  }),
+  define({
+    id: "view.show_mixer",
+    label: "Show the mixer",
+    description: "Switches the editor to the mixer.",
+    group: "navigation",
+    contexts: ["editor", "sequence_editor"],
+    keys: "3",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live shows everything at once and has no view to switch to; 1/2/3 is the hardware idiom UI-001 borrows.",
+    },
   }),
   define({
     id: "view.close_surface",

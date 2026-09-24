@@ -21,6 +21,10 @@ registry, so it cannot quietly go stale.
 Contexts are the surfaces a shortcut is valid in. `global` is always active;
 `dialog` suppresses every other context while a modal or menu is open, so an
 open dialog receives normal typing and nothing fires underneath it.
+`sequence_editor` is the exception that proves that rule: the sequence editor
+`UI-001` opens over the arrangement is `role="dialog"` to a screen reader, but
+the transport, the note shortcuts and the view switches all have to keep working
+while a producer programs a clip in it, so it gets a context of its own instead.
 
 | Action ID | Action | macOS | Windows/Linux | Guide group | Contexts | Ableton Live 12 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -44,6 +48,9 @@ open dialog receives normal typing and nothing fires underneath it.
 | `view.zoom_back` | Zoom back | `X` | `X` | Navigation | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`X`) |
 | `view.zoom_in` | Zoom in | `+` | `+` | Navigation | timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`+`) |
 | `view.zoom_out` | Zoom out | `-` | `-` | Navigation | timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`-`) |
+| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor | Solid Groove addition — `?` is the web convention |
 
