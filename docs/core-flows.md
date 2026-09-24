@@ -461,6 +461,38 @@ pixels, so this flow shows them in its walkthrough and the renderer's own tests
 check them. Selecting several clips, which is CF-010. Zooming, which is CF-011.
 Keyboard-only selection from the accessible track list.
 
+### CF-010 — A producer selects a stretch of the song across tracks and deletes it
+
+**Issue:** #292 · **Suite:** `tests/e2e/emulator/flows/CF-010.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, duplicate the "BD" clip, and drag the copy along to
+   bar 3, so "BD" has a clip in bar 1 and another in bar 3 with bar 2 empty
+   between them. Add a sampler track and drag the right edge of its clip out to
+   the end of bar 3, so "Sampler" has one clip across bars 1 to 3.
+2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along to 4.3.1
+   on "Sampler". A dotted outline covers that stretch on both tracks. The "BD"
+   clip in bar 3, which is wholly inside it, and the "Sampler" clip, which is
+   only partly inside it, each get a solid outline, and the arrangement
+   announces "2 clips selected". The "BD" clip in bar 1 is not selected.
+3. Press Delete. The "BD" clip in bar 3 is gone. The "Sampler" clip now stops
+   at 2.3.1, where the stretch began, and the "BD" clip in bar 1 is untouched. A
+   stretch dragged across both tracks from 2.4.1 to 4.4.1 covers nothing, and is
+   announced as "Selected 2 tracks, 2.4.1 to 4.4.1".
+4. Reload the page.
+5. The project reopens exactly as step 3 left it.
+
+**Outcome:** a stretch of time dragged across more than one track selected the
+clips it touched. Delete removed exactly that stretch: a clip wholly inside it
+went, and a clip partly inside it lost only the part that was covered. The
+change was still there after a reload.
+
+**Out of scope:** cut, copy, paste, duplicate and drag on a selection, which are
+tested at the component layer against the same selection. Undo. What the
+outlines look like, as in CF-009.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
