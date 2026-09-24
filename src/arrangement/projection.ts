@@ -1,5 +1,19 @@
-import type { Asset, AutomationLane, Clip, Project } from "../domain/entities";
-import type { AssetId, ClipId, PlacementId, SectionId, TrackId } from "../domain/ids";
+import type {
+  Asset,
+  AutomationLane,
+  Clip,
+  NoteEvent,
+  Project,
+  Track,
+} from "../domain/entities";
+import type {
+  AssetId,
+  ClipId,
+  PadId,
+  PlacementId,
+  SectionId,
+  TrackId,
+} from "../domain/ids";
 import {
   buildRowOffsets,
   type RowMetrics,
@@ -24,9 +38,11 @@ import { combineRevisions, revisionOf } from "./revision";
 export type PlacementPreview =
   | {
       readonly kind: "notes";
-      /** Note start ticks relative to the placement, for a compact
-       * tick-mark preview instead of drawing every note event's full shape. */
-      readonly noteStartTicks: readonly number[];
+      /** How many rows the mini piano roll has. Row 0 is the top. */
+      readonly laneCount: number;
+      /** Every note, placed on a row so the preview reads as a melody or a
+       * beat rather than one flat line (#351). */
+      readonly notes: readonly NotePreview[];
     }
   | {
       readonly kind: "waveform";
@@ -36,6 +52,19 @@ export type PlacementPreview =
        * source revision" waveform-cache key. */
       readonly assetRevision: number;
     };
+
+/**
+ * One note of a clip's preview. Pitched notes get one row per semitone across
+ * the pitch span the clip actually uses, highest at the top; drum-pad hits get
+ * one row per pad the clip triggers, in the drum machine's pad order, below
+ * any pitched rows.
+ */
+export interface NotePreview {
+  /** Relative to the clip start. */
+  readonly startTicks: number;
+  readonly durationTicks: number;
+  readonly lane: number;
+}
 
 export interface TrackRow {
   readonly id: TrackId;
@@ -124,6 +153,9 @@ export function buildArrangementProjection(
   rowMetrics: RowMetrics,
 ): ArrangementProjection {
   const clipsById = new Map<ClipId, Clip>(project.clips.map((clip) => [clip.id, clip]));
+  const tracksById = new Map<TrackId, Track>(
+    project.song.tracks.map((track) => [track.id, track]),
+  );
   const assetsById = new Map<AssetId, Asset>(
     project.song.assets.map((asset) => [asset.id, asset]),
   );
@@ -157,7 +189,8 @@ export function buildArrangementProjection(
     // A dangling reference cannot survive `parseProject`; this guard only
     // protects the projection builder against being handed a `Project`
     // some other, buggier path constructed by hand (e.g. in a test).
-    if (rowIndex === undefined || !clip) continue;
+    const track = tracksById.get(placement.trackId);
+    if (rowIndex === undefined || !clip || !track) continue;
 
     const durationTicks = placement.durationTicks;
     const geometry: PlacementGeometry = {
@@ -167,10 +200,19 @@ export function buildArrangementProjection(
       rowIndex,
       startTicks: placement.startTicks,
       endTicks: placement.startTicks + durationTicks,
-      color: clip.color,
+      // A placement is always drawn in its track's colour (#365), so a
+      // recolour reaches every clip on the track. The clip's own stored
+      // `color` is not what the arrangement shows.
+      color: track.color,
       label: clip.name,
-      preview: buildPreview(clip, assetsById),
-      revision: combineRevisions(revisionOf(placement), revisionOf(clip)),
+      preview: buildPreview(clip, assetsById, track),
+      // The track is folded in because colour and the drum-pad preview rows
+      // both read it: a track edit must invalidate its placements' geometry.
+      revision: combineRevisions(
+        revisionOf(placement),
+        revisionOf(clip),
+        revisionOf(track),
+      ),
     };
     placementsById.set(placement.id, geometry);
 
@@ -237,6 +279,7 @@ export function buildArrangementProjection(
 function buildPreview(
   clip: Clip,
   assetsById: ReadonlyMap<AssetId, Asset>,
+  track: Track | undefined,
 ): PlacementPreview {
   if (clip.content.kind === "audioLoop") {
     const asset = assetsById.get(clip.content.assetId);
@@ -246,9 +289,47 @@ function buildPreview(
       assetRevision: asset ? revisionOf(asset) : 0,
     };
   }
+  return buildNotesPreview(clip.content.events, track);
+}
+
+function buildNotesPreview(
+  events: readonly NoteEvent[],
+  track: Track | undefined,
+): PlacementPreview {
+  let minPitch = Number.POSITIVE_INFINITY;
+  let maxPitch = Number.NEGATIVE_INFINITY;
+  const usedPads = new Set<PadId>();
+  for (const event of events) {
+    if (event.trigger.kind === "pitch") {
+      minPitch = Math.min(minPitch, event.trigger.pitch);
+      maxPitch = Math.max(maxPitch, event.trigger.pitch);
+    } else {
+      usedPads.add(event.trigger.padId);
+    }
+  }
+  const pitchLanes = maxPitch >= minPitch ? maxPitch - minPitch + 1 : 0;
+  const padOrder =
+    track?.instrument?.kind === "drumMachine"
+      ? track.instrument.pads.map((pad) => pad.id)
+      : [];
+  // Pads in the instrument's order, then any the instrument no longer lists.
+  const padLanes = new Map<PadId, number>();
+  for (const padId of [...padOrder, ...usedPads]) {
+    if (usedPads.has(padId) && !padLanes.has(padId)) {
+      padLanes.set(padId, pitchLanes + padLanes.size);
+    }
+  }
   return {
     kind: "notes",
-    noteStartTicks: clip.content.events.map((event) => event.startTicks),
+    laneCount: pitchLanes + padLanes.size,
+    notes: events.map((event) => ({
+      startTicks: event.startTicks,
+      durationTicks: event.durationTicks,
+      lane:
+        event.trigger.kind === "pitch"
+          ? maxPitch - event.trigger.pitch
+          : (padLanes.get(event.trigger.padId) ?? 0),
+    })),
   };
 }
 

@@ -56,6 +56,8 @@ const EXPECTED_COMMANDS = [
   "device.setBypass",
   "device.reset",
   "device.restoreParameters",
+  "loop.setRange",
+  "loop.setEnabled",
 ];
 
 describe("command registry", () => {

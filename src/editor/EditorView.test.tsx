@@ -1482,11 +1482,14 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
   it("toggles the loop and the metronome, reflecting their pressed state", async () => {
     await renderSlice();
 
-    const loop = screen.getByRole("button", { name: "Enable loop" });
-    expect(loop).toHaveAttribute("aria-pressed", "false");
+    // A new project loops by default (LOOP-017), and the toggle is a song
+    // edit: it goes through the command layer, so it lands on the undo stack.
+    const loop = screen.getByRole("button", { name: "Disable loop" });
+    expect(loop).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(loop);
-    const loopOn = await screen.findByRole("button", { name: "Disable loop" });
-    expect(loopOn).toHaveAttribute("aria-pressed", "true");
+    const loopOff = await screen.findByRole("button", { name: "Enable loop" });
+    expect(loopOff).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
 
     const metronome = screen.getByRole("button", { name: "Enable metronome" });
     expect(metronome).toHaveAttribute("aria-pressed", "false");

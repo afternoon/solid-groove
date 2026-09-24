@@ -32,7 +32,6 @@ export type HeaderAudio = Pick<
   | "loopEnabled"
   | "metronomeEnabled"
   | "toggle"
-  | "toggleLoop"
   | "toggleMetronome"
 >;
 
@@ -46,6 +45,11 @@ export interface EditorHeaderProps {
   readonly projectName: string;
   readonly session: HeaderSession;
   readonly audio: HeaderAudio;
+  /**
+   * The loop is song state (LOOP-017), toggled through a `loop.setEnabled`
+   * command rather than the audio module, so its action comes from the editor.
+   */
+  readonly onToggleLoop: () => void;
   readonly tempo: Accessor<number>;
   readonly onTempoChange: (value: number) => void;
   readonly onOpenGuide: () => void;
@@ -118,7 +122,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
         <button
           type="button"
           class="loop-toggle"
-          onClick={() => props.audio.toggleLoop()}
+          onClick={() => props.onToggleLoop()}
           aria-pressed={ariaBool(props.audio.loopEnabled())}
           aria-label={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
           title={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}

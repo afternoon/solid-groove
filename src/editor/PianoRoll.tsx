@@ -131,17 +131,10 @@ interface MarqueeState {
   y: number;
 }
 
-interface VelocityGestureState {
-  readonly gesture: Gesture;
-  readonly noteId: EventId;
-  /** Whether any value has actually been applied yet. */
-  moved: boolean;
-}
-
 /**
  * The CLP-03 piano roll: create, move, resize, group-select, duplicate,
- * delete, and set velocity on a synth clip's pitched notes, with 16th-note
- * snap and an optional in-key pitch guide.
+ * and delete a synth clip's pitched notes, with 16th-note snap and an
+ * optional in-key pitch guide.
  *
  * Every mutation goes through the shared command layer — `note.add`,
  * `note.update`, `note.remove`, `notes.duplicate` — never a direct project
@@ -162,12 +155,6 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
   const [selection, setSelection] = createSignal<ReadonlySet<EventId>>(new Set());
   const [drag, setDrag] = createSignal<DragState | null>(null);
   const [marquee, setMarquee] = createSignal<MarqueeState | null>(null);
-  // A velocity slider drag: one gesture spans the whole drag so it commits as a
-  // single undo entry / revision / clip_edited event (mirrors the move/resize
-  // path). Held in a plain variable — it is transient drag bookkeeping the
-  // render never reads.
-  let velocityDrag: VelocityGestureState | null = null;
-
   // The in-key guide is view-only UI state — never persisted, never gating
   // which notes may be created (PRD CLP-03 "optional in-key pitch guide").
   const [keyGuideEnabled, setKeyGuideEnabled] = createSignal(props.keyGuide != null);
@@ -385,7 +372,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     setMarquee(null);
   }
 
-  // --- Duplicate / delete / velocity ------------------------------------
+  // --- Duplicate / delete ------------------------------------------------
 
   function duplicateSelection(): void {
     const ids = selectedIds();
@@ -408,58 +395,6 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     props.dispatch(removeNotes(props.clip.id, ids));
     logClipEdited(ids.length);
     setSelection(new Set<EventId>());
-  }
-
-  /**
-   * Applies one intermediate velocity value from a slider drag. A range slider
-   * fires `input` continuously while the thumb moves, so the whole drag must be
-   * one gesture — otherwise a single velocity change would be many revisions,
-   * many undo entries, and many `clip_edited` events. The first `input` opens
-   * the gesture; each subsequent one applies live without bumping the revision;
-   * `commitVelocity` (on `change` / pointer-up) commits the single entry.
-   */
-  function applyVelocity(note: NoteEvent, velocity: number): void {
-    if (!Number.isFinite(velocity)) return;
-    // A slider swap between notes mid-drag: commit the prior one first.
-    if (velocityDrag && velocityDrag.noteId !== note.id) commitVelocity();
-    if (!velocityDrag) {
-      markFeatureUse();
-      const gesture = props.beginGesture({ summary: "Set velocity" });
-      if (!gesture) {
-        // No history available: fall back to a single committed update.
-        props.dispatch(
-          updateNotes(props.clip.id, [{ eventId: note.id, changes: { velocity } }]),
-        );
-        logClipEdited(1);
-        return;
-      }
-      velocityDrag = { gesture, noteId: note.id, moved: false };
-    }
-    // Capture the gesture locally and mark it moved BEFORE the notifying
-    // `apply()` call. `apply()` synchronously notifies history listeners,
-    // which re-renders the reactive tree; that re-render can synchronously
-    // re-enter `commitVelocity()` (e.g. the range input's own `change`/blur
-    // firing during that render), which nulls the module-level
-    // `velocityDrag`. So `velocityDrag` must never be dereferenced again
-    // after `apply()` runs -- only the locally captured `drag`.
-    const drag = velocityDrag;
-    drag.moved = true;
-    drag.gesture.apply(
-      updateNotes(props.clip.id, [{ eventId: note.id, changes: { velocity } }]),
-    );
-  }
-
-  /** Commits the open velocity gesture as one entry, or cancels an empty one. */
-  function commitVelocity(): void {
-    const state = velocityDrag;
-    if (!state) return;
-    velocityDrag = null;
-    if (state.moved) {
-      state.gesture.commit();
-      logClipEdited(1);
-    } else {
-      state.gesture.cancel();
-    }
   }
 
   function selectAll(): void {
@@ -639,8 +574,6 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
                 onPointerUp={() => {
                   if (drag()) endDrag();
                 }}
-                applyVelocity={applyVelocity}
-                commitVelocity={commitVelocity}
               />
             )}
           </For>

@@ -21,10 +21,10 @@ function fakeAudio() {
     toggle: vi.fn(async () => {
       setPlaying((playing) => !playing);
     }),
-    toggleLoop: vi.fn(() => setLoopEnabled((on) => !on)),
     toggleMetronome: vi.fn(() => setMetronomeEnabled((on) => !on)),
   };
-  return { audio, setPositionTicks };
+  const toggleLoop = vi.fn(() => setLoopEnabled((on) => !on));
+  return { audio, setPositionTicks, toggleLoop };
 }
 
 /** A fake session: a store for the state the header reads, spies for the verbs. */
@@ -52,12 +52,17 @@ function fakeSession(overrides: Partial<EditorSessionState> = {}) {
   return { session, setState };
 }
 
-function renderHeader(session: HeaderSession, audio: HeaderAudio) {
+function renderHeader(
+  session: HeaderSession,
+  audio: HeaderAudio,
+  onToggleLoop: () => void = () => {},
+) {
   return render(() => (
     <EditorHeader
       projectName="Untitled"
       session={session}
       audio={audio}
+      onToggleLoop={onToggleLoop}
       tempo={() => 120}
       onTempoChange={() => {}}
       onOpenGuide={() => {}}
@@ -68,8 +73,8 @@ function renderHeader(session: HeaderSession, audio: HeaderAudio) {
 
 describe("EditorHeader", () => {
   it("drives the audio module it is handed and tracks its accessors", async () => {
-    const { audio, setPositionTicks } = fakeAudio();
-    renderHeader(fakeSession().session, audio);
+    const { audio, setPositionTicks, toggleLoop } = fakeAudio();
+    renderHeader(fakeSession().session, audio, toggleLoop);
 
     fireEvent.click(screen.getByRole("button", { name: "Start playback" }));
     expect(audio.toggle).toHaveBeenCalledOnce();
@@ -79,6 +84,7 @@ describe("EditorHeader", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Enable loop" }));
+    expect(toggleLoop).toHaveBeenCalledOnce();
     expect(
       await screen.findByRole("button", { name: "Disable loop" }),
     ).toBeInTheDocument();
