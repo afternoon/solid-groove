@@ -62,6 +62,34 @@ describe("migration harness", () => {
     );
   });
 
+  it("trims overlapping placements on a track, keeping the earlier one (#290)", async () => {
+    const stored = await loadStoredProjectFixture("v2-slice-project.json");
+    const song = stored.song as { placements: Record<string, unknown>[] };
+    const [kept] = song.placements;
+    // Same start as `kept` but later in the array: fully covered, so removed.
+    const tied = { ...kept, id: "plc_tiedTiedTiedTiedTiedT" };
+    // Starts half a bar into `kept` and runs a bar past it: trimmed to its end.
+    const later = {
+      ...kept,
+      id: "plc_laterLaterLaterLaterL",
+      startTicks: 384,
+      durationTicks: 1152,
+    };
+    song.placements.push(tied, later);
+
+    const result = migrateProjectDocuments(stored);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const decoded = decodeProject(result.documents);
+    expect(decoded.ok, JSON.stringify(decoded)).toBe(true);
+    if (!decoded.ok) return;
+
+    expect(decoded.value.song.placements).toEqual([
+      kept,
+      { ...later, startTicks: 768, durationTicks: 768, clipOffsetTicks: 384 },
+    ]);
+  });
+
   it("refuses a newer schema version without touching it", async () => {
     const stored = await loadStoredProjectFixture("v3-future-project.json");
 
