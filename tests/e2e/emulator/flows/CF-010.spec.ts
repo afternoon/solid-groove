@@ -39,7 +39,13 @@ import { walkthrough } from "../../support/walkthrough";
  *
  * Step 1 moves one clip by its body and lengthens another by the resize handle
  * on its right edge. Both are ARR-002 gestures that #292 keeps, and both still
- * snap to whole bars, so those clips are announced by whole bars.
+ * snap to whole bars.
+ *
+ * One naming rule covers clips and ranges alike: whole-bar wording ("bar 3",
+ * "bars 1 to 3") when both ends sit on bar lines, and bars.beats.sixteenths
+ * positions otherwise. So the clips step 1 makes are named by whole bars. The
+ * Sampler clip that Delete trims ends at the free range edge, off a bar line,
+ * so it is named by positions.
  *
  * Whether a clip is still there is read the way a screen-reader user would
  * find out: select it and listen.
@@ -127,10 +133,11 @@ async function drag(
  * The state steps 3 and 5 both promise.
  *
  *  - The "BD" clip in bar 1 is still there, and still one bar long.
- *  - The "Sampler" clip is still there. Only the start of the announcement is
- *    asserted, because the trim left the clip ending wherever the pointer
- *    started the range, not on a bar line. Whether such a clip is named by
- *    whole bars or by position has not been decided.
+ *  - The "Sampler" clip is still there, trimmed to end where the range began.
+ *    That end is off a bar line, so the clip is named by positions: "Selected
+ *    clip on Sampler, 1.1.1 to 2.3.1". The range began a quarter of the way
+ *    into the 2.3.1 sixteenth, so the trimmed end names that sixteenth
+ *    whichever pixel the pointer landed on.
  *  - Nothing is left on either track from bar 2, beat 4 onwards. A range
  *    dragged over that stretch covers no clip, so it is announced in the range
  *    form. That also shows the Sampler clip no longer reaches it.
@@ -139,7 +146,7 @@ async function expectAfterDelete(page: Page): Promise<void> {
   await clickAt(page, 0, midBar(1));
   await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
   await clickAt(page, 1, insideSixteenth(1, 2, 1));
-  await expect(announcement(page)).toHaveText(/^Selected clip on Sampler, /);
+  await expect(announcement(page)).toHaveText("Selected clip on Sampler, 1.1.1 to 2.3.1");
   await drag(
     page,
     await pointAt(page, 0, insideSixteenth(2, 4, 1)),

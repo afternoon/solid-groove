@@ -478,8 +478,9 @@ project dashboard
    only partly inside it, each get a solid outline, and the arrangement
    announces "2 clips selected". The "BD" clip in bar 1 is not selected.
 3. Press Delete. The "BD" clip in bar 3 is gone. The "Sampler" clip now stops
-   at 2.3.1, where the stretch began, and the "BD" clip in bar 1 is untouched. A
-   stretch dragged across both tracks from 2.4.1 to 4.4.1 covers nothing, and is
+   at 2.3.1, where the stretch began, and is announced as "Selected clip on
+   Sampler, 1.1.1 to 2.3.1". The "BD" clip in bar 1 is untouched. A stretch
+   dragged across both tracks from 2.4.1 to 4.4.1 covers nothing, and is
    announced as "Selected 2 tracks, 2.4.1 to 4.4.1".
 4. Reload the page.
 5. The project reopens exactly as step 3 left it.
