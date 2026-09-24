@@ -287,6 +287,7 @@ function expectParameter(
 }
 
 const UNIT_SUFFIX: Record<ParameterDefinition["unit"], string> = {
+  bars: " bars",
   bpm: " BPM",
   decibels: " dB",
   hertz: " Hz",

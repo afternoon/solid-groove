@@ -1,5 +1,10 @@
 import type { BucketLabel } from "../analytics/buckets";
 import { bucketOf } from "../analytics/buckets";
+import {
+  CLIP_LENGTH_BARS,
+  MAX_CLIP_LENGTH_BARS,
+  MIN_CLIP_LENGTH_BARS,
+} from "../domain/clipLength";
 import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
 import type { EventId, PadId } from "../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
@@ -17,9 +22,9 @@ import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 /** A 16th note is the grid's fixed resolution (PRD CLP-02, 192 PPQ). */
 export const STEPS_PER_BAR = TICKS_PER_BAR / TICKS_PER_SIXTEENTH;
 
-/** The clip-length range CLP-02 supports, in bars. */
-export const MIN_BARS = 1;
-export const MAX_BARS = 8;
+/** The clip-length range CLP-02 supports, in bars — the domain's bound. */
+export const MIN_BARS = MIN_CLIP_LENGTH_BARS;
+export const MAX_BARS = MAX_CLIP_LENGTH_BARS;
 
 /**
  * One row of the grid. A drum-machine clip shows one lane per pad, named after
@@ -33,13 +38,26 @@ export interface StepLane {
 }
 
 /**
- * How many bars the clip spans, clamped to the 1-8 bar range. A clip whose
+ * How many bars the clip spans, clamped to the supported range. A clip whose
  * `lengthTicks` is not a whole number of bars rounds up to the next bar so no
  * step is hidden.
  */
 export function barCount(clip: Clip): number {
   const bars = Math.ceil(clip.lengthTicks / TICKS_PER_BAR);
   return Math.min(MAX_BARS, Math.max(MIN_BARS, bars));
+}
+
+/**
+ * The bar lengths the length control offers: the musical list (1/2/4/8/16/32)
+ * rather than every integer, which at 32 bars would be an unusable dropdown.
+ * A clip already sitting at an unlisted length keeps its own value in the list
+ * so the control shows what the clip actually is instead of rendering blank.
+ */
+export function barOptions(clip: Clip): number[] {
+  const current = barCount(clip);
+  return CLIP_LENGTH_BARS.includes(current)
+    ? [...CLIP_LENGTH_BARS]
+    : [...CLIP_LENGTH_BARS, current].sort((a, b) => a - b);
 }
 
 /** Total 16th-note steps across the clip's bars. */

@@ -5,6 +5,7 @@ import {
   createPlacement,
   createSamplerInstrument,
   createTrack as createTrackEntity,
+  MAX_CLIP_LENGTH_BARS,
   type Project,
   TICKS_PER_BAR,
   toTicks,
@@ -183,6 +184,31 @@ describe("structural commands", () => {
       if (result.ok) return;
       expect(result.issues[0].code).toBe("invalid_project");
       expect(result.issues[0].domainIssues?.[0].code).toBe("invalid_musical_time");
+    });
+
+    it("resizes a clip up to the 32-bar maximum", () => {
+      const next = apply(
+        fixture.project,
+        updateClip(fixture.clipAId, {
+          lengthTicks: toTicks(TICKS_PER_BAR * MAX_CLIP_LENGTH_BARS),
+        }),
+      );
+      expect(findClip(next, fixture.clipAId)?.lengthTicks).toBe(
+        TICKS_PER_BAR * MAX_CLIP_LENGTH_BARS,
+      );
+    });
+
+    it("refuses a clip longer than the 32-bar maximum (#256)", () => {
+      const result = executeCommand(fixture.project, {
+        type: "clip.update",
+        payload: {
+          clipId: fixture.clipAId,
+          changes: { lengthTicks: TICKS_PER_BAR * (MAX_CLIP_LENGTH_BARS + 1) },
+        },
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.issues[0].code).toBe("invalid_payload");
     });
   });
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nextClipLengthTicks } from "../../domain/clipLength";
 import type { Clip, NoteEvent, Project } from "../../domain/entities";
 import {
   type ClipId,
@@ -27,6 +28,7 @@ import {
   type RegisteredCommand,
   rejected,
 } from "../types";
+import { updateClip } from "./clips";
 import { addNotes, type NoteChanges, removeNotes, updateNotes } from "./notes";
 
 /**
@@ -311,6 +313,7 @@ export const notesDuplicateCommand = defineCommand<NotesDuplicatePayload>({
       (noteEventsOf(selection.clip) ?? []).map((event) => event.id),
     );
     const copies: NoteEvent[] = [];
+    let neededTicks = 0;
     for (const [index, event] of selection.events.entries()) {
       const id = payload.newIds[index];
       if (existing.has(id)) {
@@ -321,29 +324,59 @@ export const notesDuplicateCommand = defineCommand<NotesDuplicatePayload>({
       // leaves the safe-integer range is a rejection with a reason, not a
       // throw out of `toTicks`.
       const startTicks = event.startTicks + payload.offsetTicks;
-      if (!isTicks(startTicks) || startTicks >= selection.clip.lengthTicks) {
-        return rejected(
-          `Duplicating by ${payload.offsetTicks} ticks would push a note past the end of clip ${selection.clip.id}`,
-        );
+      if (!isTicks(startTicks)) {
+        return rejected(pastTheEnd(payload.offsetTicks, selection.clip));
       }
+      neededTicks = Math.max(neededTicks, startTicks + event.durationTicks);
       copies.push({ ...event, id, startTicks });
     }
     if (copies.length !== payload.newIds.length) {
       return rejected("Duplicate note ids must be new");
     }
-    return applied(
-      replaceClip(
-        project,
-        withNoteEvents(selection.clip, [
-          ...(noteEventsOf(selection.clip) ?? []),
-          ...copies,
-        ]),
-      ),
-    );
+    // Issue #256: asking to duplicate is an unambiguous intent, so a copy with
+    // no room grows the clip instead of rejecting the edit. The resize happens
+    // inside this one command, which is what makes it one revision and one
+    // undo step with the copies rather than a second transaction.
+    const lengthTicks = extendedLength(selection.clip, neededTicks);
+    if (lengthTicks === null) {
+      return rejected(pastTheEnd(payload.offsetTicks, selection.clip));
+    }
+    const withCopies = withNoteEvents(selection.clip, [
+      ...(noteEventsOf(selection.clip) ?? []),
+      ...copies,
+    ]);
+    return applied(replaceClip(project, { ...withCopies, lengthTicks }));
   },
-  invert: (payload) =>
-    payload.newIds.length > 0 ? [removeNotes(payload.clipId, payload.newIds)] : [],
+  invert(payload, before, after) {
+    const commands: RawCommandInput[] = [];
+    if (payload.newIds.length > 0) {
+      commands.push(removeNotes(payload.clipId, payload.newIds));
+    }
+    // The notes come out before the clip shrinks back, or the restored project
+    // would briefly hold notes outside their clip.
+    const previous = findClip(before, payload.clipId);
+    const next = findClip(after, payload.clipId);
+    if (previous && next && previous.lengthTicks !== next.lengthTicks) {
+      commands.push(updateClip(payload.clipId, { lengthTicks: previous.lengthTicks }));
+    }
+    return commands;
+  },
 });
+
+function pastTheEnd(offsetTicks: number, clip: Clip): string {
+  return `Duplicating by ${offsetTicks} ticks would push a note past the end of clip ${clip.id}`;
+}
+
+/**
+ * The length the clip needs to hold copies ending at `neededTicks`: its own
+ * length when they already fit, the next listed clip length when they do not,
+ * and `null` when even the longest clip could not hold them.
+ */
+function extendedLength(clip: Clip, neededTicks: number): Ticks | null {
+  return neededTicks > clip.lengthTicks
+    ? nextClipLengthTicks(neededTicks)
+    : clip.lengthTicks;
+}
 
 export const notesClearCommand = defineCommand<NotesClearPayload>({
   type: "notes.clear",

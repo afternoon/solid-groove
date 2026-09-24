@@ -8,6 +8,7 @@ import {
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import {
   barCount,
+  barOptions,
   eventCountBucket,
   isBarStart,
   isBeatStart,
@@ -47,24 +48,38 @@ describe("stepEditorModel", () => {
     );
   });
 
-  it("counts steps from the clip's bar length, clamped to 1-8 bars", () => {
+  it("counts steps from the clip's bar length, up to the 32-bar maximum", () => {
     const project = createSliceFixtureProject();
     const clip = project.clips[0];
     expect(barCount(clip)).toBe(1);
     expect(stepCount(clip)).toBe(STEPS_PER_BAR);
 
-    const eightBars = {
-      ...clip,
-      lengthTicks: (TICKS_PER_BAR * 8) as typeof clip.lengthTicks,
-    };
-    expect(barCount(eightBars)).toBe(8);
-    expect(stepCount(eightBars)).toBe(8 * STEPS_PER_BAR);
-
-    const overMax = {
+    const twelveBars = {
       ...clip,
       lengthTicks: (TICKS_PER_BAR * 12) as typeof clip.lengthTicks,
     };
+    // Twelve bars used to clamp to eight, hiding a third of the clip (#256).
+    expect(barCount(twelveBars)).toBe(12);
+    expect(stepCount(twelveBars)).toBe(12 * STEPS_PER_BAR);
+
+    const overMax = {
+      ...clip,
+      lengthTicks: (TICKS_PER_BAR * 40) as typeof clip.lengthTicks,
+    };
     expect(barCount(overMax)).toBe(MAX_BARS);
+    expect(MAX_BARS).toBe(32);
+  });
+
+  it("offers the musical bar lengths, plus the clip's own when unlisted", () => {
+    const project = createSliceFixtureProject();
+    const clip = project.clips[0];
+    expect(barOptions(clip)).toEqual([1, 2, 4, 8, 16, 32]);
+
+    const threeBars = {
+      ...clip,
+      lengthTicks: (TICKS_PER_BAR * 3) as typeof clip.lengthTicks,
+    };
+    expect(barOptions(threeBars)).toEqual([1, 2, 3, 4, 8, 16, 32]);
   });
 
   it("marks bar and beat starts distinctly across two bars", () => {
