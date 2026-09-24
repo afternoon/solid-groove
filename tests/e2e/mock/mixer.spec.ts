@@ -1,5 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { walkthrough } from "../support/walkthrough";
+
+/**
+ * The editor shows one view at a time (`UI-001`), so the mixer is reached
+ * through the dock rather than found at the bottom of the workspace.
+ */
+async function goToView(page: Page, name: "Arrangement" | "Mixer"): Promise<void> {
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("link", { name })
+    .click();
+  await expect(
+    page.getByRole("navigation", { name: "Views" }).locator("[aria-current='page']"),
+  ).toHaveText(name);
+}
 
 // `LOOP-007`: the mixer's continuous controls are the shared fill slider
 // (`src/instrument/FillSlider.tsx`, design mock `06c-slider`) — a real range
@@ -13,6 +27,7 @@ test.describe("mixer", () => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
+    await goToView(page, "Mixer");
 
     const fader = page.getByRole("slider", { name: /^Volume for / });
     await expect(fader).toBeVisible();
@@ -22,12 +37,11 @@ test.describe("mixer", () => {
     const track = page.locator(".mixer-strip-controls .fill-slider-track", {
       has: fader,
     });
-    // The mixer sits at the bottom of the workspace, which scrolls inside
-    // itself (`LOOP-013`), so on a 720px viewport the strip can start below
-    // the fold. `boundingBox()` reports viewport coordinates and
-    // `page.mouse` takes them literally — neither scrolls anything — so
-    // without this the drag below is aimed off-screen and silently does
-    // nothing. Scroll first, then read the box the mouse will be driven at.
+    // The mixer view scrolls inside itself, so on a 720px viewport a strip
+    // can still start below the fold. `boundingBox()` reports viewport
+    // coordinates and `page.mouse` takes them literally — neither scrolls
+    // anything — so without this the drag below is aimed off-screen and
+    // silently does nothing. Scroll first, then read the box.
     await track.scrollIntoViewIfNeeded();
     const inputBox = await fader.boundingBox();
     const trackBox = await track.boundingBox();
@@ -73,6 +87,8 @@ test.describe("mixer", () => {
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 
+    await goToView(page, "Mixer");
+
     const pan = page.getByRole("slider", { name: /^Pan for / });
     await expect(pan).toBeVisible();
     await expect(pan).toHaveAttribute("aria-valuetext", "C");
@@ -117,6 +133,8 @@ test.describe("mixer", () => {
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 
+    await goToView(page, "Mixer");
+
     const solo = page.getByRole("button", { name: /^Solo / }).first();
     // Compared as brightness rather than an exact colour: the buttons carry a
     // colour transition, so an exact match would be asserting on whichever
@@ -160,6 +178,7 @@ test.describe("mixer", () => {
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 
+    await goToView(page, "Mixer");
     const mixer = page.getByRole("region", { name: "Mixer" });
     await mixer.scrollIntoViewIfNeeded();
     await expect(mixer).toContainText("1 track");
@@ -180,6 +199,7 @@ test.describe("mixer", () => {
     // DOM mirror of a canvas (`ArrangementView.tsx`) and so is visually hidden
     // — dispatched rather than clicked, because a pointer cannot reach a
     // clipped element and `force` would only paper over that.
+    await goToView(page, "Arrangement");
     await page.getByRole("button", { name: "Select Sampler" }).dispatchEvent("click");
     await expect(page.getByTestId("arrangement-selection-live")).toContainText(
       "Selected Sampler",
@@ -188,6 +208,7 @@ test.describe("mixer", () => {
 
     // That clip is real, not a projection artefact: deleting the track warns
     // that it would take one with it (PRD TRK-01).
+    await goToView(page, "Mixer");
     await page.getByRole("button", { name: "Delete Sampler" }).click();
     await expect(page.getByRole("alertdialog")).toContainText("This track has 1 clip");
     await page.getByRole("button", { name: "Cancel" }).click();
