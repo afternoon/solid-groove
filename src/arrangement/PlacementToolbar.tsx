@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import { describeDuplicate } from "./placementDuplication";
 
 /**
@@ -13,6 +14,16 @@ export interface PlacementToolbarProps {
   readonly selectionCount: number;
   readonly onDuplicateLinked: () => void;
   readonly onDuplicateIndependent: () => void;
+  /**
+   * Opens the selected placement's clip in the sequence editor (`UI-001`).
+   *
+   * The pointer gesture is a double-click on the canvas, which no keyboard can
+   * make; this is its reachable twin. A real button rather than an `Enter`
+   * chord in the registry, deliberately: a bare `Enter` valid whenever a
+   * placement is selected would also fire on whatever button happened to have
+   * focus, the dock's own links included.
+   */
+  readonly onOpen?: () => void;
 }
 
 export function PlacementToolbar(props: PlacementToolbarProps) {
@@ -24,6 +35,20 @@ export function PlacementToolbar(props: PlacementToolbarProps) {
           ? `${props.selectionCount} placement${props.selectionCount === 1 ? "" : "s"} selected`
           : "No placement selected"}
       </span>
+      <Show when={props.onOpen}>
+        {(open) => (
+          <button
+            type="button"
+            class="arrangement-action"
+            data-action="open-placement"
+            disabled={disabled()}
+            title="Open the selected clip in the sequence editor"
+            onClick={() => open()()}
+          >
+            Open clip
+          </button>
+        )}
+      </Show>
       <button
         type="button"
         class="arrangement-action"

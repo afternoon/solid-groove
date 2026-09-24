@@ -255,7 +255,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 
   const loopClips = createMemo(() => model.loopClips(project()));
   const instrument = createMemo(() => model.editedInstrument(track()));
-  const showPianoRoll = createMemo(() => model.showPianoRoll(project(), track()));
+  const showPianoRoll = createMemo(() => model.showPianoRoll(track(), clip()));
 
   // Plain function, not a memo: `hasSelection()` reads the controller's
   // internal (non-signal) state, so this must be re-evaluated live on every

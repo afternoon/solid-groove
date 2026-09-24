@@ -1,5 +1,5 @@
 import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities";
-import type { TrackId } from "../domain/ids";
+import type { PlacementId, TrackId } from "../domain/ids";
 import { formatBarsBeatsSixteenths } from "../domain/time";
 import type { SelectionState } from "../selection";
 
@@ -145,13 +145,51 @@ export function packDependencyLabel(project: Project | null): string | null {
 }
 
 /**
- * A synth track holding a note clip gets the CLP-03 piano roll instead of the
- * FND-009 step grid: pitched notes want two dimensions (pitch x time), which
- * the 16-step grid cannot show.
+ * A synth track's note clip gets the CLP-03 piano roll instead of the FND-009
+ * step grid: pitched notes want two dimensions (pitch x time), which the
+ * 16-step grid cannot show.
+ *
+ * Asked of a clip rather than of a track (`UI-001`): the sequence editor opens
+ * the clip you double-clicked, which need not be the only one on its track.
  */
-export function showPianoRoll(project: Project | null, track: Track | null): boolean {
-  const clip = editedClip(project, track);
+export function showPianoRoll(track: Track | null, clip: Clip | null): boolean {
   return editedInstrument(track)?.kind === "synth" && clip?.content.kind === "notes";
+}
+
+/** A clip opened in the sequence editor, with the track it belongs to. */
+export interface OpenedClip {
+  readonly clip: Clip;
+  readonly track: Track;
+}
+
+/**
+ * The clip a placement points at (`UI-001`), or null when the placement is
+ * gone — undone, deleted, or removed by a remote edit. Null is what closes the
+ * sequence editor in that case, so it can never outlive what it is editing.
+ */
+export function openedClip(
+  project: Project | null,
+  placementId: PlacementId | null,
+): OpenedClip | null {
+  if (!project || !placementId) return null;
+  const placement = project.song.placements.find(
+    (candidate) => candidate.id === placementId,
+  );
+  if (!placement) return null;
+  const clip = project.clips.find((candidate) => candidate.id === placement.clipId);
+  const track = project.song.tracks.find(
+    (candidate) => candidate.id === placement.trackId,
+  );
+  return clip && track ? { clip, track } : null;
+}
+
+/** The loop-info entry for a clip, when that clip is a tempo-labelled loop. */
+export function loopEntryFor(
+  project: Project | null,
+  clip: Clip | null,
+): LoopClipEntry | null {
+  if (!clip) return null;
+  return loopClips(project).find((entry) => entry.clip.id === clip.id) ?? null;
 }
 
 /**

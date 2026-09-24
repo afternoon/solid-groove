@@ -8,7 +8,7 @@ import {
   createLargeArrangementProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
-import type { TrackId } from "../domain/ids";
+import type { PlacementId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { EditorSession } from "../editor/EditorSession";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
@@ -72,13 +72,14 @@ async function setUpEditing() {
     deviceStorage: memoryStorage(),
   });
 
-  function renderView() {
+  function renderView(onOpenPlacement?: (placementId: PlacementId) => void) {
     return render(() => (
       <ArrangementView
         project={session.project}
         analytics={analytics}
         dispatch={session.dispatch.bind(session)}
         beginGesture={session.beginGesture.bind(session)}
+        onOpenPlacement={onOpenPlacement}
       />
     ));
   }
@@ -345,6 +346,72 @@ describe("placement editing wiring (ARR-002)", () => {
     clickAndFlush(screen.getByText(/Duplicate as an independent copy/));
     expect(session.project.clips.length).toBe(originalClipCount + 1);
     expect(session.project.song.placements.length).toBe(3);
+  });
+});
+
+/**
+ * `UI-001` moves sequencing into an editor opened *from a clip*, so the
+ * arrangement has to report that gesture. It reports it and nothing more — what
+ * opening a clip means belongs to the editor, which is why these tests assert a
+ * callback rather than a surface.
+ */
+describe("opening a placement (UI-001)", () => {
+  it("reports a double-click on a placement", async () => {
+    const { renderView, placementId } = await setUpEditing();
+    const opened: string[] = [];
+    const { container } = renderView((id) => opened.push(id));
+
+    fireEvent.dblClick(interactionCanvasOf(container), {
+      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    });
+    flush();
+
+    expect(opened).toEqual([placementId]);
+  });
+
+  it("reports nothing for a double-click on empty timeline or on the ruler", async () => {
+    const { renderView } = await setUpEditing();
+    const opened: string[] = [];
+    const { container } = renderView((id) => opened.push(id));
+    const canvas = interactionCanvasOf(container);
+
+    // Well past the fixture's single one-bar placement...
+    fireEvent.dblClick(canvas, {
+      clientX: TICKS_PER_BAR * 8 * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    });
+    // ...and on the ruler strip, which hosts no rows.
+    fireEvent.dblClick(canvas, { clientX: 10, clientY: 2 });
+    flush();
+
+    expect(opened).toEqual([]);
+  });
+
+  it("offers a keyboard-reachable Open for the selected placement", async () => {
+    const { renderView, placementId } = await setUpEditing();
+    const opened: string[] = [];
+    const { container } = renderView((id) => opened.push(id));
+    const canvas = interactionCanvasOf(container);
+
+    // Disabled until something is selected — there is nothing to open.
+    const open = screen.getByRole("button", { name: "Open clip" });
+    expect(open).toBeDisabled();
+
+    firePointer(canvas, "pointerdown", {
+      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    });
+    firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
+
+    clickAndFlush(screen.getByRole("button", { name: "Open clip" }));
+    expect(opened).toEqual([placementId]);
+  });
+
+  it("offers no Open at all where nothing handles opening", async () => {
+    const { renderView } = await setUpEditing();
+    renderView();
+    expect(screen.queryByRole("button", { name: "Open clip" })).not.toBeInTheDocument();
   });
 });
 

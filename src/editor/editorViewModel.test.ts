@@ -16,6 +16,8 @@ import {
   focusedTrackId,
   instrumentPanelTrackId,
   loopClips,
+  loopEntryFor,
+  openedClip,
   packDependencyLabel,
   playheadLabel,
   sampleAssets,
@@ -262,8 +264,10 @@ describe("packDependencyLabel", () => {
 });
 
 describe("showPianoRoll", () => {
-  const forProject = (project: Project) =>
-    showPianoRoll(project, editedTrack(project, null));
+  const forProject = (project: Project) => {
+    const track = editedTrack(project, null);
+    return showPianoRoll(track, editedClip(project, track));
+  };
 
   it("is true for a synth track holding a note clip", () => {
     expect(forProject(createPianoRollFixtureProject())).toBe(true);
@@ -281,6 +285,37 @@ describe("showPianoRoll", () => {
 
   it("is false with no project open", () => {
     expect(showPianoRoll(null, null)).toBe(false);
+  });
+});
+
+describe("openedClip", () => {
+  it("resolves the clip and track a placement points at", () => {
+    const project = createSliceFixtureProject();
+    const [placement] = project.song.placements;
+    const opened = openedClip(project, placement.id);
+    expect(opened?.clip.id).toBe(placement.clipId);
+    expect(opened?.track.id).toBe(placement.trackId);
+  });
+
+  it("is null for a placement the project no longer has, which closes the editor", () => {
+    const project = createSliceFixtureProject();
+    const [placement] = project.song.placements;
+    const without = { ...project, song: { ...project.song, placements: [] } };
+    expect(openedClip(without, placement.id)).toBeNull();
+    expect(openedClip(project, null)).toBeNull();
+    expect(openedClip(null, placement.id)).toBeNull();
+  });
+});
+
+describe("loopEntryFor", () => {
+  it("pairs an audio-loop clip with its asset, and ignores a note clip", () => {
+    const project = createDrumMachineFixtureProject();
+    const loop = project.clips.find((clip) => clip.content.kind === "audioLoop");
+    const notes = project.clips.find((clip) => clip.content.kind === "notes");
+    expect(loop).toBeDefined();
+    expect(loopEntryFor(project, loop ?? null)?.clip.id).toBe(loop?.id);
+    expect(loopEntryFor(project, notes ?? null)).toBeNull();
+    expect(loopEntryFor(project, null)).toBeNull();
   });
 });
 
