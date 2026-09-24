@@ -403,6 +403,10 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       "props.saveStatus()?.revision",
       // The deployed revision, which is our code's identity, not the user's.
       "RELEASE_SHA",
+      // The arrangement's horizontal scale in pixels per tick: a rendering
+      // number of our own, published so a browser test can aim a gesture at a
+      // clip drawn on a canvas.
+      "pixelsPerTick()",
       // Shortcut registry facts: a static action ID and a boolean.
       "row.shortcut.id",
       "String(row.available)",
