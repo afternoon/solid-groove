@@ -1,0 +1,22 @@
+{
+  "id": "LOOP-017",
+  "title": "The loop toggle is saved with the project",
+  "steps": [
+    {
+      "file": "01-open-the-project-dashboard.png",
+      "caption": "Open the project dashboard"
+    },
+    {
+      "file": "02-create-a-new-project-looping-is-on-by-default.png",
+      "caption": "Create a new project. Looping is on by default"
+    },
+    {
+      "file": "03-switch-looping-off-in-the-header.png",
+      "caption": "Switch looping off in the header"
+    },
+    {
+      "file": "04-reload-the-page-looping-is-still-off-because-it-is-saved-in-.png",
+      "caption": "Reload the page. Looping is still off, because it is saved in the project"
+    }
+  ]
+}
