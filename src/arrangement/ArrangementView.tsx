@@ -45,8 +45,12 @@ import "./ArrangementView.css";
 import { ariaBool } from "../shared/aria";
 
 /** The placement-editing operations `EditorView` wires into the KEY-01
- * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`. */
-export type PlacementEditingActions = PlacementEditing;
+ * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`, plus
+ * zoom to selection for the `Z` mapping (`view.zoom_to_selection`). */
+export type PlacementEditingActions = PlacementEditing & {
+  zoomToSelection(): void;
+  canZoomToSelection(): boolean;
+};
 
 /**
  * The production arrangement editor shell (`ARR-001`; PRD ARR-01, section 9.3).
@@ -341,7 +345,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
           bumpState();
         },
       });
-      props.onEditingActionsReady?.(editing);
+      props.onEditingActionsReady?.({
+        ...editing,
+        zoomToSelection,
+        canZoomToSelection: () => canZoomToSelection(),
+      });
     }
 
     if (props.beginGesture) {
@@ -720,6 +728,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return { trackName: track?.name ?? "track", startBar, endBar };
   });
 
+  /** Whether zoom to selection has anything to frame. */
+  const canZoomToSelection = createMemo(() => selectionSummary() !== null);
+
   /** The placement-editing selection (CLP-01), for the duplicate-mode toolbar
    * and the accessible mirror below — canvas pixels are never the sole
    * representation of which placements are selected. */
@@ -740,7 +751,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
         onZoomOut={zoomOut}
         onZoomToSelection={zoomToSelection}
         onScrollToPlayhead={scrollToPlayhead}
-        hasSelection={selectionSummary() !== null}
+        hasSelection={canZoomToSelection()}
       >
         <Show when={props.onSetLoopRange}>
           {(onSetLoopRange) => (
