@@ -19,10 +19,11 @@ import {
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
-import { fixtureFetcher } from "../library/__fixtures__/fixtures";
+import { fixtureFetcher, fixturePackManifest } from "../library/__fixtures__/fixtures";
 import { LIBRARY_SAMPLE_MIME } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import { LibraryClient } from "../library/libraryClient";
+import { packAssets, parsePackManifest } from "../library/manifest";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
@@ -205,6 +206,20 @@ function transferCarrying(sample: unknown) {
     getData: (format: string) => (format === LIBRARY_SAMPLE_MIME ? payload : ""),
     setData: () => {},
   };
+}
+
+/**
+ * The name of the first loop in a committed fixture pack.
+ *
+ * Read from the manifest rather than written down, so a test that needs "a
+ * loop" keeps pointing at one when the delivered library changes underneath
+ * it — the same reason CF-005 finds its loop by reading the rows.
+ */
+function loopAssetName(slug: string): string {
+  const manifest = parsePackManifest(fixturePackManifest(slug));
+  const loop = packAssets(manifest).find((asset) => asset.type === "loop");
+  if (!loop) throw new Error(`fixture pack "${slug}" ships no loop`);
+  return loop.name;
 }
 
 function recordingAnalytics(
@@ -799,7 +814,7 @@ describe("EditorView new-track unit", () => {
 
   it("opens the library on loops from the Loop button beside them", async () => {
     // An audio track needs content to exist, so the way to start one is to
-    // pick the loop (UI-001). Creating the track from it is #281's.
+    // pick the loop (UI-001).
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();
     const created = await repository.createProject(project);
@@ -816,6 +831,66 @@ describe("EditorView new-track unit", () => {
     // It says what it is showing, without renaming the region underneath it.
     expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
     expect(within(library).getByRole("region", { name: "Library" })).toBeVisible();
+  });
+
+  it("inserting a loop adds a track carrying it, and closes the library", async () => {
+    // The regression this exists for: the Loop button opened the library, and
+    // "Insert" reached a sampler-only path that returned silently because no
+    // sampler was selected. The window closed, the project was untouched, and
+    // nothing was logged or thrown — a dead end that looked like success.
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      analytics: recordingAnalytics(transport),
+    });
+    await screen.findByTestId("arrangement-view-ready");
+    const before = trackRows().length;
+
+    clickAndFlush(screen.getByRole("button", { name: "Add loop track" }));
+    const library = await screen.findByRole("dialog", { name: "Library" });
+
+    // The fixture project's own pack has no delivered manifest, so a real loop
+    // is reached the way a user does with an empty shelf: through the pack
+    // browser. Filtered to loops, so whatever it offers is one.
+    expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
+    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
+    const packs = await screen.findByRole("dialog");
+    fireEvent.click(
+      await within(packs).findByRole("button", { name: /Core Electronic Drums/ }),
+    );
+
+    // The loop specifically, not whatever the pack lists first — the pack
+    // browser offers that pack's one-shots too, and a one-shot takes the
+    // sampler path instead. Its name comes from the committed manifest, so
+    // this keeps pointing at a loop as the fixture library changes.
+    const loopName = loopAssetName("core-electronic-drums");
+    const insert = await within(packs).findByRole("button", {
+      name: `Insert ${loopName}`,
+    });
+    fireEvent.click(insert);
+
+    // A track appears, named for the loop, and the window closes behind it.
+    await vi.waitFor(() => expect(trackRows()).toHaveLength(before + 1));
+    expect(trackRows().at(-1)).toHaveTextContent(loopName);
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).toBeNull(),
+    );
+
+    // One track_added, reporting an audio track and no instrument — the case
+    // the catalog leaves `instrument_type` optional for.
+    const added = transport.events.filter((event) => event.name === "track_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toEqual(expect.objectContaining({ track_type: "audio" }));
+    expect(added[0].params).not.toHaveProperty("instrument_type");
+
+    // One undo takes the whole insertion back, track and all.
+    clickAndFlush(screen.getByRole("button", { name: /^Undo / }));
+    await vi.waitFor(() => expect(trackRows()).toHaveLength(before));
   });
 
   it("reaches the same outcome from the mixer, through the same route", async () => {
