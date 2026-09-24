@@ -189,7 +189,8 @@ export function buildArrangementProjection(
     // A dangling reference cannot survive `parseProject`; this guard only
     // protects the projection builder against being handed a `Project`
     // some other, buggier path constructed by hand (e.g. in a test).
-    if (rowIndex === undefined || !clip) continue;
+    const track = tracksById.get(placement.trackId);
+    if (rowIndex === undefined || !clip || !track) continue;
 
     const durationTicks = placement.durationTicks;
     const geometry: PlacementGeometry = {
@@ -199,10 +200,19 @@ export function buildArrangementProjection(
       rowIndex,
       startTicks: placement.startTicks,
       endTicks: placement.startTicks + durationTicks,
-      color: clip.color,
+      // A placement is always drawn in its track's colour (#365), so a
+      // recolour reaches every clip on the track. The clip's own stored
+      // `color` is not what the arrangement shows.
+      color: track.color,
       label: clip.name,
-      preview: buildPreview(clip, assetsById, tracksById.get(placement.trackId)),
-      revision: combineRevisions(revisionOf(placement), revisionOf(clip)),
+      preview: buildPreview(clip, assetsById, track),
+      // The track is folded in because colour and the drum-pad preview rows
+      // both read it: a track edit must invalidate its placements' geometry.
+      revision: combineRevisions(
+        revisionOf(placement),
+        revisionOf(clip),
+        revisionOf(track),
+      ),
     };
     placementsById.set(placement.id, geometry);
 
