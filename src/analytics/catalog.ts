@@ -270,6 +270,7 @@ export const SHORTCUT_ACTION_IDS = [
   "transport.play_stop",
   "transport.continue",
   "transport.metronome",
+  "transport.toggle_loop",
   "edit.undo",
   "edit.redo",
   "edit.cut",
@@ -601,7 +602,7 @@ export const ANALYTICS_EVENTS = {
 
   loop_toggled: {
     phase: 1,
-    owners: ["LOOP-017"],
+    owners: ["LOOP-017", "LOOP-018"],
     // Whether the transport now obeys the song's loop range: the state the
     // toggle left it in, so on/off rates read straight off the event.
     params: { enabled: boolParam() },
