@@ -275,3 +275,14 @@
   flex-direction: column;
   gap: var(--size-divider);
 }
+
+/* The arrangement's new-track unit (UI-001): a thin strip above the timeline,
+   so adding a track is reachable without leaving the view you are arranging
+   in. The mixer offers the same buttons in its own header. */
+.arrangement-new-track {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px var(--size-divider);
+  background-color: var(--color-background-secondary);
+}
