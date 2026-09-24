@@ -15,7 +15,6 @@ import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import { loadSampleCommands, toLibrarySample } from "../library/insertion";
-import LibraryBrowser from "../library/LibraryBrowser";
 import type { LibraryClient } from "../library/libraryClient";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -35,6 +34,7 @@ import {
   editorViewSpec,
   type ViewChangeSource,
 } from "./editorViews";
+import LibraryModal from "./LibraryModal";
 import Mixer from "./Mixer";
 import type { PianoRollActions } from "./PianoRoll";
 import ProjectLoadStates from "./ProjectLoadStates";
@@ -157,11 +157,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // The step editor's note selection, lifted here so the `edit.delete` shortcut
   // can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
   const [selectedNoteIds, setSelectedNoteIds] = createSignal<readonly EventId[]>([]);
-  // The library is a browser you keep open while you work, so it starts open
-  // (#221) — a new project's first move is picking a sound, and having to find
-  // the header toggle first hid the library from anyone who had not met it.
-  // The header toggle still closes it for the session.
-  const [libraryOpen, setLibraryOpen] = createSignal(true);
+  // The library is a window you open from the slot it is going to fill
+  // (`UI-001`), not a column pinned open beside the arrangement. It starts
+  // closed for the same reason the sequence editor does: the surface you came
+  // for is the one that should be on screen.
+  const [libraryOpen, setLibraryOpen] = createSignal(false);
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
 
   // The packs this editing session has added on top of the project's own
@@ -287,6 +287,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     guideOpen,
     setGuideOpen,
     packBrowserOpen,
+    // A true modal takes the keyboard, unlike the sequence editor: there is
+    // nothing to do underneath the library while you pick a sound.
+    libraryOpen,
+    closeLibrary: () => setLibraryOpen(false),
     arrangementEditingActions,
     hasArrangementSelection,
     // `1`/`2`/`3` reach the same `selectView` the dock does, so the two
@@ -374,8 +378,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onTempoChange={applyTempo}
                 timeSignature={timeSignature}
                 playheadLabel={playheadLabel}
-                libraryOpen={libraryOpen}
-                onToggleLibrary={() => setLibraryOpen((open) => !open)}
                 onOpenGuide={() => setGuideOpen(true)}
                 keyHint={keyHint}
                 saveStatus={saveStatus}
@@ -389,32 +391,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                  */}
                 <Switch>
                   <Match when={props.view === "arrangement"}>
-                    <Show when={libraryOpen()}>
-                      {/* One engine per mount: closing the panel — or leaving
-                       * the view — disposes `LibraryBrowser`'s engine, so each
-                       * reopen must get a fresh one, never a cached dead one. */}
-                      <aside class="library-panel" aria-label="Library">
-                        <LibraryBrowser
-                          client={props.libraryClient}
-                          previewEngine={createAuditionEngine()}
-                          analytics={props.analytics}
-                          /* The keyboard-reachable half of the drag (PRD 9.3). */
-                          onInsert={(asset) => {
-                            const sample = toLibrarySample(asset);
-                            if (sample) loadLibrarySample(sample);
-                          }}
-                          addedPackIds={addedPackIds()}
-                          onAddPack={(pack) =>
-                            setSessionPackIds((previous) =>
-                              previous.includes(pack.id)
-                                ? previous
-                                : [...previous, pack.id],
-                            )
-                          }
-                          onPackBrowserOpenChange={setPackBrowserOpen}
-                        />
-                      </aside>
-                    </Show>
                     <div class="editor-main">
                       <div class="arrangement-panel">
                         <ArrangementView
@@ -466,6 +442,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               sampleName={sampleName()}
                               loadSample={loadLibrarySample}
                               audition={auditionInstrument}
+                              onBrowse={() => setLibraryOpen(true)}
                               dispatch={session.dispatch}
                               beginGesture={session.beginGesture}
                             />
@@ -489,6 +466,33 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   </Match>
                 </Switch>
               </div>
+              {/*
+               * The library, opened from the slot it will fill (`UI-001`). A
+               * fresh audition engine per open: `Show` disposes this branch on
+               * close and `useLibraryBrowser` disposes the engine with it, so
+               * a cached one would be dead on the second open (LOOP-013).
+               */}
+              <Show when={libraryOpen()}>
+                <LibraryModal
+                  client={props.libraryClient}
+                  previewEngine={createAuditionEngine()}
+                  analytics={props.analytics}
+                  onInsert={(asset) => {
+                    const sample = toLibrarySample(asset);
+                    if (sample) loadLibrarySample(sample);
+                    // Inserting is what you opened it for, so it closes.
+                    setLibraryOpen(false);
+                  }}
+                  addedPackIds={addedPackIds()}
+                  onAddPack={(pack) =>
+                    setSessionPackIds((previous) =>
+                      previous.includes(pack.id) ? previous : [...previous, pack.id],
+                    )
+                  }
+                  onPackBrowserOpenChange={setPackBrowserOpen}
+                  onClose={() => setLibraryOpen(false)}
+                />
+              </Show>
               {/* The sequence editor, over whichever view opened it
                   (`UI-001`). Keyed on the placement, so deleting or undoing
                   one closes the editor rather than leaving it on a clip the
