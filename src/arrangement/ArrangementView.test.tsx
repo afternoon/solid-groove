@@ -516,3 +516,54 @@ describe("arrangement track selection (#228)", () => {
     expect(transport.events).toHaveLength(1);
   });
 });
+
+describe("ArrangementView loop brace (LOOP-018)", () => {
+  const rulerY = RULER_HEIGHT_PX / 2;
+  const barLine = (bar: number) => (bar - 1) * TICKS_PER_BAR * PIXELS_PER_TICK;
+
+  it("drags the brace's right edge out a bar, as one entry and one revision", async () => {
+    const { session, transport, renderView } = await setUpEditing();
+    const { container } = renderView();
+    const canvas = interactionCanvasOf(container);
+    const revision = session.project.metadata.revision;
+
+    firePointer(canvas, "pointerdown", { clientX: barLine(2), clientY: rulerY });
+    firePointer(canvas, "pointermove", { clientX: barLine(2.6), clientY: rulerY });
+    firePointer(canvas, "pointermove", { clientX: barLine(3), clientY: rulerY });
+    // Every step lands live, so the transport can follow mid-drag.
+    expect(session.project.song.loop.endTicks).toBe(2 * TICKS_PER_BAR);
+    firePointer(canvas, "pointerup", { clientX: barLine(3), clientY: rulerY });
+
+    expect(session.project.song.loop).toMatchObject({
+      startTicks: 0,
+      endTicks: 2 * TICKS_PER_BAR,
+      enabled: true,
+    });
+    expect(session.history.entries.length).toBe(1);
+    expect(session.project.metadata.revision).toBe(revision + 1);
+    expect(transport.named("loop_range_set")).toHaveLength(1);
+  });
+
+  it("moves nothing for a press on the ruler away from the brace", async () => {
+    const { session, transport, renderView } = await setUpEditing();
+    const { container } = renderView();
+    const canvas = interactionCanvasOf(container);
+
+    firePointer(canvas, "pointerdown", { clientX: barLine(6.5), clientY: rulerY });
+    firePointer(canvas, "pointermove", { clientX: barLine(8), clientY: rulerY });
+    firePointer(canvas, "pointerup", { clientX: barLine(8), clientY: rulerY });
+
+    expect(session.project.song.loop).toMatchObject({
+      startTicks: 0,
+      endTicks: TICKS_PER_BAR,
+    });
+    expect(session.history.entries.length).toBe(0);
+    expect(transport.named("loop_range_set")).toHaveLength(0);
+  });
+
+  it("offers no keyboard controls where nothing commits a range", async () => {
+    const { renderView } = await setUpEditing();
+    renderView();
+    expect(screen.queryByRole("group", { name: "Loop brace" })).not.toBeInTheDocument();
+  });
+});

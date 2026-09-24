@@ -25,6 +25,8 @@ import {
   RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import type { RowMetrics, Viewport } from "./geometry";
+import { LoopBraceControls } from "./LoopBraceControls";
+import { createLoopBraceDrag, hitTestLoopBrace, type LoopBraceDrag } from "./loopBrace";
 import { PlacementToolbar } from "./PlacementToolbar";
 import {
   createPlacementEditing,
@@ -170,6 +172,13 @@ export interface ArrangementViewProps {
    * knows nothing else about it; what adding a track means stays the editor's.
    */
   readonly belowTracks?: JSX.Element;
+  /**
+   * Commits a loop range the keyboard controls asked for (`LOOP-018`). The
+   * editor owns what committing means (`loopActions.setLoopRangeFromDrag`);
+   * without it the brace is still drawn and still dragged, and the keyboard
+   * controls are left out.
+   */
+  readonly onSetLoopRange?: (startTicks: number, endTicks: number) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -200,6 +209,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // The placement drag in flight, if any: which pointer owns it, so a stray
   // move/up from another pointer is ignored.
   let activePointerId: number | null = null;
+  // The loop brace on the ruler (LOOP-018): one drag at a time, one gesture
+  // each. It only exists when the host supplies gestures.
+  let loopDrag: LoopBraceDrag | null = null;
 
   function initialViewport(): Viewport {
     return {
@@ -256,6 +268,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     }),
     interactionState,
     waveformCache,
+    loop: () => props.project.song.loop,
   });
 
   /** One arrangement interaction the user initiated: the once-per-account
@@ -318,6 +331,28 @@ export default function ArrangementView(props: ArrangementViewProps) {
         },
       });
       props.onEditingActionsReady?.(editing);
+    }
+
+    if (props.beginGesture) {
+      const beginGesture = props.beginGesture;
+      loopDrag = createLoopBraceDrag({
+        getLoop: () => props.project.song.loop,
+        beginGesture: (summary) => {
+          const gesture = beginGesture({ summary });
+          return (
+            gesture && {
+              apply: (commands) => {
+                gesture.apply(commands);
+              },
+              commit: (commitSummary) => {
+                gesture.commit(commitSummary);
+              },
+              cancel: () => gesture.cancel(),
+            }
+          );
+        },
+        analytics: analytics(),
+      });
     }
 
     // Installed before the measurement below on purpose: a `ResizeObserver`
@@ -473,6 +508,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   function handlePointerMove(event: PointerEvent): void {
     if (!shell) return;
+    if (loopDrag?.isDragging() && event.pointerId === activePointerId) {
+      loopDrag.update(shell.pointToArrangement(localPoint(event).x, 0).tick);
+      return;
+    }
     if (editing?.isDragging() && event.pointerId === activePointerId) {
       const { x, y } = localPoint(event);
       const { tick } = shell.pointToArrangement(x, y);
@@ -482,8 +521,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
     const { x, y } = localPoint(event);
     if (y < 0) {
       shell.clearHover();
+      interactionCanvas.style.cursor = loopCursor(loopHandleAt(x));
       return;
     }
+    interactionCanvas.style.cursor = "";
     shell.handlePointerMove(x, y);
   }
 
@@ -502,10 +543,35 @@ export default function ArrangementView(props: ArrangementViewProps) {
     noteFirstUse();
   }
 
+  /** The part of the loop brace under a ruler x, if any. */
+  function loopHandleAt(x: number) {
+    if (!shell) return null;
+    return hitTestLoopBrace(props.project.song.loop, x, shell.getViewport());
+  }
+
+  function loopCursor(handle: ReturnType<typeof loopHandleAt>): string {
+    if (handle === "start" || handle === "end") return "ew-resize";
+    return handle === "body" ? "grab" : "";
+  }
+
+  /** A press on the ruler grabs the loop brace, or does nothing at all. */
+  function handleRulerPointerDown(event: PointerEvent, x: number): void {
+    if (!shell || !loopDrag || (event.button ?? 0) !== 0) return;
+    const handle = loopHandleAt(x);
+    if (!handle) return;
+    if (!loopDrag.begin(handle, shell.pointToArrangement(x, 0).tick)) return;
+    activePointerId = event.pointerId;
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    noteFirstUse();
+  }
+
   function handlePointerDown(event: PointerEvent): void {
     if (!shell) return;
     const { x, y } = localPoint(event);
-    if (y < 0) return;
+    if (y < 0) {
+      handleRulerPointerDown(event, x);
+      return;
+    }
 
     // Whatever the click turns out to do — start a placement drag, select a
     // bar range — it happened on a row, and that row's track is now the one
@@ -541,6 +607,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
   }
 
   function endActiveDrag(event: PointerEvent): void {
+    if (loopDrag?.isDragging() && event.pointerId === activePointerId) {
+      loopDrag.end();
+      activePointerId = null;
+      (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+      return;
+    }
     if (!editing?.isDragging() || event.pointerId !== activePointerId) return;
     editing.endDrag();
     activePointerId = null;
@@ -658,7 +730,16 @@ export default function ArrangementView(props: ArrangementViewProps) {
         onZoomToSelection={zoomToSelection}
         onScrollToPlayhead={scrollToPlayhead}
         hasSelection={selectionSummary() !== null}
-      />
+      >
+        <Show when={props.onSetLoopRange}>
+          {(onSetLoopRange) => (
+            <LoopBraceControls
+              loop={props.project.song.loop}
+              onSetRange={onSetLoopRange()}
+            />
+          )}
+        </Show>
+      </ArrangementToolbar>
       <Show when={props.dispatch}>
         <PlacementToolbar
           selectionCount={placementSelection().length}
@@ -751,9 +832,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
               onPointerCancel={endActiveDrag}
               onDblClick={handleDoubleClick}
               onPointerLeave={(event) => {
-                if (editing?.isDragging() && event.pointerId === activePointerId) {
-                  return;
-                }
+                if (event.pointerId === activePointerId) return;
                 shell?.clearHover();
               }}
             />
