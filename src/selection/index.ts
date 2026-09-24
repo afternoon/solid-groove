@@ -5,5 +5,6 @@
  * `Song` or `Project`, and building or reconciling it never mutates them.
  */
 
+export * from "./arrangement";
 export * from "./selection";
 export * from "./types";
