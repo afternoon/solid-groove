@@ -493,6 +493,38 @@ change was still there after a reload.
 tested at the component layer against the same selection. Undo. What the
 outlines look like, as in CF-009.
 
+### CF-011 — A producer zooms in on what they selected
+
+**Issue:** #292 · **Suite:** `tests/e2e/emulator/flows/CF-011.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a sampler track, and duplicate the sampler's clip
+   twice, so "Sampler" has clips in bars 1, 2 and 3 and "BD" has its one clip in
+   bar 1.
+2. Press halfway through the empty bar 2 on "BD" and drag down and along to
+   halfway through bar 4 on "Sampler". The sampler's clips in bars 2 and 3,
+   which the stretch partly and wholly covers, are selected, and the arrangement
+   announces "2 clips selected".
+3. Zoom to selection from the toolbar. The timeline now shows exactly the
+   stretch you dragged over and nothing else: from halfway through bar 2 at its
+   left edge to halfway through bar 4, which is empty, at its right edge.
+4. Click the sampler's clip in bar 3 and press Z. Bar 3 alone now fills the
+   timeline, edge to edge.
+5. Reload the page.
+6. The project reopens with nothing selected, so zoom to selection has nothing
+   to act on until you select something again.
+
+**Outcome:** zoom to selection frames exactly what was selected: the whole
+range across every track it covers, even where the range runs past its last
+clip, and a single clicked clip, where it used to do nothing. It works from the
+toolbar and from the keyboard.
+
+**Out of scope:** "zoom back" to the previous zoom, which is its own shortcut. A
+selection wider than the timeline can show at its closest zoom. What the
+outlines look like, as in CF-009.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
