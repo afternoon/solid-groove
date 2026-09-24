@@ -252,6 +252,8 @@ export const COMMAND_IDS = [
   "device.setBypass",
   "device.reset",
   "device.restoreParameters",
+  "loop.setRange",
+  "loop.setEnabled",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 
