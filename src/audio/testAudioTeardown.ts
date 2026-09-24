@@ -21,8 +21,12 @@ import * as nwaa from "node-web-audio-api";
  * listener can't prevent Vitest's from also recording it, so the fix has to stop
  * the throw at its source.
  *
- * We do that by giving `node-web-audio-api`'s own `AudioNode.prototype` a
- * `dispatchEvent` that swallows *only* this exact failure and otherwise defers
+ * A context's `statechange`/`sinkchange` callback (its `AudioContext.js`) has
+ * the identical shape, and a context closing at the end of a run is exactly
+ * when `statechange` fires.
+ *
+ * We do that by giving `node-web-audio-api`'s own `AudioNode.prototype` and
+ * `BaseAudioContext.prototype` a `dispatchEvent` that swallows *only* this exact failure and otherwise defers
  * to the inherited (jsdom) implementation. It is an environment artifact, not a
  * test failure: it can only happen *after* teardown (a live dispatch during a
  * test uses the matching jsdom `Event` and succeeds), so ignoring it cannot mask
@@ -53,17 +57,25 @@ let installed = false;
  */
 export function installWebAudioTeardownGuard(): void {
   if (installed) return;
-  const audioNode = (nwaa as unknown as { AudioNode?: { prototype: object } }).AudioNode;
-  if (!audioNode?.prototype) return;
-  const proto = audioNode.prototype as {
-    dispatchEvent?: (event: Event) => boolean;
-  };
+  installed = true;
+  // Nodes fire `ended`; contexts fire `statechange`/`sinkchange` from the same
+  // kind of native callback. A context is not an `AudioNode`: `AudioContext`
+  // and `OfflineAudioContext` both inherit from `BaseAudioContext`, so it needs
+  // its own wrapper (#289).
+  const exports = nwaa as unknown as Record<string, { prototype?: object } | undefined>;
+  for (const name of ["AudioNode", "BaseAudioContext"]) {
+    const proto = exports[name]?.prototype;
+    if (proto) guardDispatchEvent(proto);
+  }
+}
+
+function guardDispatchEvent(target: object): void {
+  const proto = target as { dispatchEvent?: (event: Event) => boolean };
   // The inherited (jsdom / native EventTarget) implementation.
   const inherited = proto.dispatchEvent;
   if (typeof inherited !== "function") return;
-  installed = true;
-  // An OWN property on node-web-audio-api's AudioNode.prototype, so the wrap is
-  // scoped to its nodes and never touches the global EventTarget itself.
+  // An OWN property on node-web-audio-api's own prototype, so the wrap is
+  // scoped to its nodes and contexts and never touches the global EventTarget.
   proto.dispatchEvent = function guardedDispatchEvent(
     this: object,
     event: Event,

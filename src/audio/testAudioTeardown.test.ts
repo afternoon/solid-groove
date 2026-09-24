@@ -47,4 +47,30 @@ describe("web audio teardown guard", () => {
     node.dispatchEvent(new Event("custom"));
     expect(heard).toBe(true);
   });
+
+  // #289: a context is not an AudioNode. `AudioContext` and
+  // `OfflineAudioContext` inherit from `BaseAudioContext.prototype`, so a guard
+  // on `AudioNode.prototype` alone never sees a context's native
+  // `statechange`/`sinkchange` dispatch after teardown. The offline context
+  // walks the same `BaseAudioContext` chain as a real one without opening an
+  // output device.
+  it("swallows the stale-Event dispatch TypeError from a node-web-audio-api context", async () => {
+    installWebAudioTeardownGuard();
+    const nwaa = await import("node-web-audio-api");
+    const ctx = new nwaa.OfflineAudioContext(1, 128, 44100);
+    const dispatch = ctx.dispatchEvent as (e: unknown) => boolean;
+    expect(dispatch.call(ctx, { type: "statechange" })).toBe(false);
+  });
+
+  it("is transparent for a well-formed event on a context", async () => {
+    installWebAudioTeardownGuard();
+    const nwaa = await import("node-web-audio-api");
+    const ctx = new nwaa.OfflineAudioContext(1, 128, 44100);
+    let heard = false;
+    ctx.addEventListener("statechange", () => {
+      heard = true;
+    });
+    ctx.dispatchEvent(new Event("statechange"));
+    expect(heard).toBe(true);
+  });
 });
