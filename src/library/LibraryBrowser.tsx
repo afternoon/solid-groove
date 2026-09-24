@@ -13,7 +13,7 @@ import AssetRow from "./AssetRow";
 import type { PreviewEngine } from "./audition";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
-import type { LibraryAsset, LibraryPackSummary } from "./manifest";
+import type { LibraryAsset, LibraryAssetType, LibraryPackSummary } from "./manifest";
 import PackBrowser from "./PackBrowser";
 import type { LibraryTreeGroup, LibraryTreePack } from "./tree";
 import { useLibraryBrowser } from "./useLibraryBrowser";
@@ -41,6 +41,14 @@ export interface LibraryBrowserProps {
    * is (PRD KEY-02: a modal suppresses every other context).
    */
   readonly onPackBrowserOpenChange?: (open: boolean) => void;
+  /**
+   * Show only these asset types, and say so in the heading (`UI-001`). The
+   * accessible name of the region stays "Library" either way: it is the same
+   * browser, looking at a slice of the same library.
+   */
+  readonly assetTypes?: readonly LibraryAssetType[];
+  /** The visible heading. Defaults to "Library". */
+  readonly heading?: string;
 }
 
 /**
@@ -70,6 +78,7 @@ export default function LibraryBrowser(props: LibraryBrowserProps): JSX.Element 
     analytics: props.analytics,
     addedPackIds: () => props.addedPackIds ?? [],
     onAddPack: (pack) => props.onAddPack?.(pack),
+    assetTypes: () => props.assetTypes,
   });
 
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
@@ -115,7 +124,7 @@ export default function LibraryBrowser(props: LibraryBrowserProps): JSX.Element 
   return (
     <section class="library-browser" aria-label="Library">
       <header class="library-browser-header">
-        <h2 class="library-browser-title">Library</h2>
+        <h2 class="library-browser-title">{props.heading ?? "Library"}</h2>
         {/* What the user typed (ADR 0002 decision 2; PRD OPS-03 forbids a
 				    user-entered string in a payload). */}
         <input

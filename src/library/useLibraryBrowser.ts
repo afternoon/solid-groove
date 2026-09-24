@@ -9,7 +9,7 @@ import {
   type LibraryLoadReason,
   type PackLoadError,
 } from "./libraryClient";
-import type { LibraryAsset, LibraryPackSummary } from "./manifest";
+import type { LibraryAsset, LibraryAssetType, LibraryPackSummary } from "./manifest";
 import {
   EMPTY_FILTER,
   type FacetValues,
@@ -112,6 +112,12 @@ export interface UseLibraryBrowserOptions {
    * browser only reports the choice, exactly as `onInsert` does for an asset.
    */
   readonly onAddPack?: (pack: LibraryPackSummary) => void;
+  /**
+   * Restrict the panel tree to these asset types (`UI-001`). Unset shows every
+   * type, which is what the library opened from a sampler slot wants; the
+   * arrangement's Loop button opens it restricted to loops.
+   */
+  readonly assetTypes?: Accessor<readonly LibraryAssetType[] | undefined>;
 }
 
 export function useLibraryBrowser(
@@ -194,6 +200,7 @@ export function useLibraryBrowser(
       assetsByPack: loadedByPack(),
       failedSlugs: packErrors().map((error) => error.packSlug),
       query: treeQuery(),
+      types: options.assetTypes?.(),
     }),
   );
 
