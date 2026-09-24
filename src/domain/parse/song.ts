@@ -1,5 +1,5 @@
 import { deviceParameters } from "../devices";
-import type { Device, Song, Track } from "../entities";
+import type { Device, Song, SongLoop, Track } from "../entities";
 import {
   bareParameterId,
   getParameterDefinition,
@@ -7,6 +7,7 @@ import {
   SAMPLER_SAMPLE_END,
   SAMPLER_SAMPLE_START,
 } from "../parameters";
+import { TICKS_PER_BAR } from "../time";
 import { checkAutomationLane } from "./automation";
 import { checkOrdering, claimId, type DomainIssue, issue } from "./primitives";
 
@@ -26,6 +27,36 @@ import { checkOrdering, claimId, type DomainIssue, issue } from "./primitives";
  */
 export const MAX_TRACK_INSERTS = 16;
 export const MAX_RETURN_BUSES = 8;
+
+/**
+ * The loop range (PRD AUD-02, LOOP-017) is bar-aligned and non-empty. It is
+ * checked here rather than in the schema so a command transaction, which
+ * re-runs integrity but not the schema, refuses a bad range too.
+ */
+function checkLoop(loop: SongLoop, path: ReadonlyArray<string | number>): DomainIssue[] {
+  const issues: DomainIssue[] = [];
+  for (const key of ["startTicks", "endTicks"] as const) {
+    if (loop[key] % TICKS_PER_BAR !== 0) {
+      issues.push(
+        issue(
+          "invalid_musical_time",
+          [...path, key],
+          `Loop ${key} ${loop[key]} is not on a bar line (a multiple of ${TICKS_PER_BAR} ticks)`,
+        ),
+      );
+    }
+  }
+  if (loop.endTicks <= loop.startTicks) {
+    issues.push(
+      issue(
+        "invalid_musical_time",
+        [...path, "endTicks"],
+        `Loop range ${loop.startTicks}-${loop.endTicks} is empty or inverted`,
+      ),
+    );
+  }
+  return issues;
+}
 
 /**
  * Song-level integrity. Callers that also hold clips pass their `seenIds` set
@@ -121,6 +152,8 @@ export function checkSongIntegrity(
       "tracks",
     ),
   );
+
+  issues.push(...checkLoop(song.loop, [...path, "loop"]));
 
   song.sections.forEach((section, index) => {
     claimId(seenIds, section.id, [...path, "sections", index, "id"], issues);

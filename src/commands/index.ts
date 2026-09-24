@@ -20,6 +20,7 @@ export * from "./definitions/deviceChains";
 export * from "./definitions/devices";
 export * from "./definitions/drum";
 export * from "./definitions/instruments";
+export * from "./definitions/loop";
 export * from "./definitions/notes";
 export * from "./definitions/packs";
 export * from "./definitions/parameters";
