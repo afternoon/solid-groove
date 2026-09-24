@@ -228,6 +228,90 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
     expect(engine.stopCalls).toBe(0);
   });
 
+  it("mirrorLoop writes the song's range as tick notation and its toggle", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+
+    transport.mirrorLoop({
+      startTicks: TICKS_PER_BAR,
+      endTicks: 3 * TICKS_PER_BAR,
+      enabled: true,
+    });
+
+    expect(engine.loopStart).toBe(`${TICKS_PER_BAR}i`);
+    expect(engine.loopEnd).toBe(`${3 * TICKS_PER_BAR}i`);
+    expect(engine.loop).toBe(true);
+    expect(transport.loop).toEqual({
+      startTicks: TICKS_PER_BAR,
+      endTicks: 3 * TICKS_PER_BAR,
+    });
+    expect(transport.loopEnabled).toBe(true);
+  });
+
+  it("mirrorLoop updates a running transport in place: no stop, start, or seek", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    transport.mirrorLoop({ startTicks: 0, endTicks: TICKS_PER_BAR, enabled: true });
+    transport.play();
+    engine.ticks = 100;
+
+    transport.mirrorLoop({ startTicks: 0, endTicks: 4 * TICKS_PER_BAR, enabled: true });
+    transport.mirrorLoop({ startTicks: 0, endTicks: 4 * TICKS_PER_BAR, enabled: false });
+
+    expect(engine.loopEnd).toBe(`${4 * TICKS_PER_BAR}i`);
+    expect(engine.loop).toBe(false);
+    expect(engine.startCalls).toBe(1);
+    expect(engine.stopCalls).toBe(0);
+    expect(engine.pauseCalls).toBe(0);
+    expect(engine.ticks).toBe(100);
+    expect(transport.isPlaying).toBe(true);
+  });
+
+  it("never shows the engine an inverted range while a dragged loop moves", () => {
+    const engine = fakeEngine();
+    const writes: string[] = [];
+    const points = { start: 0, end: 0 };
+    const inverted: string[] = [];
+    const track = (key: "start" | "end") => ({
+      get: () => `${points[key]}i`,
+      set: (value: string) => {
+        points[key] = Number.parseInt(value, 10);
+        writes.push(`${key}=${points[key]}`);
+        if (points.end !== 0 && points.end <= points.start)
+          inverted.push(writes.join(","));
+      },
+    });
+    Object.defineProperty(engine, "loopStart", track("start"));
+    Object.defineProperty(engine, "loopEnd", track("end"));
+    const transport = new TransportModule.TransportController({ engine });
+    const bar = TICKS_PER_BAR;
+
+    transport.mirrorLoop({ startTicks: 0, endTicks: bar, enabled: true });
+    transport.play();
+    // Drag right past the old end, then back left past the old start.
+    transport.mirrorLoop({ startTicks: 4 * bar, endTicks: 6 * bar, enabled: true });
+    transport.mirrorLoop({ startTicks: bar, endTicks: 2 * bar, enabled: true });
+
+    expect(inverted).toEqual([]);
+    expect(points).toEqual({ start: bar, end: 2 * bar });
+    expect(engine.startCalls).toBe(1);
+    expect(engine.stopCalls).toBe(0);
+  });
+
+  it("mirrorLoop writes nothing when the song's loop has not changed", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    const loop = { startTicks: 0, endTicks: TICKS_PER_BAR, enabled: true };
+    transport.mirrorLoop(loop);
+    engine.loopStart = "sentinel";
+    engine.loopEnd = "sentinel";
+
+    transport.mirrorLoop({ ...loop });
+
+    expect(engine.loopStart).toBe("sentinel");
+    expect(engine.loopEnd).toBe("sentinel");
+  });
+
   it("delegates the metronome to its Metronome without restarting the transport", () => {
     const engine = fakeEngine();
     const setEnabled = vi.fn();
@@ -330,5 +414,97 @@ describe("TransportMetronome (PRD AUD-02)", () => {
     expect(disposeSpy).toHaveBeenCalledTimes(1);
     engine.fireRepeat(0, 1);
     expect(voice.clicks).toHaveLength(0);
+  });
+});
+
+describe("a loop edited during playback, on a real Tone transport (LOOP-017)", () => {
+  type ToneTransport = ReturnType<typeof import("tone")["getTransport"]>;
+
+  /**
+   * The `TransportEngine` surface bound to one given transport. Offline
+   * rendering restores the global context before events fire, so
+   * `liveTransportEngine` would reach the wrong transport from a callback.
+   */
+  function engineFor(transport: ToneTransport): TransportEngine {
+    return {
+      bpm: transport.bpm,
+      get ticks() {
+        return transport.ticks;
+      },
+      set ticks(value: number) {
+        transport.ticks = value;
+      },
+      get state() {
+        return transport.state as TransportState;
+      },
+      get loop() {
+        return transport.loop;
+      },
+      set loop(value: boolean) {
+        transport.loop = value;
+      },
+      get loopStart() {
+        return String(transport.loopStart);
+      },
+      set loopStart(value: string) {
+        transport.loopStart = value;
+      },
+      get loopEnd() {
+        return String(transport.loopEnd);
+      },
+      set loopEnd(value: string) {
+        transport.loopEnd = value;
+      },
+      start: () => transport.start(),
+      pause: () => transport.pause(),
+      stop: () => transport.stop(),
+      scheduleRepeat: () => 0,
+      clear: () => {},
+    };
+  }
+
+  /**
+   * Renders 4.5 s at 120 BPM (a 4/4 bar is 2 s) with an event on the downbeat
+   * and one half-way through bar 2, returning each trigger with its time in
+   * ms. The loop ends up as bars 1-2 either way: `widenMidPass` starts it as
+   * bar 1 alone and widens it half-way through the first pass, while running.
+   */
+  async function render(widenMidPass: boolean): Promise<string[]> {
+    const Tone = await import("tone");
+    const hits: string[] = [];
+    const bar = TICKS_PER_BAR;
+    await Tone.Offline(({ transport }) => {
+      transport.bpm.value = 120;
+      const controller = new TransportModule.TransportController({
+        engine: engineFor(transport),
+      });
+      const final = { startTicks: 0, endTicks: 2 * bar, enabled: true };
+      controller.mirrorLoop(widenMidPass ? { ...final, endTicks: bar } : final);
+      const hit = (label: string) => (time: number) =>
+        hits.push(`${label}@${Math.round(time * 1000)}`);
+      transport.schedule(hit("downbeat"), "0i");
+      transport.schedule(hit("bar 2"), `${bar + bar / 2}i`);
+      transport.schedule(
+        () => {
+          if (widenMidPass) controller.mirrorLoop(final);
+        },
+        `${bar / 2}i`,
+      );
+      controller.play();
+    }, 4.5);
+    return hits;
+  }
+
+  it("is honoured from the next pass, with no extra trigger and no drift", async () => {
+    const baseline = await render(false);
+    const edited = await render(true);
+
+    // The widened loop runs on into bar 2 and wraps at its new end (4 s), and
+    // every trigger lands at the same time, the same number of times, as on a
+    // transport that had that loop from the start. (This offline renderer can
+    // dispatch one event twice within a microsecond regardless of looping;
+    // comparing against the baseline keeps that out of the assertion.)
+    expect(edited).toEqual(baseline);
+    expect([...new Set(edited)]).toEqual(["downbeat@0", "bar 2@3000", "downbeat@4000"]);
   });
 });
