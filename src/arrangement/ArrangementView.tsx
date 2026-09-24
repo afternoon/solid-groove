@@ -446,7 +446,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (!shell) return;
     const port = shell.getViewport();
     const proj = projection();
-    const logicalWidth = proj.lengthTicks * port.pixelsPerTick;
+    const logicalWidth = shell.contentLengthTicks() * port.pixelsPerTick;
     const logicalHeight =
       (proj.rowOffsets[proj.rowOffsets.length - 1] ?? 0) +
       RULER_HEIGHT_PX +
