@@ -37,6 +37,18 @@ export interface DrawEnvironment {
   readonly rowRange: RowRange;
   readonly tickRange: TickRange;
   readonly waveformCache: WaveformCache;
+  /**
+   * The song's loop brace (`LOOP-018`), drawn on the ruler in the background
+   * pass. Optional so a host with no loop to show draws the ruler bare.
+   */
+  readonly loop?: LoopBraceDrawState | null;
+}
+
+/** What the ruler needs to draw the loop brace: its range and whether it is on. */
+export interface LoopBraceDrawState {
+  readonly startTicks: number;
+  readonly endTicks: number;
+  readonly enabled: boolean;
 }
 
 export interface InteractionState {
@@ -82,6 +94,13 @@ export const COLOR_TOKENS = {
      than naming a colour of their own. */
   onPlacement: ["--shade-medium", "rgb(0 0 0 / 45%)"],
   onPlacementStrong: ["--scrim", "rgb(0 0 0 / 70%)"],
+  /* The loop brace is a band with bracket ends. Looping on is the bright
+     step and looping off the recessive one, so the toggle reads on the brace
+     itself — state is brightness here, as everywhere else. */
+  loopBrace: ["--color-accent-wash-strong", "rgb(255 255 255 / 28%)"],
+  loopBraceEdge: ["--color-accent", "#ffffff"],
+  loopBraceOff: ["--tint-soft", "rgb(255 255 255 / 8%)"],
+  loopBraceOffEdge: ["--color-accent-deep", "#787878"],
 } as const satisfies Record<string, readonly [string, string]>;
 
 type ColorName = keyof typeof COLOR_TOKENS;
@@ -191,6 +210,8 @@ function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): voi
   ctx.fillStyle = colors().ruler;
   ctx.fillRect(0, 0, viewport.width, RULER_HEIGHT_PX);
 
+  if (env.loop) drawLoopBrace(env, env.loop);
+
   // Section ranges labelled in their own color; sections that fall entirely
   // outside the visible tick range are skipped (culling).
   for (const section of projection.sections) {
@@ -217,6 +238,36 @@ function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): voi
     if (x < -20 || x > viewport.width) continue;
     ctx.fillText(`${bar + 1}`, x + 3, 2);
   }
+}
+
+/** Height of the loop brace's band, which sits along the ruler's bottom edge. */
+const LOOP_BAND_HEIGHT_PX = 8;
+/** Width of the brace's bracket ends — the handles a pointer grabs. */
+const LOOP_EDGE_WIDTH_PX = 2;
+
+/**
+ * The loop brace: a band along the bottom of the ruler with a full-height
+ * bracket at each end. A band rather than a line so it cannot be mistaken for
+ * the playhead, and along the bottom rather than the top so it cannot be
+ * mistaken for a section's colour strip. Drawn before the labels, so the
+ * section names and bar numbers stay readable over it.
+ */
+function drawLoopBrace(env: DrawEnvironment, loop: LoopBraceDrawState): void {
+  const { ctx, viewport } = env;
+  const left = screenX(loop.startTicks, viewport);
+  const right = screenX(loop.endTicks, viewport);
+  if (right < 0 || left > viewport.width) return;
+  const palette = colors();
+  ctx.fillStyle = loop.enabled ? palette.loopBrace : palette.loopBraceOff;
+  ctx.fillRect(
+    left,
+    RULER_HEIGHT_PX - LOOP_BAND_HEIGHT_PX,
+    Math.max(1, right - left),
+    LOOP_BAND_HEIGHT_PX,
+  );
+  ctx.fillStyle = loop.enabled ? palette.loopBraceEdge : palette.loopBraceOffEdge;
+  ctx.fillRect(left, 0, LOOP_EDGE_WIDTH_PX, RULER_HEIGHT_PX);
+  ctx.fillRect(right - LOOP_EDGE_WIDTH_PX, 0, LOOP_EDGE_WIDTH_PX, RULER_HEIGHT_PX);
 }
 
 function drawPlacement(env: DrawEnvironment, placement: PlacementGeometry): void {
