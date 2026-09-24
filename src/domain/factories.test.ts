@@ -31,6 +31,16 @@ describe("blank project factory", () => {
     expect(project.clips).toEqual([]);
   });
 
+  it("opens with a one-bar loop from bar 1, looping on (LOOP-017)", () => {
+    const project = createBlankProject({ ownerId: "user_1" });
+
+    expect(project.song.loop).toEqual({
+      startTicks: 0,
+      endTicks: TICKS_PER_BAR,
+      enabled: true,
+    });
+  });
+
   it("keeps Firebase and audio types out of the domain", () => {
     const project = createBlankProject({ ownerId: "user_1", now: 1_700_000 });
     expect(typeof project.metadata.createdAt).toBe("number");

@@ -54,16 +54,17 @@
   min-width: 0;
 }
 
+/* Pitch/level/pan are fill sliders sitting straight in the lane grid; like the
+   other cells they have to be allowed to shrink below their content. */
+.drum-pad > .fill-slider {
+  min-width: 0;
+}
+
 .pad-control-label {
   font-size: var(--font-size-tiny);
   color: var(--color-foreground);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.pad-control input[type="range"] {
-  width: 100%;
-  accent-color: var(--color-foreground-bright);
 }
 
 .pad-control select {

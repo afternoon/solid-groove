@@ -313,7 +313,7 @@ if (!Number.isInteger(issueNumber) || issueNumber <= 0)
 
 phase('Contract')
 const t = await agent(discoverPrompt(issueNumber), {
-  model: 'sonnet',
+  model: 'opus',
   label: `read:#${issueNumber}`,
   phase: 'Contract',
   schema: ISSUE_SCHEMA,
@@ -426,7 +426,7 @@ if (!review.approved)
 
 // Stage 4: open the stack.
 phase('Land')
-const landed = await agent(prPrompt(t, impl), { model: 'sonnet', label: `pr:${t.taskId}`, phase: 'Land', schema: PR_SCHEMA })
+const landed = await agent(prPrompt(t, impl), { model: 'opus', label: `pr:${t.taskId}`, phase: 'Land', schema: PR_SCHEMA })
 const pullRequests = landed?.pullRequests ?? []
 const topPr = pullRequests.find((pr) => pr.closesIssue) ?? pullRequests[pullRequests.length - 1] ?? null
 
@@ -441,7 +441,7 @@ if (!topPr) {
   log(`${t.taskId}: no core flows, so no walkthrough was captured.${t.changesUi ? ' This task changes the UI — #' + topPr.number + ' needs one added by hand before review.' : ''}`)
 } else {
   walkthrough = await agent(walkthroughPrompt(t, topPr), {
-    model: 'sonnet',
+    model: 'opus',
     label: `walkthrough:${t.taskId}`,
     phase: 'Walkthrough',
     isolation: 'worktree',

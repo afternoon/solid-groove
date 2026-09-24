@@ -1,7 +1,7 @@
 {
 	"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
 	"metadata": {
-		"schemaVersion": 3,
+		"schemaVersion": 5,
 		"revision": 0,
 		"name": "Slice fixture",
 		"ownerId": "user_fixture",
@@ -16,27 +16,17 @@
 				"version": "1.0.0"
 			}
 		],
-		"addedPacks": [
-			{
-				"packId": "pak_6dWiqlhnLQoPeMlRo5QXl",
-				"version": "1.0.0"
-			}
-		]
+		"mixdown": "unknown"
 	},
 	"song": {
 		"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
-		"schemaVersion": 3,
+		"schemaVersion": 5,
 		"revision": 0,
 		"updatedAt": 1700000000000,
 		"tempo": 120,
 		"timeSignature": {
 			"numerator": 4,
 			"denominator": 4
-		},
-		"loop": {
-			"startTicks": 0,
-			"endTicks": 768,
-			"enabled": true
 		},
 		"tracks": [
 			{
@@ -103,7 +93,7 @@
 	"clips": [
 		{
 			"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
-			"schemaVersion": 3,
+			"schemaVersion": 5,
 			"revision": 0,
 			"updatedAt": 1700000000000,
 			"id": "clp_PtDxUzJoUiMAQuVqxEadW",

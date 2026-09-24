@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -7,12 +7,15 @@ import {
   addPack,
   removeNotes,
   removeTrack,
+  setLoopEnabled,
+  setLoopRange,
   setParameter,
   setTrackFlag,
   updateNote,
 } from "../commands";
 import { type PackDependency, packVersion } from "../domain/entities";
 import {
+  bars,
   createFactoryContext,
   createNoteEvent,
   createSynthInstrument,
@@ -270,6 +273,27 @@ describe("EditorSession", () => {
     const loaded = await repository.loadProject(project.metadata.id);
     if (!loaded.ok) throw new Error("expected the project to load");
     expect(loaded.value.metadata.addedPacks).toContainEqual(shelved);
+  });
+
+  it("writes a loop edit to the song tier only, never rewriting a clip (LOOP-017)", async () => {
+    const { session, repository, project } = ctx;
+    const saveSong = vi.spyOn(repository, "saveSong");
+    const saveClip = vi.spyOn(repository, "saveClip");
+
+    session.dispatch(setLoopRange(bars(2), bars(4)));
+    session.dispatch(setLoopEnabled(false));
+    expect(session.autosave.status.pending).toBe(1);
+    await session.autosave.flush();
+
+    expect(saveSong).toHaveBeenCalledTimes(1);
+    expect(saveClip).not.toHaveBeenCalled();
+    const loaded = await repository.loadProject(project.metadata.id);
+    if (!loaded.ok) throw new Error("expected the project to load");
+    expect(loaded.value.song.loop).toEqual({
+      startTicks: bars(2),
+      endTicks: bars(4),
+      enabled: false,
+    });
   });
 
   it("persists the shelf again when a pack is removed from it", async () => {

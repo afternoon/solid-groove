@@ -18,6 +18,7 @@ import {
   SCHEMA_VERSION,
   type Section,
   type Song,
+  type SongLoop,
   type Track,
 } from "./entities";
 import {
@@ -452,10 +453,20 @@ export function createAsset(
   };
 }
 
+/**
+ * A new song's loop (LOOP-017): one bar from tick 0, looping on. Short so the
+ * loop is the fast path into the workflow and plainly on; the v2 -> v3
+ * migration gives an older project this same default.
+ */
+export function createDefaultSongLoop(): SongLoop {
+  return { startTicks: toTicks(0), endTicks: toTicks(TICKS_PER_BAR), enabled: true };
+}
+
 export function createEmptySong(tempo: number = SONG_TEMPO.defaultValue): Song {
   return {
     tempo: clampParameterValue(SONG_TEMPO, tempo),
     timeSignature: { numerator: 4, denominator: 4 },
+    loop: createDefaultSongLoop(),
     tracks: [],
     returns: [],
     master: { volume: MASTER_VOLUME.defaultValue, devices: [] },

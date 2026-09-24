@@ -47,7 +47,7 @@ export function trimHead<T extends PlacementSpan>(span: T, startTicks: number): 
  * Resolves every overlap by keeping the earlier-starting placement intact and
  * trimming the overlapping part of the later one away, removing it when it is
  * fully covered. On a tie, the placement earlier in the array is kept. Survivors
- * keep their original array order. Used by the v2 -> v3 migration.
+ * keep their original array order. Used by the v3 -> v4 migration.
  */
 export function trimLaterOverlaps<T extends PlacementSpan>(
   placements: readonly T[],
