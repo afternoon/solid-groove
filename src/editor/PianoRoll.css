@@ -154,14 +154,6 @@
   background: var(--tint-stronger);
 }
 
-.pr-note-velocity {
-  width: 100%;
-  height: 4px;
-  margin: 0;
-  accent-color: var(--scrim);
-  cursor: pointer;
-}
-
 .pr-marquee {
   position: absolute;
   border: 1px dashed var(--color-accent);
