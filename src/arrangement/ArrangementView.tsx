@@ -14,7 +14,7 @@ import type {
   TransactionResult,
 } from "../commands";
 import type { Project } from "../domain/entities";
-import { createIdFactory, type TrackId } from "../domain/ids";
+import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
@@ -103,6 +103,12 @@ export interface ArrangementViewProps {
   /** Called with the track a clicked row belongs to, so the editor can follow
    * it — the arrangement holds no selection state of its own. */
   readonly onSelectTrack?: (trackId: TrackId) => void;
+  /**
+   * Called when a placement is *opened* — double-clicked on the canvas, or
+   * opened from the toolbar (`UI-001`). The arrangement reports the gesture;
+   * what opening a clip means is the editor's to decide.
+   */
+  readonly onOpenPlacement?: (placementId: PlacementId) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -393,7 +399,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
   }
 
   // --- Pointer over the interaction canvas ----------------------------------
-  function localPoint(event: PointerEvent): { x: number; y: number } {
+  function localPoint(event: MouseEvent): { x: number; y: number } {
     const rect = interactionCanvas.getBoundingClientRect();
     // The ruler occupies the top strip and does not host rows.
     return {
@@ -416,6 +422,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
       return;
     }
     shell.handlePointerMove(x, y);
+  }
+
+  /**
+   * Open the placement under the pointer (`UI-001`). Double-click is the
+   * gesture every DAW uses for "open this clip", and the one CF-001 and CF-008
+   * walk; the placement toolbar carries its keyboard-reachable twin.
+   */
+  function handleDoubleClick(event: MouseEvent): void {
+    if (!shell || !props.onOpenPlacement) return;
+    const { x, y } = localPoint(event);
+    if (y < 0) return;
+    const hit = shell.hitTestAt(x, y);
+    if (hit.kind !== "placement") return;
+    props.onOpenPlacement(hit.placementId);
+    noteFirstUse();
   }
 
   function handlePointerDown(event: PointerEvent): void {
@@ -564,6 +585,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
           selectionCount={placementSelection().length}
           onDuplicateLinked={() => editing?.duplicate("linked")}
           onDuplicateIndependent={() => editing?.duplicate("independent")}
+          onOpen={
+            props.onOpenPlacement &&
+            (() => {
+              const [first] = placementSelection();
+              if (first) props.onOpenPlacement?.(first);
+            })
+          }
         />
       </Show>
       <div class="arrangement-body">
@@ -642,6 +670,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
               onPointerDown={handlePointerDown}
               onPointerUp={endActiveDrag}
               onPointerCancel={endActiveDrag}
+              onDblClick={handleDoubleClick}
               onPointerLeave={(event) => {
                 if (editing?.isDragging() && event.pointerId === activePointerId) {
                   return;
