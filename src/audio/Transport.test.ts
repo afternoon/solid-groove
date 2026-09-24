@@ -136,8 +136,11 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
   it("stop returns to the loop start when looping is enabled", () => {
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });
-    transport.setLoop(2 * TICKS_PER_BAR, 4 * TICKS_PER_BAR);
-    transport.setLoopEnabled(true);
+    transport.mirrorLoop({
+      startTicks: 2 * TICKS_PER_BAR,
+      endTicks: 4 * TICKS_PER_BAR,
+      enabled: true,
+    });
     engine.ticks = 3 * TICKS_PER_BAR;
 
     transport.stop();
@@ -202,30 +205,6 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
     expect(engine.stopCalls).toBe(0);
     expect(engine.startCalls).toBe(1);
     expect(transport.isPlaying).toBe(true);
-  });
-
-  it("setLoop bar-aligns the range and writes it to the engine as tick notation", () => {
-    const engine = fakeEngine();
-    const transport = new TransportModule.TransportController({ engine });
-    const range = transport.setLoop(TICKS_PER_BAR + 10, 2 * TICKS_PER_BAR + 5);
-    expect(range.startTicks).toBe(TICKS_PER_BAR);
-    expect(range.endTicks).toBe(3 * TICKS_PER_BAR);
-    expect(engine.loopStart).toBe(`${TICKS_PER_BAR}i`);
-    expect(engine.loopEnd).toBe(`${3 * TICKS_PER_BAR}i`);
-  });
-
-  it("toggleLoop enables and disables looping without touching the run state", () => {
-    const engine = fakeEngine();
-    const transport = new TransportModule.TransportController({ engine });
-    transport.setLoop(0, TICKS_PER_BAR);
-    transport.play();
-
-    transport.toggleLoop();
-    expect(engine.loop).toBe(true);
-    transport.toggleLoop();
-    expect(engine.loop).toBe(false);
-    expect(engine.startCalls).toBe(1);
-    expect(engine.stopCalls).toBe(0);
   });
 
   it("mirrorLoop writes the song's range as tick notation and its toggle", () => {
