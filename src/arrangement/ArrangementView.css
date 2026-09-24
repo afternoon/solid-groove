@@ -59,10 +59,16 @@
   min-height: 0;
   overflow: hidden;
   /* Breathing room above the ruler, so the bar numbers are not jammed against
-     the toolbar's edge. A margin rather than padding: the add-track unit is
-     positioned against this box, and padding would shift its origin away from
-     the row grid it has to line up with. */
-  margin-top: 10px;
+     the toolbar's edge — painted in the ruler's own grey, so the strip reads
+     as headroom inside the ruler rather than a black gap above it. That is the
+     same token `canvasRenderer` fills the ruler with and the header column's
+     spacer uses, which is what keeps the three in step.
+
+     A border rather than padding or a margin: padding would move the origin
+     the add-track unit is positioned against off the row grid it lines up
+     with, and a margin cannot be painted. A border is outside the padding box,
+     so the origin stays put, and it is a surface. */
+  border-top: 10px solid var(--color-background-secondary);
 }
 
 .arrangement-headers {
