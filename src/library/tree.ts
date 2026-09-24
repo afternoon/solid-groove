@@ -1,4 +1,4 @@
-import type { LibraryAsset } from "./manifest";
+import type { LibraryAsset, LibraryAssetType } from "./manifest";
 import { matchesLibraryQuery } from "./search";
 
 /**
@@ -69,6 +69,14 @@ export interface BuildLibraryTreeOptions {
   readonly failedSlugs?: readonly string[];
   /** Free-text filter applied to every loaded asset. */
   readonly query?: string;
+  /**
+   * Restrict the tree to these asset types, or leave unset for all of them.
+   *
+   * This is what "the library, filtered to loops" means when the library is
+   * opened for a particular slot (`UI-001`): the tree shows what can go in
+   * that slot rather than everything and a warning afterwards.
+   */
+  readonly types?: readonly LibraryAssetType[];
 }
 
 /**
@@ -83,11 +91,13 @@ export interface BuildLibraryTreeOptions {
 export function buildLibraryTree(options: BuildLibraryTreeOptions): LibraryTreePack[] {
   const failed = new Set(options.failedSlugs ?? []);
   const needle = (options.query ?? "").trim().toLowerCase();
+  const types = options.types;
   return options.packs.map((pack) => {
     const loadedAssets = options.assetsByPack.get(pack.slug);
-    const matched = (loadedAssets ?? []).filter((asset) =>
-      matchesLibraryQuery(asset, needle),
+    const ofType = (loadedAssets ?? []).filter(
+      (asset) => types === undefined || types.includes(asset.type),
     );
+    const matched = ofType.filter((asset) => matchesLibraryQuery(asset, needle));
     return {
       packId: pack.id,
       slug: pack.slug,

@@ -1,4 +1,5 @@
 import type { JSX } from "@solidjs/web";
+import { HiSolidPlus } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import ArrangementView, {
@@ -16,6 +17,7 @@ import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import { loadSampleCommands, toLibrarySample } from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
+import type { LibraryAssetType } from "../library/manifest";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -167,6 +169,17 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // closed for the same reason the sequence editor does: the surface you came
   // for is the one that should be on screen.
   const [libraryOpen, setLibraryOpen] = createSignal(false);
+  // What the library was opened for (`UI-001`): a sampler's slot takes any
+  // sound, the arrangement's Loop button takes a loop, and the tree shows what
+  // can go in the slot rather than everything with a refusal afterwards.
+  const [libraryTypes, setLibraryTypes] = createSignal<
+    readonly LibraryAssetType[] | undefined
+  >(undefined);
+
+  function openLibrary(types?: readonly LibraryAssetType[]): void {
+    setLibraryTypes(() => types);
+    setLibraryOpen(true);
+  }
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
 
   // The packs this editing session has added on top of the project's own
@@ -412,7 +425,24 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               onSelect: selectTrack,
                             })
                           }
-                        />
+                        >
+                          {/*
+                           * An audio track needs content to exist, so the way
+                           * to start one is to pick the loop (`UI-001`). This
+                           * is also the arrangement's general way into the
+                           * library, which #281 builds the insertion on.
+                           */}
+                          <button
+                            type="button"
+                            class="new-track-button"
+                            aria-label="Add loop track"
+                            title="Add loop track"
+                            onClick={() => openLibrary(["loop"])}
+                          >
+                            <HiSolidPlus size={13} />
+                            <span>Loop</span>
+                          </button>
+                        </NewTrackButtons>
                       </div>
                       <div class="arrangement-panel">
                         <ArrangementView
@@ -464,7 +494,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               sampleName={sampleName()}
                               loadSample={loadLibrarySample}
                               audition={auditionInstrument}
-                              onBrowse={() => setLibraryOpen(true)}
+                              onBrowse={() => openLibrary()}
                               dispatch={session.dispatch}
                               beginGesture={session.beginGesture}
                             />
@@ -513,6 +543,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     )
                   }
                   onPackBrowserOpenChange={setPackBrowserOpen}
+                  assetTypes={libraryTypes()}
+                  heading={libraryTypes()?.includes("loop") ? "Loops" : "Library"}
                   onClose={() => setLibraryOpen(false)}
                 />
               </Show>
