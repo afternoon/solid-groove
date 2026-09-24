@@ -587,6 +587,23 @@ export const ANALYTICS_EVENTS = {
     params: { action_id: enumParam(SHORTCUT_ACTION_IDS) },
   },
 
+  loop_range_set: {
+    phase: 1,
+    owners: ["LOOP-017", "LOOP-018"],
+    // One committed change to the song's loop range (AUD-02) — a whole drag,
+    // not every pointer move. Only the span's length travels, clamped, so the
+    // event says how producers size their loop and nothing about the song.
+    params: { bar_count: countParam(64) },
+  },
+
+  loop_toggled: {
+    phase: 1,
+    owners: ["LOOP-017"],
+    // Whether the transport now obeys the song's loop range: the state the
+    // toggle left it in, so on/off rates read straight off the event.
+    params: { enabled: boolParam() },
+  },
+
   undo_used: {
     phase: 1,
     owners: ["LOOP-002"],
