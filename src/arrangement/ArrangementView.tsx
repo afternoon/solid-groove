@@ -18,6 +18,12 @@ import type { Project } from "../domain/entities";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import {
+  type ArrangementPosition,
+  barStartPoint,
+  clipsSelection,
+  placementsTouchedBy,
+} from "../selection";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
 import {
@@ -40,13 +46,18 @@ import {
   type PlacementEditing,
 } from "./placementEditingController";
 import { type ArrangementProjection, buildArrangementProjection } from "./projection";
+import { describeArrangementSelection } from "./selectionAnnouncement";
 import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
 import { ariaBool } from "../shared/aria";
 
 /** The placement-editing operations `EditorView` wires into the KEY-01
- * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`. */
-export type PlacementEditingActions = PlacementEditing;
+ * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`, plus
+ * zoom to selection for the `Z` mapping (`view.zoom_to_selection`). */
+export type PlacementEditingActions = PlacementEditing & {
+  zoomToSelection(): void;
+  canZoomToSelection(): boolean;
+};
 
 /**
  * The production arrangement editor shell (`ARR-001`; PRD ARR-01, section 9.3).
@@ -62,8 +73,9 @@ export type PlacementEditingActions = PlacementEditing;
  *   backing stores that resize only on viewport/DPR change (DPR capped at 2);
  * - virtualized DOM track headers windowed to the visible rows, sharing the
  *   shell's row metrics and scroll;
- * - a transport-driven playhead that follows during playback, and a bar-range
- *   selection overlay;
+ * - a transport-driven playhead that follows during playback, and the one
+ *   arrangement selection (#292): a point, or whole clips a click or a drag
+ *   band selected;
  * - named DOM actions (zoom in/out, zoom to selection, scroll to playhead) and
  *   an accessible, virtualized track/selection list, so canvas pixels are never
  *   the sole representation of state (PRD 9.3 accessibility).
@@ -221,6 +233,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // The loop brace on the ruler (LOOP-018): one drag at a time, one gesture
   // each. It only exists when the host supplies gestures.
   let loopDrag: LoopBraceDrag | null = null;
+  // A press in empty space, while its pointer is down: where it was pressed,
+  // so a jitter of a pixel or two stays a click rather than a sliver of band.
+  let bandPress: { pointerId: number; x: number; y: number; moved: boolean } | null =
+    null;
 
   function initialViewport(): Viewport {
     return {
@@ -234,17 +250,18 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   function interactionState(): InteractionState {
     const state = shell?.getState();
-    const bars = state?.selection;
+    const selection = editing?.getArrangementSelection() ?? null;
+    const band = editing?.getBand() ?? null;
     return {
       playheadTicks: state?.playheadTicks ?? null,
-      // The shell's bar range, drawn as a band until the arrangement moves onto
-      // its one selection (#292).
-      band: bars
-        ? { trackIds: [bars.trackId], startTicks: bars.startTick, endTicks: bars.endTick }
-        : null,
-      point: null,
+      band,
+      point: selection?.kind === "point" ? selection : null,
       hoverPlacementId: state?.hoverPlacementId ?? null,
-      selectedPlacementIds: new Set(editing?.getSelection() ?? []),
+      // While a band sweeps, the clips it touches are drawn as the selection
+      // they will become on release.
+      selectedPlacementIds: new Set(
+        (band ? editing?.bandPlacementIds() : editing?.getSelection()) ?? [],
+      ),
     };
   }
 
@@ -327,25 +344,30 @@ export default function ArrangementView(props: ArrangementViewProps) {
       onDirty: () => canvas.scheduleDraw(),
     });
 
+    // Always created, because it holds the arrangement's one selection. Its
+    // edits are inert without `props.dispatch`, which is optional.
+    editing = createPlacementEditing({
+      getProject: () => props.project,
+      dispatch: (commands) => {
+        props.dispatch?.(commands);
+      },
+      beginGesture: (summary) => {
+        const gesture = props.beginGesture?.({ summary });
+        return gesture && adaptGesture(gesture);
+      },
+      ids,
+      analytics: analytics(),
+      onChange: () => {
+        shell?.markDirty("interaction");
+        bumpState();
+      },
+    });
     if (props.dispatch) {
-      const dispatch = props.dispatch;
-      editing = createPlacementEditing({
-        getProject: () => props.project,
-        dispatch: (commands) => {
-          dispatch(commands);
-        },
-        beginGesture: (summary) => {
-          const gesture = props.beginGesture?.({ summary });
-          return gesture && adaptGesture(gesture);
-        },
-        ids,
-        analytics: analytics(),
-        onChange: () => {
-          shell?.markDirty("interaction");
-          bumpState();
-        },
+      props.onEditingActionsReady?.({
+        ...editing,
+        zoomToSelection,
+        canZoomToSelection: () => canZoomToSelection(),
       });
-      props.onEditingActionsReady?.(editing);
     }
 
     if (props.beginGesture) {
@@ -507,6 +529,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
   }
 
   // --- Pointer over the interaction canvas ----------------------------------
+  /** How far the pointer must travel before a press becomes a drag band. */
+  const BAND_DRAG_THRESHOLD_PX = 3;
+
   function localPoint(event: MouseEvent): { x: number; y: number } {
     const rect = interactionCanvas.getBoundingClientRect();
     // The ruler occupies the top strip and does not host rows.
@@ -516,10 +541,29 @@ export default function ArrangementView(props: ArrangementViewProps) {
     };
   }
 
+  /** The track and tick under a viewport-local point, with the row clamped to
+   * the song's tracks so a band dragged past the last one still ends on it. */
+  function positionAt(localX: number, localY: number): ArrangementPosition | null {
+    if (!shell) return null;
+    const { rowIndex, tick } = shell.pointToArrangement(localX, localY);
+    const tracks = projection().tracks;
+    const track = tracks[Math.max(0, Math.min(tracks.length - 1, rowIndex))];
+    return track ? { trackId: track.id, ticks: tick } : null;
+  }
+
   function handlePointerMove(event: PointerEvent): void {
     if (!shell) return;
     if (loopDrag?.isDragging() && event.pointerId === activePointerId) {
       loopDrag.update(shell.pointToArrangement(localPoint(event).x, 0).tick);
+      return;
+    }
+    if (bandPress && event.pointerId === bandPress.pointerId) {
+      const { x, y } = localPoint(event);
+      if (Math.hypot(x - bandPress.x, y - bandPress.y) >= BAND_DRAG_THRESHOLD_PX) {
+        bandPress.moved = true;
+      }
+      const position = positionAt(x, y);
+      if (bandPress.moved && position) editing?.updateBand(position);
       return;
     }
     if (editing?.isDragging() && event.pointerId === activePointerId) {
@@ -583,43 +627,64 @@ export default function ArrangementView(props: ArrangementViewProps) {
       return;
     }
 
-    // Whatever the click turns out to do — start a placement drag, select a
-    // bar range — it happened on a row, and that row's track is now the one
+    // Whatever the click turns out to do — start a placement drag, sweep a
+    // band, set a point — it happened on a row, and that row's track is now the one
     // being worked on (#228).
     const trackId = trackAt(x, y);
     if (trackId) selectTrack(trackId);
 
-    // A placement hit starts a drag (move or resize) instead of the shell's
-    // own bar-range selection; anything else falls through to the existing
-    // behavior unchanged.
-    if (editing && (event.button ?? 0) === 0) {
-      const hit = shell.hitTestAt(x, y);
-      if (hit.kind === "placement") {
-        const { tick } = shell.pointToArrangement(x, y);
-        // One selection at a time: the placement becomes it, so the shell's
-        // bar range from an earlier click stops being painted alongside it.
-        shell.setSelection(null);
-        editing.beginDrag(hit.placementId, hit.handle, tick);
-        activePointerId = event.pointerId;
-        (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
-        bumpState();
-        noteFirstUse();
-        return;
-      }
+    if ((event.button ?? 0) !== 0 || !editing) return;
+    const target = event.currentTarget as Element;
+
+    // A press on a clip selects it and starts a drag that moves or resizes it.
+    const hit = shell.hitTestAt(x, y);
+    if (hit.kind === "placement") {
+      const { tick } = shell.pointToArrangement(x, y);
+      editing.beginDrag(hit.placementId, hit.handle, tick);
+      activePointerId = event.pointerId;
+      target.setPointerCapture?.(event.pointerId);
+      bumpState();
+      noteFirstUse();
+      return;
     }
 
-    // ...and the other way round: a bar range is the selection now, so the
-    // placement selection it replaces is dropped rather than left on screen.
-    editing?.clearSelection();
-    const selection = shell.handlePointerDown(x, y);
-    bumpState();
-    if (selection) noteFirstUse();
+    // A press in empty space is a click or the start of a drag band (#292),
+    // which the pointer's release decides.
+    if (!trackId) {
+      editing.clearSelection();
+      return;
+    }
+    editing.beginBand({ trackId, ticks: shell.pointToArrangement(x, y).tick });
+    bandPress = { pointerId: event.pointerId, x, y, moved: false };
+    target.setPointerCapture?.(event.pointerId);
+    noteFirstUse();
+  }
+
+  /** Release a press in empty space: a band selects the clips it touched, and
+   * a click sets the point at the start of the bar it landed in. */
+  function endBandPress(): void {
+    if (!bandPress || !editing) return;
+    const { x, y } = bandPress;
+    bandPress = null;
+    if (editing.endBand()) return;
+    const position = positionAt(x, y);
+    if (position) editing.placePoint(position);
   }
 
   function endActiveDrag(event: PointerEvent): void {
     if (loopDrag?.isDragging() && event.pointerId === activePointerId) {
       loopDrag.end();
       activePointerId = null;
+      (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
+      return;
+    }
+    if (bandPress && event.pointerId === bandPress.pointerId) {
+      if (event.type === "pointercancel") {
+        bandPress = null;
+        editing?.cancelBand();
+      } else {
+        endBandPress();
+      }
       (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
       return;
     }
@@ -645,8 +710,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
     bumpState();
     noteFirstUse();
   }
+  /** Frame the selected clips' extent, or the one clicked clip (#292). */
   function zoomToSelection(): void {
-    shell?.zoomToSelection();
+    const span = editing?.selectionSpan();
+    if (!span) return;
+    shell?.zoomToSpan(span.startTicks, span.endTicks);
     syncSpacer();
     syncScrollElToShell();
     bumpState();
@@ -659,22 +727,23 @@ export default function ArrangementView(props: ArrangementViewProps) {
     noteFirstUse();
   }
 
-  /** Select an entire track's first bar from the accessible list, for a
-   * keyboard-only user who never touches the canvas (PRD 9.3: "Keyboard
-   * navigation updates selection through the same model as pointer hit
-   * testing"). */
+  /**
+   * Select a track's first bar from the accessible list, for a keyboard-only
+   * user who never touches the canvas (PRD 9.3: "Keyboard navigation updates
+   * selection through the same model as pointer hit testing"). It selects the
+   * clips a band over that bar would touch, and with none there it sets the
+   * point at the bar's start, so a paste still has somewhere to land.
+   */
   function selectTrackFromList(rowIndex: number): void {
-    if (!shell) return;
     const track = projection().tracks[rowIndex];
-    if (!track) return;
-    editing?.clearSelection();
-    shell.setSelection({
-      trackId: track.id,
-      startTick: 0,
-      endTick: TICKS_PER_BAR,
-    });
-    // The same click a pointer makes on the row: it selects the bar range
-    // *and* points the editor at the track (#228).
+    if (!track || !editing) return;
+    const band = { trackIds: [track.id], startTicks: 0, endTicks: TICKS_PER_BAR };
+    editing.setSelection(
+      clipsSelection(placementsTouchedBy(band, props.project)) ??
+        barStartPoint({ trackId: track.id, ticks: 0 }),
+    );
+    // The same click a pointer makes on the row: it selects *and* points the
+    // editor at the track (#228).
     selectTrack(track.id);
     bumpState();
   }
@@ -709,14 +778,19 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return shell?.getViewport().scrollTop ?? 0;
   });
 
-  const selectionSummary = createMemo(() => {
+  /** What the `aria-live` mirror says about the one selection (#292). */
+  const announcement = createMemo(() => {
     stateVersion();
-    const selection = shell?.getState().selection;
-    if (!selection) return null;
-    const track = projection().tracks.find((t) => t.id === selection.trackId);
-    const startBar = Math.floor(selection.startTick / TICKS_PER_BAR) + 1;
-    const endBar = Math.ceil(selection.endTick / TICKS_PER_BAR) + 1;
-    return { trackName: track?.name ?? "track", startBar, endBar };
+    return describeArrangementSelection(
+      editing?.getArrangementSelection() ?? null,
+      props.project,
+    );
+  });
+
+  /** Whether zoom to selection has anything to frame: selected clips. */
+  const canZoomToSelection = createMemo(() => {
+    stateVersion();
+    return props.project !== undefined && (editing?.selectionSpan() ?? null) !== null;
   });
 
   /** The placement-editing selection (CLP-01), for the duplicate-mode toolbar
@@ -739,7 +813,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
         onZoomOut={zoomOut}
         onZoomToSelection={zoomToSelection}
         onScrollToPlayhead={scrollToPlayhead}
-        hasSelection={selectionSummary() !== null}
+        hasSelection={canZoomToSelection()}
       >
         <Show when={props.onSetLoopRange}>
           {(onSetLoopRange) => (
@@ -879,11 +953,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
           aria-live="polite"
           data-testid="arrangement-selection-live"
         >
-          <Show when={selectionSummary()} fallback="No selection">
-            {(summary) =>
-              `Selected ${summary().trackName}, bars ${summary().startBar} to ${summary().endBar}`
-            }
-          </Show>
+          {announcement()}
         </p>
         {/* The loop brace, which is otherwise only canvas pixels (LOOP-018).
             `describeLoopBars` is the one wording of the range, and this is
