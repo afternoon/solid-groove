@@ -10,7 +10,7 @@ import type { Asset, Instrument, Project, Track } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
 import type { LibrarySample } from "../library/assetDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
-import DeviceChainSlot from "./DeviceChainSlot";
+import DeviceChainPanel from "./DeviceChainPanel";
 import DrumMachinePanel from "./DrumMachinePanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
@@ -47,9 +47,10 @@ export interface EditorInstrumentProps {
  * between tracks here, since the arrangement's headers and the mixer's strips
  * are both on other pages now.
  *
- * The device chain has a home reserved beneath the instrument and nothing in it
- * yet: #241 fills it for a track and #283 for the master. The slot is labelled
- * rather than absent so the layout it lands in is the layout that shipped.
+ * The selected track's device chain sits beneath the instrument (#241), in the
+ * slot UI-001 reserved for it. It reads the same selected track as everything
+ * else here, so the rail, the mixer and the arrangement all move it; there is
+ * no second selection. The master's chain is #283's, in the mixer.
  */
 export default function EditorInstrument(props: EditorInstrumentProps): JSX.Element {
   return (
@@ -97,9 +98,10 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                 dispatch={props.dispatch}
                 beginGesture={props.beginGesture}
               />
-              <DeviceChainSlot
-                label="Device chain"
-                emptyMessage="No devices on this track yet."
+              <DeviceChainPanel
+                track={currentTrack()}
+                dispatch={props.dispatch}
+                beginGesture={props.beginGesture}
               />
             </>
           )}
