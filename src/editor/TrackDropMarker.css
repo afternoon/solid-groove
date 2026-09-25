@@ -1,0 +1,31 @@
+/* The drop marker (TRK-02): the brightest thing in its zone, because it is
+   the one thing that says what letting go will do. */
+.track-drop-indicator {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--color-accent);
+}
+
+.track-drop-indicator-y {
+  left: 0;
+  right: 0;
+  height: 2px;
+  margin-top: -1px;
+}
+
+.track-drop-indicator-x {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+}
+
+/* The handle a track is dragged by: no text selection mid-drag. */
+[data-track-drag] {
+  user-select: none;
+}
+
+.track-dragging {
+  opacity: 0.5;
+}
