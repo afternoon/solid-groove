@@ -516,7 +516,7 @@ Visiting the hosted alpha with `?internal=1` (e.g. `https://groove.ben2.com/?int
 
 ### Post-deploy smoke test
 
-`tests/e2e/hosted/smoke.spec.ts` (config: `tests/e2e/hosted/playwright.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded starter project yet; that is Alpha Milestone 1 work) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
+`tests/e2e/hosted/smoke.spec.ts` (config: `tests/e2e/hosted/playwright.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded project) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
 
 ### Rollback
 
