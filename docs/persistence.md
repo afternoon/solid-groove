@@ -107,7 +107,7 @@ Reads report a permission denial as `not_found`, so the API never confirms the e
 
 ## Migrations
 
-The current schema is **v3**. v1 was the first production schema; **v2 ([LIB-08](#packs-and-pack-qualified-assets)) added `metadata.addedPacks`, the pack shelf; v3 (LOOP-017) added `song.loop`, the loop range and loop toggle.** `src/persistence/migrations.ts` provides the mechanism and its rules:
+The current schema is **v4**. v1 was the first production schema; **v2 ([LIB-08](#packs-and-pack-qualified-assets)) added `metadata.addedPacks`, the pack shelf; v3 (LOOP-017) added `song.loop`, the loop range and loop toggle**; v4 (#290) made a track's placements disjoint. `src/persistence/migrations.ts` provides the mechanism and its rules:
 
 - A **newer** schema version is never read and never overwritten — it is reported so the UI can ask the user to update.
 - An **older** version is upgraded by applying every registered migration in order; a gap in the chain is an error, not a partial upgrade.
@@ -120,7 +120,9 @@ The current schema is **v3**. v1 was the first production schema; **v2 ([LIB-08]
 
 **The v2 → v3 migration** bumps every tier's envelope the same way and gives the song document `loop: { startTicks: 0, endTicks: 768, enabled: true }` — one bar from tick 0, looping on, the same loop a new project starts with. The loop lives in the song document, so a loop edit is a song-tier write and never touches a clip document.
 
-**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v3-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v1-slice-project.json` and `v2-slice-project.json` are the source fixtures the v1 → v2 and v2 → v3 migrations are tested against. `v4-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
+**The v3 → v4 migration** (#290) makes a track's placements disjoint in time, which `parseProject` now enforces as the `placement_overlap` invariant. For each overlapping pair on a track, the placement that starts earlier is kept intact and the overlapping part of the later one is trimmed away (its start moves to the earlier one's end and `clipOffsetTicks` advances by the same amount), or removed when it is fully covered; when two start on the same tick, the one earlier in the placements array is kept. The song document's placements and each arrangement chunk's are resolved independently, since a track's placements live in exactly one of them.
+
+**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v4-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v1-slice-project.json`, `v2-slice-project.json` and `v3-slice-project.json` are the source fixtures the v1 → v2, v2 → v3 and v3 → v4 migrations are tested against. `v5-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
 
 ## Security rules and indexes
 

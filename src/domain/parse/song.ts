@@ -7,6 +7,7 @@ import {
   SAMPLER_SAMPLE_END,
   SAMPLER_SAMPLE_START,
 } from "../parameters";
+import { spanEnd } from "../placementOverlap";
 import { TICKS_PER_BAR } from "../time";
 import { checkAutomationLane } from "./automation";
 import { checkOrdering, claimId, type DomainIssue, issue } from "./primitives";
@@ -172,6 +173,7 @@ export function checkSongIntegrity(
       );
     }
   });
+  issues.push(...checkPlacementsDisjoint(song, path));
 
   song.automation.forEach((lane, index) => {
     const lanePath = [...path, "automation", index] as const;
@@ -179,6 +181,39 @@ export function checkSongIntegrity(
     issues.push(...checkAutomationLane(lane, lanePath, tracks, returnIds));
   });
 
+  return issues;
+}
+
+/**
+ * A track's placements are disjoint in time (#290): two may touch end to start
+ * but never share a tick. Each placement that starts inside an earlier one on
+ * its track is reported once, at its own path.
+ */
+function checkPlacementsDisjoint(
+  song: Song,
+  path: ReadonlyArray<string | number>,
+): DomainIssue[] {
+  const issues: DomainIssue[] = [];
+  const byStart = song.placements
+    .map((placement, index) => ({ placement, index }))
+    .sort((a, b) => a.placement.startTicks - b.placement.startTicks || a.index - b.index);
+  const reach = new Map<string, { end: number; id: string }>();
+  for (const { placement, index } of byStart) {
+    const previous = reach.get(placement.trackId);
+    if (previous && placement.startTicks < previous.end) {
+      issues.push(
+        issue(
+          "placement_overlap",
+          [...path, "placements", index, "startTicks"],
+          `Placement ${placement.id} overlaps placement ${previous.id} on track ${placement.trackId}`,
+        ),
+      );
+    }
+    const end = spanEnd(placement);
+    if (!previous || end > previous.end) {
+      reach.set(placement.trackId, { end, id: placement.id });
+    }
+  }
   return issues;
 }
 

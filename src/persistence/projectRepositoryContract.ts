@@ -456,6 +456,36 @@ export function describeProjectRepositoryContract(
       expect(reloaded.value.song).toEqual(loaded.value.song);
     });
 
+    it("trims a v2 project's overlapping placements across a tier-local save (#290)", async () => {
+      // A v2 project whose track holds overlapping placements, as stored.
+      const stored = await loadStoredProjectFixture("v2-slice-project.json");
+      const song = stored.song as { placements: JsonObject[] };
+      const [kept] = song.placements;
+      const later = { ...kept, id: "plc_laterLaterLaterLaterL", startTicks: 384 };
+      song.placements.push(later);
+      await harness.seedStoredDocuments(storedRawDocuments(stored));
+      const projectId = stored.projectId as Project["metadata"]["id"];
+
+      const loaded = await repository.loadProject(projectId);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      // A clip-only autosave rewrites the clip and metadata tiers, not the song.
+      const saved = await repository.saveClip(
+        projectId,
+        loaded.value.clips[0],
+        loaded.value.metadata.revision,
+      );
+      expect(saved.ok).toBe(true);
+
+      const reloaded = await repository.loadProject(projectId);
+      expect(reloaded.ok, JSON.stringify(reloaded)).toBe(true);
+      if (!reloaded.ok) return;
+      expect(reloaded.value.song.placements).toEqual([
+        kept,
+        { ...later, startTicks: 768, durationTicks: 384, clipOffsetTicks: 384 },
+      ]);
+    });
+
     it("notifies a watcher of metadata changes and stops after unsubscribe", async () => {
       const project = await store(createSliceFixtureProject());
       const seen: number[] = [];

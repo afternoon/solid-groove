@@ -27,6 +27,8 @@ export type DomainIssueCode =
   | "invalid_metadata"
   /** A track's insert count or the song's return count exceeds its ceiling. */
   | "capacity_exceeded"
+  /** Two placements on one track share a tick; a track's placements are disjoint (#290). */
+  | "placement_overlap"
   /** An asset names a pack the project does not declare, or a wrong version. */
   | "invalid_pack_reference";
 

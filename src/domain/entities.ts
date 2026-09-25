@@ -46,9 +46,11 @@ import { durationTickSchema, tickSchema } from "./time";
  * the project's pack shelf; a v1 project migrates forward by seeding its shelf
  * from its derived pack dependencies (`persistence/migrations.ts`). v3
  * (LOOP-017) adds `song.loop`, the loop range and loop toggle; a v2 project
- * migrates forward to the new-project default of one bar from tick 0, on.
+ * migrates forward to the new-project default of one bar from tick 0, on. v4
+ * (#290) makes a track's placements disjoint in time; a v3 project migrates
+ * forward by trimming the later-starting placement of each overlapping pair.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);

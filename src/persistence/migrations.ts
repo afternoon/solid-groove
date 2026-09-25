@@ -1,5 +1,6 @@
 import { type Project, type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
 import { createDefaultSongLoop } from "../domain/factories";
+import { type PlacementSpan, trimLaterOverlaps } from "../domain/placementOverlap";
 import {
   type DecodeResult,
   decodeProject,
@@ -55,6 +56,51 @@ const migrateV2ToV3: ProjectMigration = {
   description: "Add the song loop range and loop toggle, defaulting to one bar, on",
   song: (song) => ({ ...song, loop: { ...createDefaultSongLoop() } }),
 };
+
+/**
+ * v3 -> v4 (#290): a track's placements become disjoint in time.
+ *
+ * Nothing stopped a v3 project stacking placements on one track, and the v4
+ * invariant rejects that, so the migration resolves each overlap as the product
+ * owner decided: the placement that starts earlier is kept intact and the
+ * overlapping part of the later one is trimmed away, or removed if fully
+ * covered; on a tie the one earlier in the array is kept. A track's placements
+ * live in one list — the song document's, or that track's arrangement chunk —
+ * so each stored list is resolved on its own.
+ */
+const migrateV3ToV4: ProjectMigration = {
+  from: 3,
+  to: 4,
+  description: "Trim overlapping placements so each track's placements are disjoint",
+  song: trimDocumentPlacements,
+  chunk: trimDocumentPlacements,
+};
+
+function trimDocumentPlacements(
+  document: Record<string, unknown>,
+): Record<string, unknown> {
+  return Array.isArray(document.placements)
+    ? { ...document, placements: trimStoredPlacements(document.placements) }
+    : document;
+}
+
+/**
+ * Trims a stored placement list, or leaves it untouched when any entry is
+ * malformed: reporting bad shape is the decoder's job, not the migration's.
+ */
+function trimStoredPlacements(placements: readonly unknown[]): unknown[] {
+  const records = placements.map(asRecord);
+  const spans = records.every(
+    (record) =>
+      typeof record.trackId === "string" &&
+      Number.isInteger(record.startTicks) &&
+      Number.isInteger(record.durationTicks) &&
+      Number.isInteger(record.clipOffsetTicks),
+  );
+  return spans
+    ? trimLaterOverlaps(records as (PlacementSpan & Record<string, unknown>)[])
+    : [...placements];
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -123,6 +169,7 @@ export interface ProjectMigration {
 export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [
   migrateV1ToV2,
   migrateV2ToV3,
+  migrateV3ToV4,
 ];
 
 export type MigrationFailureReason =

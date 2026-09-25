@@ -16,7 +16,12 @@
 				"version": "1.0.0"
 			}
 		],
-		"mixdown": "unknown"
+		"addedPacks": [
+			{
+				"packId": "pak_6dWiqlhnLQoPeMlRo5QXl",
+				"version": "1.0.0"
+			}
+		]
 	},
 	"song": {
 		"projectId": "prj_MADZjOuKZuvpTFSgrGadL",
@@ -27,6 +32,11 @@
 		"timeSignature": {
 			"numerator": 4,
 			"denominator": 4
+		},
+		"loop": {
+			"startTicks": 0,
+			"endTicks": 768,
+			"enabled": true
 		},
 		"tracks": [
 			{

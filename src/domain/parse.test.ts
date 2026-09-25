@@ -74,6 +74,8 @@ interface MutablePlacement extends JsonRecord {
   id: string;
   clipId: string;
   trackId: string;
+  startTicks: number;
+  durationTicks: number;
 }
 
 interface MutableAutomation extends JsonRecord {
@@ -204,6 +206,33 @@ describe("parseProject", () => {
     input.song.tracks.push(otherTrack as MutableTrack);
     input.song.placements[0].trackId = otherTrack.id;
     expectIssue(parseProject(input), "cross_owner_reference");
+  });
+
+  it("rejects two placements that overlap in time on one track (#290)", () => {
+    const stacked = baseProject();
+    const first = stacked.song.placements[0];
+    stacked.song.placements.push({ ...first, id: ids("placement") });
+    expectIssue(parseProject(stacked), "placement_overlap");
+
+    const partial = baseProject();
+    const source = partial.song.placements[0];
+    partial.song.placements.push({
+      ...source,
+      id: ids("placement"),
+      startTicks: source.startTicks + source.durationTicks - 192,
+    });
+    expectIssue(parseProject(partial), "placement_overlap");
+  });
+
+  it("accepts placements on one track that only touch end to start", () => {
+    const input = baseProject();
+    const source = input.song.placements[0];
+    input.song.placements.push({
+      ...source,
+      id: ids("placement"),
+      startTicks: source.startTicks + source.durationTicks,
+    });
+    expect(parseProject(input).ok).toBe(true);
   });
 
   it("rejects a clip owned by a missing track", () => {
