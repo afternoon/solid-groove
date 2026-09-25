@@ -32,12 +32,14 @@ import FillSlider from "../instrument/FillSlider";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import DeviceChainSlot from "./DeviceChainSlot";
 import NewTrackButtons from "./NewTrackButtons";
+import TrackDropMarker from "./TrackDropMarker";
 import {
   addTrackOfKind,
   instrumentTypeKey,
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { moveTrack } from "./trackReorder";
+import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
 
@@ -136,15 +138,23 @@ export default function Mixer(props: MixerProps): JSX.Element {
     analytics().logFeatureFirstUse("mixer");
   }
 
-  /** The move-left/right buttons: the keyboard's route to reordering (#331). */
-  function moveBy(trackId: TrackId, toIndex: number): void {
+  /** Move a track, by its move-left/right buttons — the keyboard's route —
+   * or by dragging its strip along the row (#331). */
+  function moveBy(trackId: TrackId, toIndex: number, method: "button" | "drag"): void {
     moveTrack(
       { project: () => props.project, dispatch: props.dispatch, analytics: analytics() },
       trackId,
       toIndex,
-      { view: "mixer", method: "button" },
+      { view: "mixer", method },
     );
   }
+  let stripRow: HTMLDivElement | undefined;
+  const trackDrag = useTrackDrag({
+    axis: "x",
+    zone: () => stripRow,
+    indexOf: (trackId) => trackIds().indexOf(trackId),
+    onDrop: (trackId, toIndex) => moveBy(trackId, toIndex, "drag"),
+  });
 
   function handleDuplicate(track: Track): void {
     const duplicate = duplicateTrack(props.project, track.id, {
@@ -190,7 +200,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
         </span>
         <NewTrackButtons label="Add track" onAdd={handleAddTrack} />
       </header>
-      <div class="mixer-tracks">
+      <div class="mixer-tracks" ref={stripRow}>
         <For each={trackIds()}>
           {(id, index) => {
             const track = createMemo(() => trackById(id));
@@ -204,7 +214,9 @@ export default function Mixer(props: MixerProps): JSX.Element {
                     clipCount={clipCount(id)}
                     selected={props.selectedTrackId === id}
                     onSelect={() => selectTrack(id)}
-                    onMove={(toIndex) => moveBy(id, toIndex)}
+                    onMove={(toIndex) => moveBy(id, toIndex, "button")}
+                    onDragStart={(event) => trackDrag.begin(event, id)}
+                    dragging={trackDrag.dragging() === id}
                     dispatch={props.dispatch}
                     beginGesture={props.beginGesture}
                     trackLevelDb={props.trackLevelDb}
@@ -219,6 +231,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
             );
           }}
         </For>
+        <TrackDropMarker axis="x" offset={trackDrag.marker()} />
       </div>
       {/* The master, at the end of the strips where a console puts it.
 			    Selecting it is the route to its chain, which #283 fills. */}
@@ -262,6 +275,10 @@ interface TrackStripProps {
   onSelect(): void;
   /** Move this strip's track to `toIndex` in display order. */
   onMove(toIndex: number): void;
+  /** Start dragging this strip along the row, from its "Edit" chip. */
+  onDragStart(event: PointerEvent): void;
+  /** Whether this strip is the one being dragged. */
+  readonly dragging: boolean;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -282,8 +299,13 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
     <div
       class={[
         "mixer-strip",
-        { muted: props.track.mixer.muted, selected: props.selected },
+        {
+          muted: props.track.mixer.muted,
+          selected: props.selected,
+          "track-dragging": props.dragging,
+        },
       ]}
+      data-track-drag={props.track.id}
     >
       <div class="mixer-strip-head">
         {/* The colour chip is also the keyboard route to selecting a track:
@@ -308,6 +330,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           aria-label={`Edit ${props.track.name}`}
           title={`Edit ${props.track.name}`}
           onClick={() => props.onSelect()}
+          onPointerDown={(event) => props.onDragStart(event)}
         >
           <span
             class="mixer-strip-chip"

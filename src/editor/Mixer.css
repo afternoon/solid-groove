@@ -37,6 +37,8 @@
    across the panel, so they stay beside the strips they add to however wide the
    workspace gets. */
 .mixer-tracks {
+  /* The drop marker (TRK-02) is placed in this row. */
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 2px;
