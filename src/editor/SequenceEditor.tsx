@@ -67,25 +67,31 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
       }
     >
       <div class="sequence-editor-body">
-        <TrackClipEditor
-          clip={props.clip}
-          trackName={props.track.name}
-          packDependencyLabel={props.packDependencyLabel}
-          showPianoRoll={props.showPianoRoll}
-          instrument={props.track.instrument ?? null}
-          dispatch={props.dispatch}
-          beginGesture={props.beginGesture}
-          editorPlaybackStep={props.editorPlaybackStep}
-          selectedNoteIds={props.selectedNoteIds}
-          setSelectedNoteIds={props.setSelectedNoteIds}
-          project={props.project}
-          playheadTicks={props.playheadTicks}
-          registerPianoRollActions={props.registerPianoRollActions}
-        />
         {/* An audio loop has no notes to program, so what it gets is what
-              LOOP-006 always showed: the tempo it was recorded at, and how
-              following the song tempo will treat it. */}
-        <Show when={props.loop}>
+              LOOP-006 always showed — the tempo it was recorded at, and how
+              following the song tempo will treat it — *instead of* the step
+              grid and its note transforms, which would offer to edit notes
+              the clip does not have (#281). */}
+        <Show
+          when={props.loop}
+          fallback={
+            <TrackClipEditor
+              clip={props.clip}
+              trackName={props.track.name}
+              packDependencyLabel={props.packDependencyLabel}
+              showPianoRoll={props.showPianoRoll}
+              instrument={props.track.instrument ?? null}
+              dispatch={props.dispatch}
+              beginGesture={props.beginGesture}
+              editorPlaybackStep={props.editorPlaybackStep}
+              selectedNoteIds={props.selectedNoteIds}
+              setSelectedNoteIds={props.setSelectedNoteIds}
+              project={props.project}
+              playheadTicks={props.playheadTicks}
+              registerPianoRollActions={props.registerPianoRollActions}
+            />
+          }
+        >
           {(entry) => (
             <LoopInfo
               clip={entry().clip}
