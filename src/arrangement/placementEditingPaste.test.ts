@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TICKS_PER_BAR } from "../domain/time";
-import { pointSelection } from "../selection";
+import { clipsSelection, pointSelection } from "../selection";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import { createEditingHarness } from "./placementEditingHarness";
 
@@ -66,6 +66,34 @@ describe("paste at the selection start (#292)", () => {
     );
     expect(h.editing.paste(7 * BAR)).toBe(true);
     expect(spans(h)).toEqual(before);
+  });
+
+  it("puts a cut spanning two tracks back, when song order differs from time order", () => {
+    // CF-010's layout: the second track is added after BD's clips exist, so
+    // its bar-1 clip sits after BD's bar-3 clip in song order.
+    const built = buildArrangementProject([
+      [
+        { startTicks: 0, durationTicks: BAR },
+        { startTicks: 2 * BAR, durationTicks: BAR },
+      ],
+      [{ startTicks: 0, durationTicks: 3 * BAR }],
+    ]);
+    const h = createEditingHarness({ project: built.project });
+    const layout = () =>
+      h
+        .getProject()
+        .song.placements.map((p) => `${p.trackId}@${p.startTicks}+${p.durationTicks}`)
+        .sort();
+    const before = layout();
+    const [bd, second] = built.placementIds;
+    h.editing.setSelection(clipsSelection([bd[1], second[0]]));
+
+    expect(h.editing.cut()).toBe(true);
+    expect(h.editing.getArrangementSelection()).toEqual(
+      pointSelection({ trackId: built.trackIds[1], ticks: 0 }),
+    );
+    expect(h.editing.paste(7 * BAR)).toBe(true);
+    expect(layout()).toEqual(before);
   });
 
   it("pastes over the selected clips, at the earliest one's start", () => {

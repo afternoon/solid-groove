@@ -21,7 +21,7 @@ import type { Analytics } from "../analytics/analytics";
 import { overwritePlacements } from "../commands/definitions/placements";
 import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
-import type { Project } from "../domain/entities";
+import type { Placement, Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
 import {
   type ArrangementBand,
@@ -351,7 +351,14 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const ids = covered();
     if (!current || ids.length === 0) return false;
     const result = cutPlacements(current, ids);
-    const first = current.song.placements.find((p) => p.id === ids[0]);
+    // The earliest clip by start time, not by song order: a clip added later
+    // can start earlier, and the point must sit where the whole cut began.
+    const first = current.song.placements
+      .filter((p) => ids.includes(p.id))
+      .reduce<Placement | undefined>(
+        (earliest, p) => (!earliest || p.startTicks < earliest.startTicks ? p : earliest),
+        undefined,
+      );
     if (!first || !run(result.commands)) return false;
     clipboard = result.clipboard;
     // The point stays where the cut clips began, so a paste straight after
