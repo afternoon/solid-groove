@@ -104,150 +104,146 @@ const turnedAround = (samples: readonly number[]): boolean =>
 test.describe("CF-004", () => {
   // `test.fixme` until #280 (LOOP-018) lands: that PR removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme(
-    "a producer sets the span they are working in",
-    async ({ page, browserName }) => {
-      // Several loop passes are watched in real time, and a bar is two seconds
-      // at 120 BPM, so this flow does not fit the default per-test timeout.
-      test.setTimeout(120_000);
+  test("a producer sets the span they are working in", async ({ page, browserName }) => {
+    // Several loop passes are watched in real time, and a bar is two seconds
+    // at 120 BPM, so this flow does not fit the default per-test timeout.
+    test.setTimeout(120_000);
 
-      const step = walkthrough(page, {
-        id: "CF-004",
-        title: "A producer sets the span they are working in",
-      });
+    const step = walkthrough(page, {
+      id: "CF-004",
+      title: "A producer sets the span they are working in",
+    });
 
-      /*
-       * Playback is asserted in Chromium only — the known, tracked gap CF-001
-       * and `tests/e2e/emulator/slice.spec.ts` already carry. In Firefox here a
-       * fresh `AudioContext` constructs and reports `state="suspended"`, but
-       * `resume()` never settles, so `play()` times out into
-       * `audio_start_failed`. See docs/testing.md, "Playback is asserted in
-       * Chromium only", and issue #43.
-       *
-       * Everything the brace itself promises — where it starts, that a drag
-       * moves it, that it survives a reload, and that the loop toggle is
-       * independent of it — runs in both gating browsers. Only the assertions
-       * about where the *playhead* went are guarded.
-       */
-      const canAssertPlayback = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
-        description: canAssertPlayback
-          ? `playback asserted in ${browserName}`
-          : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
+    /*
+     * Playback is asserted in Chromium only — the known, tracked gap CF-001
+     * and `tests/e2e/emulator/slice.spec.ts` already carry. In Firefox here a
+     * fresh `AudioContext` constructs and reports `state="suspended"`, but
+     * `resume()` never settles, so `play()` times out into
+     * `audio_start_failed`. See docs/testing.md, "Playback is asserted in
+     * Chromium only", and issue #43.
+     *
+     * Everything the brace itself promises — where it starts, that a drag
+     * moves it, that it survives a reload, and that the loop toggle is
+     * independent of it — runs in both gating browsers. Only the assertions
+     * about where the *playhead* went are guarded.
+     */
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
 
-      // 1. Create a new project. Above the tracks, the ruler carries a loop
-      //    brace spanning the first bar, and looping is on.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await page.getByTestId("arrangement-view-ready").waitFor();
+    // 1. Create a new project. Above the tracks, the ruler carries a loop
+    //    brace spanning the first bar, and looping is on.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    const projectUrl = page.url();
+    await page.getByTestId("arrangement-view-ready").waitFor();
 
-      await expect(loopBrace(page)).toContainText("bars 1 to 1");
-      // The toggle names the action it offers, so "Disable loop" is what a
-      // control that is currently looping reads (`EditorHeader`).
-      await expect(page.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-      await step("A new project opens with the brace over bar 1 and looping on");
+    await expect(loopBrace(page)).toContainText("bars 1 to 1");
+    // The toggle names the action it offers, so "Disable loop" is what a
+    // control that is currently looping reads (`EditorHeader`).
+    await expect(page.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await step("A new project opens with the brace over bar 1 and looping on");
 
-      // 2. Start playback. The playhead runs to the end of bar 1 and jumps
-      //    back to the start, over and over.
-      await page.getByRole("button", { name: "Start playback" }).click();
-      if (canAssertPlayback) {
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        // Two and a half bars of wall clock: long enough to contain at least
-        // one turnaround at the end of bar 1, whenever in the bar it starts.
-        const overBarOne = await watchPlayhead(page, 5_000);
-        expect(overBarOne.map(barOf)).not.toContain(2);
-        expect(turnedAround(overBarOne)).toBe(true);
-        await step("Playback loops around the first bar");
-      }
+    // 2. Start playback. The playhead runs to the end of bar 1 and jumps
+    //    back to the start, over and over.
+    await page.getByRole("button", { name: "Start playback" }).click();
+    if (canAssertPlayback) {
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      // Two and a half bars of wall clock: long enough to contain at least
+      // one turnaround at the end of bar 1, whenever in the bar it starts.
+      const overBarOne = await watchPlayhead(page, 5_000);
+      expect(overBarOne.map(barOf)).not.toContain(2);
+      expect(turnedAround(overBarOne)).toBe(true);
+      await step("Playback loops around the first bar");
+    }
 
-      // 3. Drag the right-hand edge of the brace out to the end of bar 2.
-      const box = await timeline(page).boundingBox();
-      if (!box) throw new Error("The arrangement timeline has no box to drag on.");
-      const pixelsPerTick = Number(
-        await page
-          .getByTestId("arrangement-view-ready")
-          .getAttribute("data-pixels-per-tick"),
-      );
-      expect(pixelsPerTick).toBeGreaterThan(0);
-      // The flow never scrolls the arrangement, so a tick's x is its distance
-      // from the timeline's left edge.
-      const xOfBarLine = (bar: number) =>
-        box.x + (bar - 1) * TICKS_PER_BAR * pixelsPerTick;
-      const rulerY = box.y + RULER_HEIGHT_PX / 2;
+    // 3. Drag the right-hand edge of the brace out to the end of bar 2.
+    const box = await timeline(page).boundingBox();
+    if (!box) throw new Error("The arrangement timeline has no box to drag on.");
+    const pixelsPerTick = Number(
+      await page
+        .getByTestId("arrangement-view-ready")
+        .getAttribute("data-pixels-per-tick"),
+    );
+    expect(pixelsPerTick).toBeGreaterThan(0);
+    // The flow never scrolls the arrangement, so a tick's x is its distance
+    // from the timeline's left edge.
+    const xOfBarLine = (bar: number) => box.x + (bar - 1) * TICKS_PER_BAR * pixelsPerTick;
+    const rulerY = box.y + RULER_HEIGHT_PX / 2;
 
-      await page.mouse.move(xOfBarLine(2), rulerY);
-      await page.mouse.down();
-      await page.mouse.move(xOfBarLine(3), rulerY, { steps: 12 });
-      await page.mouse.up();
+    await page.mouse.move(xOfBarLine(2), rulerY);
+    await page.mouse.down();
+    await page.mouse.move(xOfBarLine(3), rulerY, { steps: 12 });
+    await page.mouse.up();
 
-      // 4. The brace now spans two bars. Playback never stopped, and the
-      //    playhead now turns around at the end of bar 2.
-      await expect(loopBrace(page)).toContainText("bars 1 to 2");
-      if (canAssertPlayback) {
-        // The drag ran through a whole gesture without the transport being
-        // touched: the button still offers to stop, so playback never stopped.
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        // Three bars of wall clock over a two-bar loop: at least one
-        // turnaround, and bar 3 must never be reached.
-        const overTwoBars = await watchPlayhead(page, 6_000);
-        expect(overTwoBars.map(barOf)).toContain(2);
-        expect(overTwoBars.map(barOf)).not.toContain(3);
-        expect(turnedAround(overTwoBars)).toBe(true);
-      }
-      await step("Drag the brace out to the end of bar 2 — playback never stopped");
+    // 4. The brace now spans two bars. Playback never stopped, and the
+    //    playhead now turns around at the end of bar 2.
+    await expect(loopBrace(page)).toContainText("bars 1 to 2");
+    if (canAssertPlayback) {
+      // The drag ran through a whole gesture without the transport being
+      // touched: the button still offers to stop, so playback never stopped.
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      // Three bars of wall clock over a two-bar loop: at least one
+      // turnaround, and bar 3 must never be reached.
+      const overTwoBars = await watchPlayhead(page, 6_000);
+      expect(overTwoBars.map(barOf)).toContain(2);
+      expect(overTwoBars.map(barOf)).not.toContain(3);
+      expect(turnedAround(overTwoBars)).toBe(true);
+    }
+    await step("Drag the brace out to the end of bar 2 — playback never stopped");
 
-      // 5. Switch looping off. The playhead runs past the end of the brace and
-      //    keeps going; the brace stays where it is.
-      await page.getByRole("button", { name: "Disable loop" }).click();
-      await expect(page.getByRole("button", { name: "Enable loop" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
-      if (canAssertPlayback) {
-        await expect
-          .poll(async () => barOf(await playheadBeats(page)), { timeout: 20_000 })
-          .toBeGreaterThanOrEqual(3);
-      }
-      // Switching the transport's behaviour left the range alone: that
-      // separation is the whole point of the toggle being its own control.
-      await expect(loopBrace(page)).toContainText("bars 1 to 2");
-      await step("Looping off — the playhead runs past the brace, which stays put");
+    // 5. Switch looping off. The playhead runs past the end of the brace and
+    //    keeps going; the brace stays where it is.
+    await page.getByRole("button", { name: "Disable loop" }).click();
+    await expect(page.getByRole("button", { name: "Enable loop" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    if (canAssertPlayback) {
+      await expect
+        .poll(async () => barOf(await playheadBeats(page)), { timeout: 20_000 })
+        .toBeGreaterThanOrEqual(3);
+    }
+    // Switching the transport's behaviour left the range alone: that
+    // separation is the whole point of the toggle being its own control.
+    await expect(loopBrace(page)).toContainText("bars 1 to 2");
+    await step("Looping off — the playhead runs past the brace, which stays put");
 
-      // 6. Switch looping back on, stop, and reload the page.
-      await page.getByRole("button", { name: "Enable loop" }).click();
-      await expect(page.getByRole("button", { name: "Disable loop" })).toBeVisible();
-      if (canAssertPlayback) {
-        await page.getByRole("button", { name: "Stop playback" }).click();
-        await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
-      }
-      // Not a step of the flow: step 7's promise is only meaningful once the
-      // change has actually been written, and the save status is how the editor
-      // reports that a revision-checked write completed.
-      await expect(page.locator(".save-status")).toHaveText("Saved", {
-        timeout: 10_000,
-      });
-      await step("Looping back on, and stopped");
+    // 6. Switch looping back on, stop, and reload the page.
+    await page.getByRole("button", { name: "Enable loop" }).click();
+    await expect(page.getByRole("button", { name: "Disable loop" })).toBeVisible();
+    if (canAssertPlayback) {
+      await page.getByRole("button", { name: "Stop playback" }).click();
+      await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
+    }
+    // Not a step of the flow: step 7's promise is only meaningful once the
+    // change has actually been written, and the save status is how the editor
+    // reports that a revision-checked write completed.
+    await expect(page.locator(".save-status")).toHaveText("Saved", {
+      timeout: 10_000,
+    });
+    await step("Looping back on, and stopped");
 
-      await page.reload();
+    await page.reload();
 
-      // 7. The project reopens with the brace still spanning bars 1 and 2, and
-      //    looping still on.
-      await expect(page).toHaveURL(projectUrl);
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect(loopBrace(page)).toContainText("bars 1 to 2");
-      await expect(page.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-      await step("Reopened: the brace and the toggle are exactly as they were left");
-    },
-  );
+    // 7. The project reopens with the brace still spanning bars 1 and 2, and
+    //    looping still on.
+    await expect(page).toHaveURL(projectUrl);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect(loopBrace(page)).toContainText("bars 1 to 2");
+    await expect(page.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await step("Reopened: the brace and the toggle are exactly as they were left");
+  });
 });

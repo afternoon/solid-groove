@@ -5,6 +5,8 @@ export interface LoopBraceControlsProps {
   readonly loop: SongLoop;
   /** Asks for a new range. The host commits it through the command layer. */
   readonly onSetRange: (startTicks: number, endTicks: number) => void;
+  /** The element that reads the range out, so each control is described by it. */
+  readonly describedBy: string;
 }
 
 /**
@@ -14,7 +16,8 @@ export interface LoopBraceControlsProps {
  * it there. These are its keyboard twins: one native spinbutton moves the
  * brace (its first bar) and one resizes it (its length in bars). Native number
  * inputs, so the arrow keys come from the browser rather than from a keydown
- * listener of this component's own (KEY-01).
+ * listener of this component's own (KEY-01), and every change is described by
+ * the arrangement's accessible mirror of the range.
  */
 export function LoopBraceControls(props: LoopBraceControlsProps) {
   const startBar = () => props.loop.startTicks / TICKS_PER_BAR + 1;
@@ -46,6 +49,7 @@ export function LoopBraceControls(props: LoopBraceControlsProps) {
           min={1}
           step={1}
           value={startBar()}
+          aria-describedby={props.describedBy}
           onChange={(event) =>
             commit(event.currentTarget, wholeBars(event.currentTarget), lengthBars())
           }
@@ -59,6 +63,7 @@ export function LoopBraceControls(props: LoopBraceControlsProps) {
           min={1}
           step={1}
           value={lengthBars()}
+          aria-describedby={props.describedBy}
           onChange={(event) =>
             commit(event.currentTarget, startBar(), wholeBars(event.currentTarget))
           }
