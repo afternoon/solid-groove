@@ -472,9 +472,7 @@ export function drawInteractionLayer(
     }
   }
 
-  // At the very start of the song the playhead would sit on the canvas's left
-  // edge and read as a border, so it is only drawn once it has moved off it.
-  if (interaction.playheadTicks !== null && interaction.playheadTicks > 0) {
+  if (interaction.playheadTicks !== null) {
     const x = Math.round(screenX(interaction.playheadTicks, viewport)) + 0.5;
     ctx.strokeStyle = colors().playhead;
     ctx.lineWidth = 2;
