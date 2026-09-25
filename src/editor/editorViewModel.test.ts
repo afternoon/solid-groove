@@ -17,9 +17,12 @@ import {
   instrumentPanelTrackId,
   loopClips,
   loopEntryFor,
+  normalizePlayheadSegments,
   openedClip,
   packDependencyLabel,
   playheadLabel,
+  playheadSegments,
+  playheadSegmentsToTicks,
   sampleAssets,
   sampleName,
   samplerTrackId,
@@ -71,6 +74,34 @@ describe("playheadLabel", () => {
 
   it("ignores a sub-beat offset rather than rounding it up", () => {
     expect(playheadLabel(TICKS_PER_QUARTER + 1)).toBe("1.2");
+  });
+});
+
+describe("playhead segments", () => {
+  it("splits a position into the 1-based bar and beat the label shows", () => {
+    expect(playheadSegments(0)).toEqual({ bar: 1, beat: 1 });
+    expect(playheadSegments(TICKS_PER_BAR * 4 + TICKS_PER_QUARTER * 2 + 7)).toEqual({
+      bar: 5,
+      beat: 3,
+    });
+  });
+
+  it("maps a bar and beat back to the tick at the top of that beat", () => {
+    expect(playheadSegmentsToTicks({ bar: 1, beat: 1 })).toBe(0);
+    expect(playheadSegmentsToTicks({ bar: 5, beat: 3 })).toBe(
+      TICKS_PER_BAR * 4 + TICKS_PER_QUARTER * 2,
+    );
+  });
+
+  it("clamps a typed position into the song and the 4/4 bar", () => {
+    expect(normalizePlayheadSegments(0, 9)).toEqual({ bar: 1, beat: 4 });
+    expect(normalizePlayheadSegments(-3, 0)).toEqual({ bar: 1, beat: 1 });
+    expect(normalizePlayheadSegments(2.6, 1.4)).toEqual({ bar: 3, beat: 1 });
+  });
+
+  it("refuses a segment that is not a number", () => {
+    expect(normalizePlayheadSegments(Number.NaN, 1)).toBeNull();
+    expect(normalizePlayheadSegments(1, Number.NaN)).toBeNull();
   });
 });
 

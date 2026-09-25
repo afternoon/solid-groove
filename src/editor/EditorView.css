@@ -53,11 +53,27 @@
   text-decoration: underline;
 }
 
+/*
+ * Three sections (#340). The outer two share the spare width equally, so the
+ * transport sits in the true centre whatever the project name's length.
+ */
 .editor-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--size-divider);
+}
+
+.editor-header-start,
+.editor-header-end {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-header-end {
+  justify-content: flex-end;
 }
 
 .editor-header .back-to-projects {
@@ -75,10 +91,14 @@
 .editor-header .project-name {
   font-size: var(--font-size-base);
   margin: 0;
-  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-header .transport-controls {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -114,13 +134,11 @@
 
 .editor-header .tempo-control {
   display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
   font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
 }
 
-.editor-header .tempo-input {
+.editor-header .tempo-input,
+.editor-header .playhead-segment {
   width: 3.5em;
   font: inherit;
   color: var(--color-text-primary);
@@ -131,25 +149,45 @@
   text-align: right;
 }
 
-.editor-header .tempo-input:focus {
+.editor-header .tempo-input:focus,
+.editor-header .playhead-segment:focus {
   border-color: var(--color-accent);
   outline: none;
 }
 
-.editor-header .tempo-unit {
-  font-size: var(--font-size-small);
-}
-
-.editor-header .time-signature,
+/* One field of two segments: bar and beat, joined by a drawn dot. */
 .editor-header .playhead-position {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  align-items: center;
   font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
-.editor-header .playhead-position {
-  min-width: 3em;
-  text-align: right;
+.editor-header .playhead-segment {
+  width: 3em;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.editor-header .playhead-beat {
+  width: 2em;
+  text-align: left;
+}
+
+.editor-header .playhead-segment::-webkit-inner-spin-button,
+.editor-header .playhead-segment::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.editor-header .playhead-separator::before {
+  content: ".";
+  padding: 0 1px;
+  color: var(--color-text-secondary);
 }
 
 .editor-header .save-status-group {

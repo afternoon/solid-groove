@@ -443,13 +443,21 @@ test.describe("transport bar", () => {
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
-    // The fixed 4/4 display and the bar.beat playhead at the arrangement start.
-    await expect(page.getByTitle("Time signature (fixed at 4/4)")).toHaveText(
-      "Time signature 4/4",
-    );
+    // The bar.beat playhead at the arrangement start, as an editable field.
     await expect(page.getByTitle("Playhead (bar.beat)")).toHaveText(
       "Playhead at bar 1.1",
     );
+    await expect(page.getByRole("spinbutton", { name: "Bar" })).toHaveValue("1");
+    await expect(page.getByRole("spinbutton", { name: "Beat" })).toHaveValue("1");
+
+    // Typing a bar jumps the playhead there without starting playback.
+    await page.getByRole("spinbutton", { name: "Bar" }).fill("3");
+    await page.getByRole("spinbutton", { name: "Bar" }).press("Enter");
+    await expect(page.getByTitle("Playhead (bar.beat)")).toHaveText(
+      "Playhead at bar 3.1",
+    );
+    // The CF-004/CF-007 locator still finds exactly one readout.
+    await expect(page.getByText(/^Playhead at bar \d+\.\d+$/)).toHaveCount(1);
 
     // Tempo round-trips through the shared command layer: the input reads back
     // from `song.tempo`, and undo names the command that wrote it.
