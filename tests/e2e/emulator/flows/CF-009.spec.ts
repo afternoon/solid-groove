@@ -163,10 +163,16 @@ test.describe("CF-009", () => {
     // 5. Click the clip again, then reload the page.
     await clickClip(page, 0, 1);
     await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
-    // Not a step of the flow. A reload is only meaningful once the new
-    // project's first save has completed, and the save status is how the
-    // editor reports that.
-    await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
+    // Not a step of the flow. Nothing here edits the project: the dashboard
+    // wrote it before opening it, and a selection is never saved. So the save
+    // status stays idle (an empty label), and waiting for "Saved" would wait
+    // for a save that never comes. What the reload needs is only that no write
+    // is still in flight, which is what this waits for.
+    await expect(page.locator(".save-status")).not.toHaveAttribute(
+      "data-state",
+      /^(pending|saving|failed)$/,
+      { timeout: 10_000 },
+    );
     await page.reload();
 
     // 6. The project reopens with nothing selected. Clicking the clip selects
