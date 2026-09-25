@@ -20,6 +20,7 @@ import ArrangementView, {
   type PlacementEditingActions,
   ROW_METRICS,
 } from "./ArrangementView";
+import { RULER_HEIGHT_PX } from "./canvasRenderer";
 
 afterEach(() => {
   cleanup();
@@ -30,7 +31,6 @@ afterEach(() => {
 // number written down here goes stale silently the moment the default zoom
 // moves, and the click lands on whatever happens to be under it instead.
 const PIXELS_PER_TICK = INITIAL_PIXELS_PER_TICK;
-const RULER_HEIGHT_PX = 22;
 // The view's own metric, not a copy of it: these coordinates only mean
 // anything if they agree with the rows actually being drawn.
 const ROW_HEIGHT_PX = ROW_METRICS.trackHeightPx;

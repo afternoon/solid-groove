@@ -21,6 +21,12 @@ import { useArrangementCanvas } from "./useArrangementCanvas";
  * 2D context.
  */
 
+interface Text {
+  text: string;
+  fill: string;
+  clipped: boolean;
+}
+
 interface Rect {
   x: number;
   y: number;
@@ -29,8 +35,12 @@ interface Rect {
   fill: string;
 }
 
-/** A 2D context that records every `fillRect` with the fill it was made in. */
-function recordingContext(rects: Rect[]): CanvasRenderingContext2D {
+/**
+ * A 2D context that records every `fillRect` with the fill it was made in, and
+ * every `fillText` with its fill and whether a clip was active.
+ */
+function recordingContext(rects: Rect[], texts: Text[] = []): CanvasRenderingContext2D {
+  let clipped = false;
   const ctx = {
     fillStyle: "",
     strokeStyle: "",
@@ -40,7 +50,20 @@ function recordingContext(rects: Rect[]): CanvasRenderingContext2D {
     moveTo() {},
     lineTo() {},
     stroke() {},
-    fillText() {},
+    font: "",
+    textBaseline: "",
+    globalAlpha: 1,
+    save() {},
+    restore() {
+      clipped = false;
+    },
+    rect() {},
+    clip() {
+      clipped = true;
+    },
+    fillText(text: string) {
+      texts.push({ text, fill: String(ctx.fillStyle), clipped });
+    },
     fillRect(x: number, y: number, w: number, h: number) {
       rects.push({ x, y, w, h, fill: String(ctx.fillStyle) });
     },
@@ -64,10 +87,10 @@ const viewport = {
 const BAR_TWO_END_PX = 2 * TICKS_PER_BAR * 0.1;
 const barsOneToTwo = { startTicks: 0, endTicks: 2 * TICKS_PER_BAR };
 
-function draw(loop: LoopBraceDrawState | null): Rect[] {
+function draw(loop: LoopBraceDrawState | null, texts: Text[] = []): Rect[] {
   const rects: Rect[] = [];
   drawBackgroundLayer({
-    ctx: recordingContext(rects),
+    ctx: recordingContext(rects, texts),
     viewport,
     projection,
     rowRange: visibleRowRange(projection.rowOffsets, viewport, 0),
@@ -81,14 +104,32 @@ function draw(loop: LoopBraceDrawState | null): Rect[] {
 const inRuler = (rect: Rect) => rect.y + rect.h <= RULER_HEIGHT_PX;
 
 describe("the loop brace on the ruler", () => {
-  it("draws the brace as one band along the bottom of the ruler", () => {
+  it("draws the brace as one rectangle covering the whole ruler", () => {
     const rects = draw({ ...barsOneToTwo, enabled: true }).filter(
       (rect) => inRuler(rect) && rect.fill === COLOR_TOKENS.loopBrace[1],
     );
     expect(rects).toHaveLength(1);
     const [band] = rects;
-    expect(band).toMatchObject({ x: 0, y: RULER_HEIGHT_PX - 10, h: 10 });
+    expect(band).toMatchObject({ x: 0, y: 0, h: RULER_HEIGHT_PX });
     expect(band.w).toBeCloseTo(BAR_TWO_END_PX);
+  });
+
+  it("inverts the bar numbers over a switched-on brace, clipped to it", () => {
+    const texts: Text[] = [];
+    draw({ ...barsOneToTwo, enabled: true }, texts);
+    const barOne = texts.filter((entry) => entry.text === "1");
+    expect(barOne).toEqual([
+      { text: "1", fill: COLOR_TOKENS.text[1], clipped: false },
+      { text: "1", fill: COLOR_TOKENS.rulerTextOnBrace[1], clipped: true },
+    ]);
+  });
+
+  it("keeps the labels light over a switched-off brace", () => {
+    const texts: Text[] = [];
+    draw({ ...barsOneToTwo, enabled: false }, texts);
+    expect(texts.map((entry) => entry.fill)).not.toContain(
+      COLOR_TOKENS.rulerTextOnBrace[1],
+    );
   });
 
   it("draws a switched-off brace in the recessive step, where it still is", () => {
