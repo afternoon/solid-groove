@@ -1,0 +1,30 @@
+{
+  "id": "CF-009",
+  "title": "A producer clicks a clip and is told which one it is",
+  "steps": [
+    {
+      "file": "01-a-new-project-opens-with-the-starter-clip-on-bd-and-nothing-.png",
+      "caption": "A new project opens with the starter clip on BD and nothing selected"
+    },
+    {
+      "file": "02-click-the-clip-it-is-outlined-and-announced-as-a-clip.png",
+      "caption": "Click the clip: it is outlined and announced as a clip"
+    },
+    {
+      "file": "03-click-empty-space-the-clip-is-deselected-and-a-point-is-set.png",
+      "caption": "Click empty space: the clip is deselected and a point is set"
+    },
+    {
+      "file": "04-drag-over-empty-space-the-stretch-is-selected-named-by-posit.png",
+      "caption": "Drag over empty space: the stretch is selected, named by position"
+    },
+    {
+      "file": "05-reopened-the-clip-is-where-it-was-and-nothing-is-selected.png",
+      "caption": "Reopened: the clip is where it was, and nothing is selected"
+    },
+    {
+      "file": "06-clicking-the-clip-selects-and-announces-it-just-as-before.png",
+      "caption": "Clicking the clip selects and announces it just as before"
+    }
+  ]
+}
