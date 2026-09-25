@@ -69,6 +69,16 @@ export const librarySampleSchema = z.strictObject({
     .positive()
     .nullish()
     .transform((value) => value ?? null),
+  /**
+   * How many bars the loop declares it spans, when the manifest says. It is
+   * the clip's length (see {@link loopClipLengthTicks}); absent means the same
+   * as `null`, for the same drag-compatibility reason as `bpm`.
+   */
+  bars: z
+    .number()
+    .positive()
+    .nullish()
+    .transform((value) => value ?? null),
 });
 export type LibrarySample = z.infer<typeof librarySampleSchema>;
 
@@ -97,6 +107,7 @@ export function toLibrarySample(asset: LibraryAsset): LibrarySample | null {
     channelCount: asset.channelCount,
     licence: asset.licence ?? UNSTATED_LICENCE,
     bpm: asset.bpm,
+    bars: asset.bars,
   });
   return parsed.success ? parsed.data : null;
 }
@@ -169,20 +180,25 @@ export interface InsertLoopOptions {
 }
 
 /**
- * How long the loop's clip is, in ticks, rounded to whole bars.
+ * How long the loop's clip is, in ticks, in whole bars.
  *
  * A loop is musical material, so its clip is sized in bars rather than in the
  * seconds the file happens to occupy: a 2-bar loop stays 2 bars whatever tempo
- * the song is at, which is the whole point of following the tempo. The bar
- * count comes from the loop's *own* tempo — the one it was recorded at — not
- * the song's, because that is the timebase its samples are in.
+ * the song is at, which is the whole point of following the tempo.
+ *
+ * The bar count the manifest **declares** is the authority — the library
+ * builder cut the file to exactly that many bars (`verifyGrid`), so it is the
+ * one fact that cannot drift. A loop that declares none is measured instead,
+ * from its duration at its *own* tempo — the timebase its samples are in, not
+ * the song's.
  *
  * Anything that cannot be derived falls back to one bar. A loop that states no
  * tempo, or no duration, is not a reason to refuse it; it is a reason not to
  * pretend to know how long it is.
  */
 export function loopClipLengthTicks(sample: LibrarySample): number {
-  const { durationSeconds, bpm } = sample;
+  const { durationSeconds, bpm, bars: declared } = sample;
+  if (declared) return Math.max(1, Math.round(declared)) * TICKS_PER_BAR;
   if (!durationSeconds || !bpm) return TICKS_PER_BAR;
   const beats = (durationSeconds * bpm) / 60;
   const bars = Math.round((beats * TICKS_PER_QUARTER) / TICKS_PER_BAR);

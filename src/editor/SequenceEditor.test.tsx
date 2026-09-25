@@ -96,6 +96,10 @@ describe("SequenceEditor", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: "Audio loop" })).toBeVisible();
+    // Instead, not as well: a step grid and note transforms on an audio clip
+    // would offer to edit notes it does not have (#281).
+    expect(within(dialog).queryByRole("region", { name: "Step editor" })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Transpose" })).toBeNull();
   });
 
   it("closes from its close control", () => {

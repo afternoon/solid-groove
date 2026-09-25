@@ -12,10 +12,16 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { memoryStorage } from "../testing/storage";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
-import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "./__fixtures__/fixtures";
+import {
+  FIXTURE_PACK_INDEX_DOC,
+  fixtureFetcher,
+  fixturePackManifest,
+} from "./__fixtures__/fixtures";
+import AssetRow from "./AssetRow";
 import { readLibrarySampleDrag } from "./assetDrag";
 import LibraryBrowser from "./LibraryBrowser";
 import { FetchClassifiedError, LibraryClient } from "./libraryClient";
+import { type LibraryAsset, packAssets, parsePackManifest } from "./manifest";
 
 afterEach(() => cleanup());
 
@@ -241,6 +247,50 @@ describe("audition", () => {
     const sample = readLibrarySampleDrag(dataTransfer);
     expect(sample?.name).toBe(name);
     expect(sample?.packId).toMatch(/^pak_/);
+  });
+});
+
+describe("a row's recorded tempo (#281, INS-02)", () => {
+  /** A delivered asset of `type`, so the row renders production's shape. */
+  function deliveredAsset(type: LibraryAsset["type"]): LibraryAsset {
+    for (const pack of FIXTURE_PACK_INDEX_DOC.packs) {
+      const assets = packAssets(parsePackManifest(fixturePackManifest(pack.slug)));
+      const found = assets.find((asset) => asset.type === type && asset.url);
+      if (found) return found;
+    }
+    throw new Error(`no delivered ${type} in the fixture library`);
+  }
+
+  function renderRow(asset: LibraryAsset) {
+    render(() => (
+      <ul>
+        <AssetRow
+          asset={asset}
+          active={false}
+          error={null}
+          onPlay={() => {}}
+          onStop={() => {}}
+        />
+      </ul>
+    ));
+    return screen.getByRole("listitem");
+  }
+
+  it("states the tempo a loop was recorded at", () => {
+    expect(renderRow({ ...deliveredAsset("loop"), bpm: 94 })).toHaveTextContent("94 BPM");
+  });
+
+  it("states no tempo for a one-shot, which does not follow the song", () => {
+    // A one-shot is pitched, not stretched: a tempo on its row would suggest
+    // it follows the song the way a loop does.
+    const oneShot = { ...deliveredAsset("one-shot"), bpm: 120 };
+    expect(renderRow(oneShot)).not.toHaveTextContent(/BPM/);
+  });
+
+  it("states nothing for a loop whose manifest gives no tempo", () => {
+    expect(renderRow({ ...deliveredAsset("loop"), bpm: null })).not.toHaveTextContent(
+      /BPM/,
+    );
   });
 });
 

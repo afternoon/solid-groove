@@ -474,12 +474,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                * An audio track needs content to exist, so the
                                * way to start one is to pick the loop
                                * (`UI-001`); inserting it makes the track.
+                               * Its name says where it goes: the arrangement's
+                               * way into the library, for a producer with no
+                               * sampler slot to fill (#281).
                                */}
                               <button
                                 type="button"
                                 class="new-track-button"
-                                aria-label="Add loop track"
-                                title="Add loop track"
+                                aria-label="Add loop from library"
+                                title="Add a loop from the library"
                                 onClick={() => openLibrary(["loop"])}
                               >
                                 <HiSolidPlus size={13} />

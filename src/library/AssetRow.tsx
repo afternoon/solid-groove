@@ -77,6 +77,12 @@ export default function AssetRow(props: {
           </span>
         </Show>
       </div>
+      {/* A loop follows the song by time-stretching, so the tempo it was
+          recorded at is how far it will stretch — and the only way to tell
+          two loops apart on that is for the row to say (#281, INS-02). */}
+      <Show when={props.asset.type === "loop" ? props.asset.bpm : null}>
+        {(bpm) => <span class="library-row-tempo">{bpm()} BPM</span>}
+      </Show>
       <Show when={props.onInsert}>
         <button
           type="button"
