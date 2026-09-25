@@ -241,6 +241,40 @@ describe("selection and named actions (accessibility equivalents)", () => {
     expect(spanPx).toBeLessThanOrEqual(port.width + 1);
   });
 
+  /** The span of ticks the viewport shows, edge to edge. */
+  function framed(shell: ArrangementShell): { start: number; end: number } {
+    const port = shell.getViewport();
+    return {
+      start: port.scrollLeft / port.pixelsPerTick,
+      end: (port.scrollLeft + port.width) / port.pixelsPerTick,
+    };
+  }
+
+  it("zoom-to-span frames exactly the span it is given (#292)", () => {
+    const { shell } = setup();
+    shell.zoomToSpan(1152, 2688);
+    expect(framed(shell).start).toBeCloseTo(1152);
+    expect(framed(shell).end).toBeCloseTo(2688);
+  });
+
+  it("zoom-to-span can frame past the end of the song, and scrolls there (#292, CF-011)", () => {
+    const { shell, projection } = setup();
+    const songEnd = projection.lengthTicks;
+    expect(shell.contentLengthTicks()).toBe(songEnd);
+    shell.zoomToSpan(songEnd - TICKS_PER_BAR, songEnd + TICKS_PER_BAR);
+    expect(framed(shell).start).toBeCloseTo(songEnd - TICKS_PER_BAR);
+    expect(framed(shell).end).toBeCloseTo(songEnd + TICKS_PER_BAR);
+    // The timeline now runs that far, so the native scrollbar can reach it too.
+    expect(shell.contentLengthTicks()).toBe(songEnd + TICKS_PER_BAR);
+  });
+
+  it("zoom-to-span frames a span too short for the closest zoom from its start", () => {
+    const { shell } = setup();
+    shell.zoomToSpan(TICKS_PER_BAR * 2, TICKS_PER_BAR * 2 + 1);
+    expect(shell.getViewport().pixelsPerTick).toBe(shell.config.maxPixelsPerTick);
+    expect(framed(shell).start).toBeCloseTo(TICKS_PER_BAR * 2);
+  });
+
   it("scroll-to-playhead brings an off-screen playhead into view", () => {
     const { shell } = setup();
     shell.setPlayheadFollow(false);
