@@ -49,12 +49,6 @@ import { walkthrough } from "../../support/walkthrough";
 /** One bar of the alpha's fixed 4/4 at 192 PPQ (`src/domain/time.ts`). */
 const TICKS_PER_BAR = 4 * 192;
 
-/** The ruler strip's height in CSS pixels (`canvasRenderer.RULER_HEIGHT_PX`). */
-const RULER_HEIGHT_PX = 22;
-
-/** One track row's height (`ArrangementView.ROW_METRICS.trackHeightPx`). */
-const ROW_HEIGHT_PX = 28;
-
 /**
  * The arrangement's way into the library (#304).
  *
@@ -127,7 +121,7 @@ async function loopAtAnotherTempo(
 test.describe("CF-005", () => {
   // `test.fixme` until #281 (LOOP-019) lands: that PR removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme("a producer brings a library loop into their project", async ({ page }) => {
+  test("a producer brings a library loop into their project", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-005",
       title: "A producer brings a library loop into their project",
@@ -182,9 +176,13 @@ test.describe("CF-005", () => {
         .getAttribute("data-pixels-per-tick"),
     );
     expect(pixelsPerTick).toBeGreaterThan(0);
+    const root = page.getByTestId("arrangement-view-ready");
+    const rulerHeight = Number(await root.getAttribute("data-ruler-height"));
+    const rowHeight = Number(await root.getAttribute("data-row-height"));
+    expect(rowHeight).toBeGreaterThan(0);
     const bar1OfNewTrack = {
       x: (TICKS_PER_BAR / 2) * pixelsPerTick,
-      y: RULER_HEIGHT_PX + ROW_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+      y: rulerHeight + rowHeight + rowHeight / 2,
     };
     await timeline(page).click({ position: bar1OfNewTrack });
     await expect(selectedPlacements(page)).toHaveCount(1);

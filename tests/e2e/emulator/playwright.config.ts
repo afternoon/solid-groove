@@ -56,7 +56,13 @@ export default defineConfig({
     // `--host 127.0.0.1` pins the dev server to IPv4 — see the identical
     // comment in `playwright.config.ts`. A different port than that suite's
     // so both can run concurrently without colliding.
-    command: `bun run dev --host 127.0.0.1 --port ${PORT}`,
+    //
+    // `library:build` first: the flows browse the delivered library (CF-005,
+    // CF-007, CF-012), and same-origin delivery serves the pack index and
+    // manifests out of `public/samples/starter-library`, which only that
+    // build writes — `predev`'s `samples` renders the factory runtime's audio
+    // alone. It needs no network or credentials and takes ~15 seconds.
+    command: `bun run library:build && bun run dev --host 127.0.0.1 --port ${PORT}`,
     // Playwright resolves `cwd` relative to this config file, which now lives
     // under `tests/`. The dev server must run from the repo root.
     cwd: "../../..",
