@@ -6,6 +6,7 @@ import {
   drawContentLayer,
   drawInteractionLayer,
   type InteractionState,
+  type LoopBraceDrawState,
 } from "./canvasRenderer";
 import type { Viewport } from "./geometry";
 import type { ArrangementProjection } from "./projection";
@@ -48,6 +49,8 @@ export interface ArrangementCanvasOptions {
   readonly interactionState: () => InteractionState;
   /** The shared waveform cache the content layer draws from. */
   readonly waveformCache: WaveformCache;
+  /** The song's loop brace, drawn on the ruler (`LOOP-018`). */
+  readonly loop?: () => LoopBraceDrawState | null;
 }
 
 /** The three stacked, dirty-tracked layer canvases, in z-order. */
@@ -140,6 +143,7 @@ export function useArrangementCanvas(
       rowRange: shell.rowRange(),
       tickRange: shell.tickRange(),
       waveformCache: options.waveformCache,
+      loop: options.loop?.() ?? null,
     };
   }
 

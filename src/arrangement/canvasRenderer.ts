@@ -23,7 +23,7 @@ import {
 } from "./waveformCache";
 
 /** Height in CSS pixels of the ruler strip across the top of the timeline. */
-export const RULER_HEIGHT_PX = 22;
+export const RULER_HEIGHT_PX = 16;
 
 /** Space kept clear above and below a clip's note preview. */
 const NOTE_PREVIEW_INSET_PX = 6;
@@ -37,6 +37,18 @@ export interface DrawEnvironment {
   readonly rowRange: RowRange;
   readonly tickRange: TickRange;
   readonly waveformCache: WaveformCache;
+  /**
+   * The song's loop brace (`LOOP-018`), drawn on the ruler in the background
+   * pass. Optional so a host with no loop to show draws the ruler bare.
+   */
+  readonly loop?: LoopBraceDrawState | null;
+}
+
+/** What the ruler needs to draw the loop brace: its range and whether it is on. */
+export interface LoopBraceDrawState {
+  readonly startTicks: number;
+  readonly endTicks: number;
+  readonly enabled: boolean;
 }
 
 export interface InteractionState {
@@ -82,6 +94,14 @@ export const COLOR_TOKENS = {
      than naming a colour of their own. */
   onPlacement: ["--shade-medium", "rgb(0 0 0 / 45%)"],
   onPlacementStrong: ["--scrim", "rgb(0 0 0 / 70%)"],
+  /* The loop brace is one band. Looping on is the brightest step and looping
+     off the recessive one, so the toggle reads on the brace itself — state is
+     brightness here, as everywhere else. */
+  loopBrace: ["--color-accent", "#ffffff"],
+  loopBraceOff: ["--tint-soft", "rgb(255 255 255 / 8%)"],
+  /* Ruler text over a switched-on brace inverts to a dark step, so it stays
+     readable on the white band. */
+  rulerTextOnBrace: ["--color-background-tertiary", "#292929"],
 } as const satisfies Record<string, readonly [string, string]>;
 
 type ColorName = keyof typeof COLOR_TOKENS;
@@ -187,10 +207,36 @@ export function drawBackgroundLayer(env: DrawEnvironment): void {
 
 /** The bar-number and section-label strip across the top of the timeline. */
 function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): void {
-  const { ctx, viewport, projection } = env;
+  const { ctx, viewport } = env;
   ctx.fillStyle = colors().ruler;
   ctx.fillRect(0, 0, viewport.width, RULER_HEIGHT_PX);
 
+  if (env.loop) drawLoopBrace(env, env.loop);
+
+  drawRulerLabels(env, firstBar, lastBar, colors().text, colors().rulerText);
+  // Over a switched-on brace the labels are drawn again, clipped to the brace
+  // and inverted, so each glyph reads dark on white where it crosses it.
+  const brace = env.loop?.enabled ? braceSpan(env, env.loop) : null;
+  if (brace) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(brace.left, 0, brace.width, RULER_HEIGHT_PX);
+    ctx.clip();
+    const onBrace = colors().rulerTextOnBrace;
+    drawRulerLabels(env, firstBar, lastBar, onBrace, onBrace);
+    ctx.restore();
+  }
+}
+
+/** Section names and bar numbers, in the given colours. */
+function drawRulerLabels(
+  env: DrawEnvironment,
+  firstBar: number,
+  lastBar: number,
+  barColor: string,
+  sectionColor: string,
+): void {
+  const { ctx, viewport, projection } = env;
   // Section ranges labelled in their own color; sections that fall entirely
   // outside the visible tick range are skipped (culling).
   for (const section of projection.sections) {
@@ -201,22 +247,44 @@ function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): voi
     ctx.globalAlpha = 0.9;
     ctx.fillRect(Math.max(0, left), 0, Math.max(1, right - left), 4);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = colors().rulerText;
+    ctx.fillStyle = sectionColor;
     ctx.font = "11px system-ui, sans-serif";
     ctx.textBaseline = "middle";
-    ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX - 7);
+    ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX / 2);
   }
 
   // Bar numbers every 4 bars, so labels do not crowd at small zoom.
-  ctx.fillStyle = colors().text;
+  ctx.fillStyle = barColor;
   ctx.font = "10px system-ui, sans-serif";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "middle";
   for (let bar = firstBar; bar <= lastBar; bar += 1) {
     if (bar % 4 !== 0) continue;
     const x = screenX(bar * TICKS_PER_BAR, viewport);
     if (x < -20 || x > viewport.width) continue;
-    ctx.fillText(`${bar + 1}`, x + 3, 2);
+    ctx.fillText(`${bar + 1}`, x + 3, RULER_HEIGHT_PX / 2);
   }
+}
+
+/** The brace's on-screen span, or null when it is scrolled out of view. */
+function braceSpan(
+  env: DrawEnvironment,
+  loop: LoopBraceDrawState,
+): { left: number; width: number } | null {
+  const left = screenX(loop.startTicks, env.viewport);
+  const right = screenX(loop.endTicks, env.viewport);
+  if (right < 0 || left > env.viewport.width) return null;
+  return { left, width: Math.max(1, right - left) };
+}
+
+/**
+ * The loop brace: one rectangle covering the full height of the ruler, like
+ * GarageBand's cycle region. Drawn before the labels, which invert over it.
+ */
+function drawLoopBrace(env: DrawEnvironment, loop: LoopBraceDrawState): void {
+  const span = braceSpan(env, loop);
+  if (!span) return;
+  env.ctx.fillStyle = loop.enabled ? colors().loopBrace : colors().loopBraceOff;
+  env.ctx.fillRect(span.left, 0, span.width, RULER_HEIGHT_PX);
 }
 
 function drawPlacement(env: DrawEnvironment, placement: PlacementGeometry): void {
