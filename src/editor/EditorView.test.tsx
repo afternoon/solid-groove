@@ -1126,6 +1126,36 @@ describe("EditorView keyboard shortcuts", () => {
     ).toBeUndefined();
   });
 
+  // #292: cut left nothing selected, and the `arrangement` context was only
+  // added for a selection that covered clips, so with the step editor showing
+  // (no `selection` context of its own) Mod+V matched no shortcut at all.
+  it("pastes after a cut with the step editor showing (#292)", async () => {
+    const project = await renderSlice();
+    const [source] = project.song.placements;
+    await selectPlacementInArrangement(source.id);
+
+    fireEvent.keyDown(window, { key: "x", ctrlKey: true });
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        expect(loaded.value.song.placements).toEqual([]);
+      },
+      { timeout: 3_000 },
+    );
+    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
+
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        const starts = loaded.value.song.placements.map((p) => p.startTicks);
+        expect(starts).toEqual([source.startTicks]);
+      },
+      { timeout: 3_000 },
+    );
+  });
+
   it("zooms the arrangement to its selection with Z, and not without one (#292)", async () => {
     await renderSlice();
     const root = await screen.findByTestId("arrangement-view-ready");

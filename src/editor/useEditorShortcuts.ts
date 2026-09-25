@@ -228,6 +228,21 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // `selection` already follows for the piano roll, so
   // cut/copy/paste/delete/duplicate never steal a keystroke from an editor
   // that has nothing selected.
+  //
+  // A point, an empty range or a held clipboard keeps it active too (#292):
+  // each covers no clip, but paste still has somewhere to go. Cut clears the
+  // clips it took, and a click in empty space sets a point, so gating on
+  // covered clips alone left Mod+V dead after either. Every other arrangement
+  // edit keeps its own `isEnabled` on covered clips, so none of them fires.
+  const arrangementContextLive = (): boolean => {
+    const actions = arrangementEditingActions();
+    return (
+      hasArrangementSelection() ||
+      (actions !== null &&
+        (actions.getArrangementSelection() !== null || actions.getClipboard().length > 0))
+    );
+  };
+
   const editorContexts = (): readonly ShortcutContext[] => {
     const base: readonly ShortcutContext[] = showPianoRoll()
       ? ["editor", "step_editor", "piano_roll", "selection"]
@@ -235,7 +250,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // A live placement selection makes the arrangement's own mappings active
     // whichever editor is mounted below it (#258), not only when that editor
     // happens to be the step grid.
-    const withArrangement: readonly ShortcutContext[] = hasArrangementSelection()
+    const withArrangement: readonly ShortcutContext[] = arrangementContextLive()
       ? [...base, "arrangement"]
       : base;
     // The sequence editor is a window over the page, but deliberately not the
