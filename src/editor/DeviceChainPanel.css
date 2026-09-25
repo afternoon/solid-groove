@@ -1,0 +1,71 @@
+/* The selected track's insert chain (#241), in the Instrument view's slot
+   beneath the instrument. Devices stack in signal order, top to bottom, each
+   full width like the instrument above them. */
+
+.device-chain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--color-background-secondary);
+}
+
+.device-chain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.device-chain-heading {
+  margin: 0;
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.device-chain-add,
+.device-chain-type {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 0;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  line-height: 1;
+}
+
+.device-chain-add[aria-expanded="true"] {
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.device-chain-add:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.device-chain-types {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: none;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.device-chain-note {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}
+
+.device-chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-divider);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
