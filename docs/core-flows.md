@@ -438,30 +438,32 @@ project dashboard
    nothing is selected.
 2. Click the clip. It gets a solid outline, and the arrangement announces
    "Selected clip on BD, bar 1".
-3. Click the empty space just after the start of bar 3 on the same track. The
-   clip's outline goes away, a cursor marks the point you clicked, and the
-   arrangement announces "Position 3.1.1".
+3. Click the empty space halfway through bar 3 on the same track. The clip's
+   outline goes away, a cursor marks the start of the bar you clicked in, and
+   the arrangement announces "Position 3.1.1".
 4. Drag along the same track from the second sixteenth of bar 3 to its last
-   sixteenth. A dotted outline marks the stretch you dragged over, and the
-   arrangement announces "Selected BD, 3.1.2 to 3.4.4".
+   sixteenth. A dotted outline follows the pointer while you drag. It touches
+   no clip, so when you let go nothing is selected, and the arrangement
+   announces "No selection".
 5. Click the clip again, then reload the page.
 6. The project reopens with nothing selected. Clicking the clip selects it and
    announces it exactly as before.
 
 **Outcome:** there is one selection in the arrangement. Clicking a clip selects
-that clip and names its bars. Clicking empty space sets a point and names its
-position. Dragging over empty space selects a stretch of time and names where it
-starts and ends. Each replaces the last, the clip and the stretch look
-different, and a screen reader is told which one happened. The clip is still
-there after a reload, and the selection is not, because a selection belongs to
-the session and not to the song.
+that clip and names its bars. Clicking empty space sets a point at the start of
+the bar you clicked in and names its position. Dragging over empty space selects
+the clips the drag touches, and a drag that touches none selects nothing. Each
+replaces the last, the band you drag and a selected clip look different, and a
+screen reader is told which one happened. The clip is still there after a
+reload, and the selection is not, because a selection belongs to the session and
+not to the song.
 
 **Out of scope:** what the outlines and the cursor look like. They are canvas
 pixels, so this flow shows them in its walkthrough and the renderer's own tests
 check them. Selecting several clips, which is CF-010. Zooming, which is CF-011.
 Keyboard-only selection from the accessible track list.
 
-### CF-010 — A producer selects a stretch of the song across tracks and deletes it
+### CF-010 — A producer drags across tracks to select clips and deletes them
 
 **Issue:** #292 · **Suite:** `tests/e2e/emulator/flows/CF-010.spec.ts` · **Entrypoint:** the
 project dashboard
@@ -473,22 +475,23 @@ project dashboard
    between them. Add a sampler track and drag the right edge of its clip out to
    the end of bar 3, so "Sampler" has one clip across bars 1 to 3.
 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along to 4.3.1
-   on "Sampler". A dotted outline covers that stretch on both tracks. The "BD"
-   clip in bar 3, which is wholly inside it, and the "Sampler" clip, which is
-   only partly inside it, each get a solid outline, and the arrangement
+   on "Sampler". A dotted outline follows the pointer across both tracks. When
+   you let go it goes away, and the clips it touched are selected as whole
+   clips: the "BD" clip in bar 3, which it wholly contained, and the "Sampler"
+   clip, which it overlapped. Each gets a solid outline, and the arrangement
    announces "2 clips selected". The "BD" clip in bar 1 is not selected.
-3. Press Delete. The "BD" clip in bar 3 is gone. The "Sampler" clip now stops
-   at 2.3.1, where the stretch began, and is announced as "Selected clip on
-   Sampler, 1.1.1 to 2.3.1". The "BD" clip in bar 1 is untouched. A stretch
-   dragged across both tracks from 2.4.1 to 4.4.1 covers nothing, and is
-   announced as "Selected 2 tracks, 2.4.1 to 4.4.1".
+3. Press Delete. Both selected clips are gone, whole: nothing is trimmed. The
+   "BD" clip in bar 1 is untouched. Clicking in bar 1 on "Sampler", where its
+   clip started, finds empty space and announces "Position 1.1.1". The same
+   drag as in step 2 now touches no clip, and is announced as "No selection".
 4. Reload the page.
-5. The project reopens exactly as step 3 left it.
+5. The project reopens exactly as step 3 left it: both tracks are still there,
+   "BD" has only its clip in bar 1, and "Sampler" has no clips.
 
-**Outcome:** a stretch of time dragged across more than one track selected the
-clips it touched. Delete removed exactly that stretch: a clip wholly inside it
-went, and a clip partly inside it lost only the part that was covered. The
-change was still there after a reload.
+**Outcome:** a drag across more than one track selected every clip it contained
+or overlapped, as whole clips. Delete removed exactly those clips, whole, and
+nothing else: a clip the drag only partly covered went entirely rather than
+being trimmed. The change was still there after a reload.
 
 **Out of scope:** cut, copy, paste, duplicate and drag on a selection, which are
 tested at the component layer against the same selection. Undo. What the
@@ -506,21 +509,22 @@ project dashboard
    bar 1.
 2. Press halfway through the empty bar 2 on "BD" and drag down and along to
    halfway through bar 4 on "Sampler". The sampler's clips in bars 2 and 3,
-   which the stretch partly and wholly covers, are selected, and the arrangement
-   announces "2 clips selected".
+   which the drag overlaps and wholly contains, are selected as whole clips, and
+   the arrangement announces "2 clips selected".
 3. Zoom to selection from the toolbar. The timeline now shows exactly the
-   stretch you dragged over and nothing else: from halfway through bar 2 at its
-   left edge to halfway through bar 4, which is empty, at its right edge.
+   selected clips and nothing else: the start of bar 2 at its left edge and the
+   end of bar 3 at its right edge. The half bars you dragged over either side
+   of them are not framed.
 4. Click the sampler's clip in bar 3 and press Z. Bar 3 alone now fills the
    timeline, edge to edge.
 5. Reload the page.
 6. The project reopens with nothing selected, so zoom to selection has nothing
    to act on until you select something again.
 
-**Outcome:** zoom to selection frames exactly what was selected: the whole
-range across every track it covers, even where the range runs past its last
-clip, and a single clicked clip, where it used to do nothing. It works from the
-toolbar and from the keyboard.
+**Outcome:** zoom to selection frames exactly the selected clips, from the first
+one's start to the last one's end, however far the drag that selected them
+reached past them, and a single clicked clip, where it used to do nothing. It
+works from the toolbar and from the keyboard.
 
 **Out of scope:** "zoom back" to the previous zoom, which is its own shortcut. A
 selection wider than the timeline can show at its closest zoom. What the
