@@ -96,165 +96,162 @@ async function leadingEdge(target: Locator, axis: "top" | "left") {
 test.describe("CF-014", () => {
   // `test.fixme` until #331 (TRK-02) lands: that PR removes this marker in the
   // same diff that makes the flow pass.
-  test.fixme(
-    "a producer drags their tracks into order",
-    async ({ page, browserName }) => {
-      test.setTimeout(120_000);
+  test("a producer drags their tracks into order", async ({ page, browserName }) => {
+    test.setTimeout(120_000);
 
-      const step = walkthrough(page, {
-        id: "CF-014",
-        title: "A producer drags their tracks into order",
-      });
+    const step = walkthrough(page, {
+      id: "CF-014",
+      title: "A producer drags their tracks into order",
+    });
 
-      // Playback is asserted in Chromium only — see CF-007 and #43.
-      const canAssertPlayback = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
-        description: canAssertPlayback
-          ? `playback asserted in ${browserName}`
-          : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
+    // Playback is asserted in Chromium only — see CF-007 and #43.
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
 
-      /** Playback is still running: the transport stayed on and the playhead moves. */
-      async function stillPlaying(): Promise<void> {
-        if (!canAssertPlayback) return;
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        const before = (await playheadReadout(page).textContent()) ?? "";
-        await expect
-          .poll(async () => (await playheadReadout(page).textContent()) ?? "", {
-            timeout: 10_000,
-          })
-          .not.toBe(before);
-      }
-
-      // 1. Create a new project. It opens on the arrangement with the starter
-      //    track, BD. Add a synth track and then a sampler track. The track list
-      //    reads BD, Synth, Sampler, top to bottom.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect.poll(() => namesOf(arrangementHeaders(page))).toEqual(["BD"]);
-      await page.getByRole("button", { name: "Add synth track" }).click();
-      await page.getByRole("button", { name: "Add sampler track" }).click();
+    /** Playback is still running: the transport stayed on and the playhead moves. */
+    async function stillPlaying(): Promise<void> {
+      if (!canAssertPlayback) return;
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      const before = (await playheadReadout(page).textContent()) ?? "";
       await expect
-        .poll(() => namesOf(arrangementHeaders(page)))
-        .toEqual(["BD", "Synth", "Sampler"]);
-      await step("Three tracks: BD, Synth, Sampler");
+        .poll(async () => (await playheadReadout(page).textContent()) ?? "", {
+          timeout: 10_000,
+        })
+        .not.toBe(before);
+    }
 
-      // 2. Start playback.
-      await page.getByRole("button", { name: "Start playback" }).click();
-      await stillPlaying();
-      await step("Start playback");
+    // 1. Create a new project. It opens on the arrangement with the starter
+    //    track, BD. Add a synth track and then a sampler track. The track list
+    //    reads BD, Synth, Sampler, top to bottom.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect.poll(() => namesOf(arrangementHeaders(page))).toEqual(["BD"]);
+    await page.getByRole("button", { name: "Add synth track" }).click();
+    await page.getByRole("button", { name: "Add sampler track" }).click();
+    await expect
+      .poll(() => namesOf(arrangementHeaders(page)))
+      .toEqual(["BD", "Synth", "Sampler"]);
+    await step("Three tracks: BD, Synth, Sampler");
 
-      // 3. While it plays, drag the Sampler track's header up over BD. Before you
-      //    let go, a marker shows the track will land at the top. Let go: the
-      //    list reads Sampler, BD, Synth, and playback never stops.
-      await drag(
-        page,
-        arrangementHeader(page, "Sampler"),
-        await leadingEdge(arrangementHeader(page, "BD"), "top"),
-        async () => {
-          await expect(dropIndicator(page)).toBeVisible();
-          await step("Drag Sampler up — a marker shows it will land at the top");
-        },
-      );
-      await expect(dropIndicator(page)).toHaveCount(0);
-      await expect
-        .poll(() => namesOf(arrangementHeaders(page)))
-        .toEqual(["Sampler", "BD", "Synth"]);
-      await stillPlaying();
-      await step("Let go — Sampler is at the top, still playing");
+    // 2. Start playback.
+    await page.getByRole("button", { name: "Start playback" }).click();
+    await stillPlaying();
+    await step("Start playback");
 
-      // 4. Drag BD's header off the track list and let go over the view dock.
-      //    Nothing moves: the list still reads Sampler, BD, Synth.
-      const dockBox = await dock(page).boundingBox();
-      if (!dockBox) throw new Error("the view dock is not visible");
-      await drag(page, arrangementHeader(page, "BD"), {
-        x: dockBox.x + dockBox.width / 2,
-        y: dockBox.y + dockBox.height / 2,
-      });
-      await expect(dropIndicator(page)).toHaveCount(0);
-      await expect
-        .poll(() => namesOf(arrangementHeaders(page)))
-        .toEqual(["Sampler", "BD", "Synth"]);
-      await step("A drag released off the list changes nothing");
+    // 3. While it plays, drag the Sampler track's header up over BD. Before you
+    //    let go, a marker shows the track will land at the top. Let go: the
+    //    list reads Sampler, BD, Synth, and playback never stops.
+    await drag(
+      page,
+      arrangementHeader(page, "Sampler"),
+      await leadingEdge(arrangementHeader(page, "BD"), "top"),
+      async () => {
+        await expect(dropIndicator(page)).toBeVisible();
+        await step("Drag Sampler up — a marker shows it will land at the top");
+      },
+    );
+    await expect(dropIndicator(page)).toHaveCount(0);
+    await expect
+      .poll(() => namesOf(arrangementHeaders(page)))
+      .toEqual(["Sampler", "BD", "Synth"]);
+    await stillPlaying();
+    await step("Let go — Sampler is at the top, still playing");
 
-      // 5. Undo once. The list reads BD, Synth, Sampler — the whole drag comes
-      //    back in one step. Redo, and it reads Sampler, BD, Synth again.
-      await page.getByRole("button", { name: /^Undo/ }).click();
-      await expect
-        .poll(() => namesOf(arrangementHeaders(page)))
-        .toEqual(["BD", "Synth", "Sampler"]);
-      await page.getByRole("button", { name: /^Redo/ }).click();
-      await expect
-        .poll(() => namesOf(arrangementHeaders(page)))
-        .toEqual(["Sampler", "BD", "Synth"]);
-      await step("Undo and redo take the whole drag in one step");
+    // 4. Drag BD's header off the track list and let go over the view dock.
+    //    Nothing moves: the list still reads Sampler, BD, Synth.
+    const dockBox = await dock(page).boundingBox();
+    if (!dockBox) throw new Error("the view dock is not visible");
+    await drag(page, arrangementHeader(page, "BD"), {
+      x: dockBox.x + dockBox.width / 2,
+      y: dockBox.y + dockBox.height / 2,
+    });
+    await expect(dropIndicator(page)).toHaveCount(0);
+    await expect
+      .poll(() => namesOf(arrangementHeaders(page)))
+      .toEqual(["Sampler", "BD", "Synth"]);
+    await step("A drag released off the list changes nothing");
 
-      // 6. Go to the mixer. The strips read Sampler, BD, Synth, left to right.
-      //    Drag the Synth strip to the far left. Before you let go, a marker
-      //    shows where it will land. Let go: the strips read Synth, Sampler, BD,
-      //    and playback is still running.
-      await viewLink(page, "Mixer").click();
-      await expect(mixer(page)).toBeVisible();
-      await expect
-        .poll(() => namesOf(mixerStrips(page)))
-        .toEqual(["Sampler", "BD", "Synth"]);
-      await drag(
-        page,
-        mixerStrip(page, "Synth"),
-        await leadingEdge(mixerStrip(page, "Sampler"), "left"),
-        async () => {
-          await expect(dropIndicator(page)).toBeVisible();
-          await step("Drag the Synth strip left — a marker shows where it lands");
-        },
-      );
-      await expect(dropIndicator(page)).toHaveCount(0);
-      await expect
-        .poll(() => namesOf(mixerStrips(page)))
-        .toEqual(["Synth", "Sampler", "BD"]);
-      await stillPlaying();
-      await step("Let go — Synth is first in the mixer, still playing");
+    // 5. Undo once. The list reads BD, Synth, Sampler — the whole drag comes
+    //    back in one step. Redo, and it reads Sampler, BD, Synth again.
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect
+      .poll(() => namesOf(arrangementHeaders(page)))
+      .toEqual(["BD", "Synth", "Sampler"]);
+    await page.getByRole("button", { name: /^Redo/ }).click();
+    await expect
+      .poll(() => namesOf(arrangementHeaders(page)))
+      .toEqual(["Sampler", "BD", "Synth"]);
+    await step("Undo and redo take the whole drag in one step");
 
-      // 7. Using only the keyboard, move BD one place to the left. The strips
-      //    read Synth, BD, Sampler.
-      //
-      // The existing "Move BD left" button, or whatever replaces it, reached by
-      // focus and Enter — the drag is never the only path (#331).
-      const moveBdLeft = mixer(page).getByRole("button", {
-        name: /^Move BD (left|earlier)/i,
-      });
-      await moveBdLeft.focus();
-      await page.keyboard.press("Enter");
-      await expect
-        .poll(() => namesOf(mixerStrips(page)))
-        .toEqual(["Synth", "BD", "Sampler"]);
-      await step("Move BD left with the keyboard");
+    // 6. Go to the mixer. The strips read Sampler, BD, Synth, left to right.
+    //    Drag the Synth strip to the far left. Before you let go, a marker
+    //    shows where it will land. Let go: the strips read Synth, Sampler, BD,
+    //    and playback is still running.
+    await viewLink(page, "Mixer").click();
+    await expect(mixer(page)).toBeVisible();
+    await expect
+      .poll(() => namesOf(mixerStrips(page)))
+      .toEqual(["Sampler", "BD", "Synth"]);
+    await drag(
+      page,
+      mixerStrip(page, "Synth"),
+      await leadingEdge(mixerStrip(page, "Sampler"), "left"),
+      async () => {
+        await expect(dropIndicator(page)).toBeVisible();
+        await step("Drag the Synth strip left — a marker shows where it lands");
+      },
+    );
+    await expect(dropIndicator(page)).toHaveCount(0);
+    await expect
+      .poll(() => namesOf(mixerStrips(page)))
+      .toEqual(["Synth", "Sampler", "BD"]);
+    await stillPlaying();
+    await step("Let go — Synth is first in the mixer, still playing");
 
-      // 8. Go to the instrument view. The track list down its left edge reads
-      //    Synth, BD, Sampler.
-      await viewLink(page, "Instrument").click();
-      await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
-      await expect(trackRail(page)).toHaveText(["Synth", "BD", "Sampler"]);
-      await step("The instrument view's track list agrees");
+    // 7. Using only the keyboard, move BD one place to the left. The strips
+    //    read Synth, BD, Sampler.
+    //
+    // The existing "Move BD left" button, or whatever replaces it, reached by
+    // focus and Enter — the drag is never the only path (#331).
+    const moveBdLeft = mixer(page).getByRole("button", {
+      name: /^Move BD (left|earlier)/i,
+    });
+    await moveBdLeft.focus();
+    await page.keyboard.press("Enter");
+    await expect
+      .poll(() => namesOf(mixerStrips(page)))
+      .toEqual(["Synth", "BD", "Sampler"]);
+    await step("Move BD left with the keyboard");
 
-      // 9. Stop playback and reload the page. The instrument view's track list
-      //    still reads Synth, BD, Sampler, and so does the arrangement's.
-      if (canAssertPlayback) {
-        await page.getByRole("button", { name: "Stop playback" }).click();
-        await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
-      }
-      await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
-      await page.reload();
-      await expect(trackRail(page)).toHaveText(["Synth", "BD", "Sampler"]);
-      await viewLink(page, "Arrangement").click();
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect
-        .poll(() => namesOf(arrangementHeaders(page)))
-        .toEqual(["Synth", "BD", "Sampler"]);
-      await step("Reload — every view keeps the new order");
-    },
-  );
+    // 8. Go to the instrument view. The track list down its left edge reads
+    //    Synth, BD, Sampler.
+    await viewLink(page, "Instrument").click();
+    await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
+    await expect(trackRail(page)).toHaveText(["Synth", "BD", "Sampler"]);
+    await step("The instrument view's track list agrees");
+
+    // 9. Stop playback and reload the page. The instrument view's track list
+    //    still reads Synth, BD, Sampler, and so does the arrangement's.
+    if (canAssertPlayback) {
+      await page.getByRole("button", { name: "Stop playback" }).click();
+      await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
+    }
+    await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
+    await page.reload();
+    await expect(trackRail(page)).toHaveText(["Synth", "BD", "Sampler"]);
+    await viewLink(page, "Arrangement").click();
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect
+      .poll(() => namesOf(arrangementHeaders(page)))
+      .toEqual(["Synth", "BD", "Sampler"]);
+    await step("Reload — every view keeps the new order");
+  });
 });
