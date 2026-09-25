@@ -1086,6 +1086,9 @@ describe("ProjectAudioGraph audio loops (LOOP-006/INS-02)", () => {
       emit(event: "stop" | "pause", time: number) {
         for (const callback of listeners.get(event) ?? []) callback(time);
       },
+      listenerCount() {
+        return [...listeners.values()].reduce((sum, set) => sum + set.size, 0);
+      },
     });
   }
 
@@ -1138,6 +1141,9 @@ describe("ProjectAudioGraph audio loops (LOOP-006/INS-02)", () => {
       }
 
       await graph.dispose();
+      // Disposal unsubscribes, so a later project's transport halt never
+      // reaches this graph.
+      expect(transport.listenerCount()).toBe(0);
       await runtime.close();
     });
   }

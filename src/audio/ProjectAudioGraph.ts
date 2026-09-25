@@ -44,7 +44,20 @@ export interface AudioTransport {
   bpm: { value: number };
   schedule(callback: (time: number) => void, time: string): number;
   clear(id: number): void;
+  /**
+   * Subscribe to the transport halting at `time` (audio-clock seconds), as
+   * `Tone.Transport` emits `"stop"` and `"pause"`. Sounding loop players are
+   * cut off at that time (issue #383). Optional so a test double that never
+   * stops need not implement it; the live transport always does.
+   */
+  on?(event: TransportHaltEvent, callback: (time: number) => void): void;
+  off?(event: TransportHaltEvent, callback: (time: number) => void): void;
 }
+
+/** The transport events after which no arrangement audio may keep sounding. */
+export type TransportHaltEvent = "stop" | "pause";
+
+const TRANSPORT_HALT_EVENTS: readonly TransportHaltEvent[] = ["stop", "pause"];
 
 const liveTransport: AudioTransport = {
   get bpm() {
@@ -55,6 +68,12 @@ const liveTransport: AudioTransport = {
   },
   clear(id) {
     Tone.getTransport().clear(id);
+  },
+  on(event, callback) {
+    Tone.getTransport().on(event, callback);
+  },
+  off(event, callback) {
+    Tone.getTransport().off(event, callback);
   },
 };
 
@@ -151,6 +170,17 @@ export class ProjectAudioGraph {
    * in a 90 BPM project on a 120 BPM grid.
    */
   private currentTempo: number = SONG_TEMPO.defaultValue;
+  /**
+   * Loop players currently sounding (or scheduled to). A loop player is
+   * started against the audio clock with its stop already scheduled at the end
+   * of its event, so stopping the transport alone would let it play out the
+   * rest of its span; the graph stops these itself when the transport halts.
+   */
+  private readonly activeLoopPlayers = new Set<Tone.Player | Tone.GrainPlayer>();
+  private readonly onTransportHalt = (time: number): void => {
+    for (const player of this.activeLoopPlayers) player.stop(time);
+    this.activeLoopPlayers.clear();
+  };
   private disposed = false;
 
   constructor(
@@ -178,6 +208,9 @@ export class ProjectAudioGraph {
       });
     this.underrunMonitor = options.underrunMonitor;
     this.now = options.now ?? audioClockNow;
+    for (const event of TRANSPORT_HALT_EVENTS) {
+      this.transport.on?.(event, this.onTransportHalt);
+    }
     this.master = new MasterAudioGraph(
       this.scope,
       this.runtime.getDestination(),
@@ -453,19 +486,30 @@ export class ProjectAudioGraph {
         this.underrunMonitor?.observe(time, this.now());
         const track = this.tracks.get(loop.trackId);
         if (track && bufferBox.current) {
-          playAudioLoop(bufferBox.current, {
+          const player = playAudioLoop(bufferBox.current, {
             destination: track.audioInput,
             time,
             durationSeconds,
             playbackRate: loop.playbackRate,
             offsetSeconds,
           });
+          if (player) this.trackLoopPlayer(player);
         }
       }, ticksToToneTime(loop.absoluteTicks));
       entry.handles.push(
         this.scope.register("schedule", () => this.transport.clear(scheduleId)),
       );
     }
+  }
+
+  /** Holds a started loop player until it stops, so a transport halt can cut it. */
+  private trackLoopPlayer(player: Tone.Player | Tone.GrainPlayer): void {
+    this.activeLoopPlayers.add(player);
+    const disposeOnStop = player.onstop;
+    player.onstop = (source) => {
+      this.activeLoopPlayers.delete(player);
+      disposeOnStop(source);
+    };
   }
 
   private subscribeAudioLoopAsset(
@@ -494,6 +538,11 @@ export class ProjectAudioGraph {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+
+    for (const event of TRANSPORT_HALT_EVENTS) {
+      this.transport.off?.(event, this.onTransportHalt);
+    }
+    this.onTransportHalt(this.now());
 
     for (const [, entry] of this.placementSchedules) {
       this.releaseSchedule(entry);
