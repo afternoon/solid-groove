@@ -15,6 +15,7 @@
  */
 
 import { addPlacement, overwritePlacements } from "../commands/definitions/placements";
+import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Project } from "../domain/entities";
 import type { IdFactory, PlacementId, TrackId } from "../domain/ids";
@@ -85,6 +86,12 @@ export function cutPlacements(
  * offsets between the copied placements so a multi-placement paste keeps its
  * shape. A clip that no longer exists is skipped — the paste places what it
  * still can rather than failing the whole transaction or inventing content.
+ *
+ * Each pasted placement wins the ticks it lands on (#291, the #290 overwrite):
+ * what it covers is replaced, removed, trimmed, or split. The overwrite for
+ * each entry is resolved against the project as the entries before it left
+ * it, so two pasted placements landing inside one longer placement split what
+ * the first split left rather than both splitting the original.
  */
 export function pastePlacements(
   project: Project,
@@ -96,21 +103,26 @@ export function pastePlacements(
   const anchor = Math.min(...clipboard.map((entry) => entry.startTicks));
   const target = snapToBar(targetTicks);
   const commands: RawCommandInput[] = [];
+  let working = project;
   for (const entry of clipboard) {
     if (!findClip(project, entry.clipId)) continue;
     const startTicks = toTicks(clampTick(target + (entry.startTicks - anchor)));
     if (startTicks + entry.durationTicks > MAX_ARRANGEMENT_TICKS) continue;
-    commands.push(
-      addPlacement({
-        id: ids("placement"),
-        clipId: entry.clipId,
-        trackId: entry.trackId,
-        startTicks,
-        durationTicks: toTicks(entry.durationTicks),
-        clipOffsetTicks: toTicks(entry.clipOffsetTicks),
-        looped: entry.looped,
-      }),
-    );
+    const placement = {
+      id: ids("placement"),
+      clipId: entry.clipId,
+      trackId: entry.trackId,
+      startTicks,
+      durationTicks: toTicks(entry.durationTicks),
+      clipOffsetTicks: toTicks(entry.clipOffsetTicks),
+      looped: entry.looped,
+    };
+    const step = [
+      ...overwritePlacements(working, placement, () => ids("placement")),
+      addPlacement(placement),
+    ];
+    commands.push(...step);
+    working = executeTransaction(working, step, { commitRevision: false }).project;
   }
   return commands;
 }
