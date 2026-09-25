@@ -601,6 +601,47 @@ suite. Return-bus chains and sends. Analytics (`device_added`,
 `feature_first_use`), which are asserted once-per-action at the unit layer, not
 through a journey.
 
+### CF-014 — A producer drags their tracks into order
+
+**Issue:** #331 · **Suite:** `tests/e2e/emulator/flows/CF-014.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. It opens on the arrangement with the starter track, BD.
+   Add a synth track and then a sampler track. The track list reads BD, Synth,
+   Sampler, top to bottom.
+2. Start playback.
+3. While it plays, drag the Sampler track's header up over BD. Before you let go,
+   a marker shows the track will land at the top. Let go: the list reads Sampler,
+   BD, Synth, and playback never stops.
+4. Drag BD's header off the track list and let go over the view dock. Nothing
+   moves: the list still reads Sampler, BD, Synth.
+5. Undo once. The list reads BD, Synth, Sampler — the whole drag comes back in
+   one step. Redo, and it reads Sampler, BD, Synth again.
+6. Go to the mixer. The strips read Sampler, BD, Synth, left to right. Drag the
+   Synth strip to the far left. Before you let go, a marker shows where it will
+   land. Let go: the strips read Synth, Sampler, BD, and playback is still
+   running.
+7. Using only the keyboard, move BD one place to the left. The strips read Synth,
+   BD, Sampler.
+8. Go to the instrument view. The track list down its left edge reads Synth, BD,
+   Sampler.
+9. Stop playback and reload the page. The instrument view's track list still
+   reads Synth, BD, Sampler, and so does the arrangement's.
+
+**Outcome:** a producer put their tracks in the order they think in with one drag
+each, in whichever view they were looking at, without stopping the music; a drag
+they abandoned changed nothing, the keyboard can do the same job, and every view
+agreed on the order when they came back.
+
+**Out of scope:** that the reorder is *inaudible*, which a headless browser cannot
+hear: the flow proves playback keeps running, and that `ProjectAudioGraph` reuses
+every node on a reorder is asserted in the audio suite. That a track's clips,
+instrument, devices and mixer settings travel with it, which `track.reorder`'s
+command tests hold. Analytics, asserted once-per-action at the unit layer.
+Reordering returns or the master, multi-select drags, and touch drags.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
