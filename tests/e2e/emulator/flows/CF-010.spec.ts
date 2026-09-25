@@ -2,8 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 
 /**
- * `CF-010`: a producer selects a stretch of the song across tracks and deletes
- * it.
+ * `CF-010`: a producer drags across tracks to select clips and deletes them.
  *
  * Read the flow in `docs/core-flows.md`. The numbered comments below are its
  * steps, in its words. This is one of the three acceptance contracts for #292
@@ -16,36 +15,33 @@ import { walkthrough } from "../../support/walkthrough";
  * `placementEditingController`'s own ID set. The PR that closes #292 removes
  * this marker.
  *
- * What it holds #292 to, from the product owner's decisions on the issue:
+ * What it holds #292 to, from the product owner's decisions on the issue (the
+ * whole-clip model revised on 2026-09-25):
  *
- *  - **A range can cover more than one track**, and it selects every clip it
- *    touches, including one that is only partly inside it.
- *  - **Several covered clips are announced as a count**: "{n} clips selected".
- *  - **Delete removes the covered time, not the covered clips** (Ableton). A
- *    clip wholly inside the range goes. A clip partly inside it is trimmed to
- *    the part outside. Nothing outside the range is touched, and the result
- *    survives a reload.
- *  - **A range across several tracks that covers no clip is named by the
- *    track count and exact position**: "Selected 2 tracks, 2.4.1 to 4.4.1".
- *    The spec drags one over the deleted stretch to show it is empty.
+ *  - **A drag can cross more than one track**, and on release it selects every
+ *    clip it wholly contains or overlaps, as whole clips. The band itself does
+ *    not persist.
+ *  - **Several selected clips are announced as a count**: "{n} clips selected".
+ *  - **Delete removes the selected clips, whole.** Nothing is trimmed: the
+ *    Sampler clip the drag only overlapped goes entirely, not just the part the
+ *    drag covered. Nothing unselected is touched, and the result survives a
+ *    reload.
+ *  - **A drag that touches no clip selects nothing**: "No selection". The spec
+ *    repeats step 2's drag after the delete to show that stretch is empty.
+ *  - **A click in empty space sets a point at the start of the bar clicked
+ *    in**: "Position {bar}.1.1". The spec clicks where the Sampler clip began to
+ *    show that no trimmed remainder of it is left there.
  *
- * The range starts in empty space because pressing on a clip and dragging
- * moves the clip. Ranges do not snap, and the pointer can only land on a whole
- * pixel. At the zoom a new project opens with, a pixel is about 7 ticks and a
- * sixteenth is 48. So every range end here is aimed a quarter of the way into
- * a sixteenth (12 ticks in), far from any bar line or clip edge. A pixel
- * either way cannot leave that sixteenth. Because the aim is short of halfway,
- * naming the sixteenth a position falls in and naming the nearest one agree.
+ * The drag starts in empty space because pressing on a clip and dragging moves
+ * the clip. Neither end of it is announced any more, so its ends only have to
+ * sit clear of clip edges. They are aimed a quarter of the way into the 2.3.1
+ * and 4.3.1 sixteenths, as the flow words them, half a bar from the nearest
+ * bar line, where the pointer landing on a whole pixel (about 7 ticks at the
+ * opening zoom) cannot change which clips the drag touches.
  *
  * Step 1 moves one clip by its body and lengthens another by the resize handle
  * on its right edge. Both are ARR-002 gestures that #292 keeps, and both still
- * snap to whole bars.
- *
- * One naming rule covers clips and ranges alike: whole-bar wording ("bar 3",
- * "bars 1 to 3") when both ends sit on bar lines, and bars.beats.sixteenths
- * positions otherwise. So the clips step 1 makes are named by whole bars. The
- * Sampler clip that Delete trims ends at the free range edge, off a bar line,
- * so it is named by positions.
+ * snap to whole bars, so the clips step 1 makes are named by whole bars.
  *
  * Whether a clip is still there is read the way a screen-reader user would
  * find out: select it and listen.
@@ -58,7 +54,7 @@ const TICKS_PER_BAR = 4 * TICKS_PER_BEAT;
 
 /**
  * The tick a quarter of the way into sixteenth `bar.beat.sixteenth` (all
- * 1-based, as announcements name them). See the note above for why.
+ * 1-based, as the flow names them). See the note above.
  */
 const insideSixteenth = (bar: number, beat: number, sixteenth: number): number =>
   (bar - 1) * TICKS_PER_BAR +
@@ -129,41 +125,45 @@ async function drag(
   await page.mouse.up();
 }
 
+/** Step 2's drag: from 2.3.1 on "BD" down and along to 4.3.1 on "Sampler". */
+async function dragAcrossBothTracks(page: Page): Promise<void> {
+  await drag(
+    page,
+    await pointAt(page, 0, insideSixteenth(2, 3, 1)),
+    await pointAt(page, 1, insideSixteenth(4, 3, 1)),
+  );
+}
+
 /**
  * The state steps 3 and 5 both promise.
  *
  *  - The "BD" clip in bar 1 is still there, and still one bar long.
- *  - The "Sampler" clip is still there, trimmed to end where the range began.
- *    That end is off a bar line, so the clip is named by positions: "Selected
- *    clip on Sampler, 1.1.1 to 2.3.1". The range began a quarter of the way
- *    into the 2.3.1 sixteenth, so the trimmed end names that sixteenth
- *    whichever pixel the pointer landed on.
- *  - Nothing is left on either track from bar 2, beat 4 onwards. A range
- *    dragged over that stretch covers no clip, so it is announced in the range
- *    form. That also shows the Sampler clip no longer reaches it.
+ *  - Nothing is left in bar 1 on "Sampler", where its clip started. A click
+ *    there is a click in empty space, so it sets a point at the bar's start.
+ *    A clip trimmed to the part the drag did not cover would still be here,
+ *    and would be announced as a clip instead.
+ *  - Step 2's drag now touches no clip on either track, so it selects nothing.
+ *    That shows the "BD" clip in bar 3 and the rest of the "Sampler" clip are
+ *    gone too.
  */
 async function expectAfterDelete(page: Page): Promise<void> {
   await clickAt(page, 0, midBar(1));
   await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
-  await clickAt(page, 1, insideSixteenth(1, 2, 1));
-  await expect(announcement(page)).toHaveText("Selected clip on Sampler, 1.1.1 to 2.3.1");
-  await drag(
-    page,
-    await pointAt(page, 0, insideSixteenth(2, 4, 1)),
-    await pointAt(page, 1, insideSixteenth(4, 4, 1)),
-  );
-  await expect(announcement(page)).toHaveText("Selected 2 tracks, 2.4.1 to 4.4.1");
+  await clickAt(page, 1, midBar(1));
+  await expect(announcement(page)).toHaveText("Position 1.1.1");
+  await dragAcrossBothTracks(page);
+  await expect(announcement(page)).toHaveText("No selection");
 }
 
 test.describe("CF-010", () => {
   // `test.fixme` until #292 lands: the PR that closes it removes this marker in
   // the same diff that makes the flow pass.
   test.fixme(
-    "a producer selects a stretch of the song across tracks and deletes it",
+    "a producer drags across tracks to select clips and deletes them",
     async ({ page }) => {
       const step = walkthrough(page, {
         id: "CF-010",
-        title: "A producer selects a stretch of the song across tracks and deletes it",
+        title: "A producer drags across tracks to select clips and deletes them",
       });
 
       // 1. Create a new project, duplicate the "BD" clip, and drag the copy
@@ -206,27 +206,26 @@ test.describe("CF-010", () => {
       await step("BD has clips in bars 1 and 3; Sampler has one clip across bars 1 to 3");
 
       // 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along
-      //    to 4.3.1 on "Sampler". A dotted outline covers that stretch on both
-      //    tracks. The "BD" clip in bar 3, which is wholly inside it, and the
-      //    "Sampler" clip, which is only partly inside it, each get a solid
-      //    outline, and the arrangement announces "2 clips selected". The "BD"
-      //    clip in bar 1 is not selected.
-      await drag(
-        page,
-        await pointAt(page, 0, insideSixteenth(2, 3, 1)),
-        await pointAt(page, 1, insideSixteenth(4, 3, 1)),
-      );
-      // Two: the BD clip in bar 3 and the partly covered Sampler clip. Not
-      // three, because the BD clip in bar 1 ends before the range begins.
+      //    to 4.3.1 on "Sampler". A dotted outline follows the pointer across
+      //    both tracks. When you let go it goes away, and the clips it touched
+      //    are selected as whole clips: the "BD" clip in bar 3, which it wholly
+      //    contained, and the "Sampler" clip, which it overlapped. Each gets a
+      //    solid outline, and the arrangement announces "2 clips selected". The
+      //    "BD" clip in bar 1 is not selected.
+      await dragAcrossBothTracks(page);
+      // Two: the BD clip in bar 3 and the overlapped Sampler clip. Not three,
+      // because the BD clip in bar 1 ends before the drag begins.
       await expect(announcement(page)).toHaveText("2 clips selected");
-      await step("Drag across both tracks: the two clips it touches are selected");
+      await step("Drag across both tracks: the two clips it touches are selected, whole");
 
-      // 3. Press Delete. The "BD" clip in bar 3 is gone. The "Sampler" clip now
-      //    stops at 2.3.1, where the stretch began, and the "BD" clip in bar 1
-      //    is untouched.
+      // 3. Press Delete. Both selected clips are gone, whole: nothing is
+      //    trimmed. The "BD" clip in bar 1 is untouched. Clicking in bar 1 on
+      //    "Sampler", where its clip started, finds empty space and announces
+      //    "Position 1.1.1". The same drag as in step 2 now touches no clip,
+      //    and is announced as "No selection".
       await page.keyboard.press("Delete");
       await expectAfterDelete(page);
-      await step("Press Delete: the BD clip in bar 3 is gone, the Sampler clip trimmed");
+      await step("Press Delete: both clips are gone, whole; BD bar 1 is untouched");
 
       // 4. Reload the page.
       //
@@ -238,7 +237,9 @@ test.describe("CF-010", () => {
       });
       await page.reload();
 
-      // 5. The project reopens exactly as step 3 left it.
+      // 5. The project reopens exactly as step 3 left it: both tracks are
+      //    still there, "BD" has only its clip in bar 1, and "Sampler" has no
+      //    clips.
       await expect(page).toHaveURL(projectUrl);
       await page.getByTestId("arrangement-view-ready").waitFor();
       await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
