@@ -38,9 +38,14 @@ describe("selection", () => {
     // Re-select the now-deleted ID, as a stale selection surviving an undo
     // would; reconcile against the live project must drop it.
     h.editing.select(id);
-    expect(h.editing.getSelection()).toEqual([id]);
-    h.editing.reconcile();
+    expect(h.editing.getArrangementSelection()).toEqual({
+      kind: "clips",
+      placementIds: [id],
+    });
+    // A dead clip is never reported as covered, even before reconciling.
     expect(h.editing.getSelection()).toEqual([]);
+    h.editing.reconcile();
+    expect(h.editing.getArrangementSelection()).toBeNull();
   });
 });
 
