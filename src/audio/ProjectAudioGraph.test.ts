@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { executeTransaction, reorderTrack } from "../commands";
 import type { Project } from "../domain/entities";
 import { createFactoryContext, createReturnBus } from "../domain/factories";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
@@ -248,6 +249,36 @@ describe("ProjectAudioGraph", () => {
     graph.reconcile(after);
 
     expect(graph.trackGraphs.get(trackId)).toBe(graphBefore);
+
+    await graph.dispose();
+    await runtime.close();
+  });
+
+  it("reordering tracks reuses every track graph and clears no scheduled event (TRK-02)", async () => {
+    const project = createReferenceProject({ trackCount: 3, placementCount: 6 });
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const transport = fakeTransport();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport,
+    });
+
+    const before = buildAudioProjection(project);
+    graph.reconcile(before);
+    const graphsBefore = new Map(graph.trackGraphs);
+    const scheduledBefore = [...transport.scheduled.keys()];
+
+    const last = [...project.song.tracks].sort((a, b) => a.order - b.order).at(-1);
+    if (!last) throw new Error("fixture has no tracks");
+    const moved = executeTransaction(project, [reorderTrack(last.id, 0)]);
+    if (!moved.ok) throw new Error("reorder was rejected");
+    graph.reconcile(buildAudioProjection(moved.project, before));
+
+    expect(graph.trackGraphs.size).toBe(graphsBefore.size);
+    for (const [id, trackGraph] of graphsBefore) {
+      expect(graph.trackGraphs.get(id)).toBe(trackGraph);
+    }
+    expect(transport.cleared).toEqual([]);
+    expect([...transport.scheduled.keys()]).toEqual(scheduledBefore);
 
     await graph.dispose();
     await runtime.close();
