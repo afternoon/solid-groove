@@ -393,6 +393,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // PRD section 9.4 prefixed IDs. Opaque by construction.
       "props.note.id",
       "track.id",
+      // A mixer strip's `TrackId`, which the track drag (TRK-02) reads its
+      // items by — the same prefixed ID as `track.id`, reached through props.
+      "props.track.id",
       // The `PlacementId`s of the placement-editing selection (ARR-002), in
       // the arrangement's accessible mirror. A prefixed ID like the two above
       // — the placement's *name* is never bound here, and the mirror's own

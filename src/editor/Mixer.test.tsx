@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -13,15 +13,20 @@ import {
 import type { Project } from "../domain/entities";
 import {
   createDrumMachineFixtureProject,
+  createReferenceProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import type { TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { dragTrackHandle, stubTrackDragLayout } from "../testing/trackDrag";
 import Mixer from "./Mixer";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 /**
  * A harness that drives the mixer against a real {@link CommandHistory}, so a
@@ -250,6 +255,43 @@ describe("Mixer track management (TRK-01)", () => {
     expect(events).toHaveLength(1);
     expect(events[0]?.params).toMatchObject({ view: "mixer", method: "button" });
     expect(history.entries).toHaveLength(1);
+  });
+
+  it("drags a strip along the row to reorder it, showing the marker first (#331)", async () => {
+    const { history, transport, selected } = renderMixer(
+      createReferenceProject({ trackCount: 3, placementCount: 3 }),
+    );
+    const order = () =>
+      [...history.project.song.tracks].sort((a, b) => a.order - b.order);
+    stubTrackDragLayout({
+      axis: "x",
+      zoneSelector: ".mixer-tracks",
+      size: 100,
+      zoneLength: 300,
+      order: () => order().map((track) => track.id),
+    });
+    const [a, b, c] = order();
+    const edit = (name: string) => screen.getByRole("button", { name: `Edit ${name}` });
+
+    dragTrackHandle(edit(c.name), { x: 2, y: 50 }, () => {
+      expect(screen.getByTestId("track-drop-indicator")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("track-drop-indicator")).toBeNull();
+    expect(order().map((track) => track.id)).toEqual([c.id, a.id, b.id]);
+    expect(history.entries).toHaveLength(1);
+    expect(transport.named("track_reordered").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "mixer", method: "drag" }),
+    ]);
+
+    // Released past the row's end: nothing moves, nothing is logged.
+    dragTrackHandle(edit(a.name), { x: 900, y: 50 });
+    expect(order().map((track) => track.id)).toEqual([c.id, a.id, b.id]);
+    expect(transport.named("track_reordered")).toHaveLength(1);
+    expect(selected).toEqual([]);
+    // Let the swallow for the click a drag ends in lapse, as a browser would
+    // by the next task, so it cannot eat the next test's first click.
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
   it("deletes an empty track immediately, warns on a track with clips", () => {
