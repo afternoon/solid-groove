@@ -6,12 +6,19 @@ import type { Gesture, RawCommandInput, TransactionResult } from "../commands";
 import { fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 
-/** An `Analytics` with a recording transport, never the app singleton. */
-export function testAnalytics() {
+/**
+ * An `Analytics` with a recording transport, never the app singleton.
+ *
+ * `optedOut` starts it with telemetry declined, which is how a panel proves
+ * that disabling analytics changes what is reported and nothing else.
+ */
+export function testAnalytics(options: { optedOut?: boolean } = {}) {
   const transport = createRecordingTransport();
+  const consent = new ConsentStore(memoryStorage());
+  if (options.optedOut) consent.optOut();
   const analytics = new Analytics({
     transport,
-    consent: new ConsentStore(memoryStorage()),
+    consent,
     storage: memoryStorage(),
   });
   analytics.setAccountType("anonymous");
