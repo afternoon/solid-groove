@@ -1,0 +1,42 @@
+{
+  "id": "CF-013",
+  "title": "A producer rearranges a track's chain while it plays",
+  "steps": [
+    {
+      "file": "01-an-overdrive-then-a-reverb-on-the-starter-track.png",
+      "caption": "An overdrive, then a reverb, on the starter track"
+    },
+    {
+      "file": "02-start-playback.png",
+      "caption": "Start playback"
+    },
+    {
+      "file": "03-move-the-reverb-before-the-overdrive-still-playing.png",
+      "caption": "Move the reverb before the overdrive, still playing"
+    },
+    {
+      "file": "04-bypass-the-overdrive-it-keeps-its-place-and-settings.png",
+      "caption": "Bypass the overdrive — it keeps its place and settings"
+    },
+    {
+      "file": "05-duplicate-the-reverb.png",
+      "caption": "Duplicate the reverb"
+    },
+    {
+      "file": "06-reset-the-second-reverb-to-its-defaults.png",
+      "caption": "Reset the second reverb to its defaults"
+    },
+    {
+      "file": "07-remove-the-second-reverb.png",
+      "caption": "Remove the second reverb"
+    },
+    {
+      "file": "08-undo-the-reverb-is-back-in-its-place.png",
+      "caption": "Undo — the reverb is back in its place"
+    },
+    {
+      "file": "09-reload-the-rearranged-chain-is-intact.png",
+      "caption": "Reload — the rearranged chain is intact"
+    }
+  ]
+}

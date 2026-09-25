@@ -1,0 +1,42 @@
+{
+  "id": "CF-012",
+  "title": "A producer builds an effects chain on one track",
+  "steps": [
+    {
+      "file": "01-a-project-with-the-starter-kick-and-a-library-loop.png",
+      "caption": "A project with the starter kick and a library loop"
+    },
+    {
+      "file": "02-the-loop-s-track-with-an-empty-device-chain.png",
+      "caption": "The loop's track, with an empty device chain"
+    },
+    {
+      "file": "03-add-a-filter-with-its-own-controls.png",
+      "caption": "Add a filter, with its own controls"
+    },
+    {
+      "file": "04-add-a-delay-after-the-filter.png",
+      "caption": "Add a delay after the filter"
+    },
+    {
+      "file": "05-undo-and-redo-the-delay.png",
+      "caption": "Undo and redo the delay"
+    },
+    {
+      "file": "06-sweep-the-filter-s-cutoff-while-it-plays.png",
+      "caption": "Sweep the filter's cutoff while it plays"
+    },
+    {
+      "file": "07-one-undo-takes-back-the-whole-sweep.png",
+      "caption": "One undo takes back the whole sweep"
+    },
+    {
+      "file": "08-the-kick-s-own-chain-is-empty.png",
+      "caption": "The kick's own chain is empty"
+    },
+    {
+      "file": "09-reload-the-chain-is-still-there-in-order.png",
+      "caption": "Reload — the chain is still there, in order"
+    }
+  ]
+}
