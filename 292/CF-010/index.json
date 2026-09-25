@@ -1,6 +1,6 @@
 {
   "id": "CF-010",
-  "title": "A producer selects a stretch of the song across tracks and deletes it",
+  "title": "A producer drags across tracks to select clips and deletes them",
   "steps": [
     {
       "file": "01-bd-has-clips-in-bars-1-and-3-sampler-has-one-clip-across-bar.png",
@@ -8,11 +8,11 @@
     },
     {
       "file": "02-drag-across-both-tracks-the-two-clips-it-touches-are-selecte.png",
-      "caption": "Drag across both tracks: the two clips it touches are selected"
+      "caption": "Drag across both tracks: the two clips it touches are selected, whole"
     },
     {
-      "file": "03-press-delete-the-bd-clip-in-bar-3-is-gone-the-sampler-clip-t.png",
-      "caption": "Press Delete: the BD clip in bar 3 is gone, the Sampler clip trimmed"
+      "file": "03-press-delete-both-clips-are-gone-whole-bd-bar-1-is-untouched.png",
+      "caption": "Press Delete: both clips are gone, whole; BD bar 1 is untouched"
     },
     {
       "file": "04-reopened-exactly-as-the-delete-left-it.png",

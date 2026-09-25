@@ -11,8 +11,8 @@
       "caption": "Drag from mid bar 2 on BD to mid bar 4 on Sampler: two clips selected"
     },
     {
-      "file": "03-zoom-to-selection-exactly-the-dragged-stretch-fills-the-time.png",
-      "caption": "Zoom to selection: exactly the dragged stretch fills the timeline"
+      "file": "03-zoom-to-selection-the-selected-clips-bars-2-to-3-fill-the-ti.png",
+      "caption": "Zoom to selection: the selected clips, bars 2 to 3, fill the timeline"
     },
     {
       "file": "04-click-the-clip-in-bar-3-and-press-z-bar-3-fills-the-timeline.png",

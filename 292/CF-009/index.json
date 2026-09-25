@@ -11,12 +11,12 @@
       "caption": "Click the clip: it is outlined and announced as a clip"
     },
     {
-      "file": "03-click-empty-space-the-clip-is-deselected-and-a-point-is-set.png",
-      "caption": "Click empty space: the clip is deselected and a point is set"
+      "file": "03-click-mid-bar-3-the-clip-is-deselected-and-a-point-set-at-3-.png",
+      "caption": "Click mid bar 3: the clip is deselected and a point set at 3.1.1"
     },
     {
-      "file": "04-drag-over-empty-space-the-stretch-is-selected-named-by-posit.png",
-      "caption": "Drag over empty space: the stretch is selected, named by position"
+      "file": "04-drag-over-empty-space-touching-no-clip-nothing-is-selected.png",
+      "caption": "Drag over empty space touching no clip: nothing is selected"
     },
     {
       "file": "05-reopened-the-clip-is-where-it-was-and-nothing-is-selected.png",
