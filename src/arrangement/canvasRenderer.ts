@@ -23,7 +23,7 @@ import {
 } from "./waveformCache";
 
 /** Height in CSS pixels of the ruler strip across the top of the timeline. */
-export const RULER_HEIGHT_PX = 32;
+export const RULER_HEIGHT_PX = 16;
 
 /** Space kept clear above and below a clip's note preview. */
 const NOTE_PREVIEW_INSET_PX = 6;
@@ -250,18 +250,18 @@ function drawRulerLabels(
     ctx.fillStyle = sectionColor;
     ctx.font = "11px system-ui, sans-serif";
     ctx.textBaseline = "middle";
-    ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX - 8);
+    ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX / 2);
   }
 
   // Bar numbers every 4 bars, so labels do not crowd at small zoom.
   ctx.fillStyle = barColor;
   ctx.font = "10px system-ui, sans-serif";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "middle";
   for (let bar = firstBar; bar <= lastBar; bar += 1) {
     if (bar % 4 !== 0) continue;
     const x = screenX(bar * TICKS_PER_BAR, viewport);
     if (x < -20 || x > viewport.width) continue;
-    ctx.fillText(`${bar + 1}`, x + 3, 6);
+    ctx.fillText(`${bar + 1}`, x + 3, RULER_HEIGHT_PX / 2);
   }
 }
 

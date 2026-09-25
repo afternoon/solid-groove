@@ -71,7 +71,7 @@
 /* Reserves the ruler-height strip at the top so header rows line up with the
    canvas rows, which begin below the ruler. */
 .arrangement-headers-ruler-spacer {
-  height: 32px;
+  height: 16px;
   background: var(--color-background-secondary);
   border-bottom: 1px solid var(--color-background-tertiary);
 }
