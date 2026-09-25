@@ -23,7 +23,15 @@ describeProjectRepositoryContract("in-memory", () => {
   const repository = new InMemoryProjectRepository({
     clock: createManualClock(1_700_000_100_000),
   });
-  return { repositoryFor: () => repository, reset: async () => {} };
+  return {
+    repositoryFor: () => repository,
+    reset: async () => {},
+    seedStoredDocuments: async (documents) => {
+      for (const { path, data } of documents) {
+        repository.writeDocument(path, data);
+      }
+    },
+  };
 });
 
 describe("InMemoryProjectRepository", () => {

@@ -16,8 +16,17 @@ import {
 import type { ClipId } from "../domain/ids";
 import { createSeededIdFactory } from "../domain/ids";
 import { derivePackDependencies } from "../domain/packs";
+import type { JsonObject } from "../domain/serialize";
 import { serializeClip, stringifyProject } from "../domain/serialize";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
+import { loadStoredProjectFixture } from "../testing/fixtures";
+import {
+  arrangementChunkPath,
+  clipDocumentPath,
+  projectDocumentPath,
+  type RawProjectDocuments,
+  songDocumentPath,
+} from "./documents";
 import type { ProjectRepository } from "./projectRepository";
 
 /**
@@ -43,6 +52,34 @@ export interface ContractHarness {
   repositoryFor(ownerId: string): ProjectRepository;
   /** Called before each test to reset stored state. */
   reset(): Promise<void>;
+  /**
+   * Writes stored documents verbatim, bypassing the repository (and, for
+   * Firestore, the security rules), to seed state an older build wrote.
+   */
+  seedStoredDocuments(documents: readonly StoredRawDocument[]): Promise<void>;
+}
+
+export interface StoredRawDocument {
+  readonly path: string;
+  readonly data: JsonObject;
+}
+
+/** Each stored document of a raw fixture, at the path it is stored under. */
+export function storedRawDocuments(raw: RawProjectDocuments): StoredRawDocument[] {
+  const id = raw.projectId;
+  const record = (value: unknown) => value as JsonObject;
+  return [
+    { path: projectDocumentPath(id), data: record(raw.metadata) },
+    { path: songDocumentPath(id), data: record(raw.song) },
+    ...raw.clips.map((clip) => ({
+      path: clipDocumentPath(id, String(record(clip).id)),
+      data: record(clip),
+    })),
+    ...(raw.arrangement ?? []).map((chunk) => ({
+      path: arrangementChunkPath(id, String(record(chunk).trackId)),
+      data: record(chunk),
+    })),
+  ];
 }
 
 export function describeProjectRepositoryContract(
@@ -394,6 +431,29 @@ export function describeProjectRepositoryContract(
         loaded.value.song.assets.map((asset) => [asset.packId, asset.packVersion]),
       ).toEqual(project.song.assets.map((asset) => [asset.packId, asset.packVersion]));
       expect(new Set(loaded.value.song.assets.map((asset) => asset.packId)).size).toBe(2);
+    });
+
+    it("still loads an older-schema project after a tier-local save (#290)", async () => {
+      const stored = await loadStoredProjectFixture("v1-slice-project.json");
+      await harness.seedStoredDocuments(storedRawDocuments(stored));
+      const projectId = stored.projectId as Project["metadata"]["id"];
+
+      const loaded = await repository.loadProject(projectId);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      // A clip-only autosave rewrites the clip and metadata tiers, not the song,
+      // so storage now holds current-version metadata beside a v1 song.
+      const saved = await repository.saveClip(
+        projectId,
+        loaded.value.clips[0],
+        loaded.value.metadata.revision,
+      );
+      expect(saved.ok).toBe(true);
+
+      const reloaded = await repository.loadProject(projectId);
+      expect(reloaded.ok, JSON.stringify(reloaded)).toBe(true);
+      if (!reloaded.ok) return;
+      expect(reloaded.value.song).toEqual(loaded.value.song);
     });
 
     it("notifies a watcher of metadata changes and stops after unsubscribe", async () => {
