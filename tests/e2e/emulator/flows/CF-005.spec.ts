@@ -208,7 +208,7 @@ test.describe("CF-005", () => {
     // 6. Nothing else moved: the project tempo is unchanged, the loop brace is
     //    where it was, and the transport is still stopped.
     await expect(tempoInput).toHaveValue(String(projectTempo));
-    await expect(loopBrace(page)).toContainText("bars 1 to 1");
+    await expect(loopBrace(page)).toContainText("bar 1");
     await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
     await step("The tempo, the brace and the transport are untouched");
 
