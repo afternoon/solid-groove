@@ -124,11 +124,11 @@ describe("discrete operations", () => {
 describe("paste anchor", () => {
   /**
    * Paste lands at the anchor the caller passes — the playhead, from
-   * `edit.paste`. PR #285 briefly anchored it at the selection instead, to
-   * match Ableton; that produced a copy stacked invisibly on its own source,
-   * and dodging the stack needed rules this schema cannot express yet (no
-   * overlap invariant, no overwrite semantics). The anchoring question is
-   * #290/#291; until they are settled, paste stays predictable.
+   * `edit.paste`. PR #285 briefly anchored it at the selection and dodged the
+   * copy past its own source with a cascade walk; that walk is gone. Since #290
+   * a track's placements are disjoint, and since #291 a paste overwrites what
+   * it lands on, so pasting onto occupied ticks replaces, trims, or splits
+   * what was there instead of stacking on it or being rejected.
    */
   it("pastes at the caller's anchor", () => {
     const h = harness();
@@ -141,5 +141,20 @@ describe("paste anchor", () => {
       .getProject()
       .song.placements.find((p) => p.startTicks === TICKS_PER_BAR * 4);
     expect(pasted).toBeDefined();
+  });
+
+  it("pasting onto the copied source overwrites it instead of being rejected (#291)", () => {
+    const h = harness();
+    const source = h.getProject().song.placements[0];
+    h.editing.select(source.id);
+    h.editing.copy();
+
+    expect(h.editing.paste(source.startTicks)).toBe(true);
+
+    const placements = h.getProject().song.placements;
+    expect(placements).toHaveLength(1);
+    expect(placements[0].id).not.toBe(source.id);
+    expect(placements[0].startTicks).toBe(source.startTicks);
+    expect(placements[0].durationTicks).toBe(source.durationTicks);
   });
 });
