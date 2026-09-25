@@ -262,8 +262,23 @@ export class TransportController {
   }
 
   /** The current playhead position, in absolute ticks at {@link PPQ}. */
+  /**
+   * Where the playhead is, in ticks. While a loop is playing, a position past
+   * the loop end is folded back into the loop: Tone reads its position a
+   * lookahead ahead of the audio clock, so for a moment at every pass the raw
+   * value has run past the end before the transport wraps it — and a readout
+   * that flickers into the bar after the loop is a playhead that does not
+   * follow what is heard (PRD AUD-01).
+   */
   get positionTicks(): number {
-    return Math.max(0, Math.round(this.engine.ticks));
+    const ticks = Math.max(0, Math.round(this.engine.ticks));
+    const loop = this.loopRange;
+    if (!loop || !this.isPlaying || !this.engine.loop || ticks < loop.endTicks) {
+      return ticks;
+    }
+    return (
+      loop.startTicks + ((ticks - loop.endTicks) % (loop.endTicks - loop.startTicks))
+    );
   }
 
   get loop(): LoopRange | null {

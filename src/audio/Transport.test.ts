@@ -147,6 +147,33 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
     expect(transport.positionTicks).toBe(2 * TICKS_PER_BAR);
   });
 
+  it("reports a position just past the loop end as back at the loop start while looping", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    transport.mirrorLoop({ startTicks: 0, endTicks: TICKS_PER_BAR, enabled: true });
+    transport.play();
+
+    // The engine's position runs a lookahead ahead of the wrap.
+    engine.ticks = TICKS_PER_BAR + 12;
+    expect(transport.positionTicks).toBe(12);
+    engine.ticks = TICKS_PER_BAR - 1;
+    expect(transport.positionTicks).toBe(TICKS_PER_BAR - 1);
+  });
+
+  it("reports the raw position when not looping, or when stopped past the loop", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    transport.mirrorLoop({ startTicks: 0, endTicks: TICKS_PER_BAR, enabled: false });
+    transport.play();
+    engine.ticks = TICKS_PER_BAR + 12;
+    expect(transport.positionTicks).toBe(TICKS_PER_BAR + 12);
+
+    transport.mirrorLoop({ startTicks: 0, endTicks: TICKS_PER_BAR, enabled: true });
+    transport.pause();
+    transport.seekTicks(3 * TICKS_PER_BAR);
+    expect(transport.positionTicks).toBe(3 * TICKS_PER_BAR);
+  });
+
   it("continueFromStop resumes at the position stop() rewound from", () => {
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });
