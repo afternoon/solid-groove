@@ -1170,6 +1170,23 @@ describe("EditorView keyboard shortcuts", () => {
     ).toBeUndefined();
   });
 
+  it("zooms the arrangement to its selection with Z, and not without one (#292)", async () => {
+    await renderSlice();
+    const root = await screen.findByTestId("arrangement-view-ready");
+    const scale = () => Number(root.getAttribute("data-pixels-per-tick"));
+    const before = scale();
+
+    // Nothing selected: Z has nothing to frame, so nothing changes.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "z" }));
+    expect(scale()).toBe(before);
+
+    // Select BD's clip in bar 1 from the accessible track list, then press Z:
+    // that bar now spans the whole timeline (jsdom's viewport is 960px).
+    clickAndFlush(screen.getByRole("button", { name: "Select BD" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "z" }));
+    expect(scale()).toBeCloseTo(960 / 768);
+  });
+
   /**
    * Clicks the first bar of the first arrangement row, where the piano-roll
    * fixture's placement sits, and waits for the accessible selection mirror to

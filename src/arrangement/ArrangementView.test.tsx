@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
+import type { Project } from "../domain/entities";
 import {
   createLargeArrangementProject,
   createSliceFixtureProject,
@@ -13,6 +14,7 @@ import { TICKS_PER_BAR } from "../domain/time";
 import { EditorSession } from "../editor/EditorSession";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
+import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import ArrangementView, {
@@ -58,9 +60,8 @@ function firePointer(
 /** A one-placement fixture wired to a real `EditorSession`, so a test asserts
  * against the project a gesture actually produced (mirrors `PianoRoll.test.tsx`
  * and the `placementEditingHarness`'s own approach). */
-async function setUpEditing() {
+async function setUpEditing(project: Project = createSliceFixtureProject()) {
   const repository = createInMemoryProjectRepository();
-  const project = createSliceFixtureProject();
   const created = await repository.createProject(project);
   if (!created.ok) throw new Error("fixture failed to create");
 
@@ -188,9 +189,10 @@ describe("ArrangementView shell", () => {
     );
     if (!firstSelect) throw new Error("no track-select control rendered");
     clickAndFlush(firstSelect);
+    // The list selects the clips in the track's first bar (#292): here the
+    // large fixture's first clip, which runs across bars 1 and 2.
     const live = screen.getByTestId("arrangement-selection-live");
-    expect(live.textContent).toMatch(/^Selected /);
-    expect(live.textContent).toMatch(/bars 1 to/);
+    expect(live.textContent).toBe("Selected clip on Loop 1, bars 1 to 2");
   });
 });
 
@@ -269,18 +271,19 @@ describe("placement editing wiring (ARR-002)", () => {
       firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
     };
 
-    // Empty space, three bars along: the shell takes a bar range.
+    // Empty space, three bars along: a point is the selection.
     clickAt(TICKS_PER_BAR * 3);
-    expect(barRangeText()).toMatch(/^Selected /);
+    expect(barRangeText()).toBe("Position 4.1.1");
 
-    // The placement now becomes the only selection.
+    // The placement now becomes the only selection, and is announced as one
+    // (#292: it used to be silent, reading "No selection").
     clickAt(TICKS_PER_BAR / 2);
     expect(selectedPlacementIds(container)).toEqual([placementId]);
-    expect(barRangeText()).toBe("No selection");
+    expect(barRangeText()).toBe("Selected clip on BD, bar 1");
 
-    // And back out to empty space: the bar range is the only one again.
+    // And back out to empty space: the point is the only one again.
     clickAt(TICKS_PER_BAR * 3);
-    expect(barRangeText()).toMatch(/^Selected /);
+    expect(barRangeText()).toBe("Position 4.1.1");
     expect(selectedPlacementIds(container)).toEqual([]);
   });
 
@@ -573,5 +576,95 @@ describe("ArrangementView loop brace (LOOP-018)", () => {
     const { renderView } = await setUpEditing();
     renderView();
     expect(screen.queryByRole("group", { name: "Loop brace" })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * #292: one selection, reached by pointer as CF-009 to CF-011 do, and read back
+ * the way a screen-reader user would, through the `aria-live` mirror.
+ */
+describe("the one arrangement selection (#292)", () => {
+  const BAR = TICKS_PER_BAR;
+  const rowY = (row: number) => RULER_HEIGHT_PX + row * ROW_HEIGHT_PX + ROW_HEIGHT_PX / 2;
+  const x = (ticks: number) => ticks * PIXELS_PER_TICK;
+  const said = () => screen.getByTestId("arrangement-selection-live").textContent;
+  const scale = (container: HTMLElement) =>
+    Number(
+      container.querySelector(".arrangement-view")?.getAttribute("data-pixels-per-tick"),
+    );
+
+  /** CF-010's layout: BD has clips in bars 1 and 3, the next track one across 1-3. */
+  async function twoTracks() {
+    const built = buildArrangementProject([
+      [
+        { startTicks: 0, durationTicks: BAR },
+        { startTicks: 2 * BAR, durationTicks: BAR },
+      ],
+      [{ startTicks: 0, durationTicks: 3 * BAR }],
+    ]);
+    const { session } = await setUpEditing(built.project);
+    const actions: { current: PlacementEditingActions | null } = { current: null };
+    const view = render(() => (
+      <ArrangementView
+        project={session.project}
+        dispatch={session.dispatch.bind(session)}
+        onEditingActionsReady={(ready) => {
+          actions.current = ready;
+        }}
+      />
+    ));
+    return { session, actions, ...built, canvas: interactionCanvasOf(view.container) };
+  }
+
+  /** Press at one tick and row, drag to another, and release there. */
+  function drag(canvas: Element, from: [number, number], to: [number, number]) {
+    firePointer(canvas, "pointerdown", { clientX: x(from[0]), clientY: rowY(from[1]) });
+    firePointer(canvas, "pointermove", { clientX: x(to[0]), clientY: rowY(to[1]) });
+    firePointer(canvas, "pointerup", { clientX: x(to[0]), clientY: rowY(to[1]) });
+  }
+
+  it("drags a band across tracks that selects the clips it touches, whole", async () => {
+    const { canvas, session, actions, placementIds } = await twoTracks();
+    drag(canvas, [1164, 0], [2700, 1]);
+    expect(said()).toBe("2 clips selected");
+    expect(actions.current?.getSelection()).toEqual([
+      placementIds[0][1],
+      placementIds[1][0],
+    ]);
+    // Delete takes both clips whole: the overlapped one is not trimmed.
+    expect(actions.current?.deleteSelection()).toBe(true);
+    expect(session.project.song.placements.map((p) => p.id)).toEqual([
+      placementIds[0][0],
+    ]);
+  });
+
+  it("selects nothing with a band that touches no clip", async () => {
+    const { canvas } = await twoTracks();
+    firePointer(canvas, "pointerdown", { clientX: x(0.5 * BAR), clientY: rowY(0) });
+    firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
+    expect(said()).toBe("Selected clip on BD, bar 1");
+    drag(canvas, [4.2 * BAR, 0], [4.8 * BAR, 0]);
+    expect(said()).toBe("No selection");
+  });
+
+  it("keeps a press that barely moves as a click, at the start of its bar", async () => {
+    const { canvas } = await twoTracks();
+    firePointer(canvas, "pointerdown", { clientX: x(4.5 * BAR), clientY: rowY(0) });
+    firePointer(canvas, "pointermove", { clientX: x(4.5 * BAR) + 1, clientY: rowY(0) });
+    firePointer(canvas, "pointerup", { clientX: x(4.5 * BAR) + 1, clientY: rowY(0) });
+    expect(said()).toBe("Position 5.1.1");
+  });
+
+  it("zooms to a clicked clip from the toolbar, and has nothing to zoom to without one", async () => {
+    const { canvas } = await twoTracks();
+    const zoom = screen.getByRole("button", { name: "Zoom to selection" });
+    expect(zoom).toBeDisabled();
+    firePointer(canvas, "pointerdown", { clientX: x(2.5 * BAR), clientY: rowY(0) });
+    firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
+    expect(said()).toBe("Selected clip on BD, bar 3");
+    clickAndFlush(zoom);
+    // jsdom lays nothing out, so the viewport is the shell's initial 960px.
+    const root = document.querySelector(".arrangement-view") as HTMLElement;
+    expect(scale(root.parentElement as HTMLElement)).toBeCloseTo(960 / BAR);
   });
 });
