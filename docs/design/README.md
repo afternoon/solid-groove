@@ -35,7 +35,7 @@ source of truth.
 | File | Screen |
 |------|--------|
 | `01-editor-shell.png` | Full editor — transport, browser, arrangement, instrument, assistant |
-| `03a-dashboard.png` | Project dashboard (guest start, genre starters, recents) |
+| `03a-dashboard.png` | Project dashboard (guest start, recents). Its genre starters are not planned (`LOOP-015`) |
 | `03b-keyboard-guide.png` | Keyboard shortcut reference |
 | `04-landing-page.png` | Marketing landing page |
 | `05a-synth-voice.png` | Synth voice (Acid 303) device panel |

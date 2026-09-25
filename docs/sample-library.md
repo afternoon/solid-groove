@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft for implementation |
-| Scope | Private-alpha factory packs and genre starters |
+| Scope | Private-alpha factory packs |
 | Licensing posture | CC0-first; explicit raw-redistribution rights required |
 | Primary outcome | A coherent, editable electronic-music palette that supports fast loop creation and complete tracks |
 
@@ -23,7 +23,7 @@ This plan defines:
 - Initial sources and how they must be audited.
 - The pack model, and the library taxonomy, metadata, and technical standards.
 - Content targets for featured and supporting genres.
-- The relationship among raw samples, kits, presets, clips, and generative genre starters.
+- The relationship among raw samples, kits, presets, and clips.
 - The intake, curation, quality, delivery, and expansion process.
 
 This is a content-acquisition and implementation plan, not legal advice. Any ambiguous source or high-risk content requires qualified legal review or direct written permission from its rights holder.
@@ -225,9 +225,6 @@ library
   processing
     device-presets
     chains
-  starters
-    genre-recipes
-    fallback-projects
 ```
 
 ### Asset types
@@ -239,8 +236,6 @@ library
 - **Drum kit:** A stable mapping from pad roles to one-shot asset IDs and pad parameters.
 - **Device preset:** Parameter values for one processing device; contains no third-party audio unless separately licensed.
 - **Processing chain:** Ordered factory devices with parameters, gain staging, and intended role.
-- **Genre recipe:** Constraints and weighted choices used to generate a new editable starting project.
-- **Fallback project:** A curated static project used when assistant generation is unavailable.
 
 ## 6. Alpha size and coverage targets
 
@@ -250,7 +245,7 @@ library
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | Bootstrap | 80 | 12 | 4 | 2 | 12 | Replace the current two-sample prototype and exercise metadata/browser/audio paths |
 | Production seed | 250 | 60 | 12 | 8 | 36 | Build all editors, generators, export, caching, and curation workflows |
-| Private alpha | 600 | 360 | 24 | 30 | 72 | Rounded factory library with all required genre demos |
+| Private alpha | 600 | 360 | 24 | 30 | 72 | Rounded factory library covering every required genre |
 
 Counts are minimums, not acquisition quotas. Duplicates, low-quality alternates, near-identical processing variations, and legally ambiguous files do not count.
 
@@ -341,7 +336,7 @@ Avoid baking side-chain pumping or large reverb into every source. Provide dry f
 | Variation goals | Hypnotic, raw, industrial, dub, melodic-adjacent, and broken-beat possibilities |
 | Minimum coverage | 4 kits, 80 tagged one-shots, 50 loops, 14 processing presets/chains |
 
-Do not equate techno with one fixed kick or arrangement. Experimental percussion and automation recipes are central to this starter.
+Do not equate techno with one fixed kick or arrangement. Experimental percussion and automation are central to techno coverage.
 
 ### 7.3 Hip Hop and Trap
 
@@ -383,7 +378,7 @@ Do not ship a copied Amen, Think, or other historically common break merely beca
 | Variation goals | Deep 140, dub-influenced, heavy, spacious, halftime, leftfield, and experimental |
 | Minimum coverage | 4 kits, 80 tagged one-shots, 45 loops, 16 processing presets/chains |
 
-This starter should demonstrate the product's extreme processing range. Prefer simple source tones plus editable devices over a library made entirely of frozen finished growls.
+Dubstep coverage should demonstrate the product's extreme processing range. Prefer simple source tones plus editable devices over a library made entirely of frozen finished growls.
 
 ### 7.6 Ambient
 
@@ -396,45 +391,21 @@ This starter should demonstrate the product's extreme processing range. Prefer s
 | Variation goals | Warm, dark, environmental, minimal, noisy, beatless, and rhythmic ambient |
 | Minimum coverage | 2 kits, 60 tagged one-shots, 50 loops, 14 processing presets/chains |
 
-Ambient validates that starters do not require a kick, fixed tempo, or conventional song density. Long files must still meet streaming, caching, and memory budgets.
+Ambient validates that the library does not assume a kick, fixed tempo, or conventional song density. Long files must still meet streaming, caching, and memory budgets.
 
 ### 7.7 Supporting genre coverage
 
-| Genre | Required additions beyond shared library | Demo gate |
+| Genre | Required additions beyond shared library | Coverage gate |
 | --- | --- | --- |
-| Lofi | Soft drums, dusty but original textures, tape-like chains, keys, mallets, subdued ambience | Complete editable demo without relying on an uncleared record sample |
-| Trance | Clean club drums, rolling bass, plucks, pads, noise risers, long transitions, tempo-synced delays | Complete 132-140 BPM demo with build/release automation |
-| UK Garage | Shuffled kicks/snares, skippy hats, rim/percussion, sub bass, organ/chord stabs | Complete swung demo whose groove is not a renamed house pattern |
-| Breakbeat | Original breaks and slices, punchy one-shots, bass stabs, edits, fills | Complete demo using cleared original break sources |
-| Electronic Pop | Versatile drums, synth bass, keys, pads, plucks, transitions, restrained processing | Complete instrumental demo with verse/chorus contrast and room for vocals |
+| Lofi | Soft drums, dusty but original textures, tape-like chains, keys, mallets, subdued ambience | An editable idea can be built without relying on an uncleared record sample |
+| Trance | Clean club drums, rolling bass, plucks, pads, noise risers, long transitions, tempo-synced delays | A 132-140 BPM idea with build/release automation can be built |
+| UK Garage | Shuffled kicks/snares, skippy hats, rim/percussion, sub bass, organ/chord stabs | A swung idea can be built whose groove is not a renamed house pattern |
+| Breakbeat | Original breaks and slices, punchy one-shots, bass stabs, edits, fills | An idea can be built from cleared original break sources |
+| Electronic Pop | Versatile drums, synth bass, keys, pads, plucks, transitions, restrained processing | An instrumental idea with verse/chorus contrast and room for vocals can be built |
 
-## 8. Generative genre starters
+## 8. Genre starters (not planned)
 
-A genre starter is a versioned recipe used by the assistant and a deterministic fallback generator. It is not one fixed project.
-
-Each recipe defines:
-
-- The packs it draws from, and it selects only from packs the user has.
-- Tempo and optional key/scale ranges.
-- Required, optional, and mutually exclusive track roles.
-- Weighted asset queries by role, genre, character, intensity, and compatibility.
-- Instrument and device preset choices.
-- Rhythm grammar, swing, density, register, and velocity ranges.
-- Allowed clip lengths and variation operations.
-- An initial loop shape and optional arrangement outline.
-- Gain-staging rules and effect-send defaults.
-- A controlled probability of cross-genre or experimental choices.
-- Validation rules and a curated static fallback project.
-
-Generation requirements:
-
-- Two generations from the same genre should not normally produce identical projects.
-- The generated project records recipe version, random seed, selected pack-qualified asset IDs and the pack versions they resolved from, assistant proposal ID, and all resulting normal domain commands.
-- Reopening a generated project reproduces its saved state; it does not regenerate implicitly.
-- `Generate another` creates a new proposal or project and never overwrites current work.
-- A `Make it weird` modifier increases cross-genre, experimental-source, unusual processing, and rhythmic-variation weights without bypassing safety or licence validation.
-- The assistant generates editable events, instruments, devices, and automation. It does not generate opaque audio for alpha starters.
-- Generation works without a model through deterministic recipes and static fallbacks when the AI provider is unavailable.
+Genre starters and project templates are not planned (`LOOP-015`, closed as not planned). A new project starts from the one "New Project" starter (`src/editor/starterProject.ts`), and genre coverage is judged by what a user can build from the packs (section 7), not by bundled demo projects. This section keeps its number so the cross-references to later sections stay valid.
 
 ## 9. Asset metadata
 
@@ -532,7 +503,7 @@ A pack's `rights` is the position every asset in it shares; an asset's own `lice
 - Mood is separate from genre and character.
 - Intensity uses a small ordered scale: low, medium, high, extreme.
 - Source type distinguishes recorded, synthesized, field recording, resampled, processed, and commissioned.
-- Instrument, kit, and recipe definitions reference pack-qualified asset IDs, never filenames or URLs.
+- Instrument and kit definitions reference pack-qualified asset IDs, never filenames or URLs.
 
 Manifest validation fails CI when an asset is missing its checksum, rights evidence, creator/source, required audio metadata, or raw-redistribution approval; when it belongs to no pack or to a pack the manifest set does not define; when its licence terms exceed its pack's; or when a pack does not deliver the roles and genres its coverage claim advertises.
 
@@ -581,7 +552,7 @@ Manifest validation fails CI when an asset is missing its checksum, rights evide
 4. **Audio preparation:** Format conversion, trimming, fades, analysis, and derived master generation.
 5. **Metadata review:** Owning pack, role, genre, character, musical metadata, and user-facing name checked. An asset whose rights differ from its pack's is reassigned, not relabelled.
 6. **Musical review:** Auditioned alone, in at least two relevant project contexts, and alongside the rest of its pack.
-7. **Approved:** Manifest entry reviewed and eligible for kits, recipes, demos, and production delivery.
+7. **Approved:** Manifest entry reviewed and eligible for kits, presets, and production delivery.
 8. **Deprecated:** Hidden from new selection while existing project references remain resolvable.
 9. **Removed:** Delivery disabled for legal/security reasons with a documented project-recovery strategy.
 
@@ -595,7 +566,7 @@ Each approved asset must pass:
 - **Usefulness:** It can serve a clear role or valuable experimental purpose.
 - **Editability:** It leaves room for user processing unless its finished character is the point.
 - **Technical integrity:** It has no accidental clipping, clicks, corrupt data, or false metadata.
-- **Context fit:** It works in a real Solid Groove kit, instrument, loop, or starter.
+- **Context fit:** It works in a real Solid Groove kit, instrument, loop, or project.
 - **Pack fit:** It belongs in the pack that holds it — it serves that pack's stated purpose and shares its rights position.
 - **Naming:** The name describes the sound without unauthorized brands, artist imitation, or misleading genre claims.
 
@@ -603,7 +574,7 @@ At least two reviewers should approve commissioned packs and high-volume source 
 
 ## 12. Delivery and performance
 
-- Keep only the bootstrap set and assets required by starter fallbacks in the initial application cache.
+- Keep only the bootstrap set and the "New Project" starter's assets in the initial application cache.
 - Deliver metadata per pack. A client fetches a small index of available packs, then the manifest of a pack it opens or a project needs — never one manifest containing every asset in the library. This is what keeps the metadata budget below flat as the number of packs grows.
 - A published pack version is immutable. A project resolves the pack versions it recorded, so republishing a pack cannot change an existing track, and a client can cache a pack manifest indefinitely by version.
 - Store the complete alpha library in Cloud Storage for Firebase behind stable asset records and cacheable versioned URLs.
@@ -658,10 +629,10 @@ Exit criteria: every genre in sections 7.1-7.6 can produce at least three materi
 - Settle the shipped pack list against what has actually been cleared, and finish each pack against its coverage claim.
 - Reach the private-alpha asset targets without relaxing review standards.
 - Commission missing core drums, breaks, bass sources, transitions, and genre-specific material.
-- Complete all genre demo gates.
+- Meet every section 7 genre coverage gate.
 - Run duplicate, loudness, licence, missing-file, decode, loop-boundary, and export audits.
 
-Exit criteria: every required genre demo opens, plays, saves, renders, exports stems, and exports to the supported Ableton handoff without a missing or unlicensed asset.
+Exit criteria: a project built in every required genre opens, plays, saves, renders, exports stems, and exports to the supported Ableton handoff without a missing or unlicensed asset.
 
 ### Phase E: partnerships and user growth
 
@@ -1002,7 +973,7 @@ Open questions belong to the product owner and are listed in PRD section 16.
 - Every shipped pack meets its coverage claim, can build a usable idea for its stated purpose on its own, and states what it does not contain.
 - A project records the packs and versions it depends on; republishing a pack does not change an existing project, and an unavailable pack is reported with its affected tracks and clips rather than breaking playback or export.
 - Bootstrap, production-seed, and alpha counts are measured from approved unique assets only.
-- Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop demos pass using the shared library.
+- Lofi, Trance, UK Garage, Breakbeat, and Electronic Pop meet their section 7.7 coverage gates using the shared library.
 - At least 15% of the approved collection is tagged and reviewed as experimental or cross-genre.
 - All loops pass BPM/bar/seam tests and all tonal assets have reviewed tuning metadata.
 - Every required asset decodes and plays in supported Firefox, Chrome, Edge, and Safari versions.
