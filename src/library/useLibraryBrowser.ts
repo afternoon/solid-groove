@@ -210,23 +210,30 @@ export function useLibraryBrowser(
     setIndexError(null);
     try {
       const summaries = await client.loadIndex();
-      setPacks(summaries);
-      // Open the project's first pack so the panel shows sounds immediately
-      // rather than a row of collapsed nodes. That fetches exactly one pack's
-      // manifest — still the index plus one pack, never every pack's metadata
+      // Every pack node starts closed. The library is a window you open to
+      // pick one sound (`UI-001`), so its top level is the packs this project
+      // has, and opening the one you want is the first step of finding a
+      // sound in it — the journey CF-005, CF-007 and CF-012 all walk. The
+      // panel this replaced opened its first pack on arrival because it stood
+      // open beside the arrangement all session; a modal has no such idle
+      // state to fill.
+      //
+      // The project's first pack is still *warmed* before the tree appears,
+      // so opening it is instant rather than a spinner: that is the index plus
+      // exactly one pack's manifest, never every pack's metadata
       // (sample-library section 12). A project with no packs fetches nothing
       // beyond the index.
       //
+      // `indexLoading` stays set until it is warm, which is what keeps the
+      // tree (not the pack browser, which needs the index at once) behind
+      // the loader until then.
+      //
       // The pack is resolved from `summaries` rather than by reading
-      // `addedPacks()` back, and expanded directly rather than through
-      // `togglePackNode`: Solid 2 defers reads until the batch flushes, so both
-      // accessors would still report the pre-`setPacks` empty index here and
-      // the panel would open onto nothing.
+      // `addedPacks()` back: Solid 2 defers reads until the batch flushes, so
+      // that accessor would still report the pre-`setPacks` empty index here.
+      setPacks(summaries);
       const first = packsAddedTo(summaries, options.addedPackIds?.() ?? [])[0];
-      if (first) {
-        setNodeExpanded(first.slug, true);
-        await loadPackIntoPanel(first);
-      }
+      if (first) await loadPack(first);
     } catch (error) {
       setIndexError(reasonOfIndexError(error));
     } finally {

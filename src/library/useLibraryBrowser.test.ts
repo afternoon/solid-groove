@@ -101,11 +101,15 @@ describe("opening the browser", () => {
         // The index came first.
         expect(calls[0]).toBe(PACK_INDEX_PATH);
         // Exactly one pack manifest was fetched — the project's first pack,
-        // which the panel opens into — not one per added pack
+        // warmed so opening it is instant — not one per added pack
         // (sample-library section 12).
         const manifestCalls = calls.filter((path) => path !== PACK_INDEX_PATH);
         expect(manifestCalls).toHaveLength(1);
         expect(manifestCalls[0]).toContain(index[0].slug);
+        // Warm, but closed: opening the pack is the producer's first step in
+        // finding a sound (CF-005), and it costs no request.
+        expect(browser.isExpanded(index[0].slug)).toBe(false);
+        expect(browser.tree()[0].loaded).toBe(true);
       },
     );
   });

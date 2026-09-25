@@ -150,7 +150,7 @@ export default function LibraryBrowser(props: LibraryBrowserProps): JSX.Element 
         }
       >
         <Show
-          when={!browser.indexLoading() || browser.packs().length > 0}
+          when={!browser.indexLoading()}
           fallback={<TapeLoader label="Loading library" />}
         >
           <Show
