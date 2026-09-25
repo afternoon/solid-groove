@@ -139,4 +139,23 @@ describe("MasterDevice", () => {
     click(/^Move Overdrive, position 1 later/);
     expect(chain().map((device) => device.type)).toEqual(["reverb", "overdrive"]);
   });
+
+  // A keyboard or screen-reader user who presses an action must still be on it
+  // afterwards: a remounted button drops the focus to the top of the document.
+  it.each([
+    { types: ["overdrive"] as DeviceTypeId[], name: /^Bypass/ },
+    { types: ["overdrive", "reverb"] as DeviceTypeId[], name: /later$/ },
+  ])(
+    "keeps the pressed $name button, and its focus, across the edit",
+    ({ types, name }) => {
+      const { history } = renderCard(types, 0);
+      const button = screen.getByRole("button", { name });
+      button.focus();
+      fireAndFlush(() => fireEvent.click(button));
+
+      expect(history.entries).toHaveLength(1);
+      expect(screen.getByRole("button", { name })).toBe(button);
+      expect(document.activeElement).toBe(button);
+    },
+  );
 });

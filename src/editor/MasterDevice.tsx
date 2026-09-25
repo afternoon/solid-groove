@@ -58,13 +58,17 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
     parameterId,
   });
 
-  /** The chain actions, in the order they sit on the card. */
-  const actions = (): readonly ChainAction[] => [
+  /**
+   * The chain actions, in the order they sit on the card. Built once, with
+   * every changing field a thunk: `For` keys by reference, so a list rebuilt
+   * per edit would remount all six buttons and drop the focus of whoever just
+   * pressed one.
+   */
+  const actions: readonly ChainAction[] = [
     {
-      key: "earlier",
-      label: `Move ${at()} earlier`,
+      label: () => `Move ${at()} earlier`,
       glyph: "‹",
-      disabled: props.index === 0,
+      disabled: () => props.index === 0,
       run: () =>
         props.edit(
           "reorder",
@@ -72,10 +76,9 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
         ),
     },
     {
-      key: "later",
-      label: `Move ${at()} later`,
+      label: () => `Move ${at()} later`,
       glyph: "›",
-      disabled: props.index >= props.count - 1,
+      disabled: () => props.index >= props.count - 1,
       run: () =>
         props.edit(
           "reorder",
@@ -83,10 +86,9 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
         ),
     },
     {
-      key: "bypass",
-      label: `Bypass ${at()}`,
+      label: () => `Bypass ${at()}`,
       glyph: "B",
-      pressed: props.device.bypassed,
+      pressed: () => props.device.bypassed,
       run: () =>
         props.edit(
           "bypass",
@@ -94,14 +96,12 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
         ),
     },
     {
-      key: "reset",
-      label: `Reset ${at()}`,
+      label: () => `Reset ${at()}`,
       glyph: <HiSolidArrowPath size={13} />,
       run: () => props.edit("reset", resetDevice(masterChain, props.device.id)),
     },
     {
-      key: "duplicate",
-      label: `Duplicate ${at()}`,
+      label: () => `Duplicate ${at()}`,
       glyph: <HiSolidDocumentDuplicate size={13} />,
       run: () =>
         props.edit(
@@ -110,8 +110,7 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
         ),
     },
     {
-      key: "remove",
-      label: `Remove ${at()}`,
+      label: () => `Remove ${at()}`,
       glyph: <HiSolidTrash size={13} />,
       run: () => props.edit("remove", removeDevice(masterChain, props.device.id)),
     },
@@ -128,16 +127,16 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
       <div class="master-device-head">
         <span class="master-device-name">{label()}</span>
         <div class="master-device-actions">
-          <For each={actions()}>
+          <For each={actions}>
             {(action) => (
               <button
                 type="button"
-                class={["master-device-action", { active: action.pressed === true }]}
-                aria-label={action.label}
+                class={["master-device-action", { active: action.pressed?.() === true }]}
+                aria-label={action.label()}
                 aria-pressed={
-                  action.pressed === undefined ? undefined : ariaBool(action.pressed)
+                  action.pressed === undefined ? undefined : ariaBool(action.pressed())
                 }
-                disabled={action.disabled}
+                disabled={action.disabled?.()}
                 onClick={() => action.run()}
               >
                 {action.glyph}
@@ -157,12 +156,11 @@ export default function MasterDevice(props: MasterDeviceProps): JSX.Element {
 }
 
 interface ChainAction {
-  readonly key: string;
   /** The accessible name; there is no visible text on these. */
-  readonly label: string;
+  label(): string;
   readonly glyph: JSX.Element;
-  readonly disabled?: boolean;
+  disabled?(): boolean;
   /** Set only for a toggle, which is the one action that reports a state. */
-  readonly pressed?: boolean;
+  pressed?(): boolean;
   run(): void;
 }
