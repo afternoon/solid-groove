@@ -1066,6 +1066,88 @@ describe("ProjectAudioGraph audio loops (LOOP-006/INS-02)", () => {
     await runtime.close();
   });
 
+  /**
+   * Issue #383: a loop that is sounding when playback stops (or pauses) must go
+   * silent right away, not play out the rest of its scheduled span. The player
+   * is started against the audio clock with its stop already scheduled at the
+   * end of the event, so only an explicit stop at the transport's stop time can
+   * cut it short.
+   */
+  function emittingTransport() {
+    const listeners = new Map<string, Set<(time: number) => void>>();
+    return Object.assign(fakeTransport(), {
+      on(event: "stop" | "pause", callback: (time: number) => void) {
+        if (!listeners.has(event)) listeners.set(event, new Set());
+        listeners.get(event)?.add(callback);
+      },
+      off(event: "stop" | "pause", callback: (time: number) => void) {
+        listeners.get(event)?.delete(callback);
+      },
+      emit(event: "stop" | "pause", time: number) {
+        for (const callback of listeners.get(event) ?? []) callback(time);
+      },
+      listenerCount() {
+        return [...listeners.values()].reduce((sum, set) => sum + set.size, 0);
+      },
+    });
+  }
+
+  for (const [event, sourceTempo, playerKind] of [
+    ["stop", 120, "Player"],
+    ["pause", 120, "Player"],
+    ["stop", 60, "GrainPlayer"],
+  ] as const) {
+    it(`cuts a sounding ${playerKind} loop off when the transport emits ${event} (#383)`, async () => {
+      const Tone = await import("tone");
+      const project = loopProject(sourceTempo, 120);
+      const { loader, pending } = manualBufferLoader();
+      const transport = emittingTransport();
+      const runtime = new AudioRuntimeModule.AudioRuntime();
+      const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+        transport,
+        bufferLoader: loader,
+      });
+      graph.reconcile(buildAudioProjection(project));
+      for (const p of pending) p.resolve(fakeBuffer());
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const Ctor = Tone[playerKind];
+      const start = vi.spyOn(Ctor.prototype, "start").mockImplementation(function mocked(
+        this: unknown,
+      ) {
+        return this as never;
+      });
+      const stop = vi.spyOn(Ctor.prototype, "stop").mockImplementation(function mocked(
+        this: unknown,
+      ) {
+        return this as never;
+      });
+      try {
+        // The loop event fires and a player starts sounding the whole clip.
+        for (const callback of transport.callbacks.values()) callback(0);
+        expect(start).toHaveBeenCalledOnce();
+        const player = start.mock.instances[0];
+
+        // The user stops (or pauses) partway through the loop.
+        transport.emit(event, 1.5);
+
+        expect(stop).toHaveBeenCalledOnce();
+        expect(stop.mock.instances[0]).toBe(player);
+        expect(stop.mock.calls[0][0]).toBe(1.5);
+      } finally {
+        start.mockRestore();
+        stop.mockRestore();
+      }
+
+      await graph.dispose();
+      // Disposal unsubscribes, so a later project's transport halt never
+      // reaches this graph.
+      expect(transport.listenerCount()).toBe(0);
+      await runtime.close();
+    });
+  }
+
   it("removes a loop's scheduled events when its placement is deleted", async () => {
     const project = loopProject();
     const transport = fakeTransport();
