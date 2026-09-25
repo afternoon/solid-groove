@@ -15,6 +15,7 @@
  */
 
 import { addPlacement, overwritePlacements } from "../commands/definitions/placements";
+import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Project } from "../domain/entities";
 import type { IdFactory, PlacementId, TrackId } from "../domain/ids";
@@ -80,39 +81,79 @@ export function cutPlacements(
   };
 }
 
+export interface PasteOptions {
+  /** Where the copied stretch began, so a range's leading gap survives the
+   * paste. Defaults to the earliest entry's start. */
+  readonly anchorTicks?: number;
+  /** Snap the target to the nearest bar. Off when pasting at a selection,
+   * which already names an exact position. Defaults to on. */
+  readonly snap?: boolean;
+}
+
+/** The commands a paste runs, and the placements it creates. */
+export interface PasteResult {
+  readonly commands: RawCommandInput[];
+  readonly placementIds: PlacementId[];
+}
+
 /**
- * Paste the clipboard at a bar-snapped target tick, preserving the relative
- * offsets between the copied placements so a multi-placement paste keeps its
- * shape. A clip that no longer exists is skipped — the paste places what it
- * still can rather than failing the whole transaction or inventing content.
+ * Paste the clipboard at a target tick, preserving the relative offsets
+ * between the copied placements so a multi-placement paste keeps its shape.
+ * Each entry lands on its own clip's track, the only track that clip may be
+ * placed on. What it lands on is overwritten, as a drop or a created placement
+ * overwrites (#290), one entry after another so two pasted pieces never edit
+ * the same neighbour twice. A clip that no longer exists is skipped — the
+ * paste places what it still can rather than failing the whole transaction or
+ * inventing content.
  */
+export function pasteClipboard(
+  project: Project,
+  clipboard: readonly PlacementClipboardEntry[],
+  targetTicks: number,
+  ids: IdFactory,
+  options: PasteOptions = {},
+): PasteResult {
+  if (clipboard.length === 0) return { commands: [], placementIds: [] };
+  const anchor =
+    options.anchorTicks ?? Math.min(...clipboard.map((entry) => entry.startTicks));
+  const target = options.snap === false ? clampTick(targetTicks) : snapToBar(targetTicks);
+  const commands: RawCommandInput[] = [];
+  const placementIds: PlacementId[] = [];
+  let working = project;
+  for (const entry of clipboard) {
+    if (!findClip(project, entry.clipId)) continue;
+    const startTicks = toTicks(clampTick(target + (entry.startTicks - anchor)));
+    if (startTicks + entry.durationTicks > MAX_ARRANGEMENT_TICKS) continue;
+    const placement = {
+      id: ids("placement"),
+      clipId: entry.clipId,
+      trackId: entry.trackId,
+      startTicks,
+      durationTicks: toTicks(entry.durationTicks),
+      clipOffsetTicks: toTicks(entry.clipOffsetTicks),
+      looped: entry.looped,
+    };
+    const step = [
+      ...overwritePlacements(working, placement, () => ids("placement")),
+      addPlacement(placement),
+    ];
+    const applied = executeTransaction(working, step, { commitRevision: false });
+    if (!applied.ok) continue;
+    working = applied.project;
+    commands.push(...step);
+    placementIds.push(placement.id);
+  }
+  return { commands, placementIds };
+}
+
+/** `pasteClipboard`'s commands alone, bar-snapped at the target. */
 export function pastePlacements(
   project: Project,
   clipboard: readonly PlacementClipboardEntry[],
   targetTicks: number,
   ids: IdFactory,
 ): RawCommandInput[] {
-  if (clipboard.length === 0) return [];
-  const anchor = Math.min(...clipboard.map((entry) => entry.startTicks));
-  const target = snapToBar(targetTicks);
-  const commands: RawCommandInput[] = [];
-  for (const entry of clipboard) {
-    if (!findClip(project, entry.clipId)) continue;
-    const startTicks = toTicks(clampTick(target + (entry.startTicks - anchor)));
-    if (startTicks + entry.durationTicks > MAX_ARRANGEMENT_TICKS) continue;
-    commands.push(
-      addPlacement({
-        id: ids("placement"),
-        clipId: entry.clipId,
-        trackId: entry.trackId,
-        startTicks,
-        durationTicks: toTicks(entry.durationTicks),
-        clipOffsetTicks: toTicks(entry.clipOffsetTicks),
-        looped: entry.looped,
-      }),
-    );
-  }
-  return commands;
+  return pasteClipboard(project, clipboard, targetTicks, ids).commands;
 }
 
 /**

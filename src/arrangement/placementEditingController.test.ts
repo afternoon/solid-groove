@@ -128,19 +128,18 @@ describe("discrete operations", () => {
 
 describe("paste anchor", () => {
   /**
-   * Paste lands at the anchor the caller passes — the playhead, from
-   * `edit.paste`. PR #285 briefly anchored it at the selection instead, to
-   * match Ableton; that produced a copy stacked invisibly on its own source,
-   * and dodging the stack needed rules this schema cannot express yet (no
-   * overlap invariant, no overwrite semantics). The anchoring question is
-   * #290/#291; until they are settled, paste stays predictable.
+   * With nothing selected, paste lands at the anchor the caller passes (the
+   * playhead, from `edit.paste`), snapped to a bar. With a selection it lands
+   * at the selection's start instead (#292, `placementEditingPaste.test.ts`),
+   * now that #290 overwrites whatever a paste lands on.
    */
-  it("pastes at the caller's anchor", () => {
+  it("pastes at the caller's anchor, snapped, when nothing is selected", () => {
     const h = harness();
     h.editing.select(h.placementId());
     h.editing.copy();
+    h.editing.clearSelection();
 
-    h.editing.paste(TICKS_PER_BAR * 4);
+    h.editing.paste(TICKS_PER_BAR * 4 + 100);
 
     const pasted = h
       .getProject()

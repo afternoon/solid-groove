@@ -37,7 +37,7 @@ import {
 import {
   cutPlacements,
   type PlacementClipboardEntry,
-  pastePlacements,
+  pasteClipboard,
 } from "./placementClipboard";
 import {
   type DuplicateMode,
@@ -87,6 +87,8 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
   // Where a range drag was pressed, while one is in flight.
   let rangeAnchor: ArrangementPosition | null = null;
   let clipboard: readonly PlacementClipboardEntry[] = [];
+  // Where the copied stretch began, which a paste lines up with its target.
+  let clipboardOrigin = 0;
   let drag: DragState | null = null;
 
   function changed(): void {
@@ -326,29 +328,57 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
       : cutPlacements(current, covered());
   }
 
+  /** Holds what a copy or cut took, and where the selection it came from
+   * began: a range's start, so its leading gap survives the paste, or the
+   * first clip's. */
+  function hold(entries: readonly PlacementClipboardEntry[], from: ArrangementSpan) {
+    clipboard = entries;
+    clipboardOrigin = from.startTicks;
+  }
+
   const copy = (): boolean => {
     const current = project();
-    if (!current || covered().length === 0) return false;
-    clipboard = selectedPieces(current).clipboard;
+    const from = span();
+    if (!current || !from || covered().length === 0) return false;
+    hold(selectedPieces(current).clipboard, from);
     changed();
     return clipboard.length > 0;
   };
 
+  /** Cut what is selected. The time it took stays selected, as in Ableton, so
+   * a paste straight after puts it back where it was. */
   const cut = (): boolean => {
     const current = project();
-    if (!current || covered().length === 0) return false;
+    const at = span();
+    if (!current || !at || covered().length === 0) return false;
     const result = selectedPieces(current);
     if (!run(result.commands)) return false;
-    clipboard = result.clipboard;
-    if (!rangeToRemove()) clearSelection();
+    hold(result.clipboard, at);
+    setSelection({ kind: "range", span: at });
     return true;
   };
 
-  const paste = (targetTicks: number): boolean => {
+  /**
+   * Paste at the selection's start, Ableton-style: the insertion point, or the
+   * start of the selected range or clips, exactly where it is. Only with
+   * nothing selected does it fall back to `fallbackTicks` (the playhead),
+   * snapped to a bar. Needs only a non-empty clipboard. What it pasted is
+   * selected afterwards, as a duplicate's copy is.
+   */
+  const paste = (fallbackTicks: number): boolean => {
     const current = project();
-    return current
-      ? run(pastePlacements(current, clipboard, targetTicks, options.ids))
-      : false;
+    if (!current || clipboard.length === 0) return false;
+    const at = span();
+    const result = pasteClipboard(
+      current,
+      clipboard,
+      at ? at.startTicks : fallbackTicks,
+      options.ids,
+      { anchorTicks: clipboardOrigin, snap: at === null },
+    );
+    if (!run(result.commands)) return false;
+    setSelection(clipsSelection(result.placementIds));
+    return true;
   };
 
   return {

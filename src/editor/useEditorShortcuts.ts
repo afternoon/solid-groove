@@ -208,8 +208,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       isEnabled: () => hasArrangementSelection(),
     },
     "edit.paste": {
-      // Pastes at the live playhead position, the same anchor most DAWs use
-      // with no explicit target selected.
+      // Pastes at the selection's start (#292); the arrangement falls back to
+      // the live playhead only when nothing is selected.
       run: () => arrangementEditingActions()?.paste(audio.positionTicks()),
       // Gated on the clipboard alone (#258), not on which editor is mounted
       // below the arrangement — the same term the rest of this block shed.

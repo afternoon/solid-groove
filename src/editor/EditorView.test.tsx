@@ -1183,6 +1183,16 @@ describe("EditorView keyboard shortcuts", () => {
     placementId: string,
     atTicks = 768 / 2,
   ): Promise<void> {
+    clickArrangementAt(atTicks);
+    await waitFor(() => {
+      expect(
+        document.querySelector(`[data-selected-placement="${placementId}"]`),
+      ).not.toBeNull();
+    });
+  }
+
+  /** A bare click on the first arrangement row, at a tick. */
+  function clickArrangementAt(atTicks: number): void {
     const canvas = document.querySelector(".arrangement-layer-interactive");
     if (!canvas) throw new Error("no arrangement interaction canvas rendered");
     const PIXELS_PER_TICK = INITIAL_PIXELS_PER_TICK;
@@ -1200,11 +1210,6 @@ describe("EditorView keyboard shortcuts", () => {
     const up = new MouseEvent("pointerup", { bubbles: true, cancelable: true });
     Object.defineProperty(up, "pointerId", { value: 1 });
     fireEvent(canvas, up);
-    await waitFor(() => {
-      expect(
-        document.querySelector(`[data-selected-placement="${placementId}"]`),
-      ).not.toBeNull();
-    });
   }
 
   // #258. The reporter hit this by selecting a placement on one track, deleting
@@ -1250,11 +1255,9 @@ describe("EditorView keyboard shortcuts", () => {
   // and only this gate stood in the way. Nothing is stolen from the roll: it
   // registers no clipboard action of its own (`PianoRollActions` is delete,
   // duplicate, select-all, has-selection).
-  it("pastes a copied placement while the piano roll is showing (#258)", async () => {
+  /** The piano-roll fixture with its one placement moved to bar 2. */
+  async function openWithPlacementInBar2() {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    // The source is a one-bar placement starting at bar 2, so the paste at the
-    // playhead (tick 0) lands on empty ticks rather than on its own source,
-    // which #290 forbids.
     const fixture = createPianoRollFixtureProject();
     const [source] = fixture.song.placements;
     const moved = { ...source, startTicks: toTicks(768), durationTicks: toTicks(768) };
@@ -1263,20 +1266,37 @@ describe("EditorView keyboard shortcuts", () => {
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
     await screen.findByTestId("arrangement-view-ready");
-
     await selectPlacementInArrangement(source.id, 768 * 1.5);
+    return project.metadata.id;
+  }
 
-    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
-    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
-
+  /** Waits until the stored placements start at exactly these ticks. */
+  async function expectStoredStarts(
+    projectId: Parameters<InMemoryProjectRepository["loadProject"]>[0],
+    starts: number[],
+  ): Promise<void> {
     await waitFor(
       async () => {
-        const loaded = await repository.loadProject(project.metadata.id);
+        const loaded = await repository.loadProject(projectId);
         if (!loaded.ok) throw new Error("expected the project to load");
-        expect(loaded.value.song.placements).toHaveLength(2);
+        const stored = loaded.value.song.placements.map((p) => p.startTicks);
+        expect(stored.sort((a, b) => a - b)).toEqual(starts);
       },
       { timeout: 3_000 },
     );
+  }
+
+  // Paste lands at the selection's start (#292), so the copy goes where the
+  // click put the insertion point: bar 4, clear of its source in bar 2. It
+  // used to go to the playhead in bar 1, whatever was clicked.
+  it("pastes a copy at an empty bar clicked after copying (#258, #292)", async () => {
+    const projectId = await openWithPlacementInBar2();
+
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+    clickArrangementAt(768 * 3);
+    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
+
+    await expectStoredStarts(projectId, [768, 768 * 3]);
   });
 });
 
