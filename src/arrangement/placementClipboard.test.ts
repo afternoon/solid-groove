@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { updatePlacement } from "../commands/definitions/placements";
 import { executeTransaction } from "../commands/execute";
 import type { Clip, Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory, type PlacementId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
-import { minutesToTicks, TICKS_PER_BAR } from "../domain/time";
+import { spanEnd } from "../domain/placementOverlap";
+import { minutesToTicks, TICKS_PER_BAR, toTicks } from "../domain/time";
 import {
   copyPlacements,
   createPlacementAt,
@@ -194,5 +196,164 @@ describe("createPlacementAt", () => {
     );
     expect(result.commands).toEqual([]);
     expect(result.placementId).toBeNull();
+  });
+});
+
+/**
+ * Paste overwrites what it lands on (#291, following #290 option B): the pasted
+ * placement wins, and each placement it covers on its track is replaced,
+ * removed, trimmed, or split — through `overwritePlacements`, in the paste's
+ * one transaction.
+ */
+describe("paste overwrites what it lands on (#291)", () => {
+  /** The fixture with its one placement stretched over `[startBar, endBar)`. */
+  function occupied(startBar: number, endBar: number) {
+    const { project, placementId } = fixture();
+    const next = apply(project, [
+      updatePlacement(placementId, {
+        startTicks: toTicks(startBar * TICKS_PER_BAR),
+        durationTicks: toTicks((endBar - startBar) * TICKS_PER_BAR),
+        looped: true,
+      }),
+    ]);
+    return { project: next, placementId };
+  }
+
+  /** A clipboard entry of `bars` bars at `startBar`, on the fixture's track. */
+  function entry(project: Project, startBar: number, bars: number) {
+    const [placement] = project.song.placements;
+    return {
+      clipId: placement.clipId,
+      trackId: placement.trackId,
+      startTicks: startBar * TICKS_PER_BAR,
+      durationTicks: bars * TICKS_PER_BAR,
+      clipOffsetTicks: 0,
+      looped: true,
+    };
+  }
+
+  const spans = (project: Project) =>
+    project.song.placements
+      .map((p) => [p.startTicks / TICKS_PER_BAR, spanEnd(p) / TICKS_PER_BAR])
+      .sort((a, b) => a[0] - b[0]);
+
+  it("pasting a copy onto its own source replaces it with an identical copy", () => {
+    const { project, placementId } = fixture();
+    const clipboard = copyPlacements(project, [placementId]);
+    const next = apply(
+      project,
+      pastePlacements(project, clipboard, 0, createSeededIdFactory("self")),
+    );
+    expect(next.song.placements).toHaveLength(1);
+    const [pasted] = next.song.placements;
+    expect(pasted.id).not.toBe(placementId);
+    const { id: _pastedId, ...pastedFields } = pasted;
+    const { id: _sourceId, ...sourceFields } = project.song.placements[0];
+    expect(pastedFields).toEqual(sourceFields);
+  });
+
+  it("removes every placement the paste fully contains", () => {
+    const { project, placementId } = fixture();
+    const ids = createSeededIdFactory("contain");
+    const two = apply(
+      project,
+      duplicatePlacement(project, placementId, "linked", ids).commands,
+    );
+    const next = apply(two, pastePlacements(two, [entry(two, 0, 4)], 0, ids));
+    expect(spans(next)).toEqual([[0, 4]]);
+  });
+
+  it("trims a partially covered head and advances its clip offset", () => {
+    const { project, placementId } = occupied(2, 6);
+    const next = apply(
+      project,
+      pastePlacements(
+        project,
+        [entry(project, 0, 2)],
+        TICKS_PER_BAR,
+        createSeededIdFactory("head"),
+      ),
+    );
+    expect(spans(next)).toEqual([
+      [1, 3],
+      [3, 6],
+    ]);
+    const trimmed = next.song.placements.find((p) => p.id === placementId);
+    expect(trimmed?.clipOffsetTicks).toBe(TICKS_PER_BAR);
+  });
+
+  it("trims a partially covered tail to the boundary", () => {
+    const { project, placementId } = occupied(0, 4);
+    const next = apply(
+      project,
+      pastePlacements(
+        project,
+        [entry(project, 0, 2)],
+        TICKS_PER_BAR * 3,
+        createSeededIdFactory("tail"),
+      ),
+    );
+    expect(spans(next)).toEqual([
+      [0, 3],
+      [3, 5],
+    ]);
+    const trimmed = next.song.placements.find((p) => p.id === placementId);
+    expect(trimmed?.clipOffsetTicks).toBe(0);
+  });
+
+  it("splits a longer placement around a paste that lands inside it", () => {
+    const { project, placementId } = occupied(0, 4);
+    const ids = createSeededIdFactory("split");
+    const next = apply(
+      project,
+      pastePlacements(project, [entry(project, 0, 1)], TICKS_PER_BAR * 2, ids),
+    );
+    expect(spans(next)).toEqual([
+      [0, 2],
+      [2, 3],
+      [3, 4],
+    ]);
+    const tail = next.song.placements.find((p) => p.startTicks === TICKS_PER_BAR * 3);
+    expect(tail?.id).not.toBe(placementId);
+    expect(tail?.clipOffsetTicks).toBe(TICKS_PER_BAR * 3);
+  });
+
+  it("resolves several pasted placements landing inside one longer placement", () => {
+    const { project } = occupied(0, 8);
+    const clipboard = [entry(project, 0, 1), entry(project, 2, 1)];
+    const next = apply(
+      project,
+      pastePlacements(
+        project,
+        clipboard,
+        TICKS_PER_BAR * 2,
+        createSeededIdFactory("many"),
+      ),
+    );
+    expect(spans(next)).toEqual([
+      [0, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+      [5, 8],
+    ]);
+  });
+
+  it("is one transaction whose undo restores exactly what was displaced", () => {
+    const { project } = occupied(0, 4);
+    const result = executeTransaction(
+      project,
+      pastePlacements(
+        project,
+        [entry(project, 0, 1)],
+        TICKS_PER_BAR,
+        createSeededIdFactory("undo"),
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.revision).toBe(project.metadata.revision + 1);
+    const undone = apply(result.project, [...result.inverse]);
+    expect(undone.song.placements).toEqual(project.song.placements);
   });
 });
