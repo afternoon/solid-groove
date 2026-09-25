@@ -477,20 +477,45 @@ describe("Mixer track selection (#228)", () => {
   });
 });
 
-/** The master, and its chain (`UI-001`). */
+/** The master, and its chain (`UI-001`, #283). */
 describe("Mixer master strip", () => {
-  it("shows the master's chain without being asked", () => {
+  const masterEffects = () => screen.getByRole("region", { name: "Master effects" });
+
+  it("shows the master's effects without being asked", () => {
     renderMixer();
 
     // There is exactly one master and exactly one master chain, so there is
     // nothing to choose between: it is on screen with the strips it applies
-    // to. It used to be behind a toggle, which made the one chain every
-    // project has the only part of the mixer you had to go looking for.
-    expect(screen.getByRole("heading", { name: "Master" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Master device chain" })).toBeVisible();
+    // to, empty until something is added to it.
+    expect(masterEffects()).toBeVisible();
+    expect(screen.getByRole("list", { name: "Master chain" })).toBeEmptyDOMElement();
   });
 
-  it("keeps the master's chain on screen while a track's strip is chosen", () => {
+  it("takes you to the master's effects when the master strip is selected", () => {
+    renderMixer();
+
+    clickAndFlush(screen.getByRole("button", { name: "Master" }));
+
+    // Nothing is revealed or hidden — the chain was already there — but the
+    // strip is the way in for a keyboard, so focus lands in the panel.
+    expect(masterEffects()).toHaveFocus();
+  });
+
+  it("adds to the master chain through the device commands, as one entry", () => {
+    const { history, transport } = renderMixer();
+
+    clickAndFlush(screen.getByRole("button", { name: /^Add device/ }));
+    clickAndFlush(screen.getByRole("menuitem", { name: "Overdrive" }));
+
+    expect(history.project.song.master.devices.map((d) => d.type)).toEqual(["overdrive"]);
+    expect(history.entries).toHaveLength(1);
+    expect(screen.getByRole("slider", { name: "Drive" })).toBeVisible();
+    const added = transport.events.filter((e) => e.name === "device_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toMatchObject({ device_type: "overdrive", chain: "master" });
+  });
+
+  it("keeps the master's effects on screen while a track's strip is chosen", () => {
     const { history } = renderMixer();
 
     clickAndFlush(
@@ -499,6 +524,6 @@ describe("Mixer master strip", () => {
 
     // Choosing a track is not a reason to hide the master: the master is what
     // everything, including that track, is going through.
-    expect(screen.getByRole("region", { name: "Master device chain" })).toBeVisible();
+    expect(masterEffects()).toBeVisible();
   });
 });

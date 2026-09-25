@@ -31,7 +31,7 @@ import type { TrackId } from "../domain/ids";
 import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
-import DeviceChainSlot from "./DeviceChainSlot";
+import MasterPanel from "./MasterPanel";
 import NewTrackButtons from "./NewTrackButtons";
 import {
   addTrackOfKind,
@@ -108,6 +108,8 @@ export default function Mixer(props: MixerProps): JSX.Element {
   const trackById = (id: TrackId): Track | undefined =>
     props.project.song.tracks.find((track) => track.id === id);
   const [pendingDelete, setPendingDelete] = createSignal<Track | null>(null);
+  /** The master's effects, which selecting the master strip takes you to. */
+  let masterEffects: HTMLElement | undefined;
   function clipCount(trackId: TrackId): number {
     return props.project.clips.filter((clip) => clip.trackId === trackId).length;
   }
@@ -209,21 +211,34 @@ export default function Mixer(props: MixerProps): JSX.Element {
           }}
         </For>
       </div>
-      {/* The master, at the end of the strips where a console puts it.
-			    Selecting it is the route to its chain, which #283 fills. */}
       {/*
-       * The master and its chain, always on screen (`UI-001`). It used to be
-       * a button you pressed to reveal the chain, which made the one thing
-       * every project has — and the one chain that is always there — the only
-       * part of the mixer you had to go looking for. There is exactly one
-       * master, so there is nothing to choose: showing it costs a strip's
-       * width and saves a click every time.
+       * The master and its chain, always on screen (`UI-001`), at the end of
+       * the strips where a console puts it. There is exactly one master, so
+       * there is nothing to choose: the chain is never hidden behind a press.
+       * The strip's name is still a control, like every track strip's, and
+       * selecting it takes you to the master's effects (#283) — which on a
+       * wide mix may be off to the side, and for a keyboard is the way in.
        */}
       <div class="mixer-master">
-        <h3 class="mixer-master-title">Master</h3>
-        <DeviceChainSlot
-          label="Master device chain"
-          emptyMessage="No devices on the master yet."
+        <button
+          type="button"
+          class="mixer-master-select"
+          onClick={() => {
+            masterEffects?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+            masterEffects?.focus();
+            analytics().logFeatureFirstUse("mixer");
+          }}
+        >
+          Master
+        </button>
+        <MasterPanel
+          sectionRef={(element) => {
+            masterEffects = element;
+          }}
+          project={props.project}
+          dispatch={props.dispatch}
+          beginGesture={props.beginGesture}
+          analytics={props.analytics}
         />
       </div>
       <Show when={pendingDelete()}>
