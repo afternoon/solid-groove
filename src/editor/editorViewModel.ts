@@ -1,6 +1,11 @@
 import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities";
 import type { PlacementId, TrackId } from "../domain/ids";
-import { formatBarsBeatsSixteenths } from "../domain/time";
+import {
+  BEATS_PER_BAR,
+  barsBeatsSixteenthsToTicks,
+  formatBarsBeatsSixteenths,
+  ticksToBarsBeatsSixteenths,
+} from "../domain/time";
 import type { SelectionState } from "../selection";
 
 /**
@@ -54,6 +59,42 @@ export function playheadLabel(positionTicks: number): string {
   const bbs = formatBarsBeatsSixteenths(positionTicks);
   const [bars, beats] = bbs.split(":");
   return `${Number(bars) + 1}.${Number(beats) + 1}`;
+}
+
+/** The playhead's editable segments: a 1-based bar and a 1-based beat. */
+export interface PlayheadSegments {
+  readonly bar: number;
+  readonly beat: number;
+}
+
+/** The transport position split into the playhead input's segments. */
+export function playheadSegments(positionTicks: number): PlayheadSegments {
+  const position = ticksToBarsBeatsSixteenths(positionTicks);
+  return { bar: position.bars + 1, beat: position.beats + 1 };
+}
+
+/**
+ * The segments a typed bar and beat settle on: whole numbers, the bar at least
+ * 1 and the beat within the 4/4 bar. Null when either segment is not a number,
+ * so an emptied field restores the current position rather than seeking to 0.
+ */
+export function normalizePlayheadSegments(
+  bar: number,
+  beat: number,
+): PlayheadSegments | null {
+  if (!Number.isFinite(bar) || !Number.isFinite(beat)) return null;
+  return {
+    bar: Math.max(1, Math.round(bar)),
+    beat: Math.min(BEATS_PER_BAR, Math.max(1, Math.round(beat))),
+  };
+}
+
+/** The tick a playhead position points at, the inverse of {@link playheadSegments}. */
+export function playheadSegmentsToTicks(segments: PlayheadSegments): number {
+  return barsBeatsSixteenthsToTicks({
+    bars: segments.bar - 1,
+    beats: segments.beat - 1,
+  });
 }
 
 /**

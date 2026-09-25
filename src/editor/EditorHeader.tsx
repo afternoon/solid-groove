@@ -9,11 +9,12 @@ import {
   HiSolidStop,
 } from "solid-icons/hi";
 import { type Accessor, Show } from "solid-js";
+import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
-import { playheadLabel } from "./editorViewModel";
+import PlayheadInput from "./PlayheadInput";
 import SaveStatus from "./SaveStatus";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
@@ -33,6 +34,7 @@ export type HeaderAudio = Pick<
   | "metronomeEnabled"
   | "toggle"
   | "toggleMetronome"
+  | "seekTicks"
 >;
 
 /** The slice of the editor session the header reads: history and save state. */
@@ -54,37 +56,47 @@ export interface EditorHeaderProps {
   readonly onTempoChange: (value: number) => void;
   readonly onOpenGuide: () => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
+  /** Injected in tests; defaults to the app-wide instance. */
+  readonly analytics?: Analytics;
 }
 
 /**
- * The editor's top bar: back link, project name, transport controls, tempo,
- * time signature, playhead, the shortcut-guide toggle, and the `SaveStatus`
- * group. Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
+ * The editor's top bar, in three sections (#340): the back link and project
+ * name on the left; undo/redo, transport, tempo, metronome, and the editable
+ * playhead in the centre; save state and the shortcut-guide toggle on the
+ * right (share joins them later). Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
  * merge-clash surface, then handed the audio and session modules whole
  * (`REFACTOR-006`) rather than one prop per field. Props are read as
  * `props.audio.isPlaying()`, never destructured, so Solid keeps tracking them.
  */
 export default function EditorHeader(props: EditorHeaderProps) {
   const history = () => props.session.state;
+  const analytics = () => props.analytics ?? defaultAnalytics;
+  function seek(ticks: number): void {
+    analytics().logFeatureFirstUse("playhead_seek");
+    props.audio.seekTicks(ticks);
+  }
   return (
     <header class="editor-header">
-      {/*
-       * A plain anchor: Solid Router 2 has no `<A>` component. The router
-       * intercepts in-app anchor clicks itself and gives them the same
-       * `aria-current`/`data-active`/`data-pending` vocabulary `<A>` used to
-       * apply, so client-side navigation is unchanged.
-       */}
-      <a
-        class="back-to-projects"
-        href="/dashboard"
-        aria-label="Projects"
-        title="Projects"
-      >
-        <HiSolidSquares2x2 size={18} />
-      </a>
-      {/* The project's name, chosen by the user (ADR 0002 decision 2). */}
-      <h1 class={`project-name ${MASK_CONTENT}`}>{props.projectName}</h1>
-      <div class="transport-controls">
+      <div class="editor-header-start">
+        {/*
+         * A plain anchor: Solid Router 2 has no `<A>` component. The router
+         * intercepts in-app anchor clicks itself and gives them the same
+         * `aria-current`/`data-active`/`data-pending` vocabulary `<A>` used to
+         * apply, so client-side navigation is unchanged.
+         */}
+        <a
+          class="back-to-projects"
+          href="/dashboard"
+          aria-label="Projects"
+          title="Projects"
+        >
+          <HiSolidSquares2x2 size={18} />
+        </a>
+        {/* The project's name, chosen by the user (ADR 0002 decision 2). */}
+        <h1 class={`project-name ${MASK_CONTENT}`}>{props.projectName}</h1>
+      </div>
+      <div class="editor-header-center transport-controls">
         <button
           type="button"
           class="undo-button"
@@ -129,22 +141,10 @@ export default function EditorHeader(props: EditorHeaderProps) {
         >
           <HiSolidArrowPathRoundedSquare size={18} />
         </button>
-        <button
-          type="button"
-          class="metronome-toggle"
-          onClick={() => props.audio.toggleMetronome()}
-          aria-pressed={ariaBool(props.audio.metronomeEnabled())}
-          aria-label={
-            props.audio.metronomeEnabled() ? "Disable metronome" : "Enable metronome"
-          }
-          title={`Metronome (${props.keyHint("transport.metronome")})`}
-        >
-          <HiSolidMusicalNote size={18} />
-        </button>
         <div class="tempo-control">
           {/* The label is the input's only accessible name — no
-					    aria-label to override it — and the unit is decorative
-					    text the name already carries. */}
+					    aria-label to override it — and it carries the unit the
+					    field no longer prints. */}
           <label class="visually-hidden" for="tempo-input">
             Tempo (BPM)
           </label>
@@ -158,36 +158,36 @@ export default function EditorHeader(props: EditorHeaderProps) {
             value={props.tempo()}
             onChange={(event) => props.onTempoChange(event.currentTarget.valueAsNumber)}
           />
-          <span class="tempo-unit" aria-hidden="true">
-            BPM
-          </span>
         </div>
-        <Show when={history().project?.song.timeSignature}>
-          {(signature) => (
-            <span class="time-signature" title="Time signature (fixed at 4/4)">
-              <span class="visually-hidden">Time signature </span>
-              {signature().numerator}/{signature().denominator}
-            </span>
-          )}
-        </Show>
-        <span class="playhead-position" title="Playhead (bar.beat)">
-          <span class="visually-hidden">Playhead at bar </span>
-          {playheadLabel(props.audio.positionTicks())}
-        </span>
+        <button
+          type="button"
+          class="metronome-toggle"
+          onClick={() => props.audio.toggleMetronome()}
+          aria-pressed={ariaBool(props.audio.metronomeEnabled())}
+          aria-label={
+            props.audio.metronomeEnabled() ? "Disable metronome" : "Enable metronome"
+          }
+          title={`Metronome (${props.keyHint("transport.metronome")})`}
+        >
+          <HiSolidMusicalNote size={18} />
+        </button>
+        <PlayheadInput positionTicks={props.audio.positionTicks} onSeek={seek} />
       </div>
-      <button
-        type="button"
-        class="shortcut-guide-button"
-        aria-label="Keyboard shortcuts"
-        title={`Keyboard shortcuts (${props.keyHint("help.shortcut_guide")})`}
-        onClick={() => props.onOpenGuide()}
-      >
-        <HiSolidQuestionMarkCircle size={18} />
-      </button>
-      <SaveStatus
-        saveStatus={() => history().saveStatus}
-        onRetry={() => void props.session.retry()}
-      />
+      <div class="editor-header-end">
+        <SaveStatus
+          saveStatus={() => history().saveStatus}
+          onRetry={() => void props.session.retry()}
+        />
+        <button
+          type="button"
+          class="shortcut-guide-button"
+          aria-label="Keyboard shortcuts"
+          title={`Keyboard shortcuts (${props.keyHint("help.shortcut_guide")})`}
+          onClick={() => props.onOpenGuide()}
+        >
+          <HiSolidQuestionMarkCircle size={18} />
+        </button>
+      </div>
     </header>
   );
 }

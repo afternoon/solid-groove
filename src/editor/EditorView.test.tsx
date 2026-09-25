@@ -1475,13 +1475,11 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     return project;
   }
 
-  it("shows the fixed 4/4 time signature and a starting playhead", async () => {
+  it("shows a starting playhead and no time signature", async () => {
     await renderSlice();
-    // Both are plain text with a visually hidden prefix naming them, rather
-    // than a role="img" whose aria-label repeats the text it already contains.
-    expect(screen.getByTitle("Time signature (fixed at 4/4)")).toHaveTextContent(
-      "Time signature 4/4",
-    );
+    // The playhead's readout is a visually hidden sentence beside its
+    // bar/beat inputs; the fixed 4/4 display was dropped (#340).
+    expect(screen.queryByText("4/4", { exact: false })).toBeNull();
     expect(screen.getByTitle("Playhead (bar.beat)")).toHaveTextContent(
       "Playhead at bar 1.1",
     );
