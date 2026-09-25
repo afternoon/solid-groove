@@ -31,16 +31,18 @@ import {
   barStartPoint,
   clipsSelection,
   placementsTouchedBy,
+  pointSelection,
   reconcileArrangementSelection,
   selectedPlacementIds,
   selectionSpan,
+  selectionStartTicks,
   type TickSpan,
 } from "../selection";
 import {
   copyPlacements,
   cutPlacements,
   type PlacementClipboardEntry,
-  pastePlacements,
+  pasteClipboard,
 } from "./placementClipboard";
 import {
   type DuplicateMode,
@@ -349,17 +351,32 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const ids = covered();
     if (!current || ids.length === 0) return false;
     const result = cutPlacements(current, ids);
-    if (!run(result.commands)) return false;
+    const first = current.song.placements.find((p) => p.id === ids[0]);
+    if (!first || !run(result.commands)) return false;
     clipboard = result.clipboard;
-    clearSelection();
+    // The point stays where the cut clips began, so a paste straight after
+    // puts them back (#292).
+    setSelection(pointSelection({ trackId: first.trackId, ticks: first.startTicks }));
     return true;
   };
 
-  const paste = (targetTicks: number): boolean => {
+  /**
+   * Paste at the selection's start, Ableton-style (#292): the point, or the
+   * earliest selected clip's start, exactly where it is. Only with nothing
+   * selected does it fall back to `fallbackTicks` (the playhead), snapped to a
+   * bar. It needs only a non-empty clipboard. What it pasted is selected
+   * afterwards, as a duplicate's copy is.
+   */
+  const paste = (fallbackTicks: number): boolean => {
     const current = project();
-    return current
-      ? run(pastePlacements(current, clipboard, targetTicks, options.ids))
-      : false;
+    if (!current || clipboard.length === 0) return false;
+    const at = selectionStartTicks(selection, current);
+    const result = pasteClipboard(current, clipboard, at ?? fallbackTicks, options.ids, {
+      snap: at === null,
+    });
+    if (!run(result.commands)) return false;
+    setSelection(clipsSelection(result.placementIds));
+    return true;
   };
 
   return {

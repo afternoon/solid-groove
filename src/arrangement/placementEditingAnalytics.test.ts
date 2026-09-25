@@ -17,6 +17,8 @@ describe("clipboard through the controller (ARR-01)", () => {
     expect(h.editing.copy()).toBe(true);
     expect(h.editing.getClipboard()).toHaveLength(1);
 
+    // With nothing selected, paste lands at the anchor passed (the playhead).
+    h.editing.clearSelection();
     expect(h.editing.paste(TICKS_PER_BAR * 4)).toBe(true);
     expect(h.getProject().song.placements).toHaveLength(2);
 

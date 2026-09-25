@@ -81,10 +81,16 @@ export function cutPlacements(
   };
 }
 
+/** The commands a paste runs, and the placements it creates. */
+export interface PasteResult {
+  readonly commands: RawCommandInput[];
+  readonly placementIds: PlacementId[];
+}
+
 /**
- * Paste the clipboard at a bar-snapped target tick, preserving the relative
- * offsets between the copied placements so a multi-placement paste keeps its
- * shape. A clip that no longer exists is skipped — the paste places what it
+ * Paste the clipboard at a target tick, bar-snapped unless `snap` is false,
+ * preserving the relative offsets between the copied placements so a
+ * multi-placement paste keeps its shape. A clip that no longer exists is skipped — the paste places what it
  * still can rather than failing the whole transaction or inventing content.
  *
  * Each pasted placement wins the ticks it lands on (#291, the #290 overwrite):
@@ -93,16 +99,18 @@ export function cutPlacements(
  * it, so two pasted placements landing inside one longer placement split what
  * the first split left rather than both splitting the original.
  */
-export function pastePlacements(
+export function pasteClipboard(
   project: Project,
   clipboard: readonly PlacementClipboardEntry[],
   targetTicks: number,
   ids: IdFactory,
-): RawCommandInput[] {
-  if (clipboard.length === 0) return [];
+  options: { readonly snap?: boolean } = {},
+): PasteResult {
+  if (clipboard.length === 0) return { commands: [], placementIds: [] };
   const anchor = Math.min(...clipboard.map((entry) => entry.startTicks));
-  const target = snapToBar(targetTicks);
+  const target = options.snap === false ? clampTick(targetTicks) : snapToBar(targetTicks);
   const commands: RawCommandInput[] = [];
+  const placementIds: PlacementId[] = [];
   let working = project;
   for (const entry of clipboard) {
     if (!findClip(project, entry.clipId)) continue;
@@ -122,9 +130,20 @@ export function pastePlacements(
       addPlacement(placement),
     ];
     commands.push(...step);
+    placementIds.push(placement.id);
     working = executeTransaction(working, step, { commitRevision: false }).project;
   }
-  return commands;
+  return { commands, placementIds };
+}
+
+/** `pasteClipboard`'s commands alone, bar-snapped at the target. */
+export function pastePlacements(
+  project: Project,
+  clipboard: readonly PlacementClipboardEntry[],
+  targetTicks: number,
+  ids: IdFactory,
+): RawCommandInput[] {
+  return pasteClipboard(project, clipboard, targetTicks, ids).commands;
 }
 
 /**

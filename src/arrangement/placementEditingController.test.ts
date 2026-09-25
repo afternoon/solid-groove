@@ -128,19 +128,21 @@ describe("discrete operations", () => {
 
 describe("paste anchor", () => {
   /**
-   * Paste lands at the anchor the caller passes — the playhead, from
-   * `edit.paste`. PR #285 briefly anchored it at the selection and dodged the
-   * copy past its own source with a cascade walk; that walk is gone. Since #290
-   * a track's placements are disjoint, and since #291 a paste overwrites what
-   * it lands on, so pasting onto occupied ticks replaces, trims, or splits
-   * what was there instead of stacking on it or being rejected.
+   * With nothing selected, paste lands at the anchor the caller passes (the
+   * playhead, from `edit.paste`), snapped to a bar. With a selection it lands
+   * at the selection's start instead (#292, `placementEditingPaste.test.ts`).
+   * Since #290 a track's placements are disjoint, and since #291 a paste
+   * overwrites what it lands on, so pasting onto occupied ticks replaces,
+   * trims, or splits what was there instead of stacking on it or being
+   * rejected.
    */
-  it("pastes at the caller's anchor", () => {
+  it("pastes at the caller's anchor, snapped, when nothing is selected", () => {
     const h = harness();
     h.editing.select(h.placementId());
     h.editing.copy();
+    h.editing.clearSelection();
 
-    h.editing.paste(TICKS_PER_BAR * 4);
+    h.editing.paste(TICKS_PER_BAR * 4 + 100);
 
     const pasted = h
       .getProject()
