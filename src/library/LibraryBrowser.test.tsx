@@ -67,22 +67,32 @@ function node(name: string | RegExp) {
   return screen.getByRole("button", { name, expanded: undefined });
 }
 
+/** Opens a pack's node, as a producer does first: every pack starts closed. */
+async function openPack(pack: { name: string } = FIRST_PACK) {
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(pack.name) }));
+}
+
 describe("the pack tree (LIB-05)", () => {
-  it("shows one node per pack the project has, opened on the first", async () => {
+  it("shows one node per pack the project has, each closed until opened", async () => {
     renderBrowser();
     const first = await screen.findByRole("button", {
       name: new RegExp(FIRST_PACK.name),
     });
-    expect(first).toHaveAttribute("aria-expanded", "true");
-    // The second pack is listed but stays collapsed until it is opened.
+    // The library is opened to pick a sound (UI-001), and opening the pack
+    // you want is the first step of that (CF-005): nothing opens on its own.
+    expect(first).toHaveAttribute("aria-expanded", "false");
     const second = screen.getByRole("button", {
       name: new RegExp(SECOND_PACK.name),
     });
+    expect(second).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(first);
+    await waitFor(() => expect(first).toHaveAttribute("aria-expanded", "true"));
     expect(second).toHaveAttribute("aria-expanded", "false");
   });
 
   it("shows a pack's own structure — role groups, then its sounds", async () => {
     renderBrowser();
+    await openPack();
     // The opened pack's role groups appear without any taxonomy knowledge.
     const group = await waitFor(() => {
       const groups = screen
@@ -111,6 +121,8 @@ describe("the pack tree (LIB-05)", () => {
     await screen.findByRole("button", {
       name: new RegExp(SECOND_PACK.name),
     });
+    // The project's first pack is warmed so opening it is instant; no other
+    // manifest is fetched until its node opens.
     await waitFor(() =>
       expect(paths.some((path) => path.includes(FIRST_PACK.slug))).toBe(true),
     );
@@ -130,6 +142,7 @@ describe("the pack tree (LIB-05)", () => {
 describe("searching the panel", () => {
   it("opens matching groups and hides the rest", async () => {
     renderBrowser();
+    await openPack();
     await waitFor(() =>
       expect(
         screen
@@ -157,6 +170,7 @@ describe("searching the panel", () => {
 
 describe("audition", () => {
   async function openFirstGroup() {
+    await openPack();
     const group = await waitFor(() => {
       const groups = screen
         .getAllByRole("button", { expanded: false })
@@ -257,6 +271,7 @@ describe("error states", () => {
       return fixtureFetcher()(path);
     });
     renderBrowser({ client });
+    await openPack();
     await waitFor(() => expect(screen.getByText(/is unavailable/)).toBeInTheDocument());
     expect(screen.getByText(/Other packs work/)).toBeInTheDocument();
     // The healthy pack is still browsable.
@@ -302,6 +317,7 @@ describe("the pack browser entrypoint", () => {
 
   it("stops any audition when the modal opens", async () => {
     const { previewEngine } = renderBrowser();
+    await openPack();
     const group = await waitFor(() => {
       const groups = screen
         .getAllByRole("button", { expanded: false })
