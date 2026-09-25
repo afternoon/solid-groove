@@ -128,7 +128,8 @@ self-report is a claim.
 1. **Ordering and bases.** PR 1 is the first implementation slice and has base
    `main` — the flow specs are not part of this stack, having merged separately
    before the run. Every later PR's base is the **previous PR's branch**, not
-   `main`. Confirm with `gh pr view <n> --json baseRefName,headRefName` for each.
+   `main`, and every PR is **ready for review, not draft**. Confirm with
+   `gh pr view <n> --json baseRefName,headRefName,isDraft` for each.
 2. **Issue references.** Every PR body says `Refs #<n>` **except the last**,
    which says `Closes #<n>`. Exactly one PR closes the issue.
 3. **Title format.** Every title reads `Implement #<issue> (i/N): Title` — the
@@ -203,6 +204,7 @@ self-report is a claim.
 
 **You may fix, then re-verify** — these are mechanical PR metadata, not work:
 
+- a PR left as a draft (`gh pr ready <n>`)
 - a wrong base branch (`gh pr edit <n> --base <branch>`)
 - a missing or wrong `Refs`/`Closes` line, or a missing stack position
 - a title that does not read `Implement #<issue> (i/N): Title`
