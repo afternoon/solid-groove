@@ -220,10 +220,19 @@ function transferCarrying(sample: unknown) {
  * it — the same reason CF-005 finds its loop by reading the rows.
  */
 function loopAssetName(slug: string): string {
+  return assetNameOfType(slug, "loop");
+}
+
+/** The name of the first insertable one-shot in a committed fixture pack. */
+function oneShotAssetName(slug: string): string {
+  return assetNameOfType(slug, "one-shot");
+}
+
+function assetNameOfType(slug: string, type: "loop" | "one-shot"): string {
   const manifest = parsePackManifest(fixturePackManifest(slug));
-  const loop = packAssets(manifest).find((asset) => asset.type === "loop");
-  if (!loop) throw new Error(`fixture pack "${slug}" ships no loop`);
-  return loop.name;
+  const found = packAssets(manifest).find((asset) => asset.type === type && asset.url);
+  if (!found) throw new Error(`fixture pack "${slug}" ships no ${type}`);
+  return found.name;
 }
 
 function recordingAnalytics(
@@ -383,9 +392,12 @@ describe("EditorView", () => {
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
+    const transport = createRecordingTransport();
     renderEditor(project.metadata.id, {
       libraryClient: new LibraryClient(fixtureFetcher()),
+      analytics: recordingAnalytics(transport),
     });
+    const tracksBefore = project.song.tracks.length;
 
     // The project's own pack is a fixture pack with no delivered manifest, so
     // reach a real sound the way a user does with an empty shelf: open the
@@ -398,9 +410,12 @@ describe("EditorView", () => {
         name: /Core Electronic Drums/,
       }),
     );
-    const insert = (
-      await within(dialog).findAllByRole("button", { name: /^Insert / })
-    )[0];
+    // A one-shot specifically: the same Insert control takes a loop to a new
+    // track instead (#281), which is what this test must tell apart.
+    const oneShotName = oneShotAssetName("core-electronic-drums");
+    const insert = await within(dialog).findByRole("button", {
+      name: `Insert ${oneShotName}`,
+    });
     const name = (insert.getAttribute("aria-label") ?? "").replace("Insert ", "");
     fireEvent.click(insert);
 
@@ -411,6 +426,15 @@ describe("EditorView", () => {
     );
     const panel = await screen.findByRole("region", { name: "BD instrument" });
     expect(await within(panel).findByText(name)).toBeInTheDocument();
+
+    // The one-shot path creates no track — the loop path's outcome is not
+    // this one's (#281). Merging the two would fail here.
+    expect(transport.named("track_added")).toHaveLength(0);
+    expect(transport.named("instrument_changed")).toHaveLength(1);
+    await goToView("Arrangement");
+    expect(
+      within(screen.getByLabelText("Arrangement tracks")).getAllByRole("listitem"),
+    ).toHaveLength(tracksBefore);
   });
 
   it("shows a track's instrument panel even before it has a clip (#228)", async () => {
@@ -829,7 +853,7 @@ describe("EditorView new-track unit", () => {
     });
     await screen.findByTestId("arrangement-view-ready");
 
-    clickAndFlush(screen.getByRole("button", { name: "Add loop track" }));
+    clickAndFlush(screen.getByRole("button", { name: "Add loop from library" }));
 
     const library = await screen.findByRole("dialog", { name: "Library" });
     // It says what it is showing, without renaming the region underneath it.
@@ -854,8 +878,12 @@ describe("EditorView new-track unit", () => {
     });
     await screen.findByTestId("arrangement-view-ready");
     const before = trackRows().length;
+    // What the insert must leave alone, read off the screen beforehand.
+    const tempo = screen.getByRole("spinbutton", { name: "Tempo (BPM)" });
+    const tempoBefore = (tempo as HTMLInputElement).value;
+    const braceBefore = screen.getByTestId("arrangement-loop-live").textContent;
 
-    clickAndFlush(screen.getByRole("button", { name: "Add loop track" }));
+    clickAndFlush(screen.getByRole("button", { name: "Add loop from library" }));
     const library = await screen.findByRole("dialog", { name: "Library" });
 
     // The fixture project's own pack has no delivered manifest, so a real loop
@@ -891,6 +919,22 @@ describe("EditorView new-track unit", () => {
     expect(added).toHaveLength(1);
     expect(added[0].params).toEqual(expect.objectContaining({ track_type: "audio" }));
     expect(added[0].params).not.toHaveProperty("instrument_type");
+    // No param carries the sound's name — it is user-facing content.
+    for (const event of transport.events) {
+      expect(Object.values(event.params ?? {})).not.toContain(loopName);
+    }
+
+    // Nothing else moved (#281): the song tempo, the loop brace and whether it
+    // loops, and the transport, which is still stopped.
+    expect(tempo).toHaveValue(Number(tempoBefore));
+    expect(screen.getByTestId("arrangement-loop-live").textContent).toBe(braceBefore);
+    expect(screen.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Start playback" })).toBeVisible();
+    // Inserting a loop loads no sampler: the kind chose the other path.
+    expect(transport.named("instrument_changed")).toHaveLength(0);
 
     // One undo takes the whole insertion back, track and all.
     clickAndFlush(screen.getByRole("button", { name: /^Undo / }));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { executeTransaction } from "../commands";
+import { CommandHistory, executeTransaction } from "../commands";
 import { createFactoryContext } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
@@ -248,6 +248,63 @@ describe("insertLoopCommands", () => {
     expect(result.project.metadata.revision).toBe(project.metadata.revision + 1);
   });
 
+  it("is one history entry, and one undo takes the track, clip and asset back", async () => {
+    const project = createSliceFixtureProject();
+    const sample = await loopSample();
+    const history = new CommandHistory(project);
+
+    const result = history.execute(
+      insertLoopCommands(project, sample, context(), {
+        order: project.song.tracks.length,
+        existingNames: project.song.tracks.map((track) => track.name),
+        songTempo: project.song.tempo,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    expect(history.entries).toHaveLength(1);
+    expect(carriedAsset(history.project, sample)).not.toBeNull();
+
+    history.undo();
+    // Nothing orphaned: the asset goes with the track that brought it.
+    expect(history.project.song.tracks).toEqual(project.song.tracks);
+    expect(history.project.clips).toEqual(project.clips);
+    expect(history.project.song.assets).toEqual(project.song.assets);
+    expect(history.project.metadata.packDependencies).toEqual(
+      project.metadata.packDependencies,
+    );
+  });
+
+  it("moves nothing else: tempo, loop brace, looping and every existing track", async () => {
+    const project = createSliceFixtureProject();
+    // A source tempo different from the song's is the case that could tempt
+    // an insert into retempoing the song.
+    const sample = { ...(await loopSample()), bpm: project.song.tempo + 17 };
+
+    const result = executeTransaction(
+      project,
+      insertLoopCommands(project, sample, context(), {
+        order: project.song.tracks.length,
+        existingNames: project.song.tracks.map((track) => track.name),
+        songTempo: project.song.tempo,
+      }),
+    );
+    if (!result.ok) throw new Error(result.issues[0].message);
+
+    expect(result.project.song.tempo).toBe(project.song.tempo);
+    expect(result.project.song.loop).toEqual(project.song.loop);
+    expect(result.project.song.tracks.slice(0, project.song.tracks.length)).toEqual(
+      project.song.tracks,
+    );
+    expect(
+      result.project.song.placements.slice(0, project.song.placements.length),
+    ).toEqual(project.song.placements);
+    // ...while the clip keeps the loop's own tempo, so playback stretches it.
+    const clip = result.project.clips.at(-1);
+    expect(clip?.content.kind === "audioLoop" && clip.content.sourceTempo).toBe(
+      sample.bpm,
+    );
+  });
+
   it("gives the new track no empty note clip", async () => {
     const project = createSliceFixtureProject();
     const sample = await loopSample();
@@ -295,14 +352,49 @@ describe("insertLoopCommands", () => {
     const second = executeTransaction(first.project, commands);
     if (!second.ok) throw new Error(second.issues[0].message);
     expect(second.project.song.assets).toHaveLength(first.project.song.assets.length);
+    // Both tracks' clips point at the one asset, and the pack it came from is
+    // a dependency exactly once.
+    const loopAssetIds = second.project.clips.flatMap((clip) =>
+      clip.content.kind === "audioLoop" ? [clip.content.assetId] : [],
+    );
+    expect(new Set(loopAssetIds).size).toBe(1);
+    expect(
+      second.project.metadata.packDependencies.filter(
+        (dep) => dep.packId === sample.packId,
+      ),
+    ).toHaveLength(1);
     // ... and the second track's name does not collide with the first's.
     expect(second.project.song.tracks.at(-1)?.name).not.toBe(
       first.project.song.tracks.at(-1)?.name,
     );
   });
 
-  it("sizes the clip in whole bars from the loop's own tempo", async () => {
+  it("sizes the clip from the bar count the loop declares", async () => {
     const base = await loopSample();
+    // The declared count wins over a duration that measures differently —
+    // the library builder cut the file to exactly that many bars.
+    expect(
+      loopClipLengthTicks({ ...base, bars: 4, bpm: 140, durationSeconds: 3.4285 }),
+    ).toBe(4 * TICKS_PER_BAR);
+    expect(
+      loopClipLengthTicks({ ...base, bars: 2, bpm: null, durationSeconds: null }),
+    ).toBe(2 * TICKS_PER_BAR);
+  });
+
+  it("reads the declared bar count off a delivered loop", async () => {
+    const assets = await libraryAssets("core-electronic-drums");
+    const declared = assets.filter((asset) => asset.type === "loop" && asset.bars);
+    expect(declared.length).toBeGreaterThan(0);
+    for (const asset of declared) {
+      const sample = toLibrarySample(asset);
+      expect(sample?.bars).toBe(asset.bars);
+      if (sample)
+        expect(loopClipLengthTicks(sample)).toBe((asset.bars ?? 0) * TICKS_PER_BAR);
+    }
+  });
+
+  it("measures the clip in whole bars from the loop's own tempo when it declares none", async () => {
+    const base = { ...(await loopSample()), bars: null };
     // Two bars at 140 BPM: 8 beats / (140/60) = 3.4285s.
     expect(loopClipLengthTicks({ ...base, bpm: 140, durationSeconds: 3.4285 })).toBe(
       2 * TICKS_PER_BAR,

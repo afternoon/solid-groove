@@ -217,6 +217,14 @@
   color: var(--color-error);
 }
 
+.library-row-tempo {
+  flex: none;
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .library-insert {
   margin-left: auto;
 }

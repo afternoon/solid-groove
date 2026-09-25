@@ -20,6 +20,7 @@ function asset(overrides: Partial<LibraryAsset> & { id: string }): LibraryAsset 
     sampleRate: 48000,
     channelCount: 1,
     bpm: null,
+    bars: null,
     licence: "solid-groove-owned",
     ...overrides,
   };

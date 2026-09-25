@@ -28,6 +28,7 @@ const DROPPED: LibrarySample = {
   channelCount: 1,
   licence: "solid-groove-owned",
   bpm: null,
+  bars: null,
 };
 
 /**

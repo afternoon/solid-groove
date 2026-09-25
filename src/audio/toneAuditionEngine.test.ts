@@ -44,6 +44,7 @@ function loopAsset(overrides: Partial<LibraryAsset> = {}): LibraryAsset {
     sampleRate: SAMPLE_RATE,
     channelCount: 1,
     bpm: 120,
+    bars: 1,
     licence: "solid-groove-owned",
     ...overrides,
   };

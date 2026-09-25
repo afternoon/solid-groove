@@ -212,6 +212,7 @@ const manifestAssetSchema = z.object({
       sampleRate: z.number().nullish(),
       channels: z.number().nullish(),
       bpm: z.number().nullish(),
+      bars: z.number().nullish(),
     })
     .nullish(),
 });
@@ -263,6 +264,8 @@ export interface LibraryAsset {
   readonly sampleRate: number | null;
   readonly channelCount: number | null;
   readonly bpm: number | null;
+  /** How many bars a loop declares it spans, or `null` for anything else. */
+  readonly bars: number | null;
 }
 
 /** A pack as the index lists it, before its manifest is fetched. */
@@ -361,6 +364,7 @@ export function packAssets(manifest: PackManifest): LibraryAsset[] {
       sampleRate: asset.audio?.sampleRate ?? null,
       channelCount: asset.audio?.channels ?? null,
       bpm: asset.audio?.bpm ?? null,
+      bars: asset.audio?.bars ?? null,
     };
   });
 }
