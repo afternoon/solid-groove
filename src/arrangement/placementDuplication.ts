@@ -25,7 +25,7 @@
  */
 
 import { addClip } from "../commands/definitions/clips";
-import { addPlacement } from "../commands/definitions/placements";
+import { addPlacement, overwritePlacements } from "../commands/definitions/placements";
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
@@ -100,13 +100,11 @@ export function duplicatePlacement(
     commands.push(addClip(copy));
   }
 
+  const duplicate = { ...placement, id: newPlacementId, clipId, startTicks };
+  // The duplicate wins the ticks it lands on (#290 overwrite).
   commands.push(
-    addPlacement({
-      ...placement,
-      id: newPlacementId,
-      clipId,
-      startTicks,
-    }),
+    ...overwritePlacements(project, duplicate, () => ids("placement")),
+    addPlacement(duplicate),
   );
   return { commands, placementId: newPlacementId };
 }

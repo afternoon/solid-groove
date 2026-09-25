@@ -1,12 +1,20 @@
 import { z } from "zod";
-import { type Placement, placementSchema } from "../../domain/entities";
+import { type Placement, type Project, placementSchema } from "../../domain/entities";
 import { type PlacementId, placementIdSchema } from "../../domain/ids";
+import {
+  type PlacementSpan,
+  placementsOverlap,
+  spanEnd,
+  trimHead,
+} from "../../domain/placementOverlap";
+import { toTicks } from "../../domain/time";
 import { clipLabel, findPlacement, replacePlacement, withSong } from "../projectEdits";
 import {
   applied,
   type CommandInput,
   defineCommand,
   eraseCommand,
+  type RawCommandInput,
   type RegisteredCommand,
   rejected,
 } from "../types";
@@ -187,6 +195,44 @@ export function updatePlacement(
     type: placementUpdateCommand.type,
     payload: { placementId, changes },
   };
+}
+
+/**
+ * The commands that clear `incoming`'s ticks on its track so it can land there
+ * (#290 overwrite): the incoming placement wins, and each placement it covers is
+ * removed (full cover), trimmed to the boundary (partial cover), or split around
+ * it (landing inside), so the track stays disjoint. `incoming` itself — when it
+ * already exists, as a dragged placement does — is never touched. A split's tail
+ * is a new placement, so its ID comes from `newPlacementId`, keeping replay and
+ * redo exact. Composed by the edit that places `incoming`, in the same
+ * transaction, so one undo restores everything it covered.
+ */
+export function overwritePlacements(
+  project: Project,
+  incoming: PlacementSpan & { readonly id?: PlacementId },
+  newPlacementId: () => PlacementId,
+): RawCommandInput[] {
+  const start = incoming.startTicks;
+  const end = spanEnd(incoming);
+  return project.song.placements.flatMap((placement): RawCommandInput[] => {
+    if (placement.id === incoming.id || !placementsOverlap(placement, incoming)) {
+      return [];
+    }
+    const coversHead = start <= placement.startTicks;
+    const coversTail = end >= spanEnd(placement);
+    if (coversHead && coversTail) return [removePlacement(placement.id)];
+    const tail = trimHead(placement, toTicks(end));
+    const tailChanges = {
+      startTicks: tail.startTicks,
+      durationTicks: tail.durationTicks,
+      clipOffsetTicks: tail.clipOffsetTicks,
+    };
+    if (coversHead) return [updatePlacement(placement.id, tailChanges)];
+    const head = updatePlacement(placement.id, {
+      durationTicks: toTicks(start - placement.startTicks),
+    });
+    return coversTail ? [head] : [head, addPlacement({ ...tail, id: newPlacementId() })];
+  });
 }
 
 /** Registered, payload-erased commands from this module. */

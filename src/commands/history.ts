@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import type { Project } from "../domain/entities";
+import { checkProjectIntegrity, type DomainIssueCode } from "../domain/parse";
 import { type Clock, systemClock } from "../shared/clock";
 import {
   createCorrelationId,
@@ -95,6 +96,13 @@ interface GestureState {
 }
 
 export type HistoryListener = (snapshot: HistorySnapshot) => void;
+
+/**
+ * Invariants a gesture's intermediate steps may leave violated. A placement
+ * dragged across a neighbour overlaps it until the drop, where the drag resolves
+ * the overwrite once (#290) — so passing a neighbour leaves it intact.
+ */
+const GESTURE_DEFERRED_INVARIANTS: readonly DomainIssueCode[] = ["placement_overlap"];
 
 export class CommandHistory {
   #project: Project;
@@ -351,6 +359,7 @@ export class CommandHistory {
       // The gesture commits one revision when it ends, so its steps do
       // not each bump the revision the way a standalone command does.
       commitRevision: false,
+      deferredInvariants: GESTURE_DEFERRED_INVARIANTS,
     });
     if (!result.ok) {
       return result;
@@ -365,6 +374,13 @@ export class CommandHistory {
 
   #commitGesture(state: GestureState, summary?: string): HistoryEntry | null {
     this.#gesture = null;
+    // A step may defer an invariant, but nothing commits in violation of one:
+    // a gesture that still breaks one when it ends is abandoned, like a cancel.
+    if (checkProjectIntegrity(this.#project).length > 0) {
+      this.#project = state.startProject;
+      this.#notify();
+      return null;
+    }
     if (state.commands.length === 0) {
       this.#notify();
       return null;

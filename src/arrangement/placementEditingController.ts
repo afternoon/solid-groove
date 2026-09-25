@@ -17,6 +17,8 @@
  */
 
 import type { Analytics } from "../analytics/analytics";
+import { overwritePlacements } from "../commands/definitions/placements";
+import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
 import type { Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
@@ -149,15 +151,41 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
         ? movePlacement(current, drag.placementId, pointerTicks - drag.grabOffsetTicks)
         : resizePlacement(current, drag.placementId, drag.handle, pointerTicks);
     if (commands.length === 0) return;
-    if (drag.gesture) drag.gesture.apply(commands);
-    else options.dispatch(commands);
+    if (drag.gesture) {
+      drag.gesture.apply(commands);
+    } else {
+      // With no gesture every step commits on its own, so each one resolves
+      // its own overwrite against the project that step produces.
+      const stepped = executeTransaction(current, commands, {
+        commitRevision: false,
+        deferredInvariants: ["placement_overlap"],
+      });
+      options.dispatch([...commands, ...overwriteForDrag(stepped.project)]);
+    }
     drag.applied = true;
     changed();
   }
 
-  /** Ends the drag, committing the whole thing as one history entry. */
+  /** The overwrite of whatever the dragged placement covers in `at` (#290). */
+  function overwriteForDrag(at: Project): RawCommandInput[] {
+    const placement = at.song.placements.find((p) => p.id === drag?.placementId);
+    return placement
+      ? overwritePlacements(at, placement, () => options.ids("placement"))
+      : [];
+  }
+
+  /**
+   * Ends the drag, committing the whole thing as one history entry. The
+   * overwrite of whatever the dropped placement covers is resolved here, once,
+   * so a neighbour the drag merely passed over is left intact (#290).
+   */
   function endDrag(): void {
     if (!drag) return;
+    const current = project();
+    if (drag.applied && drag.gesture && current) {
+      const overwrite = overwriteForDrag(current);
+      if (overwrite.length > 0) drag.gesture.apply(overwrite);
+    }
     if (drag.applied) drag.gesture?.commit();
     else drag.gesture?.cancel();
     drag = null;
