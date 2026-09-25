@@ -503,6 +503,19 @@ export const ANALYTICS_EVENTS = {
     },
   },
 
+  track_reordered: {
+    phase: 1,
+    owners: ["TRK-02"],
+    // One committed reorder (#331): a whole drag, or one move-left/right
+    // press — never a position crossed mid-drag. Only where it happened and
+    // how; which track moved, and where to, stay out of it. `view`, not
+    // `surface`: the boundary attaches `surface` to every event.
+    params: {
+      view: enumParam(["arrangement", "mixer"]),
+      method: enumParam(["drag", "button"]),
+    },
+  },
+
   instrument_changed: {
     phase: 1,
     owners: ["LOOP-004", "LOOP-005"],
