@@ -240,6 +240,18 @@ describe("Mixer track management (TRK-01)", () => {
     expect(reordered.find((t) => t.id === second.id)?.order).toBe(0);
   });
 
+  it("logs track_reordered once per move-left/right press (#331)", () => {
+    const { history, transport } = renderMixer(createDrumMachineFixtureProject());
+    const [first] = history.project.song.tracks;
+
+    clickAndFlush(screen.getByRole("button", { name: `Move ${first.name} right` }));
+
+    const events = transport.named("track_reordered");
+    expect(events).toHaveLength(1);
+    expect(events[0]?.params).toMatchObject({ view: "mixer", method: "button" });
+    expect(history.entries).toHaveLength(1);
+  });
+
   it("deletes an empty track immediately, warns on a track with clips", () => {
     const { history } = renderMixer(createDrumMachineFixtureProject());
     const trackWithClips = history.project.song.tracks[0];

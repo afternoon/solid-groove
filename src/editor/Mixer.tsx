@@ -12,7 +12,6 @@ import {
   addTrack,
   createControlGesture,
   removeTrack,
-  reorderTrack,
   setParameter,
   setTrackFlag,
   updateTrack,
@@ -38,6 +37,7 @@ import {
   instrumentTypeKey,
   type NewTrackKindSpec,
 } from "./trackCreation";
+import { moveTrack } from "./trackReorder";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
 
@@ -136,6 +136,16 @@ export default function Mixer(props: MixerProps): JSX.Element {
     analytics().logFeatureFirstUse("mixer");
   }
 
+  /** The move-left/right buttons: the keyboard's route to reordering (#331). */
+  function moveBy(trackId: TrackId, toIndex: number): void {
+    moveTrack(
+      { project: () => props.project, dispatch: props.dispatch, analytics: analytics() },
+      trackId,
+      toIndex,
+      { view: "mixer", method: "button" },
+    );
+  }
+
   function handleDuplicate(track: Track): void {
     const duplicate = duplicateTrack(props.project, track.id, {
       ids: factoryContext.ids,
@@ -194,6 +204,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
                     clipCount={clipCount(id)}
                     selected={props.selectedTrackId === id}
                     onSelect={() => selectTrack(id)}
+                    onMove={(toIndex) => moveBy(id, toIndex)}
                     dispatch={props.dispatch}
                     beginGesture={props.beginGesture}
                     trackLevelDb={props.trackLevelDb}
@@ -249,6 +260,8 @@ interface TrackStripProps {
   /** Whether this strip's track is the one the editor is showing (#228). */
   readonly selected: boolean;
   onSelect(): void;
+  /** Move this strip's track to `toIndex` in display order. */
+  onMove(toIndex: number): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -329,7 +342,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           class="mixer-strip-button mixer-reorder-up"
           aria-label={`Move ${props.track.name} left`}
           disabled={props.index === 0}
-          onClick={() => props.dispatch(reorderTrack(props.track.id, props.index - 1))}
+          onClick={() => props.onMove(props.index - 1)}
         >
           ‹
         </button>
@@ -338,7 +351,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           class="mixer-strip-button mixer-reorder-down"
           aria-label={`Move ${props.track.name} right`}
           disabled={props.index >= props.trackCount - 1}
-          onClick={() => props.dispatch(reorderTrack(props.track.id, props.index + 1))}
+          onClick={() => props.onMove(props.index + 1)}
         >
           ›
         </button>
