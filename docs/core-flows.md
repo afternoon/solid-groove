@@ -526,6 +526,77 @@ toolbar and from the keyboard.
 selection wider than the timeline can show at its closest zoom. What the
 outlines look like, as in CF-009.
 
+### CF-012 — A producer builds an effects chain on one track
+
+**Issue:** #241 · **Suite:** `tests/e2e/emulator/flows/CF-012.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and bring a library loop into it, so the starter kick and
+   the loop sit on two tracks.
+2. Switch to the mixer and select the loop's track. Go to the instrument view. It
+   shows the loop's track, and its device chain is empty.
+3. Add a filter to the chain. It appears with its own controls — cutoff and the
+   rest of its settings — not a list of presets.
+4. Add a delay. It appears after the filter, and the chain reads filter, then
+   delay.
+5. Undo once. The delay comes off; the filter stays. Redo. The delay is back,
+   after the filter.
+6. Start playback. While it plays, sweep the filter's cutoff down. The control
+   follows, and playback never drops out.
+7. Undo once. The cutoff returns to where it was before the sweep, in one step.
+8. Select the kick's track in the mixer and return to the instrument view. Its
+   device chain is empty — the filter and delay belong to the loop's track only.
+9. Reload the page. Select the loop's track again. The filter and the delay are
+   still on it, in that order, with the filter's settings as you left them.
+
+**Outcome:** a producer put two effects on one sound, shaped one of them while it
+played, took back a mistake in a single step, and found the chain — on the right
+track, in the right order — when they came back.
+
+**Out of scope:** that the effects are *audible*: a headless browser records no
+audio, so this proves the chain, the controls, and the state; the processing is
+asserted in the audio suite. The master chain, which is CF-007's (#283). The other
+four device types, which share the same controls and are covered at the component
+layer. The sixteen-insert limit, which is a unit-layer bound, not a journey.
+Ordering is deliberate here, as in CF-007: undo/redo come before the reload
+because history is session-local.
+
+### CF-013 — A producer rearranges a track's chain while it plays
+
+**Issue:** #241 · **Suite:** `tests/e2e/emulator/flows/CF-013.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. Go to the instrument view for the starter track, and add
+   an overdrive and then a reverb to its chain.
+2. Start playback.
+3. While it plays, move the reverb before the overdrive. The chain now reads
+   reverb, then overdrive, and playback never drops out.
+4. Bypass the overdrive. It stays in its place in the chain, marked as bypassed,
+   with its settings unchanged.
+5. Duplicate the reverb. A second reverb appears directly after the first, with
+   the same settings.
+6. Turn the second reverb's size up, then reset it. Its controls return to their
+   defaults; the first reverb is untouched.
+7. Remove the second reverb. The chain reads reverb, then the bypassed overdrive.
+8. Undo once. The removed reverb returns in the same place.
+9. Stop playback and reload the page. The chain reads reverb, reverb, overdrive,
+   with the overdrive still bypassed and the second reverb still at its defaults.
+
+**Outcome:** a producer reshaped an effects chain without stopping the music —
+reordered it, switched one effect out of the signal without losing it, copied,
+reset and removed — and everything they kept was there when they came back.
+
+**Out of scope:** that reordering is *click-free* in the audio sense, which a
+headless browser cannot hear; the flow proves playback keeps running, and the
+node reuse that makes it click-free is asserted against `DeviceChain` in the audio
+suite. Return-bus chains and sends. Analytics (`device_added`,
+`feature_first_use`), which are asserted once-per-action at the unit layer, not
+through a journey.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
