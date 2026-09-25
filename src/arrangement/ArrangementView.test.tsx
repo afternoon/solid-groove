@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
+import { CommandHistory } from "../commands";
 import {
   createLargeArrangementProject,
+  createReferenceProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import type { PlacementId, TrackId } from "../domain/ids";
@@ -15,6 +17,7 @@ import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectR
 import { createManualClock } from "../shared/clock";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { dragTrackHandle, stubTrackDragLayout } from "../testing/trackDrag";
 import ArrangementView, {
   INITIAL_PIXELS_PER_TICK,
   type PlacementEditingActions,
@@ -573,5 +576,94 @@ describe("ArrangementView loop brace (LOOP-018)", () => {
     const { renderView } = await setUpEditing();
     renderView();
     expect(screen.queryByRole("group", { name: "Loop brace" })).not.toBeInTheDocument();
+  });
+});
+
+describe("dragging a track header to reorder it (TRK-02)", () => {
+  const ROW = 40;
+
+  function renderReorderable() {
+    const history = new CommandHistory(
+      createReferenceProject({ trackCount: 3, placementCount: 3 }),
+    );
+    const [project, setProject] = createSignal(history.project);
+    const { analytics, transport } = analyticsAllowing();
+    const selected: TrackId[] = [];
+    const ids = () =>
+      [...history.project.song.tracks]
+        .sort((a, b) => a.order - b.order)
+        .map((track) => track.id);
+    stubTrackDragLayout({
+      axis: "y",
+      zoneSelector: ".arrangement-headers",
+      size: ROW,
+      zoneLength: ROW * 10,
+      order: ids,
+    });
+    render(() => (
+      <ArrangementView
+        project={project()}
+        analytics={analytics}
+        dispatch={(commands) => {
+          const result = history.execute(commands);
+          setProject(history.project);
+          return result;
+        }}
+        onSelectTrack={(trackId) => selected.push(trackId)}
+      />
+    ));
+    const names = () =>
+      [...history.project.song.tracks]
+        .sort((a, b) => a.order - b.order)
+        .map((track) => track.name);
+    const header = (name: string) =>
+      within(screen.getByLabelText("Tracks")).getByRole("button", {
+        name: `Edit ${name}`,
+      });
+    return { history, transport, selected, names, header };
+  }
+
+  it("moves the track to where it is dropped, showing the marker first", () => {
+    const { history, transport, names, header } = renderReorderable();
+    const [a, b, c] = names();
+
+    dragTrackHandle(header(c), { x: 50, y: 2 }, () => {
+      expect(screen.getByTestId("track-drop-indicator")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("track-drop-indicator")).toBeNull();
+    expect(names()).toEqual([c, a, b]);
+    expect(history.entries).toHaveLength(1);
+    expect(transport.named("track_reordered").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "arrangement", method: "drag" }),
+    ]);
+  });
+
+  it("does not also select the track: the click a drag ends in is swallowed", async () => {
+    const { selected, names, header } = renderReorderable();
+    const [a, , c] = names();
+
+    dragTrackHandle(header(c), { x: 50, y: 2 });
+    clickAndFlush(header(c));
+    expect(selected).toEqual([]);
+
+    // Only that one click: the next is an ordinary selection.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    clickAndFlush(header(a));
+    expect(selected).toHaveLength(1);
+  });
+
+  it("changes nothing when released outside the column, or where it started", () => {
+    const { history, transport, names, header } = renderReorderable();
+    const before = names();
+
+    dragTrackHandle(header(before[1]), { x: 500, y: 2 }, () => {
+      expect(screen.queryByTestId("track-drop-indicator")).toBeNull();
+    });
+    dragTrackHandle(header(before[1]), { x: 50, y: ROW + 5 });
+
+    expect(names()).toEqual(before);
+    expect(history.entries).toHaveLength(0);
+    expect(transport.named("track_reordered")).toHaveLength(0);
   });
 });

@@ -17,6 +17,9 @@ import type {
 import type { Project } from "../domain/entities";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import TrackDropMarker from "../editor/TrackDropMarker";
+import { moveTrack, orderedTrackIds } from "../editor/trackReorder";
+import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
@@ -200,6 +203,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   let scrollEl!: HTMLDivElement;
   let headerListEl!: HTMLUListElement;
+  let headerColumnEl: HTMLDivElement | undefined;
   let backgroundCanvas!: HTMLCanvasElement;
   let contentCanvas!: HTMLCanvasElement;
   let interactionCanvas!: HTMLCanvasElement;
@@ -300,6 +304,23 @@ export default function ArrangementView(props: ArrangementViewProps) {
     props.onSelectTrack?.(trackId);
     noteFirstUse();
   }
+
+  /** Drag a header up or down the column to reorder its track (TRK-02). */
+  const trackDrag = useTrackDrag({
+    axis: "y",
+    zone: () => headerColumnEl,
+    indexOf: (trackId) => orderedTrackIds(props.project).indexOf(trackId),
+    onDrop: (trackId, toIndex) => {
+      const dispatch = props.dispatch;
+      if (!dispatch) return;
+      moveTrack(
+        { project: () => props.project, dispatch, analytics: analytics() },
+        trackId,
+        toIndex,
+        { view: "arrangement", method: "drag" },
+      );
+    },
+  });
 
   /** The track under a viewport-local point, or null above/below the rows. */
   function trackAt(localX: number, localY: number): TrackId | null {
@@ -764,7 +785,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
         />
       </Show>
       <div class="arrangement-body">
-        <div class="arrangement-headers" style={{ width: `${HEADER_WIDTH_PX}px` }}>
+        <div
+          class="arrangement-headers"
+          ref={headerColumnEl}
+          style={{ width: `${HEADER_WIDTH_PX}px` }}
+        >
           <div class="arrangement-headers-ruler-spacer" />
           <ul
             class="arrangement-headers-inner"
@@ -775,7 +800,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
             <For each={headerRows()}>
               {(track) => (
                 <li
-                  class="arrangement-header-row"
+                  class={[
+                    "arrangement-header-row",
+                    { "track-dragging": trackDrag.dragging() === track.id },
+                  ]}
+                  data-track-drag={track.id}
                   style={{
                     position: "absolute",
                     top: `${track.rowIndex * ROW_METRICS.headerHeightPx}px`,
@@ -794,6 +823,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
                     aria-pressed={ariaBool(props.selectedTrackId === track.id)}
                     aria-label={`Edit ${track.name}${track.muted ? " (muted)" : ""}`}
                     onClick={() => selectTrack(track.id)}
+                    onPointerDown={(event) => {
+                      if (props.dispatch) trackDrag.begin(event, track.id);
+                    }}
                   >
                     <span
                       class="arrangement-header-swatch"
@@ -810,6 +842,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
               )}
             </For>
           </ul>
+          <TrackDropMarker axis="y" offset={trackDrag.marker()} />
         </div>
         <div
           class="arrangement-viewport"
