@@ -87,6 +87,8 @@ describe("registry shape", () => {
     expect(shortcutLabel("view.zoom_in", "mac")).toBe("+");
     expect(shortcutLabel("view.zoom_out", "mac")).toBe("-");
     expect(shortcutLabel("transport.metronome", "mac")).toBe("O");
+    expect(shortcutLabel("transport.toggle_loop", "mac")).toBe("Shift+L");
+    expect(shortcutLabel("transport.toggle_loop", "other")).toBe("Shift+L");
     expect(shortcutLabel("view.close_surface", "mac")).toBe("Escape");
     expect(shortcutLabel("help.shortcut_guide", "mac")).toBe("?");
   });

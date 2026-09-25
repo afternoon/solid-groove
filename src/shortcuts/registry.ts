@@ -57,6 +57,7 @@ export const SHORTCUT_ACTION_IDS = [
   "transport.play_stop",
   "transport.continue",
   "transport.metronome",
+  "transport.toggle_loop",
   "edit.undo",
   "edit.redo",
   "edit.cut",
@@ -166,6 +167,20 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       kind: "solid_groove",
       reason:
         "No single-key Live equivalent is claimed; O is unassigned in Solid Groove and free in the browser.",
+    },
+  }),
+  define({
+    id: "transport.toggle_loop",
+    label: "Toggle loop",
+    description:
+      "Turns looping over the ruler's loop brace on or off; the brace stays put.",
+    group: "transport",
+    contexts: ["editor"],
+    keys: "Shift+L",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "No Live shortcut is claimed for the loop switch itself; Live's Cmd/Ctrl+L loops the selection, and the browser keeps that chord.",
     },
   }),
   define({

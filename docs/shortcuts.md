@@ -31,6 +31,7 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `transport.play_stop` | Play/stop | `Space` | `Space` | Transport | editor | Follows Live (`Space`) |
 | `transport.continue` | Continue from stop position | `Shift+Space` | `Shift+Space` | Transport | editor | Follows Live (`Shift+Space`) |
 | `transport.metronome` | Toggle metronome | `O` | `O` | Transport | editor | Solid Groove addition — no single-key Live equivalent is claimed |
+| `transport.toggle_loop` | Toggle loop | `Shift+L` | `Shift+L` | Transport | editor | Solid Groove addition — no Live shortcut is claimed for the loop switch itself |
 | `edit.undo` | Undo | `Cmd+Z` | `Ctrl+Z` | Global Editing | global | Follows Live (`Cmd/Ctrl+Z`) |
 | `edit.redo` | Redo | `Cmd+Shift+Z` | `Ctrl+Y / Ctrl+Shift+Z` | Global Editing | global | Follows Live (`Cmd+Shift+Z / Ctrl+Y`) |
 | `edit.cut` | Cut | `Cmd+X` | `Ctrl+X` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+X`) |
@@ -70,8 +71,9 @@ owns it:
 | Toggle arrangement loop | `Cmd/Ctrl+L` | `L` | `Cmd/Ctrl+L` focuses the address bar and cannot be reclaimed. |
 | Quantize notes | `Cmd/Ctrl+U` | `Q` | `Cmd/Ctrl+U` is view-source on Windows/Linux. |
 
-Two mappings have no Live baseline at all and say so rather than implying one:
-`O` (metronome) and `?` (this guide).
+Three mappings have no Live baseline at all and say so rather than implying one:
+`O` (metronome), `Shift+L` (the loop switch — Live's `Cmd/Ctrl+L` loops the
+selection instead, and the browser keeps that chord), and `?` (this guide).
 
 ## Browser and OS conflicts
 
