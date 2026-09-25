@@ -85,177 +85,175 @@ const playheadReadout = (page: Page): Locator =>
 test.describe("CF-007", () => {
   // `test.fixme` until #283 (LOOP-020) lands: that PR removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme(
-    "a producer drives the whole mix through an overdrive",
-    async ({ page, browserName }) => {
-      // Playback runs across several steps of this flow in real time.
-      test.setTimeout(120_000);
+  test("a producer drives the whole mix through an overdrive", async ({
+    page,
+    browserName,
+  }) => {
+    // Playback runs across several steps of this flow in real time.
+    test.setTimeout(120_000);
 
-      const step = walkthrough(page, {
-        id: "CF-007",
-        title: "A producer drives the whole mix through an overdrive",
-      });
+    const step = walkthrough(page, {
+      id: "CF-007",
+      title: "A producer drives the whole mix through an overdrive",
+    });
 
-      /*
-       * Playback is asserted in Chromium only — the known, tracked gap CF-001
-       * and `tests/e2e/emulator/slice.spec.ts` already carry (Firefox
-       * constructs an `AudioContext` here whose `resume()` never settles). See
-       * docs/testing.md, "Playback is asserted in Chromium only", and #43.
-       *
-       * The chain, the controls, the history and the reload — everything this
-       * flow's own "Out of scope" says it proves — run in both gating browsers.
-       */
-      const canAssertPlayback = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
-        description: canAssertPlayback
-          ? `playback asserted in ${browserName}`
-          : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
+    /*
+     * Playback is asserted in Chromium only — the known, tracked gap CF-001
+     * and `tests/e2e/emulator/slice.spec.ts` already carry (Firefox
+     * constructs an `AudioContext` here whose `resume()` never settles). See
+     * docs/testing.md, "Playback is asserted in Chromium only", and #43.
+     *
+     * The chain, the controls, the history and the reload — everything this
+     * flow's own "Out of scope" says it proves — run in both gating browsers.
+     */
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
 
-      // 1. Create a new project and bring a library loop into it, so the
-      //    starter kick and a loop are in the project together.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      await page.getByTestId("arrangement-view-ready").waitFor();
+    // 1. Create a new project and bring a library loop into it, so the
+    //    starter kick and a loop are in the project together.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    await page.getByTestId("arrangement-view-ready").waitFor();
 
-      await addFromLibrary(page).click();
-      await expect(library(page)).toBeVisible();
-      await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-      await library(page).getByRole("button", { expanded: false }).first().click();
-      // A loop states the tempo it was recorded at; a one-shot has none, and a
-      // one-shot inserted here would load a sampler instead of making a track.
-      // Which loop does not matter to this flow — CF-005 is where the tempo
-      // relationship is the subject — so it takes the first one that is one.
-      const loopName = await library(page)
-        .getByRole("button", { name: /^Audition / })
-        .locator("..")
-        .filter({ hasText: /BPM/ })
-        .first()
-        .getByRole("button", { name: /^Audition / })
-        .getAttribute("aria-label");
-      await library(page)
-        .getByRole("button", {
-          name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
+    await addFromLibrary(page).click();
+    await expect(library(page)).toBeVisible();
+    await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
+    await library(page).getByRole("button", { expanded: false }).first().click();
+    // A loop states the tempo it was recorded at; a one-shot has none, and a
+    // one-shot inserted here would load a sampler instead of making a track.
+    // Which loop does not matter to this flow — CF-005 is where the tempo
+    // relationship is the subject — so it takes the first one that is one.
+    const loopName = await library(page)
+      .getByRole("button", { name: /^Audition / })
+      .locator("..")
+      .filter({ hasText: /BPM/ })
+      .first()
+      .getByRole("button", { name: /^Audition / })
+      .getAttribute("aria-label");
+    await library(page)
+      .getByRole("button", {
+        name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
+      })
+      .click();
+    await expect(library(page)).toHaveCount(0);
+    await expect(
+      page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
+    ).toHaveCount(2);
+    await step("A project with the starter kick and a library loop");
+
+    // 2. Start playback. The two parts repeat over the loop brace.
+    await page.getByRole("button", { name: "Start playback" }).click();
+    if (canAssertPlayback) {
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      await expect(page.getByTestId("arrangement-loop-live")).toContainText("bars 1 to");
+      await step("Both parts play over the loop brace");
+    }
+
+    // 3. Switch to the mixer.
+    await mixerLink(page).click();
+    await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/mixer$/);
+    const mixerUrl = page.url();
+    await expect(mixer(page)).toBeVisible();
+    await step("Switch to the mixer");
+
+    // 4. Select the master strip. The master's effects are on screen, with an
+    //    empty chain. Add an overdrive to it.
+    await masterStrip(page).click();
+    await expect(masterView(page)).toBeVisible();
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
+    await step("The master is on screen, with an empty chain");
+
+    await masterView(page)
+      .getByRole("button", { name: /^Add device/i })
+      .click();
+    // #283 offers the six registered device types from their registry
+    // definitions; the flow does not dictate whether that offer is a menu, a
+    // listbox or a row of buttons, so any of the three satisfies it.
+    await page
+      .getByRole("menuitem", { name: "Overdrive" })
+      .or(page.getByRole("option", { name: "Overdrive" }))
+      .or(page.getByRole("button", { name: "Overdrive" }))
+      .first()
+      .click();
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+    await expect(masterChain(page)).toContainText("Overdrive");
+    await step("Add an overdrive to the master chain");
+
+    // 5. Undo once. The overdrive comes off the master chain.
+    //
+    // Nothing has been edited since the add, so the one entry on the stack is
+    // the add itself.
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
+    await step("Undo once — the overdrive comes off");
+
+    // 6. Redo. It is back.
+    await page.getByRole("button", { name: /^Redo/ }).click();
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+    await expect(masterChain(page)).toContainText("Overdrive");
+    await step("Redo — it is back");
+
+    // 7. While it is still playing, drive the overdrive up. The control
+    //    follows and playback never drops out.
+    //
+    // "Drive" is the overdrive's own parameter definition
+    // (`src/domain/devices.ts`), normalized 0-1 and defaulting to 0.3, and
+    // the panel's control is generated from that definition rather than from
+    // literals — so this sets a value in the parameter's own range.
+    const drive = masterView(page).getByRole("slider", { name: "Drive" });
+    await expect(drive).toBeVisible();
+    await drive.fill("0.8");
+    await expect(drive).toHaveValue("0.8");
+
+    if (canAssertPlayback) {
+      // "Playback never drops out", observed through the transport rather
+      // than a level reading: a meter in a headless browser with no output
+      // device is not evidence of anything, and this flow's own "Out of
+      // scope" says it proves the chain, the controls and the state — not the
+      // processing, which the audio suite asserts. A playhead still advancing
+      // after the edit is the claim that matters: the graph did not stall or
+      // rebuild.
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      const before = (await playheadReadout(page).textContent()) ?? "";
+      await expect
+        .poll(async () => (await playheadReadout(page).textContent()) ?? "", {
+          timeout: 10_000,
         })
-        .click();
-      await expect(library(page)).toHaveCount(0);
-      await expect(
-        page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
-      ).toHaveCount(2);
-      await step("A project with the starter kick and a library loop");
+        .not.toBe(before);
+    }
+    await step("Drive it up while it plays");
 
-      // 2. Start playback. The two parts repeat over the loop brace.
-      await page.getByRole("button", { name: "Start playback" }).click();
-      if (canAssertPlayback) {
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        await expect(page.getByTestId("arrangement-loop-live")).toContainText(
-          "bars 1 to",
-        );
-        await step("Both parts play over the loop brace");
-      }
+    if (canAssertPlayback) {
+      await page.getByRole("button", { name: "Stop playback" }).click();
+      await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
+    }
 
-      // 3. Switch to the mixer.
-      await mixerLink(page).click();
-      await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/mixer$/);
-      const mixerUrl = page.url();
-      await expect(mixer(page)).toBeVisible();
-      await step("Switch to the mixer");
-
-      // 4. Select the master strip. The master's effects are on screen, with an
-      //    empty chain. Add an overdrive to it.
-      await masterStrip(page).click();
-      await expect(masterView(page)).toBeVisible();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
-      await step("The master is on screen, with an empty chain");
-
-      await masterView(page)
-        .getByRole("button", { name: /^Add device/i })
-        .click();
-      // #283 offers the six registered device types from their registry
-      // definitions; the flow does not dictate whether that offer is a menu, a
-      // listbox or a row of buttons, so any of the three satisfies it.
-      await page
-        .getByRole("menuitem", { name: "Overdrive" })
-        .or(page.getByRole("option", { name: "Overdrive" }))
-        .or(page.getByRole("button", { name: "Overdrive" }))
-        .first()
-        .click();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
-      await expect(masterChain(page)).toContainText("Overdrive");
-      await step("Add an overdrive to the master chain");
-
-      // 5. Undo once. The overdrive comes off the master chain.
-      //
-      // Nothing has been edited since the add, so the one entry on the stack is
-      // the add itself.
-      await page.getByRole("button", { name: /^Undo/ }).click();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
-      await step("Undo once — the overdrive comes off");
-
-      // 6. Redo. It is back.
-      await page.getByRole("button", { name: /^Redo/ }).click();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
-      await expect(masterChain(page)).toContainText("Overdrive");
-      await step("Redo — it is back");
-
-      // 7. While it is still playing, drive the overdrive up. The control
-      //    follows and playback never drops out.
-      //
-      // "Drive" is the overdrive's own parameter definition
-      // (`src/domain/devices.ts`), normalized 0-1 and defaulting to 0.3, and
-      // the panel's control is generated from that definition rather than from
-      // literals — so this sets a value in the parameter's own range.
-      const drive = masterView(page).getByRole("slider", { name: "Drive" });
-      await expect(drive).toBeVisible();
-      await drive.fill("0.8");
-      await expect(drive).toHaveValue("0.8");
-
-      if (canAssertPlayback) {
-        // "Playback never drops out", observed through the transport rather
-        // than a level reading: a meter in a headless browser with no output
-        // device is not evidence of anything, and this flow's own "Out of
-        // scope" says it proves the chain, the controls and the state — not the
-        // processing, which the audio suite asserts. A playhead still advancing
-        // after the edit is the claim that matters: the graph did not stall or
-        // rebuild.
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        const before = (await playheadReadout(page).textContent()) ?? "";
-        await expect
-          .poll(async () => (await playheadReadout(page).textContent()) ?? "", {
-            timeout: 10_000,
-          })
-          .not.toBe(before);
-      }
-      await step("Drive it up while it plays");
-
-      if (canAssertPlayback) {
-        await page.getByRole("button", { name: "Stop playback" }).click();
-        await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
-      }
-
-      // 8. Reload the page. The overdrive is still on the master chain, still
-      //    at that drive.
-      //
-      // The reload is only meaningful once the edits have been written, which
-      // the save status is how the editor reports.
-      await expect(page.locator(".save-status")).toHaveText("Saved", {
-        timeout: 10_000,
-      });
-      await page.reload();
-      // The view is part of the address (#304), so the reload lands back on the
-      // mixer; only the strip selection, which is UI state and deliberately not
-      // persisted, has to be made again.
-      await expect(page).toHaveURL(mixerUrl);
-      await masterStrip(page).click();
-      await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
-      await expect(masterChain(page)).toContainText("Overdrive");
-      await expect(masterView(page).getByRole("slider", { name: "Drive" })).toHaveValue(
-        "0.8",
-      );
-      await step("Reload — the overdrive is still there, still at that drive");
-    },
-  );
+    // 8. Reload the page. The overdrive is still on the master chain, still
+    //    at that drive.
+    //
+    // The reload is only meaningful once the edits have been written, which
+    // the save status is how the editor reports.
+    await expect(page.locator(".save-status")).toHaveText("Saved", {
+      timeout: 10_000,
+    });
+    await page.reload();
+    // The view is part of the address (#304), so the reload lands back on the
+    // mixer; only the strip selection, which is UI state and deliberately not
+    // persisted, has to be made again.
+    await expect(page).toHaveURL(mixerUrl);
+    await masterStrip(page).click();
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+    await expect(masterChain(page)).toContainText("Overdrive");
+    await expect(masterView(page).getByRole("slider", { name: "Drive" })).toHaveValue(
+      "0.8",
+    );
+    await step("Reload — the overdrive is still there, still at that drive");
+  });
 });
