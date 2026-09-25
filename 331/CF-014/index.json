@@ -1,0 +1,50 @@
+{
+  "id": "CF-014",
+  "title": "A producer drags their tracks into order",
+  "steps": [
+    {
+      "file": "01-three-tracks-bd-synth-sampler.png",
+      "caption": "Three tracks: BD, Synth, Sampler"
+    },
+    {
+      "file": "02-start-playback.png",
+      "caption": "Start playback"
+    },
+    {
+      "file": "03-drag-sampler-up-a-marker-shows-it-will-land-at-the-top.png",
+      "caption": "Drag Sampler up — a marker shows it will land at the top"
+    },
+    {
+      "file": "04-let-go-sampler-is-at-the-top-still-playing.png",
+      "caption": "Let go — Sampler is at the top, still playing"
+    },
+    {
+      "file": "05-a-drag-released-off-the-list-changes-nothing.png",
+      "caption": "A drag released off the list changes nothing"
+    },
+    {
+      "file": "06-undo-and-redo-take-the-whole-drag-in-one-step.png",
+      "caption": "Undo and redo take the whole drag in one step"
+    },
+    {
+      "file": "07-drag-the-synth-strip-left-a-marker-shows-where-it-lands.png",
+      "caption": "Drag the Synth strip left — a marker shows where it lands"
+    },
+    {
+      "file": "08-let-go-synth-is-first-in-the-mixer-still-playing.png",
+      "caption": "Let go — Synth is first in the mixer, still playing"
+    },
+    {
+      "file": "09-move-bd-left-with-the-keyboard.png",
+      "caption": "Move BD left with the keyboard"
+    },
+    {
+      "file": "10-the-instrument-view-s-track-list-agrees.png",
+      "caption": "The instrument view's track list agrees"
+    },
+    {
+      "file": "11-reload-every-view-keeps-the-new-order.png",
+      "caption": "Reload — every view keeps the new order"
+    }
+  ]
+}
