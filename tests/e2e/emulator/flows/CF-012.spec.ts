@@ -78,164 +78,164 @@ const playheadReadout = (page: Page): Locator =>
 test.describe("CF-012", () => {
   // `test.fixme` until #241 (LOOP-017) lands: that PR removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme(
-    "a producer builds an effects chain on one track",
-    async ({ page, browserName }) => {
-      test.setTimeout(120_000);
+  test("a producer builds an effects chain on one track", async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
 
-      const step = walkthrough(page, {
-        id: "CF-012",
-        title: "A producer builds an effects chain on one track",
-      });
+    const step = walkthrough(page, {
+      id: "CF-012",
+      title: "A producer builds an effects chain on one track",
+    });
 
-      // Playback is asserted in Chromium only — the known, tracked gap CF-001
-      // and CF-007 already carry. See docs/testing.md, "Playback is asserted in
-      // Chromium only", and #43. The chain, controls, history and reload run in
-      // both gating browsers.
-      const canAssertPlayback = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
-        description: canAssertPlayback
-          ? `playback asserted in ${browserName}`
-          : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
+    // Playback is asserted in Chromium only — the known, tracked gap CF-001
+    // and CF-007 already carry. See docs/testing.md, "Playback is asserted in
+    // Chromium only", and #43. The chain, controls, history and reload run in
+    // both gating browsers.
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
 
-      // 1. Create a new project and bring a library loop into it, so the
-      //    starter kick and the loop sit on two tracks.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      await page.getByTestId("arrangement-view-ready").waitFor();
+    // 1. Create a new project and bring a library loop into it, so the
+    //    starter kick and the loop sit on two tracks.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    await page.getByTestId("arrangement-view-ready").waitFor();
 
-      await addFromLibrary(page).click();
-      await expect(library(page)).toBeVisible();
-      await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-      await library(page).getByRole("button", { expanded: false }).first().click();
-      // A loop states its tempo; a one-shot does not, and would load a sampler
-      // instead of making a track. Which loop does not matter here.
-      const loopName = await library(page)
-        .getByRole("button", { name: /^Audition / })
-        .locator("..")
-        .filter({ hasText: /BPM/ })
-        .first()
-        .getByRole("button", { name: /^Audition / })
-        .getAttribute("aria-label");
-      await library(page)
-        .getByRole("button", {
-          name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
+    await addFromLibrary(page).click();
+    await expect(library(page)).toBeVisible();
+    await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
+    await library(page).getByRole("button", { expanded: false }).first().click();
+    // A loop states its tempo; a one-shot does not, and would load a sampler
+    // instead of making a track. Which loop does not matter here.
+    const loopName = await library(page)
+      .getByRole("button", { name: /^Audition / })
+      .locator("..")
+      .filter({ hasText: /BPM/ })
+      .first()
+      .getByRole("button", { name: /^Audition / })
+      .getAttribute("aria-label");
+    await library(page)
+      .getByRole("button", {
+        name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
+      })
+      .click();
+    await expect(library(page)).toHaveCount(0);
+    await expect(
+      page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
+    ).toHaveCount(2);
+    await step("A project with the starter kick and a library loop");
+
+    // 2. Switch to the mixer and select the loop's track. Go to the
+    //    instrument view. It shows the loop's track, and its device chain is
+    //    empty.
+    await viewLink(page, "Mixer").click();
+    await mixerSelect(page, 1).click();
+    await expect(mixerSelect(page, 1)).toHaveAttribute("aria-pressed", "true");
+    await viewLink(page, "Instrument").click();
+    await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
+    const instrumentUrl = page.url();
+    await expect(railSelect(page, 1)).toHaveAttribute("aria-pressed", "true");
+    await expect(chainPanel(page)).toBeVisible();
+    await expect(devices(page)).toHaveCount(0);
+    await step("The loop's track, with an empty device chain");
+
+    // 3. Add a filter to the chain. It appears with its own controls —
+    //    cutoff and the rest of its settings — not a list of presets.
+    //
+    // The controls are generated from the filter's parameter definitions
+    // (PRD FX-01), so the spec names them by those definitions' labels.
+    await addDevice(page, "Filter");
+    await expect(devices(page)).toHaveCount(1);
+    const filter = devices(page).nth(0);
+    await expect(filter).toContainText("Filter");
+    await expect(filter.getByRole("slider", { name: "Cutoff" })).toBeVisible();
+    await expect(filter.getByRole("slider", { name: "Resonance" })).toBeVisible();
+    await expect(filter.getByRole("slider", { name: "Dry/Wet" })).toBeVisible();
+    await step("Add a filter, with its own controls");
+
+    // 4. Add a delay. It appears after the filter, and the chain reads
+    //    filter, then delay.
+    await addDevice(page, "Delay");
+    await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
+    await step("Add a delay after the filter");
+
+    // 5. Undo once. The delay comes off; the filter stays. Redo. The delay
+    //    is back, after the filter.
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect(devices(page)).toHaveText([/Filter/]);
+    await page.getByRole("button", { name: /^Redo/ }).click();
+    await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
+    await step("Undo and redo the delay");
+
+    // 6. Start playback. While it plays, sweep the filter's cutoff down. The
+    //    control follows, and playback never drops out.
+    await page.getByRole("button", { name: "Start playback" }).click();
+    const cutoff = devices(page).nth(0).getByRole("slider", { name: "Cutoff" });
+    const cutoffBefore = await cutoff.inputValue();
+    await cutoff.fill("800");
+    await expect(cutoff).toHaveValue("800");
+    if (canAssertPlayback) {
+      // Observed through the transport, as in CF-007: a playhead still
+      // advancing after the edit is the claim — the graph did not stall or
+      // rebuild. Audibility is the audio suite's.
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      const before = (await playheadReadout(page).textContent()) ?? "";
+      await expect
+        .poll(async () => (await playheadReadout(page).textContent()) ?? "", {
+          timeout: 10_000,
         })
-        .click();
-      await expect(library(page)).toHaveCount(0);
-      await expect(
-        page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
-      ).toHaveCount(2);
-      await step("A project with the starter kick and a library loop");
+        .not.toBe(before);
+    }
+    await step("Sweep the filter's cutoff while it plays");
 
-      // 2. Switch to the mixer and select the loop's track. Go to the
-      //    instrument view. It shows the loop's track, and its device chain is
-      //    empty.
-      await viewLink(page, "Mixer").click();
-      await mixerSelect(page, 1).click();
-      await expect(mixerSelect(page, 1)).toHaveAttribute("aria-pressed", "true");
-      await viewLink(page, "Instrument").click();
-      await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
-      const instrumentUrl = page.url();
-      await expect(railSelect(page, 1)).toHaveAttribute("aria-pressed", "true");
-      await expect(chainPanel(page)).toBeVisible();
-      await expect(devices(page)).toHaveCount(0);
-      await step("The loop's track, with an empty device chain");
+    // 7. Undo once. The cutoff returns to where it was before the sweep, in
+    //    one step.
+    //
+    // A parameter gesture is one history entry (#241's gesture criterion),
+    // so a single undo takes back the whole sweep and nothing else.
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect(cutoff).toHaveValue(cutoffBefore);
+    await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
+    await step("One undo takes back the whole sweep");
 
-      // 3. Add a filter to the chain. It appears with its own controls —
-      //    cutoff and the rest of its settings — not a list of presets.
-      //
-      // The controls are generated from the filter's parameter definitions
-      // (PRD FX-01), so the spec names them by those definitions' labels.
-      await addDevice(page, "Filter");
-      await expect(devices(page)).toHaveCount(1);
-      const filter = devices(page).nth(0);
-      await expect(filter).toContainText("Filter");
-      await expect(filter.getByRole("slider", { name: "Cutoff" })).toBeVisible();
-      await expect(filter.getByRole("slider", { name: "Resonance" })).toBeVisible();
-      await expect(filter.getByRole("slider", { name: "Dry/Wet" })).toBeVisible();
-      await step("Add a filter, with its own controls");
+    if (canAssertPlayback) {
+      await page.getByRole("button", { name: "Stop playback" }).click();
+      await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
+    }
 
-      // 4. Add a delay. It appears after the filter, and the chain reads
-      //    filter, then delay.
-      await addDevice(page, "Delay");
-      await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
-      await step("Add a delay after the filter");
+    // 8. Select the kick's track in the mixer and return to the instrument
+    //    view. Its device chain is empty — the filter and delay belong to the
+    //    loop's track only.
+    await viewLink(page, "Mixer").click();
+    await mixerSelect(page, 0).click();
+    await viewLink(page, "Instrument").click();
+    await expect(railSelect(page, 0)).toHaveAttribute("aria-pressed", "true");
+    await expect(devices(page)).toHaveCount(0);
+    await step("The kick's own chain is empty");
 
-      // 5. Undo once. The delay comes off; the filter stays. Redo. The delay
-      //    is back, after the filter.
-      await page.getByRole("button", { name: /^Undo/ }).click();
-      await expect(devices(page)).toHaveText([/Filter/]);
-      await page.getByRole("button", { name: /^Redo/ }).click();
-      await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
-      await step("Undo and redo the delay");
-
-      // 6. Start playback. While it plays, sweep the filter's cutoff down. The
-      //    control follows, and playback never drops out.
-      await page.getByRole("button", { name: "Start playback" }).click();
-      const cutoff = devices(page).nth(0).getByRole("slider", { name: "Cutoff" });
-      const cutoffBefore = await cutoff.inputValue();
-      await cutoff.fill("800");
-      await expect(cutoff).toHaveValue("800");
-      if (canAssertPlayback) {
-        // Observed through the transport, as in CF-007: a playhead still
-        // advancing after the edit is the claim — the graph did not stall or
-        // rebuild. Audibility is the audio suite's.
-        await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        const before = (await playheadReadout(page).textContent()) ?? "";
-        await expect
-          .poll(async () => (await playheadReadout(page).textContent()) ?? "", {
-            timeout: 10_000,
-          })
-          .not.toBe(before);
-      }
-      await step("Sweep the filter's cutoff while it plays");
-
-      // 7. Undo once. The cutoff returns to where it was before the sweep, in
-      //    one step.
-      //
-      // A parameter gesture is one history entry (#241's gesture criterion),
-      // so a single undo takes back the whole sweep and nothing else.
-      await page.getByRole("button", { name: /^Undo/ }).click();
-      await expect(cutoff).toHaveValue(cutoffBefore);
-      await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
-      await step("One undo takes back the whole sweep");
-
-      if (canAssertPlayback) {
-        await page.getByRole("button", { name: "Stop playback" }).click();
-        await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
-      }
-
-      // 8. Select the kick's track in the mixer and return to the instrument
-      //    view. Its device chain is empty — the filter and delay belong to the
-      //    loop's track only.
-      await viewLink(page, "Mixer").click();
-      await mixerSelect(page, 0).click();
-      await viewLink(page, "Instrument").click();
-      await expect(railSelect(page, 0)).toHaveAttribute("aria-pressed", "true");
-      await expect(devices(page)).toHaveCount(0);
-      await step("The kick's own chain is empty");
-
-      // 9. Reload the page. Select the loop's track again. The filter and the
-      //    delay are still on it, in that order, with the filter's settings as
-      //    you left them.
-      await expect(page.locator(".save-status")).toHaveText("Saved", {
-        timeout: 10_000,
-      });
-      await page.reload();
-      // The view is part of the address (#304); the track selection is UI
-      // state, deliberately not persisted, so it is made again.
-      await expect(page).toHaveURL(instrumentUrl);
-      await railSelect(page, 1).click();
-      await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
-      await expect(
-        devices(page).nth(0).getByRole("slider", { name: "Cutoff" }),
-      ).toHaveValue(cutoffBefore);
-      await step("Reload — the chain is still there, in order");
-    },
-  );
+    // 9. Reload the page. Select the loop's track again. The filter and the
+    //    delay are still on it, in that order, with the filter's settings as
+    //    you left them.
+    await expect(page.locator(".save-status")).toHaveText("Saved", {
+      timeout: 10_000,
+    });
+    await page.reload();
+    // The view is part of the address (#304); the track selection is UI
+    // state, deliberately not persisted, so it is made again.
+    await expect(page).toHaveURL(instrumentUrl);
+    await railSelect(page, 1).click();
+    await expect(devices(page)).toHaveText([/Filter/, /Delay/]);
+    await expect(
+      devices(page).nth(0).getByRole("slider", { name: "Cutoff" }),
+    ).toHaveValue(cutoffBefore);
+    await step("Reload — the chain is still there, in order");
+  });
 });
