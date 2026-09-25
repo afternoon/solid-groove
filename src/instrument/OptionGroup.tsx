@@ -15,6 +15,12 @@ export interface OptionGroupProps<V extends string | number> {
   /** The selected value, or null when the group has no selection yet. */
   readonly value: V | null;
   onSelect(value: V): void;
+  /**
+   * The radios' shared `name`. Defaults to one derived from the legend, which
+   * is only unique while one group per legend is on the page — two delays on a
+   * chain both have a "Sync", and one shared name would make them one group.
+   */
+  readonly radioGroup?: string;
 }
 
 /**
@@ -35,7 +41,7 @@ export default function OptionGroup<V extends string | number>(
               <input
                 type="radio"
                 class="option-group-input"
-                name={`option-group-${props.legend}`}
+                name={props.radioGroup ?? `option-group-${props.legend}`}
                 checked={selected()}
                 onChange={() => props.onSelect(option.value)}
               />
