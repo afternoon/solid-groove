@@ -52,6 +52,40 @@
   outline-offset: 1px;
 }
 
+/* The loop brace's keyboard twins (LOOP-018), at the toolbar's far end. */
+.arrangement-loop-controls {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.arrangement-loop-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.arrangement-loop-field input {
+  width: 3.5em;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-background-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0;
+  padding: 2px 4px;
+  text-align: right;
+}
+
+.arrangement-loop-field input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
 .arrangement-body {
   position: relative;
   display: flex;

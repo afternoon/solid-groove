@@ -1525,6 +1525,56 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(tempo).toHaveValue(240);
   });
 
+  /** The slice fixture, with a recording analytics transport (LOOP-018). */
+  async function renderLooping() {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+    await screen.findByTestId("arrangement-view-ready");
+    return transport;
+  }
+
+  it("Shift+L toggles looping from the keyboard, like the button, once per press", async () => {
+    const transport = await renderLooping();
+    const loop = screen.getByRole("button", { name: "Disable loop" });
+    // The tooltip names the key, and it comes from the registry.
+    expect(loop).toHaveAttribute("title", "Disable loop (Shift+L)");
+
+    fireEvent.keyDown(window, { key: "L", shiftKey: true });
+
+    const off = await screen.findByRole("button", { name: "Enable loop" });
+    expect(off).toHaveAttribute("aria-pressed", "false");
+    expect(transport.named("loop_toggled")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
+  });
+
+  it("moves and resizes the loop brace from its keyboard controls", async () => {
+    const transport = await renderLooping();
+    const length = screen.getByRole("spinbutton", { name: "Loop length" });
+    const start = screen.getByRole("spinbutton", { name: "Loop start" });
+    // A new project's brace spans the first bar.
+    expect(start).toHaveValue(1);
+    expect(length).toHaveValue(1);
+
+    fireEvent.change(length, { target: { value: "2" } });
+    await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
+    fireEvent.change(start, { target: { value: "3" } });
+    await screen.findByRole("button", { name: "Undo Loop bars 3-4" });
+    // Both read back from the song, so the brace moved without changing length.
+    expect(start).toHaveValue(3);
+    expect(length).toHaveValue(2);
+    // Something that is not a whole bar is refused, and the brace stays put.
+    fireEvent.change(length, { target: { value: "0" } });
+    expect(length).toHaveValue(2);
+
+    expect(
+      transport.named("loop_range_set").map((event) => event.params.bar_count),
+    ).toEqual([2, 2]);
+  });
+
   it("the metronome shortcut O toggles the click from the keyboard", async () => {
     await renderSlice();
     expect(screen.getByRole("button", { name: "Enable metronome" })).toBeInTheDocument();

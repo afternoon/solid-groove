@@ -137,7 +137,9 @@ export default function EditorHeader(props: EditorHeaderProps) {
           onClick={() => props.onToggleLoop()}
           aria-pressed={ariaBool(props.audio.loopEnabled())}
           aria-label={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
-          title={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
+          title={`${props.audio.loopEnabled() ? "Disable loop" : "Enable loop"} (${props.keyHint(
+            "transport.toggle_loop",
+          )})`}
         >
           <HiSolidArrowPathRoundedSquare size={18} />
         </button>

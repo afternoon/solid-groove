@@ -41,6 +41,9 @@ export interface UseEditorShortcutsOptions {
   /** Whether the `UI-001` sequence editor is open over the current view. */
   readonly sequenceEditorOpen: () => boolean;
   readonly closeSequenceEditor: () => void;
+  /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
+   * through the same command path as the header's loop button. */
+  readonly toggleLooping: () => void;
 }
 
 /**
@@ -80,6 +83,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     selectView,
     sequenceEditorOpen,
     closeSequenceEditor,
+    toggleLooping,
   } = options;
 
   /**
@@ -113,6 +117,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // registry describes it — not a second play/stop toggle.
     "transport.continue": { run: () => void audio.continueFromStop() },
     "transport.metronome": { run: () => audio.toggleMetronome() },
+    "transport.toggle_loop": { run: () => toggleLooping() },
     "edit.undo": {
       run: () => session.undo(),
       isEnabled: () => session.state.canUndo,
