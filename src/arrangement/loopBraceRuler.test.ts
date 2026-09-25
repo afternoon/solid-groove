@@ -81,31 +81,22 @@ function draw(loop: LoopBraceDrawState | null): Rect[] {
 const inRuler = (rect: Rect) => rect.y + rect.h <= RULER_HEIGHT_PX;
 
 describe("the loop brace on the ruler", () => {
-  it("draws a band and two bracket ends inside the ruler strip", () => {
-    const braceFills: string[] = [
-      COLOR_TOKENS.loopBrace[1],
-      COLOR_TOKENS.loopBraceEdge[1],
-    ];
+  it("draws the brace as one band along the bottom of the ruler", () => {
     const rects = draw({ ...barsOneToTwo, enabled: true }).filter(
-      (rect) => inRuler(rect) && braceFills.includes(rect.fill),
+      (rect) => inRuler(rect) && rect.fill === COLOR_TOKENS.loopBrace[1],
     );
-    expect(rects.map((rect) => rect.fill)).toEqual([
-      COLOR_TOKENS.loopBrace[1],
-      COLOR_TOKENS.loopBraceEdge[1],
-      COLOR_TOKENS.loopBraceEdge[1],
-    ]);
-    const [band, left, right] = rects;
-    expect(band.x).toBe(0);
+    expect(rects).toHaveLength(1);
+    const [band] = rects;
+    expect(band).toMatchObject({ x: 0, y: RULER_HEIGHT_PX - 10, h: 10 });
     expect(band.w).toBeCloseTo(BAR_TWO_END_PX);
-    expect(left).toMatchObject({ x: 0, y: 0, h: RULER_HEIGHT_PX });
-    expect(right.x + right.w).toBeCloseTo(BAR_TWO_END_PX);
   });
 
   it("draws a switched-off brace in the recessive step, where it still is", () => {
-    const fills = draw({ ...barsOneToTwo, enabled: false }).map((rect) => rect.fill);
-    expect(fills).toContain(COLOR_TOKENS.loopBraceOff[1]);
-    expect(fills).toContain(COLOR_TOKENS.loopBraceOffEdge[1]);
-    expect(fills).not.toContain(COLOR_TOKENS.loopBraceEdge[1]);
+    const rects = draw({ ...barsOneToTwo, enabled: false });
+    const off = rects.filter((rect) => rect.fill === COLOR_TOKENS.loopBraceOff[1]);
+    expect(off).toHaveLength(1);
+    expect(off[0].w).toBeCloseTo(BAR_TWO_END_PX);
+    expect(rects.map((rect) => rect.fill)).not.toContain(COLOR_TOKENS.loopBrace[1]);
   });
 
   it("draws nothing extra for a host with no loop", () => {
@@ -149,6 +140,6 @@ describe("the loop brace on the ruler", () => {
       hook.drawDirtyLayers();
       dispose();
     });
-    expect(rects.map((rect) => rect.fill)).toContain(COLOR_TOKENS.loopBraceEdge[1]);
+    expect(rects.map((rect) => rect.fill)).toContain(COLOR_TOKENS.loopBrace[1]);
   });
 });
