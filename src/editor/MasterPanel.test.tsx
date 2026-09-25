@@ -9,13 +9,20 @@ import { testAnalytics } from "../instrument/panelTesting";
 import { fireAndFlush } from "../testing/events";
 import MasterPanel from "./MasterPanel";
 
-afterEach(() => cleanup());
+const disposers: (() => void)[] = [];
+afterEach(() => {
+  cleanup();
+  for (const dispose of disposers.splice(0)) dispose();
+});
 
 /** Over a real `CommandHistory`, so "one revision, one entry, undoable" is
  * proven against the command layer rather than a spy that agrees with itself. */
 function renderPanel(options: { optedOut?: boolean; refuseEdits?: boolean } = {}) {
   const history = new CommandHistory(createSliceFixtureProject());
   const [project, setProject] = createSignal(history.project);
+  // Like the editor session: every step of a gesture reaches the panel, not
+  // only the dispatches that pass through it.
+  disposers.push(history.subscribe(() => setProject(history.project)));
   const { analytics, transport } = testAnalytics(options);
 
   render(() => (
@@ -30,6 +37,7 @@ function renderPanel(options: { optedOut?: boolean; refuseEdits?: boolean } = {}
         setProject(history.project);
         return result;
       }}
+      beginGesture={(gestureOptions) => history.beginGesture(gestureOptions)}
       analytics={analytics}
     />
   ));
@@ -103,7 +111,8 @@ describe("MasterPanel", () => {
     addDeviceNamed("Overdrive");
     addDeviceNamed("Reverb");
     expect(chain().map((device) => device.type)).toEqual(["overdrive", "reverb"]);
-    expect(chainItems().map((item) => item.textContent)).toEqual(["Overdrive", "Reverb"]);
+    expect(chainItems()[0]).toHaveTextContent("Overdrive");
+    expect(chainItems()[1]).toHaveTextContent("Reverb");
   });
 
   it("logs the added device's type once, and its chain, with no names", () => {
@@ -145,5 +154,17 @@ describe("MasterPanel", () => {
     expect(
       transport.events.filter((event) => event.name === "device_added"),
     ).toHaveLength(0);
+  });
+  it("keeps a device's controls mounted while one of them is dragged", () => {
+    // Every parameter step mints a new device object. A chain keyed on the
+    // object would rebuild the card — and the slider under the pointer — on
+    // each step of a drag; keyed on the device's id, the input survives.
+    const { chain } = renderPanel();
+    addDeviceNamed("Overdrive");
+    const drive = screen.getByRole("slider", { name: "Drive" });
+    fireAndFlush(() => fireEvent.input(drive, { target: { value: "0.6" } }));
+    fireAndFlush(() => fireEvent.change(drive, { target: { value: "0.6" } }));
+    expect(chain()[0].parameters.drive).toBe(0.6);
+    expect(screen.getByRole("slider", { name: "Drive" })).toBe(drive);
   });
 });
