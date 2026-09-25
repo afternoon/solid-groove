@@ -280,11 +280,13 @@ Examples: `Implement #123 (2/3): Wire the step grid onto note commands`,
 6. A **contract-owning task lands before its dependents start.** Domain schema, command registry, parameter definitions, persistence layout, selection, audio projection, and rendering projection are contracts; an agent must not alter a published one as incidental feature work. Changing a landed contract is its own issue, updating every contract test and consumer together.
 7. Git history is the completion record. Do not put a commit hash into the commit itself.
 8. Do not preserve compatibility with prototype project data. Schema v1 is the first production schema; migrations are required only for persisted changes after v1 is established.
+9. **Mark a PR ready for review when its work is finished.** A PR may open as a draft while work is in progress, but an agent that finishes the work — slice complete, checks green on its commit, evidence in the body — marks it ready (`gh pr ready <n>`, or the GitHub MCP `update_pull_request` with `draft: false`) before handing back. A finished PR left in draft is invisible to reviewers and stalls the stack.
 
 ### Definition of done for every task
 
 - The issue's acceptance criteria pass, including failure and empty states relevant to the slice.
 - **Every core flow the issue links passes**, with its `test.fixme` marker removed by the PR that closes the issue, and neither `docs/core-flows.md`, `docs/prd.md`, nor the flow spec's assertions changed along the way. `bun run verify:core-flows` passes and reports no parked flow.
+- **Every PR in the stack is marked ready for review**, none left in draft (Landing work item 9).
 - **The closing PR carries the captured walkthrough** and, once CI is green, the `deploy-preview` label so the change can be walked on a preview channel. A preview runs against the **live production** backend with production's current security rules — never label a stack that changes `firestore.rules` or `storage.rules`, since a preview cannot prove a rules change and an unreviewed branch must not reach production's access rules.
 - New behavior is reachable through shared commands and boundaries rather than a feature-specific mutation path.
 - Tests fail before the implementation and pass afterward at the lowest useful layer.
