@@ -1,0 +1,33 @@
+/* One device's controls (#241): the instrument panel's shape (mock 05a), so a
+   device control reads like an instrument control. Sliders sequence across and
+   wrap; a mode's option group sits among them with its label above, like a
+   slider's. */
+
+.device-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+/* A device's labels run longer than an instrument's ("Resonance", "Pre-delay",
+   "Threshold"), so a slider here is as wide as its label rather than the
+   mock's fixed 48px, which let neighbouring labels run into each other. */
+.device-controls .fill-slider {
+  width: auto;
+  min-width: 48px;
+}
+
+.device-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 96px;
+}
+
+.device-choice-label {
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-foreground);
+}
