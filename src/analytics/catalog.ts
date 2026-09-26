@@ -174,6 +174,24 @@ export const VIEW_CHANGE_SOURCES = ["dock", "keyboard", "url"] as const;
 export type ViewChangeSource = (typeof VIEW_CHANGE_SOURCES)[number];
 
 /**
+ * The device-chain edits that can fail, as `device_edit_failed`'s `operation`
+ * (LOOP-020).
+ *
+ * One value per `device.*` command the chain UI dispatches, so a failure can be
+ * attributed to the edit that caused it without carrying the command id (which
+ * `first_edit` already owns) or any chain, track, or project identity.
+ */
+export const DEVICE_OPERATIONS = [
+  "add",
+  "remove",
+  "reorder",
+  "duplicate",
+  "bypass",
+  "reset",
+] as const;
+export type DeviceOperation = (typeof DEVICE_OPERATIONS)[number];
+
+/**
  * `feature_first_use` keys (PRD `OPS-02`). One low-cardinality key rather than
  * an event name per feature, so first-use is comparable across features in one
  * report and the catalog stays well inside GA4's distinct-event-name limit.
@@ -778,6 +796,15 @@ export const ANALYTICS_EVENTS = {
     owners: ["LOOP-006", "LOOP-013"],
     params: {
       asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
+      error_code: enumParam(ERROR_CODES),
+    },
+  },
+
+  device_edit_failed: {
+    phase: 1,
+    owners: ["LOOP-020"],
+    params: {
+      operation: enumParam(DEVICE_OPERATIONS),
       error_code: enumParam(ERROR_CODES),
     },
   },
