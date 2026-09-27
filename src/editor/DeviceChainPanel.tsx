@@ -59,7 +59,8 @@ const NOT_A_HANDLE =
  * than offering a command the domain will refuse.
  *
  * Reordering is a drag from a card's header or background onto another card,
- * which takes that card's place, or Alt/Option+Up/Down on a focused device
+ * which takes that card's place — the chain previews the new order while the
+ * card is held, and a drop outside the chain leaves it as it was — or Alt/Option+Up/Down on a focused device
  * name (the registry's `device.move_*`). Each move is one `device.reorder`,
  * and `DeviceChain` relinks the audio without rebuilding a node, so a move
  * during playback is click-free.
@@ -73,12 +74,36 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
   const analytics = () => props.analytics ?? defaultAnalytics;
   const devices = () => [...props.track.devices].sort((a, b) => a.order - b.order);
   const full = () => devices().length >= MAX_TRACK_INSERTS;
-  // The drag's source, read by the events that follow `dragstart` within the
-  // same gesture: a plain variable, because a signal write is not readable
-  // until the next flush. The signals below only style the cards.
+  // The drag's source and where it would land, read by the events that follow
+  // `dragstart` within the same gesture: plain variables, because a signal
+  // write is not readable until the next flush. The signals mirror them for
+  // rendering only.
   let dragged: DeviceId | null = null;
+  let landing: number | null = null;
   const [dragging, setDragging] = createSignal<DeviceId | null>(null);
-  const [dropTarget, setDropTarget] = createSignal<DeviceId | null>(null);
+  const [preview, setPreview] = createSignal<number | null>(null);
+
+  /**
+   * Where each device shows while a drag is previewed: the chain as it would
+   * read after the drop. It is applied as a flex `order`, not by moving nodes,
+   * because moving the dragged node mid-drag can end the browser's drag.
+   */
+  function shownAt(id: DeviceId, index: number): number {
+    const from = devices().findIndex((device) => device.id === dragging());
+    const to = preview();
+    if (from < 0 || to === null) return index;
+    if (id === dragging()) return to;
+    if (from < to && index > from && index <= to) return index - 1;
+    if (to < from && index >= to && index < from) return index + 1;
+    return index;
+  }
+
+  function endDrag(): void {
+    dragged = null;
+    landing = null;
+    setDragging(null);
+    setPreview(null);
+  }
   const [focused, setFocused] = createSignal<DeviceId | null>(null);
 
   function move(id: DeviceId, to: number): void {
@@ -138,13 +163,8 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
         <For each={devices()} keyed={(device) => device.id}>
           {(device, index) => (
             <li
-              class={[
-                "device-chain-item",
-                {
-                  dragging: dragging() === device().id,
-                  "drop-target": dropTarget() === device().id,
-                },
-              ]}
+              class={["device-chain-item", { dragging: dragging() === device().id }]}
+              style={{ order: shownAt(device().id, index()) }}
               onPointerDown={(event) => {
                 // Armed per press, so a slider drag never becomes a card drag.
                 const target = event.target as Element;
@@ -158,22 +178,27 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
                 if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
               }}
               onDragOver={(event) => {
-                if (dragged === null || dragged === device().id) return;
+                if (dragged === null) return;
+                // The dragged card itself is a valid place to drop: after the
+                // preview moves it, it is usually what is under the pointer.
                 event.preventDefault();
-                setDropTarget(device().id);
-              }}
-              onDragLeave={() => {
-                if (dropTarget() === device().id) setDropTarget(null);
+                if (dragged === device().id) return;
+                landing = index();
+                setPreview(index());
               }}
               onDrop={(event) => {
                 event.preventDefault();
-                if (dragged !== null && dragged !== device().id) move(dragged, index());
+                const from = devices().findIndex((entry) => entry.id === dragged);
+                if (dragged !== null && landing !== null && landing !== from) {
+                  move(dragged, landing);
+                }
+                endDrag();
               }}
               onDragEnd={(event) => {
+                // Also the only end of a drag dropped outside the chain,
+                // which leaves it as it was.
                 event.currentTarget.draggable = false;
-                dragged = null;
-                setDragging(null);
-                setDropTarget(null);
+                endDrag();
               }}
               onFocusIn={(event) => {
                 const grip = (event.target as Element).closest(".device-card-grip");
