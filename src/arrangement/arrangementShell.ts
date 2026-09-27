@@ -6,18 +6,19 @@
  * state (`spike/ArrangementSpike.tsx`), lifted out of SolidJS so the shell's
  * behavior — viewport transform, dirty-layer bookkeeping, culling ranges,
  * pointer-anchored zoom, scrollbar/resize/DPR synchronization, playhead-follow,
- * bar-range selection, and the named accessibility actions — is unit-testable
+ * and the named accessibility actions — is unit-testable
  * without a DOM, a Canvas, or a reactive runtime. `ArrangementView.tsx` is the
  * thin Solid adapter that installs canvases and DOM controls on top of it.
  *
  * It holds no domain state and issues no commands: it consumes a read-only
- * `ArrangementProjection` and reports what to draw. Placement editing
+ * `ArrangementProjection` and reports what to draw. It holds no selection
+ * either: the arrangement's one selection (#292) lives with placement editing,
+ * and the shell only frames a span of it on request. Placement editing
  * (`ARR-002`), sections (`ARR-003`), and automation editing (`ARR-004`) build
  * their transient gestures on top of this shell.
  */
 
-import type { PlacementId, TrackId } from "../domain/ids";
-import { TICKS_PER_BAR } from "../domain/time";
+import type { PlacementId } from "../domain/ids";
 import {
   pixelsToTicks,
   type RowRange,
@@ -32,13 +33,6 @@ import { type ArrangementProjection, hitTestArrangement } from "./projection";
 
 /** The three stacked canvases, each with its own dirty reason (PRD 9.3). */
 export type DirtyLayer = "background" | "content" | "interaction";
-
-/** A bar-range selection on one track: the ARR-01 "select a bar range". */
-export interface ArrangementSelection {
-  readonly trackId: TrackId;
-  readonly startTick: number;
-  readonly endTick: number;
-}
 
 export interface ArrangementShellConfig {
   /** CSS pixels of overscan applied to the visible tick range for culling. */
@@ -64,7 +58,6 @@ export const DEFAULT_SHELL_CONFIG: ArrangementShellConfig = {
 
 export interface ArrangementShellState {
   readonly viewport: Viewport;
-  readonly selection: ArrangementSelection | null;
   readonly playheadTicks: number;
   readonly hoverPlacementId: PlacementId | null;
   /** Whether the playhead is kept in view as it advances (PRD 9.3 follow). */
@@ -105,10 +98,13 @@ export function createArrangementShell(
   };
 
   let viewport = options.initialViewport;
-  let selection: ArrangementSelection | null = null;
   let playheadTicks = 0;
   let hoverPlacementId: PlacementId | null = null;
   let playheadFollow = true;
+  // The furthest tick a zoom has framed. The timeline can scroll to here even
+  // when it is past the end of the song, so a range that runs beyond the last
+  // clip can still be shown edge to edge (#292, CF-011).
+  let framedExtentTicks = 0;
 
   const dirty = new Set<DirtyLayer>();
 
@@ -130,11 +126,13 @@ export function createArrangementShell(
     return offsets[offsets.length - 1] ?? 0;
   }
 
+  /** How far the timeline runs: the song, or further if a zoom framed more. */
+  function contentLengthTicks(): number {
+    return Math.max(getProjection().lengthTicks, framedExtentTicks);
+  }
+
   function maxScrollLeft(): number {
-    return Math.max(
-      0,
-      getProjection().lengthTicks * viewport.pixelsPerTick - viewport.width,
-    );
+    return Math.max(0, contentLengthTicks() * viewport.pixelsPerTick - viewport.width);
   }
 
   function maxScrollTop(): number {
@@ -225,20 +223,20 @@ export function createArrangementShell(
   }
 
   /**
-   * Fit the current bar-range selection to the viewport (KEY-01
-   * `view.zoom_to_selection`). Chooses the zoom that makes the selection span
-   * the viewport width, then scrolls its start to the left edge.
+   * Frame `[startTicks, endTicks)` exactly: the zoom that makes it span the
+   * viewport width, scrolled so it starts at the left edge (KEY-01
+   * `view.zoom_to_selection`). A span wider or narrower than the zoom limits
+   * allow is framed as closely as they permit, from its start.
    */
-  function zoomToSelection(): void {
-    if (!selection) return;
-    const spanTicks = Math.max(1, selection.endTick - selection.startTick);
-    const target = viewport.width / (spanTicks * viewport.pixelsPerTick);
+  function zoomToSpan(startTicks: number, endTicks: number): void {
+    const spanTicks = Math.max(1, endTicks - startTicks);
     const nextPixelsPerTick = Math.max(
       config.minPixelsPerTick,
-      Math.min(config.maxPixelsPerTick, viewport.pixelsPerTick * target),
+      Math.min(config.maxPixelsPerTick, viewport.width / spanTicks),
     );
+    framedExtentTicks = Math.max(framedExtentTicks, endTicks);
     setViewport({ ...viewport, pixelsPerTick: nextPixelsPerTick });
-    const scrollLeft = clampScrollLeft(selection.startTick * nextPixelsPerTick);
+    const scrollLeft = clampScrollLeft(startTicks * nextPixelsPerTick);
     setViewport({ ...viewport, scrollLeft });
     markDirty("background", "content", "interaction");
   }
@@ -268,11 +266,6 @@ export function createArrangementShell(
 
   function setPlayheadFollow(follow: boolean): void {
     playheadFollow = follow;
-  }
-
-  function setSelection(next: ArrangementSelection | null): void {
-    selection = next;
-    markDirty("interaction");
   }
 
   function setHover(placementId: PlacementId | null): void {
@@ -313,28 +306,6 @@ export function createArrangementShell(
     setHover(result.kind === "placement" ? result.placementId : null);
   }
 
-  /**
-   * Pointer down: select a one-bar range on the pointed track, snapped to the
-   * bar (PRD ARR-01 "clip placements snap to bars by default"). Returns the
-   * new selection so a caller can move a DOM focus proxy to it.
-   */
-  function handlePointerDown(
-    localX: number,
-    localY: number,
-  ): ArrangementSelection | null {
-    const { tick, rowIndex } = pointToArrangement(localX, localY);
-    const track = getProjection().tracks[rowIndex];
-    if (!track) return null;
-    const startTick = Math.max(0, Math.floor(tick / TICKS_PER_BAR) * TICKS_PER_BAR);
-    const next: ArrangementSelection = {
-      trackId: track.id,
-      startTick,
-      endTick: startTick + TICKS_PER_BAR,
-    };
-    setSelection(next);
-    return next;
-  }
-
   function clearHover(): void {
     setHover(null);
   }
@@ -342,7 +313,6 @@ export function createArrangementShell(
   function getState(): ArrangementShellState {
     return {
       viewport,
-      selection,
       playheadTicks,
       hoverPlacementId,
       playheadFollow,
@@ -374,16 +344,15 @@ export function createArrangementShell(
     zoomAt,
     zoomIn,
     zoomOut,
-    zoomToSelection,
+    zoomToSpan,
+    contentLengthTicks,
     scrollToPlayhead,
     seekTo,
     setPlayheadFollow,
-    setSelection,
     setHover,
     clearHover,
     handleWheel,
     handlePointerMove,
-    handlePointerDown,
     hitTestAt,
     pointToArrangement,
     invalidateAll,
