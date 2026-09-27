@@ -45,6 +45,13 @@ import {
   pasteClipboard,
 } from "./placementClipboard";
 import {
+  clampCopyOffset,
+  type DragCopyPlan,
+  dragCopyCommands,
+  dragCopyOverwrites,
+  planDragCopy,
+} from "./placementDragCopy";
+import {
   type DuplicateMode,
   describeDuplicate,
   duplicatePlacement,
@@ -54,6 +61,7 @@ import {
   movePlacement,
   resizePlacement,
   setPlacementLooped,
+  snapToBar,
 } from "./placementGeometry";
 
 /** Applies commands as one transaction; returns whether anything landed. */
@@ -82,11 +90,25 @@ interface DragState {
   readonly handle: "start" | "end" | "body";
   /** Ticks between the pointer and the placement's start. */
   readonly grabOffsetTicks: number;
-  readonly gesture: EditingGesture | undefined;
+  gesture: EditingGesture | undefined;
   applied: boolean;
   /** Pressed on a clip inside a larger selection: a release without a move
    * narrows the selection to that clip, as a click on it would (#292). */
   readonly narrowOnClick: boolean;
+  /** The project at the press, which a drop that changes mode resolves from. */
+  readonly base: Project;
+  /** The pressed clip's start at the press. */
+  readonly originTicks: number;
+  /** The selected clips at the press: what an Alt-drag copies (ARR-011). */
+  readonly sources: readonly PlacementId[];
+  /** Whether the steps applied so far copy rather than move. */
+  copying: boolean;
+  /** The copies, minted on the first copy step and kept for the drag. */
+  plan: DragCopyPlan | null;
+  /** Where the applied copies sit, as an offset; null until they exist. */
+  placedAt: number | null;
+  /** The body offset the pointer last asked for, snapped to a bar. */
+  offsetTicks: number;
 }
 
 export function createPlacementEditing(options: PlacementEditingOptions) {
@@ -224,7 +246,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const placement = current?.song.placements.find(
       (candidate) => candidate.id === placementId,
     );
-    if (!placement) return;
+    if (!current || !placement) return;
     const held = covered();
     if (!held.includes(placementId)) select(placementId);
     drag = {
@@ -236,13 +258,34 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
       ),
       applied: false,
       narrowOnClick: held.length > 1 && held.includes(placementId),
+      base: current,
+      originTicks: placement.startTicks,
+      sources: covered(),
+      copying: false,
+      plan: null,
+      placedAt: null,
+      offsetTicks: 0,
     };
   }
 
-  /** One step of a drag. Applies live so the surface and audio stay in sync. */
-  function updateDrag(pointerTicks: number): void {
+  /**
+   * One step of a drag. Applies live so the surface and audio stay in sync.
+   * `copy` is whether the Alt-drag modifier is held right now (ARR-011): it
+   * only changes a body drag, and it is read at every step, so the preview
+   * always shows what a drop here would do.
+   */
+  function updateDrag(pointerTicks: number, copy = false): void {
     const current = project();
     if (!drag || !current) return;
+    if (drag.handle === "body") {
+      drag.offsetTicks =
+        snapToBar(pointerTicks - drag.grabOffsetTicks) - drag.originTicks;
+      if (copy !== drag.copying) switchMode(drag, copy);
+      if (copy) {
+        stepCopy(drag);
+        return;
+      }
+    }
     const commands =
       drag.handle === "body"
         ? movePlacement(current, drag.placementId, pointerTicks - drag.grabOffsetTicks)
@@ -263,6 +306,82 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     changed();
   }
 
+  // --- Alt-drag copy (ARR-011) ----------------------------------------------
+
+  /** The copies' offset, narrowed to keep every one inside the song. */
+  function copyOffset(state: DragState): number {
+    state.plan ??= planDragCopy(state.base, state.sources, options.ids);
+    return clampCopyOffset(state.plan, state.offsetTicks);
+  }
+
+  /** One copy step: the copies follow the pointer; the originals stay put.
+   * Without a gesture nothing is shown until the drop commits it. */
+  function stepCopy(state: DragState): void {
+    const offset = copyOffset(state);
+    if (!state.gesture || !state.plan) return;
+    const commands = dragCopyCommands(state.plan, offset, state.placedAt);
+    if (commands.length === 0) return;
+    state.gesture.apply(commands);
+    state.placedAt = offset;
+    state.applied = true;
+    changed();
+  }
+
+  /**
+   * Alt went down or up mid-drag: undo what the other mode applied, so the
+   * preview only ever shows one of them. The gesture is abandoned and a fresh
+   * one opened. Without gestures each step has already committed, and the drag
+   * carries on in the new mode from there.
+   */
+  function switchMode(state: DragState, copy: boolean): void {
+    if (state.applied && state.gesture) {
+      state.gesture.cancel();
+      state.gesture = options.beginGesture?.(copy ? "Copy placements" : "Move placement");
+      state.applied = false;
+    }
+    state.placedAt = null;
+    state.copying = copy;
+    changed();
+  }
+
+  /**
+   * An Alt-drag's drop: the copies land at the drop's offset, overwrite what
+   * they cover (#290), and become the selection. Resolved from the project at
+   * the press, so it never reads a project the UI has not caught up with; the
+   * live steps are kept when they already show exactly this, and replaced
+   * when Alt went down since the last one.
+   */
+  function dropCopy(state: DragState): void {
+    const offset = copyOffset(state);
+    const plan = state.plan ?? [];
+    const place = dragCopyCommands(plan, offset, null);
+    const landed = executeTransaction(state.base, place, {
+      commitRevision: false,
+      deferredInvariants: ["placement_overlap"],
+    });
+    if (offset === 0 || place.length === 0 || !landed.ok) {
+      dropNothing(state);
+      return;
+    }
+    const overwrite = dragCopyOverwrites(landed.project, plan, () =>
+      options.ids("placement"),
+    );
+    const shown = state.copying && state.placedAt === offset;
+    if (state.applied && !shown) state.gesture?.cancel();
+    const gesture =
+      state.applied && !shown ? options.beginGesture?.("Copy placements") : state.gesture;
+    const commands = shown ? overwrite : [...place, ...overwrite];
+    if (gesture) {
+      if (commands.length > 0) gesture.apply(commands);
+      gesture.commit("Copy placements");
+    } else {
+      options.dispatch(commands);
+    }
+    setSelection(clipsSelection(plan.map((copy) => copy.placementId)));
+    options.analytics?.log("placement_duplicated", { mode: "independent" });
+    options.analytics?.logFeatureFirstUse("arrangement_drag_copy");
+  }
+
   /** The overwrite of whatever the dragged placement covers in `at` (#290). */
   function overwriteForDrag(at: Project): RawCommandInput[] {
     const placement = at.song.placements.find((p) => p.id === drag?.placementId);
@@ -276,18 +395,31 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
    * overwrite of whatever the dropped placement covers is resolved here, once,
    * so a neighbour the drag merely passed over is left intact (#290).
    */
-  function endDrag(): void {
+  function endDrag(copy = false): void {
     if (!drag) return;
-    const current = project();
-    if (drag.applied && drag.gesture && current) {
-      const overwrite = overwriteForDrag(current);
-      if (overwrite.length > 0) drag.gesture.apply(overwrite);
-    }
-    if (drag.applied) drag.gesture?.commit();
-    else drag.gesture?.cancel();
-    if (!drag.applied && drag.narrowOnClick) select(drag.placementId);
+    // An Alt-drag copies when Alt is held at the drop or was at the last step
+    // (ARR-011); anything else is a plain move or resize.
+    if (drag.handle === "body" && (copy || drag.copying)) dropCopy(drag);
+    else commitDrag(drag);
     drag = null;
     changed();
+  }
+
+  function commitDrag(state: DragState): void {
+    const current = project();
+    if (state.applied && state.gesture && current) {
+      const overwrite = overwriteForDrag(current);
+      if (overwrite.length > 0) state.gesture.apply(overwrite);
+    }
+    if (state.applied) state.gesture?.commit();
+    else state.gesture?.cancel();
+    if (!state.applied && state.narrowOnClick) select(state.placementId);
+  }
+
+  /** A release that did not move: nothing changes, as a click on the clip. */
+  function dropNothing(state: DragState): void {
+    state.gesture?.cancel();
+    if (!state.applied && state.narrowOnClick) select(state.placementId);
   }
 
   function cancelDrag(): void {
