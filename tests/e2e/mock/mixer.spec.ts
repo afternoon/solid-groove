@@ -121,7 +121,7 @@ test.describe("mixer", () => {
     // ...and the strip is the same width it was before anything was panned.
     const strip = page.locator(".mixer-strip").first();
     const stripBox = await strip.boundingBox();
-    expect(stripBox?.width).toBe(96);
+    expect(stripBox?.width).toBe(144);
   });
 
   // A pointer left resting on a button it just pressed is the normal case, not

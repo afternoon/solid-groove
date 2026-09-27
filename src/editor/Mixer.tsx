@@ -32,12 +32,14 @@ import FillSlider from "../instrument/FillSlider";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import DeviceChainSlot from "./DeviceChainSlot";
 import NewTrackButtons from "./NewTrackButtons";
+import "./trackDrag.css";
 import {
   addTrackOfKind,
   instrumentTypeKey,
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { moveTrack } from "./trackReorder";
+import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
 
@@ -136,15 +138,34 @@ export default function Mixer(props: MixerProps): JSX.Element {
     analytics().logFeatureFirstUse("mixer");
   }
 
-  /** The move-left/right buttons: the keyboard's route to reordering (#331). */
-  function moveBy(trackId: TrackId, toIndex: number): void {
+  /** Move a track, by its move-left/right buttons — the keyboard's route —
+   * or by dragging its strip along the row (#331). */
+  function moveBy(trackId: TrackId, toIndex: number, method: "button" | "drag"): void {
     moveTrack(
       { project: () => props.project, dispatch: props.dispatch, analytics: analytics() },
       trackId,
       toIndex,
-      { view: "mixer", method: "button" },
+      { view: "mixer", method },
     );
   }
+  let stripRow: HTMLDivElement | undefined;
+  const trackDrag = useTrackDrag({
+    axis: "x",
+    zone: () => stripRow,
+    indexOf: (trackId) => trackIds().indexOf(trackId),
+    onDrop: (trackId, toIndex) => moveBy(trackId, toIndex, "drag"),
+  });
+  /** The strips in the order letting go now would leave them: a drag shows
+   * the track already in its new place, rather than a marker where it would
+   * go. The project only changes on release. */
+  const shownIds = createMemo(() => {
+    const dragged = trackDrag.dragging();
+    const to = trackDrag.target();
+    if (dragged === null || to === null) return trackIds();
+    const ids = trackIds().filter((id) => id !== dragged);
+    ids.splice(to, 0, dragged);
+    return ids;
+  });
 
   function handleDuplicate(track: Track): void {
     const duplicate = duplicateTrack(props.project, track.id, {
@@ -190,21 +211,26 @@ export default function Mixer(props: MixerProps): JSX.Element {
         </span>
         <NewTrackButtons label="Add track" onAdd={handleAddTrack} />
       </header>
-      <div class="mixer-tracks">
-        <For each={trackIds()}>
-          {(id, index) => {
+      <div class="mixer-tracks" ref={stripRow}>
+        <For each={shownIds()}>
+          {(id) => {
             const track = createMemo(() => trackById(id));
             return (
               <Show when={track()}>
                 {(current) => (
                   <TrackStrip
                     track={current()}
-                    index={index()}
+                    index={trackIds().indexOf(id)}
                     trackCount={trackIds().length}
                     clipCount={clipCount(id)}
                     selected={props.selectedTrackId === id}
                     onSelect={() => selectTrack(id)}
-                    onMove={(toIndex) => moveBy(id, toIndex)}
+                    onMove={(toIndex) => moveBy(id, toIndex, "button")}
+                    onDragStart={(event) => trackDrag.begin(event, id)}
+                    dragging={trackDrag.dragging() === id}
+                    previewing={
+                      trackDrag.dragging() === id && trackDrag.target() !== null
+                    }
                     dispatch={props.dispatch}
                     beginGesture={props.beginGesture}
                     trackLevelDb={props.trackLevelDb}
@@ -262,6 +288,13 @@ interface TrackStripProps {
   onSelect(): void;
   /** Move this strip's track to `toIndex` in display order. */
   onMove(toIndex: number): void;
+  /** Start dragging this strip along the row, from anywhere on its
+   * background or its "Edit" chip — see {@link startsStripDrag}. */
+  onDragStart(event: PointerEvent): void;
+  /** Whether this strip is the one being dragged. */
+  readonly dragging: boolean;
+  /** Whether it is being shown where letting go would move it. */
+  readonly previewing: boolean;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -274,6 +307,19 @@ interface TrackStripProps {
   readonly cancelFrame?: (handle: number) => void;
 }
 
+/**
+ * The strip's controls keep their own pointer gestures — a fader or pan drag,
+ * a button press, text selection in the name. Anything else on the strip, and
+ * its "Edit" chip, starts a reorder drag (#331): the whole strip background is
+ * the handle, not an 18px chip.
+ */
+const STRIP_CONTROLS =
+  "input, textarea, select, a, [role='slider'], .fill-slider, button:not(.mixer-strip-select)";
+
+function startsStripDrag(event: PointerEvent): boolean {
+  return !(event.target as Element).closest(STRIP_CONTROLS);
+}
+
 function TrackStrip(props: TrackStripProps): JSX.Element {
   const volumeDb = () => props.track.mixer.volume;
   const panValue = () => props.track.mixer.pan;
@@ -282,8 +328,19 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
     <div
       class={[
         "mixer-strip",
-        { muted: props.track.mixer.muted, selected: props.selected },
+        {
+          muted: props.track.mixer.muted,
+          selected: props.selected,
+          "track-dragging": props.dragging,
+        },
       ]}
+      data-track-drag={props.track.id}
+      /* The previewed strip is the drop indicator: the mixer's drag shows
+         where the track will land by putting it there. */
+      data-testid={props.previewing ? "track-drop-indicator" : undefined}
+      onPointerDown={(event) => {
+        if (startsStripDrag(event)) props.onDragStart(event);
+      }}
     >
       <div class="mixer-strip-head">
         {/* The colour chip is also the keyboard route to selecting a track:
