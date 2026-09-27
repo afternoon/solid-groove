@@ -1,5 +1,7 @@
+import type { DeviceChainTarget, ParameterTarget } from "../commands";
 import { DELAY_DIVISIONS } from "../domain/devices";
 import type { Device } from "../domain/entities";
+import type { DeviceId } from "../domain/ids";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
 
 /**
@@ -46,4 +48,26 @@ export function readDeviceParameter(
   definition: ParameterDefinition,
 ): number {
   return device.parameters[bareParameterId(definition.id)] ?? definition.defaultValue;
+}
+
+/**
+ * The `parameter.set` target for one parameter of a device in `chain`: a
+ * track's inserts write through `trackDevice`, the master's through
+ * `masterDevice`. The device's controls are the same component either way;
+ * only this address differs. Return buses have no device parameter scope yet,
+ * and no surface renders their chains.
+ */
+export function deviceParameterTarget(
+  chain: DeviceChainTarget,
+  deviceId: DeviceId,
+  parameterId: string,
+): ParameterTarget {
+  switch (chain.chain) {
+    case "insert":
+      return { scope: "trackDevice", trackId: chain.trackId, deviceId, parameterId };
+    case "master":
+      return { scope: "masterDevice", deviceId, parameterId };
+    case "return":
+      throw new Error("A return bus's devices have no parameter.set scope");
+  }
 }
