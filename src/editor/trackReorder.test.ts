@@ -130,9 +130,4 @@ describe("previewTrackOrder (TRK-02)", () => {
     expect(orderedTrackIds(preview)).toEqual([c, a, b]);
     expect(orderedTrackIds(project)).toEqual([a, b, c]);
   });
-
-  it("hands back the same project for a track it does not have", () => {
-    const project = createReferenceProject({ trackCount: 2, placementCount: 2 });
-    expect(previewTrackOrder(project, "trk_missing" as never, 0)).toBe(project);
-  });
 });

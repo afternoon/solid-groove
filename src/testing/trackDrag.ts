@@ -36,12 +36,11 @@ export function stubTrackDragLayout(options: {
   });
 }
 
-/** A pointer event jsdom will carry `clientX`/`clientY`/`button` on. */
+/** A pointer event jsdom will carry `clientX`/`clientY` on (`button` is 0). */
 function pointer(type: string, x: number, y: number): MouseEvent {
   return new MouseEvent(type, {
     bubbles: true,
     cancelable: true,
-    button: 0,
     clientX: x,
     clientY: y,
   });

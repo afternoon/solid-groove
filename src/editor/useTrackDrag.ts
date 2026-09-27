@@ -6,18 +6,14 @@ import { dropSlot, slotToIndex } from "./trackReorder";
  * Drag a track to a new position (TRK-02, #331). The arrangement's header
  * column and the mixer's strip row share this controller, each along its axis.
  *
- * Nothing touches the project while the pointer moves: the drag only works out
- * where the track *would* land and publishes that as `target`, which a view
- * previews by drawing the track there already. Letting go inside
- * the zone calls `onDrop` once, so a whole drag is one `track.reorder`, one
- * revision and one history entry; letting go anywhere else, or where the track
- * already is, calls nothing.
+ * Nothing touches the project mid-drag: the drag publishes where the track
+ * *would* land as `target`, and a view previews it there. Letting go inside the
+ * zone calls `onDrop` once — one `track.reorder`, one revision, one history
+ * entry; letting go anywhere else, or where the track already is, calls nothing.
  *
- * Items are read off the DOM — each carries `data-track-drag` (its track id) —
- * because the arrangement renders only the rows in view. `indexOf` places them
- * in the whole song, not among the rendered rows. They are measured once, when
- * the drag starts: the preview re-lays them out mid-drag, and measuring the
- * moved items would shift the slots the pointer is judged against.
+ * Items are read off the DOM by `data-track-drag` (the arrangement renders only
+ * the rows in view), placed in the whole song by `indexOf`, and measured once
+ * at drag start, since the preview moves them.
  */
 export interface TrackDragOptions {
   readonly axis: "x" | "y";
@@ -46,47 +42,37 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
   const [targetIndex, setTargetIndex] = createSignal<number | null>(null);
   let teardown: (() => void) | null = null;
 
-  const span = (rect: DOMRect) =>
-    options.axis === "y" ? [rect.top, rect.bottom] : [rect.left, rect.right];
+  const y = options.axis === "y";
 
-  type Item = { readonly index: number; readonly span: number[] };
-
-  /** Each item's display index and its span along the axis, in the zone's
-   * scrolled content — so a measurement stays valid while the zone scrolls. */
-  function measure(zone: HTMLElement): Item[] {
-    const start = span(zone.getBoundingClientRect())[0];
-    const scroll = options.axis === "y" ? zone.scrollTop : zone.scrollLeft;
-    return [...zone.querySelectorAll<HTMLElement>("[data-track-drag]")].map((el) => ({
-      index: options.indexOf(el.dataset.trackDrag as TrackId),
-      span: span(el.getBoundingClientRect()).map((edge) => edge - start + scroll),
-    }));
+  /** A client position along the axis, in the zone's scrolled content — so a
+   * measurement taken at drag start stays valid while the zone scrolls. */
+  function along(zone: HTMLElement, client: number): number {
+    const box = zone.getBoundingClientRect();
+    return client - (y ? box.top : box.left) + (y ? zone.scrollTop : zone.scrollLeft);
   }
 
-  /** The display index letting go at the pointer would move the track to. */
-  function target(
-    event: PointerEvent,
-    zone: HTMLElement,
-    fromIndex: number,
-    items: readonly Item[],
-  ): number | null {
+  type Item = { readonly index: number; readonly middle: number };
+
+  function measure(zone: HTMLElement): Item[] {
+    return [...zone.querySelectorAll<HTMLElement>("[data-track-drag]")].map((el) => {
+      const r = el.getBoundingClientRect();
+      const id = el.dataset.trackDrag as TrackId;
+      const middle = along(zone, y ? (r.top + r.bottom) / 2 : (r.left + r.right) / 2);
+      return { index: options.indexOf(id), middle };
+    });
+  }
+
+  /** The display index letting go at `event` would move the track to. */
+  function target(event: PointerEvent, zone: HTMLElement, from: number, items: Item[]) {
     const box = zone.getBoundingClientRect();
-    const inside =
-      event.clientX >= box.left &&
-      event.clientX <= box.right &&
-      event.clientY >= box.top &&
-      event.clientY <= box.bottom;
+    const { clientX: px, clientY: py } = event;
+    const inside = px >= box.left && px <= box.right && py >= box.top && py <= box.bottom;
     const last = items.at(-1);
     if (!inside || !last) return null;
-    const scroll = options.axis === "y" ? zone.scrollTop : zone.scrollLeft;
-    const pointer =
-      (options.axis === "y" ? event.clientY : event.clientX) - span(box)[0] + scroll;
-    const k = dropSlot(
-      pointer,
-      items.map(({ span: [start, end] }) => (start + end) / 2),
-    );
-    const slot = k < items.length ? items[k].index : last.index + 1;
-    const toIndex = slotToIndex(fromIndex, slot);
-    return toIndex === fromIndex ? null : toIndex;
+    const middles = items.map(({ middle }) => middle);
+    const k = dropSlot(along(zone, y ? py : px), middles);
+    const toIndex = slotToIndex(from, k < items.length ? items[k].index : last.index + 1);
+    return toIndex === from ? null : toIndex;
   }
 
   function end(): void {
@@ -108,10 +94,8 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
 
     const onMove = (move: PointerEvent) => {
       if (!active) {
-        if (
-          Math.hypot(move.clientX - origin.x, move.clientY - origin.y) < DRAG_THRESHOLD_PX
-        )
-          return;
+        const moved = Math.hypot(move.clientX - origin.x, move.clientY - origin.y);
+        if (moved < DRAG_THRESHOLD_PX) return;
         active = true;
         measured = measure(zone);
         setDragging(trackId);

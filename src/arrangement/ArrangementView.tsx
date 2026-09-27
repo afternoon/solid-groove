@@ -226,21 +226,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
   const previewing = (trackId: TrackId) =>
     trackDrag.dragging() === trackId && trackDrag.target() !== null;
 
-  /**
-   * The project as drawn: during a drag, with the dragged track already in the
-   * row it would land in, so its header and lane both show the move before the
-   * drop commits it (TRK-02).
-   */
-  const shownProject = createMemo<Project>(() => {
-    const dragged = trackDrag.dragging();
-    const to = trackDrag.target();
-    if (dragged === null || to === null) return props.project;
-    return previewTrackOrder(props.project, dragged, to);
+  /** The project as drawn: mid-drag, the dragged track already sits in the
+   * row it would land in, header and lane, before the drop commits it. */
+  const projection = createMemo<ArrangementProjection>(() => {
+    const [dragged, to] = [trackDrag.dragging(), trackDrag.target()];
+    const moved = dragged !== null && to !== null;
+    const shown = moved ? previewTrackOrder(props.project, dragged, to) : props.project;
+    return buildArrangementProjection(shown, ROW_METRICS);
   });
-
-  const projection = createMemo<ArrangementProjection>(() =>
-    buildArrangementProjection(shownProject(), ROW_METRICS),
-  );
 
   // A tiny signal bumped whenever the shell mutates viewport/selection state,
   // so the reactive header column and accessible list re-read the shell.

@@ -14,6 +14,7 @@ import {
 import type { PlacementId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { EditorSession } from "../editor/EditorSession";
+import { orderedTrackIds } from "../editor/trackReorder";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
 import { buildArrangementProject } from "../testing/arrangementProject";
@@ -682,16 +683,12 @@ describe("dragging a track header to reorder it (TRK-02)", () => {
     const [project, setProject] = createSignal(history.project);
     const { analytics, transport } = analyticsAllowing();
     const selected: TrackId[] = [];
-    const ids = () =>
-      [...history.project.song.tracks]
-        .sort((a, b) => a.order - b.order)
-        .map((track) => track.id);
     stubTrackDragLayout({
       axis: "y",
       zoneSelector: ".arrangement-headers",
       size: ROW,
       zoneLength: ROW * 10,
-      order: ids,
+      order: () => orderedTrackIds(history.project),
     });
     render(() => (
       <ArrangementView
