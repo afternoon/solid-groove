@@ -30,6 +30,7 @@ import {
   bandBetween,
   barStartPoint,
   clipsSelection,
+  extensionBand,
   placementsTouchedBy,
   pointSelection,
   reconcileArrangementSelection,
@@ -165,6 +166,29 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
           : [...ids, placementId],
       ),
     );
+  }
+
+  /** Cmd-click (Ctrl-click off macOS) on a clip (#405): toggle that one clip
+   * in or out of the selection, keeping the rest. */
+  function toggleClip(placementId: PlacementId): void {
+    select(placementId, true);
+    options.analytics?.logFeatureFirstUse("arrangement_toggle_select");
+  }
+
+  /**
+   * Shift-click on a clip (#405): the selection becomes every clip in the box
+   * from what is selected to the clicked clip, across every track between
+   * (`extensionBand`). With no clip selected it is a plain click.
+   */
+  function extendTo(placementId: PlacementId): void {
+    const current = project();
+    const box = current && extensionBand(selection, placementId, current);
+    if (!current || !box) {
+      select(placementId);
+      return;
+    }
+    setSelection(clipsSelection(placementsTouchedBy(box, current)));
+    options.analytics?.logFeatureFirstUse("arrangement_extend_select");
   }
 
   function clearSelection(): void {
@@ -569,6 +593,8 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     /** The label the UI shows before a duplicate (CLP-01). */
     duplicateLabel: describeDuplicate,
     select,
+    toggleClip,
+    extendTo,
     setSelection,
     clearSelection,
     placePoint,

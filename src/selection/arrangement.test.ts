@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { TrackId } from "../domain/ids";
+import type { PlacementId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import {
   bandBetween,
   barStartPoint,
   clipsSelection,
+  extensionBand,
   placementsTouchedBy,
   pointSelection,
   reconcileArrangementSelection,
@@ -114,6 +115,35 @@ describe("the arrangement selection (#292)", () => {
     const id = twoTracks().placementIds[0][0];
     expect(clipsSelection([id, id])).toEqual({ kind: "clips", placementIds: [id] });
     expect(clipsSelection([])).toBeNull();
+  });
+
+  it("extends to the box from the selection to a Shift-clicked clip (#405, CF-015)", () => {
+    // CF-015's layout: BD and track 2 each have a clip in bars 1, 2 and 3.
+    const row = [0, 1, 2].map((bar) => ({ startTicks: bar * BAR, durationTicks: BAR }));
+    const { project, trackIds, placementIds } = buildArrangementProject([row, row]);
+    const [bd, second] = placementIds;
+    // BD bar 3 selected, Shift-click track 2 bar 2: bars 2 to 3 on both tracks.
+    const band = extensionBand(clipsSelection([bd[2]]), second[1], project);
+    expect(band).toEqual({ trackIds: [...trackIds], startTicks: BAR, endTicks: 3 * BAR });
+    if (!band) throw new Error("expected a band");
+    expect(placementsTouchedBy(band, project)).toEqual([
+      bd[1],
+      bd[2],
+      second[1],
+      second[2],
+    ]);
+    // Clicking inside the selection still spans it, on its one track.
+    expect(extensionBand(clipsSelection([bd[0], bd[2]]), bd[1], project)).toEqual({
+      trackIds: [trackIds[0]],
+      startTicks: 0,
+      endTicks: 3 * BAR,
+    });
+    // Nothing selected, a point, or a clip that is gone: no box, a plain click.
+    expect(extensionBand(null, bd[0], project)).toBeNull();
+    const point = pointSelection({ trackId: trackIds[0], ticks: 0 });
+    expect(extensionBand(point, bd[0], project)).toBeNull();
+    const gone = "plc_gone" as PlacementId;
+    expect(extensionBand(clipsSelection([bd[0]]), gone, project)).toBeNull();
   });
 
   describe("reconciling against a changed project", () => {
