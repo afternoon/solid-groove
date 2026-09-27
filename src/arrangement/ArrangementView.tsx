@@ -27,6 +27,12 @@ import {
   clipsSelection,
   placementsTouchedBy,
 } from "../selection";
+import { detectPlatform } from "../shortcuts/keys";
+import {
+  type ModifierEvent,
+  pointerModifierHeld,
+  suppressModifierDefault,
+} from "../shortcuts/pointerGestures";
 import { ArrangementToolbar } from "./ArrangementToolbar";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
 import {
@@ -268,6 +274,15 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // so a jitter of a pixel or two stays a click rather than a sliver of band.
   let bandPress: { pointerId: number; x: number; y: number; moved: boolean } | null =
     null;
+  // While a clip-body drag runs, the browser is kept off the copy modifier's
+  // own key (ARR-011); this ends that, passing whether it is still held. It is
+  // kept after the drop, since a modifier still held then is guarded until its
+  // release, and called bare to let go for good (next press, or unmount).
+  let releaseCopyModifier: ((held?: boolean) => void) | null = null;
+  const platform = detectPlatform();
+  /** Whether the Alt-drag copy modifier is held, as the registry defines it. */
+  const copyHeld = (event: ModifierEvent): boolean =>
+    pointerModifierHeld("arrangement.drag_copy", event, platform);
 
   function initialViewport(): Viewport {
     return {
@@ -451,6 +466,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     // with the setup here instead of a detached `onCleanup`.
     return () => {
       props.onEditingActionsReady?.(null);
+      releaseCopyModifier?.();
     };
   });
 
@@ -608,7 +624,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (editing?.isDragging() && event.pointerId === activePointerId) {
       const { x, y } = localPoint(event);
       const { tick } = shell.pointToArrangement(x, y);
-      editing.updateDrag(tick);
+      const copy = copyHeld(event);
+      editing.updateDrag(tick, copy);
+      // The cursor says which a drop here would do: copy or move.
+      interactionCanvas.style.cursor = copy ? "copy" : "";
       return;
     }
     const { x, y } = localPoint(event);
@@ -689,6 +708,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (hit.kind === "placement") {
       const { tick } = shell.pointToArrangement(x, y);
       editing.beginDrag(hit.placementId, hit.handle, tick);
+      if (hit.handle === "body") {
+        releaseCopyModifier?.();
+        releaseCopyModifier = suppressModifierDefault("arrangement.drag_copy", window);
+      }
       activePointerId = event.pointerId;
       target.setPointerCapture?.(event.pointerId);
       bumpState();
@@ -736,8 +759,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
       (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
       return;
     }
-    if (!editing?.isDragging() || event.pointerId !== activePointerId) return;
-    editing.endDrag();
+    if (event.pointerId !== activePointerId) return;
+    // Alt is read at the drop (ARR-011). A drag Escape already cancelled has
+    // nothing left to end, but its pointer and modifier are still let go.
+    const copy = event.type !== "pointercancel" && copyHeld(event);
+    releaseCopyModifier?.(copy);
+    interactionCanvas.style.cursor = "";
+    if (editing?.isDragging()) editing.endDrag(copy);
     activePointerId = null;
     (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
     bumpState();

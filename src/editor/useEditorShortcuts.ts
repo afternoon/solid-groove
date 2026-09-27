@@ -108,6 +108,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     return null;
   };
 
+  /** Whether a clip is being dragged in the arrangement right now. */
+  const arrangementDragging = (): boolean =>
+    arrangementEditingActions()?.isDragging() ?? false;
+
   // The KEY-01 registry owns every mapping; this component only says which
   // actions exist here and what they do. An action the slice does not
   // implement yet simply has no handler and never fires.
@@ -157,14 +161,17 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
-    // is the registry's `view.close_surface`, like every other close.
+    // is the registry's `view.close_surface`, like every other close. A clip
+    // drag in flight is innermost of all: Escape cancels it (ARR-011).
     "view.close_surface": {
       run: () => {
-        if (guideOpen()) setGuideOpen(false);
+        if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
+        else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) closeLibrary();
         else closeSequenceEditor();
       },
-      isEnabled: () => guideOpen() || libraryOpen() || sequenceEditorOpen(),
+      isEnabled: () =>
+        arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen(),
     },
     // The piano roll's remaining note operations, dispatched by the registry
     // (KEY-01), not by a listener the roll owns. Each is enabled only while the
@@ -256,9 +263,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // The sequence editor is a window over the page, but deliberately not the
     // `dialog` context: the transport, the note shortcuts and the view
     // switches all keep working while a producer programs in it (`UI-001`).
-    return sequenceEditorOpen()
+    const withSequence: readonly ShortcutContext[] = sequenceEditorOpen()
       ? [...withArrangement, "sequence_editor"]
       : withArrangement;
+    return arrangementDragging() ? [...withSequence, "gesture"] : withSequence;
   };
 
   // While a modal is open it is the only active context, so nothing behind it

@@ -1128,6 +1128,35 @@ describe("EditorView keyboard shortcuts", () => {
     );
   });
 
+  it("cancels an Alt-drag with Escape before it closes anything (ARR-011)", async () => {
+    await renderSlice();
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    const at = (type: string, bar: number) => {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        altKey: true,
+        clientX: (bar - 0.5) * 768 * 0.08,
+        clientY: 22 + 28 / 2,
+      });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      fireAndFlush(() => fireEvent(canvas, event));
+    };
+    at("pointerdown", 1);
+    at("pointermove", 3);
+    expect(screen.getByRole("button", { name: /^Undo/ })).toBeDisabled();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
+    at("pointerup", 3);
+    // The drag is gone, not the sequence editor over it, and nothing changed.
+    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(screen.getByTestId("arrangement-selection-live")).toHaveTextContent(
+      "No selection",
+    );
+  });
+
   it("deletes a selected arrangement placement from the keyboard (ARR-002)", async () => {
     const project = await renderSlice();
     const placementId = project.song.placements[0].id;
