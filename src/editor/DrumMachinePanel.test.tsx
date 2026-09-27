@@ -184,9 +184,11 @@ describe("DrumMachinePanel", () => {
       expect(slider.closest(".fill-slider-track")).not.toBeNull();
       // The filled portion *is* the value, so it has a measurable extent…
       expect(fillExtent(slider)).not.toBe("");
-      // …and the live value is written out beside it.
-      const readout = slider.closest(".fill-slider")?.querySelector("output");
-      expect(readout?.textContent ?? "").not.toBe("");
+      // …and the live value is written out beside it, in its value field.
+      const readout = slider
+        .closest(".fill-slider")
+        ?.querySelector<HTMLInputElement>(".fill-slider-entry");
+      expect(readout?.value ?? "").not.toBe("");
     }
   });
 

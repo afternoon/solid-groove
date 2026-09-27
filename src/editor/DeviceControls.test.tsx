@@ -164,7 +164,7 @@ describe("deviceChoices", () => {
 
   it("reads a compressor's ratio as a ratio", () => {
     const { device } = renderDevices(["compressor"]);
-    expect(within(device(0)).getByText("4.0:1")).toBeInTheDocument();
+    expect(within(device(0)).getByDisplayValue("4.0:1")).toBeInTheDocument();
   });
 
   it("says when a control sits on a bound, and not at its factory setting", () => {

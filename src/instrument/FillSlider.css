@@ -1,44 +1,110 @@
-/* The vertical fill-slider from design mock 06c-slider: label above, live
-   value below, a thumbless accent fill track between. Fixed 48px width; sliders
-   sequence horizontally and never stack. */
+/* The hairline fader (#447, after design mock 06c-slider): the value field on
+   top, the track in the middle, the label underneath. The track is a 1px line
+   with scale ticks beside it; a 2px fill and a short bright cap mark the value.
+   Fixed 48px width; sliders sequence horizontally and never stack. */
 
 .fill-slider {
   /* A surface may shorten the track (the mixer packs more into a strip); the
 	   width is fixed by the mock and the input geometry follows both. */
   --fill-slider-track-height: 120px;
-  --fill-slider-track-width: 22px;
+  --fill-slider-track-width: 32px;
+  --fill-slider-cap-size: 3px;
 
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 48px;
-  gap: 6px;
+  gap: 8px;
 }
 
 .fill-slider-label {
   font-size: var(--font-size-tiny);
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--color-foreground);
+  color: var(--color-foreground-muted);
   white-space: nowrap;
+}
+
+/* The live value, and the place to type one. It reads as plain text until it
+   is pointed at or focused, so a bank of faders is not a bank of boxes. */
+.fill-slider-entry {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: text;
+}
+
+.fill-slider-entry:hover {
+  background: var(--color-background-tertiary);
+}
+
+.fill-slider-entry:focus {
+  background: var(--color-background);
+  outline: 1px solid var(--color-accent);
+  outline-offset: 0;
+}
+
+.fill-slider-entry[aria-invalid="true"] {
+  outline: 1px dashed var(--color-accent);
 }
 
 .fill-slider-track {
   position: relative;
   width: var(--fill-slider-track-width);
   height: var(--fill-slider-track-height);
-  background-color: var(--color-background);
-  overflow: hidden;
 }
 
-/* The filled portion IS the value, growing from the bottom. Resting sliders use
-   the muted accent; the touched (focused/hovered) one uses the bright accent. */
+/* The hairline itself, and the scale ticks beside it (ten divisions). */
+.fill-slider-track::before,
+.fill-slider-track::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.fill-slider-track::before {
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background-color: var(--color-border-strong);
+}
+
+.fill-slider-track::after {
+  left: calc(50% + 10px);
+  width: 5px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-border-strong) 0 1px,
+    transparent 1px 10%
+  );
+}
+
+/* The filled portion IS the value, growing from the bottom. */
 .fill-slider-fill {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: calc(50% - 1px);
+  width: 2px;
   bottom: 0;
-  background-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-accent-deep));
+  background-color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.fill-slider-cap {
+  position: absolute;
+  left: calc(50% - 10px);
+  width: 20px;
+  height: var(--fill-slider-cap-size);
+  background-color: var(--color-accent);
   pointer-events: none;
 }
 
@@ -112,61 +178,69 @@
   background: transparent;
 }
 
-.fill-slider-value {
-  font-size: var(--font-size-small);
-  color: var(--color-text);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
 /* The same control on its side, for a value that already reads as a left-right
-   axis (pan). Label and live value share one line and the track spans the whole
-   width beneath them: two thin rows instead of a column, and the track measures
-   the container rather than setting it — so it can never widen what holds it,
-   and the row does not reflow as "C" becomes "L100". */
+   axis (pan) or a dense row (the drum table). Label and value share one line
+   and the track spans the width beneath them, so it can never widen what holds
+   it, and the row does not reflow as "C" becomes "L100". */
 .fill-slider.horizontal {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: auto minmax(0, 1fr);
   justify-content: space-between;
   align-items: center;
   width: 100%;
   gap: 3px 6px;
 }
 
-/* Placed explicitly: the DOM order is label, track, value — the reading order
+/* Placed explicitly: the DOM order is value, track, label — the reading order
    for the vertical shape — and only the layout is rearranged here. */
 .fill-slider.horizontal .fill-slider-label {
   grid-area: 1 / 1;
 }
 
-.fill-slider.horizontal .fill-slider-value {
+.fill-slider.horizontal .fill-slider-entry {
   grid-area: 1 / 2;
   justify-self: end;
+  width: 4.5em;
+  text-align: right;
 }
 
 .fill-slider.horizontal .fill-slider-track {
   grid-area: 2 / 1 / 2 / -1;
   width: auto;
-  height: var(--fill-slider-track-thickness, 10px);
+  height: var(--fill-slider-track-thickness, 22px);
+}
+
+.fill-slider.horizontal .fill-slider-track::before {
+  inset: calc(50% - 0.5px) 0 auto;
+  width: auto;
+  height: 1px;
+}
+
+.fill-slider.horizontal .fill-slider-track::after {
+  display: none;
 }
 
 .fill-slider.horizontal .fill-slider-fill {
-  top: 0;
-  right: auto;
+  top: calc(50% - 1px);
+  bottom: auto;
+  height: 2px;
   /* A bipolar value at exact centre still shows where it is rather than
 	   vanishing; 2px reads as a tick, not as an offset. */
   min-width: 2px;
 }
 
+.fill-slider.horizontal .fill-slider-cap {
+  top: calc(50% - 6px);
+  width: var(--fill-slider-cap-size);
+  height: 12px;
+}
+
 /* Centre rest position, marked once so the pan's own fill is read against it. */
-.fill-slider.horizontal.bipolar .fill-slider-track::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 1px);
-  width: 2px;
-  background-color: var(--color-background-hover);
+.fill-slider.horizontal.bipolar .fill-slider-track::after {
+  display: block;
+  inset: 25% auto 25% calc(50% - 0.5px);
+  width: 1px;
+  background: var(--color-foreground-muted);
 }
 
 /* Horizontal is a range input's native orientation, so it needs no rotation —

@@ -27,8 +27,9 @@ import {
   formatPan,
 } from "../domain/faders";
 import type { TrackId } from "../domain/ids";
-import { TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
+import { clampParameterValue, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
+import { parseParameterInput } from "../instrument/parseValue";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MasterPanel from "./MasterPanel";
 import NewTrackButtons from "./NewTrackButtons";
@@ -542,6 +543,13 @@ function VolumeFader(props: FaderProps): JSX.Element {
       range={FADER_RANGE}
       value={position()}
       displayValue={formatDb(TRACK_VOLUME, props.value)}
+      // The field takes decibels; the fader travels in positions.
+      parseEntry={(text) => {
+        const db = parseParameterInput(TRACK_VOLUME, text, props.value);
+        return db === null
+          ? null
+          : dbToFaderPosition(TRACK_VOLUME, clampParameterValue(TRACK_VOLUME, db));
+      }}
       onInput={(value) => control.input(value)}
       onCommit={(value) => control.commit(value)}
     />

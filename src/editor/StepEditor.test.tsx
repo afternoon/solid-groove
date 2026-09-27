@@ -286,8 +286,10 @@ describe("StepEditor", () => {
     const velocity = screen.getByRole("slider", { name: "Velocity" }) as HTMLInputElement;
     expect(velocity.closest(".fill-slider-track")).not.toBeNull();
     expect(fillExtent(velocity)).not.toBe("");
-    const readout = velocity.closest(".fill-slider")?.querySelector("output");
-    expect(readout?.textContent ?? "").not.toBe("");
+    const readout = velocity
+      .closest(".fill-slider")
+      ?.querySelector<HTMLInputElement>(".fill-slider-entry");
+    expect(readout?.value ?? "").not.toBe("");
   });
 
   it("runs one velocity drag as one history entry and one revision (#255)", () => {

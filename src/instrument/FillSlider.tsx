@@ -2,6 +2,7 @@ import type { JSX } from "@solidjs/web";
 import { createMemo } from "solid-js";
 import { clampParameterValue, type ParameterDefinition } from "../domain/parameters";
 import "./FillSlider.css";
+import { parseParameterInput } from "./parseValue";
 
 /**
  * The coordinate space a slider moves in, when that differs from the
@@ -17,7 +18,10 @@ export interface FillSliderRange {
 export interface FillSliderProps {
   readonly definition: ParameterDefinition;
   readonly value: number;
-  /** Formatted live value shown under the slider (e.g. "760 Hz"). */
+  /**
+   * Formatted live value (e.g. "760 Hz"). It is shown in the slider's value
+   * field, which also takes a typed value (#447).
+   */
   readonly displayValue: string;
   /** Called with a coerced, in-range value while dragging. */
   onInput(value: number): void;
@@ -50,6 +54,13 @@ export interface FillSliderProps {
    * filled from the left would read "half loud" at centre.
    */
   readonly bipolar?: boolean;
+  /**
+   * Reads a typed value into the slider's own coordinate space, or null when
+   * it is not a value. Only needed when `range` is a different space from the
+   * parameter (a volume fader's positions); otherwise the text is read in the
+   * parameter's own unit.
+   */
+  readonly parseEntry?: (text: string) => number | null;
 }
 
 /**
@@ -82,6 +93,12 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
 
   const horizontal = () => props.orientation === "horizontal";
 
+  /** Where the cap sits: the value's end of the fill, as a percentage. */
+  const capStyle = createMemo((): JSX.CSSProperties => {
+    const at = `calc((100% - var(--fill-slider-cap-size)) * ${fillPercent() / 100})`;
+    return horizontal() ? { left: at } : { bottom: at };
+  });
+
   /**
    * Where the accent is painted. A unipolar slider fills from the start of the
    * track to the value; a bipolar one fills from the centre out to it, in
@@ -97,6 +114,37 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     return { left: `${from}%`, width: `${to - from}%` };
   });
 
+  let entry: HTMLInputElement | undefined;
+
+  /** Puts the field back to the live value, discarding what was typed. */
+  const revert = () => {
+    if (entry) entry.value = props.displayValue;
+  };
+
+  /**
+   * Lands a typed value as one edit: the same `input` then `commit` a drag
+   * ends with, so it is one history entry. Anything unreadable is refused and
+   * the field shows the live value again.
+   */
+  const commitEntry = () => {
+    if (!entry) return;
+    const typed = entry.value;
+    if (typed.trim() === props.displayValue) return;
+    const parsed = props.parseEntry
+      ? props.parseEntry(typed)
+      : parseParameterInput(props.definition, typed, props.value);
+    if (parsed === null) {
+      entry.setAttribute("aria-invalid", "true");
+      revert();
+      return;
+    }
+    entry.removeAttribute("aria-invalid");
+    const value = coerce(parsed);
+    props.onInput(value);
+    props.onCommit(value);
+    revert();
+  };
+
   const coerce = (raw: number): number => {
     const range = props.range;
     if (!range) return clampParameterValue(props.definition, raw);
@@ -111,11 +159,28 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
         { horizontal: horizontal(), bipolar: props.bipolar === true },
       ]}
     >
-      <label class="fill-slider-label" for={id()}>
-        {props.label ?? props.definition.label}
-      </label>
+      <input
+        ref={entry}
+        class="fill-slider-entry"
+        type="text"
+        inputmode="decimal"
+        spellcheck={false}
+        autocomplete="off"
+        aria-label={`${props.ariaLabel ?? props.label ?? props.definition.label} value`}
+        value={props.displayValue}
+        onFocus={(event) => event.currentTarget.select()}
+        // Enter fires `change` in a text field, as leaving it does, so both
+        // commit. Keys are otherwise left alone: key handling lives in
+        // src/shortcuts, and the slider beside this field owns the arrows.
+        onChange={(event) => {
+          commitEntry();
+          if (document.activeElement === event.currentTarget)
+            event.currentTarget.select();
+        }}
+      />
       <div class="fill-slider-track">
         <div class="fill-slider-fill" style={fillStyle()} aria-hidden="true" />
+        <div class="fill-slider-cap" style={capStyle()} aria-hidden="true" />
         <input
           id={id()}
           class="fill-slider-input"
@@ -148,9 +213,9 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           }
         />
       </div>
-      <output class="fill-slider-value" for={id()}>
-        {props.displayValue}
-      </output>
+      <label class="fill-slider-label" for={id()}>
+        {props.label ?? props.definition.label}
+      </label>
     </div>
   );
 }
