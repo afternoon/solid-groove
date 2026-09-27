@@ -51,18 +51,14 @@ const devices = (page: Page): Locator =>
   chainPanel(page).getByRole("list", { name: "Device chain" }).getByRole("listitem");
 
 /**
- * Adds a device from the six registered types. As in CF-007, the flow does not
- * dictate whether the offer is a menu, a listbox or a row of buttons.
+ * Adds a device from the six registered types: one add button per type after
+ * the chain, the unit the arrangement uses to add a track (changed from an
+ * "Add device" button and a picker at the product owner's request on #241).
  */
 async function addDevice(page: Page, label: string): Promise<void> {
   await chainPanel(page)
-    .getByRole("button", { name: /^Add device/i })
-    .click();
-  await page
-    .getByRole("menuitem", { name: label })
-    .or(page.getByRole("option", { name: label }))
-    .or(page.getByRole("button", { name: label, exact: true }))
-    .first()
+    .getByRole("group", { name: "Add device" })
+    .getByRole("button", { name: `Add ${label.toLowerCase()} device` })
     .click();
 }
 

@@ -36,27 +36,23 @@ const devices = (page: Page): Locator =>
 /** Adds a device from the six registered types — see CF-012. */
 async function addDevice(page: Page, label: string): Promise<void> {
   await chainPanel(page)
-    .getByRole("button", { name: /^Add device/i })
-    .click();
-  await page
-    .getByRole("menuitem", { name: label })
-    .or(page.getByRole("option", { name: label }))
-    .or(page.getByRole("button", { name: label, exact: true }))
-    .first()
+    .getByRole("group", { name: "Add device" })
+    .getByRole("button", { name: `Add ${label.toLowerCase()} device` })
     .click();
 }
 
 /**
  * A device's own actions, found inside that device's entry so two reverbs are
  * never confused. Bypass is a toggle button, like a strip's Mute and Solo, so
- * its state is `aria-pressed`. Reordering takes a button so it is reachable
- * without a drag; the flow does not dictate whether the chain runs across or
- * down, so "earlier", "up" and "left" all satisfy it.
+ * its state is `aria-pressed`. Reordering is a drag from a card's header onto
+ * the card whose place it takes (changed from earlier/later buttons at the
+ * product owner's request on #241; the keyboard way is Alt/Option+Up/Down on
+ * the device's name, covered at the component layer).
  */
 const bypass = (device: Locator): Locator =>
   device.getByRole("button", { name: /^Bypass/ });
-const moveEarlier = (device: Locator): Locator =>
-  device.getByRole("button", { name: /^Move .*(earlier|up|left)/i });
+const dragOnto = (device: Locator, target: Locator): Promise<void> =>
+  device.locator("header").dragTo(target.locator("header"));
 const action = (device: Locator, name: "Duplicate" | "Reset" | "Remove"): Locator =>
   device.getByRole("button", { name: new RegExp(`^${name}`) });
 
@@ -122,7 +118,7 @@ test.describe("CF-013", () => {
 
     // 3. While it plays, move the reverb before the overdrive. The chain now
     //    reads reverb, then overdrive, and playback never drops out.
-    await moveEarlier(devices(page).nth(1)).click();
+    await dragOnto(devices(page).nth(1), devices(page).nth(0));
     await expect(devices(page)).toHaveText([/Reverb/, /Overdrive/]);
     await stillPlaying();
     await step("Move the reverb before the overdrive, still playing");
