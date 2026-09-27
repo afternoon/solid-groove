@@ -500,6 +500,42 @@ describe("ProjectAudioGraph", () => {
     await runtime.close();
   });
 
+  it("hands a sampler's decoded sound to a waveform watcher, without decoding it again (#447)", async () => {
+    const project = createSliceFixtureProject();
+    const { loader, pending } = manualBufferLoader();
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport: fakeTransport(),
+      bufferLoader: loader,
+    });
+    const projection = buildAudioProjection(project);
+    graph.reconcile(projection);
+
+    const received: (Float32Array | null)[] = [];
+    const watch = graph.watchAssetPeaks(projection.assets[0], 2, (peaks) =>
+      received.push(peaks),
+    );
+    const decoded = {
+      dispose: () => {},
+      numberOfChannels: 1,
+      getChannelData: () => Float32Array.from([0.5, -0.25, 0.1, 0]),
+    } as unknown as import("tone").ToneAudioBuffer;
+    pending[0].resolve(decoded);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // One decode serves both the sampler and the drawing.
+    expect(pending).toHaveLength(1);
+    expect(received.at(-1) && Array.from(received.at(-1) as Float32Array)).toEqual([
+      1,
+      expect.closeTo(0.2, 5),
+    ]);
+
+    watch.release();
+    await graph.dispose();
+    await runtime.close();
+  });
+
   it("swapping a track's instrument asset releases the old buffer subscription and attaches the new one", async () => {
     const project = createSliceFixtureProject();
     const { loader, pending } = manualBufferLoader();
