@@ -112,94 +112,91 @@ async function expectOnlyBarOne(page: Page): Promise<void> {
 }
 
 test.describe("CF-015", () => {
-  // `test.fixme` until #405 lands: the PR that closes it removes this marker in
-  // the same diff that makes the flow pass.
-  test.fixme(
-    "a producer picks out several clips with the keyboard held down",
-    async ({ page }) => {
-      const step = walkthrough(page, {
-        id: "CF-015",
-        title: "A producer picks out several clips with the keyboard held down",
-      });
+  test("a producer picks out several clips with the keyboard held down", async ({
+    page,
+  }) => {
+    const step = walkthrough(page, {
+      id: "CF-015",
+      title: "A producer picks out several clips with the keyboard held down",
+    });
 
-      // 1. Create a new project, duplicate the "BD" clip twice, add a sampler
-      //    track, and duplicate its clip twice, so "BD" and "Sampler" each
-      //    have clips in bars 1, 2 and 3.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await page.getByTestId("arrangement-view-ready").waitFor();
+    // 1. Create a new project, duplicate the "BD" clip twice, add a sampler
+    //    track, and duplicate its clip twice, so "BD" and "Sampler" each
+    //    have clips in bars 1, 2 and 3.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    const projectUrl = page.url();
+    await page.getByTestId("arrangement-view-ready").waitFor();
 
-      await duplicateClip(page, 0, 1);
-      await duplicateClip(page, 0, 2);
-      await page.getByRole("button", { name: "Add sampler track" }).click();
-      await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
-      await duplicateClip(page, 1, 1);
-      await duplicateClip(page, 1, 2);
-      await clickBar(page, 0, 3);
-      await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
-      await clickBar(page, 1, 3);
-      await expect(announcement(page)).toHaveText("Selected clip on Sampler, bar 3");
-      await step("BD and Sampler each have clips in bars 1, 2 and 3");
+    await duplicateClip(page, 0, 1);
+    await duplicateClip(page, 0, 2);
+    await page.getByRole("button", { name: "Add sampler track" }).click();
+    await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
+    await duplicateClip(page, 1, 1);
+    await duplicateClip(page, 1, 2);
+    await clickBar(page, 0, 3);
+    await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
+    await clickBar(page, 1, 3);
+    await expect(announcement(page)).toHaveText("Selected clip on Sampler, bar 3");
+    await step("BD and Sampler each have clips in bars 1, 2 and 3");
 
-      // 2. Click the "BD" clip in bar 1. It alone is selected, and the
-      //    arrangement announces "Selected clip on BD, bar 1".
-      await clickBar(page, 0, 1);
-      await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
-      await step("Click the BD clip in bar 1: it alone is selected");
+    // 2. Click the "BD" clip in bar 1. It alone is selected, and the
+    //    arrangement announces "Selected clip on BD, bar 1".
+    await clickBar(page, 0, 1);
+    await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
+    await step("Click the BD clip in bar 1: it alone is selected");
 
-      // 3. Hold Cmd (Ctrl on Windows and Linux) and click the "BD" clip in
-      //    bar 3. It joins the selection without replacing it, and the
-      //    arrangement announces "2 clips selected". The "BD" clip in bar 2,
-      //    between them, is not selected.
-      await clickBar(page, 0, 3, "ControlOrMeta");
-      // Two, not three: Cmd-click adds one clip, it does not fill the gap.
-      await expect(announcement(page)).toHaveText("2 clips selected");
-      await step("Cmd-click the BD clip in bar 3: it joins the selection");
+    // 3. Hold Cmd (Ctrl on Windows and Linux) and click the "BD" clip in
+    //    bar 3. It joins the selection without replacing it, and the
+    //    arrangement announces "2 clips selected". The "BD" clip in bar 2,
+    //    between them, is not selected.
+    await clickBar(page, 0, 3, "ControlOrMeta");
+    // Two, not three: Cmd-click adds one clip, it does not fill the gap.
+    await expect(announcement(page)).toHaveText("2 clips selected");
+    await step("Cmd-click the BD clip in bar 3: it joins the selection");
 
-      // 4. Hold Cmd and click the "BD" clip in bar 1 again. It leaves the
-      //    selection, and the arrangement announces "Selected clip on BD,
-      //    bar 3".
-      await clickBar(page, 0, 1, "ControlOrMeta");
-      await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
-      await step("Cmd-click the BD clip in bar 1 again: it leaves the selection");
+    // 4. Hold Cmd and click the "BD" clip in bar 1 again. It leaves the
+    //    selection, and the arrangement announces "Selected clip on BD,
+    //    bar 3".
+    await clickBar(page, 0, 1, "ControlOrMeta");
+    await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
+    await step("Cmd-click the BD clip in bar 1 again: it leaves the selection");
 
-      // 5. Hold Shift and click the "Sampler" clip in bar 2. The selection
-      //    grows to every clip in the box from what was selected to the clip
-      //    you clicked, across both tracks: the clips in bars 2 and 3 on "BD"
-      //    and on "Sampler". The arrangement announces "4 clips selected". The
-      //    clips in bar 1 on both tracks are not selected.
-      await clickBar(page, 1, 2, "Shift");
-      // Four, not six: the box runs from bar 2 to bar 3, so bar 1 stays out.
-      await expect(announcement(page)).toHaveText("4 clips selected");
-      await step("Shift-click the Sampler clip in bar 2: bars 2 and 3 on both tracks");
+    // 5. Hold Shift and click the "Sampler" clip in bar 2. The selection
+    //    grows to every clip in the box from what was selected to the clip
+    //    you clicked, across both tracks: the clips in bars 2 and 3 on "BD"
+    //    and on "Sampler". The arrangement announces "4 clips selected". The
+    //    clips in bar 1 on both tracks are not selected.
+    await clickBar(page, 1, 2, "Shift");
+    // Four, not six: the box runs from bar 2 to bar 3, so bar 1 stays out.
+    await expect(announcement(page)).toHaveText("4 clips selected");
+    await step("Shift-click the Sampler clip in bar 2: bars 2 and 3 on both tracks");
 
-      // 6. Press Delete. The four selected clips are gone, whole, and the
-      //    clips in bar 1 on both tracks are untouched.
-      await page.keyboard.press("Delete");
-      await expectOnlyBarOne(page);
-      await step("Press Delete: the four clips are gone; bar 1 is untouched");
+    // 6. Press Delete. The four selected clips are gone, whole, and the
+    //    clips in bar 1 on both tracks are untouched.
+    await page.keyboard.press("Delete");
+    await expectOnlyBarOne(page);
+    await step("Press Delete: the four clips are gone; bar 1 is untouched");
 
-      // 7. Reload the page.
-      //
-      // Not a step of the flow. The promise after the reload only means
-      // something once the delete has been written, and the save status is
-      // how the editor reports that a revision-checked write completed.
-      await expect(page.locator(".save-status")).toHaveText("Saved", {
-        timeout: 10_000,
-      });
-      await page.reload();
+    // 7. Reload the page.
+    //
+    // Not a step of the flow. The promise after the reload only means
+    // something once the delete has been written, and the save status is
+    // how the editor reports that a revision-checked write completed.
+    await expect(page.locator(".save-status")).toHaveText("Saved", {
+      timeout: 10_000,
+    });
+    await page.reload();
 
-      // 8. The project reopens exactly as step 6 left it: "BD" and "Sampler"
-      //    each have only their clip in bar 1, and nothing is selected.
-      await expect(page).toHaveURL(projectUrl);
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
-      await expect(announcement(page)).toHaveText("No selection");
-      await expectOnlyBarOne(page);
-      await step("Reopened exactly as the delete left it");
-    },
-  );
+    // 8. The project reopens exactly as step 6 left it: "BD" and "Sampler"
+    //    each have only their clip in bar 1, and nothing is selected.
+    await expect(page).toHaveURL(projectUrl);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
+    await expect(announcement(page)).toHaveText("No selection");
+    await expectOnlyBarOne(page);
+    await step("Reopened exactly as the delete left it");
+  });
 });
