@@ -156,7 +156,7 @@ test.describe("CF-002", () => {
     // 7. Select the loop's bar range in the arrangement.
     await page.getByRole("button", { name: "Select Hats" }).click();
     await expect(page.getByTestId("arrangement-selection-live")).toContainText(
-      "bars 1 to 1",
+      "Selected clip on Hats, bar 1",
     );
     await step("Select the loop's bar range in the arrangement");
 
