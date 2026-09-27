@@ -504,8 +504,7 @@ describe("Mixer master strip", () => {
   it("adds to the master chain through the device commands, as one entry", () => {
     const { history, transport } = renderMixer();
 
-    clickAndFlush(screen.getByRole("button", { name: /^Add device/ }));
-    clickAndFlush(screen.getByRole("menuitem", { name: "Overdrive" }));
+    clickAndFlush(screen.getByRole("button", { name: "Add overdrive device" }));
 
     expect(history.project.song.master.devices.map((d) => d.type)).toEqual(["overdrive"]);
     expect(history.entries).toHaveLength(1);

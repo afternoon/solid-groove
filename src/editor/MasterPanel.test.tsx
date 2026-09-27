@@ -62,11 +62,11 @@ const chainList = () => screen.getByRole("list", { name: "Master chain" });
 const chainItems = () => within(chainList()).queryAllByRole("listitem");
 
 const click = (element: HTMLElement) => fireAndFlush(() => fireEvent.click(element));
-const openAddMenu = () => click(screen.getByRole("button", { name: /^Add device/i }));
+const addButtons = () =>
+  within(screen.getByRole("group", { name: "Add device" })).getAllByRole("button");
 
 function addDeviceNamed(label: string): void {
-  openAddMenu();
-  click(screen.getByRole("menuitem", { name: label }));
+  click(screen.getByRole("button", { name: `Add ${label.toLowerCase()} device` }));
 }
 
 describe("MasterPanel", () => {
@@ -78,8 +78,8 @@ describe("MasterPanel", () => {
 
   it("offers every registered device type, by its registry definition", () => {
     renderPanel();
-    openAddMenu();
-    const offered = screen.getAllByRole("menuitem").map((item) => item.textContent ?? "");
+    // One button per type, no menu to open first: the type is the click.
+    const offered = addButtons().map((button) => button.textContent ?? "");
     // The registry's own labels in its own order, not a list copied into the
     // component: a seventh type is offered here with no edit to the panel.
     expect(offered).toEqual(deviceTypes().map((definition) => definition.label));
