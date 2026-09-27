@@ -166,6 +166,7 @@ describe("DeviceCard faceplate (#447)", () => {
   it("draws a filter's response in a well, and sets cutoff and resonance from it", () => {
     const { card, devices, history } = renderChain(["filter", "compressor"]);
     expect(card(1).queryByText(/drag the point/)).toBeNull();
+    expect(card(1).getByText("Curve")).toBeInTheDocument();
     const surface = screen
       .getAllByRole("listitem")[0]
       .querySelector(".filter-well .drag-surface") as HTMLElement;
@@ -205,5 +206,43 @@ describe("DeviceCard shaping and space wells (#447)", () => {
     );
     expect(devices()[0].parameters.tone).toBeCloseTo(0.25);
     expect(devices()[0].parameters.drive).toBeCloseTo(0.8);
+  });
+});
+
+describe("DeviceCard dynamics and time wells (#447)", () => {
+  const surfaceOf = (index: number, well: string) => {
+    const surface = screen
+      .getAllByRole("listitem")
+      [index].querySelector(`.${well} .drag-surface`) as HTMLElement;
+    surface.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }) as DOMRect;
+    return (x: number, y: number) =>
+      fireAndFlush(() =>
+        surface.dispatchEvent(
+          new MouseEvent("pointerdown", { bubbles: true, clientX: x, clientY: y }),
+        ),
+      );
+  };
+
+  it("sets a compressor's threshold from its knee and its ratio from the curve's end", () => {
+    const { devices } = renderChain(["compressor"]);
+    const press = surfaceOf(0, "compressor-well");
+    // The default knee sits at -24 dB in: press near it, further left.
+    press(80, 60);
+    expect(devices()[0].parameters.threshold).toBeCloseTo(-36);
+
+    // Pressing the right edge at the height of -18 dB out (makeup 0) gives
+    // (0 - -36) / (-18 - -36) = 2:1.
+    press(200, 100 * (1 - (-18 + 60) / 84));
+    expect(devices()[0].parameters.ratio).toBeCloseTo(2);
+  });
+
+  it("snaps a synced delay's echo to the nearest division, and sets feedback", () => {
+    const { devices } = renderChain(["delay"]);
+    const press = surfaceOf(0, "delay-well");
+    // At 120 BPM a quarter note is 0.5 s: a quarter of the 2 s window.
+    press(50, 50);
+    expect(devices()[0].parameters.division).toBe(5);
+    expect(devices()[0].parameters.feedback).toBeCloseTo(0.495, 2);
   });
 });

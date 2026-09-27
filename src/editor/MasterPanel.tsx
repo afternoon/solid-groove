@@ -49,6 +49,7 @@ export default function MasterPanel(props: MasterPanelProps): JSX.Element {
       chain={masterChain}
       devices={props.project.song.master.devices}
       labels={LABELS}
+      tempo={props.project.song.tempo}
       dispatch={props.dispatch}
       beginGesture={props.beginGesture}
       analytics={props.analytics}
