@@ -199,6 +199,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
   const [stateVersion, setStateVersion] = createSignal(0);
 
   let scrollEl!: HTMLDivElement;
+  let spacerEl: HTMLDivElement | undefined;
   let headerListEl!: HTMLUListElement;
   let backgroundCanvas!: HTMLCanvasElement;
   let contentCanvas!: HTMLCanvasElement;
@@ -449,25 +450,20 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (!shell) return;
     const port = shell.getViewport();
     const proj = projection();
-    const logicalWidth = proj.lengthTicks * port.pixelsPerTick;
+    const logicalWidth = shell.contentLengthTicks() * port.pixelsPerTick;
     const logicalHeight =
       (proj.rowOffsets[proj.rowOffsets.length - 1] ?? 0) +
       RULER_HEIGHT_PX +
       BELOW_TRACKS_CLEARANCE_PX;
-    if (scrollEl) {
-      spacerWidth = Math.max(logicalWidth, port.width);
-      spacerHeight = Math.max(logicalHeight, port.height);
-      setSpacerSignal((value) => value + 1);
+    // Written straight onto the element rather than through a signal: a zoom
+    // sets the native `scrollLeft` right after this, and the browser clamps it
+    // to the spacer's size at that instant. A reactive write would land after
+    // the clamp, so zooming onto a span past the old width would snap back.
+    if (spacerEl) {
+      spacerEl.style.width = `${Math.max(logicalWidth, port.width)}px`;
+      spacerEl.style.height = `${Math.max(logicalHeight, port.height)}px`;
     }
   }
-
-  let spacerWidth = 0;
-  let spacerHeight = 0;
-  const [spacerSignal, setSpacerSignal] = createSignal(0);
-  const spacerStyle = createMemo(() => {
-    spacerSignal();
-    return { width: `${spacerWidth}px`, height: `${spacerHeight}px` };
-  });
 
   // --- Native scroll → shell (scrollbar synchronization) --------------------
   function handleScroll(): void {
@@ -826,7 +822,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
           {/* Logical-size spacer: gives the native scroll container real,
 					    browser-native scrollbars over the whole arrangement, while
 					    the canvases below stay viewport-sized and sticky. */}
-          <div class="arrangement-spacer" style={spacerStyle()} />
+          <div class="arrangement-spacer" ref={spacerEl} />
           {/* Not blocked, and — since ADR 0003 — deliberately recorded. Canvas
 					    capture is on, so clip blocks, notes, waveforms, and the section
 					    names drawn here all reach the payload. That is the decision, not

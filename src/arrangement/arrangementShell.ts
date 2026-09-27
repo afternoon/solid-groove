@@ -109,6 +109,10 @@ export function createArrangementShell(
   let playheadTicks = 0;
   let hoverPlacementId: PlacementId | null = null;
   let playheadFollow = true;
+  // The furthest tick a zoom has framed. The timeline can scroll to here even
+  // when it is past the end of the song, so a range that runs beyond the last
+  // clip can still be shown edge to edge (#292, CF-011).
+  let framedExtentTicks = 0;
 
   const dirty = new Set<DirtyLayer>();
 
@@ -130,11 +134,13 @@ export function createArrangementShell(
     return offsets[offsets.length - 1] ?? 0;
   }
 
+  /** How far the timeline runs: the song, or further if a zoom framed more. */
+  function contentLengthTicks(): number {
+    return Math.max(getProjection().lengthTicks, framedExtentTicks);
+  }
+
   function maxScrollLeft(): number {
-    return Math.max(
-      0,
-      getProjection().lengthTicks * viewport.pixelsPerTick - viewport.width,
-    );
+    return Math.max(0, contentLengthTicks() * viewport.pixelsPerTick - viewport.width);
   }
 
   function maxScrollTop(): number {
@@ -225,22 +231,27 @@ export function createArrangementShell(
   }
 
   /**
-   * Fit the current bar-range selection to the viewport (KEY-01
-   * `view.zoom_to_selection`). Chooses the zoom that makes the selection span
-   * the viewport width, then scrolls its start to the left edge.
+   * Frame `[startTicks, endTicks)` exactly: the zoom that makes it span the
+   * viewport width, scrolled so it starts at the left edge (KEY-01
+   * `view.zoom_to_selection`). A span wider or narrower than the zoom limits
+   * allow is framed as closely as they permit, from its start.
    */
-  function zoomToSelection(): void {
-    if (!selection) return;
-    const spanTicks = Math.max(1, selection.endTick - selection.startTick);
-    const target = viewport.width / (spanTicks * viewport.pixelsPerTick);
+  function zoomToSpan(startTicks: number, endTicks: number): void {
+    const spanTicks = Math.max(1, endTicks - startTicks);
     const nextPixelsPerTick = Math.max(
       config.minPixelsPerTick,
-      Math.min(config.maxPixelsPerTick, viewport.pixelsPerTick * target),
+      Math.min(config.maxPixelsPerTick, viewport.width / spanTicks),
     );
+    framedExtentTicks = Math.max(framedExtentTicks, endTicks);
     setViewport({ ...viewport, pixelsPerTick: nextPixelsPerTick });
-    const scrollLeft = clampScrollLeft(selection.startTick * nextPixelsPerTick);
+    const scrollLeft = clampScrollLeft(startTicks * nextPixelsPerTick);
     setViewport({ ...viewport, scrollLeft });
     markDirty("background", "content", "interaction");
+  }
+
+  /** Fit the current bar-range selection to the viewport. */
+  function zoomToSelection(): void {
+    if (selection) zoomToSpan(selection.startTick, selection.endTick);
   }
 
   /** Scroll horizontally so the playhead is in view (KEY-01 follow / the
@@ -374,7 +385,9 @@ export function createArrangementShell(
     zoomAt,
     zoomIn,
     zoomOut,
+    zoomToSpan,
     zoomToSelection,
+    contentLengthTicks,
     scrollToPlayhead,
     seekTo,
     setPlayheadFollow,
