@@ -1,6 +1,7 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import {
   createControlGesture,
+  type DeviceChainTarget,
   type Gesture,
   type GestureOptions,
   type RawCommandInput,
@@ -9,16 +10,21 @@ import {
 } from "../commands";
 import { deviceParameters } from "../domain/devices";
 import type { Device } from "../domain/entities";
-import type { TrackId } from "../domain/ids";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
-import { formatInstrumentValue } from "../instrument/formatValue";
 import OptionGroup from "../instrument/OptionGroup";
-import { deviceChoices, readDeviceParameter } from "./deviceControlModel";
+import {
+  deviceChoices,
+  deviceExtremeLabel,
+  deviceParameterTarget,
+  formatDeviceValue,
+  readDeviceParameter,
+} from "./deviceControlModel";
 import "./DeviceControls.css";
 
 export interface DeviceControlsProps {
-  readonly trackId: TrackId;
+  /** The chain the device is in, which decides its parameters' address. */
+  readonly chain: DeviceChainTarget;
   readonly device: Device;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
@@ -30,8 +36,9 @@ export interface DeviceControlsProps {
  * One insert device's own controls, built from its parameter definitions
  * (PRD FX-01: "musically relevant controls, not a preset picker").
  *
- * Every control writes through `parameter.set` in the `trackDevice` scope, the
- * same shared command an instrument slider uses, so a device edit is
+ * Every control writes through `parameter.set` — `trackDevice` for a track's
+ * inserts, `masterDevice` for the master's — the same shared command an
+ * instrument slider uses, so a device edit is
  * validated, clamped by its definition, undoable and saved like any other. A
  * slider drag is one gesture (`createControlGesture`): it applies live, so the
  * fill and the audio follow the pointer, and the release commits the whole
@@ -44,12 +51,7 @@ export interface DeviceControlsProps {
 export default function DeviceControls(props: DeviceControlsProps): JSX.Element {
   const command = (definition: ParameterDefinition, value: number) =>
     setParameter(
-      {
-        scope: "trackDevice",
-        trackId: props.trackId,
-        deviceId: props.device.id,
-        parameterId: bareParameterId(definition.id),
-      },
+      deviceParameterTarget(props.chain, props.device.id, bareParameterId(definition.id)),
       value,
     );
   const key = (definition: ParameterDefinition) =>
@@ -114,13 +116,18 @@ function DeviceSlider(props: {
     command: (next) => props.command(next),
   });
   return (
-    <FillSlider
-      definition={props.definition}
-      value={props.value}
-      inputId={props.inputId}
-      displayValue={formatInstrumentValue(props.definition, props.value)}
-      onInput={(next) => control.input(next)}
-      onCommit={(next) => control.commit(next)}
-    />
+    <div class="device-control">
+      <FillSlider
+        definition={props.definition}
+        value={props.value}
+        inputId={props.inputId}
+        displayValue={formatDeviceValue(props.definition, props.value)}
+        onInput={(next) => control.input(next)}
+        onCommit={(next) => control.commit(next)}
+      />
+      <Show when={deviceExtremeLabel(props.definition, props.value)}>
+        {(label) => <span class="device-control-extreme">{label()}</span>}
+      </Show>
+    </div>
   );
 }
