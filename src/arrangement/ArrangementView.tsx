@@ -34,6 +34,7 @@ import {
   type InteractionState,
   RULER_HEIGHT_PX,
 } from "./canvasRenderer";
+import { clipClickGesture } from "./clipClickGesture";
 import type { RowMetrics, Viewport } from "./geometry";
 import { LoopBraceControls } from "./LoopBraceControls";
 import {
@@ -675,7 +676,16 @@ export default function ArrangementView(props: ArrangementViewProps) {
     const target = event.currentTarget as Element;
 
     // A press on a clip selects it and starts a drag that moves or resizes it.
+    // With Cmd/Ctrl or Shift held it only changes the selection (#405).
     const hit = shell.hitTestAt(x, y);
+    const gesture = clipClickGesture(event);
+    if (hit.kind === "placement" && gesture !== "replace") {
+      if (gesture === "toggle") editing.toggleClip(hit.placementId);
+      else editing.extendTo(hit.placementId);
+      bumpState();
+      noteFirstUse();
+      return;
+    }
     if (hit.kind === "placement") {
       const { tick } = shell.pointToArrangement(x, y);
       editing.beginDrag(hit.placementId, hit.handle, tick);
