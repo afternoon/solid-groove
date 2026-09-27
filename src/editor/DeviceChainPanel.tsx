@@ -4,6 +4,7 @@ import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import {
   addDevice,
+  type DeviceChainTarget,
   type Gesture,
   type GestureOptions,
   insertChain,
@@ -12,7 +13,7 @@ import {
   type TransactionResult,
 } from "../commands";
 import { createDevice, type DeviceTypeId, deviceTypes } from "../domain/devices";
-import type { Track } from "../domain/entities";
+import type { Device, Track } from "../domain/entities";
 import { createIdFactory, type DeviceId, type IdFactory } from "../domain/ids";
 import { MAX_TRACK_INSERTS } from "../domain/parse";
 import type { ShortcutHandlers } from "../shortcuts/ShortcutController";
@@ -21,9 +22,27 @@ import DeviceCard from "./DeviceCard";
 import "./NewTrackButtons.css";
 import "./DeviceChainPanel.css";
 
-export interface DeviceChainPanelProps {
-  /** The selected track (#240): the panel has no selection of its own. */
-  readonly track: Track;
+/** What a chain is called, to a screen reader and on screen. */
+export interface DeviceChainLabels {
+  /** The panel's region. */
+  readonly region: string;
+  readonly heading: string;
+  /** The ordered list of devices. */
+  readonly list: string;
+  /** Shown while the chain is empty. */
+  readonly empty: string;
+}
+
+export interface DeviceChainProps {
+  /** Which chain this is: the address every `device.*` command carries. */
+  readonly chain: DeviceChainTarget;
+  readonly devices: readonly Device[];
+  readonly labels: DeviceChainLabels;
+  /**
+   * The most devices the chain may hold, and what to say once it does. Adding
+   * and duplicating stop there. A chain the domain does not bound has none.
+   */
+  readonly limit?: { readonly count: number; readonly note: string };
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -44,8 +63,10 @@ const NOT_A_HANDLE =
   "button:not(.device-card-grip), input, select, textarea, label, [role='slider'], [role='radio']";
 
 /**
- * The selected track's insert chain (#241, PRD FX-01), in the slot UI-001
- * reserved for it in the Instrument view.
+ * One device chain (PRD FX-01): a track's inserts (#241, `DeviceChainPanel`)
+ * or the master's (#283, `MasterPanel`). Both chains are this one component,
+ * so they add, edit, reorder and report exactly alike; only their address,
+ * their names and whether they are bounded differ.
  *
  * The chain is a named, ordered list, in signal order, each entry a
  * `DeviceCard`. Below the last device sits one add button per registered
@@ -54,9 +75,9 @@ const NOT_A_HANDLE =
  * rather than a picker opened first. Each appends one fully defaulted device
  * through `device.add`: one transaction, one undo,
  * one save, and one `device_added` — plus the account's first
- * `feature_first_use` for `device_chain`. A track holds at most
- * `MAX_TRACK_INSERTS` inserts, so adding and duplicating stop there rather
- * than offering a command the domain will refuse.
+ * `feature_first_use` for `device_chain`. A bounded chain stops adding and
+ * duplicating at its `limit` rather than offering a command the domain will
+ * refuse.
  *
  * Reordering is a drag from a card's header or background into a slot above
  * or below another card — the chain previews the new order while the card is
@@ -70,11 +91,11 @@ const NOT_A_HANDLE =
  * produces a new device object, and a card rebuilt under a live drag would
  * lose the very slider the pointer is moving.
  */
-export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Element {
+export function DeviceChain(props: DeviceChainProps): JSX.Element {
   const ids = () => props.ids ?? defaultIds;
   const analytics = () => props.analytics ?? defaultAnalytics;
-  const devices = () => [...props.track.devices].sort((a, b) => a.order - b.order);
-  const full = () => devices().length >= MAX_TRACK_INSERTS;
+  const devices = () => [...props.devices].sort((a, b) => a.order - b.order);
+  const full = () => props.limit !== undefined && devices().length >= props.limit.count;
   // The drag's source and where it would land, read by the events that follow
   // `dragstart` within the same gesture: plain variables, because a signal
   // write is not readable until the next flush. The signals mirror them for
@@ -121,7 +142,7 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
   const [focused, setFocused] = createSignal<DeviceId | null>(null);
 
   function move(id: DeviceId, to: number): void {
-    props.dispatch(reorderDevice(insertChain(props.track.id), id, to));
+    props.dispatch(reorderDevice(props.chain, id, to));
   }
 
   /** The focused device's index, and whether it can go `step` places. */
@@ -159,21 +180,21 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
 
   function add(type: DeviceTypeId): void {
     const device = createDevice(ids()("device"), type, devices().length);
-    const result = props.dispatch(addDevice(insertChain(props.track.id), device));
+    const result = props.dispatch(addDevice(props.chain, device));
     if (!result?.ok) return;
-    analytics().log("device_added", { device_type: type, chain: "insert" });
+    analytics().log("device_added", { device_type: type, chain: props.chain.chain });
     analytics().logFeatureFirstUse("device_chain");
   }
 
   return (
-    <section class="device-chain" aria-label="Device chain">
+    <section class="device-chain" aria-label={props.labels.region}>
       <header class="device-chain-head">
-        <h3 class="device-chain-heading">Device chain</h3>
+        <h3 class="device-chain-heading">{props.labels.heading}</h3>
       </header>
       <Show when={devices().length === 0}>
-        <p class="device-chain-note">No devices on this track yet.</p>
+        <p class="device-chain-note">{props.labels.empty}</p>
       </Show>
-      <ol class="device-chain-list" aria-label="Device chain">
+      <ol class="device-chain-list" aria-label={props.labels.list}>
         <For each={devices()} keyed={(device) => device.id}>
           {(device, index) => (
             <li
@@ -221,7 +242,7 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
               onFocusOut={() => setFocused(null)}
             >
               <DeviceCard
-                trackId={props.track.id}
+                chain={props.chain}
                 device={device()}
                 canDuplicate={!full()}
                 newDeviceId={() => ids()("device")}
@@ -252,11 +273,54 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
           }}
         </For>
       </fieldset>
-      <Show when={full()}>
-        <p class="device-chain-note">
-          A track holds up to {MAX_TRACK_INSERTS} devices. Remove one to add another.
-        </p>
+      <Show when={full() && props.limit}>
+        {(limit) => <p class="device-chain-note">{limit().note}</p>}
       </Show>
     </section>
+  );
+}
+
+export interface DeviceChainPanelProps {
+  /** The selected track (#240): the panel has no selection of its own. */
+  readonly track: Track;
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** Defaults to the application singleton; injectable for tests. */
+  readonly analytics?: Analytics;
+  /** Where new device ids come from; injectable so a test is deterministic. */
+  readonly ids?: IdFactory;
+}
+
+const LABELS: DeviceChainLabels = {
+  region: "Device chain",
+  heading: "Device chain",
+  list: "Device chain",
+  empty: "No devices on this track yet.",
+};
+
+const LIMIT = {
+  count: MAX_TRACK_INSERTS,
+  note: `A track holds up to ${MAX_TRACK_INSERTS} devices. Remove one to add another.`,
+};
+
+/**
+ * The selected track's insert chain (#241, PRD FX-01), in the slot UI-001
+ * reserved for it in the Instrument view: the shared `DeviceChain`, addressed
+ * to the track and bounded at `MAX_TRACK_INSERTS`.
+ */
+export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Element {
+  return (
+    <DeviceChain
+      chain={insertChain(props.track.id)}
+      devices={props.track.devices}
+      labels={LABELS}
+      limit={LIMIT}
+      dispatch={props.dispatch}
+      beginGesture={props.beginGesture}
+      analytics={props.analytics}
+      ids={props.ids}
+    />
   );
 }

@@ -34,7 +34,7 @@ function renderDevices(types: readonly DeviceTypeId[]) {
       {types.map((_, index) => (
         <li data-testid={`device-${index}`}>
           <DeviceControls
-            trackId={trackId}
+            chain={insertChain(trackId)}
             device={devices()[index]}
             dispatch={(commands) => history.execute(commands)}
             beginGesture={(options) => history.beginGesture(options)}
