@@ -26,7 +26,9 @@ export function parseParameterInput(
   if (text === "") return null;
 
   if (options) {
-    const index = options.findIndex((label) => label.toLowerCase().replace(/\s+/g, "") === text);
+    const index = options.findIndex(
+      (label) => label.toLowerCase().replace(/\s+/g, "") === text,
+    );
     if (index >= 0) return index;
   }
 

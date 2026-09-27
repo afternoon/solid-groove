@@ -13,7 +13,9 @@ import {
 import { parseParameterInput } from "./parseValue";
 
 function deviceParameter(type: string, id: string): ParameterDefinition {
-  const found = deviceTypeDefinition(type)?.parameters.find((p) => p.id === `${type}.${id}`);
+  const found = deviceTypeDefinition(type)?.parameters.find(
+    (p) => p.id === `${type}.${id}`,
+  );
   if (!found) throw new Error(`no ${type}.${id}`);
   return found;
 }
