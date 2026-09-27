@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
-import { addDevice, CommandHistory, insertChain } from "../commands";
+import { addDevice, CommandHistory, insertChain, setParameter } from "../commands";
 import { createDevice, type DeviceTypeId, deviceParameters } from "../domain/devices";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
@@ -34,7 +34,7 @@ function renderDevices(types: readonly DeviceTypeId[]) {
       {types.map((_, index) => (
         <li data-testid={`device-${index}`}>
           <DeviceControls
-            trackId={trackId}
+            chain={insertChain(trackId)}
             device={devices()[index]}
             dispatch={(commands) => history.execute(commands)}
             beginGesture={(options) => history.beginGesture(options)}
@@ -160,5 +160,33 @@ describe("deviceChoices", () => {
       "1",
       "2",
     ]);
+  });
+
+  it("reads a compressor's ratio as a ratio", () => {
+    const { device } = renderDevices(["compressor"]);
+    expect(within(device(0)).getByText("4.0:1")).toBeInTheDocument();
+  });
+
+  it("says when a control sits on a bound, and not at its factory setting", () => {
+    const { history, devices, device } = renderDevices(["overdrive"]);
+    const overdrive = within(device(0));
+    // Drive's default is mid-range; Mix's default is its maximum.
+    expect(overdrive.queryByText(/at (maximum|minimum)/)).toBeNull();
+
+    const trackId = history.project.song.tracks[0].id;
+    fireAndFlush(() =>
+      history.execute(
+        setParameter(
+          {
+            scope: "trackDevice",
+            trackId,
+            deviceId: devices()[0].id,
+            parameterId: "drive",
+          },
+          1,
+        ),
+      ),
+    );
+    expect(overdrive.getByText("at maximum")).toBeInTheDocument();
   });
 });

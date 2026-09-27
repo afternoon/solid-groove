@@ -6,10 +6,10 @@ import {
   HiSolidTrash,
 } from "solid-icons/hi";
 import {
+  type DeviceChainTarget,
   duplicateDevice,
   type Gesture,
   type GestureOptions,
-  insertChain,
   type RawCommandInput,
   removeDevice,
   resetDevice,
@@ -18,13 +18,14 @@ import {
 } from "../commands";
 import { deviceTypeDefinition } from "../domain/devices";
 import type { Device } from "../domain/entities";
-import type { DeviceId, TrackId } from "../domain/ids";
+import type { DeviceId } from "../domain/ids";
 import { ariaBool } from "../shared/aria";
 import DeviceControls from "./DeviceControls";
 import "./DeviceCard.css";
 
 export interface DeviceCardProps {
-  readonly trackId: TrackId;
+  /** The chain the device is in: a track's inserts or the master's. */
+  readonly chain: DeviceChainTarget;
   readonly device: Device;
   /** False once the chain is at its insert limit, so a copy has nowhere to go. */
   readonly canDuplicate: boolean;
@@ -37,7 +38,7 @@ export interface DeviceCardProps {
 }
 
 /**
- * One insert device on a track's chain (#241, PRD FX-01): its name, what can
+ * One device in a chain — a track's inserts (#241) or the master's (#283), PRD FX-01 —: its name, what can
  * be done to it, and its own controls.
  *
  * Every action is one existing `device.*` command, so each is one validated
@@ -51,7 +52,7 @@ export interface DeviceCardProps {
  */
 export default function DeviceCard(props: DeviceCardProps): JSX.Element {
   const label = () => deviceTypeDefinition(props.device.type)?.label ?? props.device.type;
-  const chain = () => insertChain(props.trackId);
+  const chain = () => props.chain;
   const run = (command: RawCommandInput) => props.dispatch(command);
 
   return (
@@ -121,7 +122,7 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
       </header>
       <div class="device-card-body">
         <DeviceControls
-          trackId={props.trackId}
+          chain={props.chain}
           device={props.device}
           dispatch={props.dispatch}
           beginGesture={props.beginGesture}
