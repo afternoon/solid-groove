@@ -148,6 +148,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
+    // Frames the arrangement's selection (#292), the toolbar button's twin.
+    // The arrangement is on screen in every editor state, so this is live
+    // whenever it has something to frame.
+    "view.zoom_to_selection": {
+      run: () => arrangementEditingActions()?.zoomToSelection(),
+      isEnabled: () => arrangementEditingActions()?.canZoomToSelection() ?? false,
+    },
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close.
