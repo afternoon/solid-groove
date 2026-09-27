@@ -233,9 +233,15 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   function interactionState(): InteractionState {
     const state = shell?.getState();
+    const bars = state?.selection;
     return {
       playheadTicks: state?.playheadTicks ?? null,
-      selection: state?.selection ?? null,
+      // The shell's bar range, drawn as a band until the arrangement moves onto
+      // its one selection (#292).
+      band: bars
+        ? { trackIds: [bars.trackId], startTicks: bars.startTick, endTicks: bars.endTick }
+        : null,
+      point: null,
       hoverPlacementId: state?.hoverPlacementId ?? null,
       selectedPlacementIds: new Set(editing?.getSelection() ?? []),
     };
