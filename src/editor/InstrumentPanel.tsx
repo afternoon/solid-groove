@@ -8,6 +8,7 @@ import type {
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import SamplerPanel from "../instrument/SamplerPanel";
+import type { WatchPeaks } from "../instrument/SampleWell";
 import SynthPanel from "../instrument/SynthPanel";
 
 export interface InstrumentPanelProps {
@@ -23,6 +24,8 @@ export interface InstrumentPanelProps {
   audition(): void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse?: () => void;
+  /** Follows a sound's decoded waveform for the sampler's well (#447). */
+  readonly watchPeaks?: WatchPeaks;
 }
 
 /**
@@ -53,6 +56,7 @@ export default function InstrumentPanel(props: InstrumentPanelProps) {
             beginGesture={props.beginGesture}
             audition={props.audition}
             onBrowse={props.onBrowse}
+            watchPeaks={props.watchPeaks}
           />
         )}
       </Match>

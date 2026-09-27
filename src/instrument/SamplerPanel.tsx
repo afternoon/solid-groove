@@ -11,6 +11,7 @@ import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import {
   bareParameterId,
+  type ParameterDefinition,
   readInstrumentParameter,
   SAMPLER_AMP_ATTACK,
   SAMPLER_AMP_DECAY,
@@ -21,9 +22,12 @@ import {
   SAMPLER_SAMPLE_START,
 } from "../domain/parameters";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import ControlGroup from "./ControlGroup";
+import EnvelopeWell from "./EnvelopeWell";
 import FillSlider from "./FillSlider";
 import { formatInstrumentValue } from "./formatValue";
 import "./InstrumentPanel.css";
+import SampleWell, { type WatchPeaks } from "./SampleWell";
 
 export interface SamplerPanelProps {
   readonly trackId: TrackId;
@@ -37,6 +41,8 @@ export interface SamplerPanelProps {
   audition(): void;
   /** Opens the library on this slot (`UI-001`). Absent where nothing can. */
   readonly onBrowse?: () => void;
+  /** Follows the loaded sound's waveform for its well (#447). */
+  readonly watchPeaks?: WatchPeaks;
   readonly analytics?: Analytics;
 }
 
@@ -50,9 +56,11 @@ const ENVELOPE_SLIDERS = [
 ];
 
 /**
- * The reusable one-shot sampler panel (PRD INS-01, mock `05b-sampler`): the
- * loaded sample, audition, and fill-sliders for pitch, sample start/end, and the
- * amp envelope (ADSR).
+ * The reusable one-shot sampler panel (PRD INS-01), in the faceplate's columns
+ * (#447): the loaded sound's waveform over its name and the Playback faders
+ * (pitch, start, end), and the amp envelope over its ADSR faders. The start and
+ * end markers and the envelope's corners can be dragged on their wells; the
+ * faders and value fields set the same parameters from the keyboard.
  *
  * A sound is chosen by dragging it here from the library (#225), which is why
  * the panel names the loaded sample rather than offering a list to swap
@@ -77,42 +85,81 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
     );
   }
 
+  const read = (definition: ParameterDefinition) =>
+    readInstrumentParameter(definition, props.instrument.parameters);
+  /** A well's drag writes the same `parameter.set` a fader does. */
+  const wellEdits = {
+    dispatch: props.dispatch,
+    beginGesture: props.beginGesture,
+    onCommit: () => analytics().logFeatureFirstUse("sampler"),
+  };
+  const command = (definition: ParameterDefinition, value: number) =>
+    parameterCommand(bareParameterId(definition.id), value);
+
   return (
     <section class="instrument-panel sampler-panel" aria-label="Sampler">
-      <div class="instrument-panel-groups">
-        <div class="instrument-panel-group sampler-sample-group">
-          <h3 class="instrument-panel-heading">Sample</h3>
-          {/* The sound's name, which is library copy rather than anything the
-					    user typed — masked all the same, since a user-recorded sample
-					    lands in the same slot (ADR 0002 decision 2). */}
-          <p class={`sampler-sample-name ${MASK_CONTENT}`}>
-            {props.sampleName ?? "No sample loaded"}
-          </p>
-          {/* The slot is the way into the library (UI-001): it names what is
-					    loaded, and opening it is how that changes. */}
-          <Show when={props.onBrowse}>
-            {(browse) => (
-              <button
-                type="button"
-                class="sampler-load-button"
-                onClick={() => browse()()}
-              >
-                Load a sound
-              </button>
-            )}
-          </Show>
-        </div>
-        <div class="instrument-panel-group instrument-panel-sliders">
-          <h3 class="instrument-panel-heading">Playback</h3>
-          <div class="instrument-panel-slider-row">
-            <For each={PLAYBACK_SLIDERS}>{(definition) => sliderFor(definition)}</For>
+      <div class="faceplate-grid">
+        <div class="faceplate-column span-7">
+          <SampleWell
+            assetId={props.instrument.assetId}
+            watchPeaks={props.watchPeaks}
+            start={read(SAMPLER_SAMPLE_START)}
+            end={read(SAMPLER_SAMPLE_END)}
+            readout={`${formatInstrumentValue(SAMPLER_SAMPLE_START, read(SAMPLER_SAMPLE_START))} → ${formatInstrumentValue(SAMPLER_SAMPLE_END, read(SAMPLER_SAMPLE_END))}`}
+            commandStart={(value) => command(SAMPLER_SAMPLE_START, value)}
+            commandEnd={(value) => command(SAMPLER_SAMPLE_END, value)}
+            {...wellEdits}
+          />
+          <div class="sampler-under-sample">
+            <div class="instrument-panel-group sampler-sample-group">
+              <div class="control-group-head">
+                <h3 class="control-group-title">Sample</h3>
+              </div>
+              {/* The sound's name, which is library copy rather than anything the
+					        user typed — masked all the same, since a user-recorded sample
+					        lands in the same slot (ADR 0002 decision 2). */}
+              <p class={`sampler-sample-name ${MASK_CONTENT}`}>
+                {props.sampleName ?? "No sample loaded"}
+              </p>
+              {/* The slot is the way into the library (UI-001): it names what is
+					        loaded, and opening it is how that changes. */}
+              <Show when={props.onBrowse}>
+                {(browse) => (
+                  <button
+                    type="button"
+                    class="sampler-load-button"
+                    onClick={() => browse()()}
+                  >
+                    Load a sound
+                  </button>
+                )}
+              </Show>
+            </div>
+            <ControlGroup title="Playback" class="instrument-panel-group">
+              <For each={PLAYBACK_SLIDERS}>{(definition) => sliderFor(definition)}</For>
+            </ControlGroup>
           </div>
         </div>
-        <div class="instrument-panel-group instrument-panel-sliders">
-          <h3 class="instrument-panel-heading">Amp Envelope</h3>
-          <div class="instrument-panel-slider-row">
+        <div class="faceplate-column span-5">
+          <EnvelopeWell
+            definitions={{
+              attack: SAMPLER_AMP_ATTACK,
+              decay: SAMPLER_AMP_DECAY,
+              sustain: SAMPLER_AMP_SUSTAIN,
+              release: SAMPLER_AMP_RELEASE,
+            }}
+            times={{
+              attack: read(SAMPLER_AMP_ATTACK),
+              decay: read(SAMPLER_AMP_DECAY),
+              sustain: read(SAMPLER_AMP_SUSTAIN),
+              release: read(SAMPLER_AMP_RELEASE),
+            }}
+            command={command}
+            {...wellEdits}
+          />
+          <ControlGroup title="Amp envelope" class="instrument-panel-group">
             <For each={ENVELOPE_SLIDERS}>{(definition) => sliderFor(definition)}</For>
-          </div>
+          </ControlGroup>
         </div>
       </div>
       <button
