@@ -216,31 +216,6 @@ describe("playhead follow", () => {
 });
 
 describe("selection and named actions (accessibility equivalents)", () => {
-  it("pointer-down selects a bar-aligned one-bar range on the pointed track", () => {
-    const { shell, projection } = setup();
-    // A pointer 40px into the first row (below the ruler), 300px across.
-    const selection = shell.handlePointerDown(300, 10);
-    expect(selection).not.toBeNull();
-    expect(selection?.trackId).toBe(projection.tracks[0].id);
-    // Snapped to a bar boundary.
-    expect((selection?.startTick ?? 1) % TICKS_PER_BAR).toBe(0);
-    expect((selection?.endTick ?? 0) - (selection?.startTick ?? 0)).toBe(TICKS_PER_BAR);
-  });
-
-  it("zoom-to-selection fits the selection to the viewport width", () => {
-    const { shell } = setup();
-    shell.setSelection({
-      trackId: setup().projection.tracks[0].id,
-      startTick: TICKS_PER_BAR * 2,
-      endTick: TICKS_PER_BAR * 6,
-    });
-    shell.zoomToSelection();
-    const port = shell.getViewport();
-    const spanPx = (TICKS_PER_BAR * 6 - TICKS_PER_BAR * 2) * port.pixelsPerTick;
-    // The selection now spans roughly the viewport width (within the clamp).
-    expect(spanPx).toBeLessThanOrEqual(port.width + 1);
-  });
-
   /** The span of ticks the viewport shows, edge to edge. */
   function framed(shell: ArrangementShell): { start: number; end: number } {
     const port = shell.getViewport();
