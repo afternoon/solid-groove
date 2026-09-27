@@ -21,6 +21,19 @@ export {
   specLabel,
 } from "./keys";
 export type {
+  ModifierEvent,
+  PointerModifierDefinition,
+  PointerModifierId,
+} from "./pointerGestures";
+export {
+  POINTER_MODIFIER_IDS,
+  POINTER_MODIFIERS,
+  pointerModifierById,
+  pointerModifierHeld,
+  pointerModifierLabel,
+  suppressModifierDefault,
+} from "./pointerGestures";
+export type {
   ShortcutActionId,
   ShortcutDefinition,
   ShortcutKeys,

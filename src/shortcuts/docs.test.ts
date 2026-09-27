@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { POINTER_MODIFIERS, pointerModifierLabel } from "./pointerGestures";
 import { SHORTCUTS, shortcutLabels } from "./registry";
 import { SHORTCUT_GROUP_LABELS } from "./types";
 
@@ -59,6 +60,25 @@ describe("docs/shortcuts.md", () => {
       );
       // And again in the deviations section, with the reason.
       expect(doc).toContain(shortcut.ableton.abletonKeys);
+    }
+  });
+
+  it("documents every pointer modifier, on both platforms, with its Live keys", () => {
+    const table = doc
+      .slice(doc.indexOf("## Pointer modifiers"), doc.indexOf("## Browser and OS"))
+      .split("\n");
+    const documented = table
+      .map((line) => /^\| `([a-z_]+\.[a-z_]+)` \|/.exec(line)?.[1])
+      .filter((id): id is string => id !== undefined);
+    expect(documented.sort()).toEqual(POINTER_MODIFIERS.map((entry) => entry.id).sort());
+    for (const entry of POINTER_MODIFIERS) {
+      const row = table.find((line) => line.startsWith(`| \`${entry.id}\` |`)) ?? "";
+      expect(row).toContain(entry.label);
+      expect(row).toContain(`\`${pointerModifierLabel(entry, "mac")}\``);
+      expect(row).toContain(`\`${pointerModifierLabel(entry, "other")}\``);
+      if (entry.ableton.kind !== "solid_groove") {
+        expect(row).toContain(entry.ableton.abletonKeys);
+      }
     }
   });
 
