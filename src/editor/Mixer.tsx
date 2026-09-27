@@ -32,6 +32,7 @@ import FillSlider from "../instrument/FillSlider";
 import { parseParameterInput } from "../instrument/parseValue";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MasterPanel from "./MasterPanel";
+import MasterStrip, { chainSummary } from "./MasterStrip";
 import NewTrackButtons from "./NewTrackButtons";
 import "./trackDrag.css";
 import {
@@ -214,61 +215,64 @@ export default function Mixer(props: MixerProps): JSX.Element {
         </span>
         <NewTrackButtons label="Add track" onAdd={handleAddTrack} />
       </header>
-      <div class="mixer-tracks" ref={stripRow}>
-        <For each={shownIds()}>
-          {(id) => {
-            const track = createMemo(() => trackById(id));
-            return (
-              <Show when={track()}>
-                {(current) => (
-                  <TrackStrip
-                    track={current()}
-                    index={trackIds().indexOf(id)}
-                    trackCount={trackIds().length}
-                    clipCount={clipCount(id)}
-                    selected={props.selectedTrackId === id}
-                    onSelect={() => selectTrack(id)}
-                    onMove={(toIndex) => moveBy(id, toIndex, "button")}
-                    onDragStart={(event) => trackDrag.begin(event, id)}
-                    dragging={trackDrag.dragging() === id}
-                    previewing={
-                      trackDrag.dragging() === id && trackDrag.target() !== null
-                    }
-                    dispatch={props.dispatch}
-                    beginGesture={props.beginGesture}
-                    trackLevelDb={props.trackLevelDb}
-                    isPlaying={props.isPlaying}
-                    onDuplicate={() => handleDuplicate(current())}
-                    onDelete={() => requestDelete(current())}
-                    requestFrame={props.requestFrame}
-                    cancelFrame={props.cancelFrame}
-                  />
-                )}
-              </Show>
-            );
-          }}
-        </For>
-      </div>
-      {/*
-       * The master and its chain, always on screen (`UI-001`), at the end of
-       * the strips where a console puts it. There is exactly one master, so
-       * there is nothing to choose: the chain is never hidden behind a press.
-       * The strip's name is still a control, like every track strip's, and
-       * selecting it takes you to the master's effects (#283) — which on a
-       * wide mix may be off to the side, and for a keyboard is the way in.
-       */}
-      <div class="mixer-master">
-        <button
-          type="button"
-          class="mixer-master-select"
-          onClick={() => {
+      <div class="mixer-desk">
+        <div class="mixer-tracks" ref={stripRow}>
+          <For each={shownIds()}>
+            {(id) => {
+              const track = createMemo(() => trackById(id));
+              return (
+                <Show when={track()}>
+                  {(current) => (
+                    <TrackStrip
+                      track={current()}
+                      index={trackIds().indexOf(id)}
+                      trackCount={trackIds().length}
+                      clipCount={clipCount(id)}
+                      selected={props.selectedTrackId === id}
+                      onSelect={() => selectTrack(id)}
+                      onMove={(toIndex) => moveBy(id, toIndex, "button")}
+                      onDragStart={(event) => trackDrag.begin(event, id)}
+                      dragging={trackDrag.dragging() === id}
+                      previewing={
+                        trackDrag.dragging() === id && trackDrag.target() !== null
+                      }
+                      dispatch={props.dispatch}
+                      beginGesture={props.beginGesture}
+                      trackLevelDb={props.trackLevelDb}
+                      isPlaying={props.isPlaying}
+                      onDuplicate={() => handleDuplicate(current())}
+                      onDelete={() => requestDelete(current())}
+                      requestFrame={props.requestFrame}
+                      cancelFrame={props.cancelFrame}
+                    />
+                  )}
+                </Show>
+              );
+            }}
+          </For>
+        </div>
+        {/*
+         * The master and its chain, always on screen (`UI-001`), at the end of
+         * the strips where a console puts it. There is exactly one master, so
+         * there is nothing to choose: the chain is never hidden behind a press.
+         * The strip's name is still a control, like every track strip's, and
+         * selecting it takes you to the master's effects (#283) — which on a
+         * wide mix may be off to the side, and for a keyboard is the way in.
+         */}
+        <MasterStrip
+          volume={props.project.song.master.volume}
+          devices={props.project.song.master.devices}
+          onSelect={() => {
             masterEffects?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
             masterEffects?.focus();
             analytics().logFeatureFirstUse("mixer");
           }}
-        >
-          Master
-        </button>
+          onFirstUse={() => analytics().logFeatureFirstUse("mixer")}
+          dispatch={props.dispatch}
+          beginGesture={props.beginGesture}
+        />
+      </div>
+      <div class="mixer-master">
         <MasterPanel
           sectionRef={(element) => {
             masterEffects = element;
@@ -487,6 +491,9 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
       </div>
 
       <div class="mixer-strip-actions">
+        <span class="mixer-strip-chain" title={chainSummary(props.track.devices)}>
+          {chainSummary(props.track.devices)}
+        </span>
         <button
           type="button"
           class="mixer-strip-action mixer-duplicate"

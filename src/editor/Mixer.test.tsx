@@ -10,6 +10,7 @@ import {
   type GestureOptions,
   type RawCommandInput,
 } from "../commands";
+import { createDevice } from "../domain/devices";
 import type { Project } from "../domain/entities";
 import {
   createDrumMachineFixtureProject,
@@ -17,10 +18,12 @@ import {
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import type { TrackId } from "../domain/ids";
+import { createSeededIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { dragTrackHandle, stubTrackDragLayout } from "../testing/trackDrag";
+import { chainSummary } from "./MasterStrip";
 import Mixer from "./Mixer";
 
 afterEach(() => {
@@ -436,7 +439,8 @@ describe("Mixer controls (TRK-02)", () => {
     const { history } = renderMixer();
     const track = history.project.song.tracks[0];
     // Default volume 0 dB, default pan centre.
-    expect(screen.getByDisplayValue("0.0 dB")).toBeInTheDocument();
+    // Every track strip and the master read 0 dB by default.
+    expect(screen.getAllByDisplayValue("0.0 dB").length).toBeGreaterThan(0);
     expect(screen.getAllByDisplayValue("C").length).toBeGreaterThan(0);
     // The fader carries the readable value for assistive tech.
     const fader = screen.getByLabelText(`Volume for ${track.name}`);
@@ -470,7 +474,8 @@ describe("Mixer controls (TRK-02)", () => {
     const sliders = Array.from(
       document.querySelectorAll<HTMLInputElement>(".fill-slider-input"),
     );
-    expect(sliders).toHaveLength(trackCount * 2);
+    // Volume and pan per track, and the master's volume (#447).
+    expect(sliders).toHaveLength(trackCount * 2 + 1);
     // Volume and pan appear once per track, so their ids have to be per-track:
     // a duplicated id would point every strip's <label> at the same input.
     const ids = sliders.map((input) => input.id);
@@ -639,5 +644,37 @@ describe("Mixer master strip", () => {
     // Choosing a track is not a reason to hide the master: the master is what
     // everything, including that track, is going through.
     expect(masterEffects()).toBeVisible();
+  });
+});
+
+describe("Mixer desk (#447)", () => {
+  it("gives the master a volume fader at the end of the desk, one entry per edit", () => {
+    const { history } = renderMixer();
+    const startRevision = history.project.metadata.revision;
+    const field = screen.getByLabelText("Master volume value") as HTMLInputElement;
+
+    field.value = "-6";
+    fireEvent.change(field);
+    flush();
+
+    expect(history.project.song.master.volume).toBeCloseTo(-6);
+    expect(history.project.metadata.revision).toBe(startRevision + 1);
+    expect(screen.getByRole("slider", { name: "Master volume" })).toBeInTheDocument();
+    // The master strip closes the desk, after every track strip.
+    const desk = document.querySelector(".mixer-desk");
+    expect(desk?.lastElementChild).toHaveClass("mixer-master-strip");
+  });
+
+  it("names the chain each strip carries, in signal order", () => {
+    expect(chainSummary([])).toBe("No devices");
+    const ids = createSeededIdFactory("mixer-chain");
+    expect(
+      chainSummary([
+        createDevice(ids("device"), "filter", 0),
+        createDevice(ids("device"), "delay", 1),
+      ]),
+    ).toBe("Filter · Delay");
+    renderMixer();
+    expect(screen.getAllByText("No devices").length).toBeGreaterThan(0);
   });
 });

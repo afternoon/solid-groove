@@ -177,7 +177,8 @@
    because its range is the stereo field and the user reads that left-to-right.
    One dense row — PAN · track · value — spanning the strip it is already in. */
 .mixer-strip-pan .fill-slider.horizontal {
-  --fill-slider-track-thickness: 10px;
+  /* The hairline pan (#447): a thin line with a tall target to grab. */
+  --fill-slider-track-thickness: 22px;
 
   gap: 4px;
 }
@@ -245,12 +246,29 @@
 
 .mixer-strip-actions {
   display: flex;
+  align-items: center;
   gap: 2px;
+  min-height: 26px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* The chain the strip carries, by name, in signal order (#447). */
+.mixer-strip-chain {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-tiny);
+  color: var(--color-foreground);
 }
 
 .mixer-strip-action {
   display: flex;
-  flex: 1 1 0;
+  flex: 0 0 22px;
   align-items: center;
   justify-content: center;
   height: 20px;
@@ -293,4 +311,33 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+/* The desk (#447): the track strips, then the master pinned to the right edge
+   of the full-width mixer however few tracks there are. */
+.mixer-desk {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mixer-desk > .mixer-tracks {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mixer-master-strip {
+  flex: none;
+  margin-left: auto;
+}
+
+.mixer-master-strip .mixer-master-select {
+  align-self: stretch;
+}
+
+/* The master has no mute, solo or pan; its fader drops to the tracks' line so
+   every fader on the desk shares one travel and one floor. */
+.mixer-master-strip .mixer-strip-controls {
+  margin-top: auto;
 }
