@@ -27,7 +27,9 @@ export function eventsNamed(transport: RecordingTransport, name: string) {
   return transport.events.filter((event) => event.name === name);
 }
 
-export function createEditingHarness(options: { analyticsAllowed?: boolean } = {}) {
+export function createEditingHarness(
+  options: { analyticsAllowed?: boolean; project?: Project } = {},
+) {
   const transport = createRecordingTransport();
   const consent = new ConsentStore(memoryStorage());
   const allowed = options.analyticsAllowed ?? true;
@@ -38,7 +40,7 @@ export function createEditingHarness(options: { analyticsAllowed?: boolean } = {
     storage: memoryStorage(),
   });
 
-  let project: Project = createSliceFixtureProject();
+  let project: Project = options.project ?? createSliceFixtureProject();
   const gestures = { commits: 0, cancels: 0 };
 
   function dispatch(commands: readonly RawCommandInput[]): void {
