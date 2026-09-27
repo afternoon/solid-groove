@@ -46,3 +46,9 @@
   padding: 0;
   list-style: none;
 }
+
+/* Reordering (#241): while a card is held the chain shows the order a drop
+   would give it, and the held card, already in its new place, recedes. */
+.device-chain-item.dragging {
+  opacity: 0.4;
+}

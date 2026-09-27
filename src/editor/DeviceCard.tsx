@@ -46,6 +46,8 @@ export interface DeviceCardProps {
  * so its state is `aria-pressed`, and a bypassed device keeps its place and
  * its settings; it only recedes. The actions are icon buttons, like the mixer
  * strip's, named for assistive technology and in their tooltips.
+ * Reordering is not the card's: the chain panel owns the drag and the
+ * keyboard moves, because both need the whole chain.
  */
 export default function DeviceCard(props: DeviceCardProps): JSX.Element {
   const label = () => deviceTypeDefinition(props.device.type)?.label ?? props.device.type;
@@ -54,8 +56,21 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
 
   return (
     <article class={["device-card", { bypassed: props.device.bypassed }]}>
+      {/* The header and the card's background are the drag handle; the name
+          is the keyboard's, a sortable button that takes the registry's
+          `device.move_earlier`/`device.move_later` (Alt/Option+Up/Down). */}
       <header class="device-card-head">
-        <h4 class="device-card-name">{label()}</h4>
+        <h4 class="device-card-name">
+          <button
+            type="button"
+            class="device-card-grip"
+            aria-roledescription="sortable"
+            aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+            title="Drag to reorder, or press Alt+Up or Alt+Down"
+          >
+            {label()}
+          </button>
+        </h4>
         <div class="device-card-actions">
           <button
             type="button"

@@ -1,4 +1,11 @@
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import {
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -61,6 +68,42 @@ function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: str
   clickAndFlush(
     panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
   );
+}
+
+const dataTransfer = {
+  setData() {},
+  getData: () => "",
+  effectAllowed: "",
+  dropEffect: "",
+};
+
+/**
+ * Pointer heights for a card's upper and lower half. jsdom lays nothing out,
+ * so every card's box is zero-sized at the top of the page: a pointer above
+ * its middle is any negative height, one below it any positive one.
+ */
+const UPPER = -1;
+const LOWER = 1;
+
+/**
+ * A drag event at a pointer height. jsdom has no `DragEvent`, so the event is
+ * a plain `Event` and drops `clientY` from its init; it is set on it instead.
+ */
+function dragAt(type: "dragOver" | "drop", target: Element, clientY: number) {
+  const event = createEvent[type](target, { dataTransfer });
+  Object.defineProperty(event, "clientY", { value: clientY });
+  fireEvent(target, event);
+}
+
+/** A drag of `from`'s card, pressed on `handle`, dropped over one half of `to`. */
+function dragCard(from: HTMLElement, handle: Element, to: HTMLElement, clientY = UPPER) {
+  fireAndFlush(() => {
+    fireEvent.pointerDown(handle);
+    fireEvent.dragStart(from, { dataTransfer });
+    dragAt("dragOver", to, clientY);
+    dragAt("drop", to, clientY);
+    fireEvent.dragEnd(from, { dataTransfer });
+  });
 }
 
 describe("DeviceChainPanel", () => {
@@ -140,6 +183,117 @@ describe("DeviceChainPanel", () => {
     for (const item of items()) {
       expect(within(item).getByRole("button", { name: /^Duplicate/ })).toBeDisabled();
     }
+  });
+
+  it("moves a device by dragging its header onto another, as one entry", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const names = () =>
+      items().map((item) => within(item).getByRole("heading").textContent);
+    const entries = history.entries.length;
+    const [overdrive, reverb] = items();
+    dragCard(reverb, reverb.querySelector("header") as Element, overdrive);
+    expect(names()).toEqual(["Reverb", "Overdrive"]);
+    expect(history.entries.length).toBe(entries + 1);
+    fireAndFlush(() => history.undo());
+    expect(names()).toEqual(["Overdrive", "Reverb"]);
+  });
+
+  it("previews the new order while a card is held, and restores it on a cancelled drag", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const [overdrive, reverb] = items();
+    const shown = () => [overdrive.style.order, reverb.style.order];
+    const entries = history.entries.length;
+
+    fireAndFlush(() => {
+      fireEvent.pointerDown(reverb.querySelector("header") as Element);
+      fireEvent.dragStart(reverb, { dataTransfer });
+      dragAt("dragOver", overdrive, UPPER);
+    });
+    // Reverb shows first, the chain it would become; nothing is committed yet.
+    expect(shown()).toEqual(["1", "0"]);
+    expect(reverb).toHaveClass("dragging");
+    expect(history.entries.length).toBe(entries);
+
+    // Let go outside the chain: dragend alone, no drop.
+    fireAndFlush(() => fireEvent.dragEnd(reverb, { dataTransfer }));
+    expect(shown()).toEqual(["0", "1"]);
+    expect(history.entries.length).toBe(entries);
+  });
+
+  it("offers every slot while held, the one it started in included", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Filter");
+    addFromPanel(panel, "Delay");
+    addFromPanel(panel, "Reverb");
+    const [filter, delay, reverb] = items();
+    // The order each card shows in, read in chain order: Filter, Delay, Reverb.
+    const shown = () => [filter, delay, reverb].map((item) => item.style.order);
+    const over = (item: HTMLElement, clientY: number) =>
+      fireAndFlush(() => dragAt("dragOver", item, clientY));
+    const entries = history.entries.length;
+
+    fireAndFlush(() => {
+      fireEvent.pointerDown(delay.querySelector("header") as Element);
+      fireEvent.dragStart(delay, { dataTransfer });
+    });
+    over(filter, UPPER); // above Filter: Delay, Filter, Reverb
+    expect(shown()).toEqual(["1", "0", "2"]);
+    over(reverb, LOWER); // below Reverb: Filter, Reverb, Delay
+    expect(shown()).toEqual(["0", "2", "1"]);
+    over(reverb, UPPER); // back where it started: Filter, Delay, Reverb
+    expect(shown()).toEqual(["0", "1", "2"]);
+
+    // Dropping in the slot it started in moves nothing and records nothing.
+    fireAndFlush(() => {
+      dragAt("drop", reverb, UPPER);
+      fireEvent.dragEnd(delay, { dataTransfer });
+    });
+    expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
+      "Filter",
+      "Delay",
+      "Reverb",
+    ]);
+    expect(history.entries.length).toBe(entries);
+  });
+
+  it("does not start a drag from one of the card's controls", () => {
+    const { panel, items } = renderPanel();
+    addFromPanel(panel, "Filter");
+    addFromPanel(panel, "Delay");
+    const [filter, delay] = items();
+    dragCard(delay, within(delay).getAllByRole("slider")[0], filter);
+    expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
+      "Filter",
+      "Delay",
+    ]);
+  });
+
+  it("moves the device whose name has focus with Alt+Up and Alt+Down", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const names = () =>
+      items().map((item) => within(item).getByRole("heading").textContent);
+    const grip = (name: string) => panel().getByRole("button", { name });
+    const press = (key: string) =>
+      fireAndFlush(() =>
+        fireEvent.keyDown(document.activeElement ?? document.body, { key, altKey: true }),
+      );
+
+    fireAndFlush(() => grip("Reverb").focus());
+    const entries = history.entries.length;
+    press("ArrowUp");
+    expect(names()).toEqual(["Reverb", "Overdrive"]);
+    expect(history.entries.length).toBe(entries + 1);
+    // Already first: nothing to do, and no entry.
+    press("ArrowUp");
+    expect(history.entries.length).toBe(entries + 1);
+    press("ArrowDown");
+    expect(names()).toEqual(["Overdrive", "Reverb"]);
   });
 
   it("keeps a slider in place through a drag, committing it as one entry", () => {
