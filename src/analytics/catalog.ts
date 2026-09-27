@@ -212,6 +212,7 @@ export const FEATURE_KEYS = [
   "shortcut_guide",
   "arrangement",
   "arrangement_selection",
+  "arrangement_drag_copy",
   "sections",
   "automation",
   "assistant",
@@ -653,7 +654,7 @@ export const ANALYTICS_EVENTS = {
 
   placement_duplicated: {
     phase: 2,
-    owners: ["ARR-002"],
+    owners: ["ARR-002", "ARR-011"],
     // CLP-01 requires duplicating a placement to be able to either reuse the
     // source clip or fork an independent variation, with the UI saying which
     // will happen. `mode` is how we learn whether producers actually reach for
