@@ -642,6 +642,47 @@ instrument, devices and mixer settings travel with it, which `track.reorder`'s
 command tests hold. Analytics, asserted once-per-action at the unit layer.
 Reordering returns or the master, multi-select drags, and touch drags.
 
+### CF-015 — A producer picks out several clips with the keyboard held down
+
+**Issue:** #405 · **Suite:** `tests/e2e/emulator/flows/CF-015.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, duplicate the "BD" clip twice, add a sampler track, and
+   duplicate its clip twice, so "BD" and "Sampler" each have clips in bars 1, 2
+   and 3.
+2. Click the "BD" clip in bar 1. It alone is selected, and the arrangement
+   announces "Selected clip on BD, bar 1".
+3. Hold Cmd (Ctrl on Windows and Linux) and click the "BD" clip in bar 3. It
+   joins the selection without replacing it, and the arrangement announces
+   "2 clips selected". The "BD" clip in bar 2, between them, is not selected.
+4. Hold Cmd and click the "BD" clip in bar 1 again. It leaves the selection, and
+   the arrangement announces "Selected clip on BD, bar 3".
+5. Hold Shift and click the "Sampler" clip in bar 2. The selection grows to every
+   clip in the box from what was selected to the clip you clicked, across both
+   tracks: the clips in bars 2 and 3 on "BD" and on "Sampler". The arrangement
+   announces "4 clips selected". The clips in bar 1 on both tracks are not
+   selected.
+6. Press Delete. The four selected clips are gone, whole, and the clips in bar 1
+   on both tracks are untouched.
+7. Reload the page.
+8. The project reopens exactly as step 6 left it: "BD" and "Sampler" each have
+   only their clip in bar 1, and nothing is selected.
+
+**Outcome:** holding Cmd while clicking a clip adds it to the selection or takes
+it out, one clip at a time, without losing the rest. Holding Shift while clicking
+a clip extends the selection to every clip in the box between the selection and
+the clicked clip, on every track in between. What a producer builds this way is
+one selection, which acts like any other: Delete removed exactly those clips, and
+the change was still there after a reload.
+
+**Out of scope:** Shift-click or Cmd-click on empty space, and Shift-drag or
+Cmd-drag, which this flow does not define. Shift-click with nothing selected.
+Cut, copy, paste, duplicate, drag and zoom on a selection built this way, which
+act on the same selection as CF-010 and CF-011 and are tested at the component
+layer. What the outlines look like, as in CF-009.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
