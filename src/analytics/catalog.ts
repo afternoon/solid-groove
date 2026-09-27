@@ -194,6 +194,8 @@ export const FEATURE_KEYS = [
   "shortcut_guide",
   "arrangement",
   "arrangement_selection",
+  "arrangement_toggle_select",
+  "arrangement_extend_select",
   "sections",
   "automation",
   "assistant",
