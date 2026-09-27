@@ -21,7 +21,7 @@ import type { Analytics } from "../analytics/analytics";
 import { overwritePlacements } from "../commands/definitions/placements";
 import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
-import type { Project } from "../domain/entities";
+import type { Placement, Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
 import {
   type ArrangementBand,
@@ -31,16 +31,18 @@ import {
   barStartPoint,
   clipsSelection,
   placementsTouchedBy,
+  pointSelection,
   reconcileArrangementSelection,
   selectedPlacementIds,
   selectionSpan,
+  selectionStartTicks,
   type TickSpan,
 } from "../selection";
 import {
   copyPlacements,
   cutPlacements,
   type PlacementClipboardEntry,
-  pastePlacements,
+  pasteClipboard,
 } from "./placementClipboard";
 import {
   type DuplicateMode,
@@ -349,17 +351,39 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const ids = covered();
     if (!current || ids.length === 0) return false;
     const result = cutPlacements(current, ids);
-    if (!run(result.commands)) return false;
+    // The earliest clip by start time, not by song order: a clip added later
+    // can start earlier, and the point must sit where the whole cut began.
+    const first = current.song.placements
+      .filter((p) => ids.includes(p.id))
+      .reduce<Placement | undefined>(
+        (earliest, p) => (!earliest || p.startTicks < earliest.startTicks ? p : earliest),
+        undefined,
+      );
+    if (!first || !run(result.commands)) return false;
     clipboard = result.clipboard;
-    clearSelection();
+    // The point stays where the cut clips began, so a paste straight after
+    // puts them back (#292).
+    setSelection(pointSelection({ trackId: first.trackId, ticks: first.startTicks }));
     return true;
   };
 
-  const paste = (targetTicks: number): boolean => {
+  /**
+   * Paste at the selection's start, Ableton-style (#292): the point, or the
+   * earliest selected clip's start, exactly where it is. Only with nothing
+   * selected does it fall back to `fallbackTicks` (the playhead), snapped to a
+   * bar. It needs only a non-empty clipboard. What it pasted is selected
+   * afterwards, as a duplicate's copy is.
+   */
+  const paste = (fallbackTicks: number): boolean => {
     const current = project();
-    return current
-      ? run(pastePlacements(current, clipboard, targetTicks, options.ids))
-      : false;
+    if (!current || clipboard.length === 0) return false;
+    const at = selectionStartTicks(selection, current);
+    const result = pasteClipboard(current, clipboard, at ?? fallbackTicks, options.ids, {
+      snap: at === null,
+    });
+    if (!run(result.commands)) return false;
+    setSelection(clipsSelection(result.placementIds));
+    return true;
   };
 
   return {
