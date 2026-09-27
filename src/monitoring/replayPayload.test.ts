@@ -410,6 +410,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // Shortcut registry facts: a static action ID and a boolean.
       "row.shortcut.id",
       "String(row.available)",
+      // The arrangement's previewed header row (TRK-02): a fixed test id or
+      // nothing, never anything the user authored.
+      'previewing(track.id) ? "track-drop-indicator" : undefined',
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

@@ -17,8 +17,8 @@ import type {
 import type { Project } from "../domain/entities";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
-import TrackDropMarker from "../editor/TrackDropMarker";
-import { moveTrack, orderedTrackIds } from "../editor/trackReorder";
+import "../editor/trackDrag.css";
+import { moveTrack, orderedTrackIds, previewTrackOrder } from "../editor/trackReorder";
 import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
@@ -205,8 +205,41 @@ export interface ArrangementViewProps {
 export default function ArrangementView(props: ArrangementViewProps) {
   const analytics = () => props.analytics ?? defaultAnalytics;
 
+  /** Drag a header up or down the column to reorder its track (TRK-02). */
+  const trackDrag = useTrackDrag({
+    axis: "y",
+    zone: () => headerColumnEl,
+    indexOf: (trackId) => orderedTrackIds(props.project).indexOf(trackId),
+    onDrop: (trackId, toIndex) => {
+      const dispatch = props.dispatch;
+      if (!dispatch) return;
+      moveTrack(
+        { project: () => props.project, dispatch, analytics: analytics() },
+        trackId,
+        toIndex,
+        { view: "arrangement", method: "drag" },
+      );
+    },
+  });
+
+  /** Whether `trackId` is the one drawn at a drag's would-be landing row. */
+  const previewing = (trackId: TrackId) =>
+    trackDrag.dragging() === trackId && trackDrag.target() !== null;
+
+  /**
+   * The project as drawn: during a drag, with the dragged track already in the
+   * row it would land in, so its header and lane both show the move before the
+   * drop commits it (TRK-02).
+   */
+  const shownProject = createMemo<Project>(() => {
+    const dragged = trackDrag.dragging();
+    const to = trackDrag.target();
+    if (dragged === null || to === null) return props.project;
+    return previewTrackOrder(props.project, dragged, to);
+  });
+
   const projection = createMemo<ArrangementProjection>(() =>
-    buildArrangementProjection(props.project, ROW_METRICS),
+    buildArrangementProjection(shownProject(), ROW_METRICS),
   );
 
   // A tiny signal bumped whenever the shell mutates viewport/selection state,
@@ -328,23 +361,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
     props.onSelectTrack?.(trackId);
     noteFirstUse();
   }
-
-  /** Drag a header up or down the column to reorder its track (TRK-02). */
-  const trackDrag = useTrackDrag({
-    axis: "y",
-    zone: () => headerColumnEl,
-    indexOf: (trackId) => orderedTrackIds(props.project).indexOf(trackId),
-    onDrop: (trackId, toIndex) => {
-      const dispatch = props.dispatch;
-      if (!dispatch) return;
-      moveTrack(
-        { project: () => props.project, dispatch, analytics: analytics() },
-        trackId,
-        toIndex,
-        { view: "arrangement", method: "drag" },
-      );
-    },
-  });
 
   /** The track under a viewport-local point, or null above/below the rows. */
   function trackAt(localX: number, localY: number): TrackId | null {
@@ -881,6 +897,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
                     { "track-dragging": trackDrag.dragging() === track.id },
                   ]}
                   data-track-drag={track.id}
+                  data-testid={previewing(track.id) ? "track-drop-indicator" : undefined}
                   style={{
                     position: "absolute",
                     top: `${track.rowIndex * ROW_METRICS.headerHeightPx}px`,
@@ -918,7 +935,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
               )}
             </For>
           </ul>
-          <TrackDropMarker axis="y" offset={trackDrag.marker()} />
         </div>
         <div
           class="arrangement-viewport"

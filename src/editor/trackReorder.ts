@@ -69,3 +69,23 @@ export function dropSlot(pointer: number, midpoints: readonly number[]): number 
 export function slotToIndex(fromIndex: number, slot: number): number {
   return slot > fromIndex ? slot - 1 : slot;
 }
+
+/**
+ * The project as it would read with `trackId` moved to `toIndex`, for showing a
+ * drag's preview. Only each track's `order` changes; nothing is dispatched, so
+ * the preview is never an edit. Returns `project` itself when nothing moves.
+ */
+export function previewTrackOrder(
+  project: Project,
+  trackId: TrackId,
+  toIndex: number,
+): Project {
+  const ids = orderedTrackIds(project).filter((id) => id !== trackId);
+  if (ids.length === project.song.tracks.length) return project;
+  ids.splice(toIndex, 0, trackId);
+  const tracks = project.song.tracks.map((track) => ({
+    ...track,
+    order: ids.indexOf(track.id),
+  }));
+  return { ...project, song: { ...project.song, tracks } };
+}

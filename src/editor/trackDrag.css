@@ -1,0 +1,10 @@
+/* Dragging a track to reorder it (TRK-02). The dragged track is drawn where
+   it would land, translucent, so the preview reads as not yet committed. */
+/* The handle a track is dragged by: no text selection mid-drag. */
+[data-track-drag] {
+  user-select: none;
+}
+
+.track-dragging {
+  opacity: 0.5;
+}

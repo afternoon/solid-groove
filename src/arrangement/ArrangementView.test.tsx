@@ -716,12 +716,20 @@ describe("dragging a track header to reorder it (TRK-02)", () => {
     return { history, transport, selected, names, header };
   }
 
-  it("moves the track to where it is dropped, showing the marker first", () => {
+  it("moves the track to where it is dropped, previewing it there first", () => {
     const { history, transport, names, header } = renderReorderable();
     const [a, b, c] = names();
 
     dragTrackHandle(header(c), { x: 50, y: 2 }, () => {
-      expect(screen.getByTestId("track-drop-indicator")).toBeInTheDocument();
+      // The dragged row is drawn in the top row already, translucent, and the
+      // rows it passed have stepped down; nothing is committed yet.
+      const preview = screen.getByTestId("track-drop-indicator");
+      expect(preview).toContainElement(header(c));
+      expect(preview).toHaveClass("track-dragging");
+      expect(preview.style.top).toBe("0px");
+      expect(header(a).closest("li")?.style.top).toBe(preview.style.height);
+      expect(names()).toEqual([a, b, c]);
+      expect(history.entries).toHaveLength(0);
     });
 
     expect(screen.queryByTestId("track-drop-indicator")).toBeNull();

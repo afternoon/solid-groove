@@ -9,6 +9,7 @@ import {
   dropSlot,
   moveTrack,
   orderedTrackIds,
+  previewTrackOrder,
   slotToIndex,
   type TrackReorderContext,
 } from "./trackReorder";
@@ -116,5 +117,22 @@ describe("drop geometry", () => {
     // Either gap next to the dragged item leaves it where it is.
     expect(slotToIndex(1, 1)).toBe(1);
     expect(slotToIndex(1, 2)).toBe(1);
+  });
+});
+
+describe("previewTrackOrder (TRK-02)", () => {
+  it("reads as if the track had moved, without touching the project", () => {
+    const project = createReferenceProject({ trackCount: 3, placementCount: 3 });
+    const [a, b, c] = orderedTrackIds(project);
+
+    const preview = previewTrackOrder(project, c, 0);
+
+    expect(orderedTrackIds(preview)).toEqual([c, a, b]);
+    expect(orderedTrackIds(project)).toEqual([a, b, c]);
+  });
+
+  it("hands back the same project for a track it does not have", () => {
+    const project = createReferenceProject({ trackCount: 2, placementCount: 2 });
+    expect(previewTrackOrder(project, "trk_missing" as never, 0)).toBe(project);
   });
 });
