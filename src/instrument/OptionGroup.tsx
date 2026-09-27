@@ -21,6 +21,11 @@ export interface OptionGroupProps<V extends string | number> {
    * chain both have a "Sync", and one shared name would make them one group.
    */
   readonly radioGroup?: string;
+  /**
+   * Stretch the options to fill the height they are given, so the group stands
+   * as a switch as tall as the faders beside it (#447).
+   */
+  readonly fill?: boolean;
 }
 
 /**
@@ -32,7 +37,10 @@ export default function OptionGroup<V extends string | number>(
   props: OptionGroupProps<V>,
 ): JSX.Element {
   return (
-    <fieldset class="option-group" aria-label={props.legend}>
+    <fieldset
+      class={["option-group", { fill: props.fill === true }]}
+      aria-label={props.legend}
+    >
       <For each={props.options}>
         {(option) => {
           const selected = () => option.value === props.value;
