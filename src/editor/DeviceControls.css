@@ -1,42 +1,48 @@
-/* One device's controls (#241): the instrument panel's shape (mock 05a), so a
-   device control reads like an instrument control. Sliders sequence across and
-   wrap; a mode's option group sits among them with its label above, like a
-   slider's. */
+/* One device's controls (#241), in Juno-style banks (#447): each bank a title
+   and a rule over its controls, as wide as its number of controls, so every
+   fader on a card sits on one pitch. A mode stands as a switch the height of
+   the faders beside it. */
 
 .device-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-start;
+  gap: 20px;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.device-controls .control-group {
+  /* Set per bank from markup; one control's share until then. */
+  --controls: 1;
+
+  flex: var(--controls) 1 0;
+  min-width: 0;
+}
+
+.device-controls .control-group.device-switch {
+  flex: 0 0 116px;
+}
+
+.device-controls .option-group.fill {
+  height: 188px;
 }
 
 /* A device's labels run longer than an instrument's ("Resonance", "Pre-delay",
-   "Threshold"), so a slider here is as wide as its label rather than the
+   "Threshold"), so a fader here takes its share of the bank rather than the
    mock's fixed 48px, which let neighbouring labels run into each other. */
 .device-controls .fill-slider {
-  width: auto;
+  width: 100%;
   min-width: 48px;
-}
-
-.device-choice {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 96px;
-}
-
-.device-choice-label {
-  font-size: var(--font-size-tiny);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-foreground);
+  --fill-slider-track-height: 136px;
 }
 
 /* A slider and, when it sits on a bound, the words saying so (PRD FX-02). */
 .device-control {
+  position: relative;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
+  min-width: 0;
 }
 
 .device-control-extreme {
@@ -44,4 +50,5 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-accent);
+  white-space: nowrap;
 }

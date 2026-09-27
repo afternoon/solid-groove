@@ -1,4 +1,4 @@
-import type { JSX } from "@solidjs/web";
+import { type JSX, Show } from "@solidjs/web";
 import {
   HiSolidArrowPath,
   HiSolidDocumentDuplicate,
@@ -21,6 +21,7 @@ import type { Device } from "../domain/entities";
 import type { DeviceId } from "../domain/ids";
 import { ariaBool } from "../shared/aria";
 import DeviceControls from "./DeviceControls";
+import DeviceWell, { hasDeviceWell } from "./DeviceWell";
 import "./DeviceCard.css";
 
 export interface DeviceCardProps {
@@ -120,7 +121,15 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
           </button>
         </div>
       </header>
-      <div class="device-card-body">
+      <div class={["device-card-body", { "with-well": hasDeviceWell(props.device) }]}>
+        <Show when={hasDeviceWell(props.device)}>
+          <DeviceWell
+            chain={props.chain}
+            device={props.device}
+            dispatch={props.dispatch}
+            beginGesture={props.beginGesture}
+          />
+        </Show>
         <DeviceControls
           chain={props.chain}
           device={props.device}

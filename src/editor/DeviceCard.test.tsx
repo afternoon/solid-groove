@@ -152,3 +152,38 @@ describe("DeviceCard", () => {
     expect(types()).toEqual(["reverb", "delay", "overdrive"]);
   });
 });
+
+describe("DeviceCard faceplate (#447)", () => {
+  it("stands its controls in titled banks", () => {
+    const { card } = renderChain(["compressor"]);
+    for (const title of ["Dynamics", "Timing", "Gain"]) {
+      expect(card(0).getByText(title)).toBeInTheDocument();
+    }
+    // Banks are titled in text, not headings: the card's name is its heading.
+    expect(card(0).getAllByRole("heading")).toHaveLength(1);
+  });
+
+  it("draws a filter's response in a well, and sets cutoff and resonance from it", () => {
+    const { card, devices, history } = renderChain(["filter", "overdrive"]);
+    expect(card(1).queryByText(/drag the point/)).toBeNull();
+    const surface = screen
+      .getAllByRole("listitem")[0]
+      .querySelector(".filter-well .drag-surface") as HTMLElement;
+    surface.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 300, height: 100, right: 300, bottom: 100 }) as DOMRect;
+    const entries = history.entries.length;
+
+    const pointer = (type: string) =>
+      fireAndFlush(() =>
+        surface.dispatchEvent(
+          new MouseEvent(type, { bubbles: true, clientX: 100, clientY: 50 }),
+        ),
+      );
+    pointer("pointerdown");
+    pointer("pointerup");
+
+    expect(devices()[0].parameters.cutoff).toBeCloseTo(200, 0);
+    expect(devices()[0].parameters.resonance).toBeCloseTo(15);
+    expect(history.entries.length).toBe(entries + 1);
+  });
+});
