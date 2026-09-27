@@ -3,7 +3,7 @@
   "title": "A producer rearranges a track's chain while it plays",
   "steps": [
     {
-      "file": "01-an-overdrive-then-a-reverb-on-the-starter-track.png",
+      "file": "01-an-overdrive-then-a-reve.png",
       "caption": "An overdrive, then a reverb, on the starter track"
     },
     {
@@ -11,19 +11,19 @@
       "caption": "Start playback"
     },
     {
-      "file": "03-move-the-reverb-before-the-overdrive-still-playing.png",
+      "file": "03-move-the-reverb-before-t.png",
       "caption": "Move the reverb before the overdrive, still playing"
     },
     {
-      "file": "04-bypass-the-overdrive-it-keeps-its-place-and-settings.png",
-      "caption": "Bypass the overdrive — it keeps its place and settings"
+      "file": "04-bypass-the-overdrive-it.png",
+      "caption": "Bypass the overdrive \u2014 it keeps its place and settings"
     },
     {
       "file": "05-duplicate-the-reverb.png",
       "caption": "Duplicate the reverb"
     },
     {
-      "file": "06-reset-the-second-reverb-to-its-defaults.png",
+      "file": "06-reset-the-second-reverb.png",
       "caption": "Reset the second reverb to its defaults"
     },
     {
@@ -31,12 +31,12 @@
       "caption": "Remove the second reverb"
     },
     {
-      "file": "08-undo-the-reverb-is-back-in-its-place.png",
-      "caption": "Undo — the reverb is back in its place"
+      "file": "08-undo-the-reverb-is-back.png",
+      "caption": "Undo \u2014 the reverb is back in its place"
     },
     {
-      "file": "09-reload-the-rearranged-chain-is-intact.png",
-      "caption": "Reload — the rearranged chain is intact"
+      "file": "09-reload-the-rearranged-ch.png",
+      "caption": "Reload \u2014 the rearranged chain is intact"
     }
   ]
 }

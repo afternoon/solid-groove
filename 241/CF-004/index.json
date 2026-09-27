@@ -3,27 +3,27 @@
   "title": "A producer sets the span they are working in",
   "steps": [
     {
-      "file": "01-a-new-project-opens-with-the-brace-over-bar-1-and-looping-on.png",
+      "file": "01-a-new-project-opens-with.png",
       "caption": "A new project opens with the brace over bar 1 and looping on"
     },
     {
-      "file": "02-playback-loops-around-the-first-bar.png",
+      "file": "02-playback-loops-around-th.png",
       "caption": "Playback loops around the first bar"
     },
     {
-      "file": "03-drag-the-brace-out-to-the-end-of-bar-2-playback-never-stoppe.png",
-      "caption": "Drag the brace out to the end of bar 2 — playback never stopped"
+      "file": "03-drag-the-brace-out-to-th.png",
+      "caption": "Drag the brace out to the end of bar 2 \u2014 playback never stopped"
     },
     {
-      "file": "04-looping-off-the-playhead-runs-past-the-brace-which-stays-put.png",
-      "caption": "Looping off — the playhead runs past the brace, which stays put"
+      "file": "04-looping-off-the-playhead.png",
+      "caption": "Looping off \u2014 the playhead runs past the brace, which stays put"
     },
     {
-      "file": "05-looping-back-on-and-stopped.png",
+      "file": "05-looping-back-on-and-stop.png",
       "caption": "Looping back on, and stopped"
     },
     {
-      "file": "06-reopened-the-brace-and-the-toggle-are-exactly-as-they-were-l.png",
+      "file": "06-reopened-the-brace-and-t.png",
       "caption": "Reopened: the brace and the toggle are exactly as they were left"
     }
   ]
