@@ -46,6 +46,11 @@ export interface DeviceChainProps {
    * and duplicating stop there. A chain the domain does not bound has none.
    */
   readonly limit?: { readonly count: number; readonly note: string };
+  /**
+   * Receives the chain's region, so a host can move focus to it — the mixer's
+   * master strip does. Given one, the region is focusable.
+   */
+  sectionRef?(element: HTMLElement): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -211,7 +216,12 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
   }
 
   return (
-    <section class="device-chain" aria-label={props.labels.region}>
+    <section
+      ref={(element) => props.sectionRef?.(element)}
+      class="device-chain"
+      aria-label={props.labels.region}
+      tabindex={props.sectionRef ? "-1" : undefined}
+    >
       <header class="device-chain-head">
         <h3 class="device-chain-heading">{props.labels.heading}</h3>
       </header>

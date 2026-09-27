@@ -1,11 +1,4 @@
-import {
-  cleanup,
-  createEvent,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -20,6 +13,7 @@ import { moveTo } from "../instrument/panelTesting";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import DeviceChainPanel from "./DeviceChainPanel";
+import { dataTransfer, dragAt, dragCard, LOWER, UPPER } from "./deviceChainTesting";
 
 afterEach(() => cleanup());
 
@@ -68,42 +62,6 @@ function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: str
   clickAndFlush(
     panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
   );
-}
-
-const dataTransfer = {
-  setData() {},
-  getData: () => "",
-  effectAllowed: "",
-  dropEffect: "",
-};
-
-/**
- * Pointer heights for a card's upper and lower half. jsdom lays nothing out,
- * so every card's box is zero-sized at the top of the page: a pointer above
- * its middle is any negative height, one below it any positive one.
- */
-const UPPER = -1;
-const LOWER = 1;
-
-/**
- * A drag event at a pointer height. jsdom has no `DragEvent`, so the event is
- * a plain `Event` and drops `clientY` from its init; it is set on it instead.
- */
-function dragAt(type: "dragOver" | "drop", target: Element, clientY: number) {
-  const event = createEvent[type](target, { dataTransfer });
-  Object.defineProperty(event, "clientY", { value: clientY });
-  fireEvent(target, event);
-}
-
-/** A drag of `from`'s card, pressed on `handle`, dropped over one half of `to`. */
-function dragCard(from: HTMLElement, handle: Element, to: HTMLElement, clientY = UPPER) {
-  fireAndFlush(() => {
-    fireEvent.pointerDown(handle);
-    fireEvent.dragStart(from, { dataTransfer });
-    dragAt("dragOver", to, clientY);
-    dragAt("drop", to, clientY);
-    fireEvent.dragEnd(from, { dataTransfer });
-  });
 }
 
 describe("DeviceChainPanel", () => {
