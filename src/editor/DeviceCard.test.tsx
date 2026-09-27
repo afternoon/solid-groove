@@ -30,13 +30,11 @@ function renderChain(types: readonly DeviceTypeId[], options = { canDuplicate: t
       {/* Keyed on the id, as the panel is: keyed on the object, an edit would
           remount the card under the pointer. */}
       <For each={devices()} keyed={(device) => device.id}>
-        {(device, index) => (
+        {(device) => (
           <li>
             <DeviceCard
               trackId={trackId}
               device={device()}
-              index={index()}
-              count={devices().length}
               canDuplicate={options.canDuplicate}
               newDeviceId={() => copyId}
               dispatch={(commands) => history.execute(commands)}
@@ -81,22 +79,19 @@ describe("DeviceCard", () => {
     expect(devices()[0].bypassed).toBe(true);
   });
 
-  it("moves a device earlier or later, with the ends disabled", () => {
-    const { history, card, types } = renderChain(["overdrive", "reverb", "delay"]);
-    expect(
-      card(0).getByRole("button", { name: "Move Overdrive earlier" }),
-    ).toBeDisabled();
-    expect(card(2).getByRole("button", { name: "Move Delay later" })).toBeDisabled();
-
-    const entries = history.entries.length;
-    clickAndFlush(card(1).getByRole("button", { name: "Move Reverb earlier" }));
-    expect(types()).toEqual(["reverb", "overdrive", "delay"]);
-    expect(history.entries.length).toBe(entries + 1);
-
-    clickAndFlush(card(1).getByRole("button", { name: "Move Overdrive later" }));
-    expect(types()).toEqual(["reverb", "delay", "overdrive"]);
-    fireAndFlush(() => history.undo());
-    expect(types()).toEqual(["reverb", "overdrive", "delay"]);
+  it("offers its actions as named icon buttons, with no reorder arrows", () => {
+    const { card } = renderChain(["overdrive", "reverb"]);
+    const actions = card(0).getAllByRole("button");
+    expect(actions.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Bypass Overdrive",
+      "Duplicate Overdrive",
+      "Reset Overdrive",
+      "Remove Overdrive",
+    ]);
+    for (const button of actions) {
+      expect(button.textContent).toBe("");
+      expect(button.querySelector("svg")).not.toBeNull();
+    }
   });
 
   it("duplicates directly after itself with the same settings and the given id", () => {
