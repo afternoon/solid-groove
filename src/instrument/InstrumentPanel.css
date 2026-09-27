@@ -9,6 +9,55 @@
   background-color: var(--color-background-secondary);
 }
 
+/* The faceplate module (#447): 1000px at most, on a 12-column grid. A column
+   is a well over the group of controls it draws. */
+.synth-panel {
+  box-sizing: border-box;
+  max-width: 1000px;
+  gap: 20px;
+  padding: 20px;
+}
+
+.faceplate-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.faceplate-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.faceplate-column.span-3 {
+  grid-column: span 3;
+}
+
+.faceplate-column.span-4 {
+  grid-column: span 4;
+}
+
+.faceplate-column.span-5 {
+  grid-column: span 5;
+}
+
+.faceplate-column > .well {
+  min-height: 132px;
+}
+
+/* The faders are the column's tallest controls; a switch beside them stands
+   as tall as a fader with its value and label. */
+.faceplate-column .fill-slider {
+  --fill-slider-track-height: 160px;
+}
+
+.faceplate-column .option-group.fill {
+  min-height: 212px;
+}
+
 .instrument-panel-groups {
   display: flex;
   flex-wrap: wrap;

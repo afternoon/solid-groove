@@ -23,3 +23,13 @@
   min-height: 0;
   overflow-y: auto;
 }
+
+/* One track's instrument and chain, stacked. It carries the track's colour as
+   the ink its wells draw in (#447), set from markup over the default. */
+.instrument-view-track {
+  --track-ink: var(--color-accent);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-divider);
+}
