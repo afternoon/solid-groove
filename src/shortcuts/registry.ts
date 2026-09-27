@@ -80,6 +80,8 @@ export const SHORTCUT_ACTION_IDS = [
   "view.show_mixer",
   "view.close_surface",
   "help.shortcut_guide",
+  "device.move_earlier",
+  "device.move_later",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -420,6 +422,33 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     ableton: {
       kind: "solid_groove",
       reason: "Live has no in-app mapping guide; ? is the web convention for one.",
+    },
+  }),
+  define({
+    id: "device.move_earlier",
+    label: "Move device earlier",
+    description:
+      "Moves the device whose header has focus one place earlier in its chain.",
+    group: "mixer_devices",
+    contexts: ["editor"],
+    keys: "Alt+ArrowUp",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live reorders devices by dragging only; this is the keyboard way to do what the drag does.",
+    },
+  }),
+  define({
+    id: "device.move_later",
+    label: "Move device later",
+    description: "Moves the device whose header has focus one place later in its chain.",
+    group: "mixer_devices",
+    contexts: ["editor"],
+    keys: "Alt+ArrowDown",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live reorders devices by dragging only; this is the keyboard way to do what the drag does.",
     },
   }),
 ];

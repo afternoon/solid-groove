@@ -284,6 +284,7 @@ describe("guide sections", () => {
       "arrangement",
       "clips_notes",
       "automation",
+      "mixer_devices",
       "navigation",
     ]);
     expect(sections.every((section) => section.shortcuts.length > 0)).toBe(true);
