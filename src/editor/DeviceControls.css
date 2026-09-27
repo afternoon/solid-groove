@@ -31,3 +31,17 @@
   text-transform: uppercase;
   color: var(--color-foreground);
 }
+
+/* A slider and, when it sits on a bound, the words saying so (PRD FX-02). */
+.device-control {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device-control-extreme {
+  font-size: var(--font-size-tiny);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}

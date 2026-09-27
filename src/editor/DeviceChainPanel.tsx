@@ -2,8 +2,11 @@ import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
 import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import type { DeviceOperation } from "../analytics/catalog";
+import type { ErrorCode } from "../analytics/errorCodes";
 import {
   addDevice,
+  type CommandIssueCode,
   type DeviceChainTarget,
   type Gesture,
   type GestureOptions,
@@ -87,6 +90,10 @@ const NOT_A_HANDLE =
  * and `DeviceChain` relinks the audio without rebuilding a node, so a move
  * during playback is click-free.
  *
+ * A refused edit is the chain's principal failure, so it is reported rather
+ * than swallowed: `device_edit_failed`, with the operation and a stable code
+ * and no chain, track, project or device identity.
+ *
  * Cards are keyed on the device's id, not its object: every parameter edit
  * produces a new device object, and a card rebuilt under a live drag would
  * lose the very slider the pointer is moving.
@@ -96,6 +103,23 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
   const devices = () => [...props.devices].sort((a, b) => a.order - b.order);
   const full = () => props.limit !== undefined && devices().length >= props.limit.count;
+
+  /** Every chain edit, the cards' included, reporting the ones refused. */
+  function edit(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined {
+    const result = props.dispatch(commands);
+    if (result?.ok) return result;
+    const first = Array.isArray(commands) ? commands[0] : commands;
+    const operation = DEVICE_OPERATION_BY_COMMAND[(first as RawCommandInput)?.type];
+    if (operation) {
+      analytics().log("device_edit_failed", {
+        operation,
+        error_code: errorCodeOf(result),
+      });
+    }
+    return result;
+  }
   // The drag's source and where it would land, read by the events that follow
   // `dragstart` within the same gesture: plain variables, because a signal
   // write is not readable until the next flush. The signals mirror them for
@@ -142,7 +166,7 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
   const [focused, setFocused] = createSignal<DeviceId | null>(null);
 
   function move(id: DeviceId, to: number): void {
-    props.dispatch(reorderDevice(props.chain, id, to));
+    edit(reorderDevice(props.chain, id, to));
   }
 
   /** The focused device's index, and whether it can go `step` places. */
@@ -180,7 +204,7 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
 
   function add(type: DeviceTypeId): void {
     const device = createDevice(ids()("device"), type, devices().length);
-    const result = props.dispatch(addDevice(props.chain, device));
+    const result = edit(addDevice(props.chain, device));
     if (!result?.ok) return;
     analytics().log("device_added", { device_type: type, chain: props.chain.chain });
     analytics().logFeatureFirstUse("device_chain");
@@ -246,7 +270,7 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
                 device={device()}
                 canDuplicate={!full()}
                 newDeviceId={() => ids()("device")}
-                dispatch={props.dispatch}
+                dispatch={edit}
                 beginGesture={props.beginGesture}
               />
             </li>
@@ -278,6 +302,27 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
       </Show>
     </section>
   );
+}
+
+/** Which `device.*` command is which reportable edit. */
+const DEVICE_OPERATION_BY_COMMAND: Readonly<Record<string, DeviceOperation>> = {
+  "device.add": "add",
+  "device.remove": "remove",
+  "device.reorder": "reorder",
+  "device.duplicate": "duplicate",
+  "device.setBypass": "bypass",
+  "device.reset": "reset",
+};
+
+/**
+ * `revision_conflict` is the one refusal that is not the chain's bug — the
+ * project moved on underneath it. Anything else means the chain offered an
+ * edit the project could not satisfy, which is `internal`.
+ */
+function errorCodeOf(result: TransactionResult | undefined): ErrorCode {
+  if (!result || result.ok) return "unknown";
+  const code: CommandIssueCode | undefined = result.issues[0]?.code;
+  return code === "revision_conflict" ? "revision_conflict" : "internal";
 }
 
 export interface DeviceChainPanelProps {

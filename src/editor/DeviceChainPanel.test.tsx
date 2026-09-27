@@ -14,7 +14,7 @@ import { createRecordingTransport } from "../analytics/transport";
 import { addDevice, CommandHistory, insertChain } from "../commands";
 import { createDevice } from "../domain/devices";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
-import { createSeededIdFactory } from "../domain/ids";
+import { createSeededIdFactory, type TrackId } from "../domain/ids";
 import { MAX_TRACK_INSERTS } from "../domain/parse";
 import { moveTo } from "../instrument/panelTesting";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
@@ -310,5 +310,32 @@ describe("DeviceChainPanel", () => {
     fireAndFlush(() => cutoff.dispatchEvent(new Event("change", { bubbles: true })));
     expect(project().song.tracks[0].devices[0].parameters.cutoff).toBe(800);
     expect(history.entries.length).toBe(entries + 1);
+  });
+
+  it("reports a refused edit as device_edit_failed, naming nothing", () => {
+    // The panel shows a track the history's project does not hold, so the
+    // command layer genuinely refuses the add.
+    const history = new CommandHistory(createPianoRollFixtureProject());
+    const stranger = { ...history.project.song.tracks[0], id: "trk_absent" as TrackId };
+    const { transport, analytics } = recordingAnalytics();
+    render(() => (
+      <DeviceChainPanel
+        track={stranger}
+        dispatch={(commands) => history.execute(commands)}
+        beginGesture={(gesture) => history.beginGesture(gesture)}
+        analytics={analytics}
+        ids={createSeededIdFactory("device-chain-refused")}
+      />
+    ));
+    clickAndFlush(screen.getByRole("button", { name: "Add filter device" }));
+
+    const failures = transport.events.filter((e) => e.name === "device_edit_failed");
+    expect(failures).toHaveLength(1);
+    expect(failures[0].params).toMatchObject({
+      operation: "add",
+      error_code: "internal",
+    });
+    expect(JSON.stringify(failures[0].params)).not.toMatch(/trk_|dev_|prj_/);
+    expect(transport.events.filter((e) => e.name === "device_added")).toHaveLength(0);
   });
 });
