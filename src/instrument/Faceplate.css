@@ -117,3 +117,28 @@
   background-color: var(--color-background);
   pointer-events: none;
 }
+
+/* The ink a well draws in. The editor sets it to the selected track's own
+   colour (the one hue in the product); white until it does. */
+:root {
+  --track-ink: var(--color-accent);
+}
+
+/* What a well draws: gridlines, then the curve in the track's own colour. */
+.well-grid {
+  stroke: var(--color-background-tertiary);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.well-line {
+  fill: none;
+  stroke: var(--track-ink);
+  stroke-width: 1.75;
+  vector-effect: non-scaling-stroke;
+}
+
+.well-area {
+  fill: color-mix(in oklab, var(--track-ink) 18%, transparent);
+  stroke: none;
+}
