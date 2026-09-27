@@ -174,6 +174,36 @@ describe("DeviceChainPanel", () => {
     expect(names()).toEqual(["Overdrive", "Reverb"]);
   });
 
+  it("previews the new order while a card is held, and restores it on a cancelled drag", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const [overdrive, reverb] = items();
+    const shown = () => [overdrive.style.order, reverb.style.order];
+    const entries = history.entries.length;
+    const dataTransfer = {
+      setData() {},
+      getData: () => "",
+      effectAllowed: "",
+      dropEffect: "",
+    };
+
+    fireAndFlush(() => {
+      fireEvent.pointerDown(reverb.querySelector("header") as Element);
+      fireEvent.dragStart(reverb, { dataTransfer });
+      fireEvent.dragOver(overdrive, { dataTransfer });
+    });
+    // Reverb shows first, the chain it would become; nothing is committed yet.
+    expect(shown()).toEqual(["1", "0"]);
+    expect(reverb).toHaveClass("dragging");
+    expect(history.entries.length).toBe(entries);
+
+    // Let go outside the chain: dragend alone, no drop.
+    fireAndFlush(() => fireEvent.dragEnd(reverb, { dataTransfer }));
+    expect(shown()).toEqual(["0", "1"]);
+    expect(history.entries.length).toBe(entries);
+  });
+
   it("does not start a drag from one of the card's controls", () => {
     const { panel, items } = renderPanel();
     addFromPanel(panel, "Filter");
