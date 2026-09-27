@@ -294,6 +294,8 @@ export const SHORTCUT_ACTION_IDS = [
   "view.show_mixer",
   "view.close_surface",
   "help.shortcut_guide",
+  "device.move_earlier",
+  "device.move_later",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
