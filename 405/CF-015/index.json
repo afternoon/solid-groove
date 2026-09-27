@@ -3,31 +3,31 @@
   "title": "A producer picks out several clips with the keyboard held down",
   "steps": [
     {
-      "file": "01-bd-and-sampler-each-have-clips-in-bars-1-2-and-3.png",
+      "file": "01-start.png",
       "caption": "BD and Sampler each have clips in bars 1, 2 and 3"
     },
     {
-      "file": "02-click-the-bd-clip-in-bar-1-it-alone-is-selected.png",
+      "file": "02-click.png",
       "caption": "Click the BD clip in bar 1: it alone is selected"
     },
     {
-      "file": "03-cmd-click-the-bd-clip-in-bar-3-it-joins-the-selection.png",
+      "file": "03-cmd-click-join.png",
       "caption": "Cmd-click the BD clip in bar 3: it joins the selection"
     },
     {
-      "file": "04-cmd-click-the-bd-clip-in-bar-1-again-it-leaves-the-selection.png",
+      "file": "04-cmd-click-leave.png",
       "caption": "Cmd-click the BD clip in bar 1 again: it leaves the selection"
     },
     {
-      "file": "05-shift-click-the-sampler-clip-in-bar-2-bars-2-and-3-on-both-t.png",
+      "file": "05-shift-click.png",
       "caption": "Shift-click the Sampler clip in bar 2: bars 2 and 3 on both tracks"
     },
     {
-      "file": "06-press-delete-the-four-clips-are-gone-bar-1-is-untouched.png",
+      "file": "06-delete.png",
       "caption": "Press Delete: the four clips are gone; bar 1 is untouched"
     },
     {
-      "file": "07-reopened-exactly-as-the-delete-left-it.png",
+      "file": "07-reopened.png",
       "caption": "Reopened exactly as the delete left it"
     }
   ]
