@@ -9,6 +9,7 @@ import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import {
   COLOR_TOKENS,
   createArrangementWaveformCache,
+  DRAGGED_LANE_ALPHA,
   type DrawEnvironment,
   drawBackgroundLayer,
   drawContentLayer,
@@ -35,6 +36,8 @@ interface Stroke {
 }
 
 type FakeContext = CanvasRenderingContext2D & {
+  /** Each `fillRect`'s top and the `globalAlpha` it was painted at. */
+  fills: { y: number; alpha: number }[];
   fillRectCalls: number;
   strokeRectCalls: number;
   moveToXs: number[];
@@ -46,12 +49,14 @@ function fakeContext(): FakeContext {
   const strokeRectSpy = vi.fn();
   const moveToXs: number[] = [];
   const strokes: Stroke[] = [];
+  const fills: { y: number; alpha: number }[] = [];
   let dash: readonly number[] = [];
   const ctx = {
     setTransform: vi.fn(),
     clearRect: vi.fn(),
-    fillRect: (x: number, _y: number, _w: number, _h: number) => {
+    fillRect(this: { globalAlpha: number }, x: number, y: number) {
       fillRectSpy(x);
+      fills.push({ y, alpha: this.globalAlpha });
     },
     strokeRect(this: { lineWidth: number }, x: number, _y: number, _w: number) {
       strokeRectSpy(x);
@@ -81,6 +86,7 @@ function fakeContext(): FakeContext {
     },
     moveToXs,
     strokes,
+    fills,
   };
   return ctx as unknown as FakeContext;
 }
@@ -302,5 +308,25 @@ describe("drawContentLayer note previews (#351)", () => {
     const kickRow = rects.find((rect) => rect.x === kickX)?.y;
     // The downbeat is kick-only, so its row is the kick's: the top one.
     expect(kickRow).toBe(rows[0]);
+  });
+});
+
+describe("drawContentLayer while a track is dragged (TRK-02)", () => {
+  it("draws only the dragged track's lane translucent", () => {
+    const env = envFor(baseViewport());
+    const [dragged, other] = env.projection.tracks;
+    const rowHeight = ROW_METRICS.trackHeightPx;
+    const inRow = (row: number) => (fill: { y: number }) =>
+      fill.y >= row * rowHeight && fill.y < (row + 1) * rowHeight;
+
+    drawContentLayer({ ...env, translucentTrackId: dragged.id });
+
+    const draggedFills = env.ctx.fills.filter(inRow(dragged.rowIndex));
+    const otherFills = env.ctx.fills.filter(inRow(other.rowIndex));
+    expect(draggedFills.length).toBeGreaterThan(0);
+    expect(otherFills.length).toBeGreaterThan(0);
+    expect(draggedFills.every((fill) => fill.alpha <= DRAGGED_LANE_ALPHA)).toBe(true);
+    expect(otherFills.every((fill) => fill.alpha > DRAGGED_LANE_ALPHA)).toBe(true);
+    expect(env.ctx.globalAlpha).toBe(1);
   });
 });

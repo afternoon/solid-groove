@@ -10,7 +10,7 @@
  * proportional to visible objects, not project duration (PRD 9.3).
  */
 
-import type { PlacementId } from "../domain/ids";
+import type { PlacementId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import type { ArrangementBand, ArrangementPosition } from "../selection";
 import type { RowRange, TickRange, Viewport } from "./geometry";
@@ -43,6 +43,16 @@ export interface DrawEnvironment {
    * pass. Optional so a host with no loop to show draws the ruler bare.
    */
   readonly loop?: LoopBraceDrawState | null;
+  /** A track being dragged to a new row (TRK-02): its lane is drawn at
+   * `DRAGGED_LANE_ALPHA`, like its header, until the drop commits the move. */
+  readonly translucentTrackId?: TrackId | null;
+}
+
+/** How opaque a dragged track's lane is drawn (TRK-02); matches its header. */
+export const DRAGGED_LANE_ALPHA = 0.5;
+
+function laneAlpha(env: DrawEnvironment, trackId: TrackId): number {
+  return trackId === env.translucentTrackId ? DRAGGED_LANE_ALPHA : 1;
 }
 
 /** What the ruler needs to draw the loop brace: its range and whether it is on. */
@@ -297,16 +307,18 @@ function drawPlacement(env: DrawEnvironment, placement: PlacementGeometry): void
   const height = projection.rowMetrics.trackHeightPx - 4;
   const width = Math.max(1, right - left);
 
+  const alpha = laneAlpha(env, placement.trackId);
   ctx.fillStyle = placement.color;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = 0.85 * alpha;
   ctx.fillRect(left, top, width, height);
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = alpha;
 
   if (placement.preview.kind === "waveform") {
     drawWaveformPreview(env, placement, left, top, width, height);
   } else {
     drawNotePreview(env, placement, left, width, top, height);
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawNotePreview(
@@ -395,6 +407,7 @@ function drawAutomationLanes(env: DrawEnvironment): void {
     const height = projection.rowMetrics.trackHeightPx;
     ctx.strokeStyle = colors().playhead;
     ctx.lineWidth = 1.5;
+    ctx.globalAlpha = laneAlpha(env, track.id);
     ctx.beginPath();
     let previousY: number | null = null;
     for (const point of lane.points) {
@@ -413,6 +426,7 @@ function drawAutomationLanes(env: DrawEnvironment): void {
       previousY = y;
     }
     if (previousY !== null) ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 

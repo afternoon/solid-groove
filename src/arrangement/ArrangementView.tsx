@@ -331,7 +331,15 @@ export default function ArrangementView(props: ArrangementViewProps) {
     interactionState,
     waveformCache,
     loop: () => props.project.song.loop,
+    translucentTrackId: () => trackDrag.dragging(),
   });
+
+  // Picking a track up or putting it down changes how its lane is drawn even
+  // when the rows have not moved yet, so redraw the canvas on either edge.
+  createEffect(
+    () => trackDrag.dragging(),
+    () => shell?.invalidateAll(),
+  );
 
   /** One arrangement interaction the user initiated: the once-per-account
    * `feature_first_use` for `arrangement` (PRD OPS-02). */

@@ -1,4 +1,5 @@
 import { onCleanup } from "solid-js";
+import type { TrackId } from "../domain/ids";
 import type { ArrangementShell, DirtyLayer } from "./arrangementShell";
 import {
   type DrawEnvironment,
@@ -51,6 +52,8 @@ export interface ArrangementCanvasOptions {
   readonly waveformCache: WaveformCache;
   /** The song's loop brace, drawn on the ruler (`LOOP-018`). */
   readonly loop?: () => LoopBraceDrawState | null;
+  /** The track being dragged (TRK-02), whose lane is drawn translucent. */
+  readonly translucentTrackId?: () => TrackId | null;
 }
 
 /** The three stacked, dirty-tracked layer canvases, in z-order. */
@@ -144,6 +147,7 @@ export function useArrangementCanvas(
       tickRange: shell.tickRange(),
       waveformCache: options.waveformCache,
       loop: options.loop?.() ?? null,
+      translucentTrackId: options.translucentTrackId?.() ?? null,
     };
   }
 
