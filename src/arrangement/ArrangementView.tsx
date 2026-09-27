@@ -17,6 +17,9 @@ import type {
 import type { Project } from "../domain/entities";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import "../editor/trackDrag.css";
+import { moveTrack, orderedTrackIds, previewTrackOrder } from "../editor/trackReorder";
+import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
   type ArrangementPosition,
@@ -202,9 +205,35 @@ export interface ArrangementViewProps {
 export default function ArrangementView(props: ArrangementViewProps) {
   const analytics = () => props.analytics ?? defaultAnalytics;
 
-  const projection = createMemo<ArrangementProjection>(() =>
-    buildArrangementProjection(props.project, ROW_METRICS),
-  );
+  /** Drag a header up or down the column to reorder its track (TRK-02). */
+  const trackDrag = useTrackDrag({
+    axis: "y",
+    zone: () => headerColumnEl,
+    indexOf: (trackId) => orderedTrackIds(props.project).indexOf(trackId),
+    onDrop: (trackId, toIndex) => {
+      const dispatch = props.dispatch;
+      if (!dispatch) return;
+      moveTrack(
+        { project: () => props.project, dispatch, analytics: analytics() },
+        trackId,
+        toIndex,
+        { view: "arrangement", method: "drag" },
+      );
+    },
+  });
+
+  /** Whether `trackId` is the one drawn at a drag's would-be landing row. */
+  const previewing = (trackId: TrackId) =>
+    trackDrag.dragging() === trackId && trackDrag.target() !== null;
+
+  /** The project as drawn: mid-drag, the dragged track already sits in the
+   * row it would land in, header and lane, before the drop commits it. */
+  const projection = createMemo<ArrangementProjection>(() => {
+    const [dragged, to] = [trackDrag.dragging(), trackDrag.target()];
+    const moved = dragged !== null && to !== null;
+    const shown = moved ? previewTrackOrder(props.project, dragged, to) : props.project;
+    return buildArrangementProjection(shown, ROW_METRICS);
+  });
 
   // A tiny signal bumped whenever the shell mutates viewport/selection state,
   // so the reactive header column and accessible list re-read the shell.
@@ -213,6 +242,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
   let scrollEl!: HTMLDivElement;
   let spacerEl: HTMLDivElement | undefined;
   let headerListEl!: HTMLUListElement;
+  let headerColumnEl: HTMLDivElement | undefined;
   let backgroundCanvas!: HTMLCanvasElement;
   let contentCanvas!: HTMLCanvasElement;
   let interactionCanvas!: HTMLCanvasElement;
@@ -840,7 +870,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
         />
       </Show>
       <div class="arrangement-body">
-        <div class="arrangement-headers" style={{ width: `${HEADER_WIDTH_PX}px` }}>
+        <div
+          class="arrangement-headers"
+          ref={headerColumnEl}
+          style={{ width: `${HEADER_WIDTH_PX}px` }}
+        >
           <div class="arrangement-headers-ruler-spacer" />
           <ul
             class="arrangement-headers-inner"
@@ -851,7 +885,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
             <For each={headerRows()}>
               {(track) => (
                 <li
-                  class="arrangement-header-row"
+                  class={[
+                    "arrangement-header-row",
+                    { "track-dragging": trackDrag.dragging() === track.id },
+                  ]}
+                  data-track-drag={track.id}
+                  data-testid={previewing(track.id) ? "track-drop-indicator" : undefined}
                   style={{
                     position: "absolute",
                     top: `${track.rowIndex * ROW_METRICS.headerHeightPx}px`,
@@ -870,6 +909,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
                     aria-pressed={ariaBool(props.selectedTrackId === track.id)}
                     aria-label={`Edit ${track.name}${track.muted ? " (muted)" : ""}`}
                     onClick={() => selectTrack(track.id)}
+                    onPointerDown={(event) => {
+                      if (props.dispatch) trackDrag.begin(event, track.id);
+                    }}
                   >
                     <span
                       class="arrangement-header-swatch"

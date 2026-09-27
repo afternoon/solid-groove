@@ -1,0 +1,8 @@
+/* A track dragged to reorder it (TRK-02): no text selection from its handle,
+   and translucent where it is previewed, since the move is not yet made. */
+[data-track-drag] {
+  user-select: none;
+}
+.track-dragging {
+  opacity: 0.5;
+}
