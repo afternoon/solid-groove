@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import {
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -63,19 +70,38 @@ function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: str
   );
 }
 
-/** A drag of `from`'s card, pressed on `handle`, dropped on `to`'s card. */
-function dragCard(from: HTMLElement, handle: Element, to: HTMLElement) {
-  const dataTransfer = {
-    setData() {},
-    getData: () => "",
-    effectAllowed: "",
-    dropEffect: "",
-  };
+const dataTransfer = {
+  setData() {},
+  getData: () => "",
+  effectAllowed: "",
+  dropEffect: "",
+};
+
+/**
+ * Pointer heights for a card's upper and lower half. jsdom lays nothing out,
+ * so every card's box is zero-sized at the top of the page: a pointer above
+ * its middle is any negative height, one below it any positive one.
+ */
+const UPPER = -1;
+const LOWER = 1;
+
+/**
+ * A drag event at a pointer height. jsdom has no `DragEvent`, so the event is
+ * a plain `Event` and drops `clientY` from its init; it is set on it instead.
+ */
+function dragAt(type: "dragOver" | "drop", target: Element, clientY: number) {
+  const event = createEvent[type](target, { dataTransfer });
+  Object.defineProperty(event, "clientY", { value: clientY });
+  fireEvent(target, event);
+}
+
+/** A drag of `from`'s card, pressed on `handle`, dropped over one half of `to`. */
+function dragCard(from: HTMLElement, handle: Element, to: HTMLElement, clientY = UPPER) {
   fireAndFlush(() => {
     fireEvent.pointerDown(handle);
     fireEvent.dragStart(from, { dataTransfer });
-    fireEvent.dragOver(to, { dataTransfer });
-    fireEvent.drop(to, { dataTransfer });
+    dragAt("dragOver", to, clientY);
+    dragAt("drop", to, clientY);
     fireEvent.dragEnd(from, { dataTransfer });
   });
 }
@@ -181,17 +207,11 @@ describe("DeviceChainPanel", () => {
     const [overdrive, reverb] = items();
     const shown = () => [overdrive.style.order, reverb.style.order];
     const entries = history.entries.length;
-    const dataTransfer = {
-      setData() {},
-      getData: () => "",
-      effectAllowed: "",
-      dropEffect: "",
-    };
 
     fireAndFlush(() => {
       fireEvent.pointerDown(reverb.querySelector("header") as Element);
       fireEvent.dragStart(reverb, { dataTransfer });
-      fireEvent.dragOver(overdrive, { dataTransfer });
+      dragAt("dragOver", overdrive, UPPER);
     });
     // Reverb shows first, the chain it would become; nothing is committed yet.
     expect(shown()).toEqual(["1", "0"]);
@@ -201,6 +221,42 @@ describe("DeviceChainPanel", () => {
     // Let go outside the chain: dragend alone, no drop.
     fireAndFlush(() => fireEvent.dragEnd(reverb, { dataTransfer }));
     expect(shown()).toEqual(["0", "1"]);
+    expect(history.entries.length).toBe(entries);
+  });
+
+  it("offers every slot while held, the one it started in included", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Filter");
+    addFromPanel(panel, "Delay");
+    addFromPanel(panel, "Reverb");
+    const [filter, delay, reverb] = items();
+    // The order each card shows in, read in chain order: Filter, Delay, Reverb.
+    const shown = () => [filter, delay, reverb].map((item) => item.style.order);
+    const over = (item: HTMLElement, clientY: number) =>
+      fireAndFlush(() => dragAt("dragOver", item, clientY));
+    const entries = history.entries.length;
+
+    fireAndFlush(() => {
+      fireEvent.pointerDown(delay.querySelector("header") as Element);
+      fireEvent.dragStart(delay, { dataTransfer });
+    });
+    over(filter, UPPER); // above Filter: Delay, Filter, Reverb
+    expect(shown()).toEqual(["1", "0", "2"]);
+    over(reverb, LOWER); // below Reverb: Filter, Reverb, Delay
+    expect(shown()).toEqual(["0", "2", "1"]);
+    over(reverb, UPPER); // back where it started: Filter, Delay, Reverb
+    expect(shown()).toEqual(["0", "1", "2"]);
+
+    // Dropping in the slot it started in moves nothing and records nothing.
+    fireAndFlush(() => {
+      dragAt("drop", reverb, UPPER);
+      fireEvent.dragEnd(delay, { dataTransfer });
+    });
+    expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
+      "Filter",
+      "Delay",
+      "Reverb",
+    ]);
     expect(history.entries.length).toBe(entries);
   });
 

@@ -58,9 +58,10 @@ const NOT_A_HANDLE =
  * `MAX_TRACK_INSERTS` inserts, so adding and duplicating stop there rather
  * than offering a command the domain will refuse.
  *
- * Reordering is a drag from a card's header or background onto another card,
- * which takes that card's place — the chain previews the new order while the
- * card is held, and a drop outside the chain leaves it as it was — or Alt/Option+Up/Down on a focused device
+ * Reordering is a drag from a card's header or background into a slot above
+ * or below another card — the chain previews the new order while the card is
+ * held, every slot including the one it started in, and a drop outside the
+ * chain leaves it as it was — or Alt/Option+Up/Down on a focused device
  * name (the registry's `device.move_*`). Each move is one `device.reorder`,
  * and `DeviceChain` relinks the audio without rebuilding a node, so a move
  * during playback is click-free.
@@ -89,13 +90,26 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
    * because moving the dragged node mid-drag can end the browser's drag.
    */
   function shownAt(id: DeviceId, index: number): number {
-    const from = devices().findIndex((device) => device.id === dragging());
+    const held = dragging();
     const to = preview();
-    if (from < 0 || to === null) return index;
-    if (id === dragging()) return to;
-    if (from < to && index > from && index <= to) return index - 1;
-    if (to < from && index >= to && index < from) return index + 1;
-    return index;
+    if (held === null || to === null) return index;
+    const shown = devices()
+      .map((device) => device.id)
+      .filter((entry) => entry !== held);
+    shown.splice(to, 0, held);
+    return shown.indexOf(id);
+  }
+
+  /**
+   * The slot a drag over `over` offers: just above it in its upper half, just
+   * below it in its lower half, counted among the other devices. With three
+   * devices that is three slots, the one the held device started in included.
+   */
+  function slotAt(over: DeviceId, event: DragEvent): number {
+    const others = devices().filter((device) => device.id !== dragged);
+    const at = others.findIndex((device) => device.id === over);
+    const box = (event.currentTarget as Element).getBoundingClientRect();
+    return event.clientY < box.top + box.height / 2 ? at : at + 1;
   }
 
   function endDrag(): void {
@@ -179,12 +193,12 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
               }}
               onDragOver={(event) => {
                 if (dragged === null) return;
-                // The dragged card itself is a valid place to drop: after the
-                // preview moves it, it is usually what is under the pointer.
+                // The held card itself is a valid place to drop, where the
+                // preview already shows it; over it, the slot stays as it is.
                 event.preventDefault();
                 if (dragged === device().id) return;
-                landing = index();
-                setPreview(index());
+                landing = slotAt(device().id, event);
+                setPreview(landing);
               }}
               onDrop={(event) => {
                 event.preventDefault();
