@@ -1,6 +1,9 @@
+import type { DeviceChainTarget, ParameterTarget } from "../commands";
 import { DELAY_DIVISIONS } from "../domain/devices";
 import type { Device } from "../domain/entities";
+import type { DeviceId } from "../domain/ids";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
+import { formatInstrumentValue } from "../instrument/formatValue";
 
 /**
  * How one device parameter is shown (PRD FX-01: a device's own controls,
@@ -46,4 +49,62 @@ export function readDeviceParameter(
   definition: ParameterDefinition,
 ): number {
   return device.parameters[bareParameterId(definition.id)] ?? definition.defaultValue;
+}
+
+/**
+ * The `parameter.set` target for one parameter of a device in `chain`: a
+ * track's inserts write through `trackDevice`, the master's through
+ * `masterDevice`. The device's controls are the same component either way;
+ * only this address differs. Return buses have no device parameter scope yet,
+ * and no surface renders their chains.
+ */
+export function deviceParameterTarget(
+  chain: DeviceChainTarget,
+  deviceId: DeviceId,
+  parameterId: string,
+): ParameterTarget {
+  switch (chain.chain) {
+    case "insert":
+      return { scope: "trackDevice", trackId: chain.trackId, deviceId, parameterId };
+    case "master":
+      return { scope: "masterDevice", deviceId, parameterId };
+    case "return":
+      throw new Error("A return bus's devices have no parameter.set scope");
+  }
+}
+
+/**
+ * A continuous device value in its own unit, for the slider's reading. The
+ * instrument panel's formatter already speaks hertz, seconds, decibels and
+ * percent; a compressor's ratio is the one device quantity whose unit is a
+ * relationship, so it reads "4.0:1" as every compressor prints it.
+ */
+export function formatDeviceValue(
+  definition: ParameterDefinition,
+  value: number,
+): string {
+  if (bareParameterId(definition.id) === "ratio") return `${value.toFixed(1)}:1`;
+  return formatInstrumentValue(definition, value);
+}
+
+/**
+ * "at maximum" or "at minimum" when a value sits on its own bound (PRD
+ * FX-02): extremes are reachable on purpose and said out loud, never quietly
+ * pulled back toward a safe sound. Derived from the definition alone, so no
+ * per-device table of dangerous knobs exists. A bound that is also the
+ * default is not reported: a factory setting is not extreme.
+ */
+export function deviceExtremeLabel(
+  definition: ParameterDefinition,
+  value: number,
+): string | null {
+  const span = definition.max - definition.min;
+  if (!(span > 0) || !Number.isFinite(value)) return null;
+  // A whisker of the range, so a drag to the end reports the end without a
+  // float comparison deciding it landed a step short.
+  const epsilon = span * 0.005;
+  if (Math.abs(value - definition.defaultValue) <= epsilon) return null;
+  if (value >= definition.max - epsilon) return "at maximum";
+  if (value <= definition.min + epsilon) return "at minimum";
+  return null;
 }

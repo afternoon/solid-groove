@@ -1,11 +1,4 @@
-import {
-  cleanup,
-  createEvent,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -14,12 +7,13 @@ import { createRecordingTransport } from "../analytics/transport";
 import { addDevice, CommandHistory, insertChain } from "../commands";
 import { createDevice } from "../domain/devices";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
-import { createSeededIdFactory } from "../domain/ids";
+import { createSeededIdFactory, type TrackId } from "../domain/ids";
 import { MAX_TRACK_INSERTS } from "../domain/parse";
 import { moveTo } from "../instrument/panelTesting";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import DeviceChainPanel from "./DeviceChainPanel";
+import { dataTransfer, dragAt, dragCard, LOWER, UPPER } from "./deviceChainTesting";
 
 afterEach(() => cleanup());
 
@@ -68,42 +62,6 @@ function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: str
   clickAndFlush(
     panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
   );
-}
-
-const dataTransfer = {
-  setData() {},
-  getData: () => "",
-  effectAllowed: "",
-  dropEffect: "",
-};
-
-/**
- * Pointer heights for a card's upper and lower half. jsdom lays nothing out,
- * so every card's box is zero-sized at the top of the page: a pointer above
- * its middle is any negative height, one below it any positive one.
- */
-const UPPER = -1;
-const LOWER = 1;
-
-/**
- * A drag event at a pointer height. jsdom has no `DragEvent`, so the event is
- * a plain `Event` and drops `clientY` from its init; it is set on it instead.
- */
-function dragAt(type: "dragOver" | "drop", target: Element, clientY: number) {
-  const event = createEvent[type](target, { dataTransfer });
-  Object.defineProperty(event, "clientY", { value: clientY });
-  fireEvent(target, event);
-}
-
-/** A drag of `from`'s card, pressed on `handle`, dropped over one half of `to`. */
-function dragCard(from: HTMLElement, handle: Element, to: HTMLElement, clientY = UPPER) {
-  fireAndFlush(() => {
-    fireEvent.pointerDown(handle);
-    fireEvent.dragStart(from, { dataTransfer });
-    dragAt("dragOver", to, clientY);
-    dragAt("drop", to, clientY);
-    fireEvent.dragEnd(from, { dataTransfer });
-  });
 }
 
 describe("DeviceChainPanel", () => {
@@ -310,5 +268,32 @@ describe("DeviceChainPanel", () => {
     fireAndFlush(() => cutoff.dispatchEvent(new Event("change", { bubbles: true })));
     expect(project().song.tracks[0].devices[0].parameters.cutoff).toBe(800);
     expect(history.entries.length).toBe(entries + 1);
+  });
+
+  it("reports a refused edit as device_edit_failed, naming nothing", () => {
+    // The panel shows a track the history's project does not hold, so the
+    // command layer genuinely refuses the add.
+    const history = new CommandHistory(createPianoRollFixtureProject());
+    const stranger = { ...history.project.song.tracks[0], id: "trk_absent" as TrackId };
+    const { transport, analytics } = recordingAnalytics();
+    render(() => (
+      <DeviceChainPanel
+        track={stranger}
+        dispatch={(commands) => history.execute(commands)}
+        beginGesture={(gesture) => history.beginGesture(gesture)}
+        analytics={analytics}
+        ids={createSeededIdFactory("device-chain-refused")}
+      />
+    ));
+    clickAndFlush(screen.getByRole("button", { name: "Add filter device" }));
+
+    const failures = transport.events.filter((e) => e.name === "device_edit_failed");
+    expect(failures).toHaveLength(1);
+    expect(failures[0].params).toMatchObject({
+      operation: "add",
+      error_code: "internal",
+    });
+    expect(JSON.stringify(failures[0].params)).not.toMatch(/trk_|dev_|prj_/);
+    expect(transport.events.filter((e) => e.name === "device_added")).toHaveLength(0);
   });
 });

@@ -33,7 +33,7 @@ function renderChain(types: readonly DeviceTypeId[], options = { canDuplicate: t
         {(device) => (
           <li>
             <DeviceCard
-              trackId={trackId}
+              chain={insertChain(trackId)}
               device={device()}
               canDuplicate={options.canDuplicate}
               newDeviceId={() => copyId}
