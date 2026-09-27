@@ -10,8 +10,9 @@
  * proportional to visible objects, not project duration (PRD 9.3).
  */
 
-import type { PlacementId, TrackId } from "../domain/ids";
+import type { PlacementId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import type { ArrangementBand, ArrangementPosition } from "../selection";
 import type { RowRange, TickRange, Viewport } from "./geometry";
 import { ticksToPixels } from "./geometry";
 import type { ArrangementProjection, PlacementGeometry } from "./projection";
@@ -53,14 +54,16 @@ export interface LoopBraceDrawState {
 
 export interface InteractionState {
   readonly playheadTicks: number | null;
-  readonly selection: {
-    readonly trackId: TrackId;
-    readonly startTick: number;
-    readonly endTick: number;
-  } | null;
+  /**
+   * The band a drag in empty space sweeps while the pointer is down (#292),
+   * drawn as a dotted outline over the tracks it spans. It is not a
+   * selection: on release it becomes the clips it touched.
+   */
+  readonly band: ArrangementBand | null;
+  /** The insertion point, when that is the selection: a cursor down its track. */
+  readonly point: ArrangementPosition | null;
   readonly hoverPlacementId: PlacementId | null;
-  /** Placement-editing selection (`ARR-002`; PRD CLP-01) — entities selected
-   * by ID, distinct from `selection`'s bar range. */
+  /** The clips the selection selects, each drawn with a solid outline. */
   readonly selectedPlacementIds: ReadonlySet<PlacementId>;
 }
 
@@ -88,7 +91,6 @@ export const COLOR_TOKENS = {
   selection: ["--color-accent-wash", "rgb(255 255 255 / 15%)"],
   selectionBorder: ["--color-accent", "#ffffff"],
   hover: ["--color-text", "#f6f6f6"],
-  placementSelection: ["--color-accent-wash-strong", "rgb(255 255 255 / 28%)"],
   /* Note ticks and the waveform centre line are drawn over a track's own
      colour — the one hue on screen — so they shade what is beneath rather
      than naming a colour of their own. */
@@ -414,6 +416,60 @@ function drawAutomationLanes(env: DrawEnvironment): void {
   }
 }
 
+/** The dash the drag band is outlined with, so it never reads as a clip's. */
+export const BAND_LINE_DASH: readonly number[] = [4, 3];
+
+/** The top and bottom of the rows `trackIds` cover, on screen. */
+function rowsExtent(
+  env: DrawEnvironment,
+  trackIds: readonly string[],
+): { top: number; bottom: number } | null {
+  const { viewport, projection } = env;
+  const rows = projection.tracks
+    .filter((track) => trackIds.includes(track.id))
+    .map((track) => track.rowIndex);
+  if (rows.length === 0) return null;
+  return {
+    top: rowTop(Math.min(...rows), projection) - viewport.scrollTop,
+    bottom:
+      rowTop(Math.max(...rows), projection) -
+      viewport.scrollTop +
+      projection.rowMetrics.trackHeightPx,
+  };
+}
+
+/** The drag band (#292): a faint wash under a dotted outline, over every
+ * track it spans. */
+function drawBand(env: DrawEnvironment, band: ArrangementBand): void {
+  const { ctx, viewport } = env;
+  const rows = rowsExtent(env, band.trackIds);
+  if (!rows) return;
+  const left = screenX(band.startTicks, viewport);
+  const width = screenX(band.endTicks, viewport) - left;
+  ctx.fillStyle = colors().selection;
+  ctx.fillRect(left, rows.top, width, rows.bottom - rows.top);
+  ctx.strokeStyle = colors().selectionBorder;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([...BAND_LINE_DASH]);
+  ctx.strokeRect(left + 0.5, rows.top + 0.5, width - 1, rows.bottom - rows.top - 1);
+  ctx.setLineDash([]);
+}
+
+/** The insertion point (#292): a cursor line down its one track. */
+function drawPoint(env: DrawEnvironment, point: ArrangementPosition): void {
+  const { ctx, viewport } = env;
+  const rows = rowsExtent(env, [point.trackId]);
+  if (!rows) return;
+  const x = Math.round(screenX(point.ticks, viewport)) + 0.5;
+  ctx.strokeStyle = colors().selectionBorder;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(x, rows.top);
+  ctx.lineTo(x, rows.bottom);
+  ctx.stroke();
+}
+
 /** Playhead, selection, and hover — the only layer redrawn on every pointer
  * move or transport tick, so it must stay cheap regardless of project size. */
 export function drawInteractionLayer(
@@ -424,23 +480,15 @@ export function drawInteractionLayer(
   const { ctx, viewport, projection } = env;
   const rulerTop = contentTopOffset();
 
-  if (interaction.selection) {
-    const { trackId, startTick, endTick } = interaction.selection;
-    const rowIndex = projection.tracks.find((track) => track.id === trackId)?.rowIndex;
-    if (rowIndex !== undefined) {
-      const left = screenX(startTick, viewport);
-      const right = screenX(endTick, viewport);
-      const top = rowTop(rowIndex, projection) - viewport.scrollTop;
-      ctx.fillStyle = colors().selection;
-      ctx.fillRect(left, top, right - left, projection.rowMetrics.trackHeightPx);
-      ctx.strokeStyle = colors().selectionBorder;
-      ctx.strokeRect(left, top, right - left, projection.rowMetrics.trackHeightPx);
-    }
-  }
+  if (interaction.band) drawBand(env, interaction.band);
+  if (interaction.point) drawPoint(env, interaction.point);
 
-  // Selected placements (ARR-002): a thicker, filled border so the highlight
-  // reads as distinct from the plain hover outline below even when a
-  // placement is both selected and hovered at once.
+  // Selected clips (#292): a solid outline on the clip itself, thicker than
+  // the hover outline below so a clip both selected and hovered still reads as
+  // selected. No fill, so it cannot be mistaken for the band's wash.
+  ctx.strokeStyle = colors().selectionBorder;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([]);
   for (const placementId of interaction.selectedPlacementIds) {
     const placement = projection.placementsById.get(placementId);
     if (!placement) continue;
@@ -448,10 +496,6 @@ export function drawInteractionLayer(
     const right = screenX(placement.endTicks, viewport);
     const top = rowTop(placement.rowIndex, projection) - viewport.scrollTop;
     const height = projection.rowMetrics.trackHeightPx;
-    ctx.fillStyle = colors().placementSelection;
-    ctx.fillRect(left, top, Math.max(1, right - left), height);
-    ctx.strokeStyle = colors().selectionBorder;
-    ctx.lineWidth = 3;
     ctx.strokeRect(left + 1.5, top + 1.5, Math.max(1, right - left - 3), height - 3);
   }
 

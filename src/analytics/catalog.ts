@@ -211,6 +211,7 @@ export const FEATURE_KEYS = [
   "pack_browser",
   "shortcut_guide",
   "arrangement",
+  "arrangement_selection",
   "sections",
   "automation",
   "assistant",
