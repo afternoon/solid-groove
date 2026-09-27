@@ -275,7 +275,8 @@ interface TrackStripProps {
   onSelect(): void;
   /** Move this strip's track to `toIndex` in display order. */
   onMove(toIndex: number): void;
-  /** Start dragging this strip along the row, from its "Edit" chip. */
+  /** Start dragging this strip along the row, from anywhere on its
+   * background or its "Edit" chip — see {@link startsStripDrag}. */
   onDragStart(event: PointerEvent): void;
   /** Whether this strip is the one being dragged. */
   readonly dragging: boolean;
@@ -289,6 +290,19 @@ interface TrackStripProps {
   onDelete(): void;
   readonly requestFrame?: (callback: () => void) => number;
   readonly cancelFrame?: (handle: number) => void;
+}
+
+/**
+ * The strip's controls keep their own pointer gestures — a fader or pan drag,
+ * a button press, text selection in the name. Anything else on the strip, and
+ * its "Edit" chip, starts a reorder drag (#331): the whole strip background is
+ * the handle, not an 18px chip.
+ */
+const STRIP_CONTROLS =
+  "input, textarea, select, a, [role='slider'], .fill-slider, button:not(.mixer-strip-select)";
+
+function startsStripDrag(event: PointerEvent): boolean {
+  return !(event.target as Element).closest(STRIP_CONTROLS);
 }
 
 function TrackStrip(props: TrackStripProps): JSX.Element {
@@ -306,6 +320,9 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         },
       ]}
       data-track-drag={props.track.id}
+      onPointerDown={(event) => {
+        if (startsStripDrag(event)) props.onDragStart(event);
+      }}
     >
       <div class="mixer-strip-head">
         {/* The colour chip is also the keyboard route to selecting a track:
@@ -330,7 +347,6 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           aria-label={`Edit ${props.track.name}`}
           title={`Edit ${props.track.name}`}
           onClick={() => props.onSelect()}
-          onPointerDown={(event) => props.onDragStart(event)}
         >
           <span
             class="mixer-strip-chip"

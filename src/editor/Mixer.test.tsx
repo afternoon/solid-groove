@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -291,6 +291,42 @@ describe("Mixer track management (TRK-01)", () => {
     expect(selected).toEqual([]);
     // Let the swallow for the click a drag ends in lapse, as a browser would
     // by the next task, so it cannot eat the next test's first click.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  it("starts a drag from anywhere on the strip background, never from its controls (#331)", async () => {
+    const { history } = renderMixer(
+      createReferenceProject({ trackCount: 3, placementCount: 3 }),
+    );
+    const order = () =>
+      [...history.project.song.tracks].sort((a, b) => a.order - b.order);
+    stubTrackDragLayout({
+      axis: "x",
+      zoneSelector: ".mixer-tracks",
+      size: 100,
+      zoneLength: 300,
+      order: () => order().map((track) => track.id),
+    });
+    const [a, b, c] = order();
+    const strip = (name: string) =>
+      screen
+        .getByRole("button", { name: `Edit ${name}` })
+        .closest<HTMLElement>("[data-track-drag]") as HTMLElement;
+
+    // The strip's own background is a handle.
+    dragTrackHandle(strip(c.name), { x: 2, y: 50 });
+    expect(order().map((track) => track.id)).toEqual([c.id, a.id, b.id]);
+    expect(history.entries).toHaveLength(1);
+
+    // Its controls keep their own gestures: a press-and-move on a button or a
+    // slider moves no track.
+    dragTrackHandle(screen.getByRole("button", { name: `Mute ${b.name}` }), {
+      x: 2,
+      y: 50,
+    });
+    dragTrackHandle(within(strip(b.name)).getAllByRole("slider")[0], { x: 2, y: 50 });
+    expect(order().map((track) => track.id)).toEqual([c.id, a.id, b.id]);
+    expect(history.entries).toHaveLength(1);
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 

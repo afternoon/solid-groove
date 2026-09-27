@@ -52,7 +52,7 @@
   gap: 6px;
   /* Fixed: the fader, the meter beside it, and a pan row that takes whatever
 	   width is here rather than setting it — so no control can widen a strip. */
-  width: 96px;
+  width: 144px;
   flex: 0 0 auto;
   padding: 6px;
   box-sizing: border-box;
@@ -183,8 +183,10 @@
 }
 
 .mixer-strip-controls {
-  /* One travel length for the fader and the meter beside it. */
-  --mixer-travel: 104px;
+  /* One travel length for the fader and the meter beside it. The strip's
+     other rows are fixed, so this is what sets its height (TRK-02 doubled it
+     to give the drag a larger target and the fader more throw). */
+  --mixer-travel: 375px;
 
   display: flex;
   align-items: flex-start;
