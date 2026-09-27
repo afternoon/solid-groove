@@ -58,8 +58,9 @@ function renderPanel(options: { preload?: number; allowed?: boolean } = {}) {
 }
 
 function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: string) {
-  clickAndFlush(panel().getByRole("button", { name: "Add device" }));
-  clickAndFlush(panel().getByRole("button", { name: label }));
+  clickAndFlush(
+    panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
+  );
 }
 
 describe("DeviceChainPanel", () => {
@@ -69,12 +70,19 @@ describe("DeviceChainPanel", () => {
     expect(panel().getByText("No devices on this track yet.")).toBeInTheDocument();
   });
 
-  it("offers the six registered types, and appends each in order as one entry", () => {
+  it("offers one add button per registered type, and appends each in order as one entry", () => {
     const { history, panel, items } = renderPanel();
-    clickAndFlush(panel().getByRole("button", { name: "Add device" }));
-    const offered = within(panel().getByRole("group", { name: "Device types" }))
-      .getAllByRole("button")
-      .map((button) => button.textContent);
+    const addButtons = () =>
+      within(panel().getByRole("group", { name: "Add device" })).getAllByRole("button");
+    // At the end of the chain, where the next device goes — as the add-track
+    // buttons sit below the last track.
+    expect(
+      panel()
+        .getByRole("list", { name: "Device chain" })
+        .compareDocumentPosition(panel().getByRole("group", { name: "Add device" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const offered = addButtons().map((button) => button.textContent);
     expect(offered).toEqual([
       "Filter",
       "Overdrive",
@@ -83,9 +91,9 @@ describe("DeviceChainPanel", () => {
       "Delay",
       "Reverb",
     ]);
-    clickAndFlush(panel().getByRole("button", { name: "Filter" }));
-    // The offer closes once a type is chosen.
-    expect(panel().queryByRole("group", { name: "Device types" })).toBeNull();
+    addFromPanel(panel, "Filter");
+    // The buttons stay where they are, after the chain, ready for the next one.
+    expect(addButtons()).toHaveLength(6);
 
     const entries = history.entries.length;
     addFromPanel(panel, "Delay");
@@ -122,10 +130,12 @@ describe("DeviceChainPanel", () => {
 
   it(`stops adding and duplicating at ${MAX_TRACK_INSERTS} inserts`, () => {
     const { panel, items } = renderPanel({ preload: MAX_TRACK_INSERTS - 1 });
-    expect(panel().getByRole("button", { name: "Add device" })).toBeEnabled();
+    const addButtons = () =>
+      within(panel().getByRole("group", { name: "Add device" })).getAllByRole("button");
+    for (const button of addButtons()) expect(button).toBeEnabled();
     addFromPanel(panel, "Delay");
     expect(items()).toHaveLength(MAX_TRACK_INSERTS);
-    expect(panel().getByRole("button", { name: "Add device" })).toBeDisabled();
+    for (const button of addButtons()) expect(button).toBeDisabled();
     expect(panel().getByText(/holds up to 16 devices/)).toBeInTheDocument();
     for (const item of items()) {
       expect(within(item).getByRole("button", { name: /^Duplicate/ })).toBeDisabled();
