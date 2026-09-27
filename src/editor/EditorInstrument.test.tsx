@@ -13,8 +13,9 @@ afterEach(() => cleanup());
 type Scope = () => ReturnType<typeof within>;
 
 function addFromPanel(panel: Scope, label: string) {
-  clickAndFlush(panel().getByRole("button", { name: "Add device" }));
-  clickAndFlush(panel().getByRole("button", { name: label }));
+  clickAndFlush(
+    panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
+  );
 }
 
 describe("the Instrument view's device chain", () => {
