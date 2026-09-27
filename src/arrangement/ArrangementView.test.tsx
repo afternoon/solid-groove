@@ -525,7 +525,7 @@ describe("ArrangementView loop brace (LOOP-018)", () => {
     const { renderView } = await setUpEditing();
     renderView();
     expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
-      "Loop over bars 1 to 1, looping on",
+      "Loop over bar 1, looping on",
     );
   });
 

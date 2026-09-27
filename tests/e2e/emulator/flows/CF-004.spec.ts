@@ -31,11 +31,11 @@ import { walkthrough } from "../../support/walkthrough";
  * the same rule `ArrangementView`'s existing hidden mirrors already follow):
  *
  *  1. **An accessible mirror of the brace**, at
- *     `data-testid="arrangement-loop-live"`, phrased like the selection mirror
- *     beside it and naming the *inclusive* first and last bar: a brace over the
- *     first bar alone reads "bars 1 to 1", and one over bars 1 and 2 reads
- *     "bars 1 to 2". #280 already owes assistive technology an announcement of
- *     the brace; this is that announcement, read by a test.
+ *     `data-testid="arrangement-loop-live"`, naming the *inclusive* first and
+ *     last bar with the one bar wording #292 set: a brace over the first bar
+ *     alone reads "bar 1", and one over bars 1 and 2 reads "bars 1 to 2".
+ *     #280 already owes assistive technology an announcement of the brace;
+ *     this is that announcement, read by a test.
  *  2. **The timeline's horizontal scale**, as `data-pixels-per-tick` on the
  *     arrangement root. Step 3 is a pointer drag on a canvas, so it can only be
  *     performed by coordinate, and a spec that hardcoded the zoom constant
@@ -144,7 +144,7 @@ test.describe("CF-004", () => {
     const projectUrl = page.url();
     await page.getByTestId("arrangement-view-ready").waitFor();
 
-    await expect(loopBrace(page)).toContainText("bars 1 to 1");
+    await expect(loopBrace(page)).toContainText("bar 1");
     // The toggle names the action it offers, so "Disable loop" is what a
     // control that is currently looping reads (`EditorHeader`).
     await expect(page.getByRole("button", { name: "Disable loop" })).toHaveAttribute(
