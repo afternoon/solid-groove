@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -58,8 +58,26 @@ function renderPanel(options: { preload?: number; allowed?: boolean } = {}) {
 }
 
 function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: string) {
-  clickAndFlush(panel().getByRole("button", { name: "Add device" }));
-  clickAndFlush(panel().getByRole("button", { name: label }));
+  clickAndFlush(
+    panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
+  );
+}
+
+/** A drag of `from`'s card, pressed on `handle`, dropped on `to`'s card. */
+function dragCard(from: HTMLElement, handle: Element, to: HTMLElement) {
+  const dataTransfer = {
+    setData() {},
+    getData: () => "",
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  fireAndFlush(() => {
+    fireEvent.pointerDown(handle);
+    fireEvent.dragStart(from, { dataTransfer });
+    fireEvent.dragOver(to, { dataTransfer });
+    fireEvent.drop(to, { dataTransfer });
+    fireEvent.dragEnd(from, { dataTransfer });
+  });
 }
 
 describe("DeviceChainPanel", () => {
@@ -69,12 +87,19 @@ describe("DeviceChainPanel", () => {
     expect(panel().getByText("No devices on this track yet.")).toBeInTheDocument();
   });
 
-  it("offers the six registered types, and appends each in order as one entry", () => {
+  it("offers one add button per registered type, and appends each in order as one entry", () => {
     const { history, panel, items } = renderPanel();
-    clickAndFlush(panel().getByRole("button", { name: "Add device" }));
-    const offered = within(panel().getByRole("group", { name: "Device types" }))
-      .getAllByRole("button")
-      .map((button) => button.textContent);
+    const addButtons = () =>
+      within(panel().getByRole("group", { name: "Add device" })).getAllByRole("button");
+    // At the end of the chain, where the next device goes — as the add-track
+    // buttons sit below the last track.
+    expect(
+      panel()
+        .getByRole("list", { name: "Device chain" })
+        .compareDocumentPosition(panel().getByRole("group", { name: "Add device" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const offered = addButtons().map((button) => button.textContent);
     expect(offered).toEqual([
       "Filter",
       "Overdrive",
@@ -83,9 +108,9 @@ describe("DeviceChainPanel", () => {
       "Delay",
       "Reverb",
     ]);
-    clickAndFlush(panel().getByRole("button", { name: "Filter" }));
-    // The offer closes once a type is chosen.
-    expect(panel().queryByRole("group", { name: "Device types" })).toBeNull();
+    addFromPanel(panel, "Filter");
+    // The buttons stay where they are, after the chain, ready for the next one.
+    expect(addButtons()).toHaveLength(6);
 
     const entries = history.entries.length;
     addFromPanel(panel, "Delay");
@@ -122,14 +147,67 @@ describe("DeviceChainPanel", () => {
 
   it(`stops adding and duplicating at ${MAX_TRACK_INSERTS} inserts`, () => {
     const { panel, items } = renderPanel({ preload: MAX_TRACK_INSERTS - 1 });
-    expect(panel().getByRole("button", { name: "Add device" })).toBeEnabled();
+    const addButtons = () =>
+      within(panel().getByRole("group", { name: "Add device" })).getAllByRole("button");
+    for (const button of addButtons()) expect(button).toBeEnabled();
     addFromPanel(panel, "Delay");
     expect(items()).toHaveLength(MAX_TRACK_INSERTS);
-    expect(panel().getByRole("button", { name: "Add device" })).toBeDisabled();
+    for (const button of addButtons()) expect(button).toBeDisabled();
     expect(panel().getByText(/holds up to 16 devices/)).toBeInTheDocument();
     for (const item of items()) {
       expect(within(item).getByRole("button", { name: /^Duplicate/ })).toBeDisabled();
     }
+  });
+
+  it("moves a device by dragging its header onto another, as one entry", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const names = () =>
+      items().map((item) => within(item).getByRole("heading").textContent);
+    const entries = history.entries.length;
+    const [overdrive, reverb] = items();
+    dragCard(reverb, reverb.querySelector("header") as Element, overdrive);
+    expect(names()).toEqual(["Reverb", "Overdrive"]);
+    expect(history.entries.length).toBe(entries + 1);
+    fireAndFlush(() => history.undo());
+    expect(names()).toEqual(["Overdrive", "Reverb"]);
+  });
+
+  it("does not start a drag from one of the card's controls", () => {
+    const { panel, items } = renderPanel();
+    addFromPanel(panel, "Filter");
+    addFromPanel(panel, "Delay");
+    const [filter, delay] = items();
+    dragCard(delay, within(delay).getAllByRole("slider")[0], filter);
+    expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
+      "Filter",
+      "Delay",
+    ]);
+  });
+
+  it("moves the device whose name has focus with Alt+Up and Alt+Down", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const names = () =>
+      items().map((item) => within(item).getByRole("heading").textContent);
+    const grip = (name: string) => panel().getByRole("button", { name });
+    const press = (key: string) =>
+      fireAndFlush(() =>
+        fireEvent.keyDown(document.activeElement ?? document.body, { key, altKey: true }),
+      );
+
+    fireAndFlush(() => grip("Reverb").focus());
+    const entries = history.entries.length;
+    press("ArrowUp");
+    expect(names()).toEqual(["Reverb", "Overdrive"]);
+    expect(history.entries.length).toBe(entries + 1);
+    // Already first: nothing to do, and no entry.
+    press("ArrowUp");
+    expect(history.entries.length).toBe(entries + 1);
+    press("ArrowDown");
+    expect(names()).toEqual(["Overdrive", "Reverb"]);
   });
 
   it("keeps a slider in place through a drag, committing it as one entry", () => {

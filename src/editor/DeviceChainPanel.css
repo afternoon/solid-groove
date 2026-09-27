@@ -25,34 +25,11 @@
   color: var(--color-text-secondary);
 }
 
-.device-chain-add,
-.device-chain-type {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 0;
-  background-color: var(--color-background-tertiary);
-  color: var(--color-text);
-  font-size: var(--font-size-small);
-  line-height: 1;
-}
-
-.device-chain-add[aria-expanded="true"] {
-  background-color: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.device-chain-add:disabled {
+/* The add buttons are the shared new-track unit (`NewTrackButtons.css`);
+   only the full-chain state is the chain's own. */
+.device-chain-adds .new-track-button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-}
-
-.device-chain-types {
-  display: flex;
-  margin: 0;
-  padding: 0;
-  border: none;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 .device-chain-note {
@@ -68,4 +45,14 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Reordering (#241): the card being dragged recedes, and the card it would
+   take the place of is marked, in brightness like every other state. */
+.device-chain-item.dragging {
+  opacity: 0.4;
+}
+
+.device-chain-item.drop-target {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
 }

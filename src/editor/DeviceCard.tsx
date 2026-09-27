@@ -1,12 +1,17 @@
 import type { JSX } from "@solidjs/web";
 import {
+  HiSolidArrowPath,
+  HiSolidDocumentDuplicate,
+  HiSolidPower,
+  HiSolidTrash,
+} from "solid-icons/hi";
+import {
   duplicateDevice,
   type Gesture,
   type GestureOptions,
   insertChain,
   type RawCommandInput,
   removeDevice,
-  reorderDevice,
   resetDevice,
   setDeviceBypass,
   type TransactionResult,
@@ -21,9 +26,6 @@ import "./DeviceCard.css";
 export interface DeviceCardProps {
   readonly trackId: TrackId;
   readonly device: Device;
-  /** Its position in the chain, and how long the chain is. */
-  readonly index: number;
-  readonly count: number;
   /** False once the chain is at its insert limit, so a copy has nowhere to go. */
   readonly canDuplicate: boolean;
   /** A fresh id for a duplicate; the command carries it, so redo reproduces it. */
@@ -42,8 +44,10 @@ export interface DeviceCardProps {
  * transaction, one history entry and one save, with stable ids — the panel
  * adds no mutation path of its own. Bypass is a toggle, like a strip's Mute,
  * so its state is `aria-pressed`, and a bypassed device keeps its place and
- * its settings; it only recedes. Reordering is a pair of buttons rather than
- * only a drag, so it is reachable from the keyboard.
+ * its settings; it only recedes. The actions are icon buttons, like the mixer
+ * strip's, named for assistive technology and in their tooltips.
+ * Reordering is not the card's: the chain panel owns the drag and the
+ * keyboard moves, because both need the whole chain.
  */
 export default function DeviceCard(props: DeviceCardProps): JSX.Element {
   const label = () => deviceTypeDefinition(props.device.type)?.label ?? props.device.type;
@@ -52,8 +56,21 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
 
   return (
     <article class={["device-card", { bypassed: props.device.bypassed }]}>
+      {/* The header and the card's background are the drag handle; the name
+          is the keyboard's, a sortable button that takes the registry's
+          `device.move_earlier`/`device.move_later` (Alt/Option+Up/Down). */}
       <header class="device-card-head">
-        <h4 class="device-card-name">{label()}</h4>
+        <h4 class="device-card-name">
+          <button
+            type="button"
+            class="device-card-grip"
+            aria-roledescription="sortable"
+            aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+            title="Drag to reorder, or press Alt+Up or Alt+Down"
+          >
+            {label()}
+          </button>
+        </h4>
         <div class="device-card-actions">
           <button
             type="button"
@@ -63,58 +80,42 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
             ]}
             aria-pressed={ariaBool(props.device.bypassed)}
             aria-label={`Bypass ${label()}`}
+            title="Bypass"
             onClick={() =>
               run(setDeviceBypass(chain(), props.device.id, !props.device.bypassed))
             }
           >
-            Bypass
-          </button>
-          <button
-            type="button"
-            class="device-card-button"
-            aria-label={`Move ${label()} earlier`}
-            title="Move earlier"
-            disabled={props.index === 0}
-            onClick={() => run(reorderDevice(chain(), props.device.id, props.index - 1))}
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            class="device-card-button"
-            aria-label={`Move ${label()} later`}
-            title="Move later"
-            disabled={props.index >= props.count - 1}
-            onClick={() => run(reorderDevice(chain(), props.device.id, props.index + 1))}
-          >
-            ↓
+            <HiSolidPower size={13} />
           </button>
           <button
             type="button"
             class="device-card-button"
             aria-label={`Duplicate ${label()}`}
+            title="Duplicate"
             disabled={!props.canDuplicate}
             onClick={() =>
               run(duplicateDevice(chain(), props.device.id, props.newDeviceId()))
             }
           >
-            Duplicate
+            <HiSolidDocumentDuplicate size={13} />
           </button>
           <button
             type="button"
             class="device-card-button"
             aria-label={`Reset ${label()}`}
+            title="Reset to defaults"
             onClick={() => run(resetDevice(chain(), props.device.id))}
           >
-            Reset
+            <HiSolidArrowPath size={13} />
           </button>
           <button
             type="button"
-            class="device-card-button"
+            class="device-card-button device-remove"
             aria-label={`Remove ${label()}`}
+            title="Remove"
             onClick={() => run(removeDevice(chain(), props.device.id))}
           >
-            Remove
+            <HiSolidTrash size={13} />
           </button>
         </div>
       </header>
