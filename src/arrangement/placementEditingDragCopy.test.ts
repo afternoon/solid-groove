@@ -219,3 +219,51 @@ describe("Alt changes the mode mid-drag", () => {
     expect(h.history.project.song.placements).toHaveLength(2);
   });
 });
+
+describe("Alt is read at the drop", () => {
+  it("let go between the last step and the drop, the drag moves instead", () => {
+    const h = setup();
+    const revision = h.history.project.metadata.revision;
+    drag(h, "2a 3a", false);
+    expect(h.bars()).toBe("3|1");
+    expect(h.history.project.clips).toHaveLength(2);
+    expect(h.history.project.metadata.revision).toBe(revision + 1);
+    expect(h.events("placement_duplicated")).toEqual([]);
+  });
+
+  it("the move it becomes overwrites what it lands on (#290)", () => {
+    const h = setup();
+    const neighbour = {
+      ...h.first,
+      id: h.ids("placement"),
+      startTicks: toTicks(2 * BAR),
+    };
+    h.history.execute(addPlacement(neighbour));
+    drag(h, "3a", false);
+    expect(h.bars()).toBe("3|1");
+  });
+});
+
+describe("Escape mid-drag", () => {
+  it("leaves the project and the selection as they were", () => {
+    const h = setup();
+    const project = h.history.project;
+    const selection = h.editing.getArrangementSelection();
+    h.editing.beginDrag(h.first.id, "body", BAR / 2);
+    h.editing.updateDrag(3 * BAR, true);
+    h.editing.cancelDrag();
+    expect(h.history.project).toBe(project);
+    expect(h.editing.getArrangementSelection()).toBe(selection);
+    expect(h.history.canUndo).toBe(false);
+  });
+
+  it("puts back the selection a press on an unselected clip replaced", () => {
+    const h = setup();
+    h.editing.setSelection({ kind: "clips", placementIds: [h.second.id] });
+    const selection = h.editing.getArrangementSelection();
+    h.editing.beginDrag(h.first.id, "body", BAR / 2);
+    h.editing.updateDrag(3 * BAR, false);
+    h.editing.cancelDrag();
+    expect(h.editing.getArrangementSelection()).toBe(selection);
+  });
+});

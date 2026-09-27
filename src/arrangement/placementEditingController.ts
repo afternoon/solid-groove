@@ -95,6 +95,8 @@ interface DragState {
   /** Pressed on a clip inside a larger selection: a release without a move
    * narrows the selection to that clip, as a click on it would (#292). */
   readonly narrowOnClick: boolean;
+  /** The selection before the press, which cancelling puts back. */
+  readonly before: ArrangementSelection | null;
   /** The project at the press, which a drop that changes mode resolves from. */
   readonly base: Project;
   /** The pressed clip's start at the press. */
@@ -248,6 +250,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     );
     if (!current || !placement) return;
     const held = covered();
+    const before = selection;
     if (!held.includes(placementId)) select(placementId);
     drag = {
       placementId,
@@ -258,6 +261,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
       ),
       applied: false,
       narrowOnClick: held.length > 1 && held.includes(placementId),
+      before,
       base: current,
       originTicks: placement.startTicks,
       sources: covered(),
@@ -397,9 +401,10 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
    */
   function endDrag(copy = false): void {
     if (!drag) return;
-    // An Alt-drag copies when Alt is held at the drop or was at the last step
-    // (ARR-011); anything else is a plain move or resize.
-    if (drag.handle === "body" && (copy || drag.copying)) dropCopy(drag);
+    // Alt is read here, at the drop (ARR-011), whatever the steps did.
+    const body = drag.handle === "body";
+    if (body && copy) dropCopy(drag);
+    else if (body && drag.copying) dropMove(drag);
     else commitDrag(drag);
     drag = null;
     changed();
@@ -422,9 +427,40 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     if (!state.applied && state.narrowOnClick) select(state.placementId);
   }
 
+  /**
+   * Alt let go since the last step: the drop is a plain move, which none of
+   * the steps applied. Resolved from the project at the press, with its
+   * overwrite (#290), as the one step of a fresh gesture.
+   */
+  function dropMove(state: DragState): void {
+    const target = state.originTicks + state.offsetTicks;
+    const moved = movePlacement(state.base, state.placementId, target);
+    const landed = executeTransaction(state.base, moved, {
+      commitRevision: false,
+      deferredInvariants: ["placement_overlap"],
+    });
+    if (moved.length === 0 || !landed.ok) {
+      dropNothing(state);
+      return;
+    }
+    const commands = [...moved, ...overwriteForDrag(landed.project)];
+    if (state.applied) state.gesture?.cancel();
+    const gesture = state.applied
+      ? options.beginGesture?.("Move placement")
+      : state.gesture;
+    if (!gesture) {
+      options.dispatch(commands);
+      return;
+    }
+    gesture.apply(commands);
+    gesture.commit();
+  }
+
+  /** Escape mid-drag: the project and the selection go back to the press. */
   function cancelDrag(): void {
     if (!drag) return;
     drag.gesture?.cancel();
+    selection = drag.before;
     drag = null;
     changed();
   }
