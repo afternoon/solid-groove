@@ -75,13 +75,11 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
       </Show>
       <ol class="device-chain-list" aria-label="Device chain">
         <For each={devices()} keyed={(device) => device.id}>
-          {(device, index) => (
+          {(device) => (
             <li class="device-chain-item">
               <DeviceCard
                 trackId={props.track.id}
                 device={device()}
-                index={index()}
-                count={devices().length}
                 canDuplicate={!full()}
                 newDeviceId={() => ids()("device")}
                 dispatch={props.dispatch}
