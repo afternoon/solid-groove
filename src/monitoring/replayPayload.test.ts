@@ -396,6 +396,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // A mixer strip's `TrackId`, which the track drag (TRK-02) reads its
       // items by — the same prefixed ID as `track.id`, reached through props.
       "props.track.id",
+      // The mixer's previewed strip (TRK-02): a fixed test id or nothing,
+      // never anything the user authored.
+      'props.previewing ? "track-drop-indicator" : undefined',
       // The `PlacementId`s of the placement-editing selection (ARR-002), in
       // the arrangement's accessible mirror. A prefixed ID like the two above
       // — the placement's *name* is never bound here, and the mirror's own

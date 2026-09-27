@@ -257,7 +257,7 @@ describe("Mixer track management (TRK-01)", () => {
     expect(history.entries).toHaveLength(1);
   });
 
-  it("drags a strip along the row to reorder it, showing the marker first (#331)", async () => {
+  it("drags a strip along the row to reorder it, previewing it in its new place (#331)", async () => {
     const { history, transport, selected } = renderMixer(
       createReferenceProject({ trackCount: 3, placementCount: 3 }),
     );
@@ -274,7 +274,14 @@ describe("Mixer track management (TRK-01)", () => {
     const edit = (name: string) => screen.getByRole("button", { name: `Edit ${name}` });
 
     dragTrackHandle(edit(c.name), { x: 2, y: 50 }, () => {
-      expect(screen.getByTestId("track-drop-indicator")).toBeInTheDocument();
+      // Mid-drag the strip is already shown where it will land, dimmed, while
+      // the project is untouched until release.
+      const shown = [...document.querySelectorAll<HTMLElement>("[data-track-drag]")];
+      expect(shown.map((strip) => strip.dataset.trackDrag)).toEqual([c.id, a.id, b.id]);
+      expect(screen.getByTestId("track-drop-indicator")).toBe(shown[0]);
+      expect(shown[0]).toHaveClass("track-dragging");
+      expect(order().map((track) => track.id)).toEqual([a.id, b.id, c.id]);
+      expect(history.entries).toHaveLength(0);
     });
 
     expect(screen.queryByTestId("track-drop-indicator")).toBeNull();
