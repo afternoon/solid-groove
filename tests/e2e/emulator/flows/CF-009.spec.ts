@@ -12,29 +12,30 @@ import { walkthrough } from "../../support/walkthrough";
  * It is `test.fixme` because the arrangement still has two selections. Clicking
  * a placement today sets `placementEditingController`'s ID set and says nothing
  * to the `aria-live` mirror, which only ever reads the shell's one-bar range.
- * None of the three announcements below exists yet. The PR that closes #292
- * removes this marker.
+ * None of the announcements below exists yet. The PR that closes #292 removes
+ * this marker.
  *
- * What it holds #292 to, from the product owner's decisions on the issue:
+ * What it holds #292 to, from the product owner's decisions on the issue (the
+ * whole-clip model revised on 2026-09-25):
  *
  *  - **A clip is announced with its whole bars.** Clips snap to bars, so one
  *    clip reads "Selected clip on {track}, bar N" (or "bars N to M").
- *  - **A click in empty space sets a point**: a zero-length cursor, announced
- *    as "Position {bar}.{beat}.{sixteenth}".
- *  - **A range on one track that covers no clip is named by exact position**,
- *    also in bars.beats.sixteenths: "Selected {track}, 3.1.2 to 3.4.4".
- *  - **One selection, not two.** A point or a range in empty space replaces the
- *    clip selection instead of sitting beside it.
+ *  - **A click in empty space sets a point at the start of the bar clicked
+ *    in**, announced as "Position {bar}.1.1". Step 3 aims halfway through
+ *    bar 3, as far from either bar line as it can be, so only a point that
+ *    snaps to the bar's start is announced "Position 3.1.1".
+ *  - **A drag selects whole clips, and one that touches no clip selects
+ *    nothing**: "No selection". The band it draws does not persist, and there
+ *    is no range selection left to announce.
+ *  - **One selection, not two.** A point, or a drag that selects nothing,
+ *    replaces the clip selection instead of sitting beside it.
  *
- * Points and ranges do not snap, and the pointer can only land on a whole
- * pixel. At the zoom a new project opens with, a pixel is about 7 ticks and a
- * sixteenth is 48. So every point and range end here is aimed a quarter of
- * the way into a sixteenth (12 ticks in). A pixel either way cannot leave that
- * sixteenth. Because the aim is short of halfway, naming the sixteenth a
- * position falls in and naming the nearest one give the same answer.
+ * Step 4's drag stays inside bar 3, two bars clear of the only clip, so which
+ * pixel either end lands on cannot make it touch the clip. Its ends are still
+ * aimed a quarter of the way into a sixteenth, as the flow words them.
  *
- * The outlines themselves (dotted for the range, solid on a selected clip) are
- * canvas pixels, so this spec can only show them in the walkthrough.
+ * The drag band's dotted outline and a selected clip's solid one are canvas
+ * pixels, so this spec can only show them in the walkthrough.
  * `canvasRenderer.test.ts` is where #292 asserts the two strokes differ.
  */
 
@@ -45,7 +46,7 @@ const TICKS_PER_BAR = 4 * TICKS_PER_BEAT;
 
 /**
  * The tick a quarter of the way into sixteenth `bar.beat.sixteenth` (all
- * 1-based, as the announcement names them). See the note above for why.
+ * 1-based, as the flow names them). See the note above.
  */
 const insideSixteenth = (bar: number, beat: number, sixteenth: number): number =>
   (bar - 1) * TICKS_PER_BAR +
@@ -95,9 +96,12 @@ async function clickAt(page: Page, rowIndex: number, ticks: number): Promise<voi
   await timeline(page).click({ position: await pointAt(page, rowIndex, ticks) });
 }
 
+/** The middle of `bar` (1-based), in ticks: half a bar from either bar line. */
+const midBar = (bar: number): number => (bar - 0.5) * TICKS_PER_BAR;
+
 /** Click the middle of the one-bar clip in `bar` on row `rowIndex`. */
 const clickClip = (page: Page, rowIndex: number, bar: number) =>
-  clickAt(page, rowIndex, (bar - 0.5) * TICKS_PER_BAR);
+  clickAt(page, rowIndex, midBar(bar));
 
 /** Press at `fromTicks` on row `rowIndex`, drag along it to `toTicks`, release. */
 async function dragAlong(
@@ -146,19 +150,20 @@ test.describe("CF-009", () => {
     await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
     await step("Click the clip: it is outlined and announced as a clip");
 
-    // 3. Click the empty space just after the start of bar 3 on the same
-    //    track. The clip's outline goes away, a cursor marks the point you
-    //    clicked, and the arrangement announces "Position 3.1.1".
-    await clickAt(page, 0, insideSixteenth(3, 1, 1));
+    // 3. Click the empty space halfway through bar 3 on the same track. The
+    //    clip's outline goes away, a cursor marks the start of the bar you
+    //    clicked in, and the arrangement announces "Position 3.1.1".
+    await clickAt(page, 0, midBar(3));
     await expect(announcement(page)).toHaveText("Position 3.1.1");
-    await step("Click empty space: the clip is deselected and a point is set");
+    await step("Click mid bar 3: the clip is deselected and a point set at 3.1.1");
 
     // 4. Drag along the same track from the second sixteenth of bar 3 to its
-    //    last beat. A dotted outline marks the stretch, and the arrangement
-    //    announces "Selected BD, 3.1.2 to 3.4.4".
+    //    last sixteenth. A dotted outline follows the pointer while you drag.
+    //    It touches no clip, so when you let go nothing is selected, and the
+    //    arrangement announces "No selection".
     await dragAlong(page, 0, insideSixteenth(3, 1, 2), insideSixteenth(3, 4, 4));
-    await expect(announcement(page)).toHaveText("Selected BD, 3.1.2 to 3.4.4");
-    await step("Drag over empty space: the stretch is selected, named by position");
+    await expect(announcement(page)).toHaveText("No selection");
+    await step("Drag over empty space touching no clip: nothing is selected");
 
     // 5. Click the clip again, then reload the page.
     await clickClip(page, 0, 1);

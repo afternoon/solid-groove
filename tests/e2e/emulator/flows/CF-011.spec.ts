@@ -11,30 +11,29 @@ import { walkthrough } from "../../support/walkthrough";
  *
  * It is `test.fixme` because `view.zoom_to_selection` reads only the shell's
  * one-track bar range today. A clicked placement leaves that range empty, so
- * zooming does nothing (the gap #292 names), and a range cannot yet be dragged
- * across tracks. The PR that closes #292 removes this marker.
+ * zooming does nothing (the gap #292 names), and a drag cannot yet select
+ * clips across tracks. The PR that closes #292 removes this marker.
  *
- * What it holds #292 to: zoom to selection frames the selected range itself,
- * across every track it covers and even where it runs past its last clip (the
- * product owner's decision), and for a single clicked clip, from the toolbar
- * button and from the `Z` shortcut. "Frames" is read off the arrangement
+ * What it holds #292 to, from the product owner's decisions on the issue (the
+ * whole-clip model revised on 2026-09-25): zoom to selection frames the
+ * selected clips' extent, from the first one's start to the last one's end,
+ * and a single clicked clip, from the toolbar button and from the `Z`
+ * shortcut. A drag selects whole clips and its band does not persist, so there
+ * is no dragged stretch left to frame. "Frames" is read off the arrangement
  * itself: the span of ticks the timeline shows is its scroll offset and its
  * width, both divided by the published horizontal scale.
  *
- * Ranges do not snap: they start and end wherever the pointer is. The range in
- * step 2 runs from halfway through bar 2 to halfway through bar 4, so step 3
- * expects exactly that stretch, measured from where the pointer was pressed
- * and released. It reaches half a bar past the last clip it covers and past
- * the end of the song, and starts halfway into a clip it only partly covers.
- * So framing the clips instead of the range fails step 3 at both edges, and so
- * does refusing to scroll beyond the song. It starts in empty space because
+ * The drag in step 2 runs from halfway through bar 2 to halfway through bar 4,
+ * so it starts halfway into a clip it only overlaps and ends half a bar past
+ * the last clip it contains. Step 3 expects bars 2 to 3 exactly, the selected
+ * clips and nothing else, so framing the dragged stretch instead of the clips
+ * fails step 3 by half a bar at both edges. It starts in empty space because
  * pressing on a clip and dragging moves the clip.
  *
- * Because the range covers clips, it is announced as "2 clips selected", with
- * no position in it. So its ends do not need to sit clear of a sixteenth's
- * edges the way CF-009's and CF-010's do. Where the pointer lands on a whole
- * pixel (about 7 ticks at the opening zoom) only moves the framed edges, and
- * `EDGE_TOLERANCE_TICKS` allows for that.
+ * The drag is announced as "2 clips selected", with no position in it, and
+ * the framed edges are the clips' bar lines, not where the pointer landed. So
+ * its ends only have to sit clear of clip edges, which the middle of a bar
+ * does. `EDGE_TOLERANCE_TICKS` allows for sub-pixel scroll rounding.
  */
 
 /** One bar of the alpha's fixed 4/4 at 192 PPQ (`src/domain/time.ts`). */
@@ -42,9 +41,9 @@ const TICKS_PER_BAR = 4 * 192;
 
 /**
  * How far a framed edge may sit from the position it frames: one sixteenth
- * note. That is loose enough for the pointer landing on a whole pixel and for
- * sub-pixel scroll rounding at any zoom this flow reaches, and far tighter than
- * the half-bar difference between framing the range and framing its clips.
+ * note. That is loose enough for sub-pixel scroll rounding at any zoom this
+ * flow reaches, and far tighter than the half-bar difference between framing
+ * the selected clips and framing the stretch that was dragged over.
  */
 const EDGE_TOLERANCE_TICKS = TICKS_PER_BAR / 16;
 
@@ -195,21 +194,22 @@ test.describe("CF-011", () => {
 
     // 2. Press halfway through the empty bar 2 on "BD" and drag down and
     //    along to halfway through bar 4 on "Sampler". The sampler's clips in
-    //    bars 2 and 3, which the stretch partly and wholly covers, are
-    //    selected, and the arrangement announces "2 clips selected".
+    //    bars 2 and 3, which the drag overlaps and wholly contains, are
+    //    selected as whole clips, and the arrangement announces "2 clips
+    //    selected".
     await dragBetween(page, { rowIndex: 0, bar: 2 }, { rowIndex: 1, bar: 4 });
     await expect(announcement(page)).toHaveText("2 clips selected");
     await step("Drag from mid bar 2 on BD to mid bar 4 on Sampler: two clips selected");
 
     // 3. Zoom to selection from the toolbar. The timeline now shows exactly the
-    //    stretch you dragged over and nothing else: from halfway through bar 2
-    //    at its left edge to halfway through bar 4, which is empty, at its
-    //    right edge.
+    //    selected clips and nothing else: the start of bar 2 at its left edge
+    //    and the end of bar 3 at its right edge. The half bars you dragged
+    //    over either side of them are not framed.
     await page.getByRole("button", { name: "Zoom to selection" }).click();
-    await expectFramed(page, 1.5, 3.5);
+    await expectFramed(page, 1, 3);
     // Zooming is a view change, not a selection change.
     await expect(announcement(page)).toHaveText("2 clips selected");
-    await step("Zoom to selection: exactly the dragged stretch fills the timeline");
+    await step("Zoom to selection: the selected clips, bars 2 to 3, fill the timeline");
 
     // 4. Click the sampler's clip in bar 3 and press Z. Bar 3 alone now fills
     //    the timeline, edge to edge.
