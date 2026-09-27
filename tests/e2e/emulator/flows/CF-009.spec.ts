@@ -123,7 +123,7 @@ async function dragAlong(
 test.describe("CF-009", () => {
   // `test.fixme` until #292 lands: the PR that closes it removes this marker in
   // the same diff that makes the flow pass.
-  test.fixme("a producer clicks a clip and is told which one it is", async ({ page }) => {
+  test("a producer clicks a clip and is told which one it is", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-009",
       title: "A producer clicks a clip and is told which one it is",

@@ -151,9 +151,7 @@ test.describe("CF-007", () => {
       await page.getByRole("button", { name: "Start playback" }).click();
       if (canAssertPlayback) {
         await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-        await expect(page.getByTestId("arrangement-loop-live")).toContainText(
-          "bars 1 to",
-        );
+        await expect(page.getByTestId("arrangement-loop-live")).toContainText("bar 1");
         await step("Both parts play over the loop brace");
       }
 

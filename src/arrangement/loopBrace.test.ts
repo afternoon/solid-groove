@@ -22,7 +22,8 @@ const bars = (first: number, last: number) => ({
 
 describe("describeLoopBars", () => {
   it("names the first and last bar, inclusive and 1-based", () => {
-    expect(describeLoopBars({ startTicks: 0, endTicks: BAR })).toBe("bars 1 to 1");
+    expect(describeLoopBars({ startTicks: 0, endTicks: BAR })).toBe("bar 1");
+    expect(describeLoopBars({ startTicks: 2 * BAR, endTicks: 3 * BAR })).toBe("bar 3");
     expect(describeLoopBars({ startTicks: 0, endTicks: 2 * BAR })).toBe("bars 1 to 2");
     expect(describeLoopBars({ startTicks: 4 * BAR, endTicks: 8 * BAR })).toBe(
       "bars 5 to 8",

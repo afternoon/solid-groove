@@ -202,7 +202,7 @@ test.describe("mixer", () => {
     await goToView(page, "Arrangement");
     await page.getByRole("button", { name: "Select Sampler" }).dispatchEvent("click");
     await expect(page.getByTestId("arrangement-selection-live")).toContainText(
-      "Selected Sampler",
+      "Selected clip on Sampler, bar 1",
     );
     await step("Each new track arrives with an empty one-bar clip at bar 1");
 
