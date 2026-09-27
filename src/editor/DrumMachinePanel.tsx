@@ -24,8 +24,13 @@ import {
 } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { formatInstrumentValue } from "../instrument/formatValue";
+import SamplePicker from "../instrument/SamplePicker";
+import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import "./DrumMachinePanel.css";
 import { ariaBool } from "../shared/aria";
+
+/** Bars in a pad's waveform preview. */
+const PREVIEW_BUCKETS = 56;
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
 const CHOKE_GROUPS = Array.from({ length: 8 }, (_, i) => i);
@@ -41,6 +46,8 @@ export interface DrumMachinePanelProps {
   beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Plays one pad immediately so the user hears their choice (audition). */
   audition?(padId: PadId): void;
+  /** Follows each pad's sound for its waveform preview (#447). */
+  readonly watchPeaks?: WatchPeaks;
   /** Defaults to the application's singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -97,9 +104,25 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
 			    place. Keyed on the pad *object* — the default — every parameter edit
 			    rebuilds that lane, and a drag applying live would lose the very input
 			    it is moving on its first sample. */}
+      <Show when={pads(props.track).length > 0}>
+        {/* Column names, read by eye. Each control carries its own full
+				    name ("Pitch for BD"), so this row is hidden from assistive tech. */}
+        <div class="drum-pad drum-pad-head" aria-hidden="true">
+          <span>#</span>
+          <span>Pad</span>
+          <span>Sample</span>
+          <span>Preview</span>
+          <span>Pitch</span>
+          <span>Level</span>
+          <span>Pan</span>
+          <span>Choke</span>
+          <span>M · S</span>
+        </div>
+      </Show>
       <For each={pads(props.track)} keyed={(pad) => pad.id}>
-        {(pad) => (
+        {(pad, index) => (
           <div class={["drum-pad", { muted: pad().mixer.muted }]}>
+            <span class="pad-index">{String(index() + 1).padStart(2, "0")}</span>
             <button
               type="button"
               class="pad-audition"
@@ -110,25 +133,22 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               <span class="pad-name">{pad().name}</span>
             </button>
 
-            <label class="pad-control pad-sample">
-              <span class="pad-control-label">Sample</span>
-              <select
-                value={pad().assetId ?? ""}
-                onChange={(event) =>
-                  changePadAsset(
-                    pad(),
-                    event.currentTarget.value === ""
-                      ? null
-                      : (event.currentTarget.value as AssetId),
-                  )
-                }
-              >
-                <option value="">— none —</option>
-                <For each={props.assets}>
-                  {(asset) => <option value={asset.id}>{asset.name}</option>}
-                </For>
-              </select>
-            </label>
+            <div class="pad-control pad-sample">
+              <SamplePicker
+                label={`Sample for ${pad().name}`}
+                current={pad().assetId}
+                assets={props.assets}
+                allowNone
+                onChoose={(assetId) => changePadAsset(pad(), assetId)}
+              />
+            </div>
+
+            <PadPreview
+              name={pad().name}
+              assetId={pad().assetId}
+              watchPeaks={props.watchPeaks}
+              onPlay={() => audition(pad())}
+            />
 
             <PadControl
               trackId={props.track.id}
@@ -220,6 +240,38 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
         <p class="drum-machine-empty">This track has no drum pads yet.</p>
       </Show>
     </section>
+  );
+}
+
+/**
+ * A pad's sound in miniature (#447): its decoded waveform, and a press plays
+ * it, as the pad's name does.
+ */
+function PadPreview(props: {
+  readonly name: string;
+  readonly assetId: AssetId | null;
+  readonly watchPeaks?: WatchPeaks;
+  onPlay(): void;
+}): JSX.Element {
+  const peaks = createPeaks(
+    () => props.watchPeaks,
+    () => props.assetId,
+    PREVIEW_BUCKETS,
+  );
+  return (
+    <button
+      type="button"
+      class="pad-preview"
+      aria-label={`Preview ${props.name}`}
+      onClick={() => props.onPlay()}
+    >
+      <svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true">
+        <path
+          class="sample-well-bars playing"
+          d={peaks() ? peakBars(peaks() as Float32Array, 120, 28) : ""}
+        />
+      </svg>
+    </button>
   );
 }
 

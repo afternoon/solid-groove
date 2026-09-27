@@ -89,6 +89,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                       dispatch={props.dispatch}
                       beginGesture={props.beginGesture}
                       audition={(padId) => props.auditionPad(drum().id, padId)}
+                      watchPeaks={props.watchPeaks}
                     />
                   </div>
                 )}
