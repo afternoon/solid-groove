@@ -164,7 +164,7 @@ describe("DeviceCard faceplate (#447)", () => {
   });
 
   it("draws a filter's response in a well, and sets cutoff and resonance from it", () => {
-    const { card, devices, history } = renderChain(["filter", "overdrive"]);
+    const { card, devices, history } = renderChain(["filter", "compressor"]);
     expect(card(1).queryByText(/drag the point/)).toBeNull();
     const surface = screen
       .getAllByRole("listitem")[0]
@@ -185,5 +185,25 @@ describe("DeviceCard faceplate (#447)", () => {
     expect(devices()[0].parameters.cutoff).toBeCloseTo(200, 0);
     expect(devices()[0].parameters.resonance).toBeCloseTo(15);
     expect(history.entries.length).toBe(entries + 1);
+  });
+});
+
+describe("DeviceCard shaping and space wells (#447)", () => {
+  it("draws an overdrive's transfer and sets tone and drive from its point", () => {
+    const { card, devices } = renderChain(["overdrive", "reverb"]);
+    expect(card(0).getByText("Transfer")).toBeInTheDocument();
+    expect(card(1).getByText("Tail")).toBeInTheDocument();
+    const surface = screen
+      .getAllByRole("listitem")[0]
+      .querySelector(".transfer-well .drag-surface") as HTMLElement;
+    surface.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }) as DOMRect;
+    fireAndFlush(() =>
+      surface.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, clientX: 50, clientY: 20 }),
+      ),
+    );
+    expect(devices()[0].parameters.tone).toBeCloseTo(0.25);
+    expect(devices()[0].parameters.drive).toBeCloseTo(0.8);
   });
 });
