@@ -125,15 +125,20 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
 }
 
 /**
- * A drag that ends on the handle it began on still produces a `click` there,
- * which would select the track as if it had been clicked. Swallow that one
- * click; it arrives synchronously after `pointerup`, if at all.
+ * A drag still ends in a `click`, which would select the track. Swallow it; it
+ * comes right after `pointerup` if at all, so a new task or press ends the wait.
  */
 function swallowNextClick(): void {
   const swallow = (event: MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
+    stop();
   };
-  window.addEventListener("click", swallow, { capture: true, once: true });
-  setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+  const stop = () => {
+    window.removeEventListener("click", swallow, { capture: true });
+    window.removeEventListener("pointerdown", stop, { capture: true });
+  };
+  window.addEventListener("click", swallow, { capture: true });
+  window.addEventListener("pointerdown", stop, { capture: true });
+  setTimeout(stop, 0);
 }

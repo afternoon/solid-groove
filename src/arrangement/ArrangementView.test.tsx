@@ -718,8 +718,7 @@ describe("dragging a track header to reorder it (TRK-02)", () => {
     const [a, b, c] = names();
 
     dragTrackHandle(header(c), { x: 50, y: 2 }, () => {
-      // The dragged row is drawn in the top row already, translucent, and the
-      // rows it passed have stepped down; nothing is committed yet.
+      // Drawn in the top row already, translucent; nothing is committed yet.
       const preview = screen.getByTestId("track-drop-indicator");
       expect(preview).toContainElement(header(c));
       expect(preview).toHaveClass("track-dragging");

@@ -70,11 +70,8 @@ export function slotToIndex(fromIndex: number, slot: number): number {
   return slot > fromIndex ? slot - 1 : slot;
 }
 
-/**
- * The project as it would read with `trackId` moved to `toIndex`, for showing a
- * drag's preview. Only each track's `order` changes; nothing is dispatched, so
- * the preview is never an edit. Returns `project` itself when nothing moves.
- */
+/** The project as it would read with `trackId` at `toIndex`, for a drag's preview:
+ * only `order` changes, and nothing is dispatched. */
 export function previewTrackOrder(
   project: Project,
   trackId: TrackId,

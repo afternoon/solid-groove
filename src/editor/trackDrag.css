@@ -3,7 +3,6 @@
 [data-track-drag] {
   user-select: none;
 }
-
 .track-dragging {
   opacity: 0.5;
 }
