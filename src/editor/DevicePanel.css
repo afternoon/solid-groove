@@ -81,48 +81,6 @@
   color: var(--color-foreground);
 }
 
-/* The menu is positioned against this, not the page. */
-.master-panel-add {
-  position: relative;
-}
-.master-panel-add-button,
-.master-panel-menu-item {
-  border: none;
-  font-family: inherit;
-  font-size: var(--font-size-small);
-  color: var(--color-foreground);
-  cursor: pointer;
-  text-align: left;
-}
-
-.master-panel-add-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background-color: var(--color-background-highlight);
-}
-.master-panel-menu {
-  position: absolute;
-  z-index: 2;
-  top: calc(100% + 2px);
-  left: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 128px;
-  background-color: var(--color-background-tertiary);
-}
-
-.master-panel-menu-item {
-  background: none;
-  color: var(--color-text);
-  padding: 6px 10px;
-}
-
-.master-panel-menu-item:hover {
-  background-color: var(--color-background-hover);
-}
-
 .master-chain {
   list-style: none;
   margin: 0;
