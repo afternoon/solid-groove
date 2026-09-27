@@ -1,6 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
-import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { DeviceOperation } from "../analytics/catalog";
 import type { ErrorCode } from "../analytics/errorCodes";
@@ -14,7 +13,7 @@ import {
 } from "../domain/devices";
 import type { Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import { ariaBool } from "../shared/aria";
+import "./NewTrackButtons.css";
 import "./DevicePanel.css";
 
 /** Mints IDs for the devices this panel creates. A module singleton. */
@@ -35,14 +34,15 @@ export interface MasterPanelProps {
  * The master is the right first chain to reach: it always exists, needs no
  * selection model, and putting one effect across everything you have made is
  * the move that most changes how a loop sounds. The chain is an ordered,
- * accessible list, and the "+" offers the types the registry declares —
- * `deviceTypes()`, never a list copied into this file. Every edit is a
+ * accessible list. After it sits one add button per type the registry
+ * declares — `deviceTypes()`, never a list copied into this file — the same
+ * unit the arrangement and the mixer use to add a track (`NewTrackButtons`),
+ * so the type is the click itself rather than a pick from a menu. Every edit is a
  * registered `device.*` command through the shared command layer: one
  * revision, one history entry, undoable, autosaved.
  */
 export default function MasterPanel(props: MasterPanelProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
-  const [addOpen, setAddOpen] = createSignal(false);
   const devices = () =>
     [...props.project.song.master.devices].sort((a, b) => a.order - b.order);
 
@@ -63,7 +63,6 @@ export default function MasterPanel(props: MasterPanelProps): JSX.Element {
   }
 
   function add(type: DeviceTypeId): void {
-    setAddOpen(false);
     const device = createDevice(factoryContext.ids("device"), type, devices().length);
     if (!edit("add", addDevice(masterChain, device))) return;
     // `device_type` is a registry key, never anything the producer typed.
@@ -75,35 +74,6 @@ export default function MasterPanel(props: MasterPanelProps): JSX.Element {
     <section class="master-panel" aria-label="Master effects">
       <header class="master-panel-header">
         <h3 class="master-panel-heading">Master</h3>
-        <div class="master-panel-add">
-          <button
-            type="button"
-            class="master-panel-add-button"
-            aria-haspopup="menu"
-            aria-expanded={ariaBool(addOpen())}
-            onClick={() => setAddOpen((open) => !open)}
-          >
-            <HiSolidPlus size={13} />
-            <span>Add device</span>
-          </button>
-          <Show when={addOpen()}>
-            {/* The registry's own definitions: no device list to drift. */}
-            <div class="master-panel-menu" role="menu" aria-label="Add device">
-              <For each={deviceTypes()}>
-                {(definition) => (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="master-panel-menu-item"
-                    onClick={() => add(definition.type)}
-                  >
-                    {definition.label}
-                  </button>
-                )}
-              </For>
-            </div>
-          </Show>
-        </div>
       </header>
 
       {/* A named list is what "the master chain, in order" has to be for a
@@ -126,6 +96,26 @@ export default function MasterPanel(props: MasterPanelProps): JSX.Element {
           Nothing on the master yet. Add a device to process the whole mix.
         </p>
       </Show>
+      {/* The registry's own definitions: no device list to drift. */}
+      <fieldset class="new-track-buttons master-panel-adds" aria-label="Add device">
+        <For each={deviceTypes()}>
+          {(definition) => {
+            const action = `Add ${definition.label.toLowerCase()} device`;
+            return (
+              <button
+                type="button"
+                class="new-track-button"
+                aria-label={action}
+                title={action}
+                onClick={() => add(definition.type)}
+              >
+                <HiSolidPlus size={13} />
+                <span>{definition.label}</span>
+              </button>
+            );
+          }}
+        </For>
+      </fieldset>
     </section>
   );
 }
