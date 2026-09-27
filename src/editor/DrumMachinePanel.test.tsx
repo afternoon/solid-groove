@@ -263,3 +263,25 @@ describe("DrumMachinePanel table (#447)", () => {
     expect(audition).toHaveBeenCalledExactlyOnceWith(pad?.id);
   });
 });
+
+describe("DrumMachinePanel selected pad (#447)", () => {
+  const pads = (track: ReturnType<typeof renderPanel>["track"]) =>
+    track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+
+  it("opens the first pad under its row, and another when its name is pressed", () => {
+    const { track } = renderPanel();
+    const [first, second] = pads(track);
+    expect(
+      screen.getByRole("heading", { name: `${first.name} · sound` }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(`Attack for ${first.name}`)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: `Audition ${second.name}` }));
+    flush();
+    expect(screen.queryByRole("heading", { name: `${first.name} · sound` })).toBeNull();
+    expect(screen.getByLabelText(`Decay for ${second.name}`)).toBeInTheDocument();
+    expect(
+      document.querySelector('.drum-pad[aria-current="true"]')?.textContent,
+    ).toContain(second.name);
+  });
+});
