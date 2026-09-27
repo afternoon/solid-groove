@@ -683,6 +683,47 @@ Cut, copy, paste, duplicate, drag and zoom on a selection built this way, which
 act on the same selection as CF-010 and CF-011 and are tested at the component
 layer. What the outlines look like, as in CF-009.
 
+### CF-016 — A producer Alt-drags clips to copy them
+
+**Issue:** #456 · **Suite:** `tests/e2e/emulator/flows/CF-016.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and add a sampler track, so "BD" and "Sampler" each have
+   one clip, in bar 1.
+2. Press in the empty bar 2 on "BD" and drag down and back to the middle of bar 1
+   on "Sampler". Both clips in bar 1 are selected, and the arrangement announces
+   "2 clips selected".
+3. Hold Alt (Option on macOS), press on the "BD" clip in bar 1, drag it along to
+   bar 3, and let go. Copies of both selected clips land in bar 3, one on each
+   track. The clips in bar 1 have not moved, and bar 2 is still empty on both
+   tracks. The copies are now the selection, and the arrangement announces
+   "2 clips selected".
+4. Hold Alt again, press on the "BD" clip in bar 3, and drag it along to bar 5.
+   Copies of both clips from bar 3 land in bar 5, one on each track, so the copies
+   made in step 3 were what was selected.
+5. Open the "BD" clip in bar 5. Turn on a step that was off, and close the editor.
+6. Open the "BD" clip in bar 1. The step you turned on in bar 5 is still off here.
+   Close the editor.
+7. Reload the page.
+8. The project reopens exactly as step 6 left it: "BD" and "Sampler" each have
+   clips in bars 1, 3 and 5, with bars 2 and 4 empty, and the step you turned on
+   is on only in the "BD" clip in bar 5.
+
+**Outcome:** holding Alt while dragging a selected clip copied every selected clip
+instead of moving it, keeping their spacing and their tracks, and left the
+originals where they were. The copies became the selection, so a second Alt-drag
+copied them again. Each copy is independent: editing it did not change the clip it
+came from. All of it was still there after a reload.
+
+**Out of scope:** letting go of Alt, or pressing it, partway through a drag, which
+decides move or copy at the drop and is tested at the component layer, as are
+Escape mid-drag and undoing an Alt-drag as one step. A copy landing on another
+clip, which overwrites it exactly as a plain drag does (#290). Alt-drag on a clip
+edge, which resizes as a plain edge drag does. Touch input. What the dragged
+copies look like while they move, as in CF-009.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
