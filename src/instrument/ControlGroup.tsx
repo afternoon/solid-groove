@@ -5,6 +5,11 @@ export interface ControlGroupProps {
   readonly title: string;
   readonly class?: string;
   readonly style?: JSX.CSSProperties;
+  /**
+   * Title the group without a heading, where the surrounding card already has
+   * one and a heading per bank would crowd its outline (a device card).
+   */
+  readonly plainTitle?: boolean;
   readonly children: JSX.Element;
 }
 
@@ -17,7 +22,11 @@ export default function ControlGroup(props: ControlGroupProps): JSX.Element {
   return (
     <div class={["control-group", props.class]} style={props.style}>
       <div class="control-group-head">
-        <h3 class="control-group-title">{props.title}</h3>
+        {props.plainTitle ? (
+          <span class="control-group-title">{props.title}</span>
+        ) : (
+          <h3 class="control-group-title">{props.title}</h3>
+        )}
       </div>
       <div class="control-group-row">{props.children}</div>
     </div>
