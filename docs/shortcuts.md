@@ -78,6 +78,29 @@ Three mappings have no Live baseline at all and say so rather than implying one:
 `O` (metronome), `Shift+L` (the loop switch — Live's `Cmd/Ctrl+L` loops the
 selection instead, and the browser keeps that chord), and `?` (this guide).
 
+## Pointer modifiers
+
+A key held during a pointer gesture changes what the gesture does. These are
+read off the pointer event, not dispatched as shortcuts, so they are not in
+`SHORTCUTS` and log no `shortcut_used`; they live beside it in
+[`src/shortcuts/pointerGestures.ts`](../src/shortcuts/pointerGestures.ts), which
+is the only place one is written down. A component asks `pointerModifierHeld`
+rather than reading `altKey` itself, and `src/shortcuts/docs.test.ts` fails if
+this table drifts from that file.
+
+| Modifier ID | Action | macOS | Windows/Linux | Ableton Live 12 |
+| --- | --- | --- | --- | --- |
+| `arrangement.drag_copy` | Copy clips by dragging | `Option+drag` | `Alt+drag` | Differs from Live's `Option-drag (macOS) / Ctrl-drag (Windows)` |
+
+`arrangement.drag_copy` is read at the drop, not the press: holding or letting
+go of it partway through a clip-body drag switches between move and copy, and
+the preview follows. It copies every selected clip, each as an independent
+clip. On macOS it is exactly Live's Option-drag. Windows and Linux use Alt as
+well rather than Live's Ctrl-drag, so one modifier copies on every platform and
+Ctrl/Cmd-click stays the selection click (CF-015). While a drag holds it, the
+bare modifier's own key events are cancelled, so letting go of Alt does not open
+the Windows menu bar mid-gesture.
+
 ## Browser and OS conflicts
 
 `RESERVED_CHORDS` in the registry lists combinations the browser or operating
