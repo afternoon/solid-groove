@@ -81,7 +81,14 @@ describe("DeviceCard", () => {
 
   it("offers its actions as named icon buttons, with no reorder arrows", () => {
     const { card } = renderChain(["overdrive", "reverb"]);
-    const actions = card(0).getAllByRole("button");
+    // The name is a sortable button for the keyboard's moves, not an action.
+    expect(card(0).getByRole("button", { name: "Overdrive" })).toHaveAttribute(
+      "aria-roledescription",
+      "sortable",
+    );
+    const actions = card(0)
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-roledescription") !== "sortable");
     expect(actions.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Bypass Overdrive",
       "Duplicate Overdrive",

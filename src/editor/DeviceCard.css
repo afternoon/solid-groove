@@ -71,3 +71,26 @@
 .device-card.bypassed .device-card-body {
   opacity: 0.45;
 }
+
+/* The header and the card's background are the drag handle (#241); the name
+   is a button only so the keyboard can reach the chain's move shortcuts. */
+.device-card,
+.device-card-head {
+  cursor: grab;
+}
+
+.device-card-grip {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: grab;
+}
+
+.device-card-grip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

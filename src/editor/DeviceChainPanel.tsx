@@ -1,5 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
+import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import {
   addDevice,
@@ -7,12 +8,15 @@ import {
   type GestureOptions,
   insertChain,
   type RawCommandInput,
+  reorderDevice,
   type TransactionResult,
 } from "../commands";
 import { createDevice, type DeviceTypeId, deviceTypes } from "../domain/devices";
 import type { Track } from "../domain/entities";
-import { createIdFactory, type IdFactory } from "../domain/ids";
+import { createIdFactory, type DeviceId, type IdFactory } from "../domain/ids";
 import { MAX_TRACK_INSERTS } from "../domain/parse";
+import type { ShortcutHandlers } from "../shortcuts/ShortcutController";
+import { useShortcuts } from "../shortcuts/useShortcuts";
 import DeviceCard from "./DeviceCard";
 import "./NewTrackButtons.css";
 import "./DeviceChainPanel.css";
@@ -33,6 +37,13 @@ export interface DeviceChainPanelProps {
 const defaultIds = createIdFactory();
 
 /**
+ * Where a press does not start a drag: the card's own controls. The name is a
+ * button only for the keyboard, so it stays part of the handle.
+ */
+const NOT_A_HANDLE =
+  "button:not(.device-card-grip), input, select, textarea, label, [role='slider'], [role='radio']";
+
+/**
  * The selected track's insert chain (#241, PRD FX-01), in the slot UI-001
  * reserved for it in the Instrument view.
  *
@@ -47,6 +58,12 @@ const defaultIds = createIdFactory();
  * `MAX_TRACK_INSERTS` inserts, so adding and duplicating stop there rather
  * than offering a command the domain will refuse.
  *
+ * Reordering is a drag from a card's header or background onto another card,
+ * which takes that card's place, or Alt/Option+Up/Down on a focused device
+ * name (the registry's `device.move_*`). Each move is one `device.reorder`,
+ * and `DeviceChain` relinks the audio without rebuilding a node, so a move
+ * during playback is click-free.
+ *
  * Cards are keyed on the device's id, not its object: every parameter edit
  * produces a new device object, and a card rebuilt under a live drag would
  * lose the very slider the pointer is moving.
@@ -56,6 +73,50 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
   const analytics = () => props.analytics ?? defaultAnalytics;
   const devices = () => [...props.track.devices].sort((a, b) => a.order - b.order);
   const full = () => devices().length >= MAX_TRACK_INSERTS;
+  // The drag's source, read by the events that follow `dragstart` within the
+  // same gesture: a plain variable, because a signal write is not readable
+  // until the next flush. The signals below only style the cards.
+  let dragged: DeviceId | null = null;
+  const [dragging, setDragging] = createSignal<DeviceId | null>(null);
+  const [dropTarget, setDropTarget] = createSignal<DeviceId | null>(null);
+  const [focused, setFocused] = createSignal<DeviceId | null>(null);
+
+  function move(id: DeviceId, to: number): void {
+    props.dispatch(reorderDevice(insertChain(props.track.id), id, to));
+  }
+
+  /** The focused device's index, and whether it can go `step` places. */
+  function focusedMove(step: -1 | 1): { id: DeviceId; to: number } | undefined {
+    const id = focused();
+    const from = devices().findIndex((device) => device.id === id);
+    if (id === null || from < 0) return undefined;
+    const to = from + step;
+    return to >= 0 && to < devices().length ? { id, to } : undefined;
+  }
+
+  function moveFocused(step: -1 | 1): void {
+    const target = focusedMove(step);
+    if (!target) return;
+    // The list is keyed by id, so the same node moves; moving it can drop
+    // focus, so put focus back on it once the list has settled.
+    const grip = document.activeElement as HTMLElement | null;
+    move(target.id, target.to);
+    queueMicrotask(() => grip?.focus());
+  }
+
+  useShortcuts({
+    handlers: (): ShortcutHandlers => ({
+      "device.move_earlier": {
+        run: () => moveFocused(-1),
+        isEnabled: () => focusedMove(-1) !== undefined,
+      },
+      "device.move_later": {
+        run: () => moveFocused(1),
+        isEnabled: () => focusedMove(1) !== undefined,
+      },
+    }),
+    contexts: () => ["editor"],
+  });
 
   function add(type: DeviceTypeId): void {
     const device = createDevice(ids()("device"), type, devices().length);
@@ -75,8 +136,51 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
       </Show>
       <ol class="device-chain-list" aria-label="Device chain">
         <For each={devices()} keyed={(device) => device.id}>
-          {(device) => (
-            <li class="device-chain-item">
+          {(device, index) => (
+            <li
+              class={[
+                "device-chain-item",
+                {
+                  dragging: dragging() === device().id,
+                  "drop-target": dropTarget() === device().id,
+                },
+              ]}
+              onPointerDown={(event) => {
+                // Armed per press, so a slider drag never becomes a card drag.
+                const target = event.target as Element;
+                event.currentTarget.draggable = target.closest(NOT_A_HANDLE) === null;
+              }}
+              onDragStart={(event) => {
+                if (!event.currentTarget.draggable) return event.preventDefault();
+                dragged = device().id;
+                setDragging(device().id);
+                event.dataTransfer?.setData("text/plain", device().id);
+                if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+              }}
+              onDragOver={(event) => {
+                if (dragged === null || dragged === device().id) return;
+                event.preventDefault();
+                setDropTarget(device().id);
+              }}
+              onDragLeave={() => {
+                if (dropTarget() === device().id) setDropTarget(null);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (dragged !== null && dragged !== device().id) move(dragged, index());
+              }}
+              onDragEnd={(event) => {
+                event.currentTarget.draggable = false;
+                dragged = null;
+                setDragging(null);
+                setDropTarget(null);
+              }}
+              onFocusIn={(event) => {
+                const grip = (event.target as Element).closest(".device-card-grip");
+                setFocused(grip ? device().id : null);
+              }}
+              onFocusOut={() => setFocused(null)}
+            >
               <DeviceCard
                 trackId={props.track.id}
                 device={device()}

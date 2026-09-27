@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -61,6 +61,23 @@ function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: str
   clickAndFlush(
     panel().getByRole("button", { name: `Add ${label.toLowerCase()} device` }),
   );
+}
+
+/** A drag of `from`'s card, pressed on `handle`, dropped on `to`'s card. */
+function dragCard(from: HTMLElement, handle: Element, to: HTMLElement) {
+  const dataTransfer = {
+    setData() {},
+    getData: () => "",
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  fireAndFlush(() => {
+    fireEvent.pointerDown(handle);
+    fireEvent.dragStart(from, { dataTransfer });
+    fireEvent.dragOver(to, { dataTransfer });
+    fireEvent.drop(to, { dataTransfer });
+    fireEvent.dragEnd(from, { dataTransfer });
+  });
 }
 
 describe("DeviceChainPanel", () => {
@@ -140,6 +157,57 @@ describe("DeviceChainPanel", () => {
     for (const item of items()) {
       expect(within(item).getByRole("button", { name: /^Duplicate/ })).toBeDisabled();
     }
+  });
+
+  it("moves a device by dragging its header onto another, as one entry", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const names = () =>
+      items().map((item) => within(item).getByRole("heading").textContent);
+    const entries = history.entries.length;
+    const [overdrive, reverb] = items();
+    dragCard(reverb, reverb.querySelector("header") as Element, overdrive);
+    expect(names()).toEqual(["Reverb", "Overdrive"]);
+    expect(history.entries.length).toBe(entries + 1);
+    fireAndFlush(() => history.undo());
+    expect(names()).toEqual(["Overdrive", "Reverb"]);
+  });
+
+  it("does not start a drag from one of the card's controls", () => {
+    const { panel, items } = renderPanel();
+    addFromPanel(panel, "Filter");
+    addFromPanel(panel, "Delay");
+    const [filter, delay] = items();
+    dragCard(delay, within(delay).getAllByRole("slider")[0], filter);
+    expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
+      "Filter",
+      "Delay",
+    ]);
+  });
+
+  it("moves the device whose name has focus with Alt+Up and Alt+Down", () => {
+    const { history, panel, items } = renderPanel();
+    addFromPanel(panel, "Overdrive");
+    addFromPanel(panel, "Reverb");
+    const names = () =>
+      items().map((item) => within(item).getByRole("heading").textContent);
+    const grip = (name: string) => panel().getByRole("button", { name });
+    const press = (key: string) =>
+      fireAndFlush(() =>
+        fireEvent.keyDown(document.activeElement ?? document.body, { key, altKey: true }),
+      );
+
+    fireAndFlush(() => grip("Reverb").focus());
+    const entries = history.entries.length;
+    press("ArrowUp");
+    expect(names()).toEqual(["Reverb", "Overdrive"]);
+    expect(history.entries.length).toBe(entries + 1);
+    // Already first: nothing to do, and no entry.
+    press("ArrowUp");
+    expect(history.entries.length).toBe(entries + 1);
+    press("ArrowDown");
+    expect(names()).toEqual(["Overdrive", "Reverb"]);
   });
 
   it("keeps a slider in place through a drag, committing it as one entry", () => {
