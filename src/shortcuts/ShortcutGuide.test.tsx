@@ -75,6 +75,7 @@ describe("generated content", () => {
       "Arrangement",
       "Clips and Notes",
       "Automation",
+      "Mixer and Devices",
       "Navigation",
     ]);
   });

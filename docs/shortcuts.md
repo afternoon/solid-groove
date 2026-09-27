@@ -54,10 +54,13 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor | Solid Groove addition — `?` is the web convention |
+| `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
+| `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
 
-`Mixer and Devices` and `Browser` are declared guide groups with no mappings
-yet. The tasks that build those surfaces add entries to the existing group
-rather than inventing a section.
+`Browser` is a declared guide group with no mappings yet. The task that builds
+that surface adds entries to the existing group rather than inventing a section.
+The two `device.*` moves act on the device whose header has focus: they are the
+keyboard way to reorder a chain, which the pointer does by dragging.
 
 ## Deviations from Ableton Live
 
