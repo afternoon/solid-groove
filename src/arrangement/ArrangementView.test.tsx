@@ -47,7 +47,13 @@ const ROW_HEIGHT_PX = ROW_METRICS.trackHeightPx;
 function firePointer(
   el: Element,
   type: "pointerdown" | "pointermove" | "pointerup" | "pointercancel",
-  init: { clientX?: number; clientY?: number; pointerId?: number } = {},
+  init: {
+    clientX?: number;
+    clientY?: number;
+    pointerId?: number;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+  } = {},
 ): void {
   const event = new MouseEvent(type, {
     bubbles: true,
@@ -55,6 +61,8 @@ function firePointer(
     button: 0,
     clientX: init.clientX ?? 0,
     clientY: init.clientY ?? 0,
+    ctrlKey: init.ctrlKey ?? false,
+    shiftKey: init.shiftKey ?? false,
   });
   Object.defineProperty(event, "pointerId", { value: init.pointerId ?? 1 });
   fireEvent(el, event);
@@ -670,6 +678,72 @@ describe("the one arrangement selection (#292)", () => {
     // jsdom lays nothing out, so the viewport is the shell's initial 960px.
     const root = document.querySelector(".arrangement-view") as HTMLElement;
     expect(scale(root.parentElement as HTMLElement)).toBeCloseTo(960 / BAR);
+  });
+});
+
+describe("Cmd/Ctrl-click and Shift-click on clips (#405)", () => {
+  const BAR = TICKS_PER_BAR;
+  const said = () => screen.getByTestId("arrangement-selection-live").textContent;
+
+  /** CF-015's layout: BD and the next track each have clips in bars 1, 2 and 3. */
+  async function cf015() {
+    const row = [0, 1, 2].map((bar) => ({ startTicks: bar * BAR, durationTicks: BAR }));
+    const built = buildArrangementProject([row, row]);
+    const { session } = await setUpEditing(built.project);
+    const actions: { current: PlacementEditingActions | null } = { current: null };
+    const view = render(() => (
+      <ArrangementView
+        project={session.project}
+        dispatch={session.dispatch.bind(session)}
+        onEditingActionsReady={(ready) => {
+          actions.current = ready;
+        }}
+      />
+    ));
+    const canvas = interactionCanvasOf(view.container);
+    /** Click the middle of `bar` (1-based) on `row`. jsdom's navigator is off
+     * macOS, so Ctrl is the toggling modifier here. */
+    const click = (row: number, bar: number, held: "ctrl" | "shift" | null = null) => {
+      const at = {
+        clientX: (bar - 0.5) * BAR * PIXELS_PER_TICK,
+        clientY: RULER_HEIGHT_PX + row * ROW_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+        ctrlKey: held === "ctrl",
+        shiftKey: held === "shift",
+      };
+      firePointer(canvas, "pointerdown", at);
+      firePointer(canvas, "pointerup", at);
+    };
+    return { session, actions, click, ...built };
+  }
+
+  it("walks CF-015: toggle in, toggle out, extend to a box, and Delete takes it", async () => {
+    const { session, actions, click, placementIds } = await cf015();
+    click(0, 1);
+    expect(said()).toBe("Selected clip on BD, bar 1");
+    click(0, 3, "ctrl");
+    // Two, not three: the clip between them stays out.
+    expect(said()).toBe("2 clips selected");
+    click(0, 1, "ctrl");
+    expect(said()).toBe("Selected clip on BD, bar 3");
+    click(1, 2, "shift");
+    expect(said()).toBe("4 clips selected");
+    expect(actions.current?.deleteSelection()).toBe(true);
+    expect(session.project.song.placements.map((p) => p.id)).toEqual([
+      placementIds[0][0],
+      placementIds[1][0],
+    ]);
+  });
+
+  it("still replaces the selection on a plain click, and moves nothing on a modifier-click", async () => {
+    const { session, click } = await cf015();
+    const before = session.project.song.placements;
+    click(0, 1);
+    click(0, 2, "ctrl");
+    click(1, 1, "shift");
+    expect(said()).toBe("4 clips selected");
+    click(1, 3);
+    expect(said()).toBe("Selected clip on Track 2, bar 3");
+    expect(session.project.song.placements).toEqual(before);
   });
 });
 

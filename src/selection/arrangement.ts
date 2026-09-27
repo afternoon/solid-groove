@@ -124,6 +124,33 @@ export function placementsTouchedBy(
     .map((p) => p.id);
 }
 
+/**
+ * The box a Shift-click on `target` extends the selection to (#405): every
+ * track from the topmost to the bottommost of the selected clips and the
+ * clicked one, over the time from the earliest start to the latest end among
+ * them. No anchor is remembered beyond the selection itself. Null when no clip
+ * is selected (a point included), or `target` is not in the project, so the
+ * caller treats the click as a plain one.
+ */
+export function extensionBand(
+  selection: ArrangementSelection | null,
+  target: PlacementId,
+  project: Project,
+): ArrangementBand | null {
+  const clicked = project.song.placements.find((p) => p.id === target);
+  const held = new Set(selectedPlacementIds(selection, project));
+  if (!clicked || held.size === 0) return null;
+  const members = project.song.placements.filter((p) => held.has(p.id) || p === clicked);
+  const order = project.song.tracks.map((track) => track.id);
+  const rows = members.map((p) => order.indexOf(p.trackId)).filter((row) => row >= 0);
+  if (rows.length === 0) return null;
+  return {
+    trackIds: order.slice(Math.min(...rows), Math.max(...rows) + 1),
+    startTicks: Math.min(...members.map((p) => p.startTicks)),
+    endTicks: Math.max(...members.map(placementEnd)),
+  };
+}
+
 /** The clips selected, in song order. A point selects none. */
 export function selectedPlacementIds(
   selection: ArrangementSelection | null,
