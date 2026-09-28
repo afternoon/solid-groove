@@ -1,5 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../../analytics/analytics";
 import { bucketOf } from "../../analytics/buckets";
 import type {
@@ -18,6 +18,7 @@ import Gutter from "./Gutter";
 import { ROW_HEIGHT, stepWidth, ticksToSteps } from "./layout";
 import NoteLayer from "./NoteLayer";
 import Ruler from "./Ruler";
+import { createRollActions, type PianoRollActions } from "./rollActions";
 import { focusRow, type PianoRollRow, visibleRows } from "./rows";
 import Toolbar from "./Toolbar";
 import { useRollPointer } from "./useRollPointer";
@@ -35,6 +36,8 @@ export interface PianoRollProps {
   ): TransactionResult | undefined;
   /** Opens a continuous gesture so a drag is one undo entry. */
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** Hands the roll's keyboard operations to the shortcut layer. */
+  registerActions?(actions: PianoRollActions | null): void;
   /** A read-only mirror of the selection, for the Transform panel. */
   onSelectionChange?(ids: readonly EventId[]): void;
   /** The playhead, in ticks, while the transport runs. */
@@ -140,6 +143,32 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     logClipEdited(ids.length);
     setSelection((current) => new Set([...current].filter((id) => !ids.includes(id))));
   }
+
+  // Registered once the roll has settled: the host keeps these in a signal,
+  // and writing it during render would be a write inside an owned scope.
+  onSettled(() => {
+    props.registerActions?.(
+      createRollActions({
+        clip: () => props.clip,
+        project: () => props.project,
+        notes,
+        rows,
+        selected,
+        setSelection,
+        marker,
+        setMarker,
+        dispatch: (commands) => props.dispatch(commands),
+        audition,
+        analytics,
+        ids: factoryContext.ids,
+        onEdited: (count) => {
+          analytics().logFeatureFirstUse("piano_roll");
+          logClipEdited(count);
+        },
+      }),
+    );
+    return () => props.registerActions?.(null);
+  });
 
   function deleteNote(note: NoteEvent): void {
     deleteNotes([note.id]);
