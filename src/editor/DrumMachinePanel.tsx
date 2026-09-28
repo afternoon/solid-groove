@@ -32,11 +32,11 @@ import {
 } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { formatInstrumentValue } from "../instrument/formatValue";
+import SampleSlot from "../instrument/SampleSlot";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MuteSoloToggles from "./MuteSoloToggles";
 import PadSound from "./PadSound";
-import "../instrument/SamplePicker.css";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
 
@@ -201,21 +201,14 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
             <div class="drum-pad-editor-head">
               <span class="drum-pad-editor-name">{pad().name}</span>
               <div class="drum-pad-editor-sample">
-                {/* Styled as the sample slot, but it opens the library on this pad:
-                    the library is where sounds are chosen from. */}
-                <button
-                  type="button"
-                  class="sample-picker-button"
-                  aria-label={`Sample for ${pad().name}`}
-                  onClick={() => {
+                <SampleSlot
+                  label={`Sample for ${pad().name}`}
+                  name={sampleName(pad())}
+                  onBrowse={() => {
                     markFeatureUse();
                     props.onBrowseSample?.(pad().id);
                   }}
-                >
-                  <span class={`sample-picker-name ${MASK_CONTENT}`}>
-                    {sampleName(pad())}
-                  </span>
-                </button>
+                />
               </div>
             </div>
             <PadSound

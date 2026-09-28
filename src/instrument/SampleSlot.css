@@ -1,0 +1,36 @@
+/* The sample slot (#447): a filled button naming the sound, its caret saying
+   it opens something — the library, on this slot. */
+.sample-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sample-slot:hover {
+  background-color: var(--color-background-hover);
+}
+
+.sample-slot::after {
+  content: "";
+  flex: none;
+  border-top: 5px solid var(--color-foreground);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+.sample-slot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

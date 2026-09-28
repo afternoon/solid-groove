@@ -27,6 +27,7 @@ import EnvelopeWell from "./EnvelopeWell";
 import FillSlider from "./FillSlider";
 import { formatInstrumentValue } from "./formatValue";
 import "./InstrumentPanel.css";
+import SampleSlot from "./SampleSlot";
 import SampleWell, { type WatchPeaks } from "./SampleWell";
 
 export interface SamplerPanelProps {
@@ -114,23 +115,22 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
               <div class="control-group-head">
                 <h3 class="control-group-title">Sample</h3>
               </div>
-              {/* The sound's name, which is library copy rather than anything the
-					        user typed — masked all the same, since a user-recorded sample
-					        lands in the same slot (ADR 0002 decision 2). */}
-              <p class={`sampler-sample-name ${MASK_CONTENT}`}>
-                {props.sampleName ?? "No sample loaded"}
-              </p>
               {/* The slot is the way into the library (UI-001): it names what is
-					        loaded, and opening it is how that changes. */}
-              <Show when={props.onBrowse}>
+                  loaded, and opening it is how that changes. */}
+              <Show
+                when={props.onBrowse}
+                fallback={
+                  <p class={`sampler-sample-name ${MASK_CONTENT}`}>
+                    {props.sampleName ?? "No sample loaded"}
+                  </p>
+                }
+              >
                 {(browse) => (
-                  <button
-                    type="button"
-                    class="sampler-load-button"
-                    onClick={() => browse()()}
-                  >
-                    Load a sound
-                  </button>
+                  <SampleSlot
+                    label="Sample"
+                    name={props.sampleName}
+                    onBrowse={browse()}
+                  />
                 )}
               </Show>
             </div>

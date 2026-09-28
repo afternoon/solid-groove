@@ -777,7 +777,7 @@ describe("EditorView library audition engine lifecycle", () => {
     // first one. Under the old cached-singleton bug this would still be
     // engines[0], now disposed, and audition would fail for the rest of the
     // session.
-    clickAndFlush(screen.getByRole("button", { name: "Load a sound" }));
+    clickAndFlush(screen.getByRole("button", { name: "Sample" }));
     await screen.findByRole("dialog", { name: "Library" });
     expect(engines).toHaveLength(2);
     expect(engines[1]).not.toBe(engines[0]);
@@ -1431,7 +1431,7 @@ function sampler(): HTMLElement {
 
 async function openLibrary(): Promise<HTMLElement> {
   await goToView("Instrument");
-  clickAndFlush(await screen.findByRole("button", { name: "Load a sound" }));
+  clickAndFlush(await screen.findByRole("button", { name: "Sample" }));
   return screen.findByRole("dialog", { name: "Library" });
 }
 
