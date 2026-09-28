@@ -4,11 +4,6 @@
    the rack (#447), and each device is a unit mounted in it, with the rack
    showing in the gap between one and the next. */
 
-:root {
-  --rack-unit-width: 1000px;
-  --rack-gap: 12px;
-}
-
 .device-chain {
   display: flex;
   flex-direction: column;

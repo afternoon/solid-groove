@@ -97,7 +97,7 @@
    * Translucent white and black. They borrow whatever is underneath, so they
    * cost no new step — prefer one of these over a new grey whenever the
    * surface below can show through. */
-  --tint-faint: #ffffff06; /* a fader's well: barely off the panel (#447) */
+  --tint-faint: rgb(255 255 255 / 2.35%); /* a fader's well: barely off the panel, #ffffff06 (#447) */
   --tint-subtle: rgb(255 255 255 / 4%);
   --tint-soft: rgb(255 255 255 / 8%);
   --tint-medium: rgb(255 255 255 / 12%);
@@ -132,6 +132,11 @@
   --color-text-secondary: var(--mono-85);
   --color-foreground: var(--mono-65);
   --color-foreground-muted: var(--mono-47);
+
+  /* The ink a well, a meter's track edge and a header's colour bar draw in.
+     A surface sets it to its track's own colour, the one hue in the product
+     (#447); white until one does. */
+  --track-ink: var(--color-accent);
 
   /* The error text colour, kept under its historic name. */
   --color-error: var(--color-danger);

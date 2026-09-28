@@ -2,7 +2,7 @@
    synth, a waveform well across the top and two banks of readouts beneath. */
 .loop-panel {
   box-sizing: border-box;
-  max-width: 1000px;
+  max-width: var(--rack-unit-width);
   gap: 20px;
   padding: 20px;
 }
