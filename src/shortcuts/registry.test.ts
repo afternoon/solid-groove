@@ -192,6 +192,8 @@ describe("conflict rules", () => {
       ["editor", "step_editor", "selection"],
       ["editor", "arrangement", "timeline", "selection"],
       ["editor", "piano_roll", "timeline", "selection"],
+      ["editor", "step_editor", "piano_roll", "selection", "sequence_editor"],
+      ["editor", "value_field", "sequence_editor"],
       ["editor", "automation_lane", "timeline", "selection"],
       ["dialog"],
       ["editor", "gesture"],
@@ -243,6 +245,7 @@ describe("context resolution", () => {
         dialog: { key: "escape", id: "view.close_surface" },
         gesture: { key: "escape", id: "view.close_surface" },
         loop_brace: { key: "arrowleft", id: "arrangement.loop_move_earlier" },
+        value_field: { key: "arrowup", id: "value.nudge_up" },
       };
     for (const context of SHORTCUT_CONTEXTS) {
       const probe = expected[context];
@@ -329,6 +332,20 @@ describe("guide sections", () => {
     it("only narrows when a focus mapping is among the matches", () => {
       const matches = [shortcutById("track.move_left")];
       expect(preferFocused(matches, ["global", "editor", "loop_brace"])).toEqual(matches);
+    });
+
+    it("rank the open piano roll over the editor, and a focused field over both", () => {
+      const roll: readonly ShortcutContext[] = ["editor", "piano_roll", "selection"];
+      expect(matchShortcut(arrow("ArrowUp"), "mac", ["editor"])?.id).toBe(
+        "track.select_previous",
+      );
+      expect(matchShortcut(arrow("ArrowUp"), "mac", roll)?.id).toBe("note.move_up");
+      expect(matchShortcut(arrow("ArrowLeft"), "mac", roll)?.id).toBe(
+        "note.move_earlier",
+      );
+      expect(matchShortcut(arrow("ArrowUp"), "mac", [...roll, "value_field"])?.id).toBe(
+        "value.nudge_up",
+      );
     });
   });
 });

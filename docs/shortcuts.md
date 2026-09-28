@@ -70,11 +70,29 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `track.move_right` | Move track right | `Right` | `Right` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
 | `track.select_previous` | Select previous track | `Up` | `Up` | Navigation | editor | Solid Groove addition — the arrow keys step the editor's selected track through the track list. |
 | `track.select_next` | Select next track | `Down` | `Down` | Navigation | editor | Solid Groove addition — the arrow keys step the editor's selected track through the track list. |
+| `note.move_up` | Move notes up | `Up` | `Up` | Clips and Notes | piano_roll | Follows Live (`Up`) |
+| `note.move_down` | Move notes down | `Down` | `Down` | Clips and Notes | piano_roll | Follows Live (`Down`) |
+| `note.octave_up` | Move notes up an octave | `Shift+Up` | `Shift+Up` | Clips and Notes | piano_roll | Follows Live (`Shift+Up`) |
+| `note.octave_down` | Move notes down an octave | `Shift+Down` | `Shift+Down` | Clips and Notes | piano_roll | Follows Live (`Shift+Down`) |
+| `note.move_earlier` | Move notes earlier | `Left` | `Left` | Clips and Notes | piano_roll | Follows Live (`Left`) |
+| `note.move_later` | Move notes later | `Right` | `Right` | Clips and Notes | piano_roll | Follows Live (`Right`) |
+| `note.shorten` | Shorten notes | `Shift+Left` | `Shift+Left` | Clips and Notes | piano_roll | Follows Live (`Shift+Left`) |
+| `note.lengthen` | Lengthen notes | `Shift+Right` | `Shift+Right` | Clips and Notes | piano_roll | Follows Live (`Shift+Right`) |
+| `value.nudge_up` | Nudge value up | `Up` | `Up` | Global Editing | value_field | Follows Live (`Up`) |
+| `value.nudge_down` | Nudge value down | `Down` | `Down` | Global Editing | value_field | Follows Live (`Down`) |
 
 `Browser` is a declared guide group with no mappings yet. The task that builds
 that surface adds entries to the existing group rather than inventing a section.
 The two `device.*` moves act on the device whose header has focus: they are the
 keyboard way to reorder a chain, which the pointer does by dragging.
+
+In `piano_roll` the eight `note.*` moves act on the selected notes: Up and Down
+step through the rows the roll shows, so in a scale they move by scale degree;
+Shift moves by an octave, or changes the length. `piano_roll` is an overlay
+context: while the roll is open, its arrows outrank the editor's
+`track.move_*` and `track.select_*` behind it. `value_field` is a focus
+context, above that again: while a typed value field has focus, Up and Down
+nudge the value.
 
 ## Deviations from Ableton Live
 
@@ -105,6 +123,9 @@ this table drifts from that file.
 | Modifier ID | Action | macOS | Windows/Linux | Ableton Live 12 |
 | --- | --- | --- | --- | --- |
 | `arrangement.drag_copy` | Copy clips by dragging | `Option+drag` | `Alt+drag` | Differs from Live's `Option-drag (macOS) / Ctrl-drag (Windows)` |
+| `piano_roll.drag_copy` | Copy notes by dragging | `Option+drag` | `Alt+drag` | Differs from Live's `Option-drag (macOS) / Ctrl-drag (Windows)` |
+| `piano_roll.toggle_select` | Add or remove a note from the selection | `Cmd+click` | `Ctrl+click` | Follows Live (`Cmd/Ctrl-click`) |
+| `piano_roll.shift_select` | Add or remove a note from the selection | `Shift+click` | `Shift+click` | Follows Live (`Shift-click`) |
 
 `arrangement.drag_copy` is read at the drop, not the press: holding or letting
 go of it partway through a clip-body drag switches between move and copy, and
@@ -114,6 +135,12 @@ well rather than Live's Ctrl-drag, so one modifier copies on every platform and
 Ctrl/Cmd-click stays the selection click (CF-015). While a drag holds it, the
 bare modifier's own key events are cancelled, so letting go of Alt does not open
 the Windows menu bar mid-gesture.
+
+`piano_roll.drag_copy` is read at the press, as the piano roll's design has it:
+the copies are made when the drag starts and follow the pointer, and the
+originals stay where they were. `piano_roll.toggle_select` and
+`piano_roll.shift_select` do the same thing, so either hand can add to a
+selection; with a lasso they add what it touches.
 
 ## Browser and OS conflicts
 

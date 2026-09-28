@@ -35,6 +35,7 @@ export const SHORTCUT_CONTEXTS = [
   "dialog",
   "gesture",
   "loop_brace",
+  "value_field",
 ] as const;
 export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
 
@@ -45,7 +46,15 @@ export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
  * meaning is untouched everywhere else. Unlike `dialog` nothing else is
  * suppressed: the transport and every other mapping keep working.
  */
-export const FOCUS_CONTEXTS: readonly ShortcutContext[] = ["loop_brace"];
+export const FOCUS_CONTEXTS: readonly ShortcutContext[] = ["loop_brace", "value_field"];
+
+/**
+ * Contexts of a surface open over the editor (ARR-010). After any focus
+ * context, they outrank the editor behind them for the keys they claim: while
+ * the piano roll is open its arrows move notes, rather than also moving or
+ * selecting tracks (`track.move_left`, `track.select_previous`) underneath.
+ */
+export const OVERLAY_CONTEXTS: readonly ShortcutContext[] = ["piano_roll"];
 
 /** The context that suppresses every other one while it is active. */
 export const MODAL_CONTEXT: ShortcutContext = "dialog";
