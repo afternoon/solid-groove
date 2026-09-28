@@ -41,7 +41,7 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `edit.delete` | Delete selection | `Delete / Backspace` | `Delete / Backspace` | Global Editing | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`Delete / Backspace`) |
 | `edit.duplicate` | Duplicate selection | `Cmd+D` | `Ctrl+D` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+D`) |
 | `arrangement.split_clip` | Split clip | `E` | `E` | Arrangement | arrangement | Differs from Live's `Cmd/Ctrl+E` |
-| `arrangement.toggle_loop` | Toggle arrangement loop | `L` | `L` | Arrangement | arrangement | Differs from Live's `Cmd/Ctrl+L` |
+| `arrangement.toggle_loop` | Toggle arrangement loop | `L` | `L` | Arrangement | editor, arrangement | Differs from Live's `Cmd/Ctrl+L` |
 | `arrangement.toggle_automation_view` | Toggle automation view | `A` | `A` | Automation | arrangement | Follows Live (`A`) |
 | `clip.quantize` | Quantize selected notes | `Q` | `Q` | Clips and Notes | step_editor, piano_roll | Differs from Live's `Cmd/Ctrl+U` |
 | `clip.toggle_draw_mode` | Toggle draw mode | `B` | `B` | Clips and Notes | step_editor, piano_roll, automation_lane | Follows Live (`B`) |
@@ -49,6 +49,8 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `view.zoom_back` | Zoom back | `X` | `X` | Navigation | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`X`) |
 | `view.zoom_in` | Zoom in | `+` | `+` | Navigation | timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`+`) |
 | `view.zoom_out` | Zoom out | `-` | `-` | Navigation | timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`-`) |
+| `view.zoom_to_arrangement` | Zoom to arrangement | `F` | `F` | Navigation | editor | Solid Groove addition — Live has no single-key fit-to-song; F is unassigned in Solid Groove and free in the browser. |
+| `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Solid Groove addition — Live's Follow is a toggle on Cmd/Ctrl+Shift+F, not a one-shot scroll; P is unassigned in Solid Groove and free in the browser. |
 | `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
 | `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
 | `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |

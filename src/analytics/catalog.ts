@@ -311,6 +311,8 @@ export const SHORTCUT_ACTION_IDS = [
   "view.zoom_back",
   "view.zoom_in",
   "view.zoom_out",
+  "view.zoom_to_arrangement",
+  "view.scroll_to_playhead",
   "view.show_arrangement",
   "view.show_instrument",
   "view.show_mixer",

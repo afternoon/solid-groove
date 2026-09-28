@@ -75,6 +75,8 @@ export const SHORTCUT_ACTION_IDS = [
   "view.zoom_back",
   "view.zoom_in",
   "view.zoom_out",
+  "view.zoom_to_arrangement",
+  "view.scroll_to_playhead",
   "view.show_arrangement",
   "view.show_instrument",
   "view.show_mixer",
@@ -281,9 +283,12 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   define({
     id: "arrangement.toggle_loop",
     label: "Toggle arrangement loop",
-    description: "Turns the arrangement loop on or off over the selection.",
+    description:
+      "Loops the selected clips, or turns the loop on or off when nothing is selected.",
     group: "arrangement",
-    contexts: ["arrangement"],
+    // `editor`, not `arrangement`: with nothing selected the arrangement
+    // context is not live, and L must still toggle looping.
+    contexts: ["editor", "arrangement"],
     keys: "L",
     ableton: {
       kind: "differs",
@@ -361,6 +366,32 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     keys: "-",
     repeatable: true,
     ableton: { kind: "follows", abletonKeys: "-" },
+  }),
+  define({
+    id: "view.zoom_to_arrangement",
+    label: "Zoom to arrangement",
+    description: "Zooms the arrangement to fit the whole song.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "F",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live has no single-key fit-to-song; F is unassigned in Solid Groove and free in the browser.",
+    },
+  }),
+  define({
+    id: "view.scroll_to_playhead",
+    label: "Scroll to playhead",
+    description: "Scrolls the arrangement so the playhead is in view.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "P",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live's Follow is a toggle on Cmd/Ctrl+Shift+F, not a one-shot scroll; P is unassigned in Solid Groove and free in the browser.",
+    },
   }),
   define({
     id: "view.show_arrangement",

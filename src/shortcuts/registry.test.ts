@@ -86,6 +86,8 @@ describe("registry shape", () => {
     expect(shortcutLabel("view.zoom_back", "mac")).toBe("X");
     expect(shortcutLabel("view.zoom_in", "mac")).toBe("+");
     expect(shortcutLabel("view.zoom_out", "mac")).toBe("-");
+    expect(shortcutLabel("view.zoom_to_arrangement", "mac")).toBe("F");
+    expect(shortcutLabel("view.scroll_to_playhead", "other")).toBe("P");
     expect(shortcutLabel("transport.metronome", "mac")).toBe("O");
     expect(shortcutLabel("transport.toggle_loop", "mac")).toBe("Shift+L");
     expect(shortcutLabel("transport.toggle_loop", "other")).toBe("Shift+L");
@@ -103,6 +105,10 @@ describe("registry shape", () => {
     }
     expect(shortcutById("transport.play_stop").ableton.kind).toBe("follows");
     expect(shortcutById("help.shortcut_guide").ableton.kind).toBe("solid_groove");
+    expect(shortcutById("view.zoom_to_arrangement").ableton.kind).toBe("solid_groove");
+    expect(shortcutById("view.scroll_to_playhead").ableton.kind).toBe("solid_groove");
+    // L must fire with nothing selected, so it cannot need the arrangement context.
+    expect(shortcutById("arrangement.toggle_loop").contexts).toContain("editor");
   });
 });
 
