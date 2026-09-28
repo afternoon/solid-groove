@@ -320,6 +320,8 @@ export const SHORTCUT_ACTION_IDS = [
   "device.move_later",
   "track.move_left",
   "track.move_right",
+  "track.select_previous",
+  "track.select_next",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
