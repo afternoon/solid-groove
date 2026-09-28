@@ -88,6 +88,8 @@ function fixturePacks(context: FixtureContext): FixturePacks {
   };
 }
 
+const STORED_FIXTURE_COLOR = "#ef4444";
+
 /**
  * The `FND-009` vertical slice fixture: one sampler track holding a one-bar
  * four-on-the-floor clip placed once in the arrangement, whose asset resolves
@@ -111,12 +113,16 @@ export function createSliceFixtureProject(options: FixtureOptions = {}): Project
   const track = createTrack(context, {
     name: "BD",
     order: 0,
+    // Pinned: the checked-in stored-project fixtures carry this colour, and a
+    // change to the defaults for new tracks must not rewrite them (#534).
+    color: STORED_FIXTURE_COLOR,
     instrument: createSamplerInstrument(asset.id),
   });
 
   const clip = createNoteClip(context, {
     trackId: track.id,
     name: "Four on the floor",
+    color: STORED_FIXTURE_COLOR,
     lengthTicks: TICKS_PER_BAR,
     events: [0, 4, 8, 12].map((sixteenth) =>
       createNoteEvent(context, {

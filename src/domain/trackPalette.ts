@@ -2,8 +2,8 @@
  * The colours a track can be given (#534): a 5 x 10 grid, row by row.
  * Row 0 is a grey ramp from near-white to near-black; rows 1-4 are ten hues in
  * four shades, light to dark. A track colour is persisted domain data (any
- * `#rrggbb` is valid), not theme, so the values live here in TS. The default
- * assignment for a new track stays `TRACK_COLORS` in `factories.ts`.
+ * `#rrggbb` is valid), not theme, so the values live here in TS. A new track's default
+ * colour is drawn from this grid too (`TRACK_COLORS` in `factories.ts`).
  */
 
 export const TRACK_PALETTE_COLUMNS = 10;
