@@ -42,10 +42,11 @@ import {
   instrumentTypeKey,
   type NewTrackKindSpec,
 } from "./trackCreation";
-import { moveTrack } from "./trackReorder";
+import { moveTrack, type ReorderMethod } from "./trackReorder";
 import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
+import { type ShortcutHandlers, useShortcuts } from "../shortcuts";
 
 /**
  * The volume fader's own coordinate space: a normalized fader position, not the
@@ -146,7 +147,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
 
   /** Move a track, by its move-left/right buttons — the keyboard's route —
    * or by dragging its strip along the row (#331). */
-  function moveBy(trackId: TrackId, toIndex: number, method: "button" | "drag"): void {
+  function moveBy(trackId: TrackId, toIndex: number, method: ReorderMethod): void {
     moveTrack(
       { project: () => props.project, dispatch: props.dispatch, analytics: analytics() },
       trackId,
@@ -154,6 +155,49 @@ export default function Mixer(props: MixerProps): JSX.Element {
       { view: "mixer", method },
     );
   }
+  /** The track whose strip's Edit control has focus, and where a step of
+   * `by` would move it — or undefined when there is none, or no room. */
+  function focusedMove(by: -1 | 1): { trackId: TrackId; to: number } | undefined {
+    const strip = document.activeElement
+      ?.closest(".mixer-strip-select")
+      ?.closest<HTMLElement>("[data-track-drag]");
+    const trackId = strip?.dataset.trackDrag as TrackId | undefined;
+    if (!trackId) return undefined;
+    const to = trackIds().indexOf(trackId) + by;
+    return to >= 0 && to < trackIds().length ? { trackId, to } : undefined;
+  }
+
+  /** Moves the focused strip a place, and keeps focus on it where it lands. */
+  function moveFocused(by: -1 | 1): void {
+    const move = focusedMove(by);
+    if (!move) return;
+    moveBy(move.trackId, move.to, "keyboard");
+    queueMicrotask(() =>
+      stripRow
+        ?.querySelector<HTMLElement>(
+          `[data-track-drag="${move.trackId}"] .mixer-strip-select`,
+        )
+        ?.focus(),
+    );
+  }
+
+  // The keyboard's way to do what dragging a strip does (#447): the arrow
+  // keys, while a strip's Edit control has focus. Anywhere else — a fader, the
+  // pan, a name being typed — they keep their own meaning.
+  useShortcuts({
+    handlers: (): ShortcutHandlers => ({
+      "track.move_left": {
+        run: () => moveFocused(-1),
+        isEnabled: () => focusedMove(-1) !== undefined,
+      },
+      "track.move_right": {
+        run: () => moveFocused(1),
+        isEnabled: () => focusedMove(1) !== undefined,
+      },
+    }),
+    contexts: () => ["editor"],
+  });
+
   let stripRow: HTMLDivElement | undefined;
   const trackDrag = useTrackDrag({
     axis: "x",
