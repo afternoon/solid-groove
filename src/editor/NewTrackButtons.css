@@ -4,20 +4,22 @@
 .new-track-buttons {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   margin: 0 auto 0 0;
   padding: 0;
   border: 0;
   min-inline-size: auto;
 }
 
-/* Ghost: no fill until hover, for a low-stakes repeated action (mock 06b). */
+/* Ghost: no fill until hover, for a low-stakes repeated action (mock 06b),
+   outlined in a hairline so it still reads as a button at rest (#447). */
 .new-track-button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 22px;
-  padding: 0 8px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
   border-radius: 0;
   background-color: transparent;
   font-size: var(--font-size-small);
