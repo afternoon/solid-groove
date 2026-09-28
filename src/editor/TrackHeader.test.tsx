@@ -62,7 +62,7 @@ describe("TrackHeader (#447)", () => {
     const edit = screen.getByRole("button", { name: `Edit ${name}` });
     expect(edit).toHaveAttribute("aria-pressed", "true");
     expect(edit).toHaveTextContent(name);
-    expect(document.querySelector(".track-header-swatch")).toHaveStyle({
+    expect(screen.getByRole("button", { name: `Colour for ${name}` })).toHaveStyle({
       background: track().color,
     });
     expect(screen.getByRole("button", { name: `Mute ${name}` })).toBeInTheDocument();

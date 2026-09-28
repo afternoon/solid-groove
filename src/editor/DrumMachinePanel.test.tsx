@@ -273,7 +273,7 @@ describe("DrumMachinePanel selected pad (#447)", () => {
     ).toBeInTheDocument();
     expect(within(editor).getByLabelText("Attack")).toBeInTheDocument();
     // One editor, and it comes before every row of the table.
-    expect(document.querySelectorAll(".drum-pad-editor")).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: / pad$/ })).toEqual([editor]);
     const firstRow = document.querySelector(".drum-pad:not(.drum-pad-head)");
     expect(
       editor.compareDocumentPosition(firstRow as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
