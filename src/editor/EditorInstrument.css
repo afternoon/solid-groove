@@ -12,9 +12,10 @@
   min-height: 0;
 }
 
-/* The rail stays put; this is what scrolls, so a long instrument never carries
-   the track list off the page with it. It is the rack (#447): a dark bay the
-   instrument and its devices are mounted in, like a studio rack. */
+/* The rack (#447): a dark bay the instrument and its devices are mounted in,
+   like a studio rack. It grows with them and the document scrolls it; the
+   rail beside it is pinned, so a long instrument never carries the track list
+   off the page. */
 .instrument-view-body {
   display: flex;
   flex-direction: column;
@@ -22,7 +23,6 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
   padding: 20px 16px 32px;
   background-color: var(--color-background-sunken);
 }
@@ -64,4 +64,14 @@
   flex-direction: column;
   gap: 12px;
   padding: 20px;
+}
+
+/* The rail stays in view while the document scrolls the rack beside it,
+   pinned just under the sticky header. It scrolls itself only in the rare
+   project with more tracks than the window is tall. */
+.instrument-view > .track-rail {
+  align-self: flex-start;
+  position: sticky;
+  top: var(--editor-header-height);
+  max-height: calc(100vh - var(--editor-header-height));
 }

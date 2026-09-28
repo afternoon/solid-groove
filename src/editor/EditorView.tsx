@@ -404,7 +404,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
 
   return (
-    <main class="editor">
+    <main class={["editor", `editor-${props.view}`]}>
       <Switch>
         <Match
           when={session.state.loading || session.state.notFound || session.state.error}
