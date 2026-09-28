@@ -1,13 +1,18 @@
 /* The selected track's insert chain (#241), in the Instrument view's slot
-   beneath the instrument. Devices stack in signal order, top to bottom, each
-   full width like the instrument above them. */
+   beneath the instrument, and the master's in the mixer. Devices stack in
+   signal order, top to bottom. The chain has no face of its own: it sits in
+   the rack (#447), and each device is a unit mounted in it, with the rack
+   showing in the gap between one and the next. */
+
+:root {
+  --rack-unit-width: 1000px;
+  --rack-gap: 12px;
+}
 
 .device-chain {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  background-color: var(--color-background-secondary);
+  gap: var(--rack-gap);
 }
 
 .device-chain-head {
@@ -41,7 +46,7 @@
 .device-chain-list {
   display: flex;
   flex-direction: column;
-  gap: var(--size-divider);
+  gap: var(--rack-gap);
   margin: 0;
   padding: 0;
   list-style: none;
