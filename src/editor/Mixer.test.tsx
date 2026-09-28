@@ -20,7 +20,7 @@ import {
 import type { TrackId } from "../domain/ids";
 import { createSeededIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
-import { clickAndFlush } from "../testing/events";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { dragTrackHandle, stubTrackDragLayout } from "../testing/trackDrag";
 import { chainSummary } from "./MasterStrip";
@@ -252,6 +252,35 @@ describe("Mixer track management (TRK-01)", () => {
     ).toEqual(firstClips);
     expect(movedNow?.sendConfig).toEqual(first.sendConfig);
     expect(reordered.find((t) => t.id === second.id)?.order).toBe(0);
+  });
+
+  it("moves a strip with the arrow keys while its Edit control has focus (#447)", () => {
+    const { history, transport } = renderMixer(createDrumMachineFixtureProject());
+    const [first, second] = history.project.song.tracks;
+    const names = () => history.project.song.tracks.map((track) => track.name);
+    const press = (key: string) =>
+      fireAndFlush(() =>
+        fireEvent.keyDown(document.activeElement ?? document.body, { key }),
+      );
+
+    const edit = screen.getByRole("button", { name: `Edit ${first.name}` });
+    edit.focus();
+    press("ArrowRight");
+    expect(names()).toEqual([second.name, first.name]);
+    const reordered = transport.named("track_reordered");
+    expect(reordered).toHaveLength(1);
+    expect(reordered[0].params).toMatchObject({ view: "mixer", method: "keyboard" });
+
+    // Already last: nothing moves, and nothing is logged.
+    screen.getByRole("button", { name: `Edit ${first.name}` }).focus();
+    press("ArrowRight");
+    expect(names()).toEqual([second.name, first.name]);
+    expect(transport.named("track_reordered")).toHaveLength(1);
+
+    // On a fader the arrows are the fader's: no track moves.
+    screen.getByLabelText(`Volume for ${first.name}`).focus();
+    press("ArrowLeft");
+    expect(names()).toEqual([second.name, first.name]);
   });
 
   it("logs track_reordered once per move-left/right press (#331)", () => {

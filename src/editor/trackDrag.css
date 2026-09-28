@@ -6,3 +6,24 @@
 .track-dragging {
   opacity: 0.5;
 }
+
+/* A track's drag handle says so (#447): the open hand over a mixer strip,
+   an arrangement header or a rail row, and the closed hand while one is
+   held. Controls inside keep their own cursor — a strip's fader, pan, name
+   and buttons are not the handle. */
+[data-track-drag],
+[data-track-drag] .mixer-strip-select,
+[data-track-drag] .arrangement-header-select,
+[data-track-drag] .track-rail-button {
+  cursor: grab;
+}
+
+/* `cursor` inherits: a strip's name is a text field, not the handle. */
+[data-track-drag] input[type="text"] {
+  cursor: text;
+}
+
+.track-dragging,
+.track-dragging * {
+  cursor: grabbing;
+}
