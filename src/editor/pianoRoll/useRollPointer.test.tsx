@@ -38,6 +38,18 @@ function fire(target: Element, type: string, at: At): void {
 const grid = () => document.querySelector(".pr-grid") as HTMLElement;
 const note = (name: RegExp) => screen.getByRole("option", { name });
 
+/** Press on `target` at `from`, move to `to` by way of the middle, let go. */
+function drag(target: Element, from: At, to: At): void {
+  fire(target, "pointerdown", from);
+  fire(grid(), "pointermove", {
+    ...from,
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2,
+  });
+  fire(grid(), "pointermove", to);
+  fire(grid(), "pointerup", to);
+}
+
 function click(target: Element, at: At): void {
   fire(target, "pointerdown", at);
   fire(grid(), "pointerup", at);
@@ -112,5 +124,60 @@ describe("piano roll pointer", () => {
       );
       expect(auditions).toHaveLength(analyticsEnabled ? 1 : 0);
     }
+  });
+
+  it("lassos the notes it touches, and Shift adds to the selection", async () => {
+    const { renderRoll } = await setUpRoll();
+    renderRoll();
+
+    drag(grid(), { x: x(2), y: y(60) }, { x: x(9), y: y(67) });
+    expect(selectedNames()).toEqual(["E3, step 5, 1 step", "G3, step 9, 1 step"]);
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+    const shift = { shiftKey: true };
+    drag(
+      grid(),
+      { x: x(1, 30), y: y(59), ...shift },
+      { x: x(1, 10), y: y(60), ...shift },
+    );
+    expect(selectedNames()).toHaveLength(3);
+  });
+
+  it("resizes from a note's end, and the next note takes that length", async () => {
+    const { session, renderRoll, events } = await setUpRoll();
+    renderRoll();
+
+    drag(note(/^C3, step 1,/), { x: x(1, 36), y: y(60) }, { x: x(2, 36), y: y(60) });
+    expect(note(/^C3, step 1,/)).toHaveAccessibleName("C3, step 1, 2 steps");
+    expect(events("clip_edited")).toHaveLength(1);
+    click(grid(), { x: x(3), y: y(62) });
+    expect(note(/^D3, step 3,/)).toHaveAccessibleName("D3, step 3, 2 steps");
+
+    session.undo();
+    session.undo();
+    flush();
+    expect(note(/^C3, step 1,/)).toHaveAccessibleName("C3, step 1, 1 step");
+  });
+
+  it("moves a note, and with Alt held copies it instead", async () => {
+    const { session, renderRoll, notes } = await setUpRoll();
+    renderRoll();
+
+    drag(note(/^E3, step 5,/), { x: x(5), y: y(64) }, { x: x(6), y: y(66) });
+    expect(note(/^F♯3,/)).toHaveAccessibleName("F♯3, step 6, 1 step");
+
+    const alt = { altKey: true };
+    drag(
+      note(/^C3, step 1,/),
+      { x: x(1), y: y(60), ...alt },
+      { x: x(9), y: y(60), ...alt },
+    );
+    expect(notes()).toHaveLength(5);
+    expect(selectedNames()).toEqual(["C3, step 9, 1 step"]);
+    expect(note(/^C3, step 1,/)).toBeInTheDocument();
+
+    session.undo();
+    flush();
+    expect(notes()).toHaveLength(4);
   });
 });

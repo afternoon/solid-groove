@@ -110,6 +110,8 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     factory: factoryContext,
     platform: detectPlatform(),
   });
+  // While a drag lasts the rows hold still, so the grid stays under the pointer.
+  const shownRows = () => pointer.frozenRows() ?? rows();
 
   createEffect(
     () => [...selected()],
@@ -191,20 +193,20 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
           onScroll={viewport.onScrollerScroll}
         >
           <div class="pr-canvas">
-            <Gutter rows={rows()} onAudition={(pitch) => audition(pitch)} />
+            <Gutter rows={shownRows()} onAudition={(pitch) => audition(pitch)} />
             <div
               class="pr-grid"
               ref={grid}
               style={{
                 width: `${steps() * width()}px`,
-                height: `${rows().length * ROW_HEIGHT}px`,
+                height: `${shownRows().length * ROW_HEIGHT}px`,
               }}
               onPointerDown={(event) => pointer.pressEmpty(event)}
               onPointerMove={(event) => pointer.move(event)}
               onPointerUp={() => pointer.release()}
               onPointerCancel={() => pointer.cancel()}
             >
-              <For each={rows()}>
+              <For each={shownRows()}>
                 {(row) => (
                   <div
                     class={["pr-row", { black: row.black, off: row.off }]}
@@ -214,12 +216,26 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
               </For>
               <NoteLayer
                 notes={notes()}
-                rows={rows()}
+                rows={shownRows()}
                 zoom={zoom()}
                 selected={selected()}
                 onNotePointerDown={(note, event) => pointer.pressNote(note, event)}
                 onNoteDoubleClick={deleteNote}
               />
+              <Show when={pointer.lasso()}>
+                {(rect) => (
+                  <div
+                    class="pr-lasso"
+                    style={{
+                      left: `${rect().left}px`,
+                      top: `${rect().top}px`,
+                      width: `${rect().right - rect().left}px`,
+                      height: `${rect().bottom - rect().top}px`,
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
+              </Show>
               <div
                 class="pr-marker-line"
                 style={{ left: `${marker() * width()}px` }}
