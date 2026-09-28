@@ -66,7 +66,7 @@ function formatPadValue(definition: ParameterDefinition, value: number): string 
 }
 
 /**
- * The selected pad opened up in its row (#447): its sound drawn with the
+ * The selected pad's sound, in the editor above the drum table (#447): its sound drawn with the
  * attack and decay that shape each hit — both draggable on the well — and a
  * fader for each of its five values. Pad attack and decay were not reachable
  * from the panel before; pitch, level and pan are the row's own.

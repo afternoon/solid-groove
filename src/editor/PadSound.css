@@ -1,5 +1,5 @@
-/* The selected pad opened up under its row (#447): its sound's well beside
-   the faders for its five values, on the drum table's own twelve columns. */
+/* The selected pad's sound, in the editor above the drum table (#447): its
+   well beside the faders for its five values, on twelve columns. */
 
 .pad-sound {
   display: grid;

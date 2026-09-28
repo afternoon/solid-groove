@@ -146,6 +146,11 @@ const MASKED_NAMES: readonly {
     renders: "the drum track's name",
   },
   {
+    file: "editor/DrumMachinePanel.tsx",
+    anchor: "pad-sample",
+    renders: "the sound each pad plays, down the pad table",
+  },
+  {
     file: "arrangement/ArrangementView.tsx",
     anchor: "arrangement-header-name",
     renders: "track names down the arrangement's header column",
@@ -234,10 +239,6 @@ const DELIBERATELY_UNMARKED: readonly {
   {
     file: "editor/StepEditor.tsx",
     literal: 'class="step-lane"',
-  },
-  {
-    file: "editor/DrumMachinePanel.tsx",
-    literal: 'class="pad-control pad-sample"',
   },
   {
     file: "editor/LoopInfo.tsx",

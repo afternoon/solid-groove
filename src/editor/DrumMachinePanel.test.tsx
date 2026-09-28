@@ -269,13 +269,20 @@ describe("DrumMachinePanel selected pad (#447)", () => {
   const pads = (track: ReturnType<typeof renderPanel>["track"]) =>
     track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
 
-  it("opens the first pad under its row, and another when its name is pressed", () => {
+  it("shows the first pad in one editor above the table, and another when its name is pressed", () => {
     const { track } = renderPanel();
     const [first, second] = pads(track);
+    const editor = screen.getByRole("region", { name: `${first.name} pad` });
     expect(
       screen.getByRole("heading", { name: `${first.name} · sound` }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(`Attack for ${first.name}`)).toBeInTheDocument();
+    // One editor, and it comes before every row of the table.
+    expect(document.querySelectorAll(".drum-pad-editor")).toHaveLength(1);
+    const firstRow = document.querySelector(".drum-pad:not(.drum-pad-head)");
+    expect(
+      editor.compareDocumentPosition(firstRow as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: `Audition ${second.name}` }));
     flush();
@@ -285,10 +292,22 @@ describe("DrumMachinePanel selected pad (#447)", () => {
       document.querySelector('.drum-pad[aria-current="true"]')?.textContent,
     ).toContain(second.name);
   });
+
+  it("selects a pad when anywhere on its row is pressed, without auditioning it", () => {
+    const { track, audition } = renderPanel();
+    const [, second] = pads(track);
+    const rows = document.querySelectorAll(".drum-pad:not(.drum-pad-head)");
+    clickAndFlush(rows[1].querySelector(".pad-index") as HTMLElement);
+    expect(
+      screen.getByRole("region", { name: `${second.name} pad` }),
+    ).toBeInTheDocument();
+    expect(rows[1].getAttribute("aria-current")).toBe("true");
+    expect(audition).not.toHaveBeenCalled();
+  });
 });
 
 describe("DrumMachinePanel adding a pad (#447)", () => {
-  it("adds an empty pad at the end and opens it, as one undoable entry", () => {
+  it("adds an empty pad at the end and selects it, as one undoable entry", () => {
     const { history, pad } = renderLivePanel();
     const drumPads = () => {
       const track = history.project.song.tracks.find(
@@ -305,7 +324,7 @@ describe("DrumMachinePanel adding a pad (#447)", () => {
     expect(added.name).toBe(`Pad ${before + 1}`);
     expect(added.assetId).toBeNull();
     expect(history.entries).toHaveLength(1);
-    // The new pad opens under its row, ready for its sample.
+    // The new pad shows in the editor, ready for its sample.
     expect(
       screen.getByRole("heading", { name: `${added.name} · sound` }),
     ).toBeInTheDocument();
