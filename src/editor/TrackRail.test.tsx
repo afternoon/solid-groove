@@ -49,6 +49,62 @@ describe("TrackRail reorder (#447)", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
+  it("picks the row up: a copy follows the pointer, and Escape puts it back (#539)", async () => {
+    const [a, b, c] = createReferenceProject({ trackCount: 3, placementCount: 3 }).song
+      .tracks;
+    const [tracks] = createSignal<readonly Track[]>([a, b, c]);
+    const onReorder = vi.fn<(trackId: TrackId, toIndex: number) => void>();
+    render(() => (
+      <TrackRail
+        tracks={tracks()}
+        selectedTrackId={null}
+        onSelect={() => {}}
+        onReorder={onReorder}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+    stubTrackDragLayout({
+      axis: "y",
+      zoneSelector: ".track-rail",
+      size: 80,
+      zoneLength: 240,
+      order: () => tracks().map((track) => track.id),
+    });
+    const handle = screen.getByRole("button", { name: `Edit ${c.name}` });
+    const at = (type: string, y: number) =>
+      new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 50, clientY: y });
+    expect(document.querySelector(".drag-lift")).toBeNull();
+
+    fireEvent(handle, at("pointerdown", 1));
+    fireEvent(window, at("pointermove", 10));
+    flush();
+    const copy = document.querySelector<HTMLElement>(".drag-lift");
+    expect(copy).not.toBeNull();
+    expect(copy?.textContent).toContain(c.name);
+    expect(copy?.style.transform).toBe("translate(0px, 9px)");
+    // The original is the gap, and the copy is not one of the rows.
+    expect(document.querySelector(".track-dragging")).toHaveAttribute(
+      "data-track-drag",
+      c.id,
+    );
+    expect(document.querySelectorAll("[data-track-drag]")).toHaveLength(3);
+
+    fireEvent(window, at("pointermove", 100));
+    expect(copy?.style.transform).toBe("translate(0px, 99px)");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    flush();
+    expect(document.querySelector(".drag-lift")).toBeNull();
+    expect(document.querySelector(".track-dragging")).toBeNull();
+    fireEvent(window, at("pointerup", 2));
+    flush();
+    expect(onReorder).not.toHaveBeenCalled();
+    const order = [...document.querySelectorAll<HTMLElement>("[data-track-drag]")];
+    expect(order.map((li) => li.dataset.trackDrag)).toEqual([a.id, b.id, c.id]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
   it("is not a drag handle without a reorder handler", () => {
     const [a] = createReferenceProject({ trackCount: 1, placementCount: 1 }).song.tracks;
     render(() => (

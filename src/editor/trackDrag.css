@@ -1,10 +1,11 @@
 /* A track dragged to reorder it (TRK-02): no text selection from its handle,
-   and translucent where it is previewed, since the move is not yet made. */
+   and, where it is previewed, an empty gap: the track itself is the copy that
+   follows the pointer (#539, `dragLift.css`). */
 [data-track-drag] {
   user-select: none;
 }
 .track-dragging {
-  opacity: 0.5;
+  opacity: 0;
 }
 
 /* A track's drag handle says so (#447): the open hand over a mixer strip,
@@ -20,9 +21,4 @@
 /* `cursor` inherits: a strip's name is a text field, not the handle. */
 [data-track-drag] input[type="text"] {
   cursor: text;
-}
-
-.track-dragging,
-.track-dragging * {
-  cursor: grabbing;
 }
