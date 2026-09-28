@@ -225,7 +225,7 @@ const DELIBERATELY_UNMARKED: readonly {
   },
   {
     file: "components/ProjectList.tsx",
-    literal: 'class="project-card"',
+    literal: 'class="project-row"',
   },
   {
     file: "editor/PianoRoll.tsx",
