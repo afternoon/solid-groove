@@ -366,7 +366,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     deleteSelectedTrack: () => {
       const id = selectedTrackId();
       if (props.view === "mixer" || opened() !== null || id === null) return undefined;
-      if (!project()?.song.tracks.some((candidate) => candidate.id === id)) return undefined;
+      if (!project()?.song.tracks.some((candidate) => candidate.id === id))
+        return undefined;
       return () => deleteTrack(trackDeletion, id);
     },
   });
