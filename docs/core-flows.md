@@ -724,6 +724,97 @@ clip, which overwrites it exactly as a plain drag does (#290). Alt-drag on a cli
 edge, which resizes as a plain edge drag does. Touch input. What the dragged
 copies look like while they move, as in CF-009.
 
+### CF-017 — A producer writes a bassline in the piano roll
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-017.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and add a synth track. Its clip sits in bar 1. Open it. The
+   sequence editor shows the piano roll: 16 steps, rows named down the left with
+   white rows for white keys and black rows for black keys, and the key reads
+   "Chromatic".
+2. Click the empty cell at C2, step 1. A one-step note appears there, selected.
+   Click C2 step 5, D♯2 step 9 and G2 step 13. The clip has four notes.
+3. Drag the right edge of the note at C2 step 1 one step to the right. It is now two
+   steps long. Click the empty cell at F2 step 15. The new note is also two steps
+   long.
+4. Drag the note at D♯2 step 9 up two rows and right one step. It lands at F2
+   step 10.
+5. Press in empty space before step 1 on the C2 row and drag to step 6. The two C2
+   notes are selected, and the roll reads "2 selected".
+6. Hold Alt (Option on macOS), press on the note at C2 step 1, drag it right by
+   eight steps and let go. Copies land at C2 steps 9 and 13. The originals have not
+   moved.
+7. Double-click the note at G2 step 13. It is deleted.
+8. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the clip holds six notes: C2 at steps 1 (two steps long), 5, 9 (two
+steps long) and 13, F2 at step 10, and F2 at step 15 (two steps long). Clicking,
+dragging, resizing, lassoing, Alt-copying and double-click deleting all went through
+the command layer, and the result survived a reload.
+
+**Out of scope:** keyboard nudges and shortcuts (CF-019), the velocity lane, zoom,
+auto-scroll, audition and Shift/Cmd-click toggling, which are tested at the
+component layer. Touch input.
+
+### CF-018 — A producer picks a key and pulls stray notes into it
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-018.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a synth track and open its clip. The key reads
+   "Chromatic", the root buttons are disabled, and Quantize to scale is disabled.
+2. Add notes at C2 step 1, F♯2 step 5 and D♯2 step 9.
+3. Choose Minor from the scale switch. The root buttons are enabled with C chosen,
+   and the key reads "C minor". The roll shows only C minor rows, plus an F♯2 row
+   marked Off, which holds the F♯2 note. No C♯2 or E2 row is shown.
+4. Press Quantize to scale. The F♯2 note moves onto a C minor row, and the Off row
+   disappears. The C2 and D♯2 notes have not changed.
+5. Undo. The F♯2 note and its Off row are back. Redo. They are gone again.
+6. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the key reads "C minor" and the roll shows only C minor rows, so the key
+was saved with the project. The clip holds three notes, all in C minor.
+
+**Out of scope:** which scale note Quantize to scale picks (the rule is the
+implementer's, tested at the unit layer). Every scale other than Minor. Changing the
+root with notes out of key. Key changes from anywhere other than the piano roll.
+
+### CF-019 — A producer copies, pastes and transforms notes from the keyboard
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-019.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a synth track and open its clip. Add notes at C2 step 1
+   and G2 step 3.
+2. Press ⌘A (Ctrl+A on Windows and Linux). The roll reads "2 selected". Press ⌘C.
+   Click the ruler at step 9, then press ⌘V. Copies land at C2 step 9 and G2
+   step 11, and the copies are now the selection.
+3. Press ↑. The copies move up one row, to C♯2 step 9 and G♯2 step 11. Undo. They
+   are back at C2 and G2.
+4. Press Delete. The copies are gone and two notes remain.
+5. Press Esc so nothing is selected. The Transform panel reads "All 2 notes". The
+   Transpose field reads "+12 st". Press Transpose. The notes are now at C3 step 1
+   and G3 step 3.
+6. Press Double. It refuses with "The copies would not fit inside this clip. Make
+   the clip longer first.", and the notes are unchanged.
+7. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the clip holds C3 at step 1 and G3 at step 3. Keyboard copy and paste
+landed at the insert marker, arrow keys and Delete acted on the selection, and a
+transform with nothing selected acted on the whole clip. A refused transform changed
+nothing and said why.
+
+**Out of scope:** ⌘D, cut, Shift+arrow resizing and octave moves, Quantize,
+Velocity, Vary, Clear clip, and editing the value fields, which are tested at the
+component layer.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
