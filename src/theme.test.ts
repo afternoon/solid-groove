@@ -145,6 +145,21 @@ describe("the theme is the only place a colour is written down", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("gives every dropdown one look, set once in the base layer (#447)", () => {
+    // A per-surface `select` rule is how the app came to have two dropdown
+    // styles; `app.css` draws them all like the sample slot.
+    const offenders = Object.entries(appStylesheets())
+      .filter(([path]) => path !== "app.css")
+      .filter(([, source]) =>
+        /(^|[\s,>+~])select(?![-\w])[^{};]*\{/m.test(
+          source.replace(/\/\*[\s\S]*?\*\//g, ""),
+        ),
+      )
+      .map(([path]) => path);
+    expect(offenders).toEqual([]);
+    expect(stylesheets["app.css"]).toMatch(/^select \{/m);
+  });
+
   it("resolves every token those stylesheets read", () => {
     // Set on an element from TSX (`StepEditor`, `FillSlider`), never in CSS.
     // `TrackRail` sets the last two from the arrangement's own `ROW_METRICS`

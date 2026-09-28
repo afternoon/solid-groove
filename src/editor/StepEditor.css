@@ -32,16 +32,6 @@
   color: var(--color-text-secondary);
 }
 
-.step-editor-length-select {
-  height: 30px;
-  background-color: var(--color-background-tertiary);
-  color: var(--color-text);
-  border: none;
-  border-radius: 0;
-  padding: 0 8px;
-  font-size: var(--font-size-small);
-}
-
 .step-editor-grid {
   display: flex;
   flex-direction: column;

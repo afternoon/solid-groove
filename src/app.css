@@ -79,6 +79,38 @@ input {
   }
 }
 
+/* Every dropdown looks like the sample slot (#447): a filled, borderless
+   box naming its value, with the slot's caret drawn at its right edge. */
+select {
+  appearance: none;
+  height: 28px;
+  min-width: 0;
+  padding: 0 26px 0 10px;
+  border: none;
+  border-radius: 0;
+  background-color: var(--color-background-tertiary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-foreground) 50%),
+    linear-gradient(135deg, var(--color-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-background-hover);
+  }
+}
+
+option {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
 p.loading {
   color: var(--color-text-secondary);
 }
