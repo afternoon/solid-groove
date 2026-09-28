@@ -39,7 +39,7 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { moveTrack, type ReorderMethod } from "./trackReorder";
-import { toggleTrackFlag } from "./trackSurface";
+import { toggleTrackFlag, trackSurfaceHandlers } from "./trackSurface";
 import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
@@ -366,15 +366,18 @@ function trackKindLabel(track: Track): string {
   return track.instrument ? instrumentKindSpec(track.instrument.kind).label : "Track";
 }
 
-function startsStripDrag(event: PointerEvent): boolean {
-  return !(event.target as Element).closest(STRIP_CONTROLS);
-}
-
 function TrackStrip(props: TrackStripProps): JSX.Element {
-  /** Points the editor at this track, unless it already is. */
-  const selectOnce = () => {
-    if (!props.selected) props.onSelect();
-  };
+  // Touching a strip selects its track (#447): a click anywhere on it, and
+  // any value changed on it: a fader, the pan, mute, solo, the name. The Edit
+  // button selects on its own; duplicate and delete act on the track, they do
+  // not point the editor at it.
+  const surface = trackSurfaceHandlers({
+    selected: () => props.selected,
+    onSelect: () => props.onSelect(),
+    onDragStart: (event) => props.onDragStart(event),
+    controls: STRIP_CONTROLS,
+    clickExempt: ".mixer-strip-action, .mixer-strip-select",
+  });
 
   const volumeDb = () => props.track.mixer.volume;
   const panValue = () => props.track.mixer.pan;
@@ -395,21 +398,10 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
       /* The previewed strip is the drop indicator: the mixer's drag shows
          where the track will land by putting it there. */
       data-testid={props.previewing ? "track-drop-indicator" : undefined}
-      onPointerDown={(event) => {
-        if (startsStripDrag(event)) props.onDragStart(event);
-      }}
-      // Touching a strip selects its track (#447): a click anywhere on it, and
-      // any value changed on it — a fader, the pan, mute, solo, the name. The
-      // handlers bubble up from the controls after their own have run, so
-      // nothing under them is swallowed. Duplicate and delete are the
-      // exception: they act on the track, they do not point the editor at it.
-      onClick={(event) => {
-        // The Edit button selects on its own; duplicate and delete never do.
-        const target = event.target as Element;
-        if (!target.closest(".mixer-strip-action, .mixer-strip-select")) selectOnce();
-      }}
-      onInput={selectOnce}
-      onChange={selectOnce}
+      onPointerDown={surface.onPointerDown}
+      onClick={surface.onClick}
+      onInput={surface.onInput}
+      onChange={surface.onChange}
     >
       {/* The track's colour runs across the strip's top edge (#447). */}
       <div class="mixer-strip-head" style={{ "border-top-color": props.track.color }}>

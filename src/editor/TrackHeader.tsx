@@ -16,7 +16,7 @@ import TrackColorPicker from "./TrackColorPicker";
 import { VolumeFader } from "./TrackFaders";
 import type { TrackLevel } from "./trackLevels";
 import "./TrackHeader.css";
-import { toggleTrackFlag } from "./trackSurface";
+import { toggleTrackFlag, trackSurfaceHandlers } from "./trackSurface";
 
 export interface TrackHeaderProps {
   readonly track: Track;
@@ -52,9 +52,13 @@ const CONTROLS = "input, button:not(.track-header-select), [role='slider'], .fil
  * a keyboard tabs to and the core flows click by name.
  */
 export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
-  const selectOnce = () => {
-    if (!props.selected) props.onSelect();
-  };
+  const surface = trackSurfaceHandlers({
+    selected: () => props.selected,
+    onSelect: () => props.onSelect(),
+    onDragStart: (event) => props.onDragStart?.(event),
+    controls: CONTROLS,
+    clickExempt: ".track-header-select",
+  });
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the header's own Edit button
@@ -65,14 +69,10 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
         { selected: props.selected, muted: props.track.mixer.muted },
       ]}
       style={{ "--track-ink": props.track.color }}
-      onPointerDown={(event) => {
-        if (!(event.target as Element).closest(CONTROLS)) props.onDragStart?.(event);
-      }}
-      onClick={(event) => {
-        if (!(event.target as Element).closest(".track-header-select")) selectOnce();
-      }}
-      onInput={selectOnce}
-      onChange={selectOnce}
+      onPointerDown={surface.onPointerDown}
+      onClick={surface.onClick}
+      onInput={surface.onInput}
+      onChange={surface.onChange}
     >
       <div class="track-header-title">
         <TrackColorPicker
