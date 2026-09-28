@@ -827,9 +827,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
     bumpState();
   }
 
+  /** The domain tracks by id, once per project, for the header rows. */
+  const tracksById = createMemo(
+    () => new Map(props.project.song.tracks.map((track) => [track.id, track])),
+  );
   /** The domain track a header row shows: its mixer, its colour. */
-  const trackOf = (trackId: TrackId) =>
-    props.project.song.tracks.find((candidate) => candidate.id === trackId);
+  const trackOf = (trackId: TrackId) => tracksById().get(trackId);
 
   // The visible window of track rows, recomputed from the shell's row range.
   const headerRows = createMemo(() => {
