@@ -1,0 +1,87 @@
+/* The sample slot (#447): a filled button naming the sound, and the menu of
+   the project's sounds it opens beneath itself. */
+
+.sample-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.sample-picker-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sample-picker-button:hover {
+  background-color: var(--color-background-hover);
+}
+
+/* The caret: the button opens something. */
+.sample-picker-button::after {
+  content: "";
+  flex: none;
+  border-top: 5px solid var(--color-foreground);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+.sample-picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sample-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 4px 0;
+  background-color: var(--color-background);
+  box-shadow:
+    0 10px 30px var(--scrim),
+    0 0 0 1px var(--color-border);
+}
+
+.sample-picker-menu button {
+  padding: 7px 12px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sample-picker-menu button:hover,
+.sample-picker-menu button:focus-visible {
+  background-color: var(--color-background-tertiary);
+  color: var(--color-foreground-bright);
+  outline: none;
+}
+
+.sample-picker-menu button[aria-checked="true"] {
+  color: var(--color-foreground-bright);
+  font-weight: 600;
+}
+
+.sample-picker-menu hr {
+  width: 100%;
+  height: 1px;
+  margin: 4px 0;
+  border: none;
+  background-color: var(--color-border);
+}
