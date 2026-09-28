@@ -71,3 +71,14 @@
   height: auto;
   min-height: 30px;
 }
+
+/* A group shown but not choosable (#447): its options recede and stop
+   answering the pointer. */
+.option-group:disabled .option-group-option {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.option-group:disabled .option-group-option:hover {
+  background-color: var(--color-background-tertiary);
+}

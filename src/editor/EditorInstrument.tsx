@@ -155,17 +155,15 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
               style={{ "--track-ink": currentTrack().color }}
             >
               {/* The kind picker heads the view, outside the instrument it
-                  chooses (#447). A loop track has no instrument to pick. */}
-              <Show when={currentTrack().type !== "audio" && props.instrumentTrackId}>
-                {(trackId) => (
-                  <InstrumentKindPicker
-                    trackId={trackId()}
-                    project={props.project}
-                    instrument={props.instrument}
-                    dispatch={props.dispatch}
-                  />
-                )}
-              </Show>
+                  chooses (#447). A loop track shows it too, with nothing to
+                  choose yet: a loop is not one of the kinds. */}
+              <InstrumentKindPicker
+                trackId={currentTrack().id}
+                project={props.project}
+                instrument={currentTrack().type === "audio" ? null : props.instrument}
+                dispatch={props.dispatch}
+                disabled={currentTrack().type === "audio"}
+              />
               {/* An audio track plays a loop, so it shows the loop's faceplate
                   (#447). Either way the header row is the unit's first row. */}
               <Show

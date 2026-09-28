@@ -32,6 +32,8 @@ export interface InstrumentKindPickerProps {
   ): TransactionResult | undefined;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
+  /** Show the kinds without offering them: a loop track has none (#447). */
+  readonly disabled?: boolean;
   /** Overrides the pad-ID factory so tests are deterministic. */
   readonly factoryContext?: DomainFactoryContext;
 }
@@ -64,7 +66,7 @@ export default function InstrumentKindPicker(
     kind === "drumMachine" ? [] : padTriggeredHits(props.project, props.trackId);
 
   function select(kind: InstrumentKind): void {
-    if (kind === props.instrument?.kind) return;
+    if (props.disabled || kind === props.instrument?.kind) return;
     const hits = strandedHits(kind);
     if (hits.length > 0) {
       setPendingKind(kind);
@@ -114,6 +116,7 @@ export default function InstrumentKindPicker(
             label: spec.label,
           }))}
           onSelect={select}
+          disabled={props.disabled}
         />
       </div>
       <Show when={pendingKind()}>
