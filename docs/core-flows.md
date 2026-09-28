@@ -784,6 +784,37 @@ was saved with the project. The clip holds three notes, all in C minor.
 implementer's, tested at the unit layer). Every scale other than Minor. Changing the
 root with notes out of key. Key changes from anywhere other than the piano roll.
 
+### CF-019 — A producer copies, pastes and transforms notes from the keyboard
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-019.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a synth track and open its clip. Add notes at C2 step 1
+   and G2 step 3.
+2. Press ⌘A (Ctrl+A on Windows and Linux). The roll reads "2 selected". Press ⌘C.
+   Click the ruler at step 9, then press ⌘V. Copies land at C2 step 9 and G2
+   step 11, and the copies are now the selection.
+3. Press ↑. The copies move up one row, to C♯2 step 9 and G♯2 step 11. Undo. They
+   are back at C2 and G2.
+4. Press Delete. The copies are gone and two notes remain.
+5. Press Esc so nothing is selected. The Transform panel reads "All 2 notes". The
+   Transpose field reads "+12 st". Press Transpose. The notes are now at C3 step 1
+   and G3 step 3.
+6. Press Double. It refuses with "The copies would not fit inside this clip. Make
+   the clip longer first.", and the notes are unchanged.
+7. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the clip holds C3 at step 1 and G3 at step 3. Keyboard copy and paste
+landed at the insert marker, arrow keys and Delete acted on the selection, and a
+transform with nothing selected acted on the whole clip. A refused transform changed
+nothing and said why.
+
+**Out of scope:** ⌘D, cut, Shift+arrow resizing and octave moves, Quantize,
+Velocity, Vary, Clear clip, and editing the value fields, which are tested at the
+component layer.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
