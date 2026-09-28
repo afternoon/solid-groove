@@ -86,25 +86,3 @@ export function formatDeviceValue(
   if (bareParameterId(definition.id) === "ratio") return `${value.toFixed(1)}:1`;
   return formatInstrumentValue(definition, value);
 }
-
-/**
- * "at maximum" or "at minimum" when a value sits on its own bound (PRD
- * FX-02): extremes are reachable on purpose and said out loud, never quietly
- * pulled back toward a safe sound. Derived from the definition alone, so no
- * per-device table of dangerous knobs exists. A bound that is also the
- * default is not reported: a factory setting is not extreme.
- */
-export function deviceExtremeLabel(
-  definition: ParameterDefinition,
-  value: number,
-): string | null {
-  const span = definition.max - definition.min;
-  if (!(span > 0) || !Number.isFinite(value)) return null;
-  // A whisker of the range, so a drag to the end reports the end without a
-  // float comparison deciding it landed a step short.
-  const epsilon = span * 0.005;
-  if (Math.abs(value - definition.defaultValue) <= epsilon) return null;
-  if (value >= definition.max - epsilon) return "at maximum";
-  if (value <= definition.min + epsilon) return "at minimum";
-  return null;
-}

@@ -35,7 +35,7 @@
   --fill-slider-track-height: 136px;
 }
 
-/* A slider and, when it sits on a bound, the words saying so (PRD FX-02). */
+/* One continuous control: its fader and value field. */
 .device-control {
   position: relative;
   display: flex;
@@ -43,12 +43,4 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
-}
-
-.device-control-extreme {
-  font-size: var(--font-size-tiny);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-accent);
-  white-space: nowrap;
 }

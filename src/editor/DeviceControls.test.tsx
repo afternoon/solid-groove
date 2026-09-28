@@ -167,11 +167,9 @@ describe("deviceChoices", () => {
     expect(within(device(0)).getByDisplayValue("4.0:1")).toBeInTheDocument();
   });
 
-  it("says when a control sits on a bound, and not at its factory setting", () => {
+  it("shows no bound label, even with a control at its end (#447)", () => {
     const { history, devices, device } = renderDevices(["overdrive"]);
     const overdrive = within(device(0));
-    // Drive's default is mid-range; Mix's default is its maximum.
-    expect(overdrive.queryByText(/at (maximum|minimum)/)).toBeNull();
 
     const trackId = history.project.song.tracks[0].id;
     fireAndFlush(() =>
@@ -187,6 +185,8 @@ describe("deviceChoices", () => {
         ),
       ),
     );
-    expect(overdrive.getByText("at maximum")).toBeInTheDocument();
+    // Drive and Mix both sit at their maximum; their value fields say so.
+    expect(overdrive.getAllByDisplayValue("100%")).toHaveLength(2);
+    expect(overdrive.queryByText(/at (maximum|minimum)/)).toBeNull();
   });
 });
