@@ -178,21 +178,54 @@
   font-size: var(--font-size-small);
 }
 
-/* The selected pad, opened up under its row (#447): its row lifts to the
-   well colour, and its sound sits beneath on the same black. */
-.drum-pad[aria-current="true"] {
-  background-color: var(--color-background);
+/* The selected pad's row lifts to the well colour (#447): the row the
+   editor above is showing. A press anywhere on a row selects it. */
+.drum-pad:not(.drum-pad-head) {
+  cursor: pointer;
 }
 
-.drum-pad-detail {
-  padding: 14px 12px 16px;
-  border-top: 1px solid var(--color-border);
+.drum-pad[aria-current="true"] {
   background-color: var(--color-background);
 }
 
 /* On the selected row's black, the preview well lifts to stay visible. */
 .drum-pad[aria-current="true"] .pad-preview {
   background-color: var(--color-background-secondary);
+}
+
+.pad-sample {
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one pad editor (#447), above the table: the selected pad's name and
+   sample slot over its sound, on the same black as its row. */
+.drum-pad-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px;
+  background-color: var(--color-background);
+}
+
+.drum-pad-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.drum-pad-editor-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-foreground-bright);
+}
+
+.drum-pad-editor-sample {
+  width: 240px;
 }
 
 /* Adding a pad (#447): the shared add button, under the last row. */
