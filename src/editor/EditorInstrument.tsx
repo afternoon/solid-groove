@@ -92,24 +92,6 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
               class="instrument-view-track"
               style={{ "--track-ink": currentTrack().color }}
             >
-              <Show when={props.drumTrack}>
-                {(drum) => (
-                  <div class="drum-machine-editor">
-                    <div class="track-info">
-                      {/* The track's name, chosen by the user (ADR 0002). */}
-                      <span class={`track-name ${MASK_CONTENT}`}>{drum().name}</span>
-                    </div>
-                    <DrumMachinePanel
-                      track={drum()}
-                      assets={props.sampleAssets}
-                      dispatch={props.dispatch}
-                      beginGesture={props.beginGesture}
-                      audition={(padId) => props.auditionPad(drum().id, padId)}
-                      watchPeaks={props.watchPeaks}
-                    />
-                  </div>
-                )}
-              </Show>
               {/* An audio track has no instrument to pick: it plays a loop,
                   so it shows the loop's faceplate instead (#447). */}
               <Show
@@ -137,6 +119,25 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                   songTempo={props.project.song.tempo}
                   watchPeaks={props.watchPeaks}
                 />
+              </Show>
+              {/* Under the kind picker, which heads the instrument (#447). */}
+              <Show when={props.drumTrack}>
+                {(drum) => (
+                  <div class="drum-machine-editor">
+                    <div class="track-info">
+                      {/* The track's name, chosen by the user (ADR 0002). */}
+                      <span class={`track-name ${MASK_CONTENT}`}>{drum().name}</span>
+                    </div>
+                    <DrumMachinePanel
+                      track={drum()}
+                      assets={props.sampleAssets}
+                      dispatch={props.dispatch}
+                      beginGesture={props.beginGesture}
+                      audition={(padId) => props.auditionPad(drum().id, padId)}
+                      watchPeaks={props.watchPeaks}
+                    />
+                  </div>
+                )}
               </Show>
               <DeviceChainPanel
                 track={currentTrack()}
