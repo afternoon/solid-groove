@@ -229,7 +229,7 @@ const DELIBERATELY_UNMARKED: readonly {
     literal: 'class="project-row"',
   },
   {
-    file: "editor/PianoRoll.tsx",
+    file: "editor/pianoRoll/PianoRoll.tsx",
     literal: 'class="piano-roll"',
   },
   {
