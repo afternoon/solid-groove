@@ -5,36 +5,95 @@
   min-width: 0;
 }
 
+/* The dense pad table (#447): one row per pad, every row on the same columns
+   as the header above it. Rows part by a hairline; no cards. */
 .drum-pad {
   display: grid;
   grid-template-columns:
-    minmax(96px, 1fr) minmax(120px, 1.4fr) repeat(3, minmax(70px, 1fr))
-    minmax(70px, 0.8fr) auto;
+    24px 92px minmax(120px, 176px) 120px repeat(3, minmax(0, 1fr))
+    56px 62px;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  background-color: var(--color-background-secondary);
-  border-left: 3px solid var(--color-background-tertiary);
+  gap: 0 20px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-top: 1px solid var(--color-border);
 }
 
-.drum-pad.muted {
-  opacity: 0.55;
+.drum-pad-head {
+  min-height: 28px;
+  border-top: none;
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+/* A muted pad dims, but its mute and solo stay readable to undo it. */
+.drum-pad.muted > :not(.pad-flags) {
+  opacity: 0.4;
+}
+
+.pad-index {
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pad-preview {
+  position: relative;
+  width: 100%;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background-color: var(--color-background);
+  cursor: pointer;
+}
+
+.pad-preview:hover {
+  background-color: var(--color-background-tertiary);
+}
+
+.pad-preview svg {
+  position: absolute;
+  inset: 3px 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 6px);
+}
+
+/* In a row the column header names each control, so its own label is kept
+   for assistive tech but hidden, and the value sits beside a short track. */
+.drum-pad .fill-slider.horizontal {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+.drum-pad .fill-slider.horizontal .fill-slider-entry {
+  grid-area: 1 / 1;
+  justify-self: start;
+  width: 100%;
+  text-align: left;
+}
+
+.drum-pad .fill-slider.horizontal .fill-slider-track {
+  grid-area: 1 / 2;
 }
 
 .pad-audition {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 8px 10px;
-  background-color: var(--color-background-tertiary);
+  justify-self: start;
+  padding: 4px 6px;
+  margin-left: -6px;
+  background: none;
   color: var(--color-text);
   border: none;
   cursor: pointer;
+  white-space: nowrap;
   transition: background-color 0.05s ease-out;
 }
 
 .pad-audition:hover {
-  background-color: var(--color-background-hover);
+  background-color: var(--color-background-tertiary);
 }
 
 .pad-audition:active {
@@ -67,6 +126,16 @@
   letter-spacing: 0.04em;
 }
 
+.drum-pad .fill-slider-label,
+.drum-pad .pad-control-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .pad-control select {
   background-color: var(--color-background-tertiary);
   color: var(--color-text);
@@ -82,8 +151,11 @@
 }
 
 .pad-flag {
-  width: 26px;
-  height: 26px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
   background-color: var(--color-background-tertiary);
   color: var(--color-text-secondary);
   border: none;

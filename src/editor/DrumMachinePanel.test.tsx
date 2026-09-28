@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -13,6 +13,7 @@ import type { DrumPad, Track } from "../domain/entities";
 import { createDrumMachineFixtureProject } from "../domain/fixtures";
 import type { PadId } from "../domain/ids";
 import { fillExtent, moveTo, testAnalytics } from "../instrument/panelTesting";
+import type { WatchPeaks } from "../instrument/SampleWell";
 import { fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import DrumMachinePanel from "./DrumMachinePanel";
@@ -27,7 +28,7 @@ function drumTrackOf(project: ReturnType<typeof createDrumMachineFixtureProject>
   return track;
 }
 
-function renderPanel() {
+function renderPanel(watchPeaks?: WatchPeaks) {
   const project = createDrumMachineFixtureProject();
   const track = drumTrackOf(project);
   const assets = project.song.assets.filter((asset) => asset.kind === "sample");
@@ -55,6 +56,7 @@ function renderPanel() {
       // falls back to plain `dispatch`, which is what these assertions read.
       beginGesture={() => undefined}
       audition={audition}
+      watchPeaks={watchPeaks}
       analytics={analytics}
     />
   ));
@@ -121,14 +123,15 @@ describe("DrumMachinePanel", () => {
 
   it("dispatches drum.setPadAsset and logs instrument_changed on a sample replacement", () => {
     const { track, assets, dispatch, transport } = renderPanel();
-    const selects = screen.getAllByRole("combobox");
-    // The first pad's sample selector; pick a different asset than it holds.
+    // The first pad's sample picker (#447); pick a different asset than it holds.
     const firstPad =
       track.instrument?.kind === "drumMachine" ? track.instrument.pads[0] : undefined;
     const replacement = assets.find((asset) => asset.id !== firstPad?.assetId);
     expect(replacement).toBeDefined();
 
-    fireEvent.change(selects[0], { target: { value: replacement?.id } });
+    fireEvent.click(screen.getByRole("button", { name: `Sample for ${firstPad?.name}` }));
+    flush();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: replacement?.name }));
 
     expect(dispatch).toHaveBeenCalledTimes(1);
     const command = dispatch.mock.calls[0][0] as {
@@ -227,5 +230,36 @@ describe("DrumMachinePanel", () => {
       track.instrument?.kind === "drumMachine" ? track.instrument.pads[0].name : "";
     fireEvent.click(screen.getByRole("button", { name: `Audition ${firstPadName}` }));
     expect(audition).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DrumMachinePanel table (#447)", () => {
+  it("heads the pads with their column names, hidden from assistive tech", () => {
+    renderPanel();
+    const head = document.querySelector(".drum-pad-head");
+    expect(head).toHaveAttribute("aria-hidden", "true");
+    expect(head?.textContent).toBe("#PadSamplePreviewPitchLevelPanChokeM · S");
+    expect(document.querySelector(".pad-index")?.textContent).toBe("01");
+  });
+
+  it("previews each pad's own waveform, and plays the pad from it", () => {
+    const watch = vi.fn<WatchPeaks>((_id, _buckets, onPeaks) => {
+      onPeaks(Float32Array.from([1, 0.5, 0.25]));
+      return () => {};
+    });
+    const { track, audition } = renderPanel(watch);
+    flush();
+    const pad =
+      track.instrument?.kind === "drumMachine" ? track.instrument.pads[0] : undefined;
+    expect(watch).toHaveBeenCalledWith(
+      pad?.assetId,
+      expect.any(Number),
+      expect.any(Function),
+    );
+
+    const preview = screen.getByRole("button", { name: `Preview ${pad?.name}` });
+    expect(preview.querySelector("path")?.getAttribute("d")).toMatch(/^M/);
+    fireEvent.click(preview);
+    expect(audition).toHaveBeenCalledExactlyOnceWith(pad?.id);
   });
 });
