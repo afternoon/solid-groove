@@ -175,6 +175,16 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       run: () => arrangementEditingActions()?.zoomToSelection(),
       isEnabled: () => arrangementEditingActions()?.canZoomToSelection() ?? false,
     },
+    // The zoom group's twins (#494). No `isEnabled`: the actions are null while
+    // no arrangement is mounted, and the handler then does nothing.
+    "view.zoom_to_arrangement": {
+      run: () => arrangementEditingActions()?.zoomToArrangement(),
+    },
+    "view.scroll_to_playhead": {
+      run: () => arrangementEditingActions()?.scrollToPlayhead(),
+    },
+    "view.zoom_in": { run: () => arrangementEditingActions()?.zoomIn() },
+    "view.zoom_out": { run: () => arrangementEditingActions()?.zoomOut() },
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
