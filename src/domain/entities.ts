@@ -15,6 +15,7 @@ import {
   sectionIdSchema,
   trackIdSchema,
 } from "./ids";
+import { musicalKeySchema } from "./musicalKey";
 import {
   MASTER_VOLUME,
   NOTE_PROBABILITY,
@@ -48,9 +49,10 @@ import { durationTickSchema, tickSchema } from "./time";
  * (LOOP-017) adds `song.loop`, the loop range and loop toggle; a v2 project
  * migrates forward to the new-project default of one bar from tick 0, on. v4
  * (#290) makes a track's placements disjoint in time; a v3 project migrates
- * forward by trimming the later-starting placement of each overlapping pair.
+ * forward by trimming the later-starting placement of each overlapping pair. v5
+ * (ARR-010) adds `song.key`, the root and scale; a v4 project opens chromatic.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);
@@ -405,6 +407,8 @@ export const songSchema = z.strictObject({
   tempo: parameterValueSchema(SONG_TEMPO),
   timeSignature: timeSignatureSchema,
   loop: songLoopSchema,
+  /** The song's key and scale (ARR-010); chromatic until a producer picks one. */
+  key: musicalKeySchema,
   tracks: z.array(trackSchema),
   returns: z.array(returnBusSchema),
   master: masterSettingsSchema,

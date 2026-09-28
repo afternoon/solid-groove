@@ -1,5 +1,6 @@
 import { type Project, type ProjectMetadata, SCHEMA_VERSION } from "../domain/entities";
 import { createDefaultSongLoop } from "../domain/factories";
+import { createChromaticKey } from "../domain/musicalKey";
 import { type PlacementSpan, trimLaterOverlaps } from "../domain/placementOverlap";
 import {
   type DecodeResult,
@@ -74,6 +75,18 @@ const migrateV3ToV4: ProjectMigration = {
   description: "Trim overlapping placements so each track's placements are disjoint",
   song: trimDocumentPlacements,
   chunk: trimDocumentPlacements,
+};
+
+/**
+ * v4 -> v5 (ARR-010): the song gains `key`, its root and scale. A project
+ * saved before it opens chromatic, which is what every new project starts in,
+ * so nothing it holds is hidden or moved. Only the song tier gains a field.
+ */
+const migrateV4ToV5: ProjectMigration = {
+  from: 4,
+  to: 5,
+  description: "Add the song key, defaulting to chromatic",
+  song: (song) => ({ ...song, key: createChromaticKey() }),
 };
 
 function trimDocumentPlacements(
@@ -170,6 +183,7 @@ export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [
   migrateV1ToV2,
   migrateV2ToV3,
   migrateV3ToV4,
+  migrateV4ToV5,
 ];
 
 export type MigrationFailureReason =

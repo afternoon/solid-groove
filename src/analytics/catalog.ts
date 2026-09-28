@@ -280,6 +280,7 @@ export const COMMAND_IDS = [
   "device.restoreParameters",
   "loop.setRange",
   "loop.setEnabled",
+  "key.set",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 

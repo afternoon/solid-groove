@@ -30,6 +30,7 @@ import {
   type ReturnId,
   type TrackId,
 } from "./ids";
+import { createChromaticKey } from "./musicalKey";
 import {
   clampParameterValue,
   MASTER_VOLUME,
@@ -436,6 +437,7 @@ export function createEmptySong(tempo: number = SONG_TEMPO.defaultValue): Song {
     tempo: clampParameterValue(SONG_TEMPO, tempo),
     timeSignature: { numerator: 4, denominator: 4 },
     loop: createDefaultSongLoop(),
+    key: createChromaticKey(),
     tracks: [],
     returns: [],
     master: { volume: MASTER_VOLUME.defaultValue, devices: [] },
