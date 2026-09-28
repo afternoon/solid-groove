@@ -34,7 +34,7 @@ import {
   pointerModifierHeld,
   suppressModifierDefault,
 } from "../shortcuts/pointerGestures";
-import { ArrangementToolbar } from "./ArrangementToolbar";
+import { ArrangementZoomControls } from "./ArrangementZoomControls";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
 import {
   createArrangementWaveformCache,
@@ -908,13 +908,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
       data-pixels-per-tick={pixelsPerTick()}
       {...VERTICAL_SCALE}
     >
-      <ArrangementToolbar
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onZoomToSelection={zoomToSelection}
-        onScrollToPlayhead={scrollToPlayhead}
-        hasSelection={canZoomToSelection()}
-      />
       <div class="arrangement-body">
         <div
           class="arrangement-headers"
@@ -1025,6 +1018,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
             {props.belowTracks}
           </div>
         </Show>
+        <ArrangementZoomControls
+          onZoomToArrangement={zoomToArrangement}
+          onZoomToSelection={zoomToSelection}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          hasSelection={canZoomToSelection()}
+        />
       </div>
       {/* Accessible mirror: the visible tracks and the current selection as
 			    real DOM, so assistive tech never has to read canvas pixels. Both

@@ -18,38 +18,52 @@
   overflow: hidden;
 }
 
-.arrangement-toolbar {
+/* The zoom group floats over the view's bottom-right corner (#494), clear of
+   the scrollbars. It sits above the canvases, so it must take the pointer
+   itself rather than let a click fall through to the timeline. */
+.arrangement-zoom {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 3;
   display: flex;
-  gap: 8px;
-  padding: 6px 8px;
-  background: var(--color-background-well);
-  border-bottom: 1px solid var(--color-background-tertiary);
-  flex-shrink: 0;
-}
-
-.arrangement-action {
-  appearance: none;
+  flex-direction: column;
   background: var(--color-background-secondary);
-  color: var(--color-text);
   border: 1px solid var(--color-border-strong);
   border-radius: 0;
-  padding: 4px 10px;
-  font-size: 12px;
+}
+
+.arrangement-zoom-button {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text);
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
 }
 
-.arrangement-action:hover:not(:disabled) {
-  border-color: var(--color-accent);
+.arrangement-zoom-button + .arrangement-zoom-button {
+  border-top: 1px solid var(--color-border-strong);
 }
 
-.arrangement-action:disabled {
+.arrangement-zoom-button:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
+}
+
+.arrangement-zoom-button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.arrangement-action:focus-visible {
+.arrangement-zoom-button:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .arrangement-body {

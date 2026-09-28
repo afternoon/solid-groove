@@ -148,13 +148,41 @@ function renderView(analytics: Analytics) {
 }
 
 describe("ArrangementView shell", () => {
-  it("renders the four named DOM actions for keyboard/accessibility workflows", () => {
+  it("floats an icon-only zoom group: arrangement, selection, in, out, top to bottom (#494)", () => {
     const { analytics } = analyticsAllowing();
     renderView(analytics);
-    expect(screen.getByLabelText("Zoom in")).toBeInTheDocument();
-    expect(screen.getByLabelText("Zoom out")).toBeInTheDocument();
-    expect(screen.getByLabelText("Zoom to selection")).toBeInTheDocument();
-    expect(screen.getByLabelText("Scroll to playhead")).toBeInTheDocument();
+    const group = screen.getByRole("group", { name: "Zoom" });
+    const buttons = within(group).getAllByRole("button");
+    expect(buttons.map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Zoom to arrangement",
+      "Zoom to selection",
+      "Zoom in",
+      "Zoom out",
+    ]);
+    for (const button of buttons) {
+      // Icon only: no text, but a tooltip naming the registry's shortcut.
+      expect(button.textContent).toBe("");
+      expect(button.querySelector("svg")).not.toBeNull();
+      expect(button.getAttribute("title")).toMatch(/^Zoom .+ \(.+\)$/);
+    }
+    expect(buttons[0]).toHaveAttribute("title", "Zoom to arrangement (F)");
+    expect(buttons[1]).toBeDisabled();
+    expect(buttons[2]).toBeEnabled();
+    expect(buttons[3]).toBeEnabled();
+    // The removed controls stay removed.
+    expect(screen.queryByLabelText("Scroll to playhead")).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "Loop start" })).toBeNull();
+  });
+
+  it("frames the whole song from the first zoom button (#494)", () => {
+    const { analytics } = analyticsAllowing();
+    const { container } = renderView(analytics);
+    const root = container.querySelector(".arrangement-view");
+    const scaleOf = () => Number(root?.getAttribute("data-pixels-per-tick"));
+    clickAndFlush(screen.getByLabelText("Zoom in"));
+    const zoomedIn = scaleOf();
+    clickAndFlush(screen.getByLabelText("Zoom to arrangement"));
+    expect(scaleOf()).toBeLessThan(zoomedIn);
   });
 
   /** UI-001/CF-004: a clip is canvas pixels with no node to aim at, so the
