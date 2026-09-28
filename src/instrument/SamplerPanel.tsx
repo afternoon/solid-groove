@@ -38,7 +38,6 @@ export interface SamplerPanelProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
-  audition(): void;
   /** Opens the library on this slot (`UI-001`). Absent where nothing can. */
   readonly onBrowse?: () => void;
   /** Follows the loaded sound's waveform for its well (#447). */
@@ -162,13 +161,6 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
           </ControlGroup>
         </div>
       </div>
-      <button
-        type="button"
-        class="instrument-panel-audition"
-        onClick={() => props.audition()}
-      >
-        Audition
-      </button>
     </section>
   );
 

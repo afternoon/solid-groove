@@ -38,7 +38,6 @@ function renderPanel(
       commands: RawCommandInput | readonly RawCommandInput[],
     ) => TransactionResult | undefined
   >(() => ({ ok: true }) as TransactionResult);
-  const audition = vi.fn();
   const applied: RawCommandInput[] = [];
   const transport = createRecordingTransport();
   const consent = new ConsentStore(memoryStorage());
@@ -54,11 +53,10 @@ function renderPanel(
       instrument={instrument}
       dispatch={dispatch}
       beginGesture={(): Gesture => recordingGesture(applied)}
-      audition={audition}
       analytics={analytics}
     />
   ));
-  return { dispatch, applied, audition, transport };
+  return { dispatch, applied, transport };
 }
 
 /**
@@ -77,7 +75,6 @@ function renderLivePanel() {
       instrument={instrument()}
       dispatch={(commands) => history.execute(commands)}
       beginGesture={(options) => history.beginGesture(options)}
-      audition={() => {}}
       analytics={testAnalytics().analytics}
     />
   ));
@@ -176,12 +173,6 @@ describe("SynthPanel", () => {
     fireEvent.input(cutoff, { target: { value: "3000" } });
     expect(dispatch).not.toHaveBeenCalled();
     expect(transport.events).toHaveLength(0);
-  });
-
-  it("auditions on the audition button", () => {
-    const { audition } = renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: "Audition" }));
-    expect(audition).toHaveBeenCalledTimes(1);
   });
 });
 

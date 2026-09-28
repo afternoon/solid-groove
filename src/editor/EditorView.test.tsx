@@ -375,7 +375,7 @@ describe("EditorView", () => {
     fireEvent.drop(panel, { dataTransfer: transferCarrying(DROPPED_HAT) });
 
     // The sampler names the dropped sound, and the project now carries it.
-    expect(await screen.findByText(DROPPED_HAT.name)).toBeInTheDocument();
+    expect(await within(panel).findByText(DROPPED_HAT.name)).toBeInTheDocument();
     const changed = transport.named("instrument_changed");
     expect(changed).toHaveLength(1);
     expect(changed[0].params.instrument_type).toBe("sampler");
@@ -383,7 +383,7 @@ describe("EditorView", () => {
     // Carrying the asset and pointing the sampler at it is one transaction, so
     // one undo takes the whole drop back.
     fireEvent.click(await screen.findByRole("button", { name: /^Undo/ }));
-    expect(await screen.findByText("909 Bass Drum")).toBeInTheDocument();
+    expect(await within(panel).findByText("909 Bass Drum")).toBeInTheDocument();
   });
 
   it("inserts from the keyboard onto the same track a drop would reach", async () => {

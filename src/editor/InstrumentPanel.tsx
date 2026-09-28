@@ -21,7 +21,6 @@ export interface InstrumentPanelProps {
   ): TransactionResult | undefined;
   /** Opens the one history gesture a slider drag commits as (#254). */
   beginGesture(options?: GestureOptions): Gesture | undefined;
-  audition(): void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse?: () => void;
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
@@ -54,7 +53,6 @@ export default function InstrumentPanel(props: InstrumentPanelProps) {
             sampleName={props.sampleName}
             dispatch={props.dispatch}
             beginGesture={props.beginGesture}
-            audition={props.audition}
             onBrowse={props.onBrowse}
             watchPeaks={props.watchPeaks}
           />
@@ -72,7 +70,6 @@ export default function InstrumentPanel(props: InstrumentPanelProps) {
             instrument={synth()}
             dispatch={props.dispatch}
             beginGesture={props.beginGesture}
-            audition={props.audition}
           />
         )}
       </Match>

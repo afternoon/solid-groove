@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandHistory } from "../commands";
 import type { Project } from "../domain/entities";
 import {
@@ -135,5 +135,47 @@ describe("the Instrument view on a drum machine (#447)", () => {
     expect(
       picker.compareDocumentPosition(pads) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+});
+
+describe("the Instrument view's header (#447)", () => {
+  it("names the track and plays the selected pad from its Audition", () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find(
+      (candidate) => candidate.instrument?.kind === "drumMachine",
+    );
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [first, second] = track.instrument.pads;
+    const auditionPad = vi.fn();
+    render(() => (
+      <EditorInstrument
+        project={project}
+        track={track}
+        drumTrack={track}
+        sampleAssets={project.song.assets}
+        instrument={track.instrument}
+        instrumentTrackId={track.id}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={auditionPad}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+
+    const header = within(document.querySelector(".instrument-header") as HTMLElement);
+    expect(header.getByText("T01 · Drum machine")).toBeInTheDocument();
+    expect(header.getByText(track.name)).toBeInTheDocument();
+    expect(header.getByText(first.name)).toBeInTheDocument();
+
+    // Selecting a pad in the table moves the header, and its Audition, to it.
+    const rows = document.querySelectorAll(".drum-pad:not(.drum-pad-head)");
+    clickAndFlush(rows[1].querySelector(".pad-index") as HTMLElement);
+    expect(header.getByText(second.name)).toBeInTheDocument();
+    clickAndFlush(header.getByRole("button", { name: "Audition pad" }));
+    expect(auditionPad).toHaveBeenCalledExactlyOnceWith(track.id, second.id);
   });
 });
