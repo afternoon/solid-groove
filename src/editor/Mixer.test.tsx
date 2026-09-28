@@ -568,6 +568,36 @@ describe("Mixer track selection (#228)", () => {
     );
   });
 
+  it("selects a track when its strip is clicked or a value on it changes (#447)", () => {
+    const { history, selected } = renderMixer(createDrumMachineFixtureProject());
+    const [drums, breakTrack] = history.project.song.tracks;
+    const strip = (name: string) =>
+      screen
+        .getByRole("button", { name: `Edit ${name}` })
+        .closest(".mixer-strip") as HTMLElement;
+
+    // A click on the strip itself, not on a control.
+    clickAndFlush(strip(breakTrack.name));
+    expect(selected).toEqual([breakTrack.id]);
+
+    // Muting another track selects it too.
+    clickAndFlush(screen.getByRole("button", { name: `Mute ${drums.name}` }));
+    expect(selected).toEqual([breakTrack.id, drums.id]);
+
+    // So does moving a fader on a strip that is not selected.
+    const volume = screen.getByLabelText(
+      `Volume for ${breakTrack.name}`,
+    ) as HTMLInputElement;
+    fireEvent.input(volume, { target: { value: "-6" } });
+    flush();
+    expect(selected).toEqual([breakTrack.id, drums.id, breakTrack.id]);
+
+    // A strip that is already selected is not selected again.
+    fireEvent.input(volume, { target: { value: "-9" } });
+    flush();
+    expect(selected).toHaveLength(3);
+  });
+
   it("leaves every other control on the strip working", () => {
     // Selection used to be a `pointerdown` handler on the whole strip. WebKit
     // fires no click at all when mousedown and mouseup land on different
