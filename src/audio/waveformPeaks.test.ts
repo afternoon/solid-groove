@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { peaksOf } from "./waveformPeaks";
+import { describe, expect, it, vi } from "vitest";
+import { cachedPeaksOf, peaksOf } from "./waveformPeaks";
 
 const buffer = (...channels: number[][]) => ({
   numberOfChannels: channels.length,
@@ -22,5 +22,20 @@ describe("peaksOf (#447)", () => {
   it("returns zeros for silence and nothing for no buckets", () => {
     expect(Array.from(peaksOf(buffer([0, 0, 0]), 3))).toEqual([0, 0, 0]);
     expect(peaksOf(buffer([1]), 0)).toHaveLength(0);
+  });
+});
+
+describe("cachedPeaksOf (#447)", () => {
+  it("scans a buffer once per bucket count, however many wells draw it", () => {
+    const decoded = buffer([0.5, -0.25, 0.1, 0]);
+    const read = vi.spyOn(decoded, "getChannelData");
+    const first = cachedPeaksOf(decoded, 2);
+    expect(cachedPeaksOf(decoded, 2)).toBe(first);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    // Another width is another scan, cached in its turn.
+    expect(cachedPeaksOf(decoded, 4)).not.toBe(first);
+    expect(cachedPeaksOf(decoded, 4)).toBe(cachedPeaksOf(decoded, 4));
+    expect(read).toHaveBeenCalledTimes(2);
   });
 });

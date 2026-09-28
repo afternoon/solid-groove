@@ -36,3 +36,25 @@ export function peaksOf(buffer: DecodedChannels, buckets: number): Float32Array 
   if (loudest > 0) for (let i = 0; i < peaks.length; i++) peaks[i] /= loudest;
   return peaks;
 }
+
+/** Each buffer's peaks, by bucket count; a buffer's samples never change. */
+const cache = new WeakMap<DecodedChannels, Map<number, Float32Array>>();
+
+/**
+ * {@link peaksOf}, remembered: every well drawing one sound at one width
+ * shares one scan. Keyed weakly on the buffer, so a released buffer takes its
+ * peaks with it.
+ */
+export function cachedPeaksOf(buffer: DecodedChannels, buckets: number): Float32Array {
+  let byBuckets = cache.get(buffer);
+  if (!byBuckets) {
+    byBuckets = new Map();
+    cache.set(buffer, byBuckets);
+  }
+  let peaks = byBuckets.get(buckets);
+  if (!peaks) {
+    peaks = peaksOf(buffer, buckets);
+    byBuckets.set(buckets, peaks);
+  }
+  return peaks;
+}

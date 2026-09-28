@@ -1,5 +1,5 @@
 import { type JSX, Show } from "@solidjs/web";
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal } from "solid-js";
 import type {
   Gesture,
   GestureOptions,
@@ -28,8 +28,12 @@ export function createPeaks(
   buckets: number,
 ) {
   const [peaks, setPeaks] = createSignal<Float32Array | null>(null);
+  // The id is usually read through the whole instrument or pad, which every
+  // edit mints anew; a memo holds it, so an edit that leaves the sound alone
+  // neither resubscribes nor rescans the buffer.
+  const id = createMemo(assetId);
   createEffect(
-    () => [watch(), assetId()] as const,
+    () => [watch(), id()] as const,
     ([follow, id]) => {
       setPeaks(null);
       if (!follow || !id) return;

@@ -305,6 +305,42 @@ describe("useProjectAudio", () => {
     watch.mockRestore();
   });
 
+  it("lets a waveform watcher go when its sound leaves the song, and rejoins it (#447)", async () => {
+    const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+    const release = vi.fn();
+    const watch = vi
+      .spyOn(ProjectAudioGraph.prototype, "watchAssetPeaks")
+      .mockImplementation(() => ({ release }));
+    const fixture = createSliceFixtureProject();
+    const added = { ...fixture.song.assets[0], id: "ast_added" as AssetId };
+    const withAdded = {
+      ...fixture,
+      song: { ...fixture.song, assets: [...fixture.song.assets, added] },
+    };
+    const [project, setProject] = createSignal<Project>(withAdded);
+    const { result } = renderHook(
+      () => useProjectAudioModule.useProjectAudio(project),
+      {},
+    );
+    flush();
+    const stop = result.watchAssetPeaks(added.id, 64, () => {});
+    expect(watch).toHaveBeenCalledTimes(1);
+
+    // The sound leaves the song: its buffer is not held for the drawing.
+    setProject(fixture);
+    flush();
+    expect(release).toHaveBeenCalledTimes(1);
+
+    // And comes back: the drawing follows it again.
+    setProject(withAdded);
+    flush();
+    expect(watch).toHaveBeenCalledTimes(2);
+
+    stop();
+    expect(release).toHaveBeenCalledTimes(2);
+    watch.mockRestore();
+  });
+
   it("hands a track's triggers to its watchers once they are heard (#447)", async () => {
     vi.useFakeTimers();
     try {
