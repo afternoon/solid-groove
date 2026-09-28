@@ -16,7 +16,7 @@
 	   bottom of a full-bleed view from being permanently covered (UI-001). */
   --view-dock-clearance: 120px;
   /* What the sticky header covers at the top of a scrolling view. */
-  --editor-header-height: 60px;
+  --editor-header-height: 40px;
 
   width: 100vw;
   height: 100vh;
