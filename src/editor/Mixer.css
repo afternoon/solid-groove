@@ -118,45 +118,9 @@
   gap: 2px;
 }
 
-.mixer-strip-button {
-  flex: 1 1 0;
-  height: 20px;
-  min-width: 0;
-  padding: 0;
-  border-radius: 0;
-  background-color: var(--color-background-tertiary);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-  font-weight: 700;
-  line-height: 1;
-}
-
-/* `:not(.active)`, because hover is three simple selectors and would otherwise
-   out-specify the active state below — putting a pointer on a soloed S or a
-   muted M would repaint it as if it were off, exactly when the user is about to
-   decide whether to press it again. */
-.mixer-strip-button:hover:not(:disabled):not(.active) {
-  background-color: var(--color-background-hover);
-  color: var(--color-text);
-}
-
-.mixer-strip-button:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Active state is carried by fill weight, not hue: solo fills bright, mute is
-   the one place a warning colour is allowed to speak. */
-.mixer-solo.active,
-.mixer-solo.active:hover {
-  background-color: var(--color-foreground-bright);
-  color: var(--color-background-secondary);
-}
-
-.mixer-mute.active,
-.mixer-mute.active:hover {
-  background-color: var(--color-error);
-  color: var(--color-background-secondary);
+/* The strip's M and S fill the row between them. */
+.mixer-strip-buttons .mute-solo {
+  flex: 1;
 }
 
 /* Pan is the shared fill slider laid on its side (`orientation="horizontal"`),
@@ -195,7 +159,7 @@
 .mixer-strip.muted .mixer-strip-head,
 .mixer-strip.muted .mixer-strip-pan,
 .mixer-strip.muted .mixer-strip-controls {
-  opacity: 0.5;
+  opacity: var(--muted-opacity);
 }
 
 .mixer-meter-column {

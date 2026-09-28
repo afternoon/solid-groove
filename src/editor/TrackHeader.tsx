@@ -6,16 +6,17 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import { setTrackFlag } from "../commands";
 import type { Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import LevelMeter from "./LevelMeter";
+import MuteSoloToggles from "./MuteSoloToggles";
 import TrackColorPicker from "./TrackColorPicker";
 import { VolumeFader } from "./TrackFaders";
 import type { TrackLevel } from "./trackLevels";
 import "./TrackHeader.css";
+import { toggleTrackFlag } from "./trackSurface";
 
 export interface TrackHeaderProps {
   readonly track: Track;
@@ -54,8 +55,6 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
   const selectOnce = () => {
     if (!props.selected) props.onSelect();
   };
-  const toggle = (flag: "muted" | "soloed") =>
-    props.dispatch(setTrackFlag(props.track.id, flag, !props.track.mixer[flag]));
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the header's own Edit button
@@ -91,24 +90,12 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
           {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
           <span class={`track-header-name ${MASK_CONTENT}`}>{props.track.name}</span>
         </button>
-        <button
-          type="button"
-          class="track-header-toggle"
-          aria-pressed={ariaBool(props.track.mixer.muted)}
-          aria-label={`Mute ${props.track.name}`}
-          onClick={() => toggle("muted")}
-        >
-          M
-        </button>
-        <button
-          type="button"
-          class="track-header-toggle"
-          aria-pressed={ariaBool(props.track.mixer.soloed)}
-          aria-label={`Solo ${props.track.name}`}
-          onClick={() => toggle("soloed")}
-        >
-          S
-        </button>
+        <MuteSoloToggles
+          name={props.track.name}
+          muted={props.track.mixer.muted}
+          soloed={props.track.mixer.soloed}
+          onToggle={(flag) => toggleTrackFlag(props.dispatch, props.track, flag)}
+        />
       </div>
       <VolumeFader
         track={props.track}

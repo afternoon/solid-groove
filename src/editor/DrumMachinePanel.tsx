@@ -34,11 +34,11 @@ import FillSlider from "../instrument/FillSlider";
 import { formatInstrumentValue } from "../instrument/formatValue";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
+import MuteSoloToggles from "./MuteSoloToggles";
 import PadSound from "./PadSound";
 import "../instrument/SamplePicker.css";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
-import { ariaBool } from "../shared/aria";
 
 /** How long a pad's name stays lit after it fires (#447). */
 const PAD_FLASH_MS = 120;
@@ -348,28 +348,12 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               </select>
             </label>
 
-            <div class="pad-flags">
-              <button
-                type="button"
-                class={["pad-flag", { active: pad().mixer.muted }]}
-                aria-pressed={ariaBool(pad().mixer.muted)}
-                aria-label={`Mute ${pad().name}`}
-                onClick={() => toggleFlag(pad(), "muted")}
-                title="Mute"
-              >
-                M
-              </button>
-              <button
-                type="button"
-                class={["pad-flag", { active: pad().mixer.soloed }]}
-                aria-pressed={ariaBool(pad().mixer.soloed)}
-                aria-label={`Solo ${pad().name}`}
-                onClick={() => toggleFlag(pad(), "soloed")}
-                title="Solo"
-              >
-                S
-              </button>
-            </div>
+            <MuteSoloToggles
+              name={pad().name}
+              muted={pad().mixer.muted}
+              soloed={pad().mixer.soloed}
+              onToggle={(flag) => toggleFlag(pad(), flag)}
+            />
           </div>
         )}
       </For>

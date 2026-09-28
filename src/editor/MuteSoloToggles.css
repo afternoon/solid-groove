@@ -1,0 +1,35 @@
+/* The M and S pair (#447), one look everywhere. A surface sizes it through
+   --toggle-width and --toggle-height; everything else is set here. */
+.mute-solo {
+  display: flex;
+  gap: 2px;
+}
+
+.mute-solo-toggle {
+  display: grid;
+  place-items: center;
+  flex: 1 1 var(--toggle-width, 24px);
+  min-width: 0;
+  height: var(--toggle-height, 20px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* `:not([aria-pressed="true"])`: hover must never repaint an engaged toggle
+   as off while the pointer rests on the one just pressed. */
+.mute-solo-toggle:hover:not([aria-pressed="true"]) {
+  background-color: var(--color-background-hover);
+  color: var(--color-text);
+}
+
+/* Engaged is the brightest thing in its row: white, with black on it. */
+.mute-solo-toggle[aria-pressed="true"] {
+  background-color: var(--color-foreground-bright);
+  color: var(--color-on-accent);
+}
