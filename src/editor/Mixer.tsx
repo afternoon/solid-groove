@@ -348,10 +348,17 @@ function startsStripDrag(event: PointerEvent): boolean {
 }
 
 function TrackStrip(props: TrackStripProps): JSX.Element {
+  /** Points the editor at this track, unless it already is. */
+  const selectOnce = () => {
+    if (!props.selected) props.onSelect();
+  };
+
   const volumeDb = () => props.track.mixer.volume;
   const panValue = () => props.track.mixer.pan;
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the strip's own Edit button
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the Edit button, and every control's own keys, are the keyboard path
     <div
       class={[
         "mixer-strip",
@@ -368,6 +375,18 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
       onPointerDown={(event) => {
         if (startsStripDrag(event)) props.onDragStart(event);
       }}
+      // Touching a strip selects its track (#447): a click anywhere on it, and
+      // any value changed on it — a fader, the pan, mute, solo, the name. The
+      // handlers bubble up from the controls after their own have run, so
+      // nothing under them is swallowed. Duplicate and delete are the
+      // exception: they act on the track, they do not point the editor at it.
+      onClick={(event) => {
+        // The Edit button selects on its own; duplicate and delete never do.
+        const target = event.target as Element;
+        if (!target.closest(".mixer-strip-action, .mixer-strip-select")) selectOnce();
+      }}
+      onInput={selectOnce}
+      onChange={selectOnce}
     >
       {/* The track's colour runs across the strip's top edge (#447). */}
       <div class="mixer-strip-head" style={{ "border-top-color": props.track.color }}>
