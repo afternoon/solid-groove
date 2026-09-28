@@ -12,7 +12,7 @@ import type { EventId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { LoopClipEntry } from "./editorViewModel";
 import LoopInfo from "./LoopInfo";
-import type { PianoRollActions } from "./PianoRoll";
+import type { PianoRollActions } from "./pianoRoll/rollActions";
 import TrackClipEditor from "./TrackClipEditor";
 import "./SequenceEditor.css";
 
@@ -31,6 +31,11 @@ export interface SequenceEditorProps {
   readonly setSelectedNoteIds: (ids: readonly EventId[]) => void;
   readonly playheadTicks: number;
   readonly registerPianoRollActions: (actions: PianoRollActions | null) => void;
+  /** Whether the transport is running, and how the roll's Play toggles it. */
+  readonly playing?: boolean;
+  onTogglePlay?(): void;
+  /** Plays one pitch on the opened track, for the roll's preview. */
+  audition?(pitch: number, velocity: number): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -66,7 +71,7 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
         <h2 class={`sequence-editor-title ${MASK_CONTENT}`}>{props.track.name}</h2>
       }
     >
-      <div class="sequence-editor-body">
+      <div class={["sequence-editor-body", { "with-roll": props.showPianoRoll() }]}>
         {/* An audio loop has no notes to program, so what it gets is what
               LOOP-006 always showed — the tempo it was recorded at, and how
               following the song tempo will treat it — *instead of* the step
@@ -89,6 +94,9 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
               project={props.project}
               playheadTicks={props.playheadTicks}
               registerPianoRollActions={props.registerPianoRollActions}
+              playing={props.playing}
+              onTogglePlay={() => props.onTogglePlay?.()}
+              audition={(pitch, velocity) => props.audition?.(pitch, velocity)}
             />
           }
         >

@@ -81,6 +81,8 @@ describe("piano roll keyboard operations", () => {
 
     session.dispatch(setKey({ root: 0, scale: "minor" }));
     flush();
+    // A new key lets the selection go, so select again.
+    act((a) => a.selectAll());
     act((a) => a.moveRows(-1));
     // C3 steps up to D3; E3 is off the scale, and its own row moves it to F3.
     expect(summary()[0]).toBe("62@0x1");

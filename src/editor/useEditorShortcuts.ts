@@ -8,7 +8,7 @@ import {
   useShortcuts,
 } from "../shortcuts";
 import type { EditorViewName } from "./editorViews";
-import type { PianoRollActions } from "./PianoRoll";
+import type { PianoRollActions } from "./pianoRoll/rollActions";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
 

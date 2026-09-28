@@ -8,11 +8,12 @@ import {
 } from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
+  createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import { clickAndFlush } from "../testing/events";
 import { loopEntryFor, showPianoRoll } from "./editorViewModel";
-import SequenceEditor from "./SequenceEditor";
+import SequenceEditor, { type SequenceEditorProps } from "./SequenceEditor";
 
 afterEach(cleanup);
 
@@ -27,6 +28,7 @@ function renderEditorFor(
   project: Project,
   pick: (project: Project) => { clip: Clip; track: Track },
   onClose = () => {},
+  extra: Partial<SequenceEditorProps> = {},
 ) {
   const { clip, track } = pick(project);
   const rendered = render(() => (
@@ -46,6 +48,7 @@ function renderEditorFor(
       dispatch={() => undefined}
       beginGesture={() => undefined}
       onClose={onClose}
+      {...extra}
     />
   ));
   return { ...rendered, clip, track };
@@ -122,6 +125,36 @@ describe("SequenceEditor", () => {
     const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: /Piano roll/ })).toBeVisible();
     expect(within(dialog).queryByRole("region", { name: "Step editor" })).toBeNull();
+  });
+
+  it("gives a synth clip the piano roll, with the Key and Transform panels under it", () => {
+    const project = createPianoRollFixtureProject();
+    const onTogglePlay = vi.fn();
+    const audition = vi.fn();
+    renderEditorFor(project, starterClip, () => {}, {
+      onTogglePlay,
+      audition,
+      playing: true,
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
+    expect(within(dialog).getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
+    expect(within(dialog).getByRole("region", { name: "Key" })).toBeVisible();
+    expect(within(dialog).getByRole("region", { name: "Transform" })).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Quantize to scale" }),
+    ).toBeDisabled();
+    expect(within(dialog).queryByRole("region", { name: "Step editor" })).toBeNull();
+
+    // The roll's Play is the transport's, and its preview plays the track.
+    clickAndFlush(within(dialog).getByRole("button", { name: "Stop" }));
+    expect(onTogglePlay).toHaveBeenCalledOnce();
+    const c3 = within(within(dialog).getByRole("group", { name: "Pitches" })).getByRole(
+      "button",
+      { name: "C3" },
+    );
+    c3.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    expect(audition).toHaveBeenCalledWith(60, 0.8);
   });
 
   it("shows the loop panel instead for a tempo-labelled audio loop", () => {

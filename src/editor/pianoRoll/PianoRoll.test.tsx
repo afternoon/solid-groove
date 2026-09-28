@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, within } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setKey } from "../../commands";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
@@ -61,6 +62,17 @@ describe("piano roll", () => {
 
     session.undo();
     expect(notes()).toHaveLength(4);
+  });
+
+  it("lets the selection go when the key changes", async () => {
+    const { session, renderRoll } = await setUpRoll();
+    renderRoll();
+
+    clickAndFlush(screen.getByRole("button", { name: "Select all" }));
+    expect(screen.getByText("4 selected")).toBeInTheDocument();
+    session.dispatch(setKey({ root: 0, scale: "minor" }));
+    flush();
+    expect(screen.getByText("None selected")).toBeInTheDocument();
   });
 
   it("deletes a note on a double-click", async () => {
