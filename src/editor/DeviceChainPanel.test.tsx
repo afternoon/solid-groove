@@ -297,3 +297,11 @@ describe("DeviceChainPanel", () => {
     expect(transport.events.filter((e) => e.name === "device_added")).toHaveLength(0);
   });
 });
+
+describe("DeviceChainPanel heading (#447)", () => {
+  it("shows no heading on a track's chain; the master's keeps its own", () => {
+    const { panel } = renderPanel();
+    expect(panel().queryByRole("heading")).toBeNull();
+    expect(document.querySelector(".device-chain-head")).toBeNull();
+  });
+});

@@ -29,7 +29,9 @@ import "./DeviceChainPanel.css";
 export interface DeviceChainLabels {
   /** The panel's region. */
   readonly region: string;
-  readonly heading: string;
+  /** A visible title, when the chain needs one: the master's does, while a
+   * track's sits under its instrument and needs none (#447). */
+  readonly heading?: string;
   /** The ordered list of devices. */
   readonly list: string;
   /** Shown while the chain is empty. */
@@ -224,9 +226,13 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
       aria-label={props.labels.region}
       tabindex={props.sectionRef ? "-1" : undefined}
     >
-      <header class="device-chain-head">
-        <h3 class="device-chain-heading">{props.labels.heading}</h3>
-      </header>
+      <Show when={props.labels.heading}>
+        {(heading) => (
+          <header class="device-chain-head">
+            <h3 class="device-chain-heading">{heading()}</h3>
+          </header>
+        )}
+      </Show>
       <Show when={devices().length === 0}>
         <p class="device-chain-note">{props.labels.empty}</p>
       </Show>
@@ -355,7 +361,6 @@ export interface DeviceChainPanelProps {
 
 const LABELS: DeviceChainLabels = {
   region: "Device chain",
-  heading: "Device chain",
   list: "Device chain",
   empty: "No devices on this track yet.",
 };
