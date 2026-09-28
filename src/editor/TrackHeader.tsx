@@ -91,6 +91,7 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
             <TrackColorPicker
               track={props.track}
               dispatch={dispatch()}
+              beginGesture={(options) => props.beginGesture?.(options)}
               analytics={props.analytics}
             />
           )}
