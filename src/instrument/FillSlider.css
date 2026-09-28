@@ -66,8 +66,8 @@
      panel behind it rather than a hole in it (#447). It is painted past
      the box with a spread shadow rather than padding, because the range input
      is laid exactly over the box and padding would move it off the track. */
-  background-color: var(--tint-subtle);
-  box-shadow: 0 0 0 var(--fill-slider-well-margin, 6px) var(--tint-subtle);
+  background-color: var(--tint-faint);
+  box-shadow: 0 0 0 var(--fill-slider-well-margin, 6px) var(--tint-faint);
 }
 
 /* The hairline itself, and the scale ticks beside it (ten divisions). */
