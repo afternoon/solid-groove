@@ -724,6 +724,41 @@ clip, which overwrites it exactly as a plain drag does (#290). Alt-drag on a cli
 edge, which resizes as a plain edge drag does. Touch input. What the dragged
 copies look like while they move, as in CF-009.
 
+### CF-017 — A producer writes a bassline in the piano roll
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-017.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and add a synth track. Its clip sits in bar 1. Open it. The
+   sequence editor shows the piano roll: 16 steps, rows named down the left with
+   white rows for white keys and black rows for black keys, and the key reads
+   "Chromatic".
+2. Click the empty cell at C2, step 1. A one-step note appears there, selected.
+   Click C2 step 5, D♯2 step 9 and G2 step 13. The clip has four notes.
+3. Drag the right edge of the note at C2 step 1 one step to the right. It is now two
+   steps long. Click the empty cell at F2 step 15. The new note is also two steps
+   long.
+4. Drag the note at D♯2 step 9 up two rows and right one step. It lands at F2
+   step 10.
+5. Press in the empty cell at C2 step 6 and drag left to step 1. The two C2 notes
+   are selected, and the roll reads "2 selected".
+6. Hold Alt (Option on macOS), press on the note at C2 step 1, drag it right by
+   eight steps and let go. Copies land at C2 steps 9 and 13. The originals have not
+   moved.
+7. Double-click the note at G2 step 13. It is deleted.
+8. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the clip holds six notes: C2 at steps 1 (two steps long), 5, 9 (two
+steps long) and 13, F2 at step 10, and F2 at step 15 (two steps long). Clicking,
+dragging, resizing, lassoing, Alt-copying and double-click deleting all went through
+the command layer, and the result survived a reload.
+
+**Out of scope:** keyboard nudges and shortcuts (CF-019), the velocity lane, zoom,
+auto-scroll, audition and Shift/Cmd-click toggling, which are tested at the
+component layer. Touch input.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
