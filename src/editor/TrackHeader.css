@@ -97,3 +97,30 @@
   width: 100%;
   height: 3px;
 }
+
+/* The trash button: a quiet icon beside M and S, the same 18px square. */
+.track-header-delete {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+}
+
+.track-header-delete:hover {
+  background-color: var(--color-background-hover);
+  color: var(--color-text);
+}
+
+.track-header-delete svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}

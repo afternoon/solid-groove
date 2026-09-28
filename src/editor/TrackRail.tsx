@@ -23,6 +23,8 @@ export interface TrackRailProps {
   onSelect(trackId: TrackId): void;
   /** Moves a track to a display index, when the rail is dragged (#447). */
   onReorder?(trackId: TrackId, toIndex: number): void;
+  /** Deletes a track, when its header's trash button is pressed (#537). */
+  onDelete?(trackId: TrackId): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -97,6 +99,7 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
               onDragStart={(event) => {
                 if (props.onReorder) drag.begin(event, track().id);
               }}
+              onDelete={props.onDelete ? () => props.onDelete?.(track().id) : undefined}
               surface="instrument"
               analytics={props.analytics}
             />
