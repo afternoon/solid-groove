@@ -148,22 +148,6 @@
   outline-offset: -2px;
 }
 
-.instrument-panel-audition {
-  height: 30px;
-  padding: 0 12px;
-  background-color: var(--color-background-tertiary);
-  border: none;
-  font-size: var(--font-size-small);
-  cursor: pointer;
-  align-self: flex-start;
-  color: var(--color-accent);
-}
-
-.instrument-panel-audition:hover {
-  background-color: var(--color-accent);
-  color: var(--color-background);
-}
-
 /* The way into the library from the sample slot: a plain filled button, as
    wide as its words. */
 .sampler-load-button {

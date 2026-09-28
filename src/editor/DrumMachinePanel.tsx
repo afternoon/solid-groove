@@ -66,6 +66,9 @@ export interface DrumMachinePanelProps {
   ): TransactionResult | undefined;
   /** Opens a pad-control drag that commits as one history entry (#255). */
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** The selected pad, when the host owns the selection (#447). */
+  readonly selectedPadId?: PadId | null;
+  onSelectPad?(padId: PadId): void;
   /** Opens the library to choose a pad's sound (#447). */
   onBrowseSample?(padId: PadId): void;
   /** Plays one pad immediately so the user hears their choice (audition). */
@@ -114,7 +117,13 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
   // The pad shown in the editor above the table (#447). UI-only and
   // session-local, like any selection; a pad that goes away hands it back to
   // the first pad.
-  const [chosenPad, setChosenPad] = createSignal<PadId | null>(null);
+  const [ownPad, setOwnPad] = createSignal<PadId | null>(null);
+  const chosenPad = () =>
+    props.selectedPadId !== undefined ? props.selectedPadId : ownPad();
+  const setChosenPad = (padId: PadId) => {
+    setOwnPad(padId);
+    props.onSelectPad?.(padId);
+  };
   const selectedPad = () => {
     const all = pads(props.track);
     return all.find((pad) => pad.id === chosenPad()) ?? all[0];

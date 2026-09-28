@@ -22,7 +22,6 @@ export interface TrackInstrumentProps {
   readonly sampleName: string | null;
   /** Loads a sound dropped from the library onto this track's sampler (#225). */
   readonly loadSample: (sample: LibrarySample) => void;
-  readonly audition: () => void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse: () => void;
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
@@ -74,7 +73,6 @@ export default function TrackInstrument(props: TrackInstrumentProps) {
             sampleName={props.sampleName}
             dispatch={props.dispatch}
             beginGesture={props.beginGesture}
-            audition={props.audition}
             onBrowse={props.onBrowse}
             watchPeaks={props.watchPeaks}
           />

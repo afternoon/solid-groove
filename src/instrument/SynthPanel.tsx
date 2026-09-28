@@ -41,7 +41,6 @@ export interface SynthPanelProps {
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Plays one preview note through the track. */
-  audition(): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -187,13 +186,6 @@ export default function SynthPanel(props: SynthPanelProps): JSX.Element {
           </ControlGroup>
         </div>
       </div>
-      <button
-        type="button"
-        class="instrument-panel-audition"
-        onClick={() => props.audition()}
-      >
-        Audition
-      </button>
     </section>
   );
 }

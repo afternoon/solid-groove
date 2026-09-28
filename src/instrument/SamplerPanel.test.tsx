@@ -41,7 +41,6 @@ function renderPanel(
       commands: RawCommandInput | readonly RawCommandInput[],
     ) => TransactionResult | undefined
   >(() => ({ ok: true }) as TransactionResult);
-  const audition = vi.fn();
   const onBrowse = vi.fn();
   const applied: RawCommandInput[] = [];
   const transport = createRecordingTransport();
@@ -59,12 +58,11 @@ function renderPanel(
       sampleName={sampleName}
       dispatch={dispatch}
       beginGesture={(): Gesture => recordingGesture(applied)}
-      audition={audition}
       onBrowse={onBrowse}
       analytics={analytics}
     />
   ));
-  return { dispatch, applied, audition, onBrowse, transport };
+  return { dispatch, applied, onBrowse, transport };
 }
 
 /**
@@ -84,7 +82,6 @@ function renderLivePanel() {
       sampleName="909 Bass Drum"
       dispatch={(commands) => history.execute(commands)}
       beginGesture={(options) => history.beginGesture(options)}
-      audition={() => {}}
       analytics={testAnalytics().analytics}
     />
   ));
@@ -182,12 +179,6 @@ describe("SamplerPanel", () => {
     fireEvent.pointerUp(pitch);
     expect(history.gestureActive).toBe(false);
     expect(history.entries).toHaveLength(1);
-  });
-
-  it("auditions on the audition button", () => {
-    const { audition } = renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: "Audition" }));
-    expect(audition).toHaveBeenCalledTimes(1);
   });
 });
 

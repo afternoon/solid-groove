@@ -141,9 +141,9 @@ const MASKED_NAMES: readonly {
     renders: "the selected track's name",
   },
   {
-    file: "editor/EditorInstrument.tsx",
-    anchor: "track-name",
-    renders: "the drum track's name",
+    file: "editor/InstrumentHeader.tsx",
+    anchor: "instrument-header-name",
+    renders: "the track's name atop the instrument view",
   },
   {
     file: "editor/DrumMachinePanel.tsx",

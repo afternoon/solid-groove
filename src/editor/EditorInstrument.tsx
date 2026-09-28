@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import type {
   Gesture,
   GestureOptions,
@@ -10,9 +10,10 @@ import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities
 import type { PadId, TrackId } from "../domain/ids";
 import type { WatchPeaks } from "../instrument/SampleWell";
 import type { LibrarySample } from "../library/assetDrag";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import DeviceChainPanel from "./DeviceChainPanel";
 import DrumMachinePanel from "./DrumMachinePanel";
+import InstrumentHeader from "./InstrumentHeader";
+import { instrumentHeaderFacts } from "./instrumentHeader";
 import LoopPanel from "./LoopPanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
@@ -74,6 +75,28 @@ function trackLoop(
  * no second selection. The master's chain is #283's, in the mixer.
  */
 export default function EditorInstrument(props: EditorInstrumentProps): JSX.Element {
+  // The drum pad the pad editor shows, lifted here so the header can name it
+  // and audition it (#447). A pad the track lacks reads as its first.
+  const [selectedPad, setSelectedPad] = createSignal<PadId | null>(null);
+
+  /** The header's Audition: the selected pad on a drum machine, else the instrument. */
+  function audition(track: Track) {
+    if (track.type === "audio" || !track.instrument) return undefined;
+    const instrument = track.instrument;
+    if (instrument.kind !== "drumMachine") {
+      return { label: "Audition", run: () => props.audition() };
+    }
+    return {
+      label: "Audition pad",
+      run: () => {
+        const pad =
+          instrument.pads.find((candidate) => candidate.id === selectedPad()) ??
+          instrument.pads[0];
+        if (pad) props.auditionPad(track.id, pad.id);
+      },
+    };
+  }
+
   return (
     <div class="instrument-view">
       <TrackRail
@@ -94,6 +117,15 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
               class="instrument-view-track"
               style={{ "--track-ink": currentTrack().color }}
             >
+              <InstrumentHeader
+                facts={instrumentHeaderFacts(
+                  props.project,
+                  currentTrack(),
+                  selectedPad(),
+                )}
+                trackName={currentTrack().name}
+                audition={audition(currentTrack())}
+              />
               {/* An audio track has no instrument to pick: it plays a loop,
                   so it shows the loop's faceplate instead (#447). */}
               <Show
@@ -106,7 +138,6 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                     trackId={props.instrumentTrackId}
                     sampleName={props.sampleName}
                     loadSample={props.loadSample}
-                    audition={props.audition}
                     onBrowse={props.onBrowse}
                     watchPeaks={props.watchPeaks}
                     dispatch={props.dispatch}
@@ -126,16 +157,14 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
               <Show when={props.drumTrack}>
                 {(drum) => (
                   <div class="drum-machine-editor">
-                    <div class="track-info">
-                      {/* The track's name, chosen by the user (ADR 0002). */}
-                      <span class={`track-name ${MASK_CONTENT}`}>{drum().name}</span>
-                    </div>
                     <DrumMachinePanel
                       track={drum()}
                       assets={props.sampleAssets}
                       dispatch={props.dispatch}
                       beginGesture={props.beginGesture}
                       audition={(padId) => props.auditionPad(drum().id, padId)}
+                      selectedPadId={selectedPad()}
+                      onSelectPad={setSelectedPad}
                       onBrowseSample={(padId) => props.onBrowsePad?.(drum().id, padId)}
                       watchPeaks={props.watchPeaks}
                     />
