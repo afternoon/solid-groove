@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { flush } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RawCommandInput } from "../commands";
 import type { AssetId } from "../domain/ids";
 import { recordingGesture } from "./panelTesting";
-import SampleWell, { peakBars, type WatchPeaks } from "./SampleWell";
+import SampleWell, { createPeaks, peakBars, type WatchPeaks } from "./SampleWell";
 
 afterEach(() => cleanup());
 
@@ -35,6 +35,34 @@ function renderWell(options: { assetId?: AssetId | null; watchPeaks?: WatchPeaks
     );
   return { container, applied, press };
 }
+
+describe("createPeaks (#447)", () => {
+  it("follows a sound once, and again only when the sound changes", () => {
+    const watch = vi.fn<WatchPeaks>(() => () => {});
+    // Stands in for an instrument: every edit mints a new one, and the asset
+    // id is read through it, as the panels' getters read it.
+    const [instrument, setInstrument] = createSignal({ assetId: ASSET, pitch: 0 });
+    const dispose = createRoot((dispose) => {
+      createPeaks(
+        () => watch,
+        () => instrument().assetId,
+        32,
+      );
+      return dispose;
+    });
+    flush();
+    expect(watch).toHaveBeenCalledTimes(1);
+
+    setInstrument({ assetId: ASSET, pitch: 3 });
+    flush();
+    expect(watch).toHaveBeenCalledTimes(1);
+
+    setInstrument({ assetId: "ast_other" as AssetId, pitch: 3 });
+    flush();
+    expect(watch).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+});
 
 describe("peakBars (#447)", () => {
   it("draws one mirrored bar per peak, only inside the window asked for", () => {

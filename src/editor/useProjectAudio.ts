@@ -220,22 +220,28 @@ export function useProjectAudio(
     readonly buckets: number;
     readonly onPeaks: (peaks: Float32Array | null) => void;
     subscription?: BufferSubscription;
+    /** The projection entry the subscription follows, while it has one. */
+    asset?: AudioAssetProjection;
   }
   const peakWatchers = new Set<PeakWatcher>();
 
-  /** Attaches every waiting peak watcher whose asset the graph now carries. */
+  /**
+   * Points every peak watcher at the sound the graph carries now: a watcher
+   * whose sound arrived attaches, one whose sound changed follows the new
+   * entry, and one whose sound left the song lets its buffer go until it
+   * returns. The projection shares unchanged entries, so identity is change.
+   */
   function attachPeakWatchers(): void {
     if (!graph || !lastProjection) return;
+    const assets = new Map(lastProjection.assets.map((entry) => [entry.id, entry]));
     for (const watcher of peakWatchers) {
-      if (watcher.subscription) continue;
-      const asset = lastProjection.assets.find((entry) => entry.id === watcher.assetId);
-      if (asset) {
-        watcher.subscription = graph.watchAssetPeaks(
-          asset,
-          watcher.buckets,
-          watcher.onPeaks,
-        );
-      }
+      const asset = assets.get(watcher.assetId);
+      if (asset === watcher.asset) continue;
+      watcher.subscription?.release();
+      watcher.subscription = asset
+        ? graph.watchAssetPeaks(asset, watcher.buckets, watcher.onPeaks)
+        : undefined;
+      watcher.asset = asset;
     }
   }
 
@@ -274,6 +280,7 @@ export function useProjectAudio(
     for (const watcher of peakWatchers) {
       watcher.subscription?.release();
       watcher.subscription = undefined;
+      watcher.asset = undefined;
     }
     stopFrameLoop();
     metronome?.dispose();

@@ -33,7 +33,7 @@ import {
 import { TrackAudioGraph } from "./TrackAudioGraph";
 import { toneBufferLoader } from "./toneBufferLoader";
 import type { UnderrunMonitor } from "./underrun";
-import { peaksOf } from "./waveformPeaks";
+import { cachedPeaksOf } from "./waveformPeaks";
 
 /**
  * The transport this graph schedules against. An interface rather than a
@@ -566,7 +566,7 @@ export class ProjectAudioGraph {
     onPeaks: (peaks: Float32Array | null) => void,
   ): BufferSubscription {
     return this.bufferCache.subscribe(asset, (buffer) =>
-      onPeaks(buffer ? peaksOf(buffer, buckets) : null),
+      onPeaks(buffer ? cachedPeaksOf(buffer, buckets) : null),
     );
   }
 
