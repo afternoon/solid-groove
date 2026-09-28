@@ -1,0 +1,119 @@
+/* The faceplate's shared parts (#447): the well that frames a curve or a
+   waveform, the Juno-style group that rules a row of controls, and the drag
+   surface laid over a well. Panels compose these; none of them sets a width. */
+
+.well {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: var(--color-background);
+}
+
+.well-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px 0;
+}
+
+.well-title,
+.control-group-title {
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.well-value {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The drawing area. Bottom room is for the scale labels hung beneath it. */
+.well-screen {
+  position: relative;
+  flex: 1;
+  min-height: 80px;
+  margin: 10px 12px 24px;
+}
+
+.well-screen > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.well-scale {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -18px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--color-foreground-muted);
+  pointer-events: none;
+}
+
+/* A group: its title, then a rule running the width of the controls it holds. */
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.control-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-group-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: var(--color-border-strong);
+}
+
+/* Controls share the row evenly, so a group's faders sit on one pitch. */
+.control-group-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: end;
+  justify-items: center;
+}
+
+/* A switch fills its column's height, so it stands as tall as the faders. */
+.control-group-row > .option-group {
+  justify-self: stretch;
+  align-self: stretch;
+}
+
+.drag-surface {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* A point on a well that can be picked up. */
+.drag-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  background-color: var(--color-background);
+  pointer-events: none;
+}

@@ -60,3 +60,14 @@
   font-size: var(--font-size-small);
   letter-spacing: 0.02em;
 }
+
+/* A switch (#447): the options share whatever height the group is given. */
+.option-group.fill {
+  gap: 2px;
+}
+
+.option-group.fill .option-group-option {
+  flex: 1;
+  height: auto;
+  min-height: 30px;
+}
