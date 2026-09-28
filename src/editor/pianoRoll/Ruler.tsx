@@ -1,4 +1,5 @@
 import { For, type JSX } from "@solidjs/web";
+import "./grid.css";
 
 export interface RulerProps {
   /** How many 1/16 steps the clip holds. */

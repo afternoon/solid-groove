@@ -1,5 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { type PianoRollRow, pitchName } from "./rows";
+import "./grid.css";
 
 export interface GutterProps {
   readonly rows: readonly PianoRollRow[];
