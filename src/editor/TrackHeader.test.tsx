@@ -125,4 +125,24 @@ describe("TrackHeader (#447)", () => {
     fireEvent.pointerDown(document.querySelector(".track-header") as Element);
     expect(onDragStart).toHaveBeenCalledTimes(2);
   });
+
+  it("offers no control that would do nothing, on a surface that cannot edit", () => {
+    const track = createSliceFixtureProject().song.tracks[0];
+    render(() => (
+      <TrackHeader
+        track={track}
+        selected={false}
+        onSelect={() => {}}
+        trackLevel={() => null}
+        surface="arrangement"
+      />
+    ));
+    expect(
+      screen.getByRole("button", { name: `Edit ${track.name}` }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Level" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `Mute ${track.name}` })).toBeNull();
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByRole("button", { name: `Colour for ${track.name}` })).toBeNull();
+  });
 });

@@ -1,4 +1,4 @@
-import type { JSX } from "@solidjs/web";
+import { type JSX, Show } from "@solidjs/web";
 import type { Analytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -24,10 +24,14 @@ export interface TrackHeaderProps {
   readonly selected: boolean;
   /** Points the editor at this track. */
   onSelect(): void;
-  dispatch(
+  /**
+   * The command layer, when the surface can edit: without it the header shows
+   * the track and its level, and offers no control that would do nothing.
+   */
+  readonly dispatch?: (
     commands: RawCommandInput | readonly RawCommandInput[],
-  ): TransactionResult | undefined;
-  beginGesture(options?: GestureOptions): Gesture | undefined;
+  ) => TransactionResult | undefined;
+  readonly beginGesture?: (options?: GestureOptions) => Gesture | undefined;
   /** A track's live level, reactively (`useProjectAudio().trackLevel`). */
   trackLevel(trackId: TrackId): TrackLevel | null;
   /** Starts a reorder drag, from anywhere on the header but its controls. */
@@ -75,11 +79,20 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
       onChange={surface.onChange}
     >
       <div class="track-header-title">
-        <TrackColorPicker
-          track={props.track}
-          dispatch={props.dispatch}
-          analytics={props.analytics}
-        />
+        <Show
+          when={props.dispatch}
+          fallback={
+            <span class="track-header-swatch" style={{ background: props.track.color }} />
+          }
+        >
+          {(dispatch) => (
+            <TrackColorPicker
+              track={props.track}
+              dispatch={dispatch()}
+              analytics={props.analytics}
+            />
+          )}
+        </Show>
         <button
           type="button"
           class="track-header-select"
@@ -90,21 +103,29 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
           {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
           <span class={`track-header-name ${MASK_CONTENT}`}>{props.track.name}</span>
         </button>
-        <MuteSoloToggles
-          name={props.track.name}
-          muted={props.track.mixer.muted}
-          soloed={props.track.mixer.soloed}
-          onToggle={(flag) => toggleTrackFlag(props.dispatch, props.track, flag)}
-        />
+        <Show when={props.dispatch}>
+          {(dispatch) => (
+            <MuteSoloToggles
+              name={props.track.name}
+              muted={props.track.mixer.muted}
+              soloed={props.track.mixer.soloed}
+              onToggle={(flag) => toggleTrackFlag(dispatch(), props.track, flag)}
+            />
+          )}
+        </Show>
       </div>
-      <VolumeFader
-        track={props.track}
-        value={props.track.mixer.volume}
-        dispatch={props.dispatch}
-        beginGesture={props.beginGesture}
-        inputId={`${props.surface}-volume-${props.track.id}`}
-        orientation="horizontal"
-      />
+      <Show when={props.dispatch}>
+        {(dispatch) => (
+          <VolumeFader
+            track={props.track}
+            value={props.track.mixer.volume}
+            dispatch={dispatch()}
+            beginGesture={(options) => props.beginGesture?.(options)}
+            inputId={`${props.surface}-volume-${props.track.id}`}
+            orientation="horizontal"
+          />
+        )}
+      </Show>
       <LevelMeter
         trackId={props.track.id}
         trackLevel={props.trackLevel}

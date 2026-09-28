@@ -961,8 +961,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
                         track={domainTrack()}
                         selected={props.selectedTrackId === track().id}
                         onSelect={() => selectTrack(track().id)}
-                        dispatch={(commands) => props.dispatch?.(commands)}
-                        beginGesture={(options) => props.beginGesture?.(options)}
+                        dispatch={props.dispatch}
+                        beginGesture={props.beginGesture}
                         trackLevel={(trackId) => props.trackLevel?.(trackId) ?? null}
                         onDragStart={(event) => {
                           if (props.dispatch) trackDrag.begin(event, track().id);
