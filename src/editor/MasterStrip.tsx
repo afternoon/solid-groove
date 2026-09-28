@@ -5,15 +5,10 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import { createControlGesture, setParameter } from "../commands";
 import { deviceTypeDefinition } from "../domain/devices";
 import type { Device } from "../domain/entities";
-import { dbToFaderPosition, faderPositionToDb, formatDb } from "../domain/faders";
-import { clampParameterValue, MASTER_VOLUME } from "../domain/parameters";
-import FillSlider from "../instrument/FillSlider";
-import { parseParameterInput } from "../instrument/parseValue";
-
-const FADER_RANGE = { min: 0, max: 1, step: 0.001 } as const;
+import { MASTER_VOLUME } from "../domain/parameters";
+import { DbFader } from "./TrackFaders";
 
 /** A chain's devices by name, in signal order, for a strip's footer (#447). */
 export function chainSummary(devices: readonly Device[]): string {
@@ -43,17 +38,6 @@ export interface MasterStripProps {
  * no control until now.
  */
 export default function MasterStrip(props: MasterStripProps): JSX.Element {
-  const control = createControlGesture({
-    beginGesture: (options) => props.beginGesture(options),
-    dispatch: (commands) => props.dispatch(commands),
-    summary: () => "Set master volume",
-    command: (position) =>
-      setParameter(
-        { scope: "master", parameterId: MASTER_VOLUME.id },
-        faderPositionToDb(MASTER_VOLUME, position),
-      ),
-  });
-
   return (
     <div class="mixer-strip mixer-master-strip">
       <div class="mixer-strip-head">
@@ -66,25 +50,16 @@ export default function MasterStrip(props: MasterStripProps): JSX.Element {
         </button>
       </div>
       <div class="mixer-strip-controls">
-        <FillSlider
+        <DbFader
           definition={MASTER_VOLUME}
+          target={{ scope: "master", parameterId: MASTER_VOLUME.id }}
+          value={props.volume}
           inputId="mixer-volume-master"
-          label="Vol"
           ariaLabel="Master volume"
-          range={FADER_RANGE}
-          value={dbToFaderPosition(MASTER_VOLUME, props.volume)}
-          displayValue={formatDb(MASTER_VOLUME, props.volume)}
-          parseEntry={(text) => {
-            const db = parseParameterInput(MASTER_VOLUME, text, props.volume);
-            return db === null
-              ? null
-              : dbToFaderPosition(MASTER_VOLUME, clampParameterValue(MASTER_VOLUME, db));
-          }}
-          onInput={(position) => {
-            props.onFirstUse();
-            control.input(position);
-          }}
-          onCommit={(position) => control.commit(position)}
+          summary="Set master volume"
+          onCommit={() => props.onFirstUse()}
+          dispatch={props.dispatch}
+          beginGesture={props.beginGesture}
         />
       </div>
       <div class="mixer-strip-actions">
