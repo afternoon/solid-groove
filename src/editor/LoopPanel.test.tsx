@@ -39,7 +39,6 @@ describe("LoopPanel (#447)", () => {
     ));
 
     const panel = within(screen.getByRole("region", { name: "Break loop" }));
-    expect(panel.getByText(asset?.name ?? "")).toBeInTheDocument();
     expect(readout("Source tempo")).toBe(`${sourceTempo} BPM`);
     expect(readout("Length")).toBe("2 bars");
     expect(readout("Playing at")).toBe(`${sourceTempo * 1.5} BPM`);
@@ -75,6 +74,21 @@ describe("LoopPanel (#447)", () => {
     // Two bars of four beats: seven inner lines, one of them the bar line.
     expect(well.querySelectorAll("line.well-grid, line.loop-well-bar")).toHaveLength(8);
     expect(well.querySelectorAll("line.loop-well-bar")).toHaveLength(1);
+  });
+
+  it("opens with the instrument header it is given, as its first row", () => {
+    const { clip, asset, sourceTempo } = loopFixture();
+    render(() => (
+      <LoopPanel
+        trackName="Break"
+        clip={clip}
+        asset={asset}
+        songTempo={sourceTempo}
+        header={<header data-testid="header" />}
+      />
+    ));
+    const region = screen.getByRole("region", { name: "Break loop" });
+    expect(region.firstElementChild).toBe(screen.getByTestId("header"));
   });
 
   it("says so when the loop's audio cannot be resolved", () => {

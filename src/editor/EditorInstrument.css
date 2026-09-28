@@ -47,12 +47,26 @@
   max-width: var(--rack-unit-width);
 }
 
-/* The instrument is one unit: its kind picker and its panel share a face, so
-   the picker reads as the unit's header rather than as a module of its own.
-   The drum machine's pad table is a unit of its own, faced the same way. */
-.instrument-view-track .instrument-area,
-.instrument-view-track .drum-machine-editor {
+/* The instrument is one unit, opening with its header row; the drum
+   machine's pads sit inside it (#447). */
+.instrument-view-track .instrument-area {
   background-color: var(--color-background-secondary);
+}
+
+/* The kind picker heads the view on the bare rack, outside the unit it
+   chooses: a title and the option buttons, no face of its own (#447). */
+.instrument-view-track > .instrument-kind,
+.instrument-view-track > .instrument-kind .instrument-panel-group {
+  padding: 0;
+  background: none;
+}
+
+.instrument-view-track > .instrument-kind .instrument-panel-heading {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-foreground-bright);
 }
 
 .instrument-view-track .instrument-area {
