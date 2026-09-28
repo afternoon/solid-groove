@@ -1,0 +1,36 @@
+/* The shared dense table (#532): the drum-pad table's look, for any table.
+   Rows part by a hairline; no cards. Callers add their own row states. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-table th {
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.data-table td {
+  height: 44px;
+  padding: 0 10px;
+  border-top: 1px solid var(--color-border);
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  padding-left: 12px;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  padding-right: 12px;
+}
