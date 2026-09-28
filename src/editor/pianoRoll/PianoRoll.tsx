@@ -10,7 +10,9 @@ import type {
 } from "../../commands";
 import { noteEventsOf, removeNotes } from "../../commands";
 import type { Clip, NoteEvent, Project } from "../../domain/entities";
+import { createFactoryContext } from "../../domain/factories";
 import type { EventId } from "../../domain/ids";
+import { detectPlatform } from "../../shortcuts/keys";
 import { pitchOf } from "./edits";
 import Gutter from "./Gutter";
 import { ROW_HEIGHT, stepWidth, ticksToSteps } from "./layout";
@@ -18,7 +20,11 @@ import NoteLayer from "./NoteLayer";
 import Ruler from "./Ruler";
 import { focusRow, type PianoRollRow, visibleRows } from "./rows";
 import Toolbar from "./Toolbar";
+import { useRollPointer } from "./useRollPointer";
 import { useRollViewport } from "./useRollViewport";
+
+/** Mints the ids of notes the roll creates. Module singleton, as elsewhere. */
+const factoryContext = createFactoryContext();
 
 export interface PianoRollProps {
   readonly clip: Clip;
@@ -83,6 +89,27 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
   });
   const zoom = viewport.zoom;
   const width = () => stepWidth(zoom());
+  let grid: HTMLDivElement | undefined;
+  const pointer = useRollPointer({
+    clip: () => props.clip,
+    notes,
+    rows,
+    zoom,
+    selected,
+    setSelection,
+    setMarker,
+    grid: () => grid,
+    scroller: viewport.scrollElement,
+    dispatch: (commands) => props.dispatch(commands),
+    beginGesture: (options) => props.beginGesture(options),
+    audition: (pitch, velocity) => audition(pitch, velocity),
+    onEdited: (count) => {
+      analytics().logFeatureFirstUse("piano_roll");
+      logClipEdited(count);
+    },
+    factory: factoryContext,
+    platform: detectPlatform(),
+  });
 
   createEffect(
     () => [...selected()],
@@ -99,7 +126,9 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
   }
 
   function audition(pitch: number, velocity = 0.8): void {
-    if (preview()) props.audition?.(pitch, velocity);
+    if (!preview()) return;
+    props.audition?.(pitch, velocity);
+    analytics().logFeatureFirstUse("note_audition");
   }
 
   function deleteNotes(ids: readonly EventId[]): void {
@@ -165,10 +194,15 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
             <Gutter rows={rows()} onAudition={(pitch) => audition(pitch)} />
             <div
               class="pr-grid"
+              ref={grid}
               style={{
                 width: `${steps() * width()}px`,
                 height: `${rows().length * ROW_HEIGHT}px`,
               }}
+              onPointerDown={(event) => pointer.pressEmpty(event)}
+              onPointerMove={(event) => pointer.move(event)}
+              onPointerUp={() => pointer.release()}
+              onPointerCancel={() => pointer.cancel()}
             >
               <For each={rows()}>
                 {(row) => (
@@ -183,7 +217,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
                 rows={rows()}
                 zoom={zoom()}
                 selected={selected()}
-                onNotePointerDown={() => {}}
+                onNotePointerDown={(note, event) => pointer.pressNote(note, event)}
                 onNoteDoubleClick={deleteNote}
               />
               <div

@@ -18,7 +18,7 @@ import PianoRoll, { type PianoRollProps } from "./PianoRoll";
  * command layer and its undo history. The fixture clip is two bars of C3, E3,
  * G3 and C4, a step each, on steps 1, 5, 9 and 13.
  */
-export async function setUpRoll() {
+export async function setUpRoll(options: { analyticsEnabled?: boolean } = {}) {
   const repository = createInMemoryProjectRepository();
   const project = createPianoRollFixtureProject();
   const created = await repository.createProject(project);
@@ -26,6 +26,7 @@ export async function setUpRoll() {
 
   const transport = createRecordingTransport();
   const consent = new ConsentStore(memoryStorage());
+  if (options.analyticsEnabled === false) consent.optOut();
   const analytics = new Analytics({ transport, consent, storage: memoryStorage() });
   analytics.setAccountType("anonymous");
   const session = new EditorSession({
