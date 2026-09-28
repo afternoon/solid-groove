@@ -1,0 +1,100 @@
+/* A track's header (#447), the same in the arrangement's column and the
+   instrument view's rail: it fills the row its host sizes, so the two can
+   never disagree about where a track sits. The track's name is bold and
+   white; the selected track is black, as in the mixer. */
+.track-header {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 6px 10px 8px;
+  background-color: var(--color-background-well);
+  color: var(--color-foreground-bright);
+}
+
+.track-header:hover {
+  background-color: var(--color-background-tertiary);
+}
+
+.track-header.selected {
+  background-color: var(--color-background);
+}
+
+.track-header-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.track-header-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+}
+
+/* The name is the Edit control, borderless: it reads as a title. */
+.track-header-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  text-align: left;
+}
+
+.track-header-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-header.muted .track-header-name {
+  color: var(--color-foreground-muted);
+}
+
+.track-header-toggle {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-tiny);
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Engaged is the brightest thing in the row: white, with black on it. */
+.track-header-toggle[aria-pressed="true"] {
+  border-color: var(--color-foreground-bright);
+  background: var(--color-foreground-bright);
+  color: var(--color-on-accent);
+}
+
+.track-header .fill-slider.horizontal {
+  --fill-slider-track-thickness: 12px;
+  gap: 0 6px;
+}
+
+.track-header .fill-slider-entry {
+  padding: 0;
+  font-size: var(--font-size-tiny);
+}
+
+.track-header .level-meter-horizontal {
+  width: 100%;
+  height: 3px;
+}
