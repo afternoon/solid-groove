@@ -300,7 +300,7 @@ a:where(.landing-button) {
   background-color: var(--color-background-secondary);
   color: var(--color-text);
   border: none;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: var(--font-size-base);
   font-weight: 400;
   line-height: 1.5;

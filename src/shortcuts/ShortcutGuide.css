@@ -21,7 +21,7 @@
   width: 100%;
   max-width: 46rem;
   max-height: 100%;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--color-background-secondary);
   border: 1px solid var(--tint-medium);
   box-shadow: 0 12px 40px var(--shade-medium);
@@ -54,7 +54,7 @@
 .shortcut-guide-search {
   flex: 1 1 14rem;
   padding: 0.5rem 0.75rem;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid var(--tint-strong);
   background: transparent;
   color: var(--color-text);
@@ -125,7 +125,7 @@
 
 .shortcut-guide-keys kbd {
   padding: 0.15rem 0.45rem;
-  border-radius: 6px;
+  border-radius: 0;
   border: 1px solid var(--tint-stronger);
   font-family: inherit;
   font-size: var(--font-size-small);
@@ -151,7 +151,7 @@
 
 .shortcut-guide-close {
   padding: 0.5rem 0.9rem;
-  border-radius: 8px;
+  border-radius: 0;
   background: transparent;
   border: 1px solid var(--tint-strong);
   color: var(--color-text);
