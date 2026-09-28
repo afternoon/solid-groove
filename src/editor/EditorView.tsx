@@ -43,6 +43,7 @@ import {
 import LibraryModal from "./LibraryModal";
 import {
   type LoopActionContext,
+  loopSelection,
   setLoopRangeFromDrag,
   toggleLooping,
 } from "./loopActions";
@@ -344,6 +345,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     sequenceEditorOpen: () => opened() !== null,
     closeSequenceEditor: () => setOpenPlacementId(null),
     toggleLooping: () => toggleLooping(loopActions),
+    loopSelection: (startTicks, endTicks) =>
+      void loopSelection(loopActions, startTicks, endTicks),
   });
 
   const instrumentPanelTrackId = createMemo(() => model.instrumentPanelTrackId(track()));

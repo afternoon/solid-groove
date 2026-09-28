@@ -1759,6 +1759,53 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
   });
 
+  it("L only toggles looping with nothing selected, once per press (#494)", async () => {
+    const transport = await renderLooping();
+    const live = screen.getByTestId("arrangement-loop-live");
+    expect(live).toHaveTextContent("looping on");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "l" }));
+
+    await waitFor(() => expect(live).toHaveTextContent("looping off"));
+    expect(transport.named("loop_toggled")).toHaveLength(1);
+    expect(transport.named("loop_range_set")).toHaveLength(0);
+  });
+
+  it("L with a clip selected loops its span and turns looping on (#494)", async () => {
+    const transport = await renderLooping();
+    const live = screen.getByTestId("arrangement-loop-live");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "L", shiftKey: true }));
+    await waitFor(() => expect(live).toHaveTextContent("looping off"));
+
+    clickAndFlush(screen.getByRole("button", { name: "Select BD" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "l" }));
+
+    await waitFor(() => expect(live).toHaveTextContent("Loop over bar 1, looping on"));
+    expect(transport.named("loop_toggled").map((e) => e.params.enabled)).toEqual([
+      false,
+      true,
+    ]);
+  });
+
+  it("F fits the whole song and P scrolls the playhead into view (#494)", async () => {
+    await renderSlice();
+    const root = await screen.findByTestId("arrangement-view-ready");
+    const scale = () => Number(root.getAttribute("data-pixels-per-tick"));
+    const before = scale();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "f" }));
+    // The slice fixture's song is one bar (768 ticks) in a 960px viewport.
+    expect(scale()).toBeCloseTo(960 / 768);
+    expect(scale()).not.toBe(before);
+
+    // Scrolled away from the playhead at tick 0, P brings it back.
+    const viewport = document.querySelector(".arrangement-viewport") as HTMLElement;
+    viewport.scrollLeft = 400;
+    fireAndFlush(() => fireEvent.scroll(viewport));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "p" }));
+    expect(viewport.scrollLeft).toBe(0);
+  });
+
   it("moves and resizes the loop brace from its keyboard controls", async () => {
     const transport = await renderLooping();
     const live = screen.getByTestId("arrangement-loop-live");

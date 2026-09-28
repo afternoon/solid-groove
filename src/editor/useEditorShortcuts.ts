@@ -44,6 +44,9 @@ export interface UseEditorShortcutsOptions {
   /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
    * through the same command path as the header's loop button. */
   readonly toggleLooping: () => void;
+  /** Loops a tick span (rounded out to bars) and turns looping on — `L` with
+   * clips selected — through the command layer. */
+  readonly loopSelection: (startTicks: number, endTicks: number) => void;
 }
 
 /**
@@ -84,6 +87,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     sequenceEditorOpen,
     closeSequenceEditor,
     toggleLooping,
+    loopSelection,
   } = options;
 
   /**
@@ -158,6 +162,23 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.zoom_to_selection": {
       run: () => arrangementEditingActions()?.zoomToSelection(),
       isEnabled: () => arrangementEditingActions()?.canZoomToSelection() ?? false,
+    },
+    // The whole-song fit and the playhead scroll replace the toolbar buttons
+    // (#494). Always enabled: with no arrangement mounted they do nothing.
+    "view.zoom_to_arrangement": {
+      run: () => arrangementEditingActions()?.zoomToArrangement(),
+    },
+    "view.scroll_to_playhead": {
+      run: () => arrangementEditingActions()?.scrollToPlayhead(),
+    },
+    // L loops the selected clips and turns looping on; with none selected it
+    // only flips looping, like the header's button (#494).
+    "arrangement.toggle_loop": {
+      run: () => {
+        const span = arrangementEditingActions()?.selectionSpan() ?? null;
+        if (span) loopSelection(span.startTicks, span.endTicks);
+        else toggleLooping();
+      },
     },
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this

@@ -67,6 +67,10 @@ import "./ArrangementView.css";
 export type PlacementEditingActions = PlacementEditing & {
   zoomToSelection(): void;
   canZoomToSelection(): boolean;
+  /** Frames the whole song (`view.zoom_to_arrangement`). */
+  zoomToArrangement(): void;
+  /** Brings the playhead into view (`view.scroll_to_playhead`). */
+  scrollToPlayhead(): void;
 };
 
 /**
@@ -426,6 +430,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
         ...editing,
         zoomToSelection,
         canZoomToSelection: () => canZoomToSelection(),
+        zoomToArrangement,
+        scrollToPlayhead,
       });
     }
 
@@ -804,6 +810,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
     const span = editing?.selectionSpan();
     if (!span) return;
     shell?.zoomToSpan(span.startTicks, span.endTicks);
+    syncSpacer();
+    syncScrollElToShell();
+    bumpState();
+    noteFirstUse();
+  }
+  /** Fit the whole song in view. */
+  function zoomToArrangement(): void {
+    shell?.zoomToArrangement();
     syncSpacer();
     syncScrollElToShell();
     bumpState();

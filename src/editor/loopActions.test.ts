@@ -8,6 +8,7 @@ import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 import {
   type LoopActionContext,
+  loopSelection,
   setLoopRangeFromDrag,
   toggleLooping,
 } from "./loopActions";
@@ -121,5 +122,32 @@ describe("loop actions (LOOP-017)", () => {
       enabled: false,
     });
     expect(denied.transport.events).toHaveLength(0);
+  });
+
+  it("loops a selection's span in one transaction and turns looping on (#494)", () => {
+    const { history, transport, context } = ctx;
+    toggleLooping(context); // off
+    const before = history.entries.length;
+
+    expect(loopSelection(context, TICKS_PER_BAR + 30, 3 * TICKS_PER_BAR - 5)).toBe(true);
+
+    expect(history.project.song.loop).toMatchObject({
+      startTicks: TICKS_PER_BAR,
+      endTicks: 3 * TICKS_PER_BAR,
+      enabled: true,
+    });
+    expect(history.entries).toHaveLength(before + 1);
+    expect(transport.named("loop_range_set")).toHaveLength(1);
+    expect(transport.named("loop_toggled").map((e) => e.params.enabled)).toEqual([
+      false,
+      true,
+    ]);
+  });
+
+  it("does nothing when already looping over the selection's span (#494)", () => {
+    const { history, context } = ctx;
+    const { startTicks, endTicks } = history.project.song.loop;
+    expect(loopSelection(context, startTicks, endTicks)).toBe(false);
+    expect(history.entries).toHaveLength(0);
   });
 });

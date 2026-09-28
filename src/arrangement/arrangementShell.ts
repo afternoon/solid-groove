@@ -19,6 +19,7 @@
  */
 
 import type { PlacementId } from "../domain/ids";
+import { TICKS_PER_BAR } from "../domain/time";
 import {
   pixelsToTicks,
   type RowRange,
@@ -241,6 +242,12 @@ export function createArrangementShell(
     markDirty("background", "content", "interaction");
   }
 
+  /** Frame the whole song (`view.zoom_to_arrangement`): the first bar through
+   * the end of its last clip or section, or one bar for an empty song. */
+  function zoomToArrangement(): void {
+    zoomToSpan(0, Math.max(getProjection().lengthTicks, TICKS_PER_BAR));
+  }
+
   /** Scroll horizontally so the playhead is in view (KEY-01 follow / the
    * "scroll to playhead" named action). Vertical scroll is unaffected. */
   function scrollToPlayhead(): void {
@@ -345,6 +352,7 @@ export function createArrangementShell(
     zoomIn,
     zoomOut,
     zoomToSpan,
+    zoomToArrangement,
     contentLengthTicks,
     scrollToPlayhead,
     seekTo,

@@ -250,6 +250,18 @@ describe("selection and named actions (accessibility equivalents)", () => {
     expect(framed(shell).start).toBeCloseTo(TICKS_PER_BAR * 2);
   });
 
+  it("zoom-to-arrangement frames the whole song from its first bar (#494)", () => {
+    const { shell, projection } = setup();
+    shell.zoomIn();
+    shell.zoomToArrangement();
+    const port = shell.getViewport();
+    // As closely as the zoom limits allow, from the first bar.
+    expect(port.scrollLeft).toBe(0);
+    expect(port.pixelsPerTick).toBeCloseTo(
+      Math.max(shell.config.minPixelsPerTick, port.width / projection.lengthTicks),
+    );
+  });
+
   it("scroll-to-playhead brings an off-screen playhead into view", () => {
     const { shell } = setup();
     shell.setPlayheadFollow(false);

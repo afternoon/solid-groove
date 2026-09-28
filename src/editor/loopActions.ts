@@ -66,3 +66,37 @@ export function setLoopRangeFromDrag(
   });
   return true;
 }
+
+/**
+ * `L` with clips selected: loop exactly their span (rounded out to whole bars)
+ * and turn looping on, as one transaction — so one undo step, and one event per
+ * thing that actually changed. Already looping over that range is a no-op.
+ */
+export function loopSelection(
+  context: LoopActionContext,
+  startTicks: number,
+  endTicks: number,
+): boolean {
+  const project = context.project();
+  if (!project) return false;
+  const range = barAlignedLoop(startTicks, endTicks);
+  const current = project.song.loop;
+  const rangeChanged =
+    range.startTicks !== current.startTicks || range.endTicks !== current.endTicks;
+  if (!rangeChanged && current.enabled) return false;
+  const commands = [
+    ...(rangeChanged
+      ? [setLoopRange(toTicks(range.startTicks), toTicks(range.endTicks))]
+      : []),
+    ...(current.enabled ? [] : [setLoopEnabled(true)]),
+  ];
+  const result = context.dispatch(commands);
+  if (!result?.ok) return false;
+  if (rangeChanged) {
+    context.analytics.log("loop_range_set", {
+      bar_count: (range.endTicks - range.startTicks) / TICKS_PER_BAR,
+    });
+  }
+  if (!current.enabled) context.analytics.log("loop_toggled", { enabled: true });
+  return true;
+}
