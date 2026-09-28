@@ -21,6 +21,7 @@ import { playAudioLoop } from "./audioLoopPlayer";
 import type { DeviceNodeFactory } from "./DeviceChain";
 import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
+import type { LevelReading } from "./levels";
 import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
 import type { ResourceHandle } from "./resourceRegistry";
@@ -243,6 +244,13 @@ export class ProjectAudioGraph {
    */
   trackMeter(trackId: TrackId): Tone.Meter | undefined {
     return this.tracks.get(trackId)?.levelMeter;
+  }
+
+  /** Every track's level now, for one frame of the editor's meters (#447). */
+  readTrackLevels(): Map<TrackId, LevelReading> {
+    const readings = new Map<TrackId, LevelReading>();
+    for (const [trackId, track] of this.tracks) readings.set(trackId, track.readLevel());
+    return readings;
   }
 
   /**

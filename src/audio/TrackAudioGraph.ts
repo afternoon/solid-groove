@@ -13,6 +13,7 @@ import {
   type InstrumentNode,
   type InstrumentNodeFactory,
 } from "./InstrumentGraph";
+import { type LevelReading, loudestDb, peakDbOf } from "./levels";
 
 /**
  * The ramp time applied to every continuous channel-strip change — volume,
@@ -22,9 +23,13 @@ import {
  */
 export const MIXER_SMOOTHING_SECONDS = 0.02;
 
+/** Samples per channel in the peak tap: about one 60 Hz frame at 48 kHz. */
+const PEAK_WINDOW = 1024;
+
 /** One track's send: which return it targets, its own gain node, and which
  * fader stage it currently taps (needed to reconnect in place if `preFader`
  * flips without the send itself being added or removed). */
+
 interface TrackedSend {
   readonly gain: Tone.Gain;
   readonly handle: ReturnType<AudioProjectScope["register"]>;
@@ -55,6 +60,8 @@ export class TrackAudioGraph {
   private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly meter: Tone.Meter;
   private readonly meterHandle: ReturnType<AudioProjectScope["register"]>;
+  private readonly peakTap: Tone.Analyser;
+  private readonly peakTapHandle: ReturnType<AudioProjectScope["register"]>;
   private instrumentNode: InstrumentNode | null = null;
   private instrumentHandle: ReturnType<AudioProjectScope["register"]> | null = null;
   private lastInstrumentRef: AudioTrackProjection["instrument"] | null = null;
@@ -84,9 +91,21 @@ export class TrackAudioGraph {
     this.meterHandle = context.scope.register("node", () => {
       this.meter.dispose();
     });
+    // The samples themselves, per channel, for the clip state (#447): an RMS
+    // meter smooths a full-scale sine to -3 dB, so only the peaks can say a
+    // track went over. One frame's worth, read by the editor's frame loop.
+    this.peakTap = new Tone.Analyser({
+      type: "waveform",
+      size: PEAK_WINDOW,
+      channels: 2,
+    });
+    this.peakTapHandle = context.scope.register("node", () => {
+      this.peakTap.dispose();
+    });
     this.deviceChain.output.connect(this.panVol.input);
     this.panVol.connect(destination);
     this.panVol.connect(this.meter);
+    this.panVol.connect(this.peakTap);
   }
 
   /**
@@ -96,6 +115,15 @@ export class TrackAudioGraph {
    */
   get levelMeter(): Tone.Meter {
     return this.meter;
+  }
+
+  /** This track's post-fader level now: its RMS, and its latest peak. */
+  readLevel(): LevelReading {
+    const samples = this.peakTap.getValue();
+    return {
+      rmsDb: loudestDb(this.meter.getValue()),
+      peakDb: peakDbOf(Array.isArray(samples) ? samples : [samples]),
+    };
   }
 
   /**
@@ -259,5 +287,6 @@ export class TrackAudioGraph {
     this.deviceChain.dispose();
     void this.context.scope.release(this.panVolHandle);
     void this.context.scope.release(this.meterHandle);
+    void this.context.scope.release(this.peakTapHandle);
   }
 }
