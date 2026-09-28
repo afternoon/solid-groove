@@ -26,6 +26,10 @@ export interface FaderProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** The range input's id; each surface a track is shown on needs its own. */
+  readonly inputId?: string;
+  /** A mixer strip's fader stands; a track header's lies along it (#447). */
+  readonly orientation?: "vertical" | "horizontal";
 }
 
 export function VolumeFader(props: FaderProps): JSX.Element {
@@ -48,7 +52,8 @@ export function VolumeFader(props: FaderProps): JSX.Element {
   return (
     <FillSlider
       definition={TRACK_VOLUME}
-      inputId={`mixer-volume-${props.track.id}`}
+      inputId={props.inputId ?? `mixer-volume-${props.track.id}`}
+      orientation={props.orientation}
       label="Vol"
       ariaLabel={`Volume for ${props.track.name}`}
       range={FADER_RANGE}
