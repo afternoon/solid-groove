@@ -72,7 +72,7 @@ describe("the Instrument view's device chain", () => {
 });
 
 describe("the Instrument view on a loop track (#447)", () => {
-  it("replaces the instrument picker on an audio track", () => {
+  it("shows a loop panel, under a disabled picker, on an audio track", () => {
     const project = createDrumMachineFixtureProject();
     const track = project.song.tracks.find((candidate) => candidate.type === "audio");
     if (!track) throw new Error("fixture has no audio track");
@@ -98,7 +98,14 @@ describe("the Instrument view on a loop track (#447)", () => {
     expect(
       screen.getByRole("region", { name: `${track.name} loop` }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Instrument" })).toBeNull();
+    // The picker still heads the view, with nothing to choose (#447).
+    const picker = screen.getByRole("region", { name: "Instrument" });
+    const kinds = within(picker).getAllByRole("radio");
+    expect(kinds.length).toBeGreaterThan(0);
+    for (const kind of kinds) {
+      expect(kind).toBeDisabled();
+      expect(kind).not.toBeChecked();
+    }
     // The loop's chain is still there beneath it.
     expect(screen.getByRole("region", { name: "Device chain" })).toBeInTheDocument();
   });

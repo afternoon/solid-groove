@@ -157,3 +157,25 @@ describe("InstrumentKindPicker", () => {
     expect(transport.events).toHaveLength(0);
   });
 });
+
+describe("InstrumentKindPicker disabled (#447)", () => {
+  it("shows every kind but offers none", () => {
+    const project = createSliceFixtureProject();
+    const track = project.song.tracks[0];
+    const dispatch = vi.fn<Dispatch>();
+    render(() => (
+      <InstrumentKindPicker
+        trackId={track.id}
+        project={project}
+        instrument={null}
+        dispatch={dispatch}
+        disabled
+      />
+    ));
+    expect(screen.getByRole("heading", { name: "Instrument" })).toBeInTheDocument();
+    const synth = screen.getByRole("radio", { name: "Synth" });
+    expect(synth).toBeDisabled();
+    clickAndFlush(synth);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});

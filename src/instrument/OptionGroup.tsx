@@ -26,6 +26,8 @@ export interface OptionGroupProps<V extends string | number> {
    * as a switch as tall as the faders beside it (#447).
    */
   readonly fill?: boolean;
+  /** Shown but not choosable, as a whole group (#447). */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ export default function OptionGroup<V extends string | number>(
     <fieldset
       class={["option-group", { fill: props.fill === true }]}
       aria-label={props.legend}
+      disabled={props.disabled}
     >
       <For each={props.options}>
         {(option) => {
