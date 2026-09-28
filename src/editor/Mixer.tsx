@@ -538,6 +538,7 @@ function PanControl(props: FaderProps): JSX.Element {
       orientation="horizontal"
       bipolar
       range={PAN_RANGE}
+      resetValue={TRACK_PAN.defaultValue}
       value={props.value}
       displayValue={formatPan(props.value)}
       onInput={(value) => control.input(value)}
