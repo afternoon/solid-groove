@@ -142,3 +142,32 @@
   fill: color-mix(in oklab, var(--track-ink) 18%, transparent);
   stroke: none;
 }
+
+/* A sound's waveform: all of it dim, the part that plays in the track's ink. */
+.sample-well-bars {
+  fill: none;
+  stroke: color-mix(in oklab, var(--track-ink) 28%, var(--color-border-strong));
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.sample-well-bars.playing {
+  stroke: var(--track-ink);
+}
+
+.sample-well-marker {
+  stroke: var(--color-accent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.sample-well-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+  pointer-events: none;
+}
