@@ -1,0 +1,105 @@
+/* The Key panel (ARR-010): a group rule with the key's name, a pad of twelve
+   roots and a three-by-three scale switch. The chosen button is white with
+   black on it; the rest are quiet grey. */
+
+.key-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.key-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.key-panel-title {
+  color: var(--color-foreground-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.key-panel-head::after {
+  content: "";
+  flex: 1;
+  order: 1;
+  height: 1px;
+  background: var(--color-border-strong);
+}
+
+.key-panel-name {
+  order: 2;
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+}
+
+.key-roots,
+.key-scales {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.key-roots {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.key-scales {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.key-roots button,
+.key-scales button {
+  height: 28px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.key-roots button {
+  padding: 0;
+}
+
+.key-scales button {
+  height: 26px;
+  text-align: left;
+}
+
+.key-roots button:hover:not(:disabled),
+.key-scales button:hover {
+  background: var(--color-background-hover);
+  color: var(--color-text);
+}
+
+.key-roots button[aria-pressed="true"],
+.key-scales button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+}
+
+.key-roots button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.key-roots button:focus-visible,
+.key-scales button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
