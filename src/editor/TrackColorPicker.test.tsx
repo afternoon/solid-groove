@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
-import { CommandHistory, type RawCommandInput } from "../commands";
+import { CommandHistory, type Gesture, type RawCommandInput } from "../commands";
 import type { Track } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { TRACK_PALETTE as PALETTE } from "../domain/trackPalette";
@@ -36,6 +36,21 @@ function renderPicker(analyticsOn = true) {
         const result = history.execute(commands);
         setProject(history.project);
         return result;
+      }}
+      beginGesture={(options) => {
+        const gesture = history.beginGesture(options);
+        const sync = <T,>(value: T) => {
+          setProject(history.project);
+          return value;
+        };
+        return {
+          get active() {
+            return gesture.active;
+          },
+          apply: (commands) => sync(gesture.apply(commands)),
+          commit: (summary) => sync(gesture.commit(summary)),
+          cancel: () => sync(gesture.cancel()),
+        } satisfies Gesture;
       }}
     />
   ));
@@ -137,33 +152,80 @@ describe("TrackColorPicker (#447)", () => {
     expect(history.canUndo).toBe(false);
   });
 
-  it("is one Tab stop, and arrow keys move and choose between swatches", async () => {
+  it("is one Tab stop: Tab leaves the group and closes the menu, no edit", async () => {
     const user = userEvent.setup();
-    const { history, track, swatch } = renderPicker();
+    const { history, swatch } = renderPicker();
     await user.click(swatch());
     await new Promise((resolve) => setTimeout(resolve, 0));
     const radios = screen.getAllByRole("radio") as HTMLInputElement[];
     // The menu opens with focus inside the group, on the current colour.
     expect(radios).toContain(document.activeElement);
-    const at = radios.indexOf(document.activeElement as HTMLInputElement);
-
-    // One Tab stop: Tab leaves the group rather than walking 50 swatches.
     await user.tab();
     expect(radios).not.toContain(document.activeElement);
-    radios[at]?.focus();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(history.canUndo).toBe(false);
+  });
 
+  async function openFocused(user: ReturnType<typeof userEvent.setup>) {
+    const picker = renderPicker();
+    await user.click(picker.swatch());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return picker;
+  }
+
+  it("previews arrowed colours live but commits them as one undo entry", async () => {
+    const user = userEvent.setup();
+    const { history, track } = await openFocused(user);
     const before = track().color;
-    await user.keyboard("{ArrowRight}");
-    flush();
-    expect(radios[at + 1]).toHaveFocus();
-    expect(radios[at + 1]?.checked).toBe(true);
-    expect(track().color).toBe(TRACK_COLORS[at + 1]);
-    // An arrow chooses and keeps the menu open; the choice is one undo entry.
+    const radios = screen.getAllByRole("radio") as HTMLInputElement[];
+    const at = radios.indexOf(document.activeElement as HTMLInputElement);
+
+    for (const step of [1, 2, 3]) {
+      await user.keyboard("{ArrowRight}");
+      flush();
+      expect(radios[at + step]).toHaveFocus();
+      expect(track().color).toBe(TRACK_COLORS[at + step]);
+    }
+    // Still open, and nothing is recorded until the menu closes.
     expect(screen.getByRole("group")).toBeInTheDocument();
+    expect(history.canUndo).toBe(false);
+
+    await user.keyboard("{Enter}");
+    fireEvent.pointerDown(document.body);
+    flush();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(track().color).toBe(TRACK_COLORS[at + 3]);
+    expect(history.project.metadata.revision).toBe(1);
+
     history.undo();
     expect(history.project.song.tracks.find((t) => t.id === track().id)?.color).toBe(
       before,
     );
+    expect(history.canUndo).toBe(false);
+  });
+
+  it("Escape reverts an arrowed preview to the colour at open, with no entry", async () => {
+    const user = userEvent.setup();
+    const { history, track } = await openFocused(user);
+    const before = track().color;
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    flush();
+    expect(track().color).not.toBe(before);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    flush();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(track().color).toBe(before);
+    expect(history.canUndo).toBe(false);
+  });
+
+  it("a click on one swatch is one entry", async () => {
+    const { history, track, swatch } = renderPicker();
+    const next = otherColor(track());
+    clickAndFlush(swatch());
+    await pick(`Colour ${TRACK_COLORS.indexOf(next) + 1} of 50`);
+    expect(history.project.metadata.revision).toBe(1);
+    history.undo();
     expect(history.canUndo).toBe(false);
   });
 });
