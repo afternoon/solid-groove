@@ -24,6 +24,7 @@ const EXPECTED_COMMANDS = [
   "notes.duplicate",
   "notes.clear",
   "notes.vary",
+  "notes.quantizeToScale",
   "clip.create",
   "clip.delete",
   "clip.update",

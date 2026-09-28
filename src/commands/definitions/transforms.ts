@@ -8,6 +8,7 @@ import {
   eventIdSchema,
   type IdFactory,
 } from "../../domain/ids";
+import { isChromatic, isPitchInKey, nearestPitchInKey } from "../../domain/musicalKey";
 import { clampParameterValue, NOTE_VELOCITY } from "../../domain/parameters";
 import { isTicks, type Ticks, toTicks } from "../../domain/time";
 import {
@@ -51,6 +52,14 @@ export const notesTransposePayloadSchema = z.strictObject({
   semitones: z.int().min(-127).max(127),
 });
 export type NotesTransposePayload = z.infer<typeof notesTransposePayloadSchema>;
+
+export const notesQuantizeToScalePayloadSchema = z.strictObject({
+  clipId: clipIdSchema,
+  eventIds: eventSelectionSchema,
+});
+export type NotesQuantizeToScalePayload = z.infer<
+  typeof notesQuantizeToScalePayloadSchema
+>;
 
 export const notesScaleVelocityPayloadSchema = z.strictObject({
   clipId: clipIdSchema,
@@ -213,6 +222,50 @@ export const notesTransposeCommand = defineCommand<NotesTransposePayload>({
       ),
     ];
   },
+});
+
+/**
+ * Moves every note in scope that is outside the song's key onto the nearest
+ * pitch in it, rounding a tie down (`nearestPitchInKey`, ARR-010). Notes
+ * already in the key are left exactly as they were.
+ *
+ * The key is read from the song rather than carried in the payload, so the
+ * command can never quantize to a key the project does not show. A chromatic
+ * key has nothing to quantize to, and a scope with no stray note would record
+ * an entry that changed nothing, so both are refusals rather than no-ops.
+ */
+export const notesQuantizeToScaleCommand = defineCommand<NotesQuantizeToScalePayload>({
+  type: "notes.quantizeToScale",
+  version: 1,
+  schema: notesQuantizeToScalePayloadSchema,
+  summarize: (payload, project) =>
+    `Quantize ${clipLabel(project, payload.clipId)} to the key`,
+  apply(project, payload) {
+    const key = project.song.key;
+    if (isChromatic(key)) {
+      return rejected("The song key is chromatic, so there is no scale to quantize to");
+    }
+    const selection = resolveSelection(project, payload.clipId, payload.eventIds);
+    if (isError(selection)) {
+      return rejected(selection.error);
+    }
+    const changed = new Map<string, NoteEvent>();
+    for (const event of selection.events) {
+      if (event.trigger.kind !== "pitch" || isPitchInKey(key, event.trigger.pitch)) {
+        continue;
+      }
+      const pitch = nearestPitchInKey(key, event.trigger.pitch);
+      changed.set(event.id, { ...event, trigger: { kind: "pitch", pitch } });
+    }
+    if (changed.size === 0) {
+      return rejected(`Every note in scope is already in the key`);
+    }
+    return applied(withChangedEvents(project, selection.clip, changed));
+  },
+  invert: (payload, before) =>
+    restoreCommand(before, payload.clipId, payload.eventIds, (event) => ({
+      trigger: event.trigger,
+    })),
 });
 
 export const notesScaleVelocityCommand = defineCommand<NotesScaleVelocityPayload>({
@@ -523,6 +576,16 @@ export function quantizeNotes(
   };
 }
 
+export function quantizeNotesToScale(
+  clipId: ClipId,
+  eventIds: readonly EventId[] | null,
+): CommandInput<NotesQuantizeToScalePayload> {
+  return {
+    type: notesQuantizeToScaleCommand.type,
+    payload: { clipId, eventIds: selectionOf(eventIds) },
+  };
+}
+
 export function clearNotes(clipId: ClipId): CommandInput<NotesClearPayload> {
   return { type: notesClearCommand.type, payload: { clipId } };
 }
@@ -578,4 +641,5 @@ export const transformCommands: readonly RegisteredCommand[] = [
   eraseCommand(notesDuplicateCommand),
   eraseCommand(notesClearCommand),
   eraseCommand(notesVaryCommand),
+  eraseCommand(notesQuantizeToScaleCommand),
 ];

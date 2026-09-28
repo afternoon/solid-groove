@@ -286,6 +286,7 @@ export const COMMAND_IDS = [
   "notes.scaleVelocity",
   "notes.transpose",
   "notes.vary",
+  "notes.quantizeToScale",
   "clip.create",
   "clip.delete",
   "clip.update",
