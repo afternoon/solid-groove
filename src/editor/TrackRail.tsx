@@ -81,25 +81,27 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
         "--track-ruler-height": `${RULER_HEIGHT_PX}px`,
       }}
     >
-      <For each={shown()}>
+      {/* Keyed on the id, not the track: every edit mints a new track object,
+          and a row rebuilt mid-drag loses its fader under the pointer. */}
+      <For each={shown()} keyed={(track) => track.id}>
         {(track) => (
           <li
             class={[
               "track-rail-item",
-              { "track-dragging": drag.dragging() === track.id },
+              { "track-dragging": drag.dragging() === track().id },
             ]}
-            data-track-drag={props.onReorder ? track.id : undefined}
+            data-track-drag={props.onReorder ? track().id : undefined}
           >
             <TrackHeader
-              track={track}
-              selected={props.selectedTrackId === track.id}
-              onSelect={() => props.onSelect(track.id)}
+              track={track()}
+              selected={props.selectedTrackId === track().id}
+              onSelect={() => props.onSelect(track().id)}
               dispatch={props.dispatch}
               beginGesture={props.beginGesture}
               trackLevelDb={(trackId) => props.trackLevelDb?.(trackId) ?? null}
               isPlaying={() => props.isPlaying?.() ?? false}
               onDragStart={(event) => {
-                if (props.onReorder) drag.begin(event, track.id);
+                if (props.onReorder) drag.begin(event, track().id);
               }}
               surface="instrument"
               analytics={props.analytics}

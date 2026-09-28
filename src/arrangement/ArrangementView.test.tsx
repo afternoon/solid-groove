@@ -838,3 +838,58 @@ describe("dragging a track header to reorder it (TRK-02)", () => {
     expect(transport.named("track_reordered")).toHaveLength(0);
   });
 });
+
+describe("ArrangementView track header faders (#447)", () => {
+  it("keeps a header's fader through a drag, so the drag keeps moving it", () => {
+    const history = new CommandHistory(createSliceFixtureProject());
+    const [project, setProject] = createSignal(history.project);
+    const dispatch = (commands: Parameters<CommandHistory["execute"]>[0]) => {
+      const result = history.execute(commands);
+      setProject(history.project);
+      return result;
+    };
+    render(() => (
+      <ArrangementView
+        project={project()}
+        analytics={analyticsAllowing().analytics}
+        dispatch={dispatch}
+        beginGesture={(options) => {
+          const gesture = history.beginGesture(options);
+          return {
+            get active() {
+              return gesture.active;
+            },
+            apply(commands) {
+              const result = gesture.apply(commands);
+              setProject(history.project);
+              return result;
+            },
+            commit(summary) {
+              const entry = gesture.commit(summary);
+              setProject(history.project);
+              return entry;
+            },
+            cancel: () => gesture.cancel(),
+          };
+        }}
+      />
+    ));
+    const track = history.project.song.tracks[0];
+    const fader = () => screen.getByRole("slider", { name: `Volume for ${track.name}` });
+    const grabbed = fader();
+
+    // Each step of a drag is an edit; the row must not be rebuilt under it.
+    for (const value of ["0.6", "0.5", "0.4"]) {
+      fireEvent.input(grabbed, { target: { value } });
+      flush();
+      expect(fader()).toBe(grabbed);
+    }
+    fireEvent.change(grabbed, { target: { value: "0.4" } });
+    flush();
+
+    expect(history.project.song.tracks[0].mixer.volume).toBeLessThan(track.mixer.volume);
+    expect(history.canUndo).toBe(true);
+    history.undo();
+    expect(history.project.song.tracks[0].mixer.volume).toBe(track.mixer.volume);
+  });
+});
