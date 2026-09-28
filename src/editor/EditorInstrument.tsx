@@ -1,5 +1,6 @@
 import type { JSX } from "@solidjs/web";
 import { createSignal, Show } from "solid-js";
+import { analytics } from "../analytics/analytics";
 import type {
   Gesture,
   GestureOptions,
@@ -26,6 +27,7 @@ import LevelMeter from "./LevelMeter";
 import LoopPanel from "./LoopPanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
+import { moveTrack } from "./trackReorder";
 import "./EditorInstrument.css";
 
 export interface EditorInstrumentProps {
@@ -140,6 +142,14 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
         tracks={props.project.song.tracks}
         selectedTrackId={props.track?.id ?? null}
         onSelect={props.onSelectTrack}
+        onReorder={(trackId, toIndex) =>
+          moveTrack(
+            { project: () => props.project, dispatch: props.dispatch, analytics },
+            trackId,
+            toIndex,
+            { view: "instrument", method: "drag" },
+          )
+        }
       />
       <div class="instrument-view-body">
         <Show
