@@ -50,13 +50,14 @@ const lastPayload = (dispatch: ReturnType<typeof renderPad>["dispatch"]) =>
   )[0].payload;
 
 describe("PadSound (#447)", () => {
-  it("gives the pad a fader for each of its five values, named for the pad", () => {
+  it("gives the pad a fader for each of its five values", () => {
     const { pad, container } = renderPad();
     expect(
       screen.getByRole("heading", { name: `${pad.name} · sound` }),
     ).toBeInTheDocument();
     for (const name of ["Pitch", "Level", "Pan", "Attack", "Decay"]) {
-      expect(screen.getByLabelText(`${name} for ${pad.name}`)).toBeInTheDocument();
+      // The editor is the region named for its pad, so its faders need not be.
+      expect(screen.getByRole("slider", { name })).toBeInTheDocument();
     }
     expect(container.querySelectorAll(".drag-handle")).toHaveLength(2);
   });

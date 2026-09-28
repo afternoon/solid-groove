@@ -18,6 +18,12 @@ export interface PadControlProps {
   readonly value: number;
   readonly displayValue: string;
   readonly bipolar?: boolean;
+  /** On its side in the pad table's row; standing in the pad editor. */
+  readonly orientation?: "horizontal" | "vertical";
+  /** The accessible name; by default it says whose pad, as a row must. */
+  readonly ariaLabel?: string;
+  /** Where the control is, so each copy's input id is its own. */
+  readonly idPrefix?: string;
   onFirstUse(): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
@@ -51,11 +57,11 @@ export default function PadControl(props: PadControlProps): JSX.Element {
   return (
     <FillSlider
       definition={props.definition}
-      inputId={`pad-${props.pad.id}-${props.label.toLowerCase()}`}
+      inputId={`${props.idPrefix ?? "pad"}-${props.pad.id}-${props.label.toLowerCase()}`}
       label={props.label}
-      // Every pad shows a "Pitch", so the name has to say whose.
-      ariaLabel={`${props.label} for ${props.pad.name}`}
-      orientation="horizontal"
+      // Every pad row shows a "Pitch", so the name has to say whose.
+      ariaLabel={props.ariaLabel ?? `${props.label} for ${props.pad.name}`}
+      orientation={props.orientation ?? "horizontal"}
       bipolar={props.bipolar}
       value={props.value}
       displayValue={props.displayValue}
