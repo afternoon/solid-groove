@@ -27,6 +27,7 @@ import LevelMeter from "./LevelMeter";
 import LoopPanel from "./LoopPanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
+import type { NewTrackKindSpec } from "./trackCreation";
 import { deleteTrack } from "./trackDeletion";
 import type { TrackLevel } from "./trackLevels";
 import { moveTrack } from "./trackReorder";
@@ -59,6 +60,8 @@ export interface EditorInstrumentProps {
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
   readonly watchPeaks?: WatchPeaks;
   onSelectTrack(trackId: TrackId): void;
+  /** Adds a track of the chosen kind, from the rail's add buttons (#495). */
+  onAddTrack?(spec: NewTrackKindSpec): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -145,6 +148,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
         tracks={props.project.song.tracks}
         selectedTrackId={props.track?.id ?? null}
         onSelect={props.onSelectTrack}
+        onAddTrack={props.onAddTrack}
         dispatch={props.dispatch}
         beginGesture={props.beginGesture}
         trackLevel={props.trackLevel}

@@ -42,3 +42,14 @@
   background-color: var(--color-background-secondary);
   border-bottom: 1px solid var(--color-background-tertiary);
 }
+
+/* The add-track buttons after the last row (#495): the shared unit, wrapped
+   to the column's width rather than resized. */
+.track-rail-add {
+  flex: none;
+  padding: 8px;
+}
+
+.track-rail-add .new-track-buttons {
+  flex-wrap: wrap;
+}

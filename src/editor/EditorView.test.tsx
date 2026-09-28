@@ -883,6 +883,29 @@ describe("EditorView new-track unit", () => {
     );
   });
 
+  it("adds a track from the instrument view's rail and shows it there (#495)", async () => {
+    const transport = createRecordingTransport();
+    await renderSlice(transport);
+    await goToView("Instrument");
+    const rail = screen.getByRole("list", { name: "Tracks" });
+    const rows = () => within(rail).getAllByRole("button", { name: /^Edit / });
+    expect(rows()).toHaveLength(1);
+
+    // The same unit and the same route as the arrangement's.
+    const unit = within(rail).getByRole("group", { name: "Add track" });
+    clickAndFlush(within(unit).getByRole("button", { name: "Add sampler track" }));
+
+    await vi.waitFor(() => expect(rows()).toHaveLength(2));
+    // The new track is the one the view is showing.
+    expect(rows()[1]).toHaveAttribute("aria-pressed", "true");
+    expect(rows()[0]).toHaveAttribute("aria-pressed", "false");
+    const added = transport.events.filter((event) => event.name === "track_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toEqual(
+      expect.objectContaining({ track_type: "instrument", instrument_type: "sampler" }),
+    );
+  });
+
   it("opens the library on loops from the Loop button beside them", async () => {
     // An audio track needs content to exist, so the way to start one is to
     // pick the loop (UI-001).

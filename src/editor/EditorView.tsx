@@ -8,7 +8,7 @@ import ArrangementView, {
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
-import type { NoteTrigger } from "../domain/entities";
+import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
@@ -53,7 +53,7 @@ import ProjectLoadStates from "./ProjectLoadStates";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
-import { addTrackOfKind } from "./trackCreation";
+import { addTrackOfKind, type NewTrackKindSpec } from "./trackCreation";
 import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
@@ -468,6 +468,19 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return true;
   }
 
+  /** Adds a track of the chosen kind, through the route the arrangement's
+   * buttons take, and selects it (#495). */
+  function addTrack(current: Project, spec: NewTrackKindSpec): void {
+    addTrackOfKind(spec.kind, {
+      project: current,
+      context: factoryContext,
+      dispatch: session.dispatch,
+      analytics: props.analytics ?? defaultAnalytics,
+      feature: "arrangement",
+      onSelect: selectTrack,
+    });
+  }
+
   const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
 
   return (
@@ -527,16 +540,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           belowTracks={
                             <NewTrackButtons
                               label="Add track to the arrangement"
-                              onAdd={(spec) =>
-                                addTrackOfKind(spec.kind, {
-                                  project: currentProject(),
-                                  context: factoryContext,
-                                  dispatch: session.dispatch,
-                                  analytics: props.analytics ?? defaultAnalytics,
-                                  feature: "arrangement",
-                                  onSelect: selectTrack,
-                                })
-                              }
+                              onAdd={(spec) => addTrack(currentProject(), spec)}
                             >
                               {/*
                                * An audio track needs content to exist, so the
@@ -587,6 +591,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       watchTriggers={audio.watchTriggers}
                       trackLevel={audio.trackLevel}
                       onSelectTrack={selectTrack}
+                      onAddTrack={(spec) => addTrack(currentProject(), spec)}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}
                     />
