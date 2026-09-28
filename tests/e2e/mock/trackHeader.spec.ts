@@ -61,3 +61,30 @@ test("a track header sits on the same pixels in the arrangement and the rail", a
   );
   expect(rail).toEqual(shifted);
 });
+
+test("a track header's volume follows a pointer drag, in both views", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "New Project" }).click();
+  await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
+
+  for (const view of ["Arrangement", "Instrument"]) {
+    await toView(page, view);
+    const fader = page.getByRole("slider", { name: /^Volume for / }).first();
+    await expect(fader).toBeVisible();
+    const box = await fader.boundingBox();
+    if (!box) throw new Error("the fader has no box");
+    const y = box.y + box.height / 2;
+    // Grab near the right end and drag in steps to the left: a drag, not a
+    // click, and every step an edit that must not rebuild the row under it.
+    await page.mouse.move(box.x + box.width * 0.9, y);
+    await page.mouse.down();
+    for (const at of [0.8, 0.6, 0.4, 0.2]) {
+      await page.mouse.move(box.x + box.width * at, y, { steps: 3 });
+    }
+    await page.mouse.up();
+    expect(Number(await fader.inputValue())).toBeLessThan(0.35);
+  }
+});

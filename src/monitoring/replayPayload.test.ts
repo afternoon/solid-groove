@@ -393,12 +393,14 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // PRD section 9.4 prefixed IDs. Opaque by construction.
       "props.note.id",
       "track.id",
+      // The same `TrackId`, read through a `<For>` row keyed on it (#447).
+      "track().id",
       // A mixer strip's `TrackId`, which the track drag (TRK-02) reads its
       // items by — the same prefixed ID as `track.id`, reached through props.
       "props.track.id",
       // The instrument rail's rows, as drag items (#447): the same prefixed
       // `TrackId`, bound only while the rail can be reordered.
-      "props.onReorder ? track.id : undefined",
+      "props.onReorder ? track().id : undefined",
       // The mixer's previewed strip (TRK-02): a fixed test id or nothing,
       // never anything the user authored.
       'props.previewing ? "track-drop-indicator" : undefined',
@@ -421,7 +423,7 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       "String(row.available)",
       // The arrangement's previewed header row (TRK-02): a fixed test id or
       // nothing, never anything the user authored.
-      'previewing(track.id) ? "track-drop-indicator" : undefined',
+      'previewing(track().id) ? "track-drop-indicator" : undefined',
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

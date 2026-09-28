@@ -934,34 +934,38 @@ export default function ArrangementView(props: ArrangementViewProps) {
             aria-label="Tracks"
             style={{ transform: `translateY(${-scrollTopMemo()}px)` }}
           >
-            <For each={headerRows()}>
+            {/* Keyed on the id: the projection mints new rows on every edit, and a
+                row rebuilt mid-drag loses its header's fader under the pointer. */}
+            <For each={headerRows()} keyed={(track) => track.id}>
               {(track) => (
                 <li
                   class={[
                     "arrangement-header-row",
-                    { "track-dragging": trackDrag.dragging() === track.id },
+                    { "track-dragging": trackDrag.dragging() === track().id },
                   ]}
-                  data-track-drag={track.id}
-                  data-testid={previewing(track.id) ? "track-drop-indicator" : undefined}
+                  data-track-drag={track().id}
+                  data-testid={
+                    previewing(track().id) ? "track-drop-indicator" : undefined
+                  }
                   style={{
                     position: "absolute",
-                    top: `${track.rowIndex * ROW_METRICS.headerHeightPx}px`,
+                    top: `${track().rowIndex * ROW_METRICS.headerHeightPx}px`,
                     height: `${ROW_METRICS.headerHeightPx}px`,
                     width: "100%",
                   }}
                 >
-                  <Show when={trackOf(track.id)}>
+                  <Show when={trackOf(track().id)}>
                     {(domainTrack) => (
                       <TrackHeader
                         track={domainTrack()}
-                        selected={props.selectedTrackId === track.id}
-                        onSelect={() => selectTrack(track.id)}
+                        selected={props.selectedTrackId === track().id}
+                        onSelect={() => selectTrack(track().id)}
                         dispatch={(commands) => props.dispatch?.(commands)}
                         beginGesture={(options) => props.beginGesture?.(options)}
                         trackLevelDb={(trackId) => props.trackLevelDb?.(trackId) ?? null}
                         isPlaying={() => props.isPlaying?.() ?? false}
                         onDragStart={(event) => {
-                          if (props.dispatch) trackDrag.begin(event, track.id);
+                          if (props.dispatch) trackDrag.begin(event, track().id);
                         }}
                         surface="arrangement"
                         analytics={analytics()}
