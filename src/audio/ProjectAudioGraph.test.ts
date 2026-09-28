@@ -192,6 +192,28 @@ describe("ProjectAudioGraph", () => {
     await runtime.close();
   });
 
+  it("reads every track's level in one pass, for the editor's meters (#447)", async () => {
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport: fakeTransport(),
+    });
+    const project = createReferenceProject({ trackCount: 3, placementCount: 3 });
+    graph.reconcile(buildAudioProjection(project));
+
+    const readings = graph.readTrackLevels();
+    expect([...readings.keys()].sort()).toEqual(
+      project.song.tracks.map((track) => track.id).sort(),
+    );
+    for (const reading of readings.values()) {
+      // Silent: nothing is playing, so neither is anywhere near a clip.
+      expect(reading.rmsDb).toBeLessThanOrEqual(0);
+      expect(reading.peakDb).toBeLessThanOrEqual(0);
+    }
+
+    await graph.dispose();
+    await runtime.close();
+  });
+
   it("editing one track's mixer does not touch other tracks' graphs", async () => {
     const project = createReferenceProject({
       trackCount: 4,
