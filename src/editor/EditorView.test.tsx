@@ -352,7 +352,7 @@ describe("EditorView", () => {
     // It says what it is holding rather than offering a list of the project's
     // own samples to swap between (#225).
     const panel = screen.getByRole("region", { name: "BD instrument" });
-    expect(within(panel).getByText("909 Bass Drum")).toBeInTheDocument();
+    expect(within(sampler()).getByText("909 Bass Drum")).toBeInTheDocument();
     expect(within(panel).queryByRole("combobox")).not.toBeInTheDocument();
   });
 
@@ -375,7 +375,7 @@ describe("EditorView", () => {
     fireEvent.drop(panel, { dataTransfer: transferCarrying(DROPPED_HAT) });
 
     // The sampler names the dropped sound, and the project now carries it.
-    expect(await within(panel).findByText(DROPPED_HAT.name)).toBeInTheDocument();
+    expect(await within(sampler()).findByText(DROPPED_HAT.name)).toBeInTheDocument();
     const changed = transport.named("instrument_changed");
     expect(changed).toHaveLength(1);
     expect(changed[0].params.instrument_type).toBe("sampler");
@@ -383,7 +383,7 @@ describe("EditorView", () => {
     // Carrying the asset and pointing the sampler at it is one transaction, so
     // one undo takes the whole drop back.
     fireEvent.click(await screen.findByRole("button", { name: /^Undo/ }));
-    expect(await within(panel).findByText("909 Bass Drum")).toBeInTheDocument();
+    expect(await within(sampler()).findByText("909 Bass Drum")).toBeInTheDocument();
   });
 
   it("inserts from the keyboard onto the same track a drop would reach", async () => {
@@ -424,8 +424,8 @@ describe("EditorView", () => {
     await vi.waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
     );
-    const panel = await screen.findByRole("region", { name: "BD instrument" });
-    expect(await within(panel).findByText(name)).toBeInTheDocument();
+    await screen.findByRole("region", { name: "BD instrument" });
+    expect(await within(sampler()).findByText(name)).toBeInTheDocument();
 
     // The one-shot path creates no track — the loop path's outcome is not
     // this one's (#281). Merging the two would fail here.
@@ -1420,6 +1420,14 @@ describe("EditorView keyboard shortcuts", () => {
  * Opens the library from the sampler's sample slot (`UI-001`), which is the
  * only way in now that the always-on column is gone.
  */
+/**
+ * The sampler's own panel. Its sound's name also shows in the instrument
+ * header above it (#447), so a lookup by that name is scoped to the panel.
+ */
+function sampler(): HTMLElement {
+  return screen.getByRole("region", { name: "Sampler" });
+}
+
 async function openLibrary(): Promise<HTMLElement> {
   await goToView("Instrument");
   clickAndFlush(await screen.findByRole("button", { name: "Load a sound" }));

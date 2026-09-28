@@ -1,3 +1,4 @@
+import type { JSX } from "@solidjs/web";
 import { Show } from "solid-js";
 import type {
   Gesture,
@@ -5,9 +6,8 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import type { Instrument, Project } from "../domain/entities";
+import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
-import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
 import type { WatchPeaks } from "../instrument/SampleWell";
 import type { LibrarySample } from "../library/assetDrag";
 import InstrumentArea from "./InstrumentArea";
@@ -16,7 +16,6 @@ import InstrumentPanel from "./InstrumentPanel";
 export interface TrackInstrumentProps {
   readonly trackName: string | undefined;
   readonly instrument: Instrument | null;
-  readonly project: Project;
   /** The edited track, when there is one; null while no project is open. */
   readonly trackId: TrackId | null;
   readonly sampleName: string | null;
@@ -24,6 +23,10 @@ export interface TrackInstrumentProps {
   readonly loadSample: (sample: LibrarySample) => void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse: () => void;
+  /** The instrument's header row, at the top of the unit (#447). */
+  readonly header?: JSX.Element;
+  /** A panel the kind switch does not draw: the drum machine's (#447). */
+  readonly children?: JSX.Element;
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
   readonly watchPeaks?: WatchPeaks;
   dispatch(
@@ -33,20 +36,14 @@ export interface TrackInstrumentProps {
 }
 
 /**
- * One track's instrument: the kind picker and whichever panel that kind gets,
+ * One track's instrument: its header row and whichever panel its kind gets,
  * inside a region named for the track so a sound dragged from the library lands
- * on a particular one (#225).
+ * on a particular one (#225). The kind picker sits above it, outside the unit
+ * (#447).
  *
  * Split out of `TrackEditor` (`UI-001`), which used to carry this *and* the
  * track's clip; every prop is the exact value it passed through, so this half
  * of the split is a pure relocation.
- *
- * The kind picker leads (#224). It sits outside `InstrumentPanel` because that
- * component is the switch *between* instrument panels and the picker is what
- * chooses which one — it must also show for a drum machine and for a track with
- * no instrument, neither of which reaches that switch. It is outside the clip
- * editor entirely for the same reason a track with no clip still has an
- * instrument to choose (#228).
  */
 export default function TrackInstrument(props: TrackInstrumentProps) {
   return (
@@ -55,16 +52,7 @@ export default function TrackInstrument(props: TrackInstrumentProps) {
       instrument={props.instrument}
       loadSample={props.loadSample}
     >
-      <Show when={props.trackId}>
-        {(trackId) => (
-          <InstrumentKindPicker
-            trackId={trackId()}
-            project={props.project}
-            instrument={props.instrument}
-            dispatch={props.dispatch}
-          />
-        )}
-      </Show>
+      {props.header}
       <Show when={props.trackId}>
         {(trackId) => (
           <InstrumentPanel
@@ -78,6 +66,7 @@ export default function TrackInstrument(props: TrackInstrumentProps) {
           />
         )}
       </Show>
+      {props.children}
     </InstrumentArea>
   );
 }

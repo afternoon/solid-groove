@@ -7,22 +7,9 @@
   padding: 20px;
 }
 
-.loop-panel-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.loop-panel-title {
-  margin: 0;
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  color: var(--color-foreground-bright);
-}
-
-.loop-panel-name {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
+/* The instrument header is the panel's first row, edge to edge (#447). */
+.loop-panel > .instrument-header {
+  margin: -20px -20px 0;
 }
 
 /* No scale hangs beneath this well, so it keeps only a drawing margin. */

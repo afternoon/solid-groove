@@ -18,6 +18,8 @@ export interface LoopPanelProps {
   readonly asset: Asset | null;
   readonly songTempo: number;
   readonly watchPeaks?: WatchPeaks;
+  /** The instrument header row, the panel's first row (#447). */
+  readonly header?: JSX.Element;
 }
 
 const WIDTH = 960;
@@ -67,18 +69,13 @@ export default function LoopPanel(props: LoopPanelProps): JSX.Element {
 
   return (
     <section class="instrument-panel loop-panel" aria-label={`${props.trackName} loop`}>
+      {props.header}
       <Show
         when={loop()}
         fallback={<p class="loop-panel-empty">This audio track has no loop on it yet.</p>}
       >
         {(content) => (
           <>
-            <div class="loop-panel-head">
-              <span class="loop-panel-title">Loop</span>
-              <span class="loop-panel-name">
-                {props.asset?.name ?? "Loop audio is unavailable"}
-              </span>
-            </div>
             <Well
               title={`Waveform · ${plural(bars(), "bar")}`}
               value={`${content().sourceTempo} BPM`}

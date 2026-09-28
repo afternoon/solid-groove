@@ -8,6 +8,7 @@ import type {
 } from "../commands";
 import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
+import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
 import type { WatchPeaks } from "../instrument/SampleWell";
 import type { LibrarySample } from "../library/assetDrag";
 import DeviceChainPanel from "./DeviceChainPanel";
@@ -97,6 +98,15 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
     };
   }
 
+  /** The header row every instrument unit opens with (#447). */
+  const header = (track: Track) => (
+    <InstrumentHeader
+      facts={instrumentHeaderFacts(props.project, track, selectedPad())}
+      trackName={track.name}
+      audition={audition(track)}
+    />
+  );
+
   return (
     <div class="instrument-view">
       <TrackRail
@@ -117,24 +127,26 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
               class="instrument-view-track"
               style={{ "--track-ink": currentTrack().color }}
             >
-              <InstrumentHeader
-                facts={instrumentHeaderFacts(
-                  props.project,
-                  currentTrack(),
-                  selectedPad(),
+              {/* The kind picker heads the view, outside the instrument it
+                  chooses (#447). A loop track has no instrument to pick. */}
+              <Show when={currentTrack().type !== "audio" && props.instrumentTrackId}>
+                {(trackId) => (
+                  <InstrumentKindPicker
+                    trackId={trackId()}
+                    project={props.project}
+                    instrument={props.instrument}
+                    dispatch={props.dispatch}
+                  />
                 )}
-                trackName={currentTrack().name}
-                audition={audition(currentTrack())}
-              />
-              {/* An audio track has no instrument to pick: it plays a loop,
-                  so it shows the loop's faceplate instead (#447). */}
+              </Show>
+              {/* An audio track plays a loop, so it shows the loop's faceplate
+                  (#447). Either way the header row is the unit's first row. */}
               <Show
                 when={currentTrack().type === "audio"}
                 fallback={
                   <TrackInstrument
                     trackName={currentTrack().name}
                     instrument={props.instrument}
-                    project={props.project}
                     trackId={props.instrumentTrackId}
                     sampleName={props.sampleName}
                     loadSample={props.loadSample}
@@ -142,7 +154,28 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                     watchPeaks={props.watchPeaks}
                     dispatch={props.dispatch}
                     beginGesture={props.beginGesture}
-                  />
+                    header={header(currentTrack())}
+                  >
+                    <Show when={props.drumTrack}>
+                      {(drum) => (
+                        <div class="drum-machine-editor">
+                          <DrumMachinePanel
+                            track={drum()}
+                            assets={props.sampleAssets}
+                            dispatch={props.dispatch}
+                            beginGesture={props.beginGesture}
+                            audition={(padId) => props.auditionPad(drum().id, padId)}
+                            selectedPadId={selectedPad()}
+                            onSelectPad={setSelectedPad}
+                            onBrowseSample={(padId) =>
+                              props.onBrowsePad?.(drum().id, padId)
+                            }
+                            watchPeaks={props.watchPeaks}
+                          />
+                        </div>
+                      )}
+                    </Show>
+                  </TrackInstrument>
                 }
               >
                 <LoopPanel
@@ -151,25 +184,8 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                   asset={trackLoop(props.project, currentTrack()).asset}
                   songTempo={props.project.song.tempo}
                   watchPeaks={props.watchPeaks}
+                  header={header(currentTrack())}
                 />
-              </Show>
-              {/* Under the kind picker, which heads the instrument (#447). */}
-              <Show when={props.drumTrack}>
-                {(drum) => (
-                  <div class="drum-machine-editor">
-                    <DrumMachinePanel
-                      track={drum()}
-                      assets={props.sampleAssets}
-                      dispatch={props.dispatch}
-                      beginGesture={props.beginGesture}
-                      audition={(padId) => props.auditionPad(drum().id, padId)}
-                      selectedPadId={selectedPad()}
-                      onSelectPad={setSelectedPad}
-                      onBrowseSample={(padId) => props.onBrowsePad?.(drum().id, padId)}
-                      watchPeaks={props.watchPeaks}
-                    />
-                  </div>
-                )}
               </Show>
               <DeviceChainPanel
                 track={currentTrack()}
