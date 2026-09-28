@@ -1,6 +1,7 @@
 import type { JSX } from "@solidjs/web";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import type { TrackId } from "../domain/ids";
+import "./LevelMeter.css";
 
 export interface LevelMeterProps {
   readonly trackId: TrackId;

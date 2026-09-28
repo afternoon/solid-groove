@@ -20,22 +20,17 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import { duplicateTrack } from "../domain/duplicateTrack";
 import type { Project, Track } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import {
-  dbToFaderPosition,
-  faderPositionToDb,
-  formatDb,
-  formatPan,
-} from "../domain/faders";
+import { formatPan } from "../domain/faders";
 import type { TrackId } from "../domain/ids";
-import { clampParameterValue, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
+import { TRACK_PAN } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { instrumentKindSpec } from "../instrument/instrumentKinds";
-import { parseParameterInput } from "../instrument/parseValue";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import LevelMeter from "./LevelMeter";
 import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
 import NewTrackButtons from "./NewTrackButtons";
+import { type FaderProps, VolumeFader } from "./TrackFaders";
 import "./trackDrag.css";
 import {
   addTrackOfKind,
@@ -47,13 +42,6 @@ import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
 import { type ShortcutHandlers, useShortcuts } from "../shortcuts";
-
-/**
- * The volume fader's own coordinate space: a normalized fader position, not the
- * decibels it writes. `src/domain/faders.ts` maps between the two so the travel
- * is perceptual rather than linear in dB.
- */
-const FADER_RANGE = { min: 0, max: 1, step: 0.001 } as const;
 
 /** Pan travels in the parameter's own bipolar range, in 1% steps. */
 const PAN_RANGE = {
@@ -571,54 +559,6 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         </button>
       </div>
     </div>
-  );
-}
-
-interface FaderProps {
-  readonly track: Track;
-  readonly value: number;
-  dispatch(
-    commands: RawCommandInput | readonly RawCommandInput[],
-  ): TransactionResult | undefined;
-  beginGesture(options?: GestureOptions): Gesture | undefined;
-}
-
-function VolumeFader(props: FaderProps): JSX.Element {
-  const position = () => dbToFaderPosition(TRACK_VOLUME, props.value);
-  const control = createControlGesture({
-    beginGesture: (options) => props.beginGesture(options),
-    dispatch: (commands) => props.dispatch(commands),
-    summary: () => `Set volume for ${props.track.name}`,
-    command: (value) =>
-      setParameter(
-        {
-          scope: "track",
-          trackId: props.track.id,
-          parameterId: TRACK_VOLUME.id,
-        },
-        faderPositionToDb(TRACK_VOLUME, value),
-      ),
-  });
-
-  return (
-    <FillSlider
-      definition={TRACK_VOLUME}
-      inputId={`mixer-volume-${props.track.id}`}
-      label="Vol"
-      ariaLabel={`Volume for ${props.track.name}`}
-      range={FADER_RANGE}
-      value={position()}
-      displayValue={formatDb(TRACK_VOLUME, props.value)}
-      // The field takes decibels; the fader travels in positions.
-      parseEntry={(text) => {
-        const db = parseParameterInput(TRACK_VOLUME, text, props.value);
-        return db === null
-          ? null
-          : dbToFaderPosition(TRACK_VOLUME, clampParameterValue(TRACK_VOLUME, db));
-      }}
-      onInput={(value) => control.input(value)}
-      onCommit={(value) => control.commit(value)}
-    />
   );
 }
 
