@@ -166,4 +166,20 @@ describe("TransformPanel (CLP-04)", () => {
     clickTransform("Quantize to scale");
     expect(pitches(session)).toEqual([60, 63, 67, 72]);
   });
+
+  it("shows its values formatted, and puts back one that does not read", async () => {
+    const { renderPanel } = await setUp();
+    renderPanel([]);
+    const semitones = screen.getByLabelText("Semitones") as HTMLInputElement;
+    expect(semitones).toHaveValue("+12 st");
+    expect(screen.getByLabelText("Velocity multiplier")).toHaveValue("×1.25");
+
+    setOption("Semitones", "-5");
+    await Promise.resolve();
+    expect(semitones).toHaveValue("−5 st");
+    setOption("Semitones", "lots");
+    await Promise.resolve();
+    expect(semitones).toHaveValue("−5 st");
+    expect(semitones).toHaveAttribute("aria-invalid", "true");
+  });
 });
