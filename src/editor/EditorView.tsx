@@ -360,11 +360,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       return id ? () => selectTrack(id) : undefined;
     },
     // Backspace on the selected track (#537), where its header's trash button
-    // is: not the mixer, and not under the open sequence editor.
+    // is: not the mixer, and not under the open sequence editor. Only a track
+    // the user chose — not the first-track fallback — so a stray key on a
+    // freshly opened project deletes nothing.
     deleteSelectedTrack: () => {
-      const current = track();
-      if (props.view === "mixer" || opened() !== null || !current) return undefined;
-      return () => deleteTrack(trackDeletion, current.id);
+      const id = selectedTrackId();
+      if (props.view === "mixer" || opened() !== null || id === null) return undefined;
+      if (!project()?.song.tracks.some((candidate) => candidate.id === id)) return undefined;
+      return () => deleteTrack(trackDeletion, id);
     },
   });
 

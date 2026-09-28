@@ -1107,6 +1107,10 @@ describe("EditorView track selection keys (#533)", () => {
     expect(trackButton(drums.name)).toBeInTheDocument();
 
     press("Backspace");
+    expect(trackButton(drums.name)).toBeInTheDocument();
+
+    await fireAndFlush(() => fireEvent.click(trackButton(drums.name) as HTMLElement));
+    press("Backspace");
 
     expect(trackButton(drums.name)).not.toBeInTheDocument();
     expect(instrumentShows(`${breakTrack.name} loop`)).toBeInTheDocument();
@@ -1117,6 +1121,7 @@ describe("EditorView track selection keys (#533)", () => {
 
   it("deletes from the arrangement view too, and leaves the mixer alone (#537)", async () => {
     const { drums, breakTrack } = await renderDrums("Arrangement");
+    await fireAndFlush(() => fireEvent.click(trackButton(drums.name) as HTMLElement));
     press("Backspace");
     expect(trackButton(drums.name)).not.toBeInTheDocument();
     expect(trackButton(breakTrack.name)).toBeInTheDocument();
