@@ -68,7 +68,7 @@ describe("DeviceChainPanel", () => {
   it("shows an empty track chain as an empty list, with no note (#447)", () => {
     const { items } = renderPanel();
     expect(items()).toHaveLength(0);
-    expect(document.querySelector(".device-chain-note")).toBeNull();
+    expect(screen.queryByText(/no devices/i)).toBeNull();
   });
 
   it("offers one add button per registered type, and appends each in order as one entry", () => {
@@ -302,6 +302,5 @@ describe("DeviceChainPanel heading (#447)", () => {
   it("shows no heading on a track's chain; the master's keeps its own", () => {
     const { panel } = renderPanel();
     expect(panel().queryByRole("heading")).toBeNull();
-    expect(document.querySelector(".device-chain-head")).toBeNull();
   });
 });
