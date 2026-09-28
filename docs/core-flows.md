@@ -759,6 +759,31 @@ the command layer, and the result survived a reload.
 auto-scroll, audition and Shift/Cmd-click toggling, which are tested at the
 component layer. Touch input.
 
+### CF-018 — A producer picks a key and pulls stray notes into it
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-018.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a synth track and open its clip. The key reads
+   "Chromatic", the root buttons are disabled, and Quantize to scale is disabled.
+2. Add notes at C2 step 1, F♯2 step 5 and D♯2 step 9.
+3. Choose Minor from the scale switch. The root buttons are enabled with C chosen,
+   and the key reads "C minor". The roll shows only C minor rows, plus an F♯2 row
+   marked Off, which holds the F♯2 note. No C♯2 or E2 row is shown.
+4. Press Quantize to scale. The F♯2 note moves onto a C minor row, and the Off row
+   disappears. The C2 and D♯2 notes have not changed.
+5. Undo. The F♯2 note and its Off row are back. Redo. They are gone again.
+6. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the key reads "C minor" and the roll shows only C minor rows, so the key
+was saved with the project. The clip holds three notes, all in C minor.
+
+**Out of scope:** which scale note Quantize to scale picks (the rule is the
+implementer's, tested at the unit layer). Every scale other than Minor. Changing the
+root with notes out of key. Key changes from anywhere other than the piano roll.
+
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a
   retired flow keeps its number and gains a "**Retired:** why" line, because
