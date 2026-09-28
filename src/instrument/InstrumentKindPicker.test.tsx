@@ -89,15 +89,28 @@ describe("InstrumentKindPicker", () => {
     ).toHaveLength(1);
   });
 
-  it("gives a new drum machine pads to load sounds into", () => {
+  it("gives a new drum machine a kit with its sounds loaded (#447)", () => {
     const { dispatch } = renderPicker(createSliceFixtureProject());
     clickAndFlush(screen.getByRole("radio", { name: "Drum machine" }));
 
-    const command = transaction(dispatch)[0] as {
-      payload: { instrument: { kind: string; pads: readonly unknown[] } };
+    const commands = transaction(dispatch);
+    const change = commands.at(-1) as {
+      type: string;
+      payload: {
+        instrument: { kind: string; pads: readonly { assetId: string | null }[] };
+      };
     };
-    expect(command.payload.instrument.kind).toBe("drumMachine");
-    expect(command.payload.instrument.pads.length).toBeGreaterThan(0);
+    expect(change.type).toBe("instrument.change");
+    expect(change.payload.instrument.kind).toBe("drumMachine");
+    expect(change.payload.instrument.pads).toHaveLength(4);
+    // Every pad has a sound; any the project lacks are added in the same
+    // transaction, ahead of the change that refers to them.
+    expect(change.payload.instrument.pads.every((pad) => pad.assetId !== null)).toBe(
+      true,
+    );
+    expect(commands.slice(0, -1).every((command) => command.type === "asset.add")).toBe(
+      true,
+    );
   });
 
   it("does nothing when the track's current kind is picked again", () => {

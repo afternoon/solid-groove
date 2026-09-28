@@ -2,7 +2,7 @@ import { type JSX, Show } from "@solidjs/web";
 import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
-import { changeInstrument, removeNotes } from "../commands";
+import { addAsset, changeInstrument, removeNotes } from "../commands";
 import ConfirmDialog from "../components/ConfirmDialog";
 import type { Instrument, Project } from "../domain/entities";
 import { createFactoryContext, type DomainFactoryContext } from "../domain/factories";
@@ -10,10 +10,10 @@ import type { TrackId } from "../domain/ids";
 import "./InstrumentPanel.css";
 import {
   countPadTriggeredHits,
-  createInstrumentOfKind,
   INSTRUMENT_KINDS,
   type InstrumentKind,
   instrumentKindSpec,
+  newInstrumentOfKind,
   type PadTriggeredHits,
   padTriggeredHits,
 } from "./instrumentKinds";
@@ -74,9 +74,11 @@ export default function InstrumentKindPicker(
   }
 
   function change(kind: InstrumentKind, hits: readonly PadTriggeredHits[]): void {
+    const made = newInstrumentOfKind(factoryContext(), kind, props.project);
     const result = props.dispatch([
       ...hits.map((hit) => removeNotes(hit.clipId, hit.eventIds)),
-      changeInstrument(props.trackId, createInstrumentOfKind(factoryContext(), kind)),
+      ...made.assets.map((asset) => addAsset(asset)),
+      changeInstrument(props.trackId, made.instrument),
     ]);
     if (!result?.ok) return;
     const type = instrumentKindSpec(kind).analyticsType;

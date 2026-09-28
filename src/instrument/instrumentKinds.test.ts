@@ -16,6 +16,7 @@ import {
   INSTRUMENT_KINDS,
   instrumentKindSpec,
   instrumentTypeKey,
+  newInstrumentOfKind,
   padTriggeredHits,
 } from "./instrumentKinds";
 
@@ -148,5 +149,41 @@ describe("changing a track's instrument through the command kernel", () => {
       changeInstrument(trackId, synth()),
     ]);
     expect(cleared.ok).toBe(true);
+  });
+});
+
+describe("newInstrumentOfKind (#447)", () => {
+  it("loads a new drum machine's pads with the starter kit, adding its sounds", () => {
+    const project = createSliceFixtureProject();
+    const made = newInstrumentOfKind(context(), "drumMachine", project);
+    if (made.instrument.kind !== "drumMachine") throw new Error("expected a machine");
+    expect(made.instrument.pads.map((pad) => pad.name)).toEqual(["BD", "SD", "HH", "CP"]);
+    expect(made.assets).toHaveLength(4);
+    expect(made.instrument.pads.map((pad) => pad.assetId)).toEqual(
+      made.assets.map((asset) => asset.id),
+    );
+  });
+
+  it("reuses a kit sound the project already carries", () => {
+    const first = newInstrumentOfKind(
+      context(),
+      "drumMachine",
+      createSliceFixtureProject(),
+    );
+    const project = createSliceFixtureProject();
+    const carried = {
+      ...project,
+      song: { ...project.song, assets: [...project.song.assets, first.assets[0]] },
+    };
+    const made = newInstrumentOfKind(context(), "drumMachine", carried);
+    if (made.instrument.kind !== "drumMachine") throw new Error("expected a machine");
+    expect(made.assets).toHaveLength(3);
+    expect(made.instrument.pads[0].assetId).toBe(first.assets[0].id);
+  });
+
+  it("adds nothing for the other kinds", () => {
+    expect(
+      newInstrumentOfKind(context(), "synth", createSliceFixtureProject()).assets,
+    ).toEqual([]);
   });
 });

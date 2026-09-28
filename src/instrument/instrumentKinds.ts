@@ -1,5 +1,5 @@
 import type { InstrumentTypeKey } from "../analytics/catalog";
-import type { Instrument, Project } from "../domain/entities";
+import type { Asset, Instrument, Project } from "../domain/entities";
 import {
   createDrumMachineInstrument,
   createDrumPad,
@@ -8,6 +8,7 @@ import {
   type DomainFactoryContext,
 } from "../domain/factories";
 import type { ClipId, EventId, TrackId } from "../domain/ids";
+import { createFactoryAsset, factoryLibraryEntry } from "../library/factoryLibrary";
 
 /**
  * The instrument kinds the app offers, and what moving a track between them
@@ -63,11 +64,16 @@ export function instrumentTypeKey(
 
 /**
  * The lanes a new drum machine opens with: the four voices a beat is built
- * from. Each starts empty — a pad's sample is chosen in the drum panel, the
- * same way an existing kit's is (PRD INS-01). More are added from the drum
- * panel's "Add pad" button.
+ * from, each loaded with a basic electronic factory sound so the machine plays
+ * the moment it exists (#447). More are added from the drum panel's "Add pad"
+ * button, and any pad's sound can be swapped from the library.
  */
-const DEFAULT_PAD_NAMES = ["BD", "SD", "HH", "CP"] as const;
+const STARTER_KIT = [
+  { name: "BD", sound: "starterKick" },
+  { name: "SD", sound: "starterSnare" },
+  { name: "HH", sound: "starterHat" },
+  { name: "CP", sound: "starterClap" },
+] as const;
 
 /**
  * A fresh instrument of `kind`, at its defaults. Every ID it needs is minted
@@ -84,11 +90,46 @@ export function createInstrumentOfKind(
       return createSamplerInstrument();
     case "drumMachine":
       return createDrumMachineInstrument(
-        DEFAULT_PAD_NAMES.map((name) => createDrumPad(context, { name })),
+        STARTER_KIT.map(({ name }) => createDrumPad(context, { name })),
       );
     case "synth":
       return createSynthInstrument();
   }
+}
+
+/** An instrument to put on a track in `project`, and the assets it needs added. */
+export interface NewInstrument {
+  readonly instrument: Instrument;
+  /** Assets the instrument refers to that the project does not carry yet. */
+  readonly assets: readonly Asset[];
+}
+
+/**
+ * What both surfaces that create an instrument use: `createInstrumentOfKind`,
+ * except that a drum machine arrives with its starter kit loaded. A sound the
+ * project already carries is reused rather than added twice.
+ */
+export function newInstrumentOfKind(
+  context: DomainFactoryContext,
+  kind: InstrumentKind,
+  project: Project,
+): NewInstrument {
+  if (kind !== "drumMachine") {
+    return { instrument: createInstrumentOfKind(context, kind), assets: [] };
+  }
+  const added: Asset[] = [];
+  const pads = STARTER_KIT.map(({ name, sound }) => {
+    const { storageRef } = factoryLibraryEntry(sound);
+    let asset = [...project.song.assets, ...added].find(
+      (candidate) => candidate.storageRef === storageRef,
+    );
+    if (!asset) {
+      asset = createFactoryAsset(context, sound);
+      added.push(asset);
+    }
+    return createDrumPad(context, { name, assetId: asset.id });
+  });
+  return { instrument: createDrumMachineInstrument(pads), assets: added };
 }
 
 /** Notes in one clip that trigger a pad rather than a pitch. */
