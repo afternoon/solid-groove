@@ -13,7 +13,11 @@ import {
 import type { Instrument } from "../domain/entities";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
 import type { TrackId } from "../domain/ids";
-import { readInstrumentParameter, SYNTH_FILTER_CUTOFF } from "../domain/parameters";
+import {
+  readInstrumentParameter,
+  SYNTH_FILTER_CUTOFF,
+  SYNTH_FILTER_RESONANCE,
+} from "../domain/parameters";
 import { fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { fillExtent, moveTo, recordingGesture, testAnalytics } from "./panelTesting";
@@ -178,5 +182,46 @@ describe("SynthPanel", () => {
     const { audition } = renderPanel();
     fireEvent.click(screen.getByRole("button", { name: "Audition" }));
     expect(audition).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SynthPanel faceplate (#447)", () => {
+  it("draws the oscillator, filter and envelope in wells over their controls", () => {
+    renderPanel();
+    const container = document.body;
+    expect(container.querySelector(".oscillator-well")?.textContent).toContain(
+      "Sawtooth",
+    );
+    expect(container.querySelector(".filter-well .well-line")).not.toBeNull();
+    expect(container.querySelectorAll(".envelope-well .drag-handle")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: "Low-pass filter" })).toBeInTheDocument();
+  });
+
+  it("drags cutoff and resonance together as one history entry", () => {
+    const { history, instrument } = renderLivePanel();
+    const surface = document.querySelector(".filter-well .drag-surface") as HTMLElement;
+    surface.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 300, height: 100, right: 300, bottom: 100 }) as DOMRect;
+    const pointer = (type: string, x: number, y: number) =>
+      fireAndFlush(() =>
+        fireEvent(
+          surface,
+          new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }),
+        ),
+      );
+    const entries = history.entries.length;
+
+    pointer("pointerdown", 150, 50);
+    pointer("pointermove", 200, 25);
+    pointer("pointerup", 200, 25);
+
+    const cutoff = readInstrumentParameter(SYNTH_FILTER_CUTOFF, instrument().parameters);
+    const resonance = readInstrumentParameter(
+      SYNTH_FILTER_RESONANCE,
+      instrument().parameters,
+    );
+    expect(cutoff).toBeCloseTo(20 * 1000 ** (2 / 3), 0);
+    expect(resonance).toBeCloseTo(SYNTH_FILTER_RESONANCE.max * 0.75);
+    expect(history.entries.length).toBe(entries + 1);
   });
 });

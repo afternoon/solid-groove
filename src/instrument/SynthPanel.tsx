@@ -11,6 +11,7 @@ import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import {
   bareParameterId,
+  type ParameterDefinition,
   readInstrumentParameter,
   SYNTH_AMP_ATTACK,
   SYNTH_AMP_DECAY,
@@ -22,10 +23,14 @@ import {
   SYNTH_WAVEFORMS,
   synthWaveform,
 } from "../domain/parameters";
+import ControlGroup from "./ControlGroup";
+import EnvelopeWell from "./EnvelopeWell";
 import FillSlider from "./FillSlider";
+import FilterWell from "./FilterWell";
 import { formatInstrumentValue } from "./formatValue";
 import "./InstrumentPanel.css";
 import OptionGroup from "./OptionGroup";
+import OscillatorWell from "./OscillatorWell";
 import { WaveformIcon } from "./waveformIcons";
 
 export interface SynthPanelProps {
@@ -41,19 +46,21 @@ export interface SynthPanelProps {
   readonly analytics?: Analytics;
 }
 
-const SLIDERS = [
+const FILTER_SLIDERS = [SYNTH_FILTER_CUTOFF, SYNTH_FILTER_RESONANCE];
+const ENVELOPE_SLIDERS = [
   SYNTH_AMP_ATTACK,
   SYNTH_AMP_DECAY,
   SYNTH_AMP_SUSTAIN,
   SYNTH_AMP_RELEASE,
-  SYNTH_FILTER_CUTOFF,
-  SYNTH_FILTER_RESONANCE,
 ];
 
 /**
- * The reusable synth voice panel (PRD INS-01, mock `05a-synth-voice`): an
- * oscillator waveform option group and vertical fill-sliders for the amp
- * envelope (ADSR) and the resonant low-pass filter (cutoff, resonance).
+ * The reusable synth voice panel (PRD INS-01), laid out in the faceplate's
+ * columns (#447): each section is a well that draws what it does over the
+ * group of controls that set it — the oscillator over its waveform switch, the
+ * low-pass response over cutoff and resonance, the amp envelope over ADSR. The
+ * filter point and the envelope's corners can be dragged on the wells; the
+ * faders and their value fields set the same parameters from the keyboard.
  *
  * Every control dispatches a validated `parameter.set` command in the
  * `instrument` scope — never a direct project mutation — so edits are
@@ -82,57 +89,102 @@ export default function SynthPanel(props: SynthPanelProps): JSX.Element {
 
   const currentWaveform = () =>
     synthWaveform(readInstrumentParameter(SYNTH_WAVEFORM, props.instrument.parameters));
+  const read = (definition: ParameterDefinition) =>
+    readInstrumentParameter(definition, props.instrument.parameters);
+
+  /** A well's drag writes the same `parameter.set` a fader does. */
+  const wellCommand = (definition: ParameterDefinition, value: number) =>
+    parameterCommand(bareParameterId(definition.id), value);
+  const wellEdits = {
+    command: wellCommand,
+    dispatch: props.dispatch,
+    beginGesture: props.beginGesture,
+    onCommit: () => analytics().logFeatureFirstUse("synth"),
+  };
+
+  function slider(definition: ParameterDefinition): JSX.Element {
+    const control = createControlGesture({
+      beginGesture: (options) => props.beginGesture(options),
+      dispatch: (commands) => props.dispatch(commands),
+      summary: () => `Set ${definition.label}`,
+      command: (next) => parameterCommand(bareParameterId(definition.id), next),
+    });
+    return (
+      <FillSlider
+        definition={definition}
+        value={read(definition)}
+        displayValue={formatInstrumentValue(definition, read(definition))}
+        onInput={(next) => control.input(next)}
+        onCommit={(next) => {
+          control.commit(next);
+          analytics().logFeatureFirstUse("synth");
+        }}
+      />
+    );
+  }
 
   return (
     <section class="instrument-panel synth-panel" aria-label="Synth voice">
-      <div class="instrument-panel-groups">
-        <div class="instrument-panel-group">
-          <h3 class="instrument-panel-heading">Oscillator</h3>
-          <OptionGroup
-            legend="Waveform"
-            value={currentWaveform()}
-            options={SYNTH_WAVEFORMS.map((waveform) => ({
-              value: waveform,
-              label: capitalize(waveform),
-              icon: <WaveformIcon waveform={waveform} />,
-            }))}
-            onSelect={(waveform) =>
-              commit(
-                bareParameterId(SYNTH_WAVEFORM.id),
-                SYNTH_WAVEFORMS.indexOf(waveform),
-              )
-            }
+      <div class="faceplate-grid">
+        <div class="faceplate-column span-3">
+          <OscillatorWell
+            waveform={currentWaveform()}
+            label={capitalize(currentWaveform())}
           />
+          <ControlGroup title="Waveform">
+            <OptionGroup
+              legend="Waveform"
+              fill
+              value={currentWaveform()}
+              options={SYNTH_WAVEFORMS.map((waveform) => ({
+                value: waveform,
+                label: capitalize(waveform),
+                icon: <WaveformIcon waveform={waveform} />,
+              }))}
+              onSelect={(waveform) =>
+                commit(
+                  bareParameterId(SYNTH_WAVEFORM.id),
+                  SYNTH_WAVEFORMS.indexOf(waveform),
+                )
+              }
+            />
+          </ControlGroup>
         </div>
-        <div class="instrument-panel-group instrument-panel-sliders">
-          <h3 class="instrument-panel-heading">Amp &amp; Filter</h3>
-          <div class="instrument-panel-slider-row">
-            <For each={SLIDERS}>
-              {(definition) => {
-                const value = () =>
-                  readInstrumentParameter(definition, props.instrument.parameters);
-                const control = createControlGesture({
-                  beginGesture: (options) => props.beginGesture(options),
-                  dispatch: (commands) => props.dispatch(commands),
-                  summary: () => `Set ${definition.label}`,
-                  command: (next) =>
-                    parameterCommand(bareParameterId(definition.id), next),
-                });
-                return (
-                  <FillSlider
-                    definition={definition}
-                    value={value()}
-                    displayValue={formatInstrumentValue(definition, value())}
-                    onInput={(next) => control.input(next)}
-                    onCommit={(next) => {
-                      control.commit(next);
-                      analytics().logFeatureFirstUse("synth");
-                    }}
-                  />
-                );
-              }}
-            </For>
-          </div>
+        <div class="faceplate-column span-4">
+          <FilterWell
+            shape="lowpass"
+            cutoff={SYNTH_FILTER_CUTOFF}
+            resonance={SYNTH_FILTER_RESONANCE}
+            values={{
+              cutoff: read(SYNTH_FILTER_CUTOFF),
+              resonance: read(SYNTH_FILTER_RESONANCE),
+            }}
+            readout={`${formatInstrumentValue(SYNTH_FILTER_CUTOFF, read(SYNTH_FILTER_CUTOFF))} · Q ${formatInstrumentValue(SYNTH_FILTER_RESONANCE, read(SYNTH_FILTER_RESONANCE))}`}
+            {...wellEdits}
+          />
+          <ControlGroup title="Low-pass filter">
+            <For each={FILTER_SLIDERS}>{(definition) => slider(definition)}</For>
+          </ControlGroup>
+        </div>
+        <div class="faceplate-column span-5">
+          <EnvelopeWell
+            definitions={{
+              attack: SYNTH_AMP_ATTACK,
+              decay: SYNTH_AMP_DECAY,
+              sustain: SYNTH_AMP_SUSTAIN,
+              release: SYNTH_AMP_RELEASE,
+            }}
+            times={{
+              attack: read(SYNTH_AMP_ATTACK),
+              decay: read(SYNTH_AMP_DECAY),
+              sustain: read(SYNTH_AMP_SUSTAIN),
+              release: read(SYNTH_AMP_RELEASE),
+            }}
+            {...wellEdits}
+          />
+          <ControlGroup title="Amp envelope">
+            <For each={ENVELOPE_SLIDERS}>{(definition) => slider(definition)}</For>
+          </ControlGroup>
         </div>
       </div>
       <button

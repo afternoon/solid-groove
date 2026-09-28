@@ -68,7 +68,11 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
           }
         >
           {(currentTrack) => (
-            <>
+            // The track's own colour is the ink its wells draw in (#447).
+            <div
+              class="instrument-view-track"
+              style={{ "--track-ink": currentTrack().color }}
+            >
               <Show when={props.drumTrack}>
                 {(drum) => (
                   <div class="drum-machine-editor">
@@ -103,7 +107,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                 dispatch={props.dispatch}
                 beginGesture={props.beginGesture}
               />
-            </>
+            </div>
           )}
         </Show>
       </div>
