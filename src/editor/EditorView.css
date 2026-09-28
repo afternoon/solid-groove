@@ -15,6 +15,8 @@
 	   own. This is the space each view leaves for it, which is what keeps the
 	   bottom of a full-bleed view from being permanently covered (UI-001). */
   --view-dock-clearance: 120px;
+  /* What the sticky header covers at the top of a scrolling view. */
+  --editor-header-height: 40px;
 
   width: 100vw;
   height: 100vh;
@@ -334,4 +336,59 @@
   flex-shrink: 0;
   padding: 2px var(--size-divider);
   background-color: var(--color-background-secondary);
+}
+
+/*
+ * The Instrument and Mixer views scroll the document (#447): one scroller, so
+ * a wheel or a swipe always moves the same thing. Their content runs as long
+ * as it needs; the header stays pinned above it, the dock floats over it, and
+ * the view's own background runs to the bottom of the window, with room left
+ * under the last control so the dock never covers it. The arrangement keeps
+ * the bounded shell above: its timeline is a viewport that scrolls itself.
+ */
+.editor.editor-instrument,
+.editor.editor-mixer {
+  height: auto;
+  min-height: 100vh;
+  padding-bottom: 0;
+  overflow: visible;
+}
+
+.editor-instrument .editor-header,
+.editor-mixer .editor-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin: calc(-1 * var(--size-divider)) calc(-1 * var(--size-divider)) 0;
+  padding: var(--size-divider);
+  background-color: var(--color-background);
+}
+
+.editor-instrument .instrument-view,
+.editor-mixer .mixer-view {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  overflow: visible;
+}
+
+.editor-instrument .instrument-view {
+  flex-direction: row;
+}
+
+/* The racks run to the bottom of the window, and carry the dock's clearance
+   below their last unit so the dock floats over the rack, not a unit. */
+.editor-instrument .instrument-view-body,
+.editor-mixer .mixer-master {
+  padding-bottom: calc(32px + var(--view-dock-clearance));
+}
+
+.editor-mixer .mixer {
+  flex: 1 1 auto;
+  padding-bottom: 0;
+}
+
+.editor-mixer .mixer-master {
+  flex: 1 1 auto;
+  margin: 0 -8px;
 }
