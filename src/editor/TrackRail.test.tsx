@@ -24,6 +24,8 @@ describe("TrackRail reorder (#447)", () => {
         selectedTrackId={null}
         onSelect={() => {}}
         onReorder={onReorder}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
       />
     ));
     stubTrackDragLayout({
@@ -33,7 +35,8 @@ describe("TrackRail reorder (#447)", () => {
       zoneLength: 240,
       order: () => tracks().map((track) => track.id),
     });
-    const row = (track: Track) => screen.getByRole("button", { name: track.name });
+    const row = (track: Track) =>
+      screen.getByRole("button", { name: `Edit ${track.name}` });
 
     dragTrackHandle(row(c), { x: 50, y: 2 }, () => {
       const shown = [...document.querySelectorAll<HTMLElement>("[data-track-drag]")];
@@ -47,7 +50,15 @@ describe("TrackRail reorder (#447)", () => {
 
   it("is not a drag handle without a reorder handler", () => {
     const [a] = createReferenceProject({ trackCount: 1, placementCount: 1 }).song.tracks;
-    render(() => <TrackRail tracks={[a]} selectedTrackId={null} onSelect={() => {}} />);
+    render(() => (
+      <TrackRail
+        tracks={[a]}
+        selectedTrackId={null}
+        onSelect={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
     expect(document.querySelector("[data-track-drag]")).toBeNull();
   });
 });

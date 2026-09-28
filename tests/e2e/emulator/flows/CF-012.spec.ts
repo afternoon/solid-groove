@@ -38,7 +38,10 @@ const mixerSelect = (page: Page, index: number): Locator =>
     .getByRole("button", { name: /^Edit / })
     .nth(index);
 const railSelect = (page: Page, index: number): Locator =>
-  page.getByRole("list", { name: "Tracks" }).getByRole("button").nth(index);
+  page
+    .getByRole("list", { name: "Tracks" })
+    .getByRole("button", { name: /^Edit / })
+    .nth(index);
 
 /**
  * The selected track's device chain, in the slot UI-001 reserved for it, and

@@ -47,7 +47,7 @@ const mixerStrip = (page: Page, track: string): Locator =>
 
 /** The instrument view's track rail (#304). */
 const trackRail = (page: Page): Locator =>
-  page.getByRole("list", { name: "Tracks" }).getByRole("button");
+  page.getByRole("list", { name: "Tracks" }).getByRole("button", { name: /^Edit / });
 
 const dropIndicator = (page: Page): Locator => page.getByTestId("track-drop-indicator");
 

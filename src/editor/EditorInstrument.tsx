@@ -142,6 +142,11 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
         tracks={props.project.song.tracks}
         selectedTrackId={props.track?.id ?? null}
         onSelect={props.onSelectTrack}
+        dispatch={props.dispatch}
+        beginGesture={props.beginGesture}
+        trackLevelDb={props.trackLevelDb}
+        isPlaying={props.isPlaying}
+        analytics={analytics}
         onReorder={(trackId, toIndex) =>
           moveTrack(
             { project: () => props.project, dispatch: props.dispatch, analytics },

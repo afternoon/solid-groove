@@ -131,11 +131,6 @@ const MASKED_NAMES: readonly {
     renders: "the track name, editable in place",
   },
   {
-    file: "editor/TrackRail.tsx",
-    anchor: "track-rail-name",
-    renders: "track names down the instrument view's rail",
-  },
-  {
     file: "editor/TrackClipEditor.tsx",
     anchor: "track-name",
     renders: "the selected track's name",
@@ -153,7 +148,7 @@ const MASKED_NAMES: readonly {
   {
     file: "editor/TrackHeader.tsx",
     anchor: "track-header-name",
-    renders: "track names down the arrangement's header column",
+    renders: "track names down the arrangement's header column and the rail",
   },
   {
     file: "arrangement/ArrangementView.tsx",
