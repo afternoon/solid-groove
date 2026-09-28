@@ -6,6 +6,7 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import {
   CommandHistory,
+  MAX_DRUM_PADS,
   type RawCommandInput,
   type TransactionResult,
 } from "../commands";
@@ -14,9 +15,9 @@ import { createDrumMachineFixtureProject } from "../domain/fixtures";
 import type { PadId } from "../domain/ids";
 import { fillExtent, moveTo, testAnalytics } from "../instrument/panelTesting";
 import type { WatchPeaks } from "../instrument/SampleWell";
-import { fireAndFlush } from "../testing/events";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
-import DrumMachinePanel from "./DrumMachinePanel";
+import DrumMachinePanel, { nextPadName } from "./DrumMachinePanel";
 
 afterEach(() => cleanup());
 
@@ -285,3 +286,79 @@ describe("DrumMachinePanel selected pad (#447)", () => {
     ).toContain(second.name);
   });
 });
+
+describe("DrumMachinePanel adding a pad (#447)", () => {
+  it("adds an empty pad at the end and opens it, as one undoable entry", () => {
+    const { history, pad } = renderLivePanel();
+    const drumPads = () => {
+      const track = history.project.song.tracks.find(
+        (candidate) => candidate.instrument?.kind === "drumMachine",
+      );
+      return track?.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+    };
+    const before = drumPads().length;
+
+    clickAndFlush(screen.getByRole("button", { name: /^Add pad to / }));
+
+    expect(drumPads()).toHaveLength(before + 1);
+    const added = drumPads()[before];
+    expect(added.name).toBe(`Pad ${before + 1}`);
+    expect(added.assetId).toBeNull();
+    expect(history.entries).toHaveLength(1);
+    // The new pad opens under its row, ready for its sample.
+    expect(
+      screen.getByRole("heading", { name: `${added.name} · sound` }),
+    ).toBeInTheDocument();
+
+    fireAndFlush(() => {
+      history.undo();
+    });
+    expect(drumPads()).toHaveLength(before);
+    expect(pad().name).toBe(drumPads()[0].name);
+  });
+
+  it("names a new pad after the first free number", () => {
+    const { track } = fixtureDrumTrack();
+    const existing =
+      track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+    expect(nextPadName([])).toBe("Pad 1");
+    expect(nextPadName([{ ...existing[0], name: "Pad 2" }])).toBe("Pad 3");
+  });
+
+  it("stops at the drum machine's pad limit", () => {
+    const { track } = fixtureDrumTrack();
+    const [first] = track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+    const full: Track = {
+      ...track,
+      instrument: {
+        kind: "drumMachine",
+        parameters: {},
+        pads: Array.from({ length: MAX_DRUM_PADS }, (_, index) => ({
+          ...first,
+          id: `pad_${index}` as PadId,
+          name: `P${index}`,
+        })),
+      },
+    };
+    render(() => (
+      <DrumMachinePanel
+        track={full}
+        assets={[]}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+        analytics={testAnalytics().analytics}
+      />
+    ));
+    expect(
+      screen.getByRole("button", { name: `Add pad to ${full.name}` }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(`A drum machine holds at most ${MAX_DRUM_PADS} pads.`),
+    ).toBeInTheDocument();
+  });
+});
+
+/** The fixture's drum-machine track, on its own. */
+function fixtureDrumTrack() {
+  return { track: drumTrackOf(createDrumMachineFixtureProject()) };
+}
