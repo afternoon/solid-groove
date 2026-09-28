@@ -13,7 +13,11 @@ import {
 import type { Instrument } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import type { AssetId, TrackId } from "../domain/ids";
-import { readInstrumentParameter, SAMPLER_PITCH } from "../domain/parameters";
+import {
+  readInstrumentParameter,
+  SAMPLER_PITCH,
+  SAMPLER_SAMPLE_START,
+} from "../domain/parameters";
 import { fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { fillExtent, moveTo, recordingGesture, testAnalytics } from "./panelTesting";
@@ -184,5 +188,37 @@ describe("SamplerPanel", () => {
     const { audition } = renderPanel();
     fireEvent.click(screen.getByRole("button", { name: "Audition" }));
     expect(audition).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SamplerPanel faceplate (#447)", () => {
+  it("sets the sample's start by dragging its marker, as one history entry", () => {
+    const { history, instrument } = renderLivePanel();
+    const surface = document.querySelector(".sample-well .drag-surface") as HTMLElement;
+    surface.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 400, height: 100, right: 400, bottom: 100 }) as DOMRect;
+    const pointer = (type: string, x: number) =>
+      fireAndFlush(() =>
+        fireEvent(
+          surface,
+          new MouseEvent(type, { bubbles: true, clientX: x, clientY: 50 }),
+        ),
+      );
+    const entries = history.entries.length;
+
+    pointer("pointerdown", 20);
+    pointer("pointermove", 100);
+    pointer("pointerup", 100);
+
+    expect(
+      readInstrumentParameter(SAMPLER_SAMPLE_START, instrument().parameters),
+    ).toBeCloseTo(0.25);
+    expect(history.entries.length).toBe(entries + 1);
+  });
+
+  it("draws the envelope in a well over the ADSR faders", () => {
+    renderPanel();
+    expect(document.querySelectorAll(".envelope-well .drag-handle")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: "Amp envelope" })).toBeInTheDocument();
   });
 });

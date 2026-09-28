@@ -512,6 +512,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         void audio.auditionPad(trackId, padId)
                       }
                       onBrowse={() => openLibrary()}
+                      watchPeaks={audio.watchAssetPeaks}
                       onSelectTrack={selectTrack}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}

@@ -11,7 +11,8 @@
 
 /* The faceplate module (#447): 1000px at most, on a 12-column grid. A column
    is a well over the group of controls it draws. */
-.synth-panel {
+.synth-panel,
+.sampler-panel {
   box-sizing: border-box;
   max-width: 1000px;
   gap: 20px;
@@ -42,6 +43,36 @@
 
 .faceplate-column.span-5 {
   grid-column: span 5;
+}
+
+.faceplate-column.span-7 {
+  grid-column: span 7;
+}
+
+/* Under the sampler's waveform: the sound's name beside its Playback faders,
+   on the same seven columns the waveform spans. */
+.sampler-under-sample {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sampler-under-sample > .sampler-sample-group {
+  grid-column: span 4;
+  min-width: 0;
+  gap: 14px;
+  padding: 0;
+  background: none;
+}
+
+.sampler-under-sample > .control-group {
+  grid-column: span 3;
+}
+
+/* The faceplate's groups carry no card of their own; the wells do the framing. */
+.faceplate-column .control-group.instrument-panel-group {
+  padding: 0;
+  background: none;
 }
 
 .faceplate-column > .well {
@@ -103,18 +134,6 @@
   gap: 12px;
 }
 
-/* The sample group holds prose — the loaded sound's name and the drag hint —
-   while its neighbours are slider rows of a fixed width. Prose sized to its own
-   longest line is what pushed the three groups past the panel and wrapped the
-   amp envelope onto a row of its own (#246). A zero flex-basis keeps it out of
-   the wrap calculation entirely: the slider groups take the width they need,
-   this one grows into whatever is left, and its text wraps inside that instead
-   of setting it. `min-width` lets it fall below the hint's own line length. */
-.sampler-sample-group {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
 .sampler-load-hint {
   margin: 0;
   font-size: var(--font-size-tiny);
@@ -141,4 +160,21 @@
 .instrument-panel-audition:hover {
   background-color: var(--color-accent);
   color: var(--color-background);
+}
+
+/* The way into the library from the sample slot: a plain filled button, as
+   wide as its words. */
+.sampler-load-button {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.sampler-load-button:hover {
+  background-color: var(--color-background-hover);
 }

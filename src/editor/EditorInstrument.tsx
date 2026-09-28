@@ -8,6 +8,7 @@ import type {
 } from "../commands";
 import type { Asset, Instrument, Project, Track } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
+import type { WatchPeaks } from "../instrument/SampleWell";
 import type { LibrarySample } from "../library/assetDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import DeviceChainPanel from "./DeviceChainPanel";
@@ -31,6 +32,8 @@ export interface EditorInstrumentProps {
   readonly auditionPad: (trackId: TrackId, padId: PadId) => void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse: () => void;
+  /** Follows a sound's decoded waveform for the sampler's well (#447). */
+  readonly watchPeaks?: WatchPeaks;
   onSelectTrack(trackId: TrackId): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
@@ -99,6 +102,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                 loadSample={props.loadSample}
                 audition={props.audition}
                 onBrowse={props.onBrowse}
+                watchPeaks={props.watchPeaks}
                 dispatch={props.dispatch}
                 beginGesture={props.beginGesture}
               />

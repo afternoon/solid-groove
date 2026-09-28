@@ -8,6 +8,7 @@ import type {
 import type { Instrument, Project } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
+import type { WatchPeaks } from "../instrument/SampleWell";
 import type { LibrarySample } from "../library/assetDrag";
 import InstrumentArea from "./InstrumentArea";
 import InstrumentPanel from "./InstrumentPanel";
@@ -24,6 +25,8 @@ export interface TrackInstrumentProps {
   readonly audition: () => void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse: () => void;
+  /** Follows a sound's decoded waveform for the sampler's well (#447). */
+  readonly watchPeaks?: WatchPeaks;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -73,6 +76,7 @@ export default function TrackInstrument(props: TrackInstrumentProps) {
             beginGesture={props.beginGesture}
             audition={props.audition}
             onBrowse={props.onBrowse}
+            watchPeaks={props.watchPeaks}
           />
         )}
       </Show>
