@@ -11,6 +11,7 @@ import type {
 import type { Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import TrackHeader from "./TrackHeader";
+import type { TrackLevel } from "./trackLevels";
 import { useTrackDrag } from "./useTrackDrag";
 import "./trackDrag.css";
 import "./TrackRail.css";
@@ -26,8 +27,7 @@ export interface TrackRailProps {
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Live post-fader level of a track, for its header's meter. */
-  trackLevelDb?(trackId: string): number | null;
-  isPlaying?(): boolean;
+  trackLevel?(trackId: TrackId): TrackLevel | null;
   readonly analytics?: Analytics;
 }
 
@@ -98,8 +98,7 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
               onSelect={() => props.onSelect(track().id)}
               dispatch={props.dispatch}
               beginGesture={props.beginGesture}
-              trackLevelDb={(trackId) => props.trackLevelDb?.(trackId) ?? null}
-              isPlaying={() => props.isPlaying?.() ?? false}
+              trackLevel={(trackId) => props.trackLevel?.(trackId) ?? null}
               onDragStart={(event) => {
                 if (props.onReorder) drag.begin(event, track().id);
               }}

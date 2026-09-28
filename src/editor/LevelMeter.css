@@ -1,5 +1,6 @@
 /* A meter's one state, in the product's one status colour pair (#447):
-   green while the track is under 0 dBFS RMS, red while it is over. */
+   green while the track peaks under 0 dBFS, red for a moment after it goes
+   over. */
 .mixer-meter-fill {
   background-color: var(--signal-ok);
 }

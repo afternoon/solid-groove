@@ -19,6 +19,7 @@ import {
   type AudioSongProjection,
   buildAudioProjection,
 } from "../projection/audioProjection";
+import { createTrackLevels, type TrackLevel } from "./trackLevels";
 
 /**
  * Maps an asset's library kind to the `asset_load_failed` `asset_type` value
@@ -49,11 +50,12 @@ export interface ProjectAudioControls {
   continueFromStop(): Promise<void>;
   seekTicks(ticks: number): void;
   /**
-   * The current post-fader peak level of a track, in dBFS, or `null` when no
-   * graph is live yet or the track has no meter. The mixer polls this for a
-   * per-track level display (PRD TRK-02); reading a meter emits no telemetry.
+   * A track's post-fader level, reactively, or `null` when it is not sounding
+   * (PRD TRK-02, #447). Every track's meter is read once per frame while the
+   * transport plays, in the same loop as the playhead, so a view's meters
+   * cost no loop of their own; reading a meter emits no telemetry.
    */
-  trackLevelDb(trackId: string): number | null;
+  trackLevel(trackId: TrackId): TrackLevel | null;
   toggleMetronome(): void;
   /**
    * Plays one drum pad immediately (a panel audition, PRD INS-01). It resumes
@@ -180,6 +182,7 @@ export function useProjectAudio(
   const [loopEnabled, setLoopEnabled] = createSignal(false);
   const [loop, setLoop] = createSignal<LoopRange | null>(null);
   const [metronomeEnabled, setMetronomeEnabled] = createSignal(false);
+  const levels = createTrackLevels();
 
   let graph: ProjectAudioGraph | null = null;
   let transport: TransportController | null = null;
@@ -352,10 +355,12 @@ export function useProjectAudio(
     const tick = (): void => {
       if (!transport) return;
       setPositionTicks(transport.positionTicks);
+      levels.sample(graph?.readTrackLevels() ?? new Map());
       if (transport.isPlaying) {
         frameHandle = requestFrame(tick);
       } else {
         frameHandle = null;
+        levels.clear();
       }
     };
     frameHandle = requestFrame(tick);
@@ -366,6 +371,7 @@ export function useProjectAudio(
       cancelFrame(frameHandle);
       frameHandle = null;
     }
+    levels.clear();
   }
 
   /**
@@ -470,17 +476,6 @@ export function useProjectAudio(
     }
   }
 
-  function trackLevelDb(trackId: string): number | null {
-    const meter = graph?.trackMeter(
-      trackId as Parameters<ProjectAudioGraph["trackMeter"]>[0],
-    );
-    if (!meter) return null;
-    const value = meter.getValue();
-    // Tone.Meter returns a single number in mono or a per-channel array in
-    // stereo; the level display wants one peak, so take the louder channel.
-    return Array.isArray(value) ? Math.max(...value) : value;
-  }
-
   function seekTicks(ticks: number): void {
     transport?.seekTicks(ticks);
     setPositionTicks(transport?.positionTicks ?? 0);
@@ -537,7 +532,7 @@ export function useProjectAudio(
     toggle,
     continueFromStop,
     seekTicks,
-    trackLevelDb,
+    trackLevel: levels.level,
     toggleMetronome,
     auditionPad,
     auditionTrack,

@@ -483,7 +483,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           project={currentProject()}
                           playheadTicks={audio.positionTicks}
                           isPlaying={audio.isPlaying}
-                          trackLevelDb={audio.trackLevelDb}
+                          trackLevel={audio.trackLevel}
                           dispatch={session.dispatch}
                           beginGesture={session.beginGesture}
                           onEditingActionsReady={setArrangementEditingActions}
@@ -559,8 +559,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       }
                       watchPeaks={audio.watchAssetPeaks}
                       watchTriggers={audio.watchTriggers}
-                      trackLevelDb={audio.trackLevelDb}
-                      isPlaying={audio.isPlaying}
+                      trackLevel={audio.trackLevel}
                       onSelectTrack={selectTrack}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}
@@ -573,8 +572,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         analytics={props.analytics}
                         dispatch={session.dispatch}
                         beginGesture={session.beginGesture}
-                        trackLevelDb={audio.trackLevelDb}
-                        isPlaying={audio.isPlaying}
+                        trackLevel={audio.trackLevel}
                         selectedTrackId={track()?.id ?? null}
                         onSelectTrack={selectTrack}
                       />

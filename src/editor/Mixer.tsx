@@ -31,6 +31,7 @@ import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
 import NewTrackButtons from "./NewTrackButtons";
 import { type FaderProps, VolumeFader } from "./TrackFaders";
+import type { TrackLevel } from "./trackLevels";
 import "./trackDrag.css";
 import {
   addTrackOfKind,
@@ -59,10 +60,8 @@ export interface MixerProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
-  /** Live post-fader level of a track, in dBFS, or null when no graph is up. */
-  trackLevelDb(trackId: string): number | null;
-  /** Whether playback is running — the meter only polls while it is. */
-  isPlaying(): boolean;
+  /** A track's live level, reactively (`useProjectAudio().trackLevel`). */
+  trackLevel(trackId: TrackId): TrackLevel | null;
   /**
    * The track the editor is showing, marked as selected here (#228). Optional,
    * like `onSelectTrack`: a mixer rendered without them still mixes, it just
@@ -73,9 +72,6 @@ export interface MixerProps {
   onSelectTrack?(trackId: TrackId): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
-  /** Overrides the meter poll scheduler; injectable for tests. */
-  readonly requestFrame?: (callback: () => void) => number;
-  readonly cancelFrame?: (handle: number) => void;
 }
 
 /**
@@ -271,12 +267,9 @@ export default function Mixer(props: MixerProps): JSX.Element {
                       }
                       dispatch={props.dispatch}
                       beginGesture={props.beginGesture}
-                      trackLevelDb={props.trackLevelDb}
-                      isPlaying={props.isPlaying}
+                      trackLevel={props.trackLevel}
                       onDuplicate={() => handleDuplicate(current())}
                       onDelete={() => requestDelete(current())}
-                      requestFrame={props.requestFrame}
-                      cancelFrame={props.cancelFrame}
                     />
                   )}
                 </Show>
@@ -352,12 +345,9 @@ interface TrackStripProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
-  trackLevelDb(trackId: string): number | null;
-  isPlaying(): boolean;
+  trackLevel(trackId: TrackId): TrackLevel | null;
   onDuplicate(): void;
   onDelete(): void;
-  readonly requestFrame?: (callback: () => void) => number;
-  readonly cancelFrame?: (handle: number) => void;
 }
 
 /**
@@ -527,13 +517,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           <span class="mixer-meter-label" aria-hidden="true">
             Lvl
           </span>
-          <LevelMeter
-            trackId={props.track.id}
-            trackLevelDb={props.trackLevelDb}
-            isPlaying={props.isPlaying}
-            requestFrame={props.requestFrame}
-            cancelFrame={props.cancelFrame}
-          />
+          <LevelMeter trackId={props.track.id} trackLevel={props.trackLevel} />
         </div>
       </div>
 

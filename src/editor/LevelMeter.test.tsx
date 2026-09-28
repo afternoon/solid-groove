@@ -1,28 +1,26 @@
 import { cleanup, render, screen } from "@solidjs/testing-library";
-import { flush } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TrackId } from "../domain/ids";
 import LevelMeter from "./LevelMeter";
+import type { TrackLevel } from "./trackLevels";
 
 afterEach(() => cleanup());
 
-function renderMeter(orientation?: "vertical" | "horizontal", levelDb = -30) {
-  const frames: (() => void)[] = [];
+function renderMeter(
+  orientation?: "vertical" | "horizontal",
+  initial: TrackLevel | null = { db: -30, clipping: false },
+) {
+  const [level, setLevel] = createSignal(initial);
   render(() => (
     <LevelMeter
       trackId={"trk_a" as TrackId}
-      trackLevelDb={() => levelDb}
-      isPlaying={() => true}
-      requestFrame={(callback) => frames.push(callback)}
-      cancelFrame={() => {}}
+      trackLevel={() => level()}
       orientation={orientation}
     />
   ));
-  flush();
-  frames.shift()?.();
-  flush();
   const meter = screen.getByRole("meter", { name: "Level" });
-  return { meter, fill: meter.nextElementSibling as HTMLElement };
+  return { meter, fill: meter.nextElementSibling as HTMLElement, setLevel };
 }
 
 describe("LevelMeter (#447)", () => {
@@ -32,23 +30,32 @@ describe("LevelMeter (#447)", () => {
     expect(fill.style.height).toBe("50%");
   });
 
-  it("fills along the row in the instrument header", () => {
+  it("fills along the row in a track header", () => {
     const { meter, fill } = renderMeter("horizontal");
     expect(meter.parentElement?.className).toBe("level-meter-horizontal");
     expect(fill.style.width).toBe("50%");
     expect(fill.style.height).toBe("");
   });
 
-  it("shows a clip, in either orientation, only over 0 dBFS", () => {
+  it("follows the level it is given, and rests at the floor without one", () => {
+    const { meter, fill, setLevel } = renderMeter();
+    setLevel({ db: -12, clipping: false });
+    flush();
+    expect(fill.style.height).toBe("80%");
+    setLevel(null);
+    flush();
+    expect(fill.style.height).toBe("0%");
+    expect(meter).toHaveAttribute("value", "-60");
+  });
+
+  it("shows a clip, in either orientation, when the level says so", () => {
     for (const orientation of ["vertical", "horizontal"] as const) {
-      expect(renderMeter(orientation, 0).meter.parentElement).not.toHaveClass("clipping");
-      cleanup();
-      const over = renderMeter(orientation, 0.5);
-      expect(over.meter.parentElement).toHaveClass("clipping");
-      // The bar is full; the colour, not the length, says it is over.
-      expect(over.fill.style[orientation === "vertical" ? "height" : "width"]).toBe(
-        "100%",
-      );
+      const quiet = renderMeter(orientation, { db: -1, clipping: false });
+      expect(quiet.meter.parentElement).not.toHaveClass("clipping");
+      quiet.setLevel({ db: -3, clipping: true });
+      flush();
+      // A clip is a peak, not the RMS the bar shows: the colour says it.
+      expect(quiet.meter.parentElement).toHaveClass("clipping");
       cleanup();
     }
   });
