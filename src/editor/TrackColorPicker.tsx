@@ -31,7 +31,7 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
   const analytics = () => props.analytics ?? defaultAnalytics;
   const [at, setAt] = createSignal<{ left: number; top: number } | null>(null);
   let button: HTMLButtonElement | undefined;
-  let menu: HTMLDivElement | undefined;
+  let menu: HTMLFieldSetElement | undefined;
 
   const open = () => at() !== null;
   const close = (refocus: boolean) => {
@@ -83,10 +83,9 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
         {(position) => (
           <Portal>
             <CloseOnEscape onClose={() => close(true)} />
-            <div
+            <fieldset
               ref={menu}
               class="track-color-menu"
-              role="group"
               aria-label={`Colour for ${props.track.name}`}
               style={{ left: `${position().left}px`, top: `${position().top}px` }}
             >
@@ -101,7 +100,7 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
                   />
                 )}
               </For>
-            </div>
+            </fieldset>
           </Portal>
         )}
       </Show>
