@@ -194,3 +194,12 @@
 .drum-pad[aria-current="true"] .pad-preview {
   background-color: var(--color-background-secondary);
 }
+
+/* Adding a pad (#447): the shared add button, under the last row. */
+.drum-machine-adds {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--color-border);
+}

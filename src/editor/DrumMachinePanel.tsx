@@ -1,4 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
+import { HiSolidPlus } from "solid-icons/hi";
 import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
@@ -8,13 +9,20 @@ import type {
   TransactionResult,
 } from "../commands";
 import {
+  addPad,
   createControlGesture,
+  MAX_DRUM_PADS,
   setPadAsset,
   setPadChoke,
   setPadFlag,
   setPadParameter,
 } from "../commands";
 import type { Asset, DrumPad, Track } from "../domain/entities";
+import {
+  createDrumPad,
+  createFactoryContext,
+  type DomainFactoryContext,
+} from "../domain/factories";
 import { formatDb, formatPan } from "../domain/faders";
 import type { AssetId, PadId } from "../domain/ids";
 import {
@@ -29,10 +37,22 @@ import SamplePicker from "../instrument/SamplePicker";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import PadSound from "./PadSound";
 import "./DrumMachinePanel.css";
+import "./NewTrackButtons.css";
 import { ariaBool } from "../shared/aria";
 
 /** Bars in a pad's waveform preview. */
 const PREVIEW_BUCKETS = 56;
+
+/** Mints the IDs of pads this panel adds. A module singleton. */
+const defaultFactoryContext = createFactoryContext();
+
+/** The first "Pad N" no pad on the machine is already called. */
+export function nextPadName(existing: readonly DrumPad[]): string {
+  const taken = new Set(existing.map((pad) => pad.name));
+  let n = existing.length + 1;
+  while (taken.has(`Pad ${n}`)) n++;
+  return `Pad ${n}`;
+}
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
 const CHOKE_GROUPS = Array.from({ length: 8 }, (_, i) => i);
@@ -52,6 +72,8 @@ export interface DrumMachinePanelProps {
   readonly watchPeaks?: WatchPeaks;
   /** Defaults to the application's singleton; injectable for tests. */
   readonly analytics?: Analytics;
+  /** Overrides the pad-ID factory so tests are deterministic. */
+  readonly factoryContext?: DomainFactoryContext;
 }
 
 function pads(track: Track): readonly DrumPad[] {
@@ -97,6 +119,17 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     const all = pads(props.track);
     return all.find((pad) => pad.id === chosenPad()) ?? all[0];
   };
+
+  const full = () => pads(props.track).length >= MAX_DRUM_PADS;
+
+  /** Adds an empty pad at the end and opens it, so its sample is the next pick. */
+  function addNewPad(): void {
+    markFeatureUse();
+    const pad = createDrumPad(props.factoryContext ?? defaultFactoryContext, {
+      name: nextPadName(pads(props.track)),
+    });
+    if (props.dispatch(addPad(props.track.id, pad))?.ok) setChosenPad(pad.id);
+  }
 
   function audition(pad: DrumPad): void {
     markFeatureUse();
@@ -270,6 +303,23 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
       <Show when={pads(props.track).length === 0}>
         <p class="drum-machine-empty">This track has no drum pads yet.</p>
       </Show>
+      <div class="drum-machine-adds">
+        <button
+          type="button"
+          class="new-track-button"
+          aria-label={`Add pad to ${props.track.name}`}
+          disabled={full()}
+          onClick={addNewPad}
+        >
+          <HiSolidPlus size={13} />
+          <span>Add pad</span>
+        </button>
+        <Show when={full()}>
+          <span class="drum-machine-empty">
+            A drum machine holds at most {MAX_DRUM_PADS} pads.
+          </span>
+        </Show>
+      </div>
     </section>
   );
 }

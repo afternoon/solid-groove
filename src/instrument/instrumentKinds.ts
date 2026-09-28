@@ -64,8 +64,8 @@ export function instrumentTypeKey(
 /**
  * The lanes a new drum machine opens with: the four voices a beat is built
  * from. Each starts empty — a pad's sample is chosen in the drum panel, the
- * same way an existing kit's is (PRD INS-01). A machine with no pads at all
- * would be a dead end, since no surface exposes `drum.addPad` yet.
+ * same way an existing kit's is (PRD INS-01). More are added from the drum
+ * panel's "Add pad" button.
  */
 const DEFAULT_PAD_NAMES = ["BD", "SD", "HH", "CP"] as const;
 
