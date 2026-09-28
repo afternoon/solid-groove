@@ -17,7 +17,6 @@ import FillSlider from "../instrument/FillSlider";
 import OptionGroup from "../instrument/OptionGroup";
 import {
   deviceChoices,
-  deviceExtremeLabel,
   deviceParameterTarget,
   formatDeviceValue,
   readDeviceParameter,
@@ -146,9 +145,6 @@ function DeviceSlider(props: {
         onInput={(next) => control.input(next)}
         onCommit={(next) => control.commit(next)}
       />
-      <Show when={deviceExtremeLabel(props.definition, props.value)}>
-        {(label) => <span class="device-control-extreme">{label()}</span>}
-      </Show>
     </div>
   );
 }
