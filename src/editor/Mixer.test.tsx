@@ -111,8 +111,8 @@ describe("Mixer strip colour (#534)", () => {
 
     clickAndFlush(screen.getByRole("button", { name: `Colour for ${track.name}` }));
     const palette = screen.getByRole("group", { name: `Colour for ${track.name}` });
-    expect(within(palette).getAllByRole("button")).toHaveLength(50);
-    clickAndFlush(within(palette).getByRole("button", { name: "Colour 7 of 50" }));
+    expect(within(palette).getAllByRole("radio")).toHaveLength(50);
+    clickAndFlush(within(palette).getByRole("radio", { name: "Colour 7 of 50" }));
 
     const recoloured = project().song.tracks.find((t) => t.id === track.id);
     expect(recoloured?.color).not.toBe(track.color);

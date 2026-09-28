@@ -143,7 +143,7 @@ export interface AddTrackHost {
   ): TransactionResult | undefined;
   readonly analytics: Analytics;
   /** Which surface offered it, for the OPS-02 `feature_first_use` measure. */
-  readonly feature: "mixer" | "arrangement";
+  readonly feature: "mixer" | "arrangement" | "instrument_add_track";
   onSelect(trackId: Track["id"]): void;
 }
 

@@ -27,6 +27,8 @@ export interface TrackRailProps {
   onReorder?(trackId: TrackId, toIndex: number): void;
   /** Adds a track of the chosen kind; the buttons follow the last row (#495). */
   onAddTrack?(spec: NewTrackKindSpec): void;
+  /** Opens the library on loops, beside the per-kind buttons. */
+  onAddLoop?(): void;
   /** Deletes a track, when its header's trash button is pressed (#537). */
   onDelete?(trackId: TrackId): void;
   dispatch(
@@ -115,7 +117,11 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
       <Show when={props.onAddTrack}>
         {(onAdd) => (
           <li class="track-rail-add" role="none">
-            <NewTrackButtons label="Add track" onAdd={onAdd()} />
+            <NewTrackButtons
+              label="Add track"
+              onAdd={onAdd()}
+              onAddLoop={props.onAddLoop}
+            />
           </li>
         )}
       </Show>
