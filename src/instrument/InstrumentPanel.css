@@ -148,23 +148,6 @@
   outline-offset: -2px;
 }
 
-/* The way into the library from the sample slot: a plain filled button, as
-   wide as its words. */
-.sampler-load-button {
-  align-self: flex-start;
-  height: 28px;
-  padding: 0 12px;
-  border: none;
-  background-color: var(--color-background-tertiary);
-  color: var(--color-text);
-  font-size: var(--font-size-small);
-  cursor: pointer;
-}
-
-.sampler-load-button:hover {
-  background-color: var(--color-background-hover);
-}
-
 /* The kind picker (#447) is one row: its heading on the left, the same
    option buttons side by side on the right, rather than a stacked list. */
 .instrument-kind .instrument-panel-group {

@@ -91,7 +91,7 @@ function renderLivePanel() {
 describe("SamplerPanel", () => {
   it("renders the sample name, playback, and amp-envelope sliders", () => {
     renderPanel();
-    expect(screen.getByText("Clap", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sample" })).toHaveTextContent("Clap");
     expect(screen.getByLabelText("Pitch")).toBeInTheDocument();
     expect(screen.getByLabelText("Start")).toBeInTheDocument();
     expect(screen.getByLabelText("End")).toBeInTheDocument();
@@ -102,12 +102,12 @@ describe("SamplerPanel", () => {
     renderPanel({ kind: "sampler", assetId: null, parameters: {} }, null);
     expect(screen.getByText("No sample loaded")).toBeInTheDocument();
     // The slot is the way into the library (UI-001), not a hint about a drag.
-    expect(screen.getByRole("button", { name: "Load a sound" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sample" })).toBeInTheDocument();
   });
 
   it("opens the library from its sample slot", () => {
     const { onBrowse } = renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: "Load a sound" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sample" }));
     expect(onBrowse).toHaveBeenCalledTimes(1);
   });
 
