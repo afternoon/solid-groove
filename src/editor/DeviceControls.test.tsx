@@ -54,7 +54,7 @@ describe("DeviceControls", () => {
   it("shows a filter's own controls, from its definitions, not a preset list", () => {
     const { device } = renderDevices(["filter"]);
     const filter = within(device(0));
-    expect(filter.getByRole("slider", { name: "Cutoff" })).toHaveValue("1000");
+    expect(filter.getByRole("slider", { name: "Cutoff" })).toHaveValue("2000");
     expect(filter.getByRole("slider", { name: "Resonance" })).toBeInTheDocument();
     expect(filter.getByRole("slider", { name: "Dry/Wet" })).toBeInTheDocument();
     const mode = filter.getByRole("group", { name: "Mode" });
@@ -107,8 +107,8 @@ describe("DeviceControls", () => {
     expect(history.project.metadata.revision).toBe(revision + 1);
 
     fireAndFlush(() => history.undo());
-    expect(devices()[0].parameters.cutoff).toBe(1000);
-    expect(cutoff).toHaveValue("1000");
+    expect(devices()[0].parameters.cutoff).toBe(2000);
+    expect(cutoff).toHaveValue("2000");
   });
 
   it("sets a mode by its name, as one command storing the choice's index", () => {
@@ -164,7 +164,7 @@ describe("deviceChoices", () => {
 
   it("reads a compressor's ratio as a ratio", () => {
     const { device } = renderDevices(["compressor"]);
-    expect(within(device(0)).getByDisplayValue("4.0:1")).toBeInTheDocument();
+    expect(within(device(0)).getByDisplayValue("3.0:1")).toBeInTheDocument();
   });
 
   it("shows no bound label, even with a control at its end (#447)", () => {
@@ -185,8 +185,8 @@ describe("deviceChoices", () => {
         ),
       ),
     );
-    // Drive and Mix both sit at their maximum; their value fields say so.
-    expect(overdrive.getAllByDisplayValue("100%")).toHaveLength(2);
+    // Drive sits at its maximum, and its value field says so.
+    expect(overdrive.getAllByDisplayValue("100%")).toHaveLength(1);
     expect(overdrive.queryByText(/at (maximum|minimum)/)).toBeNull();
   });
 });

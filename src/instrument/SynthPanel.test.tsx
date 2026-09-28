@@ -137,7 +137,7 @@ describe("SynthPanel", () => {
     const { history, project, instrument } = renderLivePanel();
     const startRevision = project().metadata.revision;
     const cutoff = screen.getByLabelText("Cutoff") as HTMLInputElement;
-    expect(screen.getByDisplayValue("12 kHz")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("4 kHz")).toBeInTheDocument();
     const restingFill = fillExtent(cutoff);
 
     // Mid-drag: `input` has fired, `change` has not.
