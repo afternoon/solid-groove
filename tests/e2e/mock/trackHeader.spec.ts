@@ -3,8 +3,9 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 /**
  * The arrangement's header column and the instrument view's rail are one
  * component (#447), and switching between the two views must not move a
- * track: less the arrangement's toolbars, which the instrument view does not
- * have, every header and everything inside it lands on the same pixels. Only
+ * track: less anything the arrangement stacks above its rows that the
+ * instrument view does not (nothing since #494 floated the zoom controls),
+ * every header and everything inside it lands on the same pixels. Only
  * a real layout can say so, so it is asserted here.
  */
 type Rect = readonly [x: number, y: number, width: number, height: number];
@@ -50,7 +51,7 @@ test("a track header sits on the same pixels in the arrangement and the rail", a
     const body = document.querySelector(".arrangement-body")?.getBoundingClientRect();
     return (body?.y ?? 0) - (view?.y ?? 0);
   });
-  expect(toolbars).toBeGreaterThan(0);
+  expect(toolbars).toBeGreaterThanOrEqual(0);
 
   await toView(page, "Instrument");
   await expect(page.getByRole("list", { name: "Tracks" })).toBeVisible();
