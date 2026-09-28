@@ -33,6 +33,7 @@ import {
 import { TrackAudioGraph } from "./TrackAudioGraph";
 import { toneBufferLoader } from "./toneBufferLoader";
 import type { UnderrunMonitor } from "./underrun";
+import { peaksOf } from "./waveformPeaks";
 
 /**
  * The transport this graph schedules against. An interface rather than a
@@ -523,6 +524,22 @@ export class ProjectAudioGraph {
       },
     );
     return this.scope.register("subscription", () => subscription.release());
+  }
+
+  /**
+   * Follows the waveform of one asset for a drawing (#447): `onPeaks` gets its
+   * peaks each time the buffer this graph decoded for it arrives or changes,
+   * and `null` while there is none. It shares the graph's buffer cache, so a
+   * sound already loaded to play is not decoded again to be drawn.
+   */
+  watchAssetPeaks(
+    asset: AudioAssetProjection,
+    buckets: number,
+    onPeaks: (peaks: Float32Array | null) => void,
+  ): BufferSubscription {
+    return this.bufferCache.subscribe(asset, (buffer) =>
+      onPeaks(buffer ? peaksOf(buffer, buckets) : null),
+    );
   }
 
   private releaseSchedule(entry: PlacementScheduleEntry): void {

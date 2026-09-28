@@ -1,6 +1,6 @@
 import { cleanup, renderHook } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -10,6 +10,7 @@ import { executeTransaction, setLoopEnabled, setLoopRange } from "../commands";
 import type { Project } from "../domain/entities";
 import { bars } from "../domain/factories";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
+import type { AssetId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 
@@ -263,6 +264,45 @@ describe("useProjectAudio", () => {
     expect(afterDispose.byType.node ?? 0).toBe(0);
     expect(afterDispose.byType.schedule ?? 0).toBe(0);
     expect(afterDispose.byType.subscription ?? 0).toBe(0);
+  });
+
+  it("attaches a waveform watcher once the project's graph carries the asset (#447)", async () => {
+    const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+    const release = vi.fn();
+    const watch = vi
+      .spyOn(ProjectAudioGraph.prototype, "watchAssetPeaks")
+      .mockImplementation(() => ({ release }));
+    const fixture = createSliceFixtureProject();
+    const [project, setProject] = createSignal<Project>(fixture);
+    // A sound the song does not carry yet, as when one is being added.
+    const added = { ...fixture.song.assets[0], id: "ast_added" as AssetId };
+
+    const { result } = renderHook(
+      () => useProjectAudioModule.useProjectAudio(project),
+      {},
+    );
+    flush();
+    const stop = result.watchAssetPeaks(added.id, 64, () => {});
+    // Asked for before the graph carries it: it waits rather than failing.
+    expect(watch).not.toHaveBeenCalled();
+
+    setProject({
+      ...fixture,
+      song: { ...fixture.song, assets: [...fixture.song.assets, added] },
+    });
+    flush();
+    expect(watch).toHaveBeenCalledTimes(1);
+    expect(watch.mock.calls[0][0].id).toBe(added.id);
+    expect(watch.mock.calls[0][1]).toBe(64);
+
+    // A later edit does not attach it twice.
+    setProject({ ...project(), song: { ...project().song, tempo: 99 } });
+    flush();
+    expect(watch).toHaveBeenCalledTimes(1);
+
+    stop();
+    expect(release).toHaveBeenCalledTimes(1);
+    watch.mockRestore();
   });
 
   it("mirrors song.loop onto the transport, and follows a loop edit in place (LOOP-017)", async () => {

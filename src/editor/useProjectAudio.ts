@@ -1,5 +1,6 @@
 import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import type { BufferSubscription } from "../audio/AudioBufferCache";
 import { type AudioHost, getAudioRuntime } from "../audio/AudioRuntime";
 import { ProjectAudioGraph } from "../audio/ProjectAudioGraph";
 import {
@@ -10,7 +11,7 @@ import {
 } from "../audio/Transport";
 import { UnderrunMonitor } from "../audio/underrun";
 import type { NoteTrigger, Project } from "../domain/entities";
-import type { PadId, TrackId } from "../domain/ids";
+import type { AssetId, PadId, TrackId } from "../domain/ids";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
 import type { AudioAssetProjection } from "../projection/audioProjection";
 import {
@@ -72,6 +73,18 @@ export interface ProjectAudioControls {
     durationTicks: number,
     velocity: number,
   ): Promise<boolean>;
+  /**
+   * Follows the waveform of one of the project's sounds for drawing it (#447):
+   * `onPeaks` gets `buckets` peaks, 0..1, once the engine has decoded the sound
+   * to play it, and again whenever it changes. Returns the way to stop. Safe to
+   * call before the graph exists or the asset is in the song; it attaches as
+   * soon as both are there.
+   */
+  watchAssetPeaks(
+    assetId: AssetId,
+    buckets: number,
+    onPeaks: (peaks: Float32Array | null) => void,
+  ): () => void;
 }
 
 export interface UseProjectAudioOptions {
@@ -195,7 +208,50 @@ export function useProjectAudio(
     });
   }
 
+  interface PeakWatcher {
+    readonly assetId: AssetId;
+    readonly buckets: number;
+    readonly onPeaks: (peaks: Float32Array | null) => void;
+    subscription?: BufferSubscription;
+  }
+  const peakWatchers = new Set<PeakWatcher>();
+
+  /** Attaches every waiting peak watcher whose asset the graph now carries. */
+  function attachPeakWatchers(): void {
+    if (!graph || !lastProjection) return;
+    for (const watcher of peakWatchers) {
+      if (watcher.subscription) continue;
+      const asset = lastProjection.assets.find((entry) => entry.id === watcher.assetId);
+      if (asset) {
+        watcher.subscription = graph.watchAssetPeaks(
+          asset,
+          watcher.buckets,
+          watcher.onPeaks,
+        );
+      }
+    }
+  }
+
+  function watchAssetPeaks(
+    assetId: AssetId,
+    buckets: number,
+    onPeaks: (peaks: Float32Array | null) => void,
+  ): () => void {
+    const watcher: PeakWatcher = { assetId, buckets, onPeaks };
+    peakWatchers.add(watcher);
+    attachPeakWatchers();
+    return () => {
+      peakWatchers.delete(watcher);
+      watcher.subscription?.release();
+    };
+  }
+
   function tearDown(): void {
+    // The graph's buffer cache goes with it; watchers reattach to the next one.
+    for (const watcher of peakWatchers) {
+      watcher.subscription?.release();
+      watcher.subscription = undefined;
+    }
     stopFrameLoop();
     metronome?.dispose();
     metronome = null;
@@ -236,6 +292,7 @@ export function useProjectAudio(
       }
       lastProjection = buildAudioProjection(current, lastProjection);
       graph.reconcile(lastProjection);
+      attachPeakWatchers();
       // Mirror the song tempo and loop onto the transport without restarting
       // it: a tempo, range, or toggle edit re-times or re-bounds the running
       // transport in place (PRD AUD-02, LOOP-017).
@@ -450,5 +507,6 @@ export function useProjectAudio(
     toggleMetronome,
     auditionPad,
     auditionTrack,
+    watchAssetPeaks,
   };
 }
