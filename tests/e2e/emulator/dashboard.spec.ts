@@ -57,7 +57,7 @@ test.describe("destructive confirmation", () => {
     await expect(page.getByText("Untitled Project")).toBeVisible();
 
     // Cancelling the confirmation leaves the project in place.
-    await page.getByRole("button", { name: /^delete$/i }).click();
+    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });
@@ -67,7 +67,7 @@ test.describe("destructive confirmation", () => {
     await expect(page.getByText("Untitled Project")).toBeVisible();
 
     // Confirming actually deletes it.
-    await page.getByRole("button", { name: /^delete$/i }).click();
+    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
     await page
       .getByRole("alertdialog", { name: /delete this project/i })
       .getByRole("button", { name: /^delete$/i })

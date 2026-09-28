@@ -334,6 +334,8 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // expression it interpolates, since the literal wrapper is stripped
       // below.
       "project.id",
+      // ...the same ID, read through the accessor a keyed `For` hands its row.
+      "project().id",
       // A caller-supplied route constant with a static fallback.
       'props.homeHref ?? "/dashboard"',
       // The landing page's start destination: a module-level constant in

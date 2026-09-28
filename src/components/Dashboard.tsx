@@ -1,12 +1,11 @@
 import { useNavigate } from "@solidjs/router";
-import { HiSolidArrowPath, HiSolidDocumentText, HiSolidPlus } from "solid-icons/hi";
+import { HiSolidArrowPath, HiSolidPlus } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { projectAgeBucket } from "../analytics/buckets";
 import { useAuth } from "../auth/AuthProvider";
 import { duplicateProject } from "../domain/duplicateProject";
 import type { ProjectMetadata } from "../domain/entities";
-import { createBlankProject } from "../domain/factories";
 import type { ProjectId } from "../domain/ids";
 import { createStarterProject } from "../editor/starterProject";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -111,31 +110,20 @@ export default function Dashboard(props: DashboardProps = {}) {
 
   const retryFetchProjects = () => setRetryCount((count) => count + 1);
 
-  /**
-   * `source: "blank"` creates a genuinely empty project; `source: "template"`
-   * uses the `FND-009` starter — audible content with no genre attached.
-   * Both are the PRD `PRJ-01`/`PRJ-02` creation paths this task owns.
-   */
-  const createProject = async (source: "blank" | "template") => {
+  /** Creates the `FND-009` starter: audible content with no genre attached. */
+  const createProject = async () => {
     const id = userId();
     if (!id || creating()) return;
     setCreating(true);
     setCreateError(null);
     try {
       const repository = await getProjectRepository();
-      const project =
-        source === "blank"
-          ? createBlankProject({
-              ownerId: id,
-              name: "Untitled Project",
-              template: "blank",
-            })
-          : createStarterProject(id);
+      const project = createStarterProject(id);
       const result = await repository.createProject(project);
       if (!result.ok) {
         throw new Error(result.message);
       }
-      analytics.log("project_created", { source });
+      analytics.log("project_created", { source: "template" });
       navigate(`/projects/${project.metadata.id}`);
     } catch (error) {
       console.error("Error creating project:", error);
@@ -249,19 +237,10 @@ export default function Dashboard(props: DashboardProps = {}) {
                 type="button"
                 class="new-project"
                 disabled={creating()}
-                onClick={() => void createProject("template")}
+                onClick={() => void createProject()}
               >
                 <HiSolidPlus size={18} />
                 <span>New Project</span>
-              </button>
-              <button
-                type="button"
-                class="blank-project"
-                disabled={creating()}
-                onClick={() => void createProject("blank")}
-              >
-                <HiSolidDocumentText size={18} />
-                <span>Blank Project</span>
               </button>
             </div>
             <Show when={createError()}>

@@ -259,21 +259,6 @@ test.describe("new project", () => {
 // backend. See `tests/e2e/emulator/dashboard.spec.ts` for the access-control and
 // persisted-delete coverage a real backend is needed to prove.
 test.describe("dashboard project management", () => {
-  test("creates a genuinely empty project via Blank Project", async ({ page }) => {
-    await page.goto("/dashboard");
-
-    await page.getByRole("button", { name: "Blank Project" }).click();
-
-    await expect(page).toHaveURL(/\/projects\/prj_/);
-    // A blank project has no tracks at all. The editor says so and points at
-    // the mixer, rather than reporting the absence of a sampler track — since
-    // #228 the editor follows a selected track of any kind, so "no sampler
-    // track" was never what an empty project was short of.
-    await expect(
-      page.getByText("This project has no tracks yet. Add one in the mixer."),
-    ).toBeVisible();
-  });
-
   test("renames, duplicates, and deletes a project from the dashboard", async ({
     page,
   }) => {
@@ -307,9 +292,9 @@ test.describe("dashboard project management", () => {
     // (its text is a superset of the original's, so filtering on the full
     // "... copy" text is what tells the two cards apart).
     const duplicateCard = page
-      .locator(".project-card")
+      .getByRole("row")
       .filter({ hasText: "My First Groove copy" });
-    await duplicateCard.getByRole("button", { name: /^delete$/i }).click();
+    await duplicateCard.getByRole("button", { name: /^delete /i }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });
@@ -320,7 +305,7 @@ test.describe("dashboard project management", () => {
     await expect(page.getByText("My First Groove copy")).toBeVisible();
 
     // Confirming removes only that one.
-    await duplicateCard.getByRole("button", { name: /^delete$/i }).click();
+    await duplicateCard.getByRole("button", { name: /^delete /i }).click();
     await page
       .getByRole("alertdialog", { name: /delete this project/i })
       .getByRole("button", { name: /^delete$/i })
@@ -451,7 +436,7 @@ test.describe("keyboard shortcuts", () => {
     await page.getByRole("link", { name: /projects/i }).click();
     await expect(page.getByText("Untitled Project")).toBeVisible();
 
-    await page.getByRole("button", { name: /^delete$/i }).click();
+    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });
