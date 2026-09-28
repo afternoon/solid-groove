@@ -47,8 +47,9 @@
   list-style: none;
 }
 
-/* Reordering (#241): while a card is held the chain shows the order a drop
-   would give it, and the held card, already in its new place, recedes. */
+/* Reordering (#241, #539): while a card is held the chain shows the order a
+   drop would give it, and the held card's own slot, already in its new place,
+   is the empty gap (`dragLift.css` draws the copy that follows the pointer). */
 .device-chain-item.dragging {
-  opacity: 0.4;
+  opacity: 0;
 }

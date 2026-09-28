@@ -73,6 +73,11 @@
   cursor: grab;
 }
 
+/* A press on the header drags the card; it must not select the name. */
+.device-card-head {
+  user-select: none;
+}
+
 .device-card-grip {
   padding: 0;
   border-radius: 0;

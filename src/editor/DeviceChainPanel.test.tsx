@@ -12,8 +12,9 @@ import { MAX_TRACK_INSERTS } from "../domain/parse";
 import { moveTo } from "../instrument/panelTesting";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { pointer } from "../testing/trackDrag";
 import DeviceChainPanel from "./DeviceChainPanel";
-import { dataTransfer, dragAt, dragCard, LOWER, UPPER } from "./deviceChainTesting";
+import { dragCard, LOWER, overCard, stubChainLayout, UPPER } from "./deviceChainTesting";
 
 afterEach(() => cleanup());
 
@@ -143,7 +144,7 @@ describe("DeviceChainPanel", () => {
     }
   });
 
-  it("moves a device by dragging its header onto another, as one entry", () => {
+  it("moves a device by dragging its header onto another, as one entry", async () => {
     const { history, panel, items } = renderPanel();
     addFromPanel(panel, "Overdrive");
     addFromPanel(panel, "Reverb");
@@ -151,38 +152,47 @@ describe("DeviceChainPanel", () => {
       items().map((item) => within(item).getByRole("heading").textContent);
     const entries = history.entries.length;
     const [overdrive, reverb] = items();
-    dragCard(reverb, reverb.querySelector("header") as Element, overdrive);
+    await dragCard(reverb.querySelector("header") as Element, overdrive);
     expect(names()).toEqual(["Reverb", "Overdrive"]);
     expect(history.entries.length).toBe(entries + 1);
     fireAndFlush(() => history.undo());
     expect(names()).toEqual(["Overdrive", "Reverb"]);
   });
 
-  it("previews the new order while a card is held, and restores it on a cancelled drag", () => {
+  it("previews the new order while a card is held, and Escape puts it back", async () => {
     const { history, panel, items } = renderPanel();
     addFromPanel(panel, "Overdrive");
     addFromPanel(panel, "Reverb");
     const [overdrive, reverb] = items();
     const shown = () => [overdrive.style.order, reverb.style.order];
     const entries = history.entries.length;
+    stubChainLayout();
 
     fireAndFlush(() => {
-      fireEvent.pointerDown(reverb.querySelector("header") as Element);
-      fireEvent.dragStart(reverb, { dataTransfer });
-      dragAt("dragOver", overdrive, UPPER);
+      fireEvent(reverb.querySelector("header") as Element, pointer("pointerdown", 1, 1));
+      fireEvent(window, pointer("pointermove", 50, overCard(overdrive, UPPER)));
     });
     // Reverb shows first, the chain it would become; nothing is committed yet.
     expect(shown()).toEqual(["1", "0"]);
     expect(reverb).toHaveClass("dragging");
     expect(history.entries.length).toBe(entries);
+    // The card is picked up: a copy follows the pointer and is not a chain item.
+    const copy = document.querySelector<HTMLElement>(".drag-lift");
+    expect(copy?.textContent).toContain("Reverb");
+    expect(items()).toHaveLength(2);
 
-    // Let go outside the chain: dragend alone, no drop.
-    fireAndFlush(() => fireEvent.dragEnd(reverb, { dataTransfer }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
+    expect(document.querySelector(".drag-lift")).toBeNull();
+    expect(shown()).toEqual(["0", "1"]);
+    expect(reverb).not.toHaveClass("dragging");
+    fireAndFlush(() => fireEvent(window, pointer("pointerup", 50, 0)));
     expect(shown()).toEqual(["0", "1"]);
     expect(history.entries.length).toBe(entries);
+    // The release after Escape is not a click on the card.
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
-  it("offers every slot while held, the one it started in included", () => {
+  it("offers every slot while held, the one it started in included", async () => {
     const { history, panel, items } = renderPanel();
     addFromPanel(panel, "Filter");
     addFromPanel(panel, "Delay");
@@ -190,40 +200,40 @@ describe("DeviceChainPanel", () => {
     const [filter, delay, reverb] = items();
     // The order each card shows in, read in chain order: Filter, Delay, Reverb.
     const shown = () => [filter, delay, reverb].map((item) => item.style.order);
-    const over = (item: HTMLElement, clientY: number) =>
-      fireAndFlush(() => dragAt("dragOver", item, clientY));
     const entries = history.entries.length;
+    stubChainLayout();
+    const over = (y: number) =>
+      fireAndFlush(() => fireEvent(window, pointer("pointermove", 50, y)));
 
-    fireAndFlush(() => {
-      fireEvent.pointerDown(delay.querySelector("header") as Element);
-      fireEvent.dragStart(delay, { dataTransfer });
-    });
-    over(filter, UPPER); // above Filter: Delay, Filter, Reverb
+    fireAndFlush(() =>
+      fireEvent(delay.querySelector("header") as Element, pointer("pointerdown", 1, 1)),
+    );
+    over(overCard(filter, UPPER)); // above Filter: Delay, Filter, Reverb
     expect(shown()).toEqual(["1", "0", "2"]);
-    over(reverb, LOWER); // below Reverb: Filter, Reverb, Delay
+    over(overCard(reverb, LOWER)); // below Reverb: Filter, Reverb, Delay
     expect(shown()).toEqual(["0", "2", "1"]);
-    over(reverb, UPPER); // back where it started: Filter, Delay, Reverb
+    over(overCard(reverb, UPPER)); // back where it started: Filter, Delay, Reverb
     expect(shown()).toEqual(["0", "1", "2"]);
 
     // Dropping in the slot it started in moves nothing and records nothing.
-    fireAndFlush(() => {
-      dragAt("drop", reverb, UPPER);
-      fireEvent.dragEnd(delay, { dataTransfer });
-    });
+    fireAndFlush(() =>
+      fireEvent(window, pointer("pointerup", 50, overCard(reverb, UPPER))),
+    );
     expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
       "Filter",
       "Delay",
       "Reverb",
     ]);
     expect(history.entries.length).toBe(entries);
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
-  it("does not start a drag from one of the card's controls", () => {
+  it("does not start a drag from one of the card's controls", async () => {
     const { panel, items } = renderPanel();
     addFromPanel(panel, "Filter");
     addFromPanel(panel, "Delay");
     const [filter, delay] = items();
-    dragCard(delay, within(delay).getAllByRole("slider")[0], filter);
+    await dragCard(within(delay).getAllByRole("slider")[0], filter);
     expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
       "Filter",
       "Delay",

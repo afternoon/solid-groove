@@ -7,7 +7,9 @@ import { dropSlot, slotToIndex } from "./trackReorder";
 
 /**
  * Drag a track to a new position (TRK-02, #331). The arrangement's header
- * column and the mixer's strip row share this controller, each along its axis.
+ * column and the mixer's strip row share this controller, each along its axis,
+ * and so does a device chain (#539): `Id` is whatever the list's items are keyed
+ * by, and an item is any element carrying its id in `data-track-drag`.
  *
  * Nothing touches the project mid-drag: the drag publishes where the track
  * *would* land as `target`, and a view previews it there. Letting go inside the
@@ -22,20 +24,20 @@ import { dropSlot, slotToIndex } from "./trackReorder";
  * the rows in view), placed in the whole song by `indexOf`, and measured once
  * at drag start, since the preview moves them.
  */
-export interface TrackDragOptions {
+export interface TrackDragOptions<Id extends string = TrackId> {
   readonly axis: "x" | "y";
   /** The element that bounds a valid drop. */
   zone(): HTMLElement | undefined;
   /** A track's position in display order. */
-  indexOf(trackId: TrackId): number;
-  onDrop(trackId: TrackId, toIndex: number): void;
+  indexOf(trackId: Id): number;
+  onDrop(trackId: Id, toIndex: number): void;
 }
 
-export interface TrackDrag {
+export interface TrackDrag<Id extends string = TrackId> {
   /** Start a drag from a handle's `pointerdown`. */
-  begin(event: PointerEvent, trackId: TrackId): void;
+  begin(event: PointerEvent, trackId: Id): void;
   /** The track being dragged, once the pointer has passed the threshold. */
-  readonly dragging: Accessor<TrackId | null>;
+  readonly dragging: Accessor<Id | null>;
   /** The display index letting go now would move the dragged track to, or
    * null when it would change nothing. */
   readonly target: Accessor<number | null>;
@@ -44,13 +46,15 @@ export interface TrackDrag {
 /** How far the pointer travels before a press becomes a drag, in px. */
 const DRAG_THRESHOLD_PX = 4;
 
-export function useTrackDrag(options: TrackDragOptions): TrackDrag {
-  const [dragging, setDragging] = createSignal<TrackId | null>(null);
+export function useTrackDrag<Id extends string = TrackId>(
+  options: TrackDragOptions<Id>,
+): TrackDrag<Id> {
+  const [dragging, setDragging] = createSignal<Id | null>(null);
   const [targetIndex, setTargetIndex] = createSignal<number | null>(null);
   let teardown: (() => void) | null = null;
   const slide = createSlide();
   /** The zone's items but the held one, whose slot is the hidden gap. */
-  const items = (zone: HTMLElement, held: TrackId) =>
+  const items = (zone: HTMLElement, held: Id) =>
     [...zone.querySelectorAll<HTMLElement>("[data-track-drag]")].filter(
       (el) => el.dataset.trackDrag !== held,
     );
@@ -89,7 +93,7 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
   function measure(zone: HTMLElement): Item[] {
     return [...zone.querySelectorAll<HTMLElement>("[data-track-drag]")].map((el) => {
       const r = el.getBoundingClientRect();
-      const id = el.dataset.trackDrag as TrackId;
+      const id = el.dataset.trackDrag as Id;
       const middle = along(zone, y ? (r.top + r.bottom) / 2 : (r.left + r.right) / 2);
       return { index: options.indexOf(id), middle };
     });
@@ -115,7 +119,7 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
     setDragging(null);
   }
 
-  function begin(event: PointerEvent, trackId: TrackId): void {
+  function begin(event: PointerEvent, trackId: Id): void {
     const zone = options.zone();
     if (event.button !== 0 || !zone) return;
     end();
@@ -137,7 +141,7 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
           `[data-track-drag="${CSS.escape(trackId)}"]`,
         );
         lift = source ? liftItem(source, event) : null;
-        setDragging(trackId);
+        setDragging(() => trackId);
       }
       lift?.move(move);
       toIndex = target(move, zone, fromIndex, measured);
