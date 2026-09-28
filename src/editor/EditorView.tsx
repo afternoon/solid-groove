@@ -557,6 +557,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         openLibrary(["one-shot"], { trackId, padId })
                       }
                       watchPeaks={audio.watchAssetPeaks}
+                      watchTriggers={audio.watchTriggers}
                       onSelectTrack={selectTrack}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}

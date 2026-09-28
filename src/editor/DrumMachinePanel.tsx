@@ -1,6 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
-import { createSignal } from "solid-js";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -16,7 +16,7 @@ import {
   setPadFlag,
   setPadParameter,
 } from "../commands";
-import type { Asset, DrumPad, Track } from "../domain/entities";
+import type { Asset, DrumPad, NoteTrigger, Track } from "../domain/entities";
 import {
   createDrumPad,
   createFactoryContext,
@@ -39,6 +39,9 @@ import "../instrument/SamplePicker.css";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
 import { ariaBool } from "../shared/aria";
+
+/** How long a pad's name stays lit after it fires (#447). */
+const PAD_FLASH_MS = 120;
 
 /** Bars in a pad's waveform preview. */
 const PREVIEW_BUCKETS = 56;
@@ -69,6 +72,11 @@ export interface DrumMachinePanelProps {
   /** The selected pad, when the host owns the selection (#447). */
   readonly selectedPadId?: PadId | null;
   onSelectPad?(padId: PadId): void;
+  /**
+   * Follows this track's triggers as they are heard, so a pad's name can flash
+   * when it plays (#447). Returns the way to stop.
+   */
+  readonly watchTriggers?: (onTrigger: (trigger: NoteTrigger) => void) => () => void;
   /** Opens the library to choose a pad's sound (#447). */
   onBrowseSample?(padId: PadId): void;
   /** Plays one pad immediately so the user hears their choice (audition). */
@@ -130,6 +138,33 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
   };
 
   const full = () => pads(props.track).length >= MAX_DRUM_PADS;
+
+  // The pads sounding right now (#447): each hit lights its row's name for a
+  // moment, as a hardware pad lights when it fires.
+  const [hitPads, setHitPads] = createSignal<ReadonlySet<PadId>>(new Set());
+  const flashTimers = new Set<ReturnType<typeof setTimeout>>();
+  function flash(padId: PadId): void {
+    setHitPads((current) => new Set(current).add(padId));
+    const timer = setTimeout(() => {
+      flashTimers.delete(timer);
+      setHitPads((current) => {
+        const next = new Set(current);
+        next.delete(padId);
+        return next;
+      });
+    }, PAD_FLASH_MS);
+    flashTimers.add(timer);
+  }
+  createEffect(
+    () => props.watchTriggers,
+    (watch) =>
+      watch?.((trigger) => {
+        if (trigger.kind === "pad") flash(trigger.padId);
+      }),
+  );
+  onCleanup(() => {
+    for (const timer of flashTimers) clearTimeout(timer);
+  });
 
   /** Adds an empty pad at the end and selects it, so its sample is the next pick. */
   function addNewPad(): void {
@@ -215,7 +250,10 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
           // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the row's own name button
           // biome-ignore lint/a11y/useKeyWithClickEvents: the name button is the keyboard path
           <div
-            class={["drum-pad", { muted: pad().mixer.muted }]}
+            class={[
+              "drum-pad",
+              { muted: pad().mixer.muted, hit: hitPads().has(pad().id) },
+            ]}
             aria-current={selectedPad()?.id === pad().id ? "true" : undefined}
             onClick={() => setChosenPad(pad().id)}
           >

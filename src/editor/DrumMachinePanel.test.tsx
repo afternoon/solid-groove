@@ -10,7 +10,7 @@ import {
   type RawCommandInput,
   type TransactionResult,
 } from "../commands";
-import type { DrumPad, Track } from "../domain/entities";
+import type { DrumPad, NoteTrigger, Track } from "../domain/entities";
 import { createDrumMachineFixtureProject } from "../domain/fixtures";
 import type { PadId } from "../domain/ids";
 import { fillExtent, moveTo, testAnalytics } from "../instrument/panelTesting";
@@ -376,3 +376,48 @@ describe("DrumMachinePanel adding a pad (#447)", () => {
 function fixtureDrumTrack() {
   return { track: drumTrackOf(createDrumMachineFixtureProject()) };
 }
+
+describe("DrumMachinePanel playing pads (#447)", () => {
+  it("lights a pad's name when it fires, and unsubscribes when it goes", () => {
+    vi.useFakeTimers();
+    try {
+      const project = createDrumMachineFixtureProject();
+      const track = drumTrackOf(project);
+      const [, second] =
+        track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+      let fire: (trigger: NoteTrigger) => void = () => {};
+      const unsubscribe = vi.fn();
+      const { unmount } = render(() => (
+        <DrumMachinePanel
+          track={track}
+          assets={project.song.assets}
+          dispatch={() => undefined}
+          beginGesture={() => undefined}
+          watchTriggers={(onTrigger) => {
+            fire = onTrigger;
+            return unsubscribe;
+          }}
+        />
+      ));
+      flush();
+      const row = () =>
+        screen
+          .getByRole("button", { name: `Audition ${second.name}` })
+          .closest(".drum-pad");
+
+      fireAndFlush(() => fire({ kind: "pad", padId: second.id }));
+      expect(row()?.classList.contains("hit")).toBe(true);
+      // A pitched trigger is not a pad; nothing else lights.
+      fireAndFlush(() => fire({ kind: "pitch", pitch: 60 }));
+      expect(document.querySelectorAll(".drum-pad.hit")).toHaveLength(1);
+
+      fireAndFlush(() => vi.advanceTimersByTime(150));
+      expect(row()?.classList.contains("hit")).toBe(false);
+
+      unmount();
+      expect(unsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
