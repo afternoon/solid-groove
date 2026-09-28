@@ -177,3 +177,20 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
 }
+
+/* The selected pad, opened up under its row (#447): its row lifts to the
+   well colour, and its sound sits beneath on the same black. */
+.drum-pad[aria-current="true"] {
+  background-color: var(--color-background);
+}
+
+.drum-pad-detail {
+  padding: 14px 12px 16px;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-background);
+}
+
+/* On the selected row's black, the preview well lifts to stay visible. */
+.drum-pad[aria-current="true"] .pad-preview {
+  background-color: var(--color-background-secondary);
+}

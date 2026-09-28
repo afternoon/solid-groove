@@ -1,4 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
+import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -26,6 +27,7 @@ import FillSlider from "../instrument/FillSlider";
 import { formatInstrumentValue } from "../instrument/formatValue";
 import SamplePicker from "../instrument/SamplePicker";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
+import PadSound from "./PadSound";
 import "./DrumMachinePanel.css";
 import { ariaBool } from "../shared/aria";
 
@@ -88,6 +90,14 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     props.dispatch(setPadChoke(props.track.id, pad.id, value));
   }
 
+  // The pad opened up under its row (#447). UI-only and session-local, like
+  // any selection; a pad that goes away hands it back to the first pad.
+  const [chosenPad, setChosenPad] = createSignal<PadId | null>(null);
+  const selectedPad = () => {
+    const all = pads(props.track);
+    return all.find((pad) => pad.id === chosenPad()) ?? all[0];
+  };
+
   function audition(pad: DrumPad): void {
     markFeatureUse();
     props.audition?.(pad.id);
@@ -121,119 +131,140 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
       </Show>
       <For each={pads(props.track)} keyed={(pad) => pad.id}>
         {(pad, index) => (
-          <div class={["drum-pad", { muted: pad().mixer.muted }]}>
-            <span class="pad-index">{String(index() + 1).padStart(2, "0")}</span>
-            <button
-              type="button"
-              class="pad-audition"
-              onClick={() => audition(pad())}
-              aria-label={`Audition ${pad().name}`}
-              title={`Audition ${pad().name}`}
+          <>
+            <div
+              class={["drum-pad", { muted: pad().mixer.muted }]}
+              aria-current={selectedPad()?.id === pad().id ? "true" : undefined}
             >
-              <span class="pad-name">{pad().name}</span>
-            </button>
+              <span class="pad-index">{String(index() + 1).padStart(2, "0")}</span>
+              <button
+                type="button"
+                class="pad-audition"
+                onClick={() => {
+                  setChosenPad(pad().id);
+                  audition(pad());
+                }}
+                aria-label={`Audition ${pad().name}`}
+                title={`Audition ${pad().name}`}
+              >
+                <span class="pad-name">{pad().name}</span>
+              </button>
 
-            <div class="pad-control pad-sample">
-              <SamplePicker
-                label={`Sample for ${pad().name}`}
-                current={pad().assetId}
-                assets={props.assets}
-                allowNone
-                onChoose={(assetId) => changePadAsset(pad(), assetId)}
+              <div class="pad-control pad-sample">
+                <SamplePicker
+                  label={`Sample for ${pad().name}`}
+                  current={pad().assetId}
+                  assets={props.assets}
+                  allowNone
+                  onChoose={(assetId) => changePadAsset(pad(), assetId)}
+                />
+              </div>
+
+              <PadPreview
+                name={pad().name}
+                assetId={pad().assetId}
+                watchPeaks={props.watchPeaks}
+                onPlay={() => audition(pad())}
               />
+
+              <PadControl
+                trackId={props.track.id}
+                pad={pad()}
+                definition={PAD_PITCH}
+                label="Pitch"
+                value={padParam(pad(), "pitch", PAD_PITCH.defaultValue)}
+                displayValue={formatInstrumentValue(
+                  PAD_PITCH,
+                  padParam(pad(), "pitch", PAD_PITCH.defaultValue),
+                )}
+                onFirstUse={markFeatureUse}
+                dispatch={(commands) => props.dispatch(commands)}
+                beginGesture={(options) => props.beginGesture(options)}
+              />
+
+              <PadControl
+                trackId={props.track.id}
+                pad={pad()}
+                definition={TRACK_VOLUME}
+                label="Level"
+                value={pad().mixer.volume}
+                displayValue={formatDb(TRACK_VOLUME, pad().mixer.volume)}
+                onFirstUse={markFeatureUse}
+                dispatch={(commands) => props.dispatch(commands)}
+                beginGesture={(options) => props.beginGesture(options)}
+              />
+
+              <PadControl
+                trackId={props.track.id}
+                pad={pad()}
+                definition={TRACK_PAN}
+                label="Pan"
+                // Pan's range *is* the stereo field, so it fills from centre.
+                bipolar
+                value={pad().mixer.pan}
+                displayValue={formatPan(pad().mixer.pan)}
+                onFirstUse={markFeatureUse}
+                dispatch={(commands) => props.dispatch(commands)}
+                beginGesture={(options) => props.beginGesture(options)}
+              />
+
+              <label class="pad-control pad-choke">
+                <span class="pad-control-label">Choke</span>
+                <select
+                  value={pad().chokeGroup === null ? "" : String(pad().chokeGroup)}
+                  onChange={(event) =>
+                    changeChoke(
+                      pad(),
+                      event.currentTarget.value === ""
+                        ? null
+                        : Number(event.currentTarget.value),
+                    )
+                  }
+                >
+                  <option value="">None</option>
+                  <For each={CHOKE_GROUPS}>
+                    {(group) => <option value={String(group)}>{group + 1}</option>}
+                  </For>
+                </select>
+              </label>
+
+              <div class="pad-flags">
+                <button
+                  type="button"
+                  class={["pad-flag", { active: pad().mixer.muted }]}
+                  aria-pressed={ariaBool(pad().mixer.muted)}
+                  aria-label={`Mute ${pad().name}`}
+                  onClick={() => toggleFlag(pad(), "muted")}
+                  title="Mute"
+                >
+                  M
+                </button>
+                <button
+                  type="button"
+                  class={["pad-flag", { active: pad().mixer.soloed }]}
+                  aria-pressed={ariaBool(pad().mixer.soloed)}
+                  aria-label={`Solo ${pad().name}`}
+                  onClick={() => toggleFlag(pad(), "soloed")}
+                  title="Solo"
+                >
+                  S
+                </button>
+              </div>
             </div>
-
-            <PadPreview
-              name={pad().name}
-              assetId={pad().assetId}
-              watchPeaks={props.watchPeaks}
-              onPlay={() => audition(pad())}
-            />
-
-            <PadControl
-              trackId={props.track.id}
-              pad={pad()}
-              definition={PAD_PITCH}
-              label="Pitch"
-              value={padParam(pad(), "pitch", PAD_PITCH.defaultValue)}
-              displayValue={formatInstrumentValue(
-                PAD_PITCH,
-                padParam(pad(), "pitch", PAD_PITCH.defaultValue),
-              )}
-              onFirstUse={markFeatureUse}
-              dispatch={(commands) => props.dispatch(commands)}
-              beginGesture={(options) => props.beginGesture(options)}
-            />
-
-            <PadControl
-              trackId={props.track.id}
-              pad={pad()}
-              definition={TRACK_VOLUME}
-              label="Level"
-              value={pad().mixer.volume}
-              displayValue={formatDb(TRACK_VOLUME, pad().mixer.volume)}
-              onFirstUse={markFeatureUse}
-              dispatch={(commands) => props.dispatch(commands)}
-              beginGesture={(options) => props.beginGesture(options)}
-            />
-
-            <PadControl
-              trackId={props.track.id}
-              pad={pad()}
-              definition={TRACK_PAN}
-              label="Pan"
-              // Pan's range *is* the stereo field, so it fills from centre.
-              bipolar
-              value={pad().mixer.pan}
-              displayValue={formatPan(pad().mixer.pan)}
-              onFirstUse={markFeatureUse}
-              dispatch={(commands) => props.dispatch(commands)}
-              beginGesture={(options) => props.beginGesture(options)}
-            />
-
-            <label class="pad-control pad-choke">
-              <span class="pad-control-label">Choke</span>
-              <select
-                value={pad().chokeGroup === null ? "" : String(pad().chokeGroup)}
-                onChange={(event) =>
-                  changeChoke(
-                    pad(),
-                    event.currentTarget.value === ""
-                      ? null
-                      : Number(event.currentTarget.value),
-                  )
-                }
-              >
-                <option value="">None</option>
-                <For each={CHOKE_GROUPS}>
-                  {(group) => <option value={String(group)}>{group + 1}</option>}
-                </For>
-              </select>
-            </label>
-
-            <div class="pad-flags">
-              <button
-                type="button"
-                class={["pad-flag", { active: pad().mixer.muted }]}
-                aria-pressed={ariaBool(pad().mixer.muted)}
-                aria-label={`Mute ${pad().name}`}
-                onClick={() => toggleFlag(pad(), "muted")}
-                title="Mute"
-              >
-                M
-              </button>
-              <button
-                type="button"
-                class={["pad-flag", { active: pad().mixer.soloed }]}
-                aria-pressed={ariaBool(pad().mixer.soloed)}
-                aria-label={`Solo ${pad().name}`}
-                onClick={() => toggleFlag(pad(), "soloed")}
-                title="Solo"
-              >
-                S
-              </button>
-            </div>
-          </div>
+            <Show when={selectedPad()?.id === pad().id}>
+              <div class="drum-pad-detail">
+                <PadSound
+                  track={props.track}
+                  pad={pad()}
+                  asset={props.assets.find((asset) => asset.id === pad().assetId)}
+                  watchPeaks={props.watchPeaks}
+                  dispatch={props.dispatch}
+                  beginGesture={props.beginGesture}
+                  onFirstUse={markFeatureUse}
+                />
+              </div>
+            </Show>
+          </>
         )}
       </For>
       <Show when={pads(props.track).length === 0}>
