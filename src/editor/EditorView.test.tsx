@@ -383,6 +383,48 @@ describe("EditorView", () => {
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
   });
 
+  // ARR-010: every key the redesigned roll answers goes through the registry,
+  // pressed on the window as a person presses it, never on an element.
+  it("moves, copies, pastes and deletes the roll's notes from the keyboard", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    const editor = await openSequenceEditor();
+    const names = () =>
+      within(within(editor).getByRole("listbox", { name: "Notes" }))
+        .queryAllByRole("option")
+        .map((option) => option.getAttribute("aria-label"));
+    const press = (key: string, init: { ctrlKey?: boolean; shiftKey?: boolean } = {}) =>
+      fireAndFlush(() => fireEvent.keyDown(window, { key, ...init }));
+
+    press("a", { ctrlKey: true });
+    expect(within(editor).getByText("4 selected")).toBeInTheDocument();
+    press("ArrowUp");
+    press("ArrowRight");
+    press("ArrowRight", { shiftKey: true });
+    expect(names()[0]).toBe("C♯3, step 2, 2 steps");
+    press("ArrowUp", { shiftKey: true });
+    expect(names()[0]).toBe("C♯4, step 2, 2 steps");
+
+    press("c", { ctrlKey: true });
+    clickAndFlush(within(editor).getByRole("button", { name: "Step 20" }));
+    press("v", { ctrlKey: true });
+    expect(names()).toHaveLength(8);
+    expect(names()).toContain("C♯4, step 20, 2 steps");
+    expect(within(editor).getByText("4 selected")).toBeInTheDocument();
+
+    // Esc lets the selection go and leaves the roll open.
+    press("Escape");
+    expect(within(editor).getByText("None selected")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
+
+    press("a", { ctrlKey: true });
+    press("Delete");
+    expect(names()).toEqual([]);
+  });
+
   it("shows the sampler instrument panel for the slice's sampler track", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();

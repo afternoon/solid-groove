@@ -196,7 +196,7 @@ async function closeEditor(page: Page): Promise<void> {
 test.describe("CF-018", () => {
   // `test.fixme` until #450 (ARR-010) lands: the PR that closes it removes this
   // marker in the same diff that makes the flow pass.
-  test.fixme("a producer picks a key and pulls stray notes into it", async ({ page }) => {
+  test("a producer picks a key and pulls stray notes into it", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-018",
       title: "A producer picks a key and pulls stray notes into it",

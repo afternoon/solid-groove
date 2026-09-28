@@ -195,7 +195,7 @@ const OUTCOME = [
 test.describe("CF-017", () => {
   // `test.fixme` until #450 (ARR-010) lands: the PR that closes it removes this
   // marker in the same diff that makes the flow pass.
-  test.fixme("a producer writes a bassline in the piano roll", async ({ page }) => {
+  test("a producer writes a bassline in the piano roll", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-017",
       title: "A producer writes a bassline in the piano roll",
