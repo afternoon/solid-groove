@@ -8,11 +8,13 @@ import type {
 } from "../commands";
 import { setTrackFlag } from "../commands";
 import type { Track } from "../domain/entities";
+import type { TrackId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import LevelMeter from "./LevelMeter";
 import TrackColorPicker from "./TrackColorPicker";
 import { VolumeFader } from "./TrackFaders";
+import type { TrackLevel } from "./trackLevels";
 import "./TrackHeader.css";
 
 export interface TrackHeaderProps {
@@ -25,18 +27,14 @@ export interface TrackHeaderProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
-  /** Live post-fader level of a track, in dBFS, or null when no graph is up. */
-  trackLevelDb(trackId: string): number | null;
-  isPlaying(): boolean;
+  /** A track's live level, reactively (`useProjectAudio().trackLevel`). */
+  trackLevel(trackId: TrackId): TrackLevel | null;
   /** Starts a reorder drag, from anywhere on the header but its controls. */
   onDragStart?(event: PointerEvent): void;
   /** Where the header is shown, so its fader's id is its own. */
   readonly surface: "arrangement" | "instrument";
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
-  /** Overrides the meter poll scheduler; injectable for tests. */
-  readonly requestFrame?: (callback: () => void) => number;
-  readonly cancelFrame?: (handle: number) => void;
 }
 
 /** What a press on starts no drag from: the header's own controls. */
@@ -122,10 +120,7 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
       />
       <LevelMeter
         trackId={props.track.id}
-        trackLevelDb={props.trackLevelDb}
-        isPlaying={props.isPlaying}
-        requestFrame={props.requestFrame}
-        cancelFrame={props.cancelFrame}
+        trackLevel={props.trackLevel}
         orientation="horizontal"
       />
     </div>

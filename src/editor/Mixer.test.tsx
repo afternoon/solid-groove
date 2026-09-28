@@ -90,11 +90,8 @@ function renderMixer(initial: Project = createSliceFixtureProject()) {
       project={project()}
       dispatch={dispatch}
       beginGesture={beginGesture}
-      trackLevelDb={() => null}
-      isPlaying={() => false}
+      trackLevel={() => null}
       analytics={analytics}
-      requestFrame={() => 0}
-      cancelFrame={() => {}}
       selectedTrackId={selectedTrackId()}
       onSelectTrack={(trackId) => {
         selected.push(trackId);

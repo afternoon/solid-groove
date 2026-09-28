@@ -210,8 +210,7 @@ describe("the Instrument view's header meter (#447)", () => {
         onSelectTrack={() => {}}
         dispatch={() => undefined}
         beginGesture={() => undefined}
-        trackLevelDb={() => null}
-        isPlaying={() => false}
+        trackLevel={() => null}
       />
     ));
     const header = document.querySelector(".instrument-header") as HTMLElement;
@@ -243,8 +242,7 @@ describe("the Instrument view's header across edits (#447)", () => {
         onSelectTrack={() => {}}
         dispatch={(commands) => history.execute(commands)}
         beginGesture={(gesture) => history.beginGesture(gesture)}
-        trackLevelDb={() => null}
-        isPlaying={() => false}
+        trackLevel={() => null}
       />
     ));
     const header = document.querySelector(".instrument-header");

@@ -47,12 +47,9 @@ function renderHeader(selected = false) {
           cancel: () => gesture.cancel(),
         };
       }}
-      trackLevelDb={() => null}
-      isPlaying={() => false}
+      trackLevel={() => null}
       onDragStart={onDragStart}
       surface="arrangement"
-      requestFrame={() => 0}
-      cancelFrame={() => {}}
     />
   ));
   return { history, track, onSelect, onDragStart };

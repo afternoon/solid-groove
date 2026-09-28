@@ -19,6 +19,7 @@ import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import "../editor/trackDrag.css";
 import TrackHeader from "../editor/TrackHeader";
+import type { TrackLevel } from "../editor/trackLevels";
 import { moveTrack, orderedTrackIds, previewTrackOrder } from "../editor/trackReorder";
 import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -185,7 +186,7 @@ export interface ArrangementViewProps {
    */
   readonly selectedTrackId?: TrackId | null;
   /** Live post-fader level of a track, for its header's meter (#447). */
-  readonly trackLevelDb?: (trackId: string) => number | null;
+  readonly trackLevel?: (trackId: TrackId) => TrackLevel | null;
   /** Called with the track a clicked row belongs to, so the editor can follow
    * it — the arrangement holds no selection state of its own. */
   readonly onSelectTrack?: (trackId: TrackId) => void;
@@ -962,8 +963,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
                         onSelect={() => selectTrack(track().id)}
                         dispatch={(commands) => props.dispatch?.(commands)}
                         beginGesture={(options) => props.beginGesture?.(options)}
-                        trackLevelDb={(trackId) => props.trackLevelDb?.(trackId) ?? null}
-                        isPlaying={() => props.isPlaying?.() ?? false}
+                        trackLevel={(trackId) => props.trackLevel?.(trackId) ?? null}
                         onDragStart={(event) => {
                           if (props.dispatch) trackDrag.begin(event, track().id);
                         }}

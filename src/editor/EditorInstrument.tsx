@@ -27,6 +27,7 @@ import LevelMeter from "./LevelMeter";
 import LoopPanel from "./LoopPanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
+import type { TrackLevel } from "./trackLevels";
 import { moveTrack } from "./trackReorder";
 import "./EditorInstrument.css";
 
@@ -47,10 +48,8 @@ export interface EditorInstrumentProps {
   readonly onBrowse: () => void;
   /** Opens the library on one drum pad's sample slot (#447). */
   readonly onBrowsePad?: (trackId: TrackId, padId: PadId) => void;
-  /** A track's live level in dBFS, for the header's meter (#447). */
-  trackLevelDb?(trackId: string): number | null;
-  /** Whether playback is running; the meter only polls while it is. */
-  isPlaying?(): boolean;
+  /** A track's live level, reactively, for the header's meter (#447). */
+  trackLevel?(trackId: TrackId): TrackLevel | null;
   /** Follows one track's instrument triggers as they are heard (#447). */
   readonly watchTriggers?: (
     trackId: TrackId,
@@ -128,11 +127,10 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
       trackName={track().name}
       audition={audition(track())}
       meter={
-        props.trackLevelDb && props.isPlaying ? (
+        props.trackLevel ? (
           <LevelMeter
             trackId={track().id}
-            trackLevelDb={props.trackLevelDb}
-            isPlaying={props.isPlaying}
+            trackLevel={props.trackLevel}
             orientation="horizontal"
           />
         ) : undefined
@@ -148,8 +146,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
         onSelect={props.onSelectTrack}
         dispatch={props.dispatch}
         beginGesture={props.beginGesture}
-        trackLevelDb={props.trackLevelDb}
-        isPlaying={props.isPlaying}
+        trackLevel={props.trackLevel}
         analytics={analytics}
         onReorder={(trackId, toIndex) =>
           moveTrack(
