@@ -43,6 +43,7 @@ import {
 } from "./parameters";
 import { assertProject } from "./parse";
 import { TICKS_PER_BAR, type Ticks, toTicks } from "./time";
+import { TRACK_PALETTE } from "./trackPalette";
 
 /**
  * Domain factories.
@@ -54,52 +55,20 @@ import { TICKS_PER_BAR, type Ticks, toTicks } from "./time";
  */
 
 /**
- * Track colors from the editor palette, cycled by track order. Spans the hue
- * wheel once at a mid tone, once lighter, then a handful more at a darker
- * tone, so tracks stay visually distinct well past a typical track count.
+ * Default colours for new tracks, cycled by track order (#534). They are drawn
+ * from the 50-swatch picker grid (`TRACK_PALETTE`), so a new track's colour is
+ * always one the picker marks as current: the ten hues at mid tone in hue
+ * order, then six of the lighter row, hues interleaved so that neighbours in
+ * order stay distinct. Stored projects keep whatever colour they have — the
+ * schema accepts any `#rrggbb` — so this only changes what a *new* track gets.
  */
-export const TRACK_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#f59e0b",
-  "#eab308",
-  "#84cc16",
-  "#22c55e",
-  "#10b981",
-  "#14b8a6",
-  "#06b6d4",
-  "#0ea5e9",
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#d946ef",
-  "#ec4899",
-  "#f43f5e",
-  "#f87171",
-  "#fb923c",
-  "#fbbf24",
-  "#facc15",
-  "#a3e635",
-  "#4ade80",
-  "#34d399",
-  "#2dd4bf",
-  "#22d3ee",
-  "#38bdf8",
-  "#60a5fa",
-  "#818cf8",
-  "#a78bfa",
-  "#c084fc",
-  "#e879f9",
-  "#f472b6",
-  "#fb7185",
-  "#dc2626",
-  "#ca8a04",
-  "#059669",
-  "#0284c7",
-  "#9333ea",
-  "#e11d48",
+const DEFAULT_TRACK_COLOR_INDICES = [
+  30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 20, 23, 26, 21, 24, 28,
 ] as const;
+
+export const TRACK_COLORS: readonly string[] = DEFAULT_TRACK_COLOR_INDICES.map(
+  (index) => TRACK_PALETTE[index] as string,
+);
 
 export type Clock = () => number;
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TRACK_COLORS, trackColor } from "./factories";
 import { TRACK_PALETTE, TRACK_PALETTE_COLUMNS } from "./trackPalette";
 
 describe("TRACK_PALETTE (#534)", () => {
@@ -19,5 +20,19 @@ describe("TRACK_PALETTE (#534)", () => {
     expect(level(greys[9] as string)).toBeLessThan(20);
     const levels = greys.map(level);
     expect(levels).toEqual([...levels].sort((a, b) => b - a));
+  });
+});
+
+describe("TRACK_COLORS, the defaults for new tracks (#534)", () => {
+  it("are 16 distinct swatches of the picker grid, so a new track's colour is always marked", () => {
+    expect(TRACK_COLORS).toHaveLength(16);
+    expect(new Set(TRACK_COLORS).size).toBe(16);
+    for (const color of TRACK_COLORS) expect(TRACK_PALETTE).toContain(color);
+  });
+
+  it("cycle by track order", () => {
+    expect(trackColor(0)).toBe(TRACK_COLORS[0]);
+    expect(trackColor(16)).toBe(TRACK_COLORS[0]);
+    expect(trackColor(17)).toBe(TRACK_COLORS[1]);
   });
 });
