@@ -13,7 +13,7 @@
   width: 100%;
   max-width: 360px;
   padding: 20px;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--color-background-secondary);
   border: 1px solid var(--tint-medium);
   box-shadow: 0 12px 40px var(--shade-medium);
@@ -39,7 +39,7 @@
 
 .confirm-dialog-actions button {
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: 0;
   cursor: pointer;
 }
 

@@ -160,6 +160,22 @@ describe("the theme is the only place a colour is written down", () => {
     expect(stylesheets["app.css"]).toMatch(/^select \{/m);
   });
 
+  it("keeps every corner square, bar the dock's pill and the drag handles (#447)", () => {
+    // The interface is flat and square; a radius creeps in one button at a
+    // time. These two are deliberate shapes, not rounded boxes.
+    const allowed = new Set(["editor/ViewDock.css 50px", "instrument/Faceplate.css 50%"]);
+    const offenders: string[] = [];
+    for (const [path, source] of Object.entries(stylesheets)) {
+      for (const [, value] of source.matchAll(/border-radius:\s*([^;]+);/g)) {
+        const radius = value.trim();
+        if (radius !== "0" && !allowed.has(`${path} ${radius}`)) {
+          offenders.push(`${path}: ${radius}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("resolves every token those stylesheets read", () => {
     // Set on an element from TSX (`StepEditor`, `FillSlider`), never in CSS.
     // `TrackRail` sets the last two from the arrangement's own `ROW_METRICS`

@@ -23,7 +23,7 @@
   padding: 16px 20px;
   margin-bottom: 24px;
   border: 1px solid var(--tint-medium);
-  border-radius: 10px;
+  border-radius: 0;
   background: var(--tint-subtle);
 }
 
@@ -39,7 +39,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-radius: 8px;
+  border-radius: 0;
   cursor: pointer;
 }
 
@@ -84,7 +84,7 @@
   gap: 10px;
   padding: 20px;
   border: 1px solid var(--tint-soft);
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--color-background-secondary);
   transition:
     border-color 0.15s ease,
@@ -126,7 +126,7 @@
 
 .project-card .project-badge {
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 0;
   font-size: var(--font-size-tiny);
   font-weight: 600;
   text-transform: uppercase;
@@ -150,7 +150,7 @@
   text-align: center;
   color: var(--color-foreground);
   border: 1px dashed var(--tint-medium);
-  border-radius: 12px;
+  border-radius: 0;
 }
 
 .empty-projects .empty-projects-title {
@@ -173,7 +173,7 @@
   padding: 40px 24px;
   text-align: center;
   border: 1px solid var(--color-danger-edge);
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--color-danger-wash);
 }
 
@@ -187,7 +187,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-radius: 8px;
+  border-radius: 0;
   cursor: pointer;
 }
 
@@ -209,7 +209,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: var(--font-size-small);
   background: var(--tint-soft);
   border: 1px solid var(--tint-medium);
@@ -230,7 +230,7 @@
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: 0;
   border: 1px solid var(--tint-strong);
   background: var(--color-background);
   color: var(--color-text);
@@ -238,7 +238,7 @@
 
 .project-rename-form button {
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
 }
 

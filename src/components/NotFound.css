@@ -95,7 +95,7 @@
 .not-found-home {
   margin-top: 8px;
   padding: 10px 18px;
-  border-radius: 8px;
+  border-radius: 0;
   background-color: var(--color-background-secondary);
   color: var(--color-text);
   text-decoration: none;

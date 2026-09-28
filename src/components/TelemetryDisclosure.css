@@ -13,7 +13,7 @@
 
 .telemetry-disclosure-summary {
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 0;
   background-color: var(--color-background-secondary);
   cursor: pointer;
   list-style: none;
@@ -33,7 +33,7 @@
 .telemetry-disclosure-body {
   margin-top: 6px;
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: 0;
   background-color: var(--color-background-secondary);
   color: var(--color-text-secondary);
   line-height: 1.5;

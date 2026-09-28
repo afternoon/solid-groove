@@ -43,7 +43,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-radius: 12px;
+  border-radius: 0;
   background: var(--color-background-secondary);
   border: 1px solid var(--tint-medium);
   box-shadow: 0 16px 48px var(--shade-medium);
@@ -93,7 +93,7 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   color: var(--color-foreground);
   cursor: pointer;

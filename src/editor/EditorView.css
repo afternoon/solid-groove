@@ -146,7 +146,7 @@
   color: var(--color-text-primary);
   background: var(--color-background-highlight);
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: 0;
   padding: 2px 4px;
   text-align: right;
 }
@@ -222,7 +222,7 @@
   color: inherit;
   background: none;
   border: 1px solid currentColor;
-  border-radius: 3px;
+  border-radius: 0;
   padding: 2px 8px;
   cursor: pointer;
 }
