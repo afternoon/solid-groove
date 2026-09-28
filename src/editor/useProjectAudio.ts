@@ -9,6 +9,7 @@ import {
   TransportController,
   TransportMetronome,
 } from "../audio/Transport";
+import { createTriggerFeed } from "../audio/triggerFeed";
 import { UnderrunMonitor } from "../audio/underrun";
 import type { NoteTrigger, Project } from "../domain/entities";
 import type { AssetId, PadId, TrackId } from "../domain/ids";
@@ -85,6 +86,12 @@ export interface ProjectAudioControls {
     buckets: number,
     onPeaks: (peaks: Float32Array | null) => void,
   ): () => void;
+  /**
+   * Follows one track's instrument triggers as they are heard, scheduled or
+   * auditioned, so a view can show what is playing (#447). Returns the way to
+   * stop.
+   */
+  watchTriggers(trackId: TrackId, onTrigger: (trigger: NoteTrigger) => void): () => void;
 }
 
 export interface UseProjectAudioOptions {
@@ -246,7 +253,23 @@ export function useProjectAudio(
     };
   }
 
+  // What is playing, for the views that show it (#447). The feed outlives any
+  // one graph: a view's subscription survives a project switch, and only the
+  // deliveries still waiting on the old graph are dropped with it.
+  const triggers = createTriggerFeed();
+  let stopGraphTriggers: (() => void) | null = null;
+
+  function watchTriggers(
+    trackId: TrackId,
+    onTrigger: (trigger: NoteTrigger) => void,
+  ): () => void {
+    return triggers.subscribe(trackId, onTrigger);
+  }
+
   function tearDown(): void {
+    stopGraphTriggers?.();
+    stopGraphTriggers = null;
+    triggers.cancelPending();
     // The graph's buffer cache goes with it; watchers reattach to the next one.
     for (const watcher of peakWatchers) {
       watcher.subscription?.release();
@@ -281,6 +304,7 @@ export function useProjectAudio(
           underrunMonitor: underrunMonitor(),
           onAssetLoadFailure: reportAssetLoadFailure,
         });
+        stopGraphTriggers = graph.watchTriggers(triggers.publish);
         metronome = new TransportMetronome(
           liveTransportEngine,
           graph.projectScope,
@@ -311,7 +335,10 @@ export function useProjectAudio(
     },
   );
 
-  onCleanup(tearDown);
+  onCleanup(() => {
+    tearDown();
+    triggers.dispose();
+  });
 
   function startFrameLoop(): void {
     if (frameHandle !== null) return;
@@ -508,5 +535,6 @@ export function useProjectAudio(
     auditionPad,
     auditionTrack,
     watchAssetPeaks,
+    watchTriggers,
   };
 }

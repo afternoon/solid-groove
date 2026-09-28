@@ -886,6 +886,66 @@ describe("ProjectAudioGraph", () => {
   });
 });
 
+describe("ProjectAudioGraph trigger watchers (#447)", () => {
+  it("reports scheduled and auditioned triggers with their look-ahead", async () => {
+    const Tone = await import("tone");
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const transport = fakeTransport();
+    let clock = 10;
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport,
+      now: () => clock,
+      createInstrument: (instrument) => {
+        const output = new Tone.Gain(1);
+        return {
+          kind: instrument.kind,
+          output,
+          trigger() {},
+          update() {},
+          dispose() {
+            output.dispose();
+          },
+        };
+      },
+    });
+    const { createDrumMachineFixtureProject } = await import("../domain/fixtures");
+    const project = createDrumMachineFixtureProject();
+    graph.reconcile(buildAudioProjection(project));
+    const drumTrack = project.song.tracks.find(
+      (track) => track.instrument?.kind === "drumMachine",
+    );
+    if (drumTrack?.instrument?.kind !== "drumMachine") throw new Error("no drums");
+    const padId = drumTrack.instrument.pads[0].id;
+
+    const heard: { trackId: string; trigger: unknown; delay: number }[] = [];
+    const stop = graph.watchTriggers((trackId, trigger, delay) =>
+      heard.push({ trackId, trigger, delay }),
+    );
+
+    // A scheduled hit fired 0.1 s ahead of the audio clock.
+    const [firstEvent] = transport.callbacks.values();
+    firstEvent(clock + 0.1);
+    expect(heard).toHaveLength(1);
+    expect(heard[0].delay).toBeCloseTo(0.1);
+
+    // An audition is heard now.
+    graph.auditionPad(drumTrack.id, padId);
+    expect(heard[1]).toEqual({
+      trackId: drumTrack.id,
+      trigger: { kind: "pad", padId },
+      delay: 0,
+    });
+
+    stop();
+    clock = 11;
+    graph.auditionPad(drumTrack.id, padId);
+    expect(heard).toHaveLength(2);
+
+    await graph.dispose();
+    await runtime.close();
+  });
+});
+
 /**
  * LOOP-006 — tempo-aware audio loops (PRD INS-02). Exercises the loop-track
  * playback path end to end against the reconciling graph: alignment across the

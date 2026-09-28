@@ -10,7 +10,7 @@ import { executeTransaction, setLoopEnabled, setLoopRange } from "../commands";
 import type { Project } from "../domain/entities";
 import { bars } from "../domain/factories";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
-import type { AssetId } from "../domain/ids";
+import type { AssetId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 
@@ -303,6 +303,48 @@ describe("useProjectAudio", () => {
     stop();
     expect(release).toHaveBeenCalledTimes(1);
     watch.mockRestore();
+  });
+
+  it("hands a track's triggers to its watchers once they are heard (#447)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+      let report: Parameters<InstanceType<typeof ProjectAudioGraph>["watchTriggers"]>[0] =
+        () => {};
+      const watch = vi
+        .spyOn(ProjectAudioGraph.prototype, "watchTriggers")
+        .mockImplementation((watcher) => {
+          report = watcher;
+          return () => {};
+        });
+      const fixture = createSliceFixtureProject();
+      const [project] = createSignal<Project>(fixture);
+      const { result } = renderHook(
+        () => useProjectAudioModule.useProjectAudio(project),
+        {},
+      );
+      flush();
+      expect(watch).toHaveBeenCalledTimes(1);
+
+      const [track, other] = [fixture.song.tracks[0].id, "trk_other" as TrackId];
+      const heard: unknown[] = [];
+      const stop = result.watchTriggers(track, (trigger) => heard.push(trigger));
+      const trigger = { kind: "pitch", pitch: 60 } as const;
+      report(track, trigger, 0.1);
+      report(other, trigger, 0);
+      // Not yet: the trigger was scheduled a look-ahead before it sounds.
+      expect(heard).toHaveLength(0);
+      vi.advanceTimersByTime(100);
+      expect(heard).toEqual([trigger]);
+
+      stop();
+      report(track, trigger, 0);
+      vi.advanceTimersByTime(1);
+      expect(heard).toHaveLength(1);
+      watch.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("mirrors song.loop onto the transport, and follows a loop edit in place (LOOP-017)", async () => {
