@@ -13,7 +13,6 @@ import {
   createControlGesture,
   removeTrack,
   setParameter,
-  setTrackFlag,
   updateTrack,
 } from "../commands";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -29,6 +28,7 @@ import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import LevelMeter from "./LevelMeter";
 import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
+import MuteSoloToggles from "./MuteSoloToggles";
 import NewTrackButtons from "./NewTrackButtons";
 import { type FaderProps, VolumeFader } from "./TrackFaders";
 import type { TrackLevel } from "./trackLevels";
@@ -39,6 +39,7 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { moveTrack, type ReorderMethod } from "./trackReorder";
+import { toggleTrackFlag } from "./trackSurface";
 import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
@@ -469,32 +470,12 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         >
           Move right
         </button>
-        <button
-          type="button"
-          class={["mixer-strip-button mixer-mute", { active: props.track.mixer.muted }]}
-          aria-pressed={ariaBool(props.track.mixer.muted)}
-          aria-label={`Mute ${props.track.name}`}
-          onClick={() =>
-            props.dispatch(
-              setTrackFlag(props.track.id, "muted", !props.track.mixer.muted),
-            )
-          }
-        >
-          M
-        </button>
-        <button
-          type="button"
-          class={["mixer-strip-button mixer-solo", { active: props.track.mixer.soloed }]}
-          aria-pressed={ariaBool(props.track.mixer.soloed)}
-          aria-label={`Solo ${props.track.name}`}
-          onClick={() =>
-            props.dispatch(
-              setTrackFlag(props.track.id, "soloed", !props.track.mixer.soloed),
-            )
-          }
-        >
-          S
-        </button>
+        <MuteSoloToggles
+          name={props.track.name}
+          muted={props.track.mixer.muted}
+          soloed={props.track.mixer.soloed}
+          onToggle={(flag) => toggleTrackFlag(props.dispatch, props.track, flag)}
+        />
       </div>
 
       <div class="mixer-strip-pan">

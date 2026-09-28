@@ -30,8 +30,8 @@
 }
 
 /* A muted pad dims, but its mute and solo stay readable to undo it. */
-.drum-pad.muted > :not(.pad-flags) {
-  opacity: 0.4;
+.drum-pad.muted > :not(.mute-solo) {
+  opacity: var(--muted-opacity);
 }
 
 .pad-index {
@@ -136,32 +136,13 @@
   white-space: nowrap;
 }
 
-.pad-flags {
-  display: flex;
+/* The pad's M and S, a touch larger than a header's: the table is dense,
+   and they are the row's only buttons. */
+.drum-pad .mute-solo {
+  --toggle-width: 28px;
+  --toggle-height: 24px;
+
   gap: 4px;
-}
-
-.pad-flag {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 24px;
-  padding: 0;
-  background-color: var(--color-background-tertiary);
-  color: var(--color-text-secondary);
-  border: none;
-  cursor: pointer;
-  font-size: var(--font-size-small);
-  font-weight: 700;
-}
-
-.pad-flag:hover {
-  background-color: var(--color-background-hover);
-}
-
-.pad-flag.active {
-  background-color: var(--color-foreground-bright);
-  color: var(--color-background-secondary);
 }
 
 .drum-machine-empty {

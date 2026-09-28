@@ -15,7 +15,7 @@ async function rects(headers: Locator): Promise<Rect[][]> {
       [
         row,
         ...row.querySelectorAll(
-          ".track-header-swatch, .track-header-select, .track-header-toggle, .fill-slider-track, .level-meter-horizontal",
+          ".track-header-swatch, .track-header-select, .mute-solo-toggle, .fill-slider-track, .level-meter-horizontal",
         ),
       ].map((el) => {
         const r = el.getBoundingClientRect();

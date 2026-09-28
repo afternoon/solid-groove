@@ -63,29 +63,24 @@
   white-space: nowrap;
 }
 
-.track-header.muted .track-header-name {
-  color: var(--color-foreground-muted);
+/* A muted track recedes, as a muted strip or pad does; its M and S stay at
+   full strength, so the way back out is never dimmed. */
+.track-header.muted > :not(.track-header-title),
+.track-header.muted .track-header-title > :not(.mute-solo) {
+  opacity: var(--muted-opacity);
 }
 
-.track-header-toggle {
+.track-header .mute-solo {
+  --toggle-width: 18px;
+  --toggle-height: 18px;
+
   flex: none;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-tiny);
-  font-weight: 600;
-  line-height: 1;
 }
 
-/* Engaged is the brightest thing in the row: white, with black on it. */
-.track-header-toggle[aria-pressed="true"] {
-  border-color: var(--color-foreground-bright);
-  background: var(--color-foreground-bright);
-  color: var(--color-on-accent);
+.track-header .mute-solo-toggle {
+  flex: none;
+  width: var(--toggle-width);
+  font-size: var(--font-size-tiny);
 }
 
 .track-header .fill-slider.horizontal {

@@ -9,6 +9,8 @@
   --font-size-base: 14px;
   --font-size-lg: calc(var(--font-size-base) * 1.5);
   --font-size-xl: calc(var(--font-size-base) * 4);
+  /* How far a muted track or pad recedes; its mute stays at full strength. */
+  --muted-opacity: 0.4;
 }
 
 :root {
