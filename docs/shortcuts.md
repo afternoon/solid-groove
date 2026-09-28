@@ -56,6 +56,8 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor | Solid Groove addition — `?` is the web convention |
 | `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
 | `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
+| `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
+| `track.move_right` | Move track right | `Right` | `Right` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
 
 `Browser` is a declared guide group with no mappings yet. The task that builds
 that surface adds entries to the existing group rather than inventing a section.
