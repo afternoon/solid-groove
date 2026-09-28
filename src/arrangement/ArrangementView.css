@@ -19,12 +19,13 @@
 }
 
 /* The zoom group (PRD 9.3): four icon buttons stacked into one segmented
-   control over the bottom-right of the arrangement, clear of the scrollbars.
-   It floats, so it does not scroll with the canvas. Square, monochrome. */
+   control over the bottom-right of the arrangement, clear of the scrollbars
+   and of the fixed privacy chip beneath the corner. It floats, so it does not
+   scroll with the canvas. Square, monochrome. */
 .arrangement-zoom {
   position: absolute;
   right: 24px;
-  bottom: 24px;
+  bottom: 72px;
   z-index: 2;
   display: flex;
   flex-direction: column;
