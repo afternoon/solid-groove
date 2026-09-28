@@ -1,4 +1,5 @@
 import type { JSX } from "@solidjs/web";
+import { onCleanup } from "solid-js";
 import type {
   Gesture,
   GestureOptions,
@@ -69,6 +70,11 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
     if (last.length > 0) props.onCommit?.();
     last = [];
   };
+
+  // A drag the pointer never releases here still ends: a track switch can
+  // unmount the well mid-drag, and an open gesture would lock every other
+  // control out (see `FillSlider`'s commit on pointer up and cancel).
+  onCleanup(end);
 
   return (
     <div

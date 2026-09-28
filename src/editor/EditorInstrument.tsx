@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { createSignal, Show } from "solid-js";
+import { createMemo, createSignal, Show } from "solid-js";
 import { analytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -117,16 +117,20 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
     };
   }
 
-  /** The header row every instrument unit opens with (#447). */
-  const header = (track: Track) => (
+  /**
+   * The header row every instrument unit opens with (#447), built once for the
+   * track on screen: its props follow the track, so an edit updates the row in
+   * place rather than rebuilding it, and its meter, on every change.
+   */
+  const header = (track: () => Track) => (
     <InstrumentHeader
-      facts={instrumentHeaderFacts(props.project, track, selectedPad())}
-      trackName={track.name}
-      audition={audition(track)}
+      facts={instrumentHeaderFacts(props.project, track(), selectedPad())}
+      trackName={track().name}
+      audition={audition(track())}
       meter={
         props.trackLevelDb && props.isPlaying ? (
           <LevelMeter
-            trackId={track.id}
+            trackId={track().id}
             trackLevelDb={props.trackLevelDb}
             isPlaying={props.isPlaying}
             orientation="horizontal"
@@ -163,85 +167,89 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
             <p class="no-track">This project has no tracks yet. Add one in the mixer.</p>
           }
         >
-          {(currentTrack) => (
-            // The track's own colour is the ink its wells draw in (#447).
-            <div
-              class="instrument-view-track"
-              style={{ "--track-ink": currentTrack().color }}
-            >
-              {/* The kind picker heads the view, outside the instrument it
+          {(currentTrack) => {
+            const unitHeader = header(currentTrack);
+            const loop = createMemo(() => trackLoop(props.project, currentTrack()));
+            return (
+              // The track's own colour is the ink its wells draw in (#447).
+              <div
+                class="instrument-view-track"
+                style={{ "--track-ink": currentTrack().color }}
+              >
+                {/* The kind picker heads the view, outside the instrument it
                   chooses (#447). A loop track shows it too, with nothing to
                   choose yet: a loop is not one of the kinds. */}
-              <InstrumentKindPicker
-                trackId={currentTrack().id}
-                project={props.project}
-                instrument={currentTrack().type === "audio" ? null : props.instrument}
-                dispatch={props.dispatch}
-                disabled={currentTrack().type === "audio"}
-              />
-              {/* An audio track plays a loop, so it shows the loop's faceplate
-                  (#447). Either way the header row is the unit's first row. */}
-              <Show
-                when={currentTrack().type === "audio"}
-                fallback={
-                  <TrackInstrument
-                    trackName={currentTrack().name}
-                    instrument={props.instrument}
-                    trackId={props.instrumentTrackId}
-                    sampleName={props.sampleName}
-                    loadSample={props.loadSample}
-                    onBrowse={props.onBrowse}
-                    watchPeaks={props.watchPeaks}
-                    dispatch={props.dispatch}
-                    beginGesture={props.beginGesture}
-                    header={header(currentTrack())}
-                  >
-                    <Show when={props.drumTrack}>
-                      {(drum) => (
-                        <div class="drum-machine-editor">
-                          <DrumMachinePanel
-                            track={drum()}
-                            assets={props.sampleAssets}
-                            dispatch={props.dispatch}
-                            beginGesture={props.beginGesture}
-                            audition={(padId) => props.auditionPad(drum().id, padId)}
-                            selectedPadId={selectedPad()}
-                            onSelectPad={setSelectedPad}
-                            onBrowseSample={(padId) =>
-                              props.onBrowsePad?.(drum().id, padId)
-                            }
-                            watchPeaks={props.watchPeaks}
-                            watchTriggers={
-                              props.watchTriggers
-                                ? (onTrigger) =>
-                                    props.watchTriggers?.(drum().id, onTrigger) ??
-                                    (() => {})
-                                : undefined
-                            }
-                          />
-                        </div>
-                      )}
-                    </Show>
-                  </TrackInstrument>
-                }
-              >
-                <LoopPanel
-                  trackName={currentTrack().name}
-                  clip={trackLoop(props.project, currentTrack()).clip}
-                  asset={trackLoop(props.project, currentTrack()).asset}
-                  songTempo={props.project.song.tempo}
-                  watchPeaks={props.watchPeaks}
-                  header={header(currentTrack())}
+                <InstrumentKindPicker
+                  trackId={currentTrack().id}
+                  project={props.project}
+                  instrument={currentTrack().type === "audio" ? null : props.instrument}
+                  dispatch={props.dispatch}
+                  disabled={currentTrack().type === "audio"}
                 />
-              </Show>
-              <DeviceChainPanel
-                track={currentTrack()}
-                tempo={props.project.song.tempo}
-                dispatch={props.dispatch}
-                beginGesture={props.beginGesture}
-              />
-            </div>
-          )}
+                {/* An audio track plays a loop, so it shows the loop's faceplate
+                  (#447). Either way the header row is the unit's first row. */}
+                <Show
+                  when={currentTrack().type === "audio"}
+                  fallback={
+                    <TrackInstrument
+                      trackName={currentTrack().name}
+                      instrument={props.instrument}
+                      trackId={props.instrumentTrackId}
+                      sampleName={props.sampleName}
+                      loadSample={props.loadSample}
+                      onBrowse={props.onBrowse}
+                      watchPeaks={props.watchPeaks}
+                      dispatch={props.dispatch}
+                      beginGesture={props.beginGesture}
+                      header={unitHeader}
+                    >
+                      <Show when={props.drumTrack}>
+                        {(drum) => (
+                          <div class="drum-machine-editor">
+                            <DrumMachinePanel
+                              track={drum()}
+                              assets={props.sampleAssets}
+                              dispatch={props.dispatch}
+                              beginGesture={props.beginGesture}
+                              audition={(padId) => props.auditionPad(drum().id, padId)}
+                              selectedPadId={selectedPad()}
+                              onSelectPad={setSelectedPad}
+                              onBrowseSample={(padId) =>
+                                props.onBrowsePad?.(drum().id, padId)
+                              }
+                              watchPeaks={props.watchPeaks}
+                              watchTriggers={
+                                props.watchTriggers
+                                  ? (onTrigger) =>
+                                      props.watchTriggers?.(drum().id, onTrigger) ??
+                                      (() => {})
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        )}
+                      </Show>
+                    </TrackInstrument>
+                  }
+                >
+                  <LoopPanel
+                    trackName={currentTrack().name}
+                    clip={loop().clip}
+                    asset={loop().asset}
+                    songTempo={props.project.song.tempo}
+                    watchPeaks={props.watchPeaks}
+                    header={unitHeader}
+                  />
+                </Show>
+                <DeviceChainPanel
+                  track={currentTrack()}
+                  tempo={props.project.song.tempo}
+                  dispatch={props.dispatch}
+                  beginGesture={props.beginGesture}
+                />
+              </div>
+            );
+          }}
         </Show>
       </div>
     </div>
