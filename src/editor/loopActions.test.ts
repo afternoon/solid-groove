@@ -6,12 +6,7 @@ import { CommandHistory } from "../commands";
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
-import {
-  type LoopActionContext,
-  loopSelection,
-  setLoopRangeFromDrag,
-  toggleLooping,
-} from "./loopActions";
+import { type LoopActionContext, loopSelection, toggleLooping } from "./loopActions";
 
 function setUp(options: { analyticsEnabled?: boolean } = {}) {
   const history = new CommandHistory(createSliceFixtureProject());
@@ -53,28 +48,10 @@ describe("loop actions (LOOP-017)", () => {
     ]);
   });
 
-  it("commits a dragged range snapped to bars and logs loop_range_set once", () => {
-    const { history, transport, context } = ctx;
-
-    expect(setLoopRangeFromDrag(context, TICKS_PER_BAR + 30, 3 * TICKS_PER_BAR - 5)).toBe(
-      true,
-    );
-
-    expect(history.project.song.loop).toMatchObject({
-      startTicks: TICKS_PER_BAR,
-      endTicks: 3 * TICKS_PER_BAR,
-      enabled: true,
-    });
-    expect(history.entries).toHaveLength(1);
-    const events = transport.named("loop_range_set");
-    expect(events).toHaveLength(1);
-    expect(events[0]?.params.bar_count).toBe(2);
-  });
-
   it("carries no project, track, or clip names in either event", () => {
     const { transport, context, history } = ctx;
     toggleLooping(context);
-    setLoopRangeFromDrag(context, 0, 4 * TICKS_PER_BAR);
+    loopSelection(context, 0, 4 * TICKS_PER_BAR);
 
     const names = [
       history.project.metadata.name,
@@ -90,21 +67,12 @@ describe("loop actions (LOOP-017)", () => {
     }
   });
 
-  it("dispatches and logs nothing for a drag that lands on the current range", () => {
-    const { history, transport, context } = ctx;
-
-    expect(setLoopRangeFromDrag(context, 10, TICKS_PER_BAR - 10)).toBe(false);
-
-    expect(history.entries).toHaveLength(0);
-    expect(transport.named("loop_range_set")).toHaveLength(0);
-  });
-
   it("logs nothing when the command is refused", () => {
     const { transport, context } = ctx;
     const refusing: LoopActionContext = { ...context, dispatch: () => undefined };
 
     expect(toggleLooping(refusing)).toBe(false);
-    expect(setLoopRangeFromDrag(refusing, 0, 4 * TICKS_PER_BAR)).toBe(false);
+    expect(loopSelection(refusing, 0, 4 * TICKS_PER_BAR)).toBe(false);
 
     expect(transport.named("loop_toggled")).toHaveLength(0);
     expect(transport.named("loop_range_set")).toHaveLength(0);
@@ -114,12 +82,12 @@ describe("loop actions (LOOP-017)", () => {
     const denied = setUp({ analyticsEnabled: false });
 
     toggleLooping(denied.context);
-    setLoopRangeFromDrag(denied.context, 0, 2 * TICKS_PER_BAR);
+    loopSelection(denied.context, 0, 2 * TICKS_PER_BAR);
 
     expect(denied.history.project.song.loop).toMatchObject({
       startTicks: 0,
       endTicks: 2 * TICKS_PER_BAR,
-      enabled: false,
+      enabled: true,
     });
     expect(denied.transport.events).toHaveLength(0);
   });

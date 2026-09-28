@@ -41,12 +41,7 @@ import {
   type ViewChangeSource,
 } from "./editorViews";
 import LibraryModal from "./LibraryModal";
-import {
-  type LoopActionContext,
-  loopSelection,
-  setLoopRangeFromDrag,
-  toggleLooping,
-} from "./loopActions";
+import { type LoopActionContext, loopSelection, toggleLooping } from "./loopActions";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import type { PianoRollActions } from "./PianoRoll";
@@ -493,9 +488,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           selectedTrackId={track()?.id ?? null}
                           onSelectTrack={selectTrack}
                           onOpenPlacement={openPlacement}
-                          onSetLoopRange={(startTicks, endTicks) =>
-                            setLoopRangeFromDrag(loopActions, startTicks, endTicks)
-                          }
                           /* The arrangement's own way to add a track
                              (`UI-001`), the same unit and the same route the
                              mixer uses — rendered by the arrangement directly

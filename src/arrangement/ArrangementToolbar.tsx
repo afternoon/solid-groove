@@ -1,5 +1,3 @@
-import type { JSX } from "@solidjs/web";
-
 /**
  * The arrangement's named DOM actions (PRD 9.3 accessibility): zoom in/out,
  * zoom to selection, and scroll to playhead, as real buttons so canvas pixels
@@ -13,8 +11,6 @@ export interface ArrangementToolbarProps {
   readonly onScrollToPlayhead: () => void;
   /** Zoom-to-selection is meaningless with nothing selected. */
   readonly hasSelection: boolean;
-  /** Further controls at the toolbar's far end — the loop brace's (`LOOP-018`). */
-  readonly children?: JSX.Element;
 }
 
 export function ArrangementToolbar(props: ArrangementToolbarProps) {
@@ -57,7 +53,6 @@ export function ArrangementToolbar(props: ArrangementToolbarProps) {
       >
         Scroll to playhead
       </button>
-      {props.children}
     </div>
   );
 }

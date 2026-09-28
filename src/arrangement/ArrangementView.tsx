@@ -4,7 +4,6 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  createUniqueId,
   onSettled,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
@@ -44,7 +43,6 @@ import {
 } from "./canvasRenderer";
 import { clipClickGesture } from "./clipClickGesture";
 import type { RowMetrics, Viewport } from "./geometry";
-import { LoopBraceControls } from "./LoopBraceControls";
 import {
   createLoopBraceDrag,
   describeLoopBars,
@@ -206,13 +204,6 @@ export interface ArrangementViewProps {
    * knows nothing else about it; what adding a track means stays the editor's.
    */
   readonly belowTracks?: JSX.Element;
-  /**
-   * Commits a loop range the keyboard controls asked for (`LOOP-018`). The
-   * editor owns what committing means (`loopActions.setLoopRangeFromDrag`);
-   * without it the brace is still drawn and still dragged, and the keyboard
-   * controls are left out.
-   */
-  readonly onSetLoopRange?: (startTicks: number, endTicks: number) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -269,7 +260,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // across renders rather than being rebuilt inside one.
   const ids = createIdFactory();
   // Unique per instance, so two arrangements never share a described-by target.
-  const loopMirrorId = createUniqueId();
   // The placement drag in flight, if any: which pointer owns it, so a stray
   // move/up from another pointer is ignored.
   let activePointerId: number | null = null;
@@ -924,17 +914,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
         onZoomToSelection={zoomToSelection}
         onScrollToPlayhead={scrollToPlayhead}
         hasSelection={canZoomToSelection()}
-      >
-        <Show when={props.onSetLoopRange}>
-          {(onSetLoopRange) => (
-            <LoopBraceControls
-              loop={props.project.song.loop}
-              onSetRange={onSetLoopRange()}
-              describedBy={loopMirrorId}
-            />
-          )}
-        </Show>
-      </ArrangementToolbar>
+      />
       <div class="arrangement-body">
         <div
           class="arrangement-headers"
@@ -1061,8 +1041,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
         {/* The loop brace, which is otherwise only canvas pixels (LOOP-018).
             `describeLoopBars` is the one wording of the range, and this is
             the one place it is shown: it is what a screen reader hears when
-            the brace moves, and what the keyboard controls are described by. */}
-        <p id={loopMirrorId} aria-live="polite" data-testid="arrangement-loop-live">
+            the brace moves. */}
+        <p aria-live="polite" data-testid="arrangement-loop-live">
           {`Loop over ${describeLoopBars(props.project.song.loop)}, looping ${
             props.project.song.loop.enabled ? "on" : "off"
           }`}

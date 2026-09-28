@@ -1806,37 +1806,6 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(viewport.scrollLeft).toBe(0);
   });
 
-  it("moves and resizes the loop brace from its keyboard controls", async () => {
-    const transport = await renderLooping();
-    const live = screen.getByTestId("arrangement-loop-live");
-    expect(live).toHaveTextContent("Loop over bar 1, looping on");
-    const length = screen.getByRole("spinbutton", { name: "Loop length" });
-    const start = screen.getByRole("spinbutton", { name: "Loop start" });
-    // A new project's brace spans the first bar.
-    expect(start).toHaveValue(1);
-    expect(length).toHaveValue(1);
-    // Each control is described by the one readout of the range.
-    expect(start).toHaveAttribute("aria-describedby", live.id);
-    expect(length).toHaveAttribute("aria-describedby", live.id);
-
-    fireEvent.change(length, { target: { value: "2" } });
-    await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
-    expect(live).toHaveTextContent("Loop over bars 1 to 2, looping on");
-    fireEvent.change(start, { target: { value: "3" } });
-    await screen.findByRole("button", { name: "Undo Loop bars 3-4" });
-    expect(live).toHaveTextContent("Loop over bars 3 to 4, looping on");
-    // Both read back from the song, so the brace moved without changing length.
-    expect(start).toHaveValue(3);
-    expect(length).toHaveValue(2);
-    // Something that is not a whole bar is refused, and the brace stays put.
-    fireEvent.change(length, { target: { value: "0" } });
-    expect(length).toHaveValue(2);
-
-    expect(
-      transport.named("loop_range_set").map((event) => event.params.bar_count),
-    ).toEqual([2, 2]);
-  });
-
   it("the metronome shortcut O toggles the click from the keyboard", async () => {
     await renderSlice();
     expect(screen.getByRole("button", { name: "Enable metronome" })).toBeInTheDocument();

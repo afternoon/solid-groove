@@ -17,9 +17,9 @@ import { TICKS_PER_BAR, toTicks } from "../domain/time";
  *
  * The loop is song state: neither action touches the transport. The transport
  * follows because `useProjectAudio` mirrors `song.loop` onto it on every
- * project change, the same way it mirrors tempo. The ruler brace (#280) calls
- * `setLoopRangeFromDrag` with wherever the drag ended; the header's loop button
- * calls `toggleLooping`.
+ * project change, the same way it mirrors tempo. The ruler brace drags its own
+ * gesture (`loopBrace.ts`); the header's loop button and `Shift+L` call
+ * `toggleLooping`, and `L` calls `loopSelection`.
  */
 export interface LoopActionContext {
   project(): Project | null;
@@ -37,33 +37,6 @@ export function toggleLooping(context: LoopActionContext): boolean {
   const result = context.dispatch(setLoopEnabled(enabled));
   if (!result?.ok) return false;
   context.analytics.log("loop_toggled", { enabled });
-  return true;
-}
-
-/**
- * Commit a dragged loop range, snapped to whole bars. A drag that lands back
- * on the range the song already has is not a change: nothing is dispatched and
- * nothing is logged.
- */
-export function setLoopRangeFromDrag(
-  context: LoopActionContext,
-  startTicks: number,
-  endTicks: number,
-): boolean {
-  const project = context.project();
-  if (!project) return false;
-  const range = barAlignedLoop(startTicks, endTicks);
-  const current = project.song.loop;
-  if (range.startTicks === current.startTicks && range.endTicks === current.endTicks) {
-    return false;
-  }
-  const result = context.dispatch(
-    setLoopRange(toTicks(range.startTicks), toTicks(range.endTicks)),
-  );
-  if (!result?.ok) return false;
-  context.analytics.log("loop_range_set", {
-    bar_count: (range.endTicks - range.startTicks) / TICKS_PER_BAR,
-  });
   return true;
 }
 
