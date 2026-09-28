@@ -379,6 +379,9 @@
   z-index: 50;
   margin: calc(-1 * var(--size-divider)) calc(-1 * var(--size-divider)) 0;
   padding: var(--size-divider);
+  /* The padding goes around the header's height, not inside it, so the
+     header row is as tall here as in the arrangement. */
+  box-sizing: content-box;
   background-color: var(--color-background);
 }
 
