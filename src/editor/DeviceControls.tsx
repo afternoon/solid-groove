@@ -1,4 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
+import { createMemo } from "solid-js";
 import {
   createControlGesture,
   type DeviceChainTarget,
@@ -11,6 +12,7 @@ import {
 import { deviceParameters } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
+import ControlGroup from "../instrument/ControlGroup";
 import FillSlider from "../instrument/FillSlider";
 import OptionGroup from "../instrument/OptionGroup";
 import {
@@ -21,6 +23,7 @@ import {
   readDeviceParameter,
 } from "./deviceControlModel";
 import "./DeviceControls.css";
+import { deviceGroups } from "./deviceFaceplate";
 
 export interface DeviceControlsProps {
   /** The chain the device is in, which decides its parameters' address. */
@@ -47,6 +50,10 @@ export interface DeviceControlsProps {
  *
  * Element ids and radio names carry the device's id, because a chain may hold
  * two of the same device — a duplicated reverb has a second "Size".
+ *
+ * The controls stand in Juno-style banks (#447, `deviceFaceplate.ts`): a mode
+ * is a switch as tall as the faders, and each bank's width follows its number
+ * of controls, so every fader on a card sits on one pitch.
  */
 export default function DeviceControls(props: DeviceControlsProps): JSX.Element {
   const command = (definition: ParameterDefinition, value: number) =>
@@ -57,43 +64,57 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
   const key = (definition: ParameterDefinition) =>
     `device-${props.device.id}-${bareParameterId(definition.id)}`;
 
+  // Grouped once per device type, not per edit: a new list on every value
+  // change would remount the banks — and the slider being dragged with them.
+  const type = createMemo(() => props.device.type);
+  const groups = createMemo(() => deviceGroups(type(), deviceParameters(type())));
+
+  const control = (definition: ParameterDefinition): JSX.Element => {
+    const value = () => readDeviceParameter(props.device, definition);
+    const choices = deviceChoices(definition);
+    return (
+      <Show
+        when={choices}
+        fallback={
+          <DeviceSlider
+            definition={definition}
+            value={value()}
+            inputId={key(definition)}
+            command={(next) => command(definition, next)}
+            dispatch={props.dispatch}
+            beginGesture={props.beginGesture}
+          />
+        }
+      >
+        {(options) => (
+          <OptionGroup
+            legend={definition.label}
+            radioGroup={key(definition)}
+            fill
+            value={value()}
+            options={options()}
+            onSelect={(next) => props.dispatch(command(definition, next))}
+          />
+        )}
+      </Show>
+    );
+  };
+
   return (
     <div class="device-controls">
-      <For each={deviceParameters(props.device.type)}>
-        {(definition) => {
-          const value = () => readDeviceParameter(props.device, definition);
-          const choices = deviceChoices(definition);
-          return (
-            <Show
-              when={choices}
-              fallback={
-                <DeviceSlider
-                  definition={definition}
-                  value={value()}
-                  inputId={key(definition)}
-                  command={(next) => command(definition, next)}
-                  dispatch={props.dispatch}
-                  beginGesture={props.beginGesture}
-                />
-              }
-            >
-              {(options) => (
-                <div class="device-choice">
-                  <span class="device-choice-label" aria-hidden="true">
-                    {definition.label}
-                  </span>
-                  <OptionGroup
-                    legend={definition.label}
-                    radioGroup={key(definition)}
-                    value={value()}
-                    options={options()}
-                    onSelect={(next) => props.dispatch(command(definition, next))}
-                  />
-                </div>
-              )}
-            </Show>
-          );
-        }}
+      <For each={groups()}>
+        {(group) => (
+          <ControlGroup
+            title={group.title}
+            plainTitle
+            class={
+              group.parameters.some((d) => deviceChoices(d)) ? "device-switch" : undefined
+            }
+            style={{ "--controls": String(group.parameters.length) }}
+          >
+            <For each={group.parameters}>{(definition) => control(definition)}</For>
+          </ControlGroup>
+        )}
       </For>
     </div>
   );

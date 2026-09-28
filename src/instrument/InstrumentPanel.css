@@ -85,8 +85,10 @@
   --fill-slider-track-height: 160px;
 }
 
+/* `height`, not `min-height`: a fieldset's options only share out a height
+   the fieldset is given outright. */
 .faceplate-column .option-group.fill {
-  min-height: 212px;
+  height: 212px;
 }
 
 .instrument-panel-groups {
