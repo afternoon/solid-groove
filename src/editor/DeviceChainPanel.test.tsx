@@ -65,10 +65,10 @@ function addFromPanel(panel: ReturnType<typeof renderPanel>["panel"], label: str
 }
 
 describe("DeviceChainPanel", () => {
-  it("shows an empty chain as an empty list, with a note", () => {
-    const { panel, items } = renderPanel();
+  it("shows an empty track chain as an empty list, with no note (#447)", () => {
+    const { items } = renderPanel();
     expect(items()).toHaveLength(0);
-    expect(panel().getByText("No devices on this track yet.")).toBeInTheDocument();
+    expect(document.querySelector(".device-chain-note")).toBeNull();
   });
 
   it("offers one add button per registered type, and appends each in order as one entry", () => {
