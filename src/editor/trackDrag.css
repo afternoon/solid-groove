@@ -13,7 +13,7 @@
    and buttons are not the handle. */
 [data-track-drag],
 [data-track-drag] .mixer-strip-select,
-[data-track-drag] .arrangement-header-select,
+[data-track-drag] .track-header-select,
 [data-track-drag] .track-rail-button {
   cursor: grab;
 }

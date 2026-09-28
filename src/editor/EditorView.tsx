@@ -483,6 +483,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           project={currentProject()}
                           playheadTicks={audio.positionTicks}
                           isPlaying={audio.isPlaying}
+                          trackLevelDb={audio.trackLevelDb}
                           dispatch={session.dispatch}
                           beginGesture={session.beginGesture}
                           onEditingActionsReady={setArrangementEditingActions}

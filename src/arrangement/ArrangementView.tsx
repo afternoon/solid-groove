@@ -18,6 +18,7 @@ import type { Project } from "../domain/entities";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import "../editor/trackDrag.css";
+import TrackHeader from "../editor/TrackHeader";
 import { moveTrack, orderedTrackIds, previewTrackOrder } from "../editor/trackReorder";
 import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -59,7 +60,6 @@ import { type ArrangementProjection, buildArrangementProjection } from "./projec
 import { describeArrangementSelection } from "./selectionAnnouncement";
 import { useArrangementCanvas } from "./useArrangementCanvas";
 import "./ArrangementView.css";
-import { ariaBool } from "../shared/aria";
 
 /** The placement-editing operations `EditorView` wires into the KEY-01
  * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`, plus
@@ -135,7 +135,7 @@ const VERTICAL_SCALE = {
  * space wherever the producer meets it, so moving between views does not move
  * the list under their pointer.
  */
-export const HEADER_WIDTH_PX = 160;
+export const HEADER_WIDTH_PX = 200;
 
 /**
  * Scrollable space kept below the last track (`UI-001`).
@@ -184,6 +184,8 @@ export interface ArrangementViewProps {
    * it just marks no row and moves nothing when one is clicked.
    */
   readonly selectedTrackId?: TrackId | null;
+  /** Live post-fader level of a track, for its header's meter (#447). */
+  readonly trackLevelDb?: (trackId: string) => number | null;
   /** Called with the track a clicked row belongs to, so the editor can follow
    * it — the arrangement holds no selection state of its own. */
   readonly onSelectTrack?: (trackId: TrackId) => void;
@@ -824,6 +826,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
     bumpState();
   }
 
+  /** The domain track a header row shows: its mixer, its colour. */
+  const trackOf = (trackId: TrackId) =>
+    props.project.song.tracks.find((candidate) => candidate.id === trackId);
+
   // The visible window of track rows, recomputed from the shell's row range.
   const headerRows = createMemo(() => {
     stateVersion();
@@ -944,32 +950,24 @@ export default function ArrangementView(props: ArrangementViewProps) {
                     width: "100%",
                   }}
                 >
-                  {/* The row is the control: clicking a track header points the
-									    editor at that track (#228), and a keyboard reaches the
-									    same thing by tabbing the header column. "Edit", not
-									    "Select": `Select <track>` is the accessible list's name
-									    for selecting that track's first bar range, below. */}
-                  <button
-                    type="button"
-                    class="arrangement-header-select"
-                    aria-pressed={ariaBool(props.selectedTrackId === track.id)}
-                    aria-label={`Edit ${track.name}${track.muted ? " (muted)" : ""}`}
-                    onClick={() => selectTrack(track.id)}
-                    onPointerDown={(event) => {
-                      if (props.dispatch) trackDrag.begin(event, track.id);
-                    }}
-                  >
-                    <span
-                      class="arrangement-header-swatch"
-                      style={{ background: track.color }}
-                    />
-                    {/* The track's name, chosen by the user. The row around it
-										    stays visible, so a replay still shows which track was
-										    clicked (ADR 0002 decision 2). */}
-                    <span class={`arrangement-header-name ${MASK_CONTENT}`}>
-                      {track.name}
-                    </span>
-                  </button>
+                  <Show when={trackOf(track.id)}>
+                    {(domainTrack) => (
+                      <TrackHeader
+                        track={domainTrack()}
+                        selected={props.selectedTrackId === track.id}
+                        onSelect={() => selectTrack(track.id)}
+                        dispatch={(commands) => props.dispatch?.(commands)}
+                        beginGesture={(options) => props.beginGesture?.(options)}
+                        trackLevelDb={(trackId) => props.trackLevelDb?.(trackId) ?? null}
+                        isPlaying={() => props.isPlaying?.() ?? false}
+                        onDragStart={(event) => {
+                          if (props.dispatch) trackDrag.begin(event, track.id);
+                        }}
+                        surface="arrangement"
+                        analytics={analytics()}
+                      />
+                    )}
+                  </Show>
                 </li>
               )}
             </For>

@@ -151,8 +151,8 @@ const MASKED_NAMES: readonly {
     renders: "the sound each pad plays, down the pad table",
   },
   {
-    file: "arrangement/ArrangementView.tsx",
-    anchor: "arrangement-header-name",
+    file: "editor/TrackHeader.tsx",
+    anchor: "track-header-name",
     renders: "track names down the arrangement's header column",
   },
   {
