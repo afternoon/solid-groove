@@ -22,7 +22,7 @@
 }
 
 /* Chosen and focused are brightness: a white ring around the colour. */
-.track-color-menu button[aria-checked="true"],
+.track-color-menu button[aria-pressed="true"],
 .track-color-menu button:focus-visible {
   outline: 2px solid var(--color-foreground-bright);
   outline-offset: 1px;
