@@ -11,31 +11,26 @@
   background-color: var(--color-background-secondary);
 }
 
+/* The view's title row (#447): its name, and the new-track buttons at the
+   right. */
 .mixer-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 22px;
+  gap: 16px;
+  padding: 4px 0 8px;
 }
 
 .mixer-heading {
   margin: 0;
-  font-size: var(--font-size-tiny);
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-foreground);
+  color: var(--color-foreground-bright);
 }
 
-.mixer-track-count {
-  font-size: var(--font-size-small);
-  color: var(--color-foreground);
-  font-variant-numeric: tabular-nums;
+.mixer-header .new-track-buttons {
+  margin: 0 0 0 auto;
 }
 
-/* The three kinds sit together as one control, next to the count rather than
-   across the panel, so they stay beside the strips they add to however wide the
-   workspace gets. */
 .mixer-tracks {
   /* Drag measurements (TRK-02) are taken against this row. */
   position: relative;
@@ -56,70 +51,61 @@
   flex: 0 0 auto;
   padding: 6px;
   box-sizing: border-box;
-  background-color: var(--color-background-highlight);
+  background-color: var(--color-background-secondary);
 }
 
+/* The strip's name, and under it the control that selects its track, below
+   the track's colour drawn as a top edge (#447). */
 .mixer-strip-head {
   display: flex;
-  align-items: center;
-  gap: 5px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
   min-width: 0;
+  padding-top: 8px;
+  border-top: 3px solid var(--color-foreground);
 }
 
-/* The strip whose track the editor is showing (#228). The accent runs down the
-   left edge and the strip lifts a shade: enough to find at a glance across a
-   row of strips, without recolouring a control or the track's own chip. */
+/* The strip whose track the editor is showing (#228): the selection is
+   black (#447), the one strip sunk to the ground, as in the arrangement's
+   header column and the instrument view's rail. */
 .mixer-strip.selected {
-  background-color: var(--color-background-tertiary);
-  box-shadow: inset 2px 0 0 var(--color-accent);
+  background-color: var(--color-background);
 }
 
-/* Track identity, the way the mocks mark it: a small square colour chip beside
-   the name (mock 01's "INSTRUMENT ■ Clap"), not a tinted control. The chip is
-   wrapped in the select button, which is chip-sized and carries no chrome of
-   its own — the strip's own selected state is the feedback. */
+/* Selects the track, and reads what it is: "Sampler", "Drum machine". */
 .mixer-strip-select {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  /* Chip-sized plus a pointer-sized margin around it: the chip is 8px, which
-	   is a fine mark and a poor target. */
-  width: 18px;
-  height: 18px;
+  align-self: flex-start;
   padding: 0;
   border-radius: 0;
   background-color: transparent;
+  color: var(--color-foreground-muted);
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
 }
 
-.mixer-strip-select:hover {
-  background-color: var(--color-background-hover);
-}
-
+.mixer-strip-select:hover,
 .mixer-strip-select[aria-pressed="true"] {
-  background-color: var(--color-accent);
-}
-
-.mixer-strip-chip {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
+  background-color: transparent;
+  color: var(--color-foreground-bright);
 }
 
 .mixer-strip-name {
   min-width: 0;
-  flex: 1 1 auto;
-  padding: 2px 4px;
+  padding: 1px 0;
   background-color: transparent;
   border-radius: 0;
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-base);
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-foreground-bright);
   text-overflow: ellipsis;
 }
 
 .mixer-strip-name:hover {
-  background-color: var(--color-background-tertiary);
+  box-shadow: inset 0 -1px 0 var(--color-foreground-muted);
 }
 
 .mixer-strip-name:focus {
@@ -349,4 +335,27 @@
    every fader on the desk shares one travel and one floor. */
 .mixer-master-strip .mixer-strip-controls {
   margin-top: auto;
+}
+
+/* Moving a strip left or right by keyboard (#331): a pointer drags the strip,
+   so these stay out of sight until focus reaches them. */
+.mixer-reorder:not(:focus-visible) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mixer-reorder:focus-visible {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 0;
+  font-size: var(--font-size-tiny);
 }

@@ -181,16 +181,16 @@ test.describe("mixer", () => {
     await goToView(page, "Mixer");
     const mixer = page.getByRole("region", { name: "Mixer" });
     await mixer.scrollIntoViewIfNeeded();
-    await expect(mixer).toContainText("1 track");
+    await expect(mixer.getByRole("button", { name: /^Mute / })).toHaveCount(1);
     await step("A new project opens with one track: the starter kick");
 
     await page.getByRole("button", { name: "Add sampler track" }).click();
-    await expect(mixer).toContainText("2 tracks");
+    await expect(mixer.getByRole("button", { name: /^Mute / })).toHaveCount(2);
     await expect(page.getByRole("button", { name: "Mute Sampler" })).toBeVisible();
     await step("Add a sampler track — a strip for it appears in the mixer");
 
     await page.getByRole("button", { name: "Add drum machine track" }).click();
-    await expect(mixer).toContainText("3 tracks");
+    await expect(mixer.getByRole("button", { name: /^Mute / })).toHaveCount(3);
     await expect(page.getByRole("button", { name: "Mute Drum machine" })).toBeVisible();
     await step("Add a drum machine track beside it");
 

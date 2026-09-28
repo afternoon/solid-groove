@@ -130,7 +130,7 @@
 /* The whole row is the select control (#228): it fills the header cell and
    carries no chrome of its own, so the column still reads as a list of tracks
    rather than a column of buttons. The row whose track the editor is showing
-   takes the accent edge the mixer's selected strip does. */
+   is black, as the mixer's selected strip is. */
 .arrangement-header-select {
   display: flex;
   align-items: center;
@@ -149,8 +149,10 @@
   background-color: var(--color-background-tertiary);
 }
 
+/* The selected track is black (#447), as in the mixer and the rail. */
 .arrangement-header-select[aria-pressed="true"] {
-  background-color: var(--color-background-tertiary);
+  background-color: var(--color-background);
+  color: var(--color-foreground-bright);
 }
 
 .arrangement-header-swatch {

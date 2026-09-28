@@ -29,6 +29,7 @@ import {
 import type { TrackId } from "../domain/ids";
 import { clampParameterValue, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
+import { instrumentKindSpec } from "../instrument/instrumentKinds";
 import { parseParameterInput } from "../instrument/parseValue";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MasterPanel from "./MasterPanel";
@@ -208,11 +209,10 @@ export default function Mixer(props: MixerProps): JSX.Element {
 
   return (
     <section class="mixer" aria-label="Mixer">
+      {/* The view's title row (#447): what this page is, and the way to add
+          to it at the right. */}
       <header class="mixer-header">
-        <h3 class="mixer-heading">Mixer</h3>
-        <span class="mixer-track-count">
-          {trackIds().length} {trackIds().length === 1 ? "track" : "tracks"}
-        </span>
+        <h2 class="mixer-heading">Mixer</h2>
         <NewTrackButtons label="Add track" onAdd={handleAddTrack} />
       </header>
       <div class="mixer-desk">
@@ -336,6 +336,12 @@ interface TrackStripProps {
 const STRIP_CONTROLS =
   "input, textarea, select, a, [role='slider'], .fill-slider, button:not(.mixer-strip-select)";
 
+/** What a strip's select control reads: the track's instrument, or "Loop". */
+function trackKindLabel(track: Track): string {
+  if (track.type === "audio") return "Loop";
+  return track.instrument ? instrumentKindSpec(track.instrument.kind).label : "Track";
+}
+
 function startsStripDrag(event: PointerEvent): boolean {
   return !(event.target as Element).closest(STRIP_CONTROLS);
 }
@@ -362,36 +368,8 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         if (startsStripDrag(event)) props.onDragStart(event);
       }}
     >
-      <div class="mixer-strip-head">
-        {/* The colour chip is also the keyboard route to selecting a track:
-				    a pointer has the whole strip, a keyboard needs one focusable
-				    control that says what it does. "Edit", not "Select": the
-				    arrangement's accessible track list already owns `Select <track>`
-				    for selecting a bar range, and two controls with one name would
-				    leave a screen reader — and `CF-002`, which clicks it by that
-				    name — unable to tell them apart. */}
-        {/* Selecting a track is this one control, next to its name, rather
-				    than a click anywhere on the strip. A container-level handler
-				    reads nicer but has to fire on `pointerdown` to beat a fader
-				    drag, and WebKit fires no click at all when mousedown and
-				    mouseup land on different elements — so a re-render from that
-				    handler swallowed the delete button's own click
-				    (`tests/e2e/mock/mixer.spec.ts`). A real focusable control costs one
-				    deliberate click and breaks nothing under it. */}
-        <button
-          type="button"
-          class="mixer-strip-select"
-          aria-pressed={ariaBool(props.selected)}
-          aria-label={`Edit ${props.track.name}`}
-          title={`Edit ${props.track.name}`}
-          onClick={() => props.onSelect()}
-        >
-          <span
-            class="mixer-strip-chip"
-            style={{ "background-color": props.track.color }}
-            aria-hidden="true"
-          />
-        </button>
+      {/* The track's colour runs across the strip's top edge (#447). */}
+      <div class="mixer-strip-head" style={{ "border-top-color": props.track.color }}>
         <label class="visually-hidden" for={`track-name-${props.track.id}`}>
           Track name
         </label>
@@ -411,26 +389,43 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
             }
           }}
         />
+        {/* Selecting a track is this one control, reading the track's kind,
+				    rather than a click anywhere on the strip: a container handler has
+				    to fire on `pointerdown` to beat a fader drag, and WebKit then
+				    swallowed the delete button's own click
+				    (`tests/e2e/mock/mixer.spec.ts`). "Edit", not "Select": the
+				    arrangement's accessible track list owns `Select <track>` for a bar
+				    range, and `CF-002` clicks this one by name. */}
+        <button
+          type="button"
+          class="mixer-strip-select"
+          aria-pressed={ariaBool(props.selected)}
+          aria-label={`Edit ${props.track.name}`}
+          title={`Edit ${props.track.name}`}
+          onClick={() => props.onSelect()}
+        >
+          {trackKindLabel(props.track)}
+        </button>
       </div>
 
       <div class="mixer-strip-buttons">
         <button
           type="button"
-          class="mixer-strip-button mixer-reorder-up"
+          class="mixer-reorder mixer-reorder-up"
           aria-label={`Move ${props.track.name} left`}
           disabled={props.index === 0}
           onClick={() => props.onMove(props.index - 1)}
         >
-          ‹
+          Move left
         </button>
         <button
           type="button"
-          class="mixer-strip-button mixer-reorder-down"
+          class="mixer-reorder mixer-reorder-down"
           aria-label={`Move ${props.track.name} right`}
           disabled={props.index >= props.trackCount - 1}
           onClick={() => props.onMove(props.index + 1)}
         >
-          ›
+          Move right
         </button>
         <button
           type="button"
