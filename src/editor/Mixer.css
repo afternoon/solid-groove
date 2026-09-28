@@ -57,6 +57,7 @@
 /* The strip's name, and under it the control that selects its track, below
    the track's colour drawn as a top edge (#447). */
 .mixer-strip-head {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -64,6 +65,26 @@
   min-width: 0;
   padding-top: 8px;
   border-top: 3px solid var(--color-foreground);
+}
+
+/* The strip's colour edge is the button that opens the palette (#534): the
+   coloured border is still what shows, this is its taller hit area. */
+.mixer-strip-color {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mixer-strip-color:focus-visible {
+  outline: 2px solid var(--color-foreground-bright);
+  outline-offset: -2px;
 }
 
 /* The strip whose track the editor is showing (#228): the selection is
