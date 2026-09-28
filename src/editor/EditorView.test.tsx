@@ -813,17 +813,18 @@ describe("EditorView instrument view", () => {
     expect(within(rail()).getAllByRole("listitem")).toHaveLength(2);
     expect(rail()).toHaveTextContent(drums.name);
     expect(rail()).toHaveTextContent(breakTrack.name);
-    expect(within(rail()).getByRole("button", { name: drums.name })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      within(rail()).getByRole("button", { name: `Edit ${drums.name}` }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("switches tracks from the rail, which every other view follows", async () => {
     const project = await renderDrums();
     const [drums, breakTrack] = project.song.tracks;
 
-    clickAndFlush(within(rail()).getByRole("button", { name: breakTrack.name }));
+    clickAndFlush(
+      within(rail()).getByRole("button", { name: `Edit ${breakTrack.name}` }),
+    );
 
     expect(screen.getByRole("region", { name: `${breakTrack.name} loop` })).toBeVisible();
     expect(

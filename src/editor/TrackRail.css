@@ -1,63 +1,44 @@
-/* The instrument view's track rail (UI-001): a narrow column down the left
-   edge, scrolling on its own so a long project never pushes the instrument
-   off the page. A track's colour is the one hue in the product, and this is
-   what makes a row identifiable at a glance. */
+/* The instrument view's track rail (UI-001): the arrangement's header column
+   in another view, scrolling on its own so a long project never pushes the
+   instrument off the page. Its rows are the shared TrackHeader (#447), and
+   the column is laid to land where the arrangement's does once its toolbars
+   are taken away, so switching views moves no track under the pointer:
+   - it reaches out over the view's frame to the editor's edge, as the
+     arrangement's column does;
+   - it starts a ruler below the view, as the arrangement's rows start below
+     its ruler (and the ruler's hairline), less the header gap this view
+     keeps and the arrangement does not;
+   - its rows are the arrangement's rows, hairline included, with no gap. */
 
 .track-rail {
+  box-sizing: content-box;
   display: flex;
   flex-direction: column;
-  gap: 1px;
   flex: 0 0 var(--track-column-width);
   min-height: 0;
-  margin: 0;
+  /* To the window's foot, as the arrangement's column runs. */
+  height: calc(100vh - var(--editor-header-height) - var(--size-divider));
+  margin: calc(-1 * var(--size-divider)) 0 0 calc(-1 * var(--size-divider));
   padding: 0;
   overflow-y: auto;
   list-style: none;
-  border-right: 1px solid var(--color-divider);
-}
-
-.track-rail-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  height: var(--track-row-height);
-  padding: 0 8px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-  text-align: left;
-  cursor: pointer;
+  background-color: var(--color-background-well);
+  border-right: 1px solid var(--color-background-tertiary);
 }
 
 .track-rail-item {
+  box-sizing: border-box;
+  flex: none;
+  height: var(--track-row-height);
   border-bottom: 1px solid var(--color-background-secondary);
 }
 
-.track-rail-button:hover {
-  background: var(--color-background-tertiary);
-  color: var(--color-text);
-}
-
-/* The track you are looking at is black (#447): sunk to the ground, as the
-   mixer's selected strip and the arrangement's selected header are. */
-.track-rail-button[aria-pressed="true"] {
-  background: var(--color-background);
-  color: var(--color-foreground-bright);
-  font-weight: 600;
-}
-
-.track-rail-swatch {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 0;
-}
-
-.track-rail-name {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+/* The strip over the arrangement's ruler, and its hairline. */
+.track-rail::before {
+  content: "";
+  box-sizing: border-box;
+  flex: none;
+  height: calc(var(--track-ruler-height) + 1px - var(--size-divider));
+  background-color: var(--color-background-secondary);
+  border-bottom: 1px solid var(--color-background-tertiary);
 }

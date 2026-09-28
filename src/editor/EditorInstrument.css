@@ -86,6 +86,6 @@
 .instrument-view > .track-rail {
   align-self: flex-start;
   position: sticky;
-  top: var(--editor-header-height);
-  max-height: calc(100vh - var(--editor-header-height));
+  /* Where it stands unscrolled: under the header and the gap below it. */
+  top: calc(var(--editor-header-height) + var(--size-divider));
 }

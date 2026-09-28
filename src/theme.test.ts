@@ -178,14 +178,16 @@ describe("the theme is the only place a colour is written down", () => {
 
   it("resolves every token those stylesheets read", () => {
     // Set on an element from TSX (`StepEditor`, `FillSlider`), never in CSS.
-    // `TrackRail` sets the last two from the arrangement's own `ROW_METRICS`
-    // and `HEADER_WIDTH_PX`, so a track's row is the same size in both views
-    // without either one writing the numbers down twice (`UI-001`).
+    // `TrackRail` sets the last three from the arrangement's own `ROW_METRICS`,
+    // `HEADER_WIDTH_PX` and `RULER_HEIGHT_PX`, so a track's row is the same
+    // size and place in both views without either one writing the numbers
+    // down twice (`UI-001`, #447).
     const setFromMarkup = new Set([
       "--step-count",
       "--velocity",
       "--track-row-height",
       "--track-column-width",
+      "--track-ruler-height",
     ]);
     const declared = new Set(
       Object.values(stylesheets).flatMap((source) =>

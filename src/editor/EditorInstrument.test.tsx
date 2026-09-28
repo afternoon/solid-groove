@@ -62,6 +62,7 @@ describe("the Instrument view's device chain", () => {
 
     const rail = within(screen.getByRole("list", { name: "Tracks" })).getAllByRole(
       "button",
+      { name: /^Edit / },
     );
     clickAndFlush(rail[1]);
     expect(count()).toBe(initial[1]);
