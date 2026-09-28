@@ -109,6 +109,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
               />
               <DeviceChainPanel
                 track={currentTrack()}
+                tempo={props.project.song.tempo}
                 dispatch={props.dispatch}
                 beginGesture={props.beginGesture}
               />

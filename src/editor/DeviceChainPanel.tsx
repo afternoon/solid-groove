@@ -51,6 +51,8 @@ export interface DeviceChainProps {
    * master strip does. Given one, the region is focusable.
    */
   sectionRef?(element: HTMLElement): void;
+  /** The song's tempo, so a synced delay's well draws its real echo times. */
+  readonly tempo?: number;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -280,6 +282,7 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
                 device={device()}
                 canDuplicate={!full()}
                 newDeviceId={() => ids()("device")}
+                tempo={props.tempo}
                 dispatch={edit}
                 beginGesture={props.beginGesture}
               />
@@ -338,6 +341,8 @@ function errorCodeOf(result: TransactionResult | undefined): ErrorCode {
 export interface DeviceChainPanelProps {
   /** The selected track (#240): the panel has no selection of its own. */
   readonly track: Track;
+  /** The song's tempo, so a synced delay's well draws its real echo times. */
+  readonly tempo?: number;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -372,6 +377,7 @@ export default function DeviceChainPanel(props: DeviceChainPanelProps): JSX.Elem
       devices={props.track.devices}
       labels={LABELS}
       limit={LIMIT}
+      tempo={props.tempo}
       dispatch={props.dispatch}
       beginGesture={props.beginGesture}
       analytics={props.analytics}

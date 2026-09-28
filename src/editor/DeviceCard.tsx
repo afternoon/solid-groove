@@ -36,6 +36,8 @@ export interface DeviceCardProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** The song's tempo, so a synced delay's well draws its real echo times. */
+  readonly tempo?: number;
 }
 
 /**
@@ -125,6 +127,7 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
         <Show when={hasDeviceWell(props.device)}>
           <DeviceWell
             chain={props.chain}
+            tempo={props.tempo}
             device={props.device}
             dispatch={props.dispatch}
             beginGesture={props.beginGesture}
