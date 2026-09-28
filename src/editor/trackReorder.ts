@@ -70,6 +70,23 @@ export function slotToIndex(fromIndex: number, slot: number): number {
   return slot > fromIndex ? slot - 1 : slot;
 }
 
+/**
+ * `items` as they would read with the one `isMoving` picks at `toIndex`, for
+ * a drag's preview: the arrangement's rows, the rail's and the mixer's strips
+ * all draw a drag this way. Unchanged when nothing is moving.
+ */
+export function previewOrder<T>(
+  items: readonly T[],
+  isMoving: (item: T) => boolean,
+  toIndex: number | null,
+): readonly T[] {
+  if (toIndex === null) return items;
+  const moving = items.find(isMoving);
+  if (moving === undefined) return items;
+  const rest = items.filter((item) => item !== moving);
+  return [...rest.slice(0, toIndex), moving, ...rest.slice(toIndex)];
+}
+
 /** The project as it would read with `trackId` at `toIndex`, for a drag's preview:
  * only `order` changes, and nothing is dispatched. */
 export function previewTrackOrder(
@@ -77,9 +94,9 @@ export function previewTrackOrder(
   trackId: TrackId,
   toIndex: number,
 ): Project {
-  const ids = orderedTrackIds(project).filter((id) => id !== trackId);
-  if (ids.length === project.song.tracks.length) return project;
-  ids.splice(toIndex, 0, trackId);
+  const current = orderedTrackIds(project);
+  if (!current.includes(trackId)) return project;
+  const ids = previewOrder(current, (id) => id === trackId, toIndex);
   const tracks = project.song.tracks.map((track) => ({
     ...track,
     order: ids.indexOf(track.id),

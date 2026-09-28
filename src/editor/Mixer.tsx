@@ -38,7 +38,7 @@ import {
   instrumentTypeKey,
   type NewTrackKindSpec,
 } from "./trackCreation";
-import { moveTrack, type ReorderMethod } from "./trackReorder";
+import { moveTrack, previewOrder, type ReorderMethod } from "./trackReorder";
 import { toggleTrackFlag, trackSurfaceHandlers } from "./trackSurface";
 import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
@@ -193,14 +193,9 @@ export default function Mixer(props: MixerProps): JSX.Element {
   /** The strips in the order letting go now would leave them: a drag shows
    * the track already in its new place, rather than a marker where it would
    * go. The project only changes on release. */
-  const shownIds = createMemo(() => {
-    const dragged = trackDrag.dragging();
-    const to = trackDrag.target();
-    if (dragged === null || to === null) return trackIds();
-    const ids = trackIds().filter((id) => id !== dragged);
-    ids.splice(to, 0, dragged);
-    return ids;
-  });
+  const shownIds = createMemo(() =>
+    previewOrder(trackIds(), (id) => id === trackDrag.dragging(), trackDrag.target()),
+  );
 
   function handleDuplicate(track: Track): void {
     const duplicate = duplicateTrack(props.project, track.id, {
