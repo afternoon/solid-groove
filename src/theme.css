@@ -97,7 +97,8 @@
    * Translucent white and black. They borrow whatever is underneath, so they
    * cost no new step — prefer one of these over a new grey whenever the
    * surface below can show through. */
-  --tint-faint: rgb(255 255 255 / 2.35%); /* a fader's well: barely off the panel, #ffffff06 (#447) */
+  /* A fader's well: barely off the panel, #ffffff06 (#447). */
+  --tint-faint: rgb(255 255 255 / 2.35%);
   --tint-subtle: rgb(255 255 255 / 4%);
   --tint-soft: rgb(255 255 255 / 8%);
   --tint-medium: rgb(255 255 255 / 12%);
