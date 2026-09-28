@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -55,9 +55,10 @@ describe("TrackColorPicker (#447)", () => {
     clickAndFlush(swatch());
 
     expect(swatch()).toHaveAttribute("aria-expanded", "true");
-    const items = screen.getAllByRole("menuitemradio");
+    const palette = screen.getByRole("group", { name: `Colour for ${track().name}` });
+    const items = within(palette).getAllByRole("button");
     expect(items).toHaveLength(TRACK_COLORS.length);
-    const checked = items.filter((item) => item.getAttribute("aria-checked") === "true");
+    const checked = items.filter((item) => item.getAttribute("aria-pressed") === "true");
     expect(checked).toHaveLength(TRACK_COLORS.includes(track().color) ? 1 : 0);
   });
 
@@ -68,12 +69,12 @@ describe("TrackColorPicker (#447)", () => {
 
     clickAndFlush(swatch());
     const index = TRACK_COLORS.indexOf(next);
-    clickAndFlush(screen.getByRole("menuitemradio", { name: `Colour ${index + 1}` }));
+    clickAndFlush(screen.getByRole("button", { name: `Colour ${index + 1}` }));
 
     expect(track().color).toBe(next);
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
     clickAndFlush(swatch());
-    clickAndFlush(screen.getByRole("menuitemradio", { name: "Colour 1" }));
+    clickAndFlush(screen.getByRole("button", { name: "Colour 1" }));
     expect(transport.named("feature_first_use")).toEqual([
       expect.objectContaining({
         params: expect.objectContaining({ feature: "track_color" }),
@@ -92,7 +93,7 @@ describe("TrackColorPicker (#447)", () => {
     const next = otherColor(track());
     clickAndFlush(swatch());
     clickAndFlush(
-      screen.getByRole("menuitemradio", {
+      screen.getByRole("button", {
         name: `Colour ${TRACK_COLORS.indexOf(next) + 1}`,
       }),
     );
@@ -105,7 +106,17 @@ describe("TrackColorPicker (#447)", () => {
     clickAndFlush(swatch());
     fireEvent.pointerDown(document.body);
     flush();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(history.canUndo).toBe(false);
+  });
+
+  it("closes on Escape, back on the swatch, and changes nothing", () => {
+    const { history, swatch } = renderPicker();
+    clickAndFlush(swatch());
+    fireEvent.keyDown(window, { key: "Escape" });
+    flush();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(swatch()).toHaveFocus();
     expect(history.canUndo).toBe(false);
   });
 });

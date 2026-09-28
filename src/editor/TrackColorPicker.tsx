@@ -31,7 +31,7 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
   const analytics = () => props.analytics ?? defaultAnalytics;
   const [at, setAt] = createSignal<{ left: number; top: number } | null>(null);
   let button: HTMLButtonElement | undefined;
-  let menu: HTMLDivElement | undefined;
+  let menu: HTMLFieldSetElement | undefined;
 
   const open = () => at() !== null;
   const close = (refocus: boolean) => {
@@ -50,20 +50,13 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
     if (result?.ok) analytics().logFeatureFirstUse("track_color");
   };
 
-  useShortcuts({
-    handlers: (): ShortcutHandlers => ({
-      "view.close_surface": { run: () => close(true), isEnabled: open },
-    }),
-    contexts: () => [],
-  });
-
   // While open, a press outside closes it, and the current colour (or the
-  // first) takes focus so the keyboard starts inside the menu.
+  // first) takes focus so the keyboard starts inside the palette.
   createEffect(open, (isOpen) => {
     if (!isOpen) return;
     queueMicrotask(() =>
       (
-        menu?.querySelector<HTMLElement>('[aria-checked="true"]') ??
+        menu?.querySelector<HTMLElement>('[aria-pressed="true"]') ??
         menu?.querySelector<HTMLElement>("button")
       )?.focus(),
     );
@@ -82,7 +75,6 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
         type="button"
         class="track-header-swatch"
         style={{ background: props.track.color }}
-        aria-haspopup="menu"
         aria-expanded={ariaBool(open())}
         aria-label={`Colour for ${props.track.name}`}
         onClick={toggle}
@@ -90,10 +82,10 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
       <Show when={at()}>
         {(position) => (
           <Portal>
-            <div
+            <CloseOnEscape onClose={() => close(true)} />
+            <fieldset
               ref={menu}
               class="track-color-menu"
-              role="menu"
               aria-label={`Colour for ${props.track.name}`}
               style={{ left: `${position().left}px`, top: `${position().top}px` }}
             >
@@ -101,18 +93,32 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
                 {(color, index) => (
                   <button
                     type="button"
-                    role="menuitemradio"
-                    aria-checked={ariaBool(color === props.track.color)}
+                    aria-pressed={ariaBool(color === props.track.color)}
                     aria-label={`Colour ${index() + 1}`}
                     style={{ background: color }}
                     onClick={() => choose(color)}
                   />
                 )}
               </For>
-            </div>
+            </fieldset>
           </Portal>
         )}
       </Show>
     </>
   );
+}
+
+/**
+ * `view.close_surface` (Escape) for the open palette, mounted only while it
+ * is open: a closed picker, one per track header, installs no shortcut
+ * controller at all.
+ */
+function CloseOnEscape(props: { onClose(): void }): JSX.Element {
+  useShortcuts({
+    handlers: (): ShortcutHandlers => ({
+      "view.close_surface": { run: () => props.onClose() },
+    }),
+    contexts: () => [],
+  });
+  return null;
 }
