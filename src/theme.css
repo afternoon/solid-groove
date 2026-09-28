@@ -84,6 +84,15 @@
   --color-success: var(--mono-65);
   --color-success-wash: rgb(255 255 255 / 12%);
 
+  /* ---- Signal ----------------------------------------------------------
+   * The level meters' one binary state (#447): green while a track is under
+   * 0 dBFS RMS, red while it is over. The product owner's one exception to a
+   * colourless interface, beside the tracks' own colours: a clip has to read
+   * at a glance, and brightness is already spent on selection. Nothing else
+   * may use these. */
+  --signal-ok: #22c55e;
+  --signal-clip: #ef4444;
+
   /* ---- Tints and scrims -------------------------------------------------
    * Translucent white and black. They borrow whatever is underneath, so they
    * cost no new step — prefer one of these over a new grey whenever the

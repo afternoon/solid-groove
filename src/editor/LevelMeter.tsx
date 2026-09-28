@@ -71,6 +71,8 @@ export default function LevelMeter(props: LevelMeterProps): JSX.Element {
   });
 
   const clamped = () => Math.max(METER_FLOOR_DB, Math.min(0, levelDb()));
+  /** Over full scale: the one state a meter shows in colour (#447). */
+  const clipping = () => levelDb() > 0;
   const fillFraction = () => (clamped() - METER_FLOOR_DB) / -METER_FLOOR_DB;
 
   // A native <meter> carries the level's role and value for assistive tech for
@@ -79,9 +81,10 @@ export default function LevelMeter(props: LevelMeterProps): JSX.Element {
   // value: the overlay's height is the same fraction the <meter> reports.
   return (
     <div
-      class={
-        props.orientation === "horizontal" ? "level-meter-horizontal" : "mixer-meter"
-      }
+      class={[
+        props.orientation === "horizontal" ? "level-meter-horizontal" : "mixer-meter",
+        { clipping: clipping() },
+      ]}
     >
       <meter
         class="visually-hidden"
