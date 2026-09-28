@@ -4,7 +4,7 @@
   position: fixed;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(8, 16px);
+  grid-template-columns: repeat(10, 16px) /* TRACK_PALETTE_COLUMNS */;
   gap: 4px;
   min-inline-size: 0;
   margin: 0;
@@ -20,7 +20,7 @@
   width: 16px;
   height: 16px;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--color-border);
   border-radius: 0;
 }
 

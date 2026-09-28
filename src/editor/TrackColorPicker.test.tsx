@@ -6,8 +6,8 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { CommandHistory, type RawCommandInput } from "../commands";
 import type { Track } from "../domain/entities";
-import { TRACK_COLORS as PALETTE } from "../domain/factories";
 import { createSliceFixtureProject } from "../domain/fixtures";
+import { TRACK_PALETTE as PALETTE } from "../domain/trackPalette";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import TrackColorPicker from "./TrackColorPicker";
@@ -57,7 +57,7 @@ describe("TrackColorPicker (#447)", () => {
     expect(swatch()).toHaveAttribute("aria-expanded", "true");
     const palette = screen.getByRole("group", { name: `Colour for ${track().name}` });
     const items = within(palette).getAllByRole("button");
-    expect(items).toHaveLength(TRACK_COLORS.length);
+    expect(items).toHaveLength(50);
     const checked = items.filter((item) => item.getAttribute("aria-pressed") === "true");
     expect(checked).toHaveLength(TRACK_COLORS.includes(track().color) ? 1 : 0);
   });
@@ -69,12 +69,12 @@ describe("TrackColorPicker (#447)", () => {
 
     clickAndFlush(swatch());
     const index = TRACK_COLORS.indexOf(next);
-    clickAndFlush(screen.getByRole("button", { name: `Colour ${index + 1}` }));
+    clickAndFlush(screen.getByRole("button", { name: `Colour ${index + 1} of 50` }));
 
     expect(track().color).toBe(next);
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
     clickAndFlush(swatch());
-    clickAndFlush(screen.getByRole("button", { name: "Colour 1" }));
+    clickAndFlush(screen.getByRole("button", { name: "Colour 1 of 50" }));
     expect(transport.named("feature_first_use")).toEqual([
       expect.objectContaining({
         params: expect.objectContaining({ feature: "track_color" }),
@@ -88,13 +88,27 @@ describe("TrackColorPicker (#447)", () => {
     );
   });
 
+  it("offers 50 swatches, and marks the chosen one pressed on reopen", () => {
+    const { track, swatch } = renderPicker();
+    clickAndFlush(swatch());
+    const palette = screen.getByRole("group", { name: `Colour for ${track().name}` });
+    expect(within(palette).getAllByRole("button")).toHaveLength(50);
+    clickAndFlush(screen.getByRole("button", { name: "Colour 23 of 50" }));
+
+    clickAndFlush(swatch());
+    const pressed = screen
+      .getAllByRole("button", { pressed: true })
+      .map((b) => b.getAttribute("aria-label"));
+    expect(pressed).toEqual(["Colour 23 of 50"]);
+  });
+
   it("recolours the same with analytics off", () => {
     const { track, transport, swatch } = renderPicker(false);
     const next = otherColor(track());
     clickAndFlush(swatch());
     clickAndFlush(
       screen.getByRole("button", {
-        name: `Colour ${TRACK_COLORS.indexOf(next) + 1}`,
+        name: `Colour ${TRACK_COLORS.indexOf(next) + 1} of 50`,
       }),
     );
     expect(track().color).toBe(next);

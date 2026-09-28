@@ -4,7 +4,7 @@ import { type Analytics, analytics as defaultAnalytics } from "../analytics/anal
 import type { RawCommandInput, TransactionResult } from "../commands";
 import { updateTrack } from "../commands";
 import type { Track } from "../domain/entities";
-import { TRACK_COLORS } from "../domain/factories";
+import { TRACK_PALETTE } from "../domain/trackPalette";
 import { ariaBool } from "../shared/aria";
 import { type ShortcutHandlers, useShortcuts } from "../shortcuts";
 import "./TrackColorPicker.css";
@@ -89,12 +89,12 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
               aria-label={`Colour for ${props.track.name}`}
               style={{ left: `${position().left}px`, top: `${position().top}px` }}
             >
-              <For each={TRACK_COLORS}>
+              <For each={TRACK_PALETTE}>
                 {(color, index) => (
                   <button
                     type="button"
                     aria-pressed={ariaBool(color === props.track.color)}
-                    aria-label={`Colour ${index() + 1}`}
+                    aria-label={`Colour ${index() + 1} of ${TRACK_PALETTE.length}`}
                     style={{ background: color }}
                     onClick={() => choose(color)}
                   />
