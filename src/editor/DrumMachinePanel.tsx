@@ -99,9 +99,14 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     analytics().logFeatureFirstUse("drum_machine");
   }
 
+  /** The project's sounds by id, once per change, for every row's lookup. */
+  const assetsById = createMemo(
+    () => new Map(props.assets.map((asset) => [asset.id, asset])),
+  );
+  const assetOf = (pad: DrumPad) =>
+    pad.assetId === null ? undefined : assetsById().get(pad.assetId);
   /** The name of the sound a pad plays, or "None" while it has none. */
-  const sampleName = (pad: DrumPad) =>
-    props.assets.find((asset) => asset.id === pad.assetId)?.name ?? "None";
+  const sampleName = (pad: DrumPad) => assetOf(pad)?.name ?? "None";
 
   function toggleFlag(pad: DrumPad, flag: "muted" | "soloed"): void {
     markFeatureUse();
@@ -202,7 +207,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
             <PadSound
               track={props.track}
               pad={pad()}
-              asset={props.assets.find((asset) => asset.id === pad().assetId)}
+              asset={assetOf(pad())}
               watchPeaks={props.watchPeaks}
               dispatch={props.dispatch}
               beginGesture={props.beginGesture}
