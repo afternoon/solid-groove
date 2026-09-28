@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CommandHistory, executeTransaction } from "../commands";
 import { createFactoryContext } from "../domain/factories";
-import { createSliceFixtureProject } from "../domain/fixtures";
+import {
+  createDrumMachineFixtureProject,
+  createSliceFixtureProject,
+} from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { fixturePackManifest } from "./__fixtures__/fixtures";
@@ -9,6 +12,7 @@ import {
   carriedAsset,
   createLibraryAsset,
   insertLoopCommands,
+  loadPadSampleCommands,
   loadSampleCommands,
   loopClipLengthTicks,
   toLibrarySample,
@@ -432,5 +436,37 @@ describe("insertLoopCommands", () => {
     // sourceTempo === song tempo makes the stretch ratio exactly 1, so the
     // audio is left alone rather than stretched to a tempo nobody stated.
     expect(clip.content.sourceTempo).toBe(project.song.tempo);
+  });
+});
+
+describe("loadPadSampleCommands (#447)", () => {
+  it("carries the sound and points one pad at it, in one transaction", async () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find(
+      (candidate) => candidate.instrument?.kind === "drumMachine",
+    );
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [first, second] = track.instrument.pads;
+    const sample = toLibrarySample((await libraryAssets())[1]);
+    if (!sample) throw new Error("expected an insertable sample");
+
+    const result = executeTransaction(
+      project,
+      loadPadSampleCommands(project, track.id, second.id, sample, context()),
+    );
+    if (!result.ok) throw new Error(result.issues[0].message);
+
+    const asset = carriedAsset(result.project, sample);
+    const drum = result.project.song.tracks.find((t) => t.id === track.id)?.instrument;
+    const pads = drum?.kind === "drumMachine" ? drum.pads : [];
+    expect(pads[1].assetId).toBe(asset?.id);
+    // Only the chosen pad changes.
+    expect(pads[0].assetId).toBe(first.assetId);
+    expect(result.project.metadata.revision).toBe(project.metadata.revision + 1);
+
+    // A second load of the same sound reuses the carried asset.
+    expect(
+      loadPadSampleCommands(result.project, track.id, first.id, sample, context("b")),
+    ).toHaveLength(1);
   });
 });

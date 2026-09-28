@@ -437,6 +437,50 @@ describe("EditorView", () => {
     ).toHaveLength(tracksBefore);
   });
 
+  it("loads a library one-shot onto the drum pad whose slot opened it (#447)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const [drums] = project.song.tracks;
+    if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [first, second] = drums.instrument.pads;
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    const transport = createRecordingTransport();
+    renderEditor(project.metadata.id, {
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      analytics: recordingAnalytics(transport),
+    });
+
+    await goToView("Instrument");
+    clickAndFlush(await screen.findByRole("button", { name: `Audition ${second.name}` }));
+    clickAndFlush(screen.getByRole("button", { name: `Sample for ${second.name}` }));
+    await screen.findByRole("dialog", { name: "Library" });
+    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: /Core Electronic Drums/ }),
+    );
+    const oneShotName = oneShotAssetName("core-electronic-drums");
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: `Insert ${oneShotName}` }),
+    );
+
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+    );
+    // The chosen pad plays it; the first pad keeps its own sound.
+    expect(
+      screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
+    ).toBe(oneShotName);
+    clickAndFlush(screen.getByRole("button", { name: `Audition ${first.name}` }));
+    expect(
+      screen.getByRole("button", { name: `Sample for ${first.name}` }).textContent,
+    ).not.toBe(oneShotName);
+    const changed = transport.named("instrument_changed");
+    expect(changed).toHaveLength(1);
+    expect(changed[0].params.instrument_type).toBe("drum_machine");
+  });
+
   it("shows a track's instrument panel even before it has a clip (#228)", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     // A track added from the mixer arrives with an instrument and no clip.
