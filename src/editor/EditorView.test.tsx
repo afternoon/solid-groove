@@ -1098,6 +1098,52 @@ describe("EditorView track selection keys (#533)", () => {
     expect(mixerSelect(drums.name)).toHaveAttribute("aria-pressed", "true");
     expect(mixerSelect(breakTrack.name)).toHaveAttribute("aria-pressed", "false");
   });
+
+  const trackButton = (name: string) =>
+    screen.queryByRole("button", { name: `Edit ${name}` });
+
+  it("Backspace deletes the selected track, selects the next, and undo brings it back (#537)", async () => {
+    const { drums, breakTrack } = await renderDrums("Instrument");
+    expect(trackButton(drums.name)).toBeInTheDocument();
+
+    press("Backspace");
+
+    expect(trackButton(drums.name)).not.toBeInTheDocument();
+    expect(instrumentShows(`${breakTrack.name} loop`)).toBeInTheDocument();
+
+    press("z", { ctrlKey: true });
+    expect(trackButton(drums.name)).toBeInTheDocument();
+  });
+
+  it("deletes from the arrangement view too, and leaves the mixer alone (#537)", async () => {
+    const { drums, breakTrack } = await renderDrums("Arrangement");
+    press("Backspace");
+    expect(trackButton(drums.name)).not.toBeInTheDocument();
+    expect(trackButton(breakTrack.name)).toBeInTheDocument();
+    press("z", { ctrlKey: true });
+
+    await goToView("Mixer");
+    press("Backspace");
+    expect(mixerSelect(drums.name)).toBeInTheDocument();
+    expect(mixerSelect(breakTrack.name)).toBeInTheDocument();
+  });
+
+  it("keeps Backspace for a selected placement rather than the track (#537)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    firePointerAtStarterClip(canvas, "pointerdown");
+    firePointerAtStarterClip(canvas, "pointerup");
+
+    press("Backspace");
+
+    expect(trackButton(project.song.tracks[0].name)).toBeInTheDocument();
+  });
 });
 
 describe("EditorView keyboard shortcuts", () => {

@@ -48,6 +48,9 @@ export interface UseEditorShortcutsOptions {
    * `undefined` when there is no track that way (the ends, or a view where the
    * arrows keep another meaning), so the key is left to the browser. */
   readonly adjacentTrack: (by: -1 | 1) => (() => void) | undefined;
+  /** Deletes the selected track (#537): `undefined` where a track is not the
+   * selection (the mixer, the sequence editor, an empty project). */
+  readonly deleteSelectedTrack: () => (() => void) | undefined;
 }
 
 /** Controls that use the vertical arrows themselves, so a track step must not
@@ -96,6 +99,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     closeSequenceEditor,
     toggleLooping,
     adjacentTrack,
+    deleteSelectedTrack,
   } = options;
 
   /**
@@ -148,15 +152,18 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // component (CLP-02), and the arrangement's placement selection is lifted
     // the same way (ARR-002). Only fires when some surface's selection is
     // non-empty, so an empty-selection Delete leaves the browser default alone
-    // (PRD KEY-02).
+    // (PRD KEY-02). The selected track is the last resort (#537): a selection
+    // of notes or clips is more specific and keeps the key, so the track goes
+    // only when nothing inside it is selected.
     "edit.delete": {
       run: () => {
         const owner = selectionOwner();
         if (owner === "piano_roll") pianoRollActions()?.deleteSelection();
         else if (owner === "arrangement") arrangementEditingActions()?.deleteSelection();
         else if (owner === "step_editor") deleteSelection();
+        else deleteSelectedTrack()?.();
       },
-      isEnabled: () => selectionOwner() !== null,
+      isEnabled: () => selectionOwner() !== null || deleteSelectedTrack() !== undefined,
     },
     // The three views (UI-001). No `isEnabled`: a view is always reachable,
     // and asking for the one you are on is a no-op inside `selectView`.
