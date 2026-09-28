@@ -1,0 +1,86 @@
+/* The instrument's header row (#447, the faceplate system's `hd` row): the
+   track's colour as an edge, its slot and kind over its name, readouts on
+   one baseline, and Audition as the loudest control, at the right. */
+.instrument-header {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  min-height: 72px;
+  padding: 16px 20px;
+  background-color: var(--color-background-secondary);
+}
+
+.instrument-header-track {
+  display: flex;
+  flex-direction: column;
+  padding-left: 16px;
+  border-left: 4px solid var(--track-ink, var(--color-foreground));
+}
+
+.instrument-header-label {
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.instrument-header-name {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--color-foreground-bright);
+}
+
+.instrument-header-readouts {
+  display: flex;
+  gap: 32px;
+  min-width: 0;
+  margin: 0;
+}
+
+.instrument-header-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.instrument-header-readout dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* White on black: the one bold action in the row. */
+.instrument-header-audition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 16px;
+  border-radius: 0;
+  background-color: var(--color-foreground-bright);
+  color: var(--color-on-accent);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.instrument-header-audition:hover {
+  background-color: var(--color-foreground);
+}
+
+/* The play triangle. */
+.instrument-header-audition::before {
+  content: "";
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid currentColor;
+}
