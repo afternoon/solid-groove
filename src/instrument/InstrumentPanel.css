@@ -180,3 +180,16 @@
 .sampler-load-button:hover {
   background-color: var(--color-background-hover);
 }
+
+/* The kind picker (#447) is one row: its heading on the left, the same
+   option buttons side by side on the right, rather than a stacked list. */
+.instrument-kind .instrument-panel-group {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.instrument-kind .option-group {
+  flex-direction: row;
+}
