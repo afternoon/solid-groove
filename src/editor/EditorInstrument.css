@@ -31,8 +31,6 @@
    carries the track's colour as the ink its wells draw in (#447), set from
    markup over the default. */
 .instrument-view-track {
-  --track-ink: var(--color-accent);
-
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -62,7 +60,7 @@
 }
 
 .instrument-view-track > .instrument-kind .instrument-panel-heading {
-  font-size: 18px;
+  font-size: var(--font-size-title);
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;

@@ -27,7 +27,7 @@
 }
 
 .instrument-header-name {
-  font-size: 18px;
+  font-size: var(--font-size-title);
   font-weight: 600;
   line-height: 1.15;
   color: var(--color-foreground-bright);

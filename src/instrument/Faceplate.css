@@ -58,7 +58,7 @@
   bottom: -18px;
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: var(--font-size-micro);
   color: var(--color-foreground-muted);
   pointer-events: none;
 }
@@ -116,12 +116,6 @@
   border-radius: 50%;
   background-color: var(--color-background);
   pointer-events: none;
-}
-
-/* The ink a well draws in. The editor sets it to the selected track's own
-   colour (the one hue in the product); white until it does. */
-:root {
-  --track-ink: var(--color-accent);
 }
 
 /* What a well draws: gridlines, then the curve in the track's own colour. */

@@ -9,8 +9,17 @@
   --font-size-base: 14px;
   --font-size-lg: calc(var(--font-size-base) * 1.5);
   --font-size-xl: calc(var(--font-size-base) * 4);
+  --font-size-title: 18px;
+  --font-size-micro: 9px;
   /* How far a muted track or pad recedes; its mute stays at full strength. */
   --muted-opacity: 0.4;
+}
+
+:root {
+  /* The rack (#447): every instrument and device is one unit this wide at
+     most, with this much rack showing between one and the next. */
+  --rack-unit-width: 1000px;
+  --rack-gap: 12px;
 }
 
 :root {
