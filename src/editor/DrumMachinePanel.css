@@ -227,3 +227,10 @@
   padding: 8px 0 0;
   border-top: 1px solid var(--color-border);
 }
+
+/* A pad that has just fired (#447): its name lights white, as a hardware pad
+   does, for as long as the hit is fresh. */
+.drum-pad.hit .pad-audition {
+  background-color: var(--color-foreground-bright);
+  color: var(--color-on-accent);
+}

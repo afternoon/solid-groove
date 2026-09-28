@@ -6,7 +6,14 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities";
+import type {
+  Asset,
+  Clip,
+  Instrument,
+  NoteTrigger,
+  Project,
+  Track,
+} from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
 import InstrumentKindPicker from "../instrument/InstrumentKindPicker";
 import type { WatchPeaks } from "../instrument/SampleWell";
@@ -37,6 +44,11 @@ export interface EditorInstrumentProps {
   readonly onBrowse: () => void;
   /** Opens the library on one drum pad's sample slot (#447). */
   readonly onBrowsePad?: (trackId: TrackId, padId: PadId) => void;
+  /** Follows one track's instrument triggers as they are heard (#447). */
+  readonly watchTriggers?: (
+    trackId: TrackId,
+    onTrigger: (trigger: NoteTrigger) => void,
+  ) => () => void;
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
   readonly watchPeaks?: WatchPeaks;
   onSelectTrack(trackId: TrackId): void;
@@ -171,6 +183,13 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                               props.onBrowsePad?.(drum().id, padId)
                             }
                             watchPeaks={props.watchPeaks}
+                            watchTriggers={
+                              props.watchTriggers
+                                ? (onTrigger) =>
+                                    props.watchTriggers?.(drum().id, onTrigger) ??
+                                    (() => {})
+                                : undefined
+                            }
                           />
                         </div>
                       )}
