@@ -62,6 +62,8 @@ export interface EditorInstrumentProps {
   onSelectTrack(trackId: TrackId): void;
   /** Adds a track of the chosen kind, from the rail's add buttons (#495). */
   onAddTrack?(spec: NewTrackKindSpec): void;
+  /** Opens the library on loops, for the rail's Loop button. */
+  onAddLoop?(): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -149,6 +151,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
         selectedTrackId={props.track?.id ?? null}
         onSelect={props.onSelectTrack}
         onAddTrack={props.onAddTrack}
+        onAddLoop={props.onAddLoop}
         dispatch={props.dispatch}
         beginGesture={props.beginGesture}
         trackLevel={props.trackLevel}

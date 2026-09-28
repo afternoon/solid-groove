@@ -1,4 +1,4 @@
-import { For, type JSX } from "@solidjs/web";
+import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
 import { NEW_TRACK_KINDS, type NewTrackKindSpec } from "./trackCreation";
 import "./NewTrackButtons.css";
@@ -7,8 +7,12 @@ export interface NewTrackButtonsProps {
   /** Names the group, so two of these on different views read differently. */
   readonly label: string;
   onAdd(spec: NewTrackKindSpec): void;
-  /** Anything offered beside the kinds — the arrangement's Loop button. */
-  readonly children?: JSX.Element;
+  /**
+   * Offers the Loop button beside the kinds, opening the library on loops. An
+   * audio track needs content to exist, so the way to start one is to pick the
+   * loop (`UI-001`); inserting it makes the track (#281). Omitted, no button.
+   */
+  onAddLoop?(): void;
 }
 
 /**
@@ -19,7 +23,7 @@ export interface NewTrackButtonsProps {
  * kind makes the second decision the click itself instead of a mode set
  * beforehand.
  *
- * The mixer and the arrangement both render this, so the kinds cannot drift
+ * The mixer, the arrangement and the instrument view's rail all render this, so the kinds cannot drift
  * apart between the two surfaces, and both hand the click to the same
  * `addTrackOfKind` — there is one creation route, not one per surface.
  */
@@ -40,7 +44,20 @@ export default function NewTrackButtons(props: NewTrackButtonsProps): JSX.Elemen
           </button>
         )}
       </For>
-      {props.children}
+      <Show when={props.onAddLoop}>
+        {(onAddLoop) => (
+          <button
+            type="button"
+            class="new-track-button"
+            aria-label="Add loop from library"
+            title="Add a loop from the library"
+            onClick={() => onAddLoop()()}
+          >
+            <HiSolidPlus size={13} />
+            <span>Loop</span>
+          </button>
+        )}
+      </Show>
     </fieldset>
   );
 }
