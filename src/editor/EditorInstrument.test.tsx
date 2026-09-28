@@ -167,6 +167,8 @@ describe("the Instrument view's header (#447)", () => {
     ));
 
     const header = within(document.querySelector(".instrument-header") as HTMLElement);
+    // No level source, no meter.
+    expect(header.queryByRole("meter")).toBeNull();
     expect(header.getByText("T01 · Drum machine")).toBeInTheDocument();
     expect(header.getByText(track.name)).toBeInTheDocument();
     expect(header.getByText(first.name)).toBeInTheDocument();
@@ -177,5 +179,34 @@ describe("the Instrument view's header (#447)", () => {
     expect(header.getByText(second.name)).toBeInTheDocument();
     clickAndFlush(header.getByRole("button", { name: "Audition pad" }));
     expect(auditionPad).toHaveBeenCalledExactlyOnceWith(track.id, second.id);
+  });
+});
+
+describe("the Instrument view's header meter (#447)", () => {
+  it("shows the track's live level beside Audition", () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks[0];
+    render(() => (
+      <EditorInstrument
+        project={project}
+        track={track}
+        drumTrack={track.instrument?.kind === "drumMachine" ? track : null}
+        sampleAssets={project.song.assets}
+        instrument={track.instrument}
+        instrumentTrackId={track.id}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={() => {}}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+        trackLevelDb={() => null}
+        isPlaying={() => false}
+      />
+    ));
+    const header = document.querySelector(".instrument-header") as HTMLElement;
+    expect(within(header).getByRole("meter", { name: "Level" })).toBeInTheDocument();
   });
 });

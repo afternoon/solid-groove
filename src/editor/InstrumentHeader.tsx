@@ -7,6 +7,8 @@ export interface InstrumentHeaderProps {
   readonly facts: InstrumentHeaderFacts;
   /** The track's name, chosen by the user (ADR 0002). */
   readonly trackName: string;
+  /** The track's live level, beside Audition (#447). */
+  readonly meter?: JSX.Element;
   /** The loud action at the right edge, when this instrument can be heard. */
   readonly audition?: { readonly label: string; run(): void };
 }
@@ -34,17 +36,20 @@ export default function InstrumentHeader(props: InstrumentHeaderProps): JSX.Elem
           )}
         </For>
       </dl>
-      <Show when={props.audition}>
-        {(audition) => (
-          <button
-            type="button"
-            class="instrument-header-audition"
-            onClick={() => audition().run()}
-          >
-            {audition().label}
-          </button>
-        )}
-      </Show>
+      <div class="instrument-header-end">
+        {props.meter}
+        <Show when={props.audition}>
+          {(audition) => (
+            <button
+              type="button"
+              class="instrument-header-audition"
+              onClick={() => audition().run()}
+            >
+              {audition().label}
+            </button>
+          )}
+        </Show>
+      </div>
     </header>
   );
 }

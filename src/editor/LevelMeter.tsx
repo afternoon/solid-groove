@@ -8,6 +8,11 @@ export interface LevelMeterProps {
   isPlaying(): boolean;
   readonly requestFrame?: (callback: () => void) => number;
   readonly cancelFrame?: (handle: number) => void;
+  /**
+   * A mixer strip's meter stands beside its fader; the instrument header's
+   * lies along the row and fills in the track's colour (#447).
+   */
+  readonly orientation?: "vertical" | "horizontal";
 }
 
 /** Floor of the meter display, in dBFS. Below this reads as silence. */
@@ -72,7 +77,11 @@ export default function LevelMeter(props: LevelMeterProps): JSX.Element {
   // vertical VU look a bare <meter> can't be styled into. The two share one
   // value: the overlay's height is the same fraction the <meter> reports.
   return (
-    <div class="mixer-meter">
+    <div
+      class={
+        props.orientation === "horizontal" ? "level-meter-horizontal" : "mixer-meter"
+      }
+    >
       <meter
         class="visually-hidden"
         aria-label="Level"
@@ -82,7 +91,13 @@ export default function LevelMeter(props: LevelMeterProps): JSX.Element {
         high={-6}
         value={clamped()}
       />
-      <div class="mixer-meter-fill" style={{ height: `${fillFraction() * 100}%` }} />
+      <div
+        class="mixer-meter-fill"
+        style={{
+          [props.orientation === "horizontal" ? "width" : "height"]:
+            `${fillFraction() * 100}%`,
+        }}
+      />
     </div>
   );
 }
