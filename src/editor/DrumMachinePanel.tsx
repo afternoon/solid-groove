@@ -8,14 +8,7 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import {
-  addPad,
-  createControlGesture,
-  MAX_DRUM_PADS,
-  setPadChoke,
-  setPadFlag,
-  setPadParameter,
-} from "../commands";
+import { addPad, MAX_DRUM_PADS, setPadChoke, setPadFlag } from "../commands";
 import type { Asset, DrumPad, NoteTrigger, Track } from "../domain/entities";
 import {
   createDrumPad,
@@ -24,18 +17,13 @@ import {
 } from "../domain/factories";
 import { formatDb, formatPan } from "../domain/faders";
 import type { AssetId, PadId, TrackId } from "../domain/ids";
-import {
-  PAD_PITCH,
-  type ParameterDefinition,
-  TRACK_PAN,
-  TRACK_VOLUME,
-} from "../domain/parameters";
-import FillSlider from "../instrument/FillSlider";
+import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import { formatInstrumentValue } from "../instrument/formatValue";
 import SampleSlot from "../instrument/SampleSlot";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MuteSoloToggles from "./MuteSoloToggles";
+import PadControl from "./PadControl";
 import PadSound from "./PadSound";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
@@ -403,63 +391,5 @@ function PadPreview(props: {
         />
       </svg>
     </button>
-  );
-}
-
-interface PadControlProps {
-  readonly trackId: Track["id"];
-  readonly pad: DrumPad;
-  readonly definition: ParameterDefinition;
-  readonly label: string;
-  readonly value: number;
-  readonly displayValue: string;
-  readonly bipolar?: boolean;
-  onFirstUse(): void;
-  dispatch(
-    commands: RawCommandInput | readonly RawCommandInput[],
-  ): TransactionResult | undefined;
-  beginGesture(options?: GestureOptions): Gesture | undefined;
-}
-
-/**
- * One continuous pad control (#255): the same thumbless fill slider as every
- * other continuous control in the editor, on its side to fit the pad lane, and
- * driven as one gesture per drag. Each pointer sample applies live inside the
- * open gesture — so the value follows the pointer on screen and in the audio
- * graph — and release commits the whole drag as one history entry, one revision
- * and one save. Dispatching a command straight from `input`, as this did, made
- * one drag dozens of revisions and dozens of undo steps.
- */
-function PadControl(props: PadControlProps): JSX.Element {
-  const control = createControlGesture({
-    beginGesture: (options) => props.beginGesture(options),
-    dispatch: (commands) => props.dispatch(commands),
-    summary: () => `Set ${props.definition.label} on a pad`,
-    command: (value) =>
-      setPadParameter(
-        props.trackId,
-        props.pad.id,
-        props.definition.id as Parameters<typeof setPadParameter>[2],
-        value,
-      ),
-  });
-
-  return (
-    <FillSlider
-      definition={props.definition}
-      inputId={`pad-${props.pad.id}-${props.label.toLowerCase()}`}
-      label={props.label}
-      // Every pad shows a "Pitch", so the name has to say whose.
-      ariaLabel={`${props.label} for ${props.pad.name}`}
-      orientation="horizontal"
-      bipolar={props.bipolar}
-      value={props.value}
-      displayValue={props.displayValue}
-      onInput={(value) => {
-        props.onFirstUse();
-        control.input(value);
-      }}
-      onCommit={(value) => control.commit(value)}
-    />
   );
 }
