@@ -96,6 +96,13 @@ export function audioClockNow(): number {
   return Tone.getContext().immediate();
 }
 
+/** One instrument trigger, reported as it is scheduled (#447). */
+export type TriggerWatcher = (
+  trackId: TrackId,
+  trigger: NoteTrigger,
+  delaySeconds: number,
+) => void;
+
 export interface ProjectAudioGraphOptions {
   transport?: AudioTransport;
   bufferLoader?: AssetBufferLoader<Tone.ToneAudioBuffer>;
@@ -183,6 +190,7 @@ export class ProjectAudioGraph {
     this.activeLoopPlayers.clear();
   };
   private disposed = false;
+  private readonly triggerWatchers = new Set<TriggerWatcher>();
 
   constructor(
     private readonly runtime: AudioHost,
@@ -350,6 +358,25 @@ export class ProjectAudioGraph {
       ticksToToneTime(TICKS_PER_QUARTER),
       velocity,
     );
+    this.reportTrigger(trackId, { kind: "pad", padId }, now);
+  }
+
+  /**
+   * Follows every trigger the graph sends an instrument, scheduled or
+   * auditioned, so the editor can show what is playing (#447). `delaySeconds`
+   * is how far ahead of the audio clock the trigger was scheduled: a watcher
+   * that waits that long before drawing lights up as the sound is heard, not
+   * a look-ahead early. Returns the way to stop.
+   */
+  watchTriggers(watcher: TriggerWatcher): () => void {
+    this.triggerWatchers.add(watcher);
+    return () => this.triggerWatchers.delete(watcher);
+  }
+
+  private reportTrigger(trackId: TrackId, trigger: NoteTrigger, time: number): void {
+    if (this.triggerWatchers.size === 0) return;
+    const delaySeconds = Math.max(0, time - this.now());
+    for (const watcher of this.triggerWatchers) watcher(trackId, trigger, delaySeconds);
   }
 
   private syncReturns(next: AudioSongProjection, tempoChanged: boolean): void {
@@ -467,6 +494,7 @@ export class ProjectAudioGraph {
             ticksToToneTime(note.durationTicks),
             note.velocity,
           );
+        this.reportTrigger(note.trackId, note.trigger, time);
       }, ticksToToneTime(note.absoluteTicks));
       entry.handles.push(
         this.scope.register("schedule", () => this.transport.clear(scheduleId)),
@@ -555,6 +583,7 @@ export class ProjectAudioGraph {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    this.triggerWatchers.clear();
 
     for (const event of TRANSPORT_HALT_EVENTS) {
       this.transport.off?.(event, this.onTransportHalt);
