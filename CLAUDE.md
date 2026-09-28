@@ -479,6 +479,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 - Adding a shortcut also means updating `docs/shortcuts.md` — `src/shortcuts/docs.test.ts` fails if the two drift.
 
 ### The palette (`src/theme.css`)
+- **Read [`docs/design.md`](./docs/design.md) before changing how anything looks**: square corners, a monochrome palette with colour kept for meaning, clearly organised sections, and one shared set of parts.
 - The faceplate design the instrument, device and mixer surfaces follow (#447) is [`docs/faceplate-system.html`](./docs/faceplate-system.html), a self-contained page that plays. It is the reference for layout, parts and states; `src/theme.css` stays the authority for colour.
 - `src/theme.css` is the only place a colour is written down. It holds custom properties and nothing else, so a static page (`docs/architecture.html`) can link it without dragging the app's base styles along. `src/app.css` `@import`s it, and Vite inlines that at build time.
 - **The interface is literally monochrome: every token is a neutral grey with R, G and B equal.** No tinted greys, no coloured accent, no coloured status. Black and white are the anchors; the ramp between them (`--mono-00` … `--mono-100`) is nine steps, each with exactly one job, and mid-greys are what it spends least.
