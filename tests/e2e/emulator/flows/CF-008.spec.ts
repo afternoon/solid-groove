@@ -172,15 +172,15 @@ test.describe("CF-008", () => {
 
     // "Nearly filling the window" is the point of the modal — the piano roll
     // in particular exists to get this room — so it is asserted rather than
-    // left to the screenshot. Eight tenths of each axis is a floor, not a
-    // target: it fails a panel that merely grew, and passes any of the
-    // reasonable insets a designer might settle on.
+    // left to the screenshot. Seven tenths of each axis is a floor, not a
+    // target: it fails a panel that merely grew, and passes the 100px gap
+    // (clamped to 12% of a short side) that #538 settled on.
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("This spec needs a sized viewport to measure.");
     const box = await sequenceEditor(page).boundingBox();
     if (!box) throw new Error("The sequence editor is visible but has no box.");
-    expect(box.width).toBeGreaterThan(viewport.width * 0.8);
-    expect(box.height).toBeGreaterThan(viewport.height * 0.8);
+    expect(box.width).toBeGreaterThan(viewport.width * 0.7);
+    expect(box.height).toBeGreaterThan(viewport.height * 0.7);
     await step("Open the clip — the sequence editor fills the window");
 
     // 3. Turn on a step that was off, then close the editor. The arrangement
