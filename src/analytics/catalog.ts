@@ -221,6 +221,7 @@ export const FEATURE_KEYS = [
   "export_stereo",
   "export_stems",
   "playhead_seek",
+  "track_color",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
