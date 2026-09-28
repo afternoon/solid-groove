@@ -54,16 +54,27 @@ function applyParam(
  * threshold instead would silently change how hard the device compresses.
  *
  * Parallel ("New York") compression comes from the shared wet/dry stage in
- * `deviceNode.ts`, not from anything here.
+ * `deviceNode.ts`. What this core adds to it is `dryAlign`: a
+ * `DynamicsCompressorNode` delays its output by a fixed lookahead (6 ms in
+ * Chromium, a different figure elsewhere), so an undelayed dry leg would sum
+ * with a late wet leg and comb-filter at any partial mix (#490). Rather than
+ * guess each implementation's figure, the dry leg runs through a second,
+ * identical node set to never compress — 1:1 with no knee is a unity curve, so
+ * it is a pure delay of exactly the same length, in every browser.
  */
 export const createCompressorCore: DeviceCoreFactory = (): DeviceCore => {
   const compressor = new Tone.Compressor();
   const makeup = new Tone.Volume(0);
   compressor.connect(makeup);
+  const dryAlign = new Tone.Compressor();
+  applyParam(dryAlign.knee, 0, true);
+  applyParam(dryAlign.threshold, 0, true);
+  applyParam(dryAlign.ratio, 1, true);
 
   return {
     input: compressor,
     output: makeup,
+    dryAlign,
     apply(values, _context, initial) {
       // `knee` is not exposed as a control: FX-01 lists five compressor
       // parameters and a sixth would be a knob without a stated purpose. A
@@ -88,6 +99,7 @@ export const createCompressorCore: DeviceCoreFactory = (): DeviceCore => {
     dispose() {
       compressor.dispose();
       makeup.dispose();
+      dryAlign.dispose();
     },
   };
 };
