@@ -67,6 +67,19 @@ describe("DragSurface (#447)", () => {
     expect(onCommit).toHaveBeenCalledTimes(1);
   });
 
+  it("commits an open drag when the surface goes away mid-drag", () => {
+    const gesture = recordingGesture([]);
+    const commit = vi.spyOn(gesture, "commit");
+    const { surface, onCommit } = renderSurface(() => gesture);
+
+    firePointer(surface, "pointerdown", { button: 0, clientX: 50, clientY: 25 });
+    // The panel unmounts before the pointer is released (a track switch).
+    cleanup();
+
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
   it("still lands each move when no gesture can open", () => {
     const { surface, dispatch } = renderSurface(() => {
       throw new Error("a gesture is already in progress");

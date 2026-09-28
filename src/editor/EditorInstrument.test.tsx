@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CommandHistory } from "../commands";
+import { CommandHistory, updateTrack } from "../commands";
 import type { Project } from "../domain/entities";
 import {
   createDrumMachineFixtureProject,
@@ -216,5 +216,91 @@ describe("the Instrument view's header meter (#447)", () => {
     ));
     const header = document.querySelector(".instrument-header") as HTMLElement;
     expect(within(header).getByRole("meter", { name: "Level" })).toBeInTheDocument();
+  });
+});
+
+describe("the Instrument view's header across edits (#447)", () => {
+  it("keeps one header while the track is edited", () => {
+    const history = new CommandHistory(createReferenceProject());
+    const [project, setProject] = createSignal<Project>(history.project);
+    history.subscribe(() => setProject(history.project));
+    const trackId = history.project.song.tracks[0].id;
+    const track = () =>
+      project().song.tracks.find((candidate) => candidate.id === trackId) ?? null;
+    render(() => (
+      <EditorInstrument
+        project={project()}
+        track={track()}
+        drumTrack={null}
+        sampleAssets={[]}
+        instrument={track()?.instrument ?? null}
+        instrumentTrackId={track()?.id ?? null}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={() => {}}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        dispatch={(commands) => history.execute(commands)}
+        beginGesture={(gesture) => history.beginGesture(gesture)}
+        trackLevelDb={() => null}
+        isPlaying={() => false}
+      />
+    ));
+    const header = document.querySelector(".instrument-header");
+    const meter = within(header as HTMLElement).getByRole("meter", { name: "Level" });
+
+    history.execute(updateTrack(trackId, { name: "Renamed" }));
+    flush();
+
+    // The same header, and the same meter, now naming the renamed track.
+    expect(document.querySelector(".instrument-header")).toBe(header);
+    expect(within(header as HTMLElement).getByRole("meter", { name: "Level" })).toBe(
+      meter,
+    );
+    expect(header).toHaveTextContent("Renamed");
+  });
+});
+
+describe("the Instrument view's header across track kinds (#447)", () => {
+  it("heads a loop track's panel after an instrument track's, and back", () => {
+    const project = createDrumMachineFixtureProject();
+    const drums = project.song.tracks.find((t) => t.type === "instrument");
+    const loop = project.song.tracks.find((t) => t.type === "audio");
+    if (!drums || !loop) throw new Error("fixture lacks a drum or loop track");
+    const [track, setTrack] = createSignal(drums);
+    render(() => (
+      <EditorInstrument
+        project={project}
+        track={track()}
+        drumTrack={track().type === "instrument" ? track() : null}
+        sampleAssets={project.song.assets}
+        instrument={track().instrument}
+        instrumentTrackId={track().id}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={() => {}}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+    const headers = () => document.querySelectorAll(".instrument-header");
+    expect(headers()).toHaveLength(1);
+
+    setTrack(loop);
+    flush();
+    expect(headers()).toHaveLength(1);
+    expect(screen.getByRole("region", { name: `${loop.name} loop` })).toContainElement(
+      headers()[0] as HTMLElement,
+    );
+    expect(headers()[0]).toHaveTextContent(loop.name);
+
+    setTrack(drums);
+    flush();
+    expect(headers()).toHaveLength(1);
+    expect(headers()[0]).toHaveTextContent(drums.name);
   });
 });
