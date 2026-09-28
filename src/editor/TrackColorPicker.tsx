@@ -21,8 +21,9 @@ export interface TrackColorPickerProps {
 /**
  * A track's colour swatch, which is also where the colour is chosen (#447).
  * It opens the track palette; a choice is one `track.update`, undoable like
- * any edit. The menu closes on a choice, a press anywhere else, or
- * `view.close_surface` (Escape) — it never reads a key itself.
+ * any edit. The swatches are a native radio group — one Tab stop, arrow keys
+ * move and choose between them, no key handler of ours — and the menu closes
+ * on a click, a press anywhere else, or `view.close_surface` (Escape).
  *
  * The menu is portalled to the body: the arrangement's header column clips
  * and translates its rows, which would cut a menu off inside the row.
@@ -43,8 +44,13 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
     const rect = button.getBoundingClientRect();
     setAt({ left: rect.left, top: rect.bottom + 4 });
   };
+  // A radio's arrow keys select as they move, so a change is a choice that
+  // leaves the menu open; only a pointer click closes it (a click with
+  // `detail > 0` — a keyboard-synthesised one reports 0).
+  let pointerChoice = false;
   const choose = (color: string) => {
-    close(true);
+    if (pointerChoice) close(true);
+    pointerChoice = false;
     if (color === props.track.color) return;
     const result = props.dispatch(updateTrack(props.track.id, { color }));
     if (result?.ok) analytics().logFeatureFirstUse("track_color");
@@ -56,8 +62,8 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
     if (!isOpen) return;
     queueMicrotask(() =>
       (
-        menu?.querySelector<HTMLElement>('[aria-pressed="true"]') ??
-        menu?.querySelector<HTMLElement>("button")
+        menu?.querySelector<HTMLElement>("input:checked") ??
+        menu?.querySelector<HTMLElement>("input")
       )?.focus(),
     );
     const outside = (event: PointerEvent) => {
@@ -86,17 +92,23 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
             <fieldset
               ref={menu}
               class="track-color-menu"
-              aria-label={`Colour for ${props.track.name}`}
               style={{ left: `${position().left}px`, top: `${position().top}px` }}
             >
+              <legend class="visually-hidden">{`Colour for ${props.track.name}`}</legend>
               <For each={TRACK_PALETTE}>
                 {(color, index) => (
-                  <button
-                    type="button"
-                    aria-pressed={ariaBool(color === props.track.color)}
+                  <input
+                    type="radio"
+                    name={`track-colour-${props.track.id}`}
+                    checked={color === props.track.color}
                     aria-label={`Colour ${index() + 1} of ${TRACK_PALETTE.length}`}
                     style={{ background: color }}
-                    onClick={() => choose(color)}
+                    onClick={(event) => {
+                      pointerChoice = event.detail > 0;
+                      // Clicking the swatch already chosen fires no change.
+                      if (pointerChoice && color === props.track.color) choose(color);
+                    }}
+                    onChange={() => choose(color)}
                   />
                 )}
               </For>

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import userEvent from "@testing-library/user-event";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -42,6 +43,12 @@ function renderPicker(analyticsOn = true) {
   return { history, track, transport, swatch };
 }
 
+/** A real pointer click (`detail: 1`), which is what closes the menu. */
+async function pick(name: string) {
+  await userEvent.click(screen.getByRole("radio", { name }));
+  flush();
+}
+
 /** A palette colour the track does not already have. */
 const otherColor = (track: Track) =>
   TRACK_COLORS.find((c) => c !== track.color) as string;
@@ -56,25 +63,25 @@ describe("TrackColorPicker (#447)", () => {
 
     expect(swatch()).toHaveAttribute("aria-expanded", "true");
     const palette = screen.getByRole("group", { name: `Colour for ${track().name}` });
-    const items = within(palette).getAllByRole("button");
+    const items = within(palette).getAllByRole("radio");
     expect(items).toHaveLength(50);
-    const checked = items.filter((item) => item.getAttribute("aria-pressed") === "true");
+    const checked = items.filter((item) => (item as HTMLInputElement).checked);
     expect(checked).toHaveLength(TRACK_COLORS.includes(track().color) ? 1 : 0);
   });
 
-  it("recolours the track as one undoable edit, and marks first use once", () => {
+  it("recolours the track as one undoable edit, and marks first use once", async () => {
     const { history, track, transport, swatch } = renderPicker();
     const before = track().color;
     const next = otherColor(track());
 
     clickAndFlush(swatch());
     const index = TRACK_COLORS.indexOf(next);
-    clickAndFlush(screen.getByRole("button", { name: `Colour ${index + 1} of 50` }));
+    await pick(`Colour ${index + 1} of 50`);
 
     expect(track().color).toBe(next);
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
     clickAndFlush(swatch());
-    clickAndFlush(screen.getByRole("button", { name: "Colour 1 of 50" }));
+    await pick("Colour 1 of 50");
     expect(transport.named("feature_first_use")).toEqual([
       expect.objectContaining({
         params: expect.objectContaining({ feature: "track_color" }),
@@ -88,29 +95,25 @@ describe("TrackColorPicker (#447)", () => {
     );
   });
 
-  it("offers 50 swatches, and marks the chosen one pressed on reopen", () => {
+  it("offers 50 swatches, and marks the chosen one checked on reopen", async () => {
     const { track, swatch } = renderPicker();
     clickAndFlush(swatch());
     const palette = screen.getByRole("group", { name: `Colour for ${track().name}` });
-    expect(within(palette).getAllByRole("button")).toHaveLength(50);
-    clickAndFlush(screen.getByRole("button", { name: "Colour 23 of 50" }));
+    expect(within(palette).getAllByRole("radio")).toHaveLength(50);
+    await pick("Colour 23 of 50");
 
     clickAndFlush(swatch());
-    const pressed = screen
-      .getAllByRole("button", { pressed: true })
+    const checked = screen
+      .getAllByRole("radio", { checked: true })
       .map((b) => b.getAttribute("aria-label"));
-    expect(pressed).toEqual(["Colour 23 of 50"]);
+    expect(checked).toEqual(["Colour 23 of 50"]);
   });
 
-  it("recolours the same with analytics off", () => {
+  it("recolours the same with analytics off", async () => {
     const { track, transport, swatch } = renderPicker(false);
     const next = otherColor(track());
     clickAndFlush(swatch());
-    clickAndFlush(
-      screen.getByRole("button", {
-        name: `Colour ${TRACK_COLORS.indexOf(next) + 1} of 50`,
-      }),
-    );
+    await pick(`Colour ${TRACK_COLORS.indexOf(next) + 1} of 50`);
     expect(track().color).toBe(next);
     expect(transport.named("feature_first_use")).toEqual([]);
   });
@@ -131,6 +134,36 @@ describe("TrackColorPicker (#447)", () => {
     flush();
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
     expect(swatch()).toHaveFocus();
+    expect(history.canUndo).toBe(false);
+  });
+
+  it("is one Tab stop, and arrow keys move and choose between swatches", async () => {
+    const user = userEvent.setup();
+    const { history, track, swatch } = renderPicker();
+    await user.click(swatch());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const radios = screen.getAllByRole("radio") as HTMLInputElement[];
+    // The menu opens with focus inside the group, on the current colour.
+    expect(radios).toContain(document.activeElement);
+    const at = radios.indexOf(document.activeElement as HTMLInputElement);
+
+    // One Tab stop: Tab leaves the group rather than walking 50 swatches.
+    await user.tab();
+    expect(radios).not.toContain(document.activeElement);
+    radios[at]?.focus();
+
+    const before = track().color;
+    await user.keyboard("{ArrowRight}");
+    flush();
+    expect(radios[at + 1]).toHaveFocus();
+    expect(radios[at + 1]?.checked).toBe(true);
+    expect(track().color).toBe(TRACK_COLORS[at + 1]);
+    // An arrow chooses and keeps the menu open; the choice is one undo entry.
+    expect(screen.getByRole("group")).toBeInTheDocument();
+    history.undo();
+    expect(history.project.song.tracks.find((t) => t.id === track().id)?.color).toBe(
+      before,
+    );
     expect(history.canUndo).toBe(false);
   });
 });
