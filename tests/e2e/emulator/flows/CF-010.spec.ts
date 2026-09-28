@@ -179,7 +179,7 @@ test.describe("CF-010", () => {
     await page.getByTestId("arrangement-view-ready").waitFor();
 
     await clickAt(page, 0, midBar(1));
-    await page.getByRole("button", { name: /^Duplicate as a linked copy/ }).click();
+    await page.keyboard.press("ControlOrMeta+D");
     // Pressing on a clip's body and dragging moves it, a bar at a time.
     await drag(
       page,

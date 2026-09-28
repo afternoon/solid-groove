@@ -51,7 +51,6 @@ import {
   hitTestLoopBrace,
   type LoopBraceDrag,
 } from "./loopBrace";
-import { PlacementToolbar } from "./PlacementToolbar";
 import {
   createPlacementEditing,
   type EditingGesture,
@@ -911,20 +910,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
           )}
         </Show>
       </ArrangementToolbar>
-      <Show when={props.dispatch}>
-        <PlacementToolbar
-          selectionCount={placementSelection().length}
-          onDuplicateLinked={() => editing?.duplicate("linked")}
-          onDuplicateIndependent={() => editing?.duplicate("independent")}
-          onOpen={
-            props.onOpenPlacement &&
-            (() => {
-              const [first] = placementSelection();
-              if (first) props.onOpenPlacement?.(first);
-            })
-          }
-        />
-      </Show>
       <div class="arrangement-body">
         <div
           class="arrangement-headers"
