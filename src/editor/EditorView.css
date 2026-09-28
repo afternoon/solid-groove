@@ -16,7 +16,7 @@
 	   bottom of a full-bleed view from being permanently covered (UI-001). */
   --view-dock-clearance: 120px;
   /* What the sticky header covers at the top of a scrolling view. */
-  --editor-header-height: 40px;
+  --editor-header-height: 60px;
 
   width: 100vw;
   height: 100vh;
@@ -63,6 +63,8 @@
   display: flex;
   align-items: center;
   gap: var(--size-divider);
+  box-sizing: border-box;
+  height: var(--editor-header-height);
 }
 
 .editor-header-start,
@@ -91,7 +93,7 @@
 }
 
 .editor-header .project-name {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-title);
   margin: 0;
   min-width: 0;
   overflow: hidden;
@@ -125,6 +127,21 @@
 
 .editor-header button:not(:disabled):hover {
   opacity: 0.75;
+}
+
+/* The play well: recessed while idle, a white fill while playing (state is
+ * brightness). */
+.editor-header .transport-toggle {
+  background: var(--color-background-well);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0;
+  color: var(--color-text-primary);
+}
+
+.editor-header .transport-toggle[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .editor-header .transport-toggle[aria-pressed="true"],

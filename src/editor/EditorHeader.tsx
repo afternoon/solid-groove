@@ -91,7 +91,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           aria-label="Projects"
           title="Projects"
         >
-          <HiSolidSquares2x2 size={18} />
+          <HiSolidSquares2x2 size={24} />
         </a>
         {/* The project's name, chosen by the user (ADR 0002 decision 2). */}
         <h1 class={`project-name ${MASK_CONTENT}`}>{props.projectName}</h1>
@@ -127,8 +127,8 @@ export default function EditorHeader(props: EditorHeaderProps) {
             "transport.play_stop",
           )})`}
         >
-          <Show when={props.audio.isPlaying()} fallback={<HiSolidPlay size={22} />}>
-            <HiSolidStop size={22} />
+          <Show when={props.audio.isPlaying()} fallback={<HiSolidPlay size={28} />}>
+            <HiSolidStop size={28} />
           </Show>
         </button>
         <button
@@ -187,7 +187,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           title={`Keyboard shortcuts (${props.keyHint("help.shortcut_guide")})`}
           onClick={() => props.onOpenGuide()}
         >
-          <HiSolidQuestionMarkCircle size={18} />
+          <HiSolidQuestionMarkCircle size={24} />
         </button>
       </div>
     </header>
