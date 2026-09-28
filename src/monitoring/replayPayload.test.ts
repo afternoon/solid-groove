@@ -396,6 +396,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // A mixer strip's `TrackId`, which the track drag (TRK-02) reads its
       // items by — the same prefixed ID as `track.id`, reached through props.
       "props.track.id",
+      // The instrument rail's rows, as drag items (#447): the same prefixed
+      // `TrackId`, bound only while the rail can be reordered.
+      "props.onReorder ? track.id : undefined",
       // The mixer's previewed strip (TRK-02): a fixed test id or nothing,
       // never anything the user authored.
       'props.previewing ? "track-drop-indicator" : undefined',
