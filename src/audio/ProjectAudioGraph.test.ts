@@ -172,9 +172,15 @@ describe("ProjectAudioGraph", () => {
     if (!trackGraph) throw new Error("no track graph");
     const trigger = vi.spyOn(trackGraph, "trigger");
 
+    // Watched like any trigger, so a view can show the audition (#447).
+    const heard: unknown[] = [];
+    const stop = graph.watchTriggers((id, played) => heard.push([id, played]));
+
     graph.auditionTrack(trackId, { kind: "pitch", pitch: 60 }, 192, 0.9);
     expect(trigger).toHaveBeenCalledTimes(1);
     expect(trigger.mock.calls[0][0]).toEqual({ kind: "pitch", pitch: 60 });
+    expect(heard).toEqual([[trackId, { kind: "pitch", pitch: 60 }]]);
+    stop();
 
     // An unknown track is a silent no-op, not a throw.
     expect(() =>
