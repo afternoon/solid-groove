@@ -1,0 +1,187 @@
+import { For, type JSX } from "@solidjs/web";
+import { createMemo } from "solid-js";
+import type {
+  Gesture,
+  GestureOptions,
+  RawCommandInput,
+  TransactionResult,
+} from "../commands";
+import { createControlGesture, setPadParameter } from "../commands";
+import type { Asset, DrumPad, Track } from "../domain/entities";
+import { formatDb, formatPan } from "../domain/faders";
+import {
+  PAD_ATTACK,
+  PAD_DECAY,
+  PAD_PITCH,
+  type ParameterDefinition,
+  TRACK_PAN,
+  TRACK_VOLUME,
+} from "../domain/parameters";
+import ControlGroup from "../instrument/ControlGroup";
+import DragSurface from "../instrument/DragSurface";
+import {
+  FLOOR,
+  PEAK,
+  stageSeconds,
+  stageWidth,
+  svgPath,
+} from "../instrument/envelopeGeometry";
+import FillSlider from "../instrument/FillSlider";
+import { formatInstrumentValue } from "../instrument/formatValue";
+import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
+import Well from "../instrument/Well";
+import "./PadSound.css";
+
+/** How much of the well the decay may take, after the attack's share. */
+const DECAY_SHARE = 0.74;
+const WIDTH = 300;
+const HEIGHT = 90;
+
+type PadParameterId = Parameters<typeof setPadParameter>[2];
+
+export interface PadSoundProps {
+  readonly track: Track;
+  readonly pad: DrumPad;
+  readonly asset: Asset | undefined;
+  readonly watchPeaks?: WatchPeaks;
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): TransactionResult | undefined;
+  beginGesture(options?: GestureOptions): Gesture | undefined;
+  onFirstUse(): void;
+}
+
+/** A pad parameter's current value: level and pan live on its mixer. */
+function padValue(pad: DrumPad, definition: ParameterDefinition): number {
+  if (definition.id === TRACK_VOLUME.id) return pad.mixer.volume;
+  if (definition.id === TRACK_PAN.id) return pad.mixer.pan;
+  const key = definition.id.slice("pad.".length);
+  return pad.parameters[key] ?? definition.defaultValue;
+}
+
+function formatPadValue(definition: ParameterDefinition, value: number): string {
+  if (definition.id === TRACK_VOLUME.id) return formatDb(TRACK_VOLUME, value);
+  if (definition.id === TRACK_PAN.id) return formatPan(value);
+  return formatInstrumentValue(definition, value);
+}
+
+/**
+ * The selected pad opened up in its row (#447): its sound drawn with the
+ * attack and decay that shape each hit — both draggable on the well — and a
+ * fader for each of its five values. Pad attack and decay were not reachable
+ * from the panel before; pitch, level and pan are the row's own.
+ */
+export default function PadSound(props: PadSoundProps): JSX.Element {
+  const peaks = createPeaks(
+    () => props.watchPeaks,
+    () => props.pad.assetId,
+    150,
+  );
+  const attack = () => padValue(props.pad, PAD_ATTACK);
+  const decay = () => padValue(props.pad, PAD_DECAY);
+
+  const points = createMemo(() => {
+    const a = stageWidth(attack(), PAD_ATTACK.max);
+    const d = Math.sqrt(Math.min(decay(), PAD_DECAY.max) / PAD_DECAY.max) * DECAY_SHARE;
+    return [
+      [0, FLOOR],
+      [a, PEAK],
+      [Math.min(1, a + d), FLOOR],
+      [1, FLOOR],
+    ] as const;
+  });
+
+  const command = (definition: ParameterDefinition, value: number) =>
+    setPadParameter(props.track.id, props.pad.id, definition.id as PadParameterId, value);
+
+  const duration = () => props.asset?.durationSeconds ?? 0;
+  const scale = () =>
+    duration() > 0
+      ? [0, 0.25, 0.5, 0.75, 1].map((f) => `${(duration() * f).toFixed(2)} s`)
+      : undefined;
+
+  function fader(definition: ParameterDefinition, label: string): JSX.Element {
+    const control = createControlGesture({
+      beginGesture: (options) => props.beginGesture(options),
+      dispatch: (commands) => props.dispatch(commands),
+      summary: () => `Set ${definition.label} on a pad`,
+      command: (value) => command(definition, value),
+    });
+    return (
+      <FillSlider
+        definition={definition}
+        inputId={`pad-sound-${props.pad.id}-${label.toLowerCase()}`}
+        label={label}
+        ariaLabel={`${label} for ${props.pad.name}`}
+        value={padValue(props.pad, definition)}
+        displayValue={formatPadValue(definition, padValue(props.pad, definition))}
+        onInput={(value) => {
+          props.onFirstUse();
+          control.input(value);
+        }}
+        onCommit={(value) => control.commit(value)}
+      />
+    );
+  }
+
+  return (
+    <div class="pad-sound">
+      <Well
+        title="Attack and decay · drag the corners"
+        value={`${formatPadValue(PAD_ATTACK, attack())} / ${formatPadValue(PAD_DECAY, decay())}`}
+        scale={scale()}
+        class="pad-sound-well"
+      >
+        <svg
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path
+            class="sample-well-bars"
+            d={peaks() ? peakBars(peaks() as Float32Array, WIDTH, HEIGHT) : ""}
+          />
+          <path class="well-line" d={svgPath(points(), WIDTH, HEIGHT)} />
+        </svg>
+        <DragSurface
+          grab={(point) =>
+            Math.abs(point.x - points()[1][0]) <= Math.abs(point.x - points()[2][0])
+              ? ("attack" as const)
+              : ("decay" as const)
+          }
+          commands={(point, corner) => {
+            if (corner === "attack") {
+              return [command(PAD_ATTACK, stageSeconds(point.x, PAD_ATTACK.max))];
+            }
+            const share = Math.max(0, point.x - points()[1][0]) / DECAY_SHARE;
+            const seconds = Math.min(1, share) ** 2 * PAD_DECAY.max;
+            return [command(PAD_DECAY, Math.max(PAD_DECAY.min, seconds))];
+          }}
+          summary={() => "Shape a pad's hit"}
+          dispatch={(commands) => props.dispatch(commands)}
+          beginGesture={(options) => props.beginGesture(options)}
+          onCommit={() => props.onFirstUse()}
+        >
+          <For each={[1, 2]}>
+            {(index) => (
+              <i
+                class="drag-handle"
+                style={{
+                  left: `${points()[index][0] * 100}%`,
+                  top: `${(1 - points()[index][1]) * 100}%`,
+                }}
+              />
+            )}
+          </For>
+        </DragSurface>
+      </Well>
+      <ControlGroup title={`${props.pad.name} · sound`}>
+        {fader(PAD_PITCH, "Pitch")}
+        {fader(TRACK_VOLUME, "Level")}
+        {fader(TRACK_PAN, "Pan")}
+        {fader(PAD_ATTACK, "Attack")}
+        {fader(PAD_DECAY, "Decay")}
+      </ControlGroup>
+    </div>
+  );
+}

@@ -1,0 +1,21 @@
+/* The selected pad opened up under its row (#447): its sound's well beside
+   the faders for its five values, on the drum table's own twelve columns. */
+
+.pad-sound {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pad-sound .fill-slider {
+  --fill-slider-track-height: 118px;
+}
+
+.pad-sound > .well {
+  grid-column: span 6;
+  background-color: var(--color-background-secondary);
+}
+
+.pad-sound > .control-group {
+  grid-column: span 6;
+}
