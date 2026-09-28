@@ -136,12 +136,12 @@ describe("SynthPanel", () => {
     const { history, project, instrument } = renderLivePanel();
     const startRevision = project().metadata.revision;
     const cutoff = screen.getByLabelText("Cutoff") as HTMLInputElement;
-    expect(screen.getByText("12 kHz")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("12 kHz")).toBeInTheDocument();
     const restingFill = fillExtent(cutoff);
 
     // Mid-drag: `input` has fired, `change` has not.
     moveTo(cutoff, "760");
-    expect(screen.getByText("760 Hz")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("760 Hz")).toBeInTheDocument();
     expect(fillExtent(cutoff)).not.toBe(restingFill);
     // The audio graph reads the same project state, so the sweep is audible.
     expect(readInstrumentParameter(SYNTH_FILTER_CUTOFF, instrument().parameters)).toBe(
@@ -149,7 +149,7 @@ describe("SynthPanel", () => {
     );
 
     moveTo(cutoff, "400");
-    expect(screen.getByText("400 Hz")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("400 Hz")).toBeInTheDocument();
     expect(history.entries).toHaveLength(0);
 
     // One drag = one history entry and one revision, however many moves it took.

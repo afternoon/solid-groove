@@ -141,18 +141,18 @@ describe("SamplerPanel", () => {
     const { history, project, instrument } = renderLivePanel();
     const startRevision = project().metadata.revision;
     const pitch = screen.getByLabelText("Pitch") as HTMLInputElement;
-    expect(screen.getByText("0 st")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("0 st")).toBeInTheDocument();
     const restingFill = fillExtent(pitch);
 
     // Mid-drag: `input` has fired, `change` has not.
     moveTo(pitch, "5");
-    expect(screen.getByText("+5 st")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("+5 st")).toBeInTheDocument();
     expect(fillExtent(pitch)).not.toBe(restingFill);
     // The audio graph reads the same project state, so the pitch is audible.
     expect(readInstrumentParameter(SAMPLER_PITCH, instrument().parameters)).toBe(5);
 
     moveTo(pitch, "7");
-    expect(screen.getByText("+7 st")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("+7 st")).toBeInTheDocument();
     expect(history.entries).toHaveLength(0);
 
     // One drag = one history entry and one revision, however many moves it took.

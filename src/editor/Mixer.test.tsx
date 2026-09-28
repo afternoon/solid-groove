@@ -436,11 +436,29 @@ describe("Mixer controls (TRK-02)", () => {
     const { history } = renderMixer();
     const track = history.project.song.tracks[0];
     // Default volume 0 dB, default pan centre.
-    expect(screen.getByText("0.0 dB")).toBeInTheDocument();
-    expect(screen.getAllByText("C").length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue("0.0 dB")).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue("C").length).toBeGreaterThan(0);
     // The fader carries the readable value for assistive tech.
     const fader = screen.getByLabelText(`Volume for ${track.name}`);
     expect(fader).toHaveAttribute("aria-valuetext", "0.0 dB");
+  });
+
+  it("takes a typed volume in decibels as one history entry (#447)", () => {
+    const { history } = renderMixer();
+    const track = history.project.song.tracks[0];
+    const startRevision = history.project.metadata.revision;
+    const field = screen.getByLabelText(
+      `Volume for ${track.name} value`,
+    ) as HTMLInputElement;
+
+    field.value = "-6";
+    fireEvent.change(field);
+    flush();
+
+    expect(history.project.song.tracks[0].mixer.volume).toBeCloseTo(-6);
+    expect(history.project.metadata.revision).toBe(startRevision + 1);
+    expect(history.entries).toHaveLength(1);
+    expect(field.value).toBe("-6.0 dB");
   });
 
   it("builds volume and pan from the shared fill slider, one id per control", () => {
