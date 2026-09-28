@@ -727,6 +727,19 @@ describe("Mixer desk (#447)", () => {
     expect(desk?.lastElementChild).toHaveClass("mixer-master-strip");
   });
 
+  it("marks the mixer's first use once for a master drag, not per step", () => {
+    const { transport } = renderMixer();
+    const fader = screen.getByRole("slider", { name: "Master volume" });
+    for (const value of ["0.7", "0.6", "0.5"]) {
+      fireEvent.input(fader, { target: { value } });
+    }
+    fireEvent.change(fader, { target: { value: "0.5" } });
+    flush();
+    const firstUse = transport.events.filter((e) => e.name === "feature_first_use");
+    expect(firstUse).toHaveLength(1);
+    expect(firstUse[0]?.params.feature).toBe("mixer");
+  });
+
   it("names the chain each strip carries, in signal order", () => {
     expect(chainSummary([])).toBe("No devices");
     const ids = createSeededIdFactory("mixer-chain");
