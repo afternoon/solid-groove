@@ -1,0 +1,29 @@
+/* The track palette (#447): the one place the product's hue is chosen, so
+   the menu itself stays colourless around it. */
+.track-color-menu {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(8, 16px);
+  gap: 4px;
+  padding: 8px;
+  background-color: var(--color-background);
+  box-shadow:
+    0 10px 30px var(--scrim),
+    0 0 0 1px var(--color-border);
+}
+
+.track-color-menu button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Chosen and focused are brightness: a white ring around the colour. */
+.track-color-menu button[aria-checked="true"],
+.track-color-menu button:focus-visible {
+  outline: 2px solid var(--color-foreground-bright);
+  outline-offset: 1px;
+}
