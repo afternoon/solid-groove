@@ -35,7 +35,7 @@ export interface DeviceChainLabels {
   /** The ordered list of devices. */
   readonly list: string;
   /** Shown while the chain is empty. */
-  readonly empty: string;
+  readonly empty?: string;
 }
 
 export interface DeviceChainProps {
@@ -233,8 +233,10 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
           </header>
         )}
       </Show>
-      <Show when={devices().length === 0}>
-        <p class="device-chain-note">{props.labels.empty}</p>
+      {/* An empty track chain says nothing: the add buttons below are the
+          invitation. The master's chain still explains itself (#447). */}
+      <Show when={devices().length === 0 && props.labels.empty}>
+        {(empty) => <p class="device-chain-note">{empty()}</p>}
       </Show>
       <ol class="device-chain-list" aria-label={props.labels.list}>
         <For each={devices()} keyed={(device) => device.id}>
@@ -362,7 +364,6 @@ export interface DeviceChainPanelProps {
 const LABELS: DeviceChainLabels = {
   region: "Device chain",
   list: "Device chain",
-  empty: "No devices on this track yet.",
 };
 
 const LIMIT = {
