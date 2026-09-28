@@ -44,7 +44,18 @@ export interface UseEditorShortcutsOptions {
   /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
    * through the same command path as the header's loop button. */
   readonly toggleLooping: () => void;
+  /** The track selection's `-1`/`+1` step (`track.select_previous`/`_next`):
+   * `undefined` when there is no track that way (the ends, or a view where the
+   * arrows keep another meaning), so the key is left to the browser. */
+  readonly adjacentTrack: (by: -1 | 1) => (() => void) | undefined;
 }
+
+/** Controls that use the vertical arrows themselves, so a track step must not
+ * steal them while one has focus (text entry is already left alone). */
+const OWN_ARROWS =
+  'input[type="range"], [role="slider"], [role="listbox"], [role="menu"]';
+const focusKeepsArrows = (): boolean =>
+  document.activeElement?.matches(OWN_ARROWS) ?? false;
 
 /**
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
@@ -84,6 +95,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     sequenceEditorOpen,
     closeSequenceEditor,
     toggleLooping,
+    adjacentTrack,
   } = options;
 
   /**
@@ -152,6 +164,17 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
+    // Up/Down walk the selected track in the arrangement and instrument views.
+    // Plain arrows only: Alt+Up/Down stay `device.move_*` (exact-modifier
+    // matching), and a fader or list that has focus keeps its own arrows.
+    "track.select_previous": {
+      run: () => adjacentTrack(-1)?.(),
+      isEnabled: () => !focusKeepsArrows() && adjacentTrack(-1) !== undefined,
+    },
+    "track.select_next": {
+      run: () => adjacentTrack(1)?.(),
+      isEnabled: () => !focusKeepsArrows() && adjacentTrack(1) !== undefined,
+    },
     // Frames the arrangement's selection (#292), the toolbar button's twin.
     // The arrangement is on screen in every editor state, so this is live
     // whenever it has something to frame.

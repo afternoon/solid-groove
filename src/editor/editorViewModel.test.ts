@@ -9,6 +9,7 @@ import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { emptySelection, selectOnly } from "../selection";
 import {
   addedPackIds,
+  adjacentTrackId,
   drumTrack,
   editedClip,
   editedInstrument,
@@ -371,5 +372,26 @@ describe("instrumentPanelTrackId", () => {
 
   it("is null with no track edited", () => {
     expect(instrumentPanelTrackId(null)).toBeNull();
+  });
+});
+
+describe("adjacentTrackId", () => {
+  const project = createDrumMachineFixtureProject();
+  const [first, second] = project.song.tracks.map((track) => track.id);
+
+  it("steps to the neighbouring track and stops at each end", () => {
+    expect(adjacentTrackId(project, first, 1)).toBe(second);
+    expect(adjacentTrackId(project, second, -1)).toBe(first);
+    expect(adjacentTrackId(project, first, -1)).toBeNull();
+    expect(adjacentTrackId(project, second, 1)).toBeNull();
+  });
+
+  it("starts from the first track when nothing (or a vanished track) is selected", () => {
+    expect(adjacentTrackId(project, null, 1)).toBe(second);
+    expect(adjacentTrackId(project, "trk_gone" as typeof first, 1)).toBe(second);
+  });
+
+  it("has nowhere to step without a project", () => {
+    expect(adjacentTrackId(null, null, 1)).toBeNull();
   });
 });
