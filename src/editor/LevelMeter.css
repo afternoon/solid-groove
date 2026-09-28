@@ -1,4 +1,14 @@
-/* The track's live level, lying along the row in its own colour (#447). */
+/* A meter's one state, in the product's one status colour pair (#447):
+   green while the track is under 0 dBFS RMS, red while it is over. */
+.mixer-meter-fill {
+  background-color: var(--signal-ok);
+}
+
+.clipping > .mixer-meter-fill {
+  background-color: var(--signal-clip);
+}
+
+/* The track's live level, lying along a header row (#447). */
 .level-meter-horizontal {
   position: relative;
   width: 150px;
@@ -10,6 +20,5 @@
 .level-meter-horizontal .mixer-meter-fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background-color: var(--track-ink, var(--color-accent));
   transition: width 0.06s linear;
 }

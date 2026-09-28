@@ -226,7 +226,6 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: var(--color-accent);
   transition: height 0.06s linear;
 }
 
