@@ -9,6 +9,7 @@ import {
   dropSlot,
   moveTrack,
   orderedTrackIds,
+  previewOrder,
   previewTrackOrder,
   slotToIndex,
   type TrackReorderContext,
@@ -129,5 +130,20 @@ describe("previewTrackOrder (TRK-02)", () => {
 
     expect(orderedTrackIds(preview)).toEqual([c, a, b]);
     expect(orderedTrackIds(project)).toEqual([a, b, c]);
+  });
+});
+
+describe("previewOrder (#447)", () => {
+  it("draws the moving item where it would land, and nothing else moves", () => {
+    const items = ["a", "b", "c", "d"];
+    expect(previewOrder(items, (item) => item === "d", 0)).toEqual(["d", "a", "b", "c"]);
+    expect(previewOrder(items, (item) => item === "a", 2)).toEqual(["b", "c", "a", "d"]);
+    expect(previewOrder(items, (item) => item === "b", 1)).toEqual(items);
+  });
+
+  it("leaves the order alone with no target, or nothing moving", () => {
+    const items = ["a", "b"];
+    expect(previewOrder(items, (item) => item === "a", null)).toBe(items);
+    expect(previewOrder(items, () => false, 1)).toBe(items);
   });
 });

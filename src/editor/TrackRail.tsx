@@ -12,6 +12,7 @@ import type { Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import TrackHeader from "./TrackHeader";
 import type { TrackLevel } from "./trackLevels";
+import { previewOrder } from "./trackReorder";
 import { useTrackDrag } from "./useTrackDrag";
 import "./trackDrag.css";
 import "./TrackRail.css";
@@ -58,14 +59,8 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
   });
   /** The rows as letting go now would leave them: the dragged track is drawn
    * where it would land; the project changes only on release. */
-  const shown = () => {
-    const [dragged, to] = [drag.dragging(), drag.target()];
-    if (dragged === null || to === null) return props.tracks;
-    const moving = props.tracks.find((t) => t.id === dragged);
-    if (!moving) return props.tracks;
-    const rest = props.tracks.filter((t) => t.id !== dragged);
-    return [...rest.slice(0, to), moving, ...rest.slice(to)];
-  };
+  const shown = () =>
+    previewOrder(props.tracks, (track) => track.id === drag.dragging(), drag.target());
 
   return (
     <ul
