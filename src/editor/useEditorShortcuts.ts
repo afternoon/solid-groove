@@ -44,6 +44,14 @@ export interface UseEditorShortcutsOptions {
   /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
    * through the same command path as the header's loop button. */
   readonly toggleLooping: () => void;
+  /** Whether the ruler's loop brace has keyboard focus (`LOOP-018`). Turns the
+   * `loop_brace` context on, so `Left`/`Right` (and their `Shift` forms) move
+   * and resize the brace instead of meaning what they do elsewhere. */
+  readonly loopBraceFocused: Accessor<boolean>;
+  /** Move the brace by whole bars; a resize moves its end edge. Each is one
+   * command through the same path as a drag. */
+  readonly moveLoop: (bars: number) => void;
+  readonly resizeLoop: (bars: number) => void;
 }
 
 /**
@@ -84,6 +92,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     sequenceEditorOpen,
     closeSequenceEditor,
     toggleLooping,
+    loopBraceFocused,
+    moveLoop,
+    resizeLoop,
   } = options;
 
   /**
@@ -122,6 +133,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "transport.continue": { run: () => void audio.continueFromStop() },
     "transport.metronome": { run: () => audio.toggleMetronome() },
     "transport.toggle_loop": { run: () => toggleLooping() },
+    // The focused brace's keys (`LOOP-018`), live only in `loop_brace`.
+    "arrangement.loop_move_earlier": { run: () => moveLoop(-1) },
+    "arrangement.loop_move_later": { run: () => moveLoop(1) },
+    "arrangement.loop_shorten": { run: () => resizeLoop(-1) },
+    "arrangement.loop_lengthen": { run: () => resizeLoop(1) },
     "edit.undo": {
       run: () => session.undo(),
       isEnabled: () => session.state.canUndo,
@@ -261,7 +277,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     const withSequence: readonly ShortcutContext[] = sequenceEditorOpen()
       ? [...withArrangement, "sequence_editor"]
       : withArrangement;
-    return arrangementDragging() ? [...withSequence, "gesture"] : withSequence;
+    const withGesture: readonly ShortcutContext[] = arrangementDragging()
+      ? [...withSequence, "gesture"]
+      : withSequence;
+    return loopBraceFocused() ? [...withGesture, "loop_brace"] : withGesture;
   };
 
   // While a modal is open it is the only active context, so nothing behind it

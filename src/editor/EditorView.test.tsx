@@ -1759,35 +1759,76 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
   });
 
-  it("moves and resizes the loop brace from its keyboard controls", async () => {
+  const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  it("exposes the loop brace as a focusable slider described by the range readout", async () => {
+    await renderLooping();
+    const live = screen.getByTestId("arrangement-loop-live");
+    const brace = screen.getByRole("slider", { name: "Loop brace" });
+    expect(brace).toHaveAttribute("tabindex", "0");
+    expect(brace).toHaveAttribute("aria-valuenow", "1");
+    expect(brace).toHaveAttribute("aria-valuetext", "bar 1");
+    expect(brace).toHaveAttribute("aria-describedby", live.id);
+    expect(screen.queryByRole("spinbutton", { name: "Loop start" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "Loop length" })).toBeNull();
+  });
+
+  it("moves and resizes the focused loop brace with the arrow keys, one command per press", async () => {
     const transport = await renderLooping();
     const live = screen.getByTestId("arrangement-loop-live");
-    expect(live).toHaveTextContent("Loop over bar 1, looping on");
-    const length = screen.getByRole("spinbutton", { name: "Loop length" });
-    const start = screen.getByRole("spinbutton", { name: "Loop start" });
-    // A new project's brace spans the first bar.
-    expect(start).toHaveValue(1);
-    expect(length).toHaveValue(1);
-    // Each control is described by the one readout of the range.
-    expect(start).toHaveAttribute("aria-describedby", live.id);
-    expect(length).toHaveAttribute("aria-describedby", live.id);
+    const brace = screen.getByRole("slider", { name: "Loop brace" });
+    const press = async (key: string, shiftKey = false) => {
+      fireEvent.keyDown(brace, { key, shiftKey });
+      await settle();
+    };
+    brace.focus();
+    // Solid batches the focus write: the keys see it a tick later.
+    await settle();
 
-    fireEvent.change(length, { target: { value: "2" } });
+    // Shift+Right lengthens from the end edge: bar 1 becomes bars 1 to 2.
+    await press("ArrowRight", true);
     await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
     expect(live).toHaveTextContent("Loop over bars 1 to 2, looping on");
-    fireEvent.change(start, { target: { value: "3" } });
-    await screen.findByRole("button", { name: "Undo Loop bars 3-4" });
-    expect(live).toHaveTextContent("Loop over bars 3 to 4, looping on");
-    // Both read back from the song, so the brace moved without changing length.
-    expect(start).toHaveValue(3);
-    expect(length).toHaveValue(2);
-    // Something that is not a whole bar is refused, and the brace stays put.
-    fireEvent.change(length, { target: { value: "0" } });
-    expect(length).toHaveValue(2);
+    // Right moves the whole brace a bar, keeping its length.
+    await press("ArrowRight");
+    await screen.findByRole("button", { name: "Undo Loop bars 2-3" });
+    expect(live).toHaveTextContent("Loop over bars 2 to 3, looping on");
+    expect(brace).toHaveAttribute("aria-valuenow", "2");
+    expect(brace).toHaveAttribute("aria-valuetext", "bars 2 to 3");
+    // Left moves back; at the top of the song it stops rather than going negative.
+    await press("ArrowLeft");
+    await press("ArrowLeft");
+    await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
+    expect(live).toHaveTextContent("Loop over bars 1 to 2, looping on");
+    // Shift+Left shortens down to one bar and no further.
+    await press("ArrowLeft", true);
+    await press("ArrowLeft", true);
+    expect(live).toHaveTextContent("Loop over bar 1, looping on");
 
+    // One event per press that changed the range; the clamped ones logged none.
     expect(
       transport.named("loop_range_set").map((event) => event.params.bar_count),
-    ).toEqual([2, 2]);
+    ).toEqual([2, 2, 2, 1]);
+  });
+
+  it("leaves Left and Right to the rest of the editor when the brace is not focused", async () => {
+    const transport = await renderLooping();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true });
+    expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
+      "Loop over bar 1, looping on",
+    );
+    expect(transport.named("loop_range_set")).toHaveLength(0);
+
+    const brace = screen.getByRole("slider", { name: "Loop brace" });
+    brace.focus();
+    await settle();
+    brace.blur();
+    await settle();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
+      "Loop over bar 1, looping on",
+    );
   });
 
   it("the metronome shortcut O toggles the click from the keyboard", async () => {

@@ -8,6 +8,8 @@ import { TICKS_PER_BAR } from "../domain/time";
 import { memoryStorage } from "../testing/storage";
 import {
   type LoopActionContext,
+  moveLoopByBars,
+  resizeLoopByBars,
   setLoopRangeFromDrag,
   toggleLooping,
 } from "./loopActions";
@@ -121,5 +123,39 @@ describe("loop actions (LOOP-017)", () => {
       enabled: false,
     });
     expect(denied.transport.events).toHaveLength(0);
+  });
+
+  it("moves the brace by whole bars, keeping its length, and stops at the top", () => {
+    const { history, transport, context } = ctx;
+    resizeLoopByBars(context, 1);
+
+    expect(moveLoopByBars(context, 2)).toBe(true);
+    expect(history.project.song.loop).toMatchObject({
+      startTicks: 2 * TICKS_PER_BAR,
+      endTicks: 4 * TICKS_PER_BAR,
+    });
+
+    expect(moveLoopByBars(context, -5)).toBe(true);
+    expect(history.project.song.loop).toMatchObject({
+      startTicks: 0,
+      endTicks: 2 * TICKS_PER_BAR,
+    });
+    // Already at the top: nothing to commit, nothing to log.
+    expect(moveLoopByBars(context, -1)).toBe(false);
+    expect(transport.named("loop_range_set")).toHaveLength(3);
+  });
+
+  it("resizes from the end edge and never below one bar", () => {
+    const { history, context } = ctx;
+    const start = history.project.song.loop.startTicks;
+
+    expect(resizeLoopByBars(context, 3)).toBe(true);
+    expect(history.project.song.loop.endTicks).toBe(start + 4 * TICKS_PER_BAR);
+    expect(resizeLoopByBars(context, -10)).toBe(true);
+    expect(history.project.song.loop).toMatchObject({
+      startTicks: start,
+      endTicks: start + TICKS_PER_BAR,
+    });
+    expect(resizeLoopByBars(context, -1)).toBe(false);
   });
 });
