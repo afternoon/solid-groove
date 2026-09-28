@@ -500,7 +500,7 @@ describe("EditorView", () => {
       screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("region", { name: `${breakTrack.name} instrument` }),
+      screen.getByRole("region", { name: `${breakTrack.name} loop` }),
     ).toBeInTheDocument();
 
     // And back, from the same control on the other strip.
@@ -781,9 +781,7 @@ describe("EditorView instrument view", () => {
 
     clickAndFlush(within(rail()).getByRole("button", { name: breakTrack.name }));
 
-    expect(
-      screen.getByRole("region", { name: `${breakTrack.name} instrument` }),
-    ).toBeVisible();
+    expect(screen.getByRole("region", { name: `${breakTrack.name} loop` })).toBeVisible();
     expect(
       screen.queryByRole("region", { name: `Drum machine: ${drums.name}` }),
     ).not.toBeInTheDocument();
