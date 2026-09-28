@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -271,7 +271,7 @@ describe("DrumMachinePanel selected pad (#447)", () => {
     expect(
       screen.getByRole("heading", { name: `${first.name} · sound` }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(`Attack for ${first.name}`)).toBeInTheDocument();
+    expect(within(editor).getByLabelText("Attack")).toBeInTheDocument();
     // One editor, and it comes before every row of the table.
     expect(document.querySelectorAll(".drum-pad-editor")).toHaveLength(1);
     const firstRow = document.querySelector(".drum-pad:not(.drum-pad-head)");
@@ -282,10 +282,25 @@ describe("DrumMachinePanel selected pad (#447)", () => {
     fireEvent.click(screen.getByRole("button", { name: `Audition ${second.name}` }));
     flush();
     expect(screen.queryByRole("heading", { name: `${first.name} · sound` })).toBeNull();
-    expect(screen.getByLabelText(`Decay for ${second.name}`)).toBeInTheDocument();
+    const secondEditor = screen.getByRole("region", { name: `${second.name} pad` });
+    expect(within(secondEditor).getByLabelText("Decay")).toBeInTheDocument();
     expect(
       document.querySelector('.drum-pad[aria-current="true"]')?.textContent,
     ).toContain(second.name);
+  });
+
+  it("names the editor's faders apart from the row's, so none is on screen twice", () => {
+    const { track } = renderPanel();
+    const [first] = pads(track);
+    const editor = screen.getByRole("region", { name: `${first.name} pad` });
+    for (const name of ["Pitch", "Level", "Pan"]) {
+      // The editor's own, which its region names for the pad...
+      expect(within(editor).getByRole("slider", { name })).toBeInTheDocument();
+      // ...and the row's, which says whose pad: one of each, never two alike.
+      expect(
+        screen.getAllByRole("slider", { name: `${name} for ${first.name}` }),
+      ).toHaveLength(1);
+    }
   });
 
   it("selects a pad when anywhere on its row is pressed, without auditioning it", () => {

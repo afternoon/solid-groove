@@ -6,7 +6,7 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import { createControlGesture, setPadParameter } from "../commands";
+import { setPadParameter } from "../commands";
 import type { Asset, DrumPad, Track } from "../domain/entities";
 import { formatDb, formatPan } from "../domain/faders";
 import {
@@ -26,10 +26,10 @@ import {
   stageWidth,
   svgPath,
 } from "../instrument/envelopeGeometry";
-import FillSlider from "../instrument/FillSlider";
 import { formatInstrumentValue } from "../instrument/formatValue";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import Well from "../instrument/Well";
+import PadControl from "./PadControl";
 import "./PadSound.css";
 
 /** How much of the well the decay may take, after the attack's share. */
@@ -100,26 +100,27 @@ export default function PadSound(props: PadSoundProps): JSX.Element {
       ? [0, 0.25, 0.5, 0.75, 1].map((f) => `${(duration() * f).toFixed(2)} s`)
       : undefined;
 
+  /**
+   * One of the pad's faders: the pad table's own control, standing. The
+   * editor is the region named for its pad, so its faders need not say whose;
+   * the row's copies of pitch, level and pan do.
+   */
   function fader(definition: ParameterDefinition, label: string): JSX.Element {
-    const control = createControlGesture({
-      beginGesture: (options) => props.beginGesture(options),
-      dispatch: (commands) => props.dispatch(commands),
-      summary: () => `Set ${definition.label} on a pad`,
-      command: (value) => command(definition, value),
-    });
     return (
-      <FillSlider
+      <PadControl
+        trackId={props.track.id}
+        pad={props.pad}
         definition={definition}
-        inputId={`pad-sound-${props.pad.id}-${label.toLowerCase()}`}
         label={label}
-        ariaLabel={`${label} for ${props.pad.name}`}
+        ariaLabel={label}
+        orientation="vertical"
+        idPrefix="pad-sound"
+        bipolar={definition.id === TRACK_PAN.id}
         value={padValue(props.pad, definition)}
         displayValue={formatPadValue(definition, padValue(props.pad, definition))}
-        onInput={(value) => {
-          props.onFirstUse();
-          control.input(value);
-        }}
-        onCommit={(value) => control.commit(value)}
+        onFirstUse={props.onFirstUse}
+        dispatch={props.dispatch}
+        beginGesture={props.beginGesture}
       />
     );
   }
