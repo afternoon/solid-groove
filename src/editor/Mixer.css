@@ -291,12 +291,21 @@
 /* The master strip, at the end of the strips where a console puts it: its
    name, which takes you to its effects, over the master's chain (#283), which
    is always on screen. */
+/* The master's chain is a rack too (#447): its devices are 1000px units,
+   centred in a dark bay across the desk. */
 .mixer-master {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: 6px;
-  padding: var(--size-divider) 0 0;
+  padding: 20px 16px 32px;
+  background-color: var(--color-background-sunken);
+}
+
+.mixer-master > .device-chain {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--rack-unit-width);
 }
 
 .mixer-master-select {
