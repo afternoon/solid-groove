@@ -1,0 +1,71 @@
+/* The velocity lane (ARR-010): hairline stalks under the grid, the one place
+   a note's velocity shows. A selected note's stalk is the brighter one. */
+
+.pr-velocity {
+  display: flex;
+  flex: none;
+  height: 70px;
+  background: var(--color-background-secondary);
+  box-shadow: inset 0 1px 0 var(--color-border-strong);
+}
+
+.pr-velocity-corner {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 2px;
+  width: var(--pr-gutter);
+  padding: 8px 10px 0 12px;
+  box-sizing: border-box;
+}
+
+.pr-velocity-label {
+  color: var(--color-foreground-muted);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pr-velocity-value {
+  min-height: 18px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-velocity-viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pr-velocity-strip {
+  position: relative;
+  height: calc(100% - 16px);
+  margin-top: 10px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.pr-stalk {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-foreground-muted);
+}
+
+.pr-stalk b {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--color-foreground);
+}
+
+.pr-stalk.selected {
+  background: var(--color-text-secondary);
+}
+
+.pr-stalk.selected b {
+  background: var(--color-accent);
+}

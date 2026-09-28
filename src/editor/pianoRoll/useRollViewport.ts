@@ -26,6 +26,7 @@ export function useRollViewport(options: RollViewportOptions) {
   let current = 1;
   let scroller: HTMLElement | undefined;
   let ruler: HTMLElement | undefined;
+  let lane: HTMLElement | undefined;
 
   /** Zooms time around `anchor`, in pixels from the visible grid's left edge. */
   function zoomTo(next: number, anchor: number): void {
@@ -82,7 +83,14 @@ export function useRollViewport(options: RollViewportOptions) {
     ruler: (element: HTMLElement) => {
       ruler = element;
     },
-    onScrollerScroll: () => syncScroll(scroller, ruler),
+    /** The velocity lane's strip, which follows the grid like the ruler. */
+    lane: (element: HTMLElement) => {
+      lane = element;
+    },
+    onScrollerScroll: () => {
+      syncScroll(scroller, ruler);
+      syncScroll(scroller, lane);
+    },
     onRulerScroll: () => syncScroll(ruler, scroller),
     /** The live scroller, for auto-scroll during a drag. */
     scrollElement: () => scroller,

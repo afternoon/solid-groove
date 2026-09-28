@@ -23,6 +23,7 @@ import { focusRow, type PianoRollRow, visibleRows } from "./rows";
 import Toolbar from "./Toolbar";
 import { useRollPointer } from "./useRollPointer";
 import { useRollViewport } from "./useRollViewport";
+import VelocityLane from "./VelocityLane";
 
 /** Mints the ids of notes the roll creates. Module singleton, as elsewhere. */
 const factoryContext = createFactoryContext();
@@ -280,6 +281,20 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
             </div>
           </div>
         </div>
+        <VelocityLane
+          clipId={props.clip.id}
+          notes={notes()}
+          selected={selected()}
+          steps={steps()}
+          zoom={zoom()}
+          beginGesture={(options) => props.beginGesture(options)}
+          onEdited={(count) => {
+            analytics().logFeatureFirstUse("velocity_lane");
+            logClipEdited(count);
+          }}
+          audition={audition}
+          viewport={viewport.lane}
+        />
       </div>
     </section>
   );
