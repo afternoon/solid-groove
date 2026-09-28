@@ -130,21 +130,22 @@
 }
 
 /* The play well: recessed while idle, a white fill while playing (state is
- * brightness). */
+ * brightness). A fixed box, so swapping Play for the smaller Stop glyph
+ * never resizes it. */
 .editor-header .transport-toggle {
+  width: 36px;
+  height: 36px;
   background: var(--color-background-well);
-  border: 1px solid var(--color-border-strong);
   border-radius: 0;
   color: var(--color-text-primary);
 }
 
 .editor-header .transport-toggle[aria-pressed="true"] {
   background: var(--color-accent);
-  border-color: var(--color-accent);
   color: var(--color-on-accent);
+  opacity: 1;
 }
 
-.editor-header .transport-toggle[aria-pressed="true"],
 .editor-header .loop-toggle[aria-pressed="true"],
 .editor-header .metronome-toggle[aria-pressed="true"] {
   color: var(--color-accent);

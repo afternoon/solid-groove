@@ -128,7 +128,9 @@ export default function EditorHeader(props: EditorHeaderProps) {
           )})`}
         >
           <Show when={props.audio.isPlaying()} fallback={<HiSolidPlay size={28} />}>
-            <HiSolidStop size={28} />
+            {/* Heroicons' stop square outweighs its play triangle at one
+                size, so it is drawn smaller to read as the same size. */}
+            <HiSolidStop size={24} />
           </Show>
         </button>
         <button
