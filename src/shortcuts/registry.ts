@@ -44,7 +44,7 @@ import type {
   ShortcutContext,
   ShortcutGroup,
 } from "./types";
-import { AMBIENT_CONTEXT, MODAL_CONTEXT, SHORTCUT_GROUPS } from "./types";
+import { AMBIENT_CONTEXT, FOCUS_CONTEXTS, MODAL_CONTEXT, SHORTCUT_GROUPS } from "./types";
 
 /**
  * Every action a shortcut can invoke.
@@ -73,6 +73,8 @@ export const SHORTCUT_ACTION_IDS = [
   "clip.toggle_draw_mode",
   "view.zoom_to_selection",
   "view.zoom_back",
+  "view.zoom_to_arrangement",
+  "view.scroll_to_playhead",
   "view.zoom_in",
   "view.zoom_out",
   "view.show_arrangement",
@@ -84,6 +86,10 @@ export const SHORTCUT_ACTION_IDS = [
   "device.move_later",
   "track.move_left",
   "track.move_right",
+  "arrangement.loop_move_earlier",
+  "arrangement.loop_move_later",
+  "arrangement.loop_shorten",
+  "arrangement.loop_lengthen",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -343,11 +349,44 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     ableton: { kind: "follows", abletonKeys: "X" },
   }),
   define({
+    id: "view.zoom_to_arrangement",
+    label: "Zoom to arrangement",
+    description: "Zooms the arrangement out or in to frame the whole song.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "Shift+Z",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live has no single key that frames the whole set; Shift+Z widens Z (zoom to selection) to everything.",
+    },
+  }),
+  define({
+    id: "view.scroll_to_playhead",
+    label: "Scroll to playhead",
+    description: "Scrolls the arrangement so the playhead is in view.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "P",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live scrolls with its Follow switch (Cmd/Ctrl+Shift+F), which the browser and Solid Groove's transport do not share; P is a one-shot jump instead.",
+    },
+  }),
+  define({
     id: "view.zoom_in",
     label: "Zoom in",
     description: "Zooms the focused timeline or editor in.",
     group: "navigation",
-    contexts: ["timeline", "arrangement", "step_editor", "piano_roll", "automation_lane"],
+    contexts: [
+      "editor",
+      "timeline",
+      "arrangement",
+      "step_editor",
+      "piano_roll",
+      "automation_lane",
+    ],
     keys: "+",
     repeatable: true,
     ableton: { kind: "follows", abletonKeys: "+" },
@@ -357,7 +396,14 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     label: "Zoom out",
     description: "Zooms the focused timeline or editor out.",
     group: "navigation",
-    contexts: ["timeline", "arrangement", "step_editor", "piano_roll", "automation_lane"],
+    contexts: [
+      "editor",
+      "timeline",
+      "arrangement",
+      "step_editor",
+      "piano_roll",
+      "automation_lane",
+    ],
     keys: "-",
     repeatable: true,
     ableton: { kind: "follows", abletonKeys: "-" },
@@ -481,6 +527,58 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
         "Live reorders tracks by dragging only; this is the keyboard way to do what the drag does.",
     },
   }),
+  define({
+    id: "arrangement.loop_move_earlier",
+    label: "Move loop earlier",
+    description: "Moves the focused loop brace one bar earlier.",
+    group: "arrangement",
+    contexts: ["loop_brace"],
+    keys: "ArrowLeft",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live sets its loop by dragging or Cmd/Ctrl+L on a selection; this is the keyboard way to do what dragging the brace does.",
+    },
+  }),
+  define({
+    id: "arrangement.loop_move_later",
+    label: "Move loop later",
+    description: "Moves the focused loop brace one bar later.",
+    group: "arrangement",
+    contexts: ["loop_brace"],
+    keys: "ArrowRight",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live sets its loop by dragging or Cmd/Ctrl+L on a selection; this is the keyboard way to do what dragging the brace does.",
+    },
+  }),
+  define({
+    id: "arrangement.loop_shorten",
+    label: "Shorten loop",
+    description: "Ends the focused loop brace one bar sooner, down to one bar.",
+    group: "arrangement",
+    contexts: ["loop_brace"],
+    keys: "Shift+ArrowLeft",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live sets its loop by dragging or Cmd/Ctrl+L on a selection; this is the keyboard way to do what dragging the brace does.",
+    },
+  }),
+  define({
+    id: "arrangement.loop_lengthen",
+    label: "Lengthen loop",
+    description: "Ends the focused loop brace one bar later.",
+    group: "arrangement",
+    contexts: ["loop_brace"],
+    keys: "Shift+ArrowRight",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live sets its loop by dragging or Cmd/Ctrl+L on a selection; this is the keyboard way to do what dragging the brace does.",
+    },
+  }),
 ];
 
 /**
@@ -591,6 +689,25 @@ export function resolveContexts(
   return active.includes(AMBIENT_CONTEXT) ? active : [AMBIENT_CONTEXT, ...active];
 }
 
+/**
+ * Narrows shortcuts that match one event to the focused element's own, when
+ * it has any: a focus context (`FOCUS_CONTEXTS`) outranks the ambient contexts
+ * for the keys it claims, so `Left` moves a focused loop brace rather than
+ * also meaning `track.move_left`. With no focus mapping among them the list is
+ * returned unchanged.
+ */
+export function preferFocused(
+  matches: readonly ShortcutDefinition[],
+  resolved: readonly ShortcutContext[],
+): readonly ShortcutDefinition[] {
+  const focused = matches.filter((shortcut) =>
+    shortcut.contexts.some(
+      (context) => FOCUS_CONTEXTS.includes(context) && resolved.includes(context),
+    ),
+  );
+  return focused.length > 0 ? focused : matches;
+}
+
 /** Whether a shortcut is eligible in an already-resolved context set. */
 export function isInContext(
   shortcut: ShortcutDefinition,
@@ -620,11 +737,12 @@ export function matchShortcut(
   active: readonly ShortcutContext[],
 ): ShortcutDefinition | undefined {
   const resolved = resolveContexts(active);
-  return SHORTCUTS.find(
+  const matches = SHORTCUTS.filter(
     (shortcut) =>
       isInContext(shortcut, resolved) &&
       chordsFor(shortcut, platform).some((chord) => matchesChord(chord, event, platform)),
   );
+  return preferFocused(matches, resolved)[0];
 }
 
 export interface ShortcutSection {
