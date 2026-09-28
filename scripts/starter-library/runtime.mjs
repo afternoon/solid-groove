@@ -48,6 +48,16 @@ export const RUNTIME_SELECTION = [
     use: "The second drum voice, for fixtures and multi-track smoke tests.",
   },
   {
+    key: "starterSnare",
+    assetId: "sg-one-shot-drums-snare-0001",
+    use: "The snare a new drum machine's SD pad starts with (#447).",
+  },
+  {
+    key: "starterHat",
+    assetId: "sg-one-shot-drums-closed-hat-0001",
+    use: "The closed hat a new drum machine's HH pad starts with (#447).",
+  },
+  {
     key: "starterLoop",
     assetId: "sg-loop-drums-full-loop-0001",
     use: "An audio loop, so an audio-clip path has real bar-aligned material.",

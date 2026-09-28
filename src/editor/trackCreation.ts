@@ -1,7 +1,7 @@
 import type { Analytics } from "../analytics/analytics";
 import type { RawCommandInput, TransactionResult } from "../commands";
-import { addTrack } from "../commands";
-import type { Clip, Placement, Project, Track } from "../domain/entities";
+import { addAsset, addTrack } from "../commands";
+import type { Clip, Instrument, Placement, Project, Track } from "../domain/entities";
 import {
   createNoteClip,
   createPlacement,
@@ -14,6 +14,7 @@ import {
   INSTRUMENT_KINDS,
   type InstrumentKind,
   type InstrumentKindSpec,
+  newInstrumentOfKind,
 } from "../instrument/instrumentKinds";
 
 /**
@@ -69,6 +70,8 @@ export interface NewTrackOptions {
   readonly order: number;
   /** Names already taken, so the new one is distinguishable in the mixer. */
   readonly existingNames: readonly string[];
+  /** The instrument to carry, when the caller built it against a project. */
+  readonly instrument?: Instrument;
 }
 
 /**
@@ -88,7 +91,7 @@ export function createNewTrack(
     name,
     order: options.order,
     type: "instrument",
-    instrument: createInstrumentOfKind(context, options.kind),
+    instrument: options.instrument ?? createInstrumentOfKind(context, options.kind),
   });
   const clip = createNoteClip(context, {
     trackId: track.id,
@@ -154,14 +157,19 @@ export interface AddTrackHost {
  */
 export function addTrackOfKind(kind: NewTrackKind, host: AddTrackHost): void {
   const tracks = host.project.song.tracks;
+  // A drum machine arrives with its starter kit, whose sounds join the project
+  // in the same transaction (#447).
+  const made = newInstrumentOfKind(host.context, kind, host.project);
   const added = createNewTrack(host.context, {
     kind,
     order: tracks.length,
     existingNames: tracks.map((track) => track.name),
+    instrument: made.instrument,
   });
-  host.dispatch(
+  host.dispatch([
+    ...made.assets.map((asset) => addAsset(asset)),
     addTrack(added.track, { clips: [added.clip], placements: [added.placement] }),
-  );
+  ]);
   host.analytics.log("track_added", {
     track_type: "instrument",
     instrument_type: newTrackKindSpec(kind).analyticsType,

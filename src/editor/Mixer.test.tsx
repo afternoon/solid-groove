@@ -172,18 +172,24 @@ describe("Mixer track management (TRK-01)", () => {
     expect(history.project.clips.some((c) => c.id === clip?.id)).toBe(false);
   });
 
-  it("opens a new drum machine with a kit of empty pads", () => {
+  it("opens a new drum machine with its kit's sounds loaded (#447)", () => {
     const { history } = renderMixer();
+    const assetsBefore = history.project.song.assets.length;
 
     clickAndFlush(screen.getByRole("button", { name: "Add drum machine track" }));
 
     const instrument = history.project.song.tracks.at(-1)?.instrument;
-    expect(instrument?.kind === "drumMachine" && instrument.pads).toMatchObject([
-      { name: "BD", assetId: null },
-      { name: "SD", assetId: null },
-      { name: "HH", assetId: null },
-      { name: "CP", assetId: null },
-    ]);
+    const pads = instrument?.kind === "drumMachine" ? instrument.pads : [];
+    expect(pads.map((pad) => pad.name)).toEqual(["BD", "SD", "HH", "CP"]);
+    const sounds = pads.map(
+      (pad) =>
+        history.project.song.assets.find((asset) => asset.id === pad.assetId)?.name,
+    );
+    expect(sounds.every((name) => typeof name === "string")).toBe(true);
+    // The kit's sounds join the project in the same single undoable step.
+    expect(new Set(pads.map((pad) => pad.assetId)).size).toBe(4);
+    expect(history.project.song.assets.length).toBeGreaterThan(assetsBefore);
+    expect(history.entries).toHaveLength(1);
   });
 
   it("names each new track for its instrument, without repeating a name", () => {
