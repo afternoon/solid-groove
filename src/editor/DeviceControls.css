@@ -26,6 +26,12 @@
   height: 188px;
 }
 
+/* A long list (the delay's seven divisions) shares that height out rather
+   than overflowing the card: an option's 30px floor would need 222px. */
+.device-controls .option-group.fill .option-group-option {
+  min-height: 0;
+}
+
 /* A device's labels run longer than an instrument's ("Resonance", "Pre-delay",
    "Threshold"), so a fader here takes its share of the bank rather than the
    mock's fixed 48px, which let neighbouring labels run into each other. */
