@@ -103,3 +103,37 @@ describe("the Instrument view on a loop track (#447)", () => {
     expect(screen.getByRole("region", { name: "Device chain" })).toBeInTheDocument();
   });
 });
+
+describe("the Instrument view on a drum machine (#447)", () => {
+  it("puts the kind picker above the pad panel", () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find(
+      (candidate) => candidate.instrument?.kind === "drumMachine",
+    );
+    if (!track) throw new Error("fixture has no drum machine");
+    render(() => (
+      <EditorInstrument
+        project={project}
+        track={track}
+        drumTrack={track}
+        sampleAssets={project.song.assets}
+        instrument={track.instrument}
+        instrumentTrackId={track.id}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={() => {}}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+
+    const picker = screen.getByRole("region", { name: "Instrument" });
+    const pads = screen.getByRole("region", { name: `Drum machine: ${track.name}` });
+    expect(
+      picker.compareDocumentPosition(pads) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
