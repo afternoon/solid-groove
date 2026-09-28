@@ -205,6 +205,27 @@ test.describe("new project", () => {
     expect([x, y, 1440 - (x + width), 900 - (y + height)]).toEqual([100, 100, 100, 100]);
   });
 
+  // The dialog shell: the scrim stays clear under the pointer (app.css's global
+  // `button:hover` fill used to win), and the contents start where the title does.
+  test("keeps the scrim clear on hover and aligns content with the title", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "New Project" }).click();
+    const editor = await openStarterClip(page);
+
+    await page.mouse.move(20, 450);
+    await expect(page.locator(".dialog-scrim")).toHaveCSS(
+      "background-color",
+      "rgba(0, 0, 0, 0)",
+    );
+
+    const title = await editor.locator(".sequence-editor-title").boundingBox();
+    const body = await editor.locator(".sequence-editor-body").boundingBox();
+    expect(Math.abs((body?.x ?? -1) - (title?.x ?? -99))).toBeLessThanOrEqual(1);
+  });
+
   // `ARR-001`: the arrangement shell stays inside the panel it is given. Real
   // layout is the only place this can be proved — jsdom has no layout, so a
   // shell that overflowed its panel would look fine to the component tests

@@ -42,7 +42,7 @@ export interface LibraryModalProps {
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   return (
-    <Dialog label="Library" size="jumbo" onClose={() => props.onClose()}>
+    <Dialog label="Library" size="jumbo" flush onClose={() => props.onClose()}>
       <div class="library-modal-body">
         <LibraryBrowser
           client={props.client}
