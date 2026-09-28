@@ -1,4 +1,5 @@
 import type { JSX } from "@solidjs/web";
+import type { Analytics } from "../analytics/analytics";
 import type {
   Gesture,
   GestureOptions,
@@ -10,6 +11,7 @@ import type { Track } from "../domain/entities";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import LevelMeter from "./LevelMeter";
+import TrackColorPicker from "./TrackColorPicker";
 import { VolumeFader } from "./TrackFaders";
 import "./TrackHeader.css";
 
@@ -30,6 +32,8 @@ export interface TrackHeaderProps {
   onDragStart?(event: PointerEvent): void;
   /** Where the header is shown, so its fader's id is its own. */
   readonly surface: "arrangement" | "instrument";
+  /** Defaults to the application singleton; injectable for tests. */
+  readonly analytics?: Analytics;
   /** Overrides the meter poll scheduler; injectable for tests. */
   readonly requestFrame?: (callback: () => void) => number;
   readonly cancelFrame?: (handle: number) => void;
@@ -74,7 +78,11 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
       onChange={selectOnce}
     >
       <div class="track-header-title">
-        <span class="track-header-swatch" style={{ background: props.track.color }} />
+        <TrackColorPicker
+          track={props.track}
+          dispatch={props.dispatch}
+          analytics={props.analytics}
+        />
         <button
           type="button"
           class="track-header-select"
