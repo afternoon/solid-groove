@@ -1,0 +1,74 @@
+/* The loop track's faceplate (#447): the same 1000px module as the sampler and
+   synth, a waveform well across the top and two banks of readouts beneath. */
+.loop-panel {
+  box-sizing: border-box;
+  max-width: 1000px;
+  gap: 20px;
+  padding: 20px;
+}
+
+.loop-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.loop-panel-title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-foreground-bright);
+}
+
+.loop-panel-name {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+/* No scale hangs beneath this well, so it keeps only a drawing margin. */
+.loop-well .well-screen {
+  min-height: 140px;
+  margin-bottom: 12px;
+}
+
+/* A bar line reads over the beats between it and the next. */
+.loop-well-bar {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.loop-panel-banks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+/* A readout stands where a fader will: value on top, name beneath. */
+.loop-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.loop-readout-value {
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.loop-readout-label {
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.loop-panel-note,
+.loop-panel-empty {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}
