@@ -473,20 +473,23 @@ project dashboard
 1. Create a new project, duplicate the "BD" clip, and drag the copy along to
    bar 3, so "BD" has a clip in bar 1 and another in bar 3 with bar 2 empty
    between them. Add a sampler track and drag the right edge of its clip out to
-   the end of bar 3, so "Sampler" has one clip across bars 1 to 3.
+   the end of bar 2, so "Sampler" repeats its clip: one in bar 1 and a linked
+   copy in bar 2.
 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along to 4.3.1
    on "Sampler". A dotted outline follows the pointer across both tracks. When
    you let go it goes away, and the clips it touched are selected as whole
    clips: the "BD" clip in bar 3, which it wholly contained, and the "Sampler"
-   clip, which it overlapped. Each gets a solid outline, and the arrangement
-   announces "2 clips selected". The "BD" clip in bar 1 is not selected.
+   clip in bar 2, which it overlapped. Each gets a solid outline, and the
+   arrangement announces "2 clips selected". The "BD" and "Sampler" clips in
+   bar 1 are not selected.
 3. Press Delete. Both selected clips are gone, whole: nothing is trimmed. The
-   "BD" clip in bar 1 is untouched. Clicking in bar 1 on "Sampler", where its
-   clip started, finds empty space and announces "Position 1.1.1". The same
-   drag as in step 2 now touches no clip, and is announced as "No selection".
+   clips in bar 1 on "BD" and "Sampler" are untouched. Clicking in bar 2 on
+   "Sampler", where the deleted copy was, finds empty space and announces
+   "Position 2.1.1". The same drag as in step 2 now touches no clip, and is
+   announced as "No selection".
 4. Reload the page.
 5. The project reopens exactly as step 3 left it: both tracks are still there,
-   "BD" has only its clip in bar 1, and "Sampler" has no clips.
+   and "BD" and "Sampler" each have only their clip in bar 1.
 
 **Outcome:** a drag across more than one track selected every clip it contained
 or overlapped, as whole clips. Delete removed exactly those clips, whole, and
