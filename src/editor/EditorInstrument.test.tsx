@@ -3,7 +3,10 @@ import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { CommandHistory } from "../commands";
 import type { Project } from "../domain/entities";
-import { createReferenceProject } from "../domain/fixtures";
+import {
+  createDrumMachineFixtureProject,
+  createReferenceProject,
+} from "../domain/fixtures";
 import type { TrackId } from "../domain/ids";
 import { clickAndFlush } from "../testing/events";
 import EditorInstrument from "./EditorInstrument";
@@ -65,5 +68,38 @@ describe("the Instrument view's device chain", () => {
     expect(project().song.tracks[1].devices).toHaveLength(initial[1]);
     clickAndFlush(rail[0]);
     expect(count()).toBe(initial[0] + 1);
+  });
+});
+
+describe("the Instrument view on a loop track (#447)", () => {
+  it("replaces the instrument picker on an audio track", () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find((candidate) => candidate.type === "audio");
+    if (!track) throw new Error("fixture has no audio track");
+    render(() => (
+      <EditorInstrument
+        project={project}
+        track={track}
+        drumTrack={null}
+        sampleAssets={[]}
+        instrument={null}
+        instrumentTrackId={track.id}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={() => {}}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+
+    expect(
+      screen.getByRole("region", { name: `${track.name} loop` }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Instrument" })).toBeNull();
+    // The loop's chain is still there beneath it.
+    expect(screen.getByRole("region", { name: "Device chain" })).toBeInTheDocument();
   });
 });

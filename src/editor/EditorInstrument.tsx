@@ -6,13 +6,14 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import type { Asset, Instrument, Project, Track } from "../domain/entities";
+import type { Asset, Clip, Instrument, Project, Track } from "../domain/entities";
 import type { PadId, TrackId } from "../domain/ids";
 import type { WatchPeaks } from "../instrument/SampleWell";
 import type { LibrarySample } from "../library/assetDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import DeviceChainPanel from "./DeviceChainPanel";
 import DrumMachinePanel from "./DrumMachinePanel";
+import LoopPanel from "./LoopPanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
 import "./EditorInstrument.css";
@@ -39,6 +40,21 @@ export interface EditorInstrumentProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
+}
+
+/** A track's tempo-labelled loop and the asset it plays, when it has one. */
+function trackLoop(
+  project: Project,
+  track: Track,
+): { clip: Clip | null; asset: Asset | null } {
+  const clip =
+    project.clips.find(
+      (candidate) =>
+        candidate.trackId === track.id && candidate.content.kind === "audioLoop",
+    ) ?? null;
+  const assetId = clip?.content.kind === "audioLoop" ? clip.content.assetId : null;
+  const asset = project.song.assets.find((candidate) => candidate.id === assetId) ?? null;
+  return { clip, asset };
 }
 
 /**
@@ -94,19 +110,34 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                   </div>
                 )}
               </Show>
-              <TrackInstrument
-                trackName={currentTrack().name}
-                instrument={props.instrument}
-                project={props.project}
-                trackId={props.instrumentTrackId}
-                sampleName={props.sampleName}
-                loadSample={props.loadSample}
-                audition={props.audition}
-                onBrowse={props.onBrowse}
-                watchPeaks={props.watchPeaks}
-                dispatch={props.dispatch}
-                beginGesture={props.beginGesture}
-              />
+              {/* An audio track has no instrument to pick: it plays a loop,
+                  so it shows the loop's faceplate instead (#447). */}
+              <Show
+                when={currentTrack().type === "audio"}
+                fallback={
+                  <TrackInstrument
+                    trackName={currentTrack().name}
+                    instrument={props.instrument}
+                    project={props.project}
+                    trackId={props.instrumentTrackId}
+                    sampleName={props.sampleName}
+                    loadSample={props.loadSample}
+                    audition={props.audition}
+                    onBrowse={props.onBrowse}
+                    watchPeaks={props.watchPeaks}
+                    dispatch={props.dispatch}
+                    beginGesture={props.beginGesture}
+                  />
+                }
+              >
+                <LoopPanel
+                  trackName={currentTrack().name}
+                  clip={trackLoop(props.project, currentTrack()).clip}
+                  asset={trackLoop(props.project, currentTrack()).asset}
+                  songTempo={props.project.song.tempo}
+                  watchPeaks={props.watchPeaks}
+                />
+              </Show>
               <DeviceChainPanel
                 track={currentTrack()}
                 tempo={props.project.song.tempo}
