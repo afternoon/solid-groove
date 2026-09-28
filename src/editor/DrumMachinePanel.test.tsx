@@ -12,7 +12,7 @@ import {
 } from "../commands";
 import type { DrumPad, NoteTrigger, Track } from "../domain/entities";
 import { createDrumMachineFixtureProject } from "../domain/fixtures";
-import type { PadId } from "../domain/ids";
+import type { PadId, TrackId } from "../domain/ids";
 import { fillExtent, moveTo, testAnalytics } from "../instrument/panelTesting";
 import type { WatchPeaks } from "../instrument/SampleWell";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
@@ -393,7 +393,7 @@ describe("DrumMachinePanel playing pads (#447)", () => {
           assets={project.song.assets}
           dispatch={() => undefined}
           beginGesture={() => undefined}
-          watchTriggers={(onTrigger) => {
+          watchTriggers={(_trackId, onTrigger) => {
             fire = onTrigger;
             return unsubscribe;
           }}
@@ -419,5 +419,38 @@ describe("DrumMachinePanel playing pads (#447)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("follows the track it shows, when the panel moves to another drum track", () => {
+    const project = createDrumMachineFixtureProject();
+    const first = drumTrackOf(project);
+    const second = { ...first, id: "trk_other" as TrackId };
+    const [track, setTrack] = createSignal(first);
+    const watched: string[] = [];
+    const stopped: string[] = [];
+    render(() => (
+      <DrumMachinePanel
+        track={track()}
+        assets={project.song.assets}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+        watchTriggers={(trackId) => {
+          watched.push(trackId);
+          return () => stopped.push(trackId);
+        }}
+      />
+    ));
+    flush();
+    expect(watched).toEqual([first.id]);
+
+    setTrack(second);
+    flush();
+    expect(stopped).toEqual([first.id]);
+    expect(watched).toEqual([first.id, second.id]);
+
+    // An edit to the same track is not a new subscription.
+    setTrack({ ...second, name: "Renamed" });
+    flush();
+    expect(watched).toHaveLength(2);
   });
 });

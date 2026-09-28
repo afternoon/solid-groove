@@ -218,13 +218,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                                 props.onBrowsePad?.(drum().id, padId)
                               }
                               watchPeaks={props.watchPeaks}
-                              watchTriggers={
-                                props.watchTriggers
-                                  ? (onTrigger) =>
-                                      props.watchTriggers?.(drum().id, onTrigger) ??
-                                      (() => {})
-                                  : undefined
-                              }
+                              watchTriggers={props.watchTriggers}
                             />
                           </div>
                         )}

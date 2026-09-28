@@ -1,6 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -23,7 +23,7 @@ import {
   type DomainFactoryContext,
 } from "../domain/factories";
 import { formatDb, formatPan } from "../domain/faders";
-import type { AssetId, PadId } from "../domain/ids";
+import type { AssetId, PadId, TrackId } from "../domain/ids";
 import {
   PAD_PITCH,
   type ParameterDefinition,
@@ -76,7 +76,10 @@ export interface DrumMachinePanelProps {
    * Follows this track's triggers as they are heard, so a pad's name can flash
    * when it plays (#447). Returns the way to stop.
    */
-  readonly watchTriggers?: (onTrigger: (trigger: NoteTrigger) => void) => () => void;
+  readonly watchTriggers?: (
+    trackId: TrackId,
+    onTrigger: (trigger: NoteTrigger) => void,
+  ) => () => void;
   /** Opens the library to choose a pad's sound (#447). */
   onBrowseSample?(padId: PadId): void;
   /** Plays one pad immediately so the user hears their choice (audition). */
@@ -155,10 +158,13 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     }, PAD_FLASH_MS);
     flashTimers.add(timer);
   }
+  // Keyed on the track as well as the feed: the panel outlives a switch from
+  // one drum track to another, and must follow the one it shows.
+  const shownTrackId = createMemo(() => props.track.id);
   createEffect(
-    () => props.watchTriggers,
-    (watch) =>
-      watch?.((trigger) => {
+    () => [props.watchTriggers, shownTrackId()] as const,
+    ([watch, trackId]) =>
+      watch?.(trackId, (trigger) => {
         if (trigger.kind === "pad") flash(trigger.padId);
       }),
   );

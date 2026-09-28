@@ -278,9 +278,11 @@ export class ProjectAudioGraph {
     durationTicks: number,
     velocity: number,
   ): void {
-    this.tracks
-      .get(trackId)
-      ?.trigger(trigger, this.now(), ticksToToneTime(durationTicks), velocity);
+    const track = this.tracks.get(trackId);
+    if (!track) return;
+    const now = this.now();
+    track.trigger(trigger, now, ticksToToneTime(durationTicks), velocity);
+    this.reportTrigger(trackId, trigger, now);
   }
 
   diagnostics(): {
