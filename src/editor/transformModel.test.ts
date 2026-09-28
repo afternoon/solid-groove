@@ -9,7 +9,13 @@ import { createSeededIdFactory, type EventId } from "../domain/ids";
 import {
   buildTransform,
   canTransform,
+  copiesFit,
   DEFAULT_TRANSFORM_OPTIONS,
+  formatFactor,
+  formatSemitones,
+  parseFactor,
+  parseSeed,
+  parseSemitones,
   resolveTransformScope,
   TRANSFORM_DUPLICATE_OFFSET_TICKS,
   TRANSFORM_GRID_TICKS,
@@ -158,5 +164,50 @@ describe("mixed event types", () => {
       options: DEFAULT_TRANSFORM_OPTIONS,
     }) as { payload: { eventIds: string[] } };
     expect(command.payload.eventIds).toEqual([padEvents[0].id]);
+  });
+});
+
+describe("Double and the value fields (ARR-010)", () => {
+  it("fits Double's copies only when they land inside the clip", () => {
+    // The fixture is two bars with its notes in the first: the copies fit.
+    expect(copiesFit(clip, resolveTransformScope(clip, []))).toBe(true);
+    const oneBar = { ...clip, lengthTicks: clip.lengthTicks / 2 } as Clip;
+    expect(copiesFit(oneBar, resolveTransformScope(oneBar, []))).toBe(false);
+  });
+
+  it("builds Quantize to scale for the scope", () => {
+    const command = buildTransform("quantizeToScale", {
+      project,
+      clip,
+      scope: resolveTransformScope(clip, [ids()[1]]),
+      ids: createSeededIdFactory("to-scale"),
+      options: DEFAULT_TRANSFORM_OPTIONS,
+    }) as { type: string; payload: { eventIds: string[] } };
+    expect(command.type).toBe("notes.quantizeToScale");
+    expect(command.payload.eventIds).toEqual([ids()[1]]);
+  });
+
+  it("shows and reads semitones, clamped to the command's range", () => {
+    expect(formatSemitones(12)).toBe("+12 st");
+    expect(formatSemitones(-5)).toBe("−5 st");
+    expect(parseSemitones("+12 st")).toBe(12);
+    expect(parseSemitones("−7")).toBe(-7);
+    expect(parseSemitones("-7 st")).toBe(-7);
+    expect(parseSemitones("300")).toBe(127);
+    expect(parseSemitones("up")).toBeNull();
+  });
+
+  it("shows and reads a velocity multiplier above 0 and up to 4", () => {
+    expect(formatFactor(1.25)).toBe("×1.25");
+    expect(parseFactor("×1.5")).toBe(1.5);
+    expect(parseFactor("0.5")).toBe(0.5);
+    expect(parseFactor("0")).toBeNull();
+    expect(parseFactor("9")).toBeNull();
+    expect(parseFactor("loud")).toBeNull();
+  });
+
+  it("takes any seed that is not blank", () => {
+    expect(parseSeed(" groove ")).toBe("groove");
+    expect(parseSeed("  ")).toBeNull();
   });
 });

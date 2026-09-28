@@ -9,10 +9,12 @@ import type { EventId } from "../domain/ids";
 import {
   buildTransform,
   canTransform,
+  copiesFit,
   DEFAULT_TRANSFORM_OPTIONS,
   resolveTransformScope,
   TRANSFORM_KINDS,
   TRANSFORM_LABELS,
+  TRANSFORM_OPERATIONS,
   type TransformKind,
   type TransformOptions,
   transformedEventCount,
@@ -57,6 +59,12 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
 
   const scope = createMemo(() => resolveTransformScope(props.clip, props.selectedIds));
   const enabled = createMemo(() => canTransform(scope()));
+  const chromatic = () => props.project.song.key.scale === "chromatic";
+  // Quantize to scale is for pitched notes, so only the piano roll offers it.
+  const kinds = () =>
+    TRANSFORM_KINDS.filter(
+      (kind) => kind !== "quantizeToScale" || props.editor === "piano_roll",
+    );
 
   // A refusal describes the clip as it was when the user clicked. Once the clip
   // changes underneath — another transformation, an undo, a remote edit — the
@@ -76,14 +84,32 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
 
   function scopeLabel(): string {
     const { count, isWholeClip } = scope();
-    if (count === 0) return "no notes";
+    if (count === 0) return "No notes";
     const noun = count === 1 ? "note" : "notes";
-    return isWholeClip ? `all ${count} ${noun}` : `${count} selected ${noun}`;
+    return isWholeClip ? `All ${count} ${noun}` : `${count} selected ${noun}`;
+  }
+
+  /** A refusal changes nothing: it says why, and is reported. */
+  function refuse(kind: TransformKind): void {
+    setError(rejectionMessage(kind));
+    analytics().log("note_edit_failed", {
+      operation: TRANSFORM_OPERATIONS[kind],
+      error_code: "command_rejected",
+    });
   }
 
   function applyTransform(kind: TransformKind): void {
     const current = scope();
     if (!canTransform(current)) return;
+    // Double copies one bar later inside the clip, so it refuses copies that
+    // would not fit rather than growing the clip; Cmd/Ctrl+D is what extends.
+    if (kind === "duplicate" && !copiesFit(props.clip, current)) {
+      analytics().logFeatureFirstUse(
+        props.editor === "step" ? "step_editor" : "piano_roll",
+      );
+      refuse(kind);
+      return;
+    }
     const command = buildTransform(kind, {
       project: props.project,
       clip: props.clip,
@@ -102,7 +128,7 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
     if (result && !result.ok) {
       // A rejected transformation changed nothing, so it is not an edit and
       // emits no `clip_edited`.
-      setError(rejectionMessage(kind));
+      refuse(kind);
       return;
     }
     setError(null);
@@ -113,18 +139,16 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
   }
 
   return (
-    <section class="transform-panel" aria-label="Musical transformations">
+    <section class="transform-panel" aria-label="Transform">
+      <p class="transform-scope">{scopeLabel()}</p>
       <div class="transform-row">
-        <For each={TRANSFORM_KINDS}>
+        <For each={kinds()}>
           {(kind) => (
             <button
               type="button"
               class="transform-button"
               onClick={() => applyTransform(kind)}
-              disabled={!enabled()}
-              aria-label={`${TRANSFORM_LABELS[kind]} ${
-                kind === "clear" ? "clip" : scopeLabel()
-              }`}
+              disabled={!enabled() || (kind === "quantizeToScale" && chromatic())}
             >
               {TRANSFORM_LABELS[kind]}
             </button>
@@ -158,9 +182,6 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
           />
         </label>
       </div>
-      <p class="transform-scope" aria-live="polite">
-        Applies to {scopeLabel()}
-      </p>
       {/* A rejection is shown, not swallowed: the command refuses to clamp a
 			    note out of range, so the user needs to know why nothing moved. */}
       <p class="transform-error" role="alert">
