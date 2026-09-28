@@ -191,6 +191,20 @@ test.describe("new project", () => {
     ).toBeVisible();
   });
 
+  // #538: a jumbo dialog sits `--dialog-jumbo-gap` (100px) from every browser
+  // edge on a normal desktop window. Only a real layout can say so.
+  test("leaves a 100px gap around the sequence editor", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "New Project" }).click();
+    const editor = await openStarterClip(page);
+
+    const box = await editor.boundingBox();
+    expect(box).not.toBeNull();
+    const { x, y, width, height } = box as NonNullable<typeof box>;
+    expect([x, y, 1440 - (x + width), 900 - (y + height)]).toEqual([100, 100, 100, 100]);
+  });
+
   // `ARR-001`: the arrangement shell stays inside the panel it is given. Real
   // layout is the only place this can be proved — jsdom has no layout, so a
   // shell that overflowed its panel would look fine to the component tests
