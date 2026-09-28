@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { addAsset, addTrack, type RawCommandInput, setSample } from "../commands";
+import {
+  addAsset,
+  addTrack,
+  type RawCommandInput,
+  setPadAsset,
+  setSample,
+} from "../commands";
 import type { Asset, Project } from "../domain/entities";
 import { assetKindSchema, packVersionSchema } from "../domain/entities";
 import type { DomainFactoryContext } from "../domain/factories";
@@ -9,7 +15,7 @@ import {
   createPlacement,
   createTrack,
 } from "../domain/factories";
-import { packIdSchema, type TrackId } from "../domain/ids";
+import { type AssetId, type PadId, packIdSchema, type TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { assetStorageRef, type LibraryAsset } from "./manifest";
@@ -161,12 +167,37 @@ export function loadSampleCommands(
   sample: LibrarySample,
   context: DomainFactoryContext,
 ): readonly RawCommandInput[] {
+  return carryThen(project, sample, context, (assetId) => setSample(trackId, assetId));
+}
+
+/**
+ * The same for one drum pad (#447): carry the sound if the project does not
+ * already, then point the pad at it, as one transaction. `drum.setPadAsset`
+ * refuses a pad the track does not have, which leaves the project unchanged.
+ */
+export function loadPadSampleCommands(
+  project: Project,
+  trackId: TrackId,
+  padId: PadId,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+): readonly RawCommandInput[] {
+  return carryThen(project, sample, context, (assetId) =>
+    setPadAsset(trackId, padId, assetId),
+  );
+}
+
+/** The asset the project carries for a sound, adding it first when it does not. */
+function carryThen(
+  project: Project,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+  point: (assetId: AssetId) => RawCommandInput,
+): readonly RawCommandInput[] {
   const existing = carriedAsset(project, sample);
-  if (existing) {
-    return [setSample(trackId, existing.id)];
-  }
+  if (existing) return [point(existing.id)];
   const asset = createLibraryAsset(context, sample);
-  return [addAsset(asset), setSample(trackId, asset.id)];
+  return [addAsset(asset), point(asset.id)];
 }
 
 /** What a loop insertion needs to know about the project it is landing in. */

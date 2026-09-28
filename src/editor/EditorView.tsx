@@ -10,13 +10,14 @@ import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
 import type { NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import type { EventId, PlacementId, TrackId } from "../domain/ids";
+import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import {
   insertLoopCommands,
+  loadPadSampleCommands,
   loadSampleCommands,
   toLibrarySample,
 } from "../library/insertion";
@@ -183,8 +184,19 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     readonly LibraryAssetType[] | undefined
   >(undefined);
 
-  function openLibrary(types?: readonly LibraryAssetType[]): void {
+  // The drum pad the library was opened for (#447), or null when it was
+  // opened for the sampler's slot or the arrangement.
+  const [padTarget, setPadTarget] = createSignal<{
+    trackId: TrackId;
+    padId: PadId;
+  } | null>(null);
+
+  function openLibrary(
+    types?: readonly LibraryAssetType[],
+    pad: { trackId: TrackId; padId: PadId } | null = null,
+  ): void {
     setLibraryTypes(() => types);
+    setPadTarget(pad);
     setLibraryOpen(true);
   }
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
@@ -401,6 +413,35 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return true;
   }
 
+  /**
+   * Loads a library one-shot onto the drum pad whose slot opened the library
+   * (#447), as one transaction: the asset if the project lacks it, then the
+   * pad. Only the library's Insert reaches this; a drop still lands on the
+   * sampler, whatever the library was last opened for.
+   */
+  function loadPadSample(
+    sample: LibrarySample,
+    pad: { trackId: TrackId; padId: PadId },
+  ): boolean {
+    const currentProject = project();
+    if (!currentProject || sample.kind === "loop") return false;
+    const result = session.dispatch(
+      loadPadSampleCommands(
+        currentProject,
+        pad.trackId,
+        pad.padId,
+        sample,
+        createFactoryContext(),
+      ),
+    );
+    if (!result?.ok) return false;
+    const analytics = props.analytics ?? defaultAnalytics;
+    // A pad sample replacement is an instrument change (PRD OPS-02).
+    analytics.log("instrument_changed", { instrument_type: "drum_machine" });
+    analytics.logFeatureFirstUse("drum_machine");
+    return true;
+  }
+
   const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
 
   return (
@@ -512,6 +553,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         void audio.auditionPad(trackId, padId)
                       }
                       onBrowse={() => openLibrary()}
+                      onBrowsePad={(trackId, padId) =>
+                        openLibrary(["one-shot"], { trackId, padId })
+                      }
                       watchPeaks={audio.watchAssetPeaks}
                       onSelectTrack={selectTrack}
                       dispatch={session.dispatch}
@@ -550,7 +594,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     // Only a committed insertion closes the window. Closing
                     // regardless is what made a refused insert look like a
                     // successful one that lost the sound.
-                    if (sample && loadLibrarySample(sample)) setLibraryOpen(false);
+                    const pad = padTarget();
+                    const loaded =
+                      sample &&
+                      (pad ? loadPadSample(sample, pad) : loadLibrarySample(sample));
+                    if (loaded) setLibraryOpen(false);
                   }}
                   addedPackIds={addedPackIds()}
                   onAddPack={(pack) =>

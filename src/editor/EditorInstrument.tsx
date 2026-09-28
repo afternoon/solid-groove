@@ -33,6 +33,8 @@ export interface EditorInstrumentProps {
   readonly auditionPad: (trackId: TrackId, padId: PadId) => void;
   /** Opens the library on the sampler's sample slot (`UI-001`). */
   readonly onBrowse: () => void;
+  /** Opens the library on one drum pad's sample slot (#447). */
+  readonly onBrowsePad?: (trackId: TrackId, padId: PadId) => void;
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
   readonly watchPeaks?: WatchPeaks;
   onSelectTrack(trackId: TrackId): void;
@@ -134,6 +136,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                       dispatch={props.dispatch}
                       beginGesture={props.beginGesture}
                       audition={(padId) => props.auditionPad(drum().id, padId)}
+                      onBrowseSample={(padId) => props.onBrowsePad?.(drum().id, padId)}
                       watchPeaks={props.watchPeaks}
                     />
                   </div>

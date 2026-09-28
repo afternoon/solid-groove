@@ -29,7 +29,7 @@ function drumTrackOf(project: ReturnType<typeof createDrumMachineFixtureProject>
   return track;
 }
 
-function renderPanel(watchPeaks?: WatchPeaks) {
+function renderPanel(watchPeaks?: WatchPeaks, onBrowseSample?: (padId: PadId) => void) {
   const project = createDrumMachineFixtureProject();
   const track = drumTrackOf(project);
   const assets = project.song.assets.filter((asset) => asset.kind === "sample");
@@ -58,6 +58,7 @@ function renderPanel(watchPeaks?: WatchPeaks) {
       beginGesture={() => undefined}
       audition={audition}
       watchPeaks={watchPeaks}
+      onBrowseSample={onBrowseSample}
       analytics={analytics}
     />
   ));
@@ -122,31 +123,25 @@ describe("DrumMachinePanel", () => {
     }
   });
 
-  it("dispatches drum.setPadAsset and logs instrument_changed on a sample replacement", () => {
-    const { track, assets, dispatch, transport } = renderPanel();
-    // The first pad's sample picker (#447); pick a different asset than it holds.
-    const firstPad =
-      track.instrument?.kind === "drumMachine" ? track.instrument.pads[0] : undefined;
-    const replacement = assets.find((asset) => asset.id !== firstPad?.assetId);
-    expect(replacement).toBeDefined();
+  it("opens the library on the selected pad's sample slot (#447)", () => {
+    const onBrowseSample = vi.fn<(padId: PadId) => void>();
+    const { track, assets, dispatch } = renderPanel(undefined, onBrowseSample);
+    const [first, second] =
+      track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+    const slot = screen.getByRole("button", { name: `Sample for ${first.name}` });
+    // The slot names the pad's sound, as the row does.
+    const name = assets.find((asset) => asset.id === first.assetId)?.name ?? "None";
+    expect(slot.textContent).toBe(name);
 
-    fireEvent.click(screen.getByRole("button", { name: `Sample for ${firstPad?.name}` }));
-    flush();
-    fireEvent.click(screen.getByRole("menuitemradio", { name: replacement?.name }));
+    fireEvent.click(slot);
+    expect(onBrowseSample).toHaveBeenCalledExactlyOnceWith(first.id);
+    // Choosing happens in the library; the panel itself dispatches nothing.
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu")).toBeNull();
 
-    expect(dispatch).toHaveBeenCalledTimes(1);
-    const command = dispatch.mock.calls[0][0] as {
-      type: string;
-      payload: { assetId: string };
-    };
-    expect(command.type).toBe("drum.setPadAsset");
-    expect(command.payload.assetId).toBe(replacement?.id);
-
-    const instrumentChanged = transport.events.filter(
-      (event) => event.name === "instrument_changed",
-    );
-    expect(instrumentChanged).toHaveLength(1);
-    expect(instrumentChanged[0]?.params.instrument_type).toBe("drum_machine");
+    clickAndFlush(screen.getByRole("button", { name: `Audition ${second.name}` }));
+    fireEvent.click(screen.getByRole("button", { name: `Sample for ${second.name}` }));
+    expect(onBrowseSample).toHaveBeenLastCalledWith(second.id);
   });
 
   it("logs drum_machine feature_first_use exactly once across several interactions", () => {

@@ -12,7 +12,6 @@ import {
   addPad,
   createControlGesture,
   MAX_DRUM_PADS,
-  setPadAsset,
   setPadChoke,
   setPadFlag,
   setPadParameter,
@@ -33,10 +32,10 @@ import {
 } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { formatInstrumentValue } from "../instrument/formatValue";
-import SamplePicker from "../instrument/SamplePicker";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import PadSound from "./PadSound";
+import "../instrument/SamplePicker.css";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
 import { ariaBool } from "../shared/aria";
@@ -67,6 +66,8 @@ export interface DrumMachinePanelProps {
   ): TransactionResult | undefined;
   /** Opens a pad-control drag that commits as one history entry (#255). */
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** Opens the library to choose a pad's sound (#447). */
+  onBrowseSample?(padId: PadId): void;
   /** Plays one pad immediately so the user hears their choice (audition). */
   audition?(padId: PadId): void;
   /** Follows each pad's sound for its waveform preview (#447). */
@@ -96,12 +97,9 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
     analytics().logFeatureFirstUse("drum_machine");
   }
 
-  function changePadAsset(pad: DrumPad, assetId: AssetId | null): void {
-    markFeatureUse();
-    props.dispatch(setPadAsset(props.track.id, pad.id, assetId));
-    // A pad sample replacement is an instrument change (PRD OPS-02).
-    analytics().log("instrument_changed", { instrument_type: "drum_machine" });
-  }
+  /** The name of the sound a pad plays, or "None" while it has none. */
+  const sampleName = (pad: DrumPad) =>
+    props.assets.find((asset) => asset.id === pad.assetId)?.name ?? "None";
 
   function toggleFlag(pad: DrumPad, flag: "muted" | "soloed"): void {
     markFeatureUse();
@@ -153,13 +151,21 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
             <div class="drum-pad-editor-head">
               <span class="drum-pad-editor-name">{pad().name}</span>
               <div class="drum-pad-editor-sample">
-                <SamplePicker
-                  label={`Sample for ${pad().name}`}
-                  current={pad().assetId}
-                  assets={props.assets}
-                  allowNone
-                  onChoose={(assetId) => changePadAsset(pad(), assetId)}
-                />
+                {/* Styled as the sample slot, but it opens the library on this pad:
+                    the library is where sounds are chosen from. */}
+                <button
+                  type="button"
+                  class="sample-picker-button"
+                  aria-label={`Sample for ${pad().name}`}
+                  onClick={() => {
+                    markFeatureUse();
+                    props.onBrowseSample?.(pad().id);
+                  }}
+                >
+                  <span class={`sample-picker-name ${MASK_CONTENT}`}>
+                    {sampleName(pad())}
+                  </span>
+                </button>
               </div>
             </div>
             <PadSound
@@ -219,9 +225,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
             </button>
 
             {/* The row names its sound; choosing one is the editor's job. */}
-            <span class={`pad-sample ${MASK_CONTENT}`}>
-              {props.assets.find((asset) => asset.id === pad().assetId)?.name ?? "None"}
-            </span>
+            <span class={`pad-sample ${MASK_CONTENT}`}>{sampleName(pad())}</span>
 
             <PadPreview
               name={pad().name}
