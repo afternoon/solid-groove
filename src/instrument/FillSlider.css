@@ -62,11 +62,12 @@
   position: relative;
   width: var(--fill-slider-track-width);
   height: var(--fill-slider-track-height);
-  /* The well: a dark field around the line, cap and ticks. It is painted past
+  /* The well: a faint lift around the line, cap and ticks, a step off the
+     panel behind it rather than a hole in it (#447). It is painted past
      the box with a spread shadow rather than padding, because the range input
      is laid exactly over the box and padding would move it off the track. */
-  background-color: var(--color-background-sunken);
-  box-shadow: 0 0 0 var(--fill-slider-well-margin, 6px) var(--color-background-sunken);
+  background-color: var(--tint-subtle);
+  box-shadow: 0 0 0 var(--fill-slider-well-margin, 6px) var(--tint-subtle);
 }
 
 /* The hairline itself, and the scale ticks beside it (ten divisions). */

@@ -684,3 +684,27 @@ describe("Mixer desk (#447)", () => {
     expect(screen.getAllByText("No devices").length).toBeGreaterThan(0);
   });
 });
+
+describe("Mixer strip head and title (#447)", () => {
+  it("titles the view, with the new-track buttons in the same row", () => {
+    renderMixer();
+    const header = screen.getByRole("heading", { level: 2, name: "Mixer" }).parentElement;
+    expect(header).not.toBeNull();
+    expect(
+      within(header as HTMLElement).getByRole("group", { name: "Add track" }),
+    ).toBeInTheDocument();
+  });
+
+  it("names each strip's track and kind, with its colour as the top edge", () => {
+    const { project } = renderMixer();
+    const track = project().song.tracks[0];
+    const select = screen.getByRole("button", { name: `Edit ${track.name}` });
+    expect(select.textContent).toBe("Sampler");
+    const head = select.parentElement as HTMLElement;
+    expect(head.style.borderTopColor).not.toBe("");
+    expect(within(head).getByLabelText("Track name")).toHaveValue(track.name);
+
+    clickAndFlush(select);
+    expect(select.closest(".mixer-strip")?.classList.contains("selected")).toBe(true);
+  });
+});

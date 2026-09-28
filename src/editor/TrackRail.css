@@ -41,10 +41,12 @@
   color: var(--color-text);
 }
 
-/* State is brightness: the track you are looking at is the brightest row. */
+/* The track you are looking at is black (#447): sunk to the ground, as the
+   mixer's selected strip and the arrangement's selected header are. */
 .track-rail-button[aria-pressed="true"] {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
+  background: var(--color-background);
+  color: var(--color-foreground-bright);
+  font-weight: 600;
 }
 
 .track-rail-swatch {
