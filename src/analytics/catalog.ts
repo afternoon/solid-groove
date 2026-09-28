@@ -317,6 +317,8 @@ export const SHORTCUT_ACTION_IDS = [
   "help.shortcut_guide",
   "device.move_earlier",
   "device.move_later",
+  "track.move_left",
+  "track.move_right",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -535,8 +537,8 @@ export const ANALYTICS_EVENTS = {
     // how; which track moved, and where to, stay out of it. `view`, not
     // `surface`: the boundary attaches `surface` to every event.
     params: {
-      view: enumParam(["arrangement", "mixer"]),
-      method: enumParam(["drag", "button"]),
+      view: enumParam(["arrangement", "mixer", "instrument"]),
+      method: enumParam(["drag", "button", "keyboard"]),
     },
   },
 

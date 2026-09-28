@@ -82,6 +82,8 @@ export const SHORTCUT_ACTION_IDS = [
   "help.shortcut_guide",
   "device.move_earlier",
   "device.move_later",
+  "track.move_left",
+  "track.move_right",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -449,6 +451,34 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       kind: "solid_groove",
       reason:
         "Live reorders devices by dragging only; this is the keyboard way to do what the drag does.",
+    },
+  }),
+  define({
+    id: "track.move_left",
+    label: "Move track left",
+    description:
+      "Moves the track whose mixer strip has focus one place left, as dragging the strip does.",
+    group: "mixer_devices",
+    contexts: ["editor"],
+    keys: "ArrowLeft",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live reorders tracks by dragging only; this is the keyboard way to do what the drag does.",
+    },
+  }),
+  define({
+    id: "track.move_right",
+    label: "Move track right",
+    description:
+      "Moves the track whose mixer strip has focus one place right, as dragging the strip does.",
+    group: "mixer_devices",
+    contexts: ["editor"],
+    keys: "ArrowRight",
+    ableton: {
+      kind: "solid_groove",
+      reason:
+        "Live reorders tracks by dragging only; this is the keyboard way to do what the drag does.",
     },
   }),
 ];

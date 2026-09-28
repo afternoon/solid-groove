@@ -10,8 +10,8 @@ import type { TrackId } from "../domain/ids";
  * is one `track.reorder` command, one revision, one history entry, and one
  * `track_reordered` event, and none of them is a second way to mutate order.
  */
-export type ReorderView = "arrangement" | "mixer";
-export type ReorderMethod = "drag" | "button";
+export type ReorderView = "arrangement" | "mixer" | "instrument";
+export type ReorderMethod = "drag" | "button" | "keyboard";
 
 export interface TrackReorderContext {
   project(): Project | null;
