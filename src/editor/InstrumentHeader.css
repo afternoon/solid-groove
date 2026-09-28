@@ -64,7 +64,6 @@
   gap: 8px;
   flex: none;
   height: 32px;
-  margin-left: auto;
   padding: 0 16px;
   border-radius: 0;
   background-color: var(--color-foreground-bright);
@@ -83,4 +82,28 @@
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
   border-left: 8px solid currentColor;
+}
+
+/* The meter and Audition, at the row's right edge. */
+.instrument-header-end {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+
+/* The track's live level, lying along the row in its own colour (#447). */
+.level-meter-horizontal {
+  position: relative;
+  width: 150px;
+  height: 4px;
+  overflow: hidden;
+  background-color: var(--color-background-tertiary);
+}
+
+.level-meter-horizontal .mixer-meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background-color: var(--track-ink, var(--color-accent));
+  transition: width 0.06s linear;
 }
