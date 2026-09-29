@@ -1,5 +1,4 @@
 import type { JSX } from "@solidjs/web";
-import { HiSolidPlus } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import ArrangementView, {
@@ -8,7 +7,7 @@ import ArrangementView, {
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
-import type { NoteTrigger } from "../domain/entities";
+import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
@@ -54,7 +53,11 @@ import ProjectLoadStates from "./ProjectLoadStates";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
-import { addTrackOfKind } from "./trackCreation";
+import {
+  type AddTrackHost,
+  addTrackOfKind,
+  type NewTrackKindSpec,
+} from "./trackCreation";
 import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
@@ -475,6 +478,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return true;
   }
 
+  /** Adds a track of the chosen kind, through the route the arrangement's
+   * buttons take, and selects it (#495). */
+  function addTrack(
+    current: Project,
+    spec: NewTrackKindSpec,
+    feature: AddTrackHost["feature"] = "arrangement",
+  ): void {
+    addTrackOfKind(spec.kind, {
+      project: current,
+      context: factoryContext,
+      dispatch: session.dispatch,
+      analytics: props.analytics ?? defaultAnalytics,
+      feature,
+      onSelect: selectTrack,
+    });
+  }
+
   const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
 
   return (
@@ -532,36 +552,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           belowTracks={
                             <NewTrackButtons
                               label="Add track to the arrangement"
-                              onAdd={(spec) =>
-                                addTrackOfKind(spec.kind, {
-                                  project: currentProject(),
-                                  context: factoryContext,
-                                  dispatch: session.dispatch,
-                                  analytics: props.analytics ?? defaultAnalytics,
-                                  feature: "arrangement",
-                                  onSelect: selectTrack,
-                                })
-                              }
-                            >
-                              {/*
-                               * An audio track needs content to exist, so the
-                               * way to start one is to pick the loop
-                               * (`UI-001`); inserting it makes the track.
-                               * Its name says where it goes: the arrangement's
-                               * way into the library, for a producer with no
-                               * sampler slot to fill (#281).
-                               */}
-                              <button
-                                type="button"
-                                class="new-track-button"
-                                aria-label="Add loop from library"
-                                title="Add a loop from the library"
-                                onClick={() => openLibrary(["loop"])}
-                              >
-                                <HiSolidPlus size={13} />
-                                <span>Loop</span>
-                              </button>
-                            </NewTrackButtons>
+                              onAdd={(spec) => addTrack(currentProject(), spec)}
+                              onAddLoop={() => openLibrary(["loop"])}
+                            />
                           }
                         />
                       </div>
@@ -592,6 +585,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       watchTriggers={audio.watchTriggers}
                       trackLevel={audio.trackLevel}
                       onSelectTrack={selectTrack}
+                      onAddTrack={(spec) =>
+                        addTrack(currentProject(), spec, "instrument_add_track")
+                      }
+                      onAddLoop={() => openLibrary(["loop"])}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}
                     />

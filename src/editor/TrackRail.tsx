@@ -1,4 +1,4 @@
-import { For, type JSX } from "@solidjs/web";
+import { For, type JSX, Show } from "@solidjs/web";
 import type { Analytics } from "../analytics/analytics";
 import { HEADER_WIDTH_PX, ROW_METRICS } from "../arrangement/ArrangementView";
 import { RULER_HEIGHT_PX } from "../arrangement/canvasRenderer";
@@ -10,7 +10,9 @@ import type {
 } from "../commands";
 import type { Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
+import NewTrackButtons from "./NewTrackButtons";
 import TrackHeader from "./TrackHeader";
+import type { NewTrackKindSpec } from "./trackCreation";
 import type { TrackLevel } from "./trackLevels";
 import { previewOrder } from "./trackReorder";
 import { useTrackDrag } from "./useTrackDrag";
@@ -23,6 +25,10 @@ export interface TrackRailProps {
   onSelect(trackId: TrackId): void;
   /** Moves a track to a display index, when the rail is dragged (#447). */
   onReorder?(trackId: TrackId, toIndex: number): void;
+  /** Adds a track of the chosen kind; the buttons follow the last row (#495). */
+  onAddTrack?(spec: NewTrackKindSpec): void;
+  /** Opens the library on loops, beside the per-kind buttons. */
+  onAddLoop?(): void;
   /** Deletes a track, when its header's trash button is pressed (#537). */
   onDelete?(trackId: TrackId): void;
   dispatch(
@@ -106,6 +112,19 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
           </li>
         )}
       </For>
+      {/* The same per-kind buttons the arrangement offers below its last
+          track, in the place the next track's row would go (#495). */}
+      <Show when={props.onAddTrack}>
+        {(onAdd) => (
+          <li class="track-rail-add" role="none">
+            <NewTrackButtons
+              label="Add track"
+              onAdd={onAdd()}
+              onAddLoop={props.onAddLoop}
+            />
+          </li>
+        )}
+      </Show>
     </ul>
   );
 }

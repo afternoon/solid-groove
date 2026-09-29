@@ -911,6 +911,10 @@ describe("EditorView new-track unit", () => {
   const trackRows = () =>
     within(screen.getByLabelText("Arrangement tracks")).getAllByRole("listitem");
 
+  /** The `feature` of every `feature_first_use` the session has logged. */
+  const firstUseKeys = (transport: ReturnType<typeof createRecordingTransport>) =>
+    transport.named("feature_first_use").map((event) => event.params?.feature);
+
   it("offers every registered kind on the arrangement, and creates one", async () => {
     const transport = createRecordingTransport();
     await renderSlice(transport);
@@ -934,6 +938,93 @@ describe("EditorView new-track unit", () => {
     expect(added[0].params).toEqual(
       expect.objectContaining({ track_type: "instrument", instrument_type: "sampler" }),
     );
+    expect(firstUseKeys(transport)).toEqual(["arrangement"]);
+  });
+
+  it("adds a track from the instrument view's rail and shows it there (#495)", async () => {
+    const transport = createRecordingTransport();
+    await renderSlice(transport);
+    await goToView("Instrument");
+    const rail = screen.getByRole("list", { name: "Tracks" });
+    const rows = () => within(rail).getAllByRole("button", { name: /^Edit / });
+    expect(rows()).toHaveLength(1);
+
+    // The same unit and the same route as the arrangement's.
+    const unit = within(rail).getByRole("group", { name: "Add track" });
+    clickAndFlush(within(unit).getByRole("button", { name: "Add sampler track" }));
+
+    await vi.waitFor(() => expect(rows()).toHaveLength(2));
+    // The new track is the one the view is showing.
+    expect(rows()[1]).toHaveAttribute("aria-pressed", "true");
+    expect(rows()[0]).toHaveAttribute("aria-pressed", "false");
+    const added = transport.events.filter((event) => event.name === "track_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toEqual(
+      expect.objectContaining({ track_type: "instrument", instrument_type: "sampler" }),
+    );
+    // Its own key, apart from the arrangement's (#495).
+    expect(firstUseKeys(transport)).toEqual(["instrument_add_track"]);
+  });
+
+  it("offers the Loop button on the instrument view's rail, opening the library on loops", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    await goToView("Instrument");
+    const rail = screen.getByRole("list", { name: "Tracks" });
+
+    clickAndFlush(within(rail).getByRole("button", { name: "Add loop from library" }));
+
+    const library = await screen.findByRole("dialog", { name: "Library" });
+    expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
+  });
+
+  it("inserting a loop from the instrument view's rail adds an audio track and closes the library", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      analytics: recordingAnalytics(transport),
+    });
+    await goToView("Instrument");
+    const rows = () =>
+      within(screen.getByRole("list", { name: "Tracks" })).getAllByRole("button", {
+        name: /^Edit /,
+      });
+    const before = rows().length;
+
+    clickAndFlush(
+      within(screen.getByRole("list", { name: "Tracks" })).getByRole("button", {
+        name: "Add loop from library",
+      }),
+    );
+    await screen.findByRole("dialog", { name: "Library" });
+    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
+    const packs = await screen.findByRole("dialog");
+    fireEvent.click(
+      await within(packs).findByRole("button", { name: /Core Electronic Drums/ }),
+    );
+    const loopName = loopAssetName("core-electronic-drums");
+    fireEvent.click(
+      await within(packs).findByRole("button", { name: `Insert ${loopName}` }),
+    );
+
+    await vi.waitFor(() => expect(rows()).toHaveLength(before + 1));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).toBeNull(),
+    );
+    const added = transport.events.filter((event) => event.name === "track_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toEqual(expect.objectContaining({ track_type: "audio" }));
   });
 
   it("opens the library on loops from the Loop button beside them", async () => {
