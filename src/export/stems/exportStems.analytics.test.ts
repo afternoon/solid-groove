@@ -118,9 +118,9 @@ describe("stem export analytics", () => {
     ]);
   });
 
-  it("logs the refusal of the maximum reference fixture as quota_exceeded", async () => {
+  it("logs the refusal of the PRD reference project as quota_exceeded", async () => {
     const { analytics, transport } = recordingAnalytics();
-    const project = createReferenceProject({ trackCount: 40, minutes: 10 });
+    const project = createReferenceProject();
     await exportFailure(
       exportStems(project, {
         sampleRate: 48_000,
