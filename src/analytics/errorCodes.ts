@@ -51,6 +51,8 @@ export const ERROR_CODES = [
   "internal",
   /** The operation was cancelled deliberately, by the user or by teardown. */
   "aborted",
+  /** A command refused an edit the project it met could not take. */
+  "command_rejected",
   "timeout",
   "network",
   "permission_denied",

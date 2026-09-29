@@ -44,7 +44,13 @@ import type {
   ShortcutContext,
   ShortcutGroup,
 } from "./types";
-import { AMBIENT_CONTEXT, FOCUS_CONTEXTS, MODAL_CONTEXT, SHORTCUT_GROUPS } from "./types";
+import {
+  AMBIENT_CONTEXT,
+  FOCUS_CONTEXTS,
+  MODAL_CONTEXT,
+  OVERLAY_CONTEXTS,
+  SHORTCUT_GROUPS,
+} from "./types";
 
 /**
  * Every action a shortcut can invoke.
@@ -92,6 +98,16 @@ export const SHORTCUT_ACTION_IDS = [
   "arrangement.loop_lengthen",
   "track.select_previous",
   "track.select_next",
+  "note.move_up",
+  "note.move_down",
+  "note.octave_up",
+  "note.octave_down",
+  "note.move_earlier",
+  "note.move_later",
+  "note.shorten",
+  "note.lengthen",
+  "value.nudge_up",
+  "value.nudge_down",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -608,6 +624,109 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       reason: "the arrow keys step the editor's selected track through the track list.",
     },
   }),
+  define({
+    id: "note.move_up",
+    label: "Move notes up",
+    description: "Moves the selected notes up one visible row of the piano roll.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "ArrowUp",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Up" },
+  }),
+  define({
+    id: "note.move_down",
+    label: "Move notes down",
+    description: "Moves the selected notes down one visible row of the piano roll.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "ArrowDown",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Down" },
+  }),
+  define({
+    id: "note.octave_up",
+    label: "Move notes up an octave",
+    description: "Moves the selected notes up twelve semitones.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "Shift+ArrowUp",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Shift+Up" },
+  }),
+  define({
+    id: "note.octave_down",
+    label: "Move notes down an octave",
+    description: "Moves the selected notes down twelve semitones.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "Shift+ArrowDown",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Shift+Down" },
+  }),
+  define({
+    id: "note.move_earlier",
+    label: "Move notes earlier",
+    description: "Moves the selected notes one step earlier.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "ArrowLeft",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Left" },
+  }),
+  define({
+    id: "note.move_later",
+    label: "Move notes later",
+    description: "Moves the selected notes one step later.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "ArrowRight",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Right" },
+  }),
+  define({
+    id: "note.shorten",
+    label: "Shorten notes",
+    description: "Makes the selected notes one step shorter.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "Shift+ArrowLeft",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Shift+Left" },
+  }),
+  define({
+    id: "note.lengthen",
+    label: "Lengthen notes",
+    description: "Makes the selected notes one step longer.",
+    group: "clips_notes",
+    contexts: ["piano_roll"],
+    keys: "Shift+ArrowRight",
+    repeatable: true,
+    ableton: { kind: "follows", abletonKeys: "Shift+Right" },
+  }),
+  define({
+    id: "value.nudge_up",
+    label: "Nudge value up",
+    description: "Raises the focused value field by one step.",
+    group: "global_editing",
+    contexts: ["value_field"],
+    keys: "ArrowUp",
+    repeatable: true,
+    // The field is text entry, and the arrows are what it is for.
+    textEntry: "allowed",
+    ableton: { kind: "follows", abletonKeys: "Up" },
+  }),
+  define({
+    id: "value.nudge_down",
+    label: "Nudge value down",
+    description: "Lowers the focused value field by one step.",
+    group: "global_editing",
+    contexts: ["value_field"],
+    keys: "ArrowDown",
+    repeatable: true,
+    textEntry: "allowed",
+    ableton: { kind: "follows", abletonKeys: "Down" },
+  }),
 ];
 
 /**
@@ -719,22 +838,26 @@ export function resolveContexts(
 }
 
 /**
- * Narrows shortcuts that match one event to the focused element's own, when
- * it has any: a focus context (`FOCUS_CONTEXTS`) outranks the ambient contexts
+ * Narrows shortcuts that match one event to the most specific surface's own,
+ * when it has any: a focus context (`FOCUS_CONTEXTS`) outranks everything else
  * for the keys it claims, so `Left` moves a focused loop brace rather than
- * also meaning `track.move_left`. With no focus mapping among them the list is
- * returned unchanged.
+ * also meaning `track.move_left`; then an overlay context (`OVERLAY_CONTEXTS`)
+ * outranks the editor behind it, so the open piano roll's arrows move notes.
+ * With neither among them the list is returned unchanged.
  */
 export function preferFocused(
   matches: readonly ShortcutDefinition[],
   resolved: readonly ShortcutContext[],
 ): readonly ShortcutDefinition[] {
-  const focused = matches.filter((shortcut) =>
-    shortcut.contexts.some(
-      (context) => FOCUS_CONTEXTS.includes(context) && resolved.includes(context),
-    ),
-  );
-  return focused.length > 0 ? focused : matches;
+  for (const tier of [FOCUS_CONTEXTS, OVERLAY_CONTEXTS]) {
+    const claimed = matches.filter((shortcut) =>
+      shortcut.contexts.some(
+        (context) => tier.includes(context) && resolved.includes(context),
+      ),
+    );
+    if (claimed.length > 0) return claimed;
+  }
+  return matches;
 }
 
 /** Whether a shortcut is eligible in an already-resolved context set. */

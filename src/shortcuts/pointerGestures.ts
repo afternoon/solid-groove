@@ -14,7 +14,12 @@ import type { ShortcutPlatform } from "./keys";
 import type { AbletonParity } from "./types";
 
 /** Every pointer modifier. Closed, like `SHORTCUT_ACTION_IDS`. */
-export const POINTER_MODIFIER_IDS = ["arrangement.drag_copy"] as const;
+export const POINTER_MODIFIER_IDS = [
+  "arrangement.drag_copy",
+  "piano_roll.drag_copy",
+  "piano_roll.toggle_select",
+  "piano_roll.shift_select",
+] as const;
 export type PointerModifierId = (typeof POINTER_MODIFIER_IDS)[number];
 
 /** The modifier keys a pointer event reports. */
@@ -45,6 +50,38 @@ export const POINTER_MODIFIERS: readonly PointerModifierDefinition[] = [
       reason:
         "Follows Live's Option-drag on macOS. Windows/Linux use Alt as well rather than Live's Ctrl-drag, so one modifier copies on every platform and Ctrl/Cmd-click stays the selection click (CF-015).",
     },
+  },
+  {
+    id: "piano_roll.drag_copy",
+    label: "Copy notes by dragging",
+    description:
+      "Held at the press of a note drag, copies every selected note and moves the copies, leaving the originals where they were.",
+    modifier: "alt",
+    gesture: "drag",
+    ableton: {
+      kind: "differs",
+      abletonKeys: "Option-drag (macOS) / Ctrl-drag (Windows)",
+      reason:
+        "The arrangement's rule, kept in the piano roll: Alt copies on every platform, so Ctrl/Cmd-click stays the selection click.",
+    },
+  },
+  {
+    id: "piano_roll.toggle_select",
+    label: "Add or remove a note from the selection",
+    description:
+      "Clicking a note adds it to the selection or takes it out; a lasso adds what it touches.",
+    modifier: "mod",
+    gesture: "click",
+    ableton: { kind: "follows", abletonKeys: "Cmd/Ctrl-click" },
+  },
+  {
+    id: "piano_roll.shift_select",
+    label: "Add or remove a note from the selection",
+    description:
+      "The same as Cmd/Ctrl-click: clicking a note adds it to the selection or takes it out; a lasso adds what it touches.",
+    modifier: "shift",
+    gesture: "click",
+    ableton: { kind: "follows", abletonKeys: "Shift-click" },
   },
 ];
 
