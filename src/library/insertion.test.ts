@@ -469,4 +469,41 @@ describe("loadPadSampleCommands (#447)", () => {
       loadPadSampleCommands(result.project, track.id, first.id, sample, context("b")),
     ).toHaveLength(1);
   });
+
+  it('names a pad still called "Pad N" after the sound, undone with the load', async () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find((t) => t.instrument?.kind === "drumMachine");
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const pad = track.instrument.pads[0];
+    const sample = toLibrarySample((await libraryAssets())[1]);
+    if (!sample) throw new Error("expected an insertable sample");
+    const padOf = (p: typeof project) => {
+      const drum = p.song.tracks.find((t) => t.id === track.id)?.instrument;
+      return drum?.kind === "drumMachine" ? drum.pads[0] : undefined;
+    };
+
+    const auto = structuredClone(project);
+    const autoTrack = auto.song.tracks.find((t) => t.id === track.id);
+    if (autoTrack?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    autoTrack.instrument.pads[0].name = "Pad 7";
+    const named = executeTransaction(
+      auto,
+      loadPadSampleCommands(auto, track.id, pad.id, sample, context()),
+    );
+    if (!named.ok) throw new Error(named.issues[0].message);
+    expect(padOf(named.project)?.name).toBe(sample.name);
+    expect(named.project.metadata.revision).toBe(auto.metadata.revision + 1);
+
+    const typed = structuredClone(auto);
+    const typedTrack = typed.song.tracks.find((t) => t.id === track.id);
+    if (typedTrack?.instrument?.kind !== "drumMachine")
+      throw new Error("no drum machine");
+    typedTrack.instrument.pads[0].name = "My Kick";
+    const kept = executeTransaction(
+      typed,
+      loadPadSampleCommands(typed, track.id, pad.id, sample, context()),
+    );
+    if (!kept.ok) throw new Error(kept.issues[0].message);
+    expect(padOf(kept.project)?.name).toBe("My Kick");
+  });
 });
