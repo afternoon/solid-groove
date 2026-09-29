@@ -1,0 +1,38 @@
+{
+  "id": "CF-019",
+  "title": "A producer copies, pastes and transforms notes from the keyboard",
+  "steps": [
+    {
+      "file": "01-add-notes-at-c2-step-1-and-g2-step-3.png",
+      "caption": "Add notes at C2 step 1 and G2 step 3"
+    },
+    {
+      "file": "02-copy-click-the-ruler-at-step-9-paste.png",
+      "caption": "Copy, click the ruler at step 9, paste"
+    },
+    {
+      "file": "03-press-the-copies-move-up-a-row.png",
+      "caption": "Press ↑: the copies move up a row"
+    },
+    {
+      "file": "04-undo-the-copies-are-back.png",
+      "caption": "Undo: the copies are back"
+    },
+    {
+      "file": "05-press-delete-the-copies-are-gone.png",
+      "caption": "Press Delete: the copies are gone"
+    },
+    {
+      "file": "06-transpose-the-whole-clip-up-an-octave.png",
+      "caption": "Transpose the whole clip up an octave"
+    },
+    {
+      "file": "07-double-makes-the-clip-two-bars.png",
+      "caption": "Double makes the clip two bars"
+    },
+    {
+      "file": "08-reload-both-bars-are-kept.png",
+      "caption": "Reload: both bars are kept"
+    }
+  ]
+}

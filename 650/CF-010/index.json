@@ -1,0 +1,22 @@
+{
+  "id": "CF-010",
+  "title": "A producer drags across tracks to select clips and deletes them",
+  "steps": [
+    {
+      "file": "01-bd-has-clips-in-bars-1-and-3-sampler-has-clips-in-bars-1-and.png",
+      "caption": "BD has clips in bars 1 and 3; Sampler has clips in bars 1 and 2"
+    },
+    {
+      "file": "02-drag-across-both-tracks-the-two-clips-it-touches-are-selecte.png",
+      "caption": "Drag across both tracks: the two clips it touches are selected, whole"
+    },
+    {
+      "file": "03-press-delete-both-clips-are-gone-whole-the-bar-1-clips-are-u.png",
+      "caption": "Press Delete: both clips are gone, whole; the bar 1 clips are untouched"
+    },
+    {
+      "file": "04-reopened-exactly-as-the-delete-left-it.png",
+      "caption": "Reopened exactly as the delete left it"
+    }
+  ]
+}
