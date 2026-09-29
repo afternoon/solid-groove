@@ -162,7 +162,7 @@ async function openStarterClip(page: Page): Promise<Locator> {
 }
 
 test.describe("new project", () => {
-  test("creates a project with a working sampler step editor", async ({ page }) => {
+  test("creates a project with a working drum-machine step editor", async ({ page }) => {
     await page.goto("/dashboard");
 
     await page.getByRole("button", { name: "New Project" }).click();
@@ -170,25 +170,22 @@ test.describe("new project", () => {
     await expect(page).toHaveURL(/\/projects\/prj_/);
     const editor = await openStarterClip(page);
     await expect(editor.getByRole("region", { name: "Step editor" })).toBeVisible();
-    // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on.
-    await expect(editor.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
-    await expect(
-      editor.getByRole("button", { name: "Notes, step 2, off" }),
-    ).toBeVisible();
+    // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on the
+    // "BD" pad lane.
+    await expect(editor.getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
+    await expect(editor.getByRole("button", { name: "BD, step 2, off" })).toBeVisible();
 
     // Toggling a step dispatches through the command layer and is visible
     // immediately.
-    await editor.getByRole("button", { name: "Notes, step 2, off" }).click();
-    await expect(editor.getByRole("button", { name: "Notes, step 2, on" })).toBeVisible();
+    await editor.getByRole("button", { name: "BD, step 2, off" }).click();
+    await expect(editor.getByRole("button", { name: "BD, step 2, on" })).toBeVisible();
 
     // Undo reverts it through the same shared history the toggle used. From
     // the keyboard, because the editor is a modal over the header the button
     // lives in — and because `edit.undo` reaching through it is exactly what
     // the `sequence_editor` context is for (UI-001).
     await page.keyboard.press("ControlOrMeta+z");
-    await expect(
-      editor.getByRole("button", { name: "Notes, step 2, off" }),
-    ).toBeVisible();
+    await expect(editor.getByRole("button", { name: "BD, step 2, off" })).toBeVisible();
   });
 
   // #538: a jumbo dialog sits `--dialog-jumbo-gap` (100px) from every browser

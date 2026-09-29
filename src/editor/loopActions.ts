@@ -66,3 +66,29 @@ export function setLoopRangeFromDrag(
   });
   return true;
 }
+
+/**
+ * Move the brace by whole bars, keeping its length (the keyboard twin of
+ * dragging its middle). The start stops at the top of the song, and a move
+ * that would go nowhere is not a change: it commits and logs nothing.
+ */
+export function moveLoopByBars(context: LoopActionContext, bars: number): boolean {
+  const loop = context.project()?.song.loop;
+  if (!loop) return false;
+  const start = Math.max(0, loop.startTicks + bars * TICKS_PER_BAR);
+  return setLoopRangeFromDrag(context, start, start + loop.endTicks - loop.startTicks);
+}
+
+/**
+ * Resize the brace by moving its end edge by whole bars, keeping its start.
+ * It never gets shorter than one bar.
+ */
+export function resizeLoopByBars(context: LoopActionContext, bars: number): boolean {
+  const loop = context.project()?.song.loop;
+  if (!loop) return false;
+  const end = Math.max(
+    loop.startTicks + TICKS_PER_BAR,
+    loop.endTicks + bars * TICKS_PER_BAR,
+  );
+  return setLoopRangeFromDrag(context, loop.startTicks, end);
+}

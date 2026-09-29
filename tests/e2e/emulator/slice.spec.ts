@@ -78,21 +78,19 @@ test.describe("foundation vertical slice", () => {
     const editor = await openStarterClip(page);
     await expect(editor.getByRole("region", { name: "Step editor" })).toBeVisible();
     // The starter project's four-on-the-floor clip: steps 1, 5, 9, 13 on.
-    await expect(editor.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
-    await expect(
-      editor.getByRole("button", { name: "Notes, step 3, off" }),
-    ).toBeVisible();
+    await expect(editor.getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
+    await expect(editor.getByRole("button", { name: "BD, step 3, off" })).toBeVisible();
 
     // The reopened project must report the same pack dependency it saved
     // (PRD LIB-05, invariant 12) — visible as soon as the starter project
-    // loads, since its sampler asset resolves through a pack from the start.
+    // loads, since its drum pad's asset resolves through a pack from the start.
     const packLabel = page.getByText(/^Pack: pak_/);
     await expect(packLabel).toBeVisible();
     const packDependencyText = await packLabel.textContent();
 
     // Add a note: dispatches note.add through the shared command layer.
-    await editor.getByRole("button", { name: "Notes, step 3, off" }).click();
-    await expect(editor.getByRole("button", { name: "Notes, step 3, on" })).toBeVisible();
+    await editor.getByRole("button", { name: "BD, step 3, off" }).click();
+    await expect(editor.getByRole("button", { name: "BD, step 3, on" })).toBeVisible();
 
     // The revision-checked write actually advances the persisted revision,
     // not just the visible save state.
@@ -191,7 +189,7 @@ test.describe("foundation vertical slice", () => {
     const afterPlayback = await openStarterClip(page);
     await page.keyboard.press("ControlOrMeta+z");
     await expect(
-      afterPlayback.getByRole("button", { name: "Notes, step 3, off" }),
+      afterPlayback.getByRole("button", { name: "BD, step 3, off" }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
@@ -217,15 +215,11 @@ test.describe("foundation vertical slice", () => {
     await page.reload();
     await expect(page).toHaveURL(projectUrl);
     const reopened = await openStarterClip(page);
-    await expect(
-      reopened.getByRole("button", { name: "Notes, step 1, on" }),
-    ).toBeVisible();
+    await expect(reopened.getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
     // The undone note stayed undone — a stale echo of the pre-undo save
     // never got the chance to restore it, and the reload reads the
     // post-undo revision that was actually persisted.
-    await expect(
-      reopened.getByRole("button", { name: "Notes, step 3, off" }),
-    ).toBeVisible();
+    await expect(reopened.getByRole("button", { name: "BD, step 3, off" })).toBeVisible();
     await expect(page.getByText(packDependencyText ?? "")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);

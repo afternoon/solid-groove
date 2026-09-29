@@ -14,6 +14,12 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
+import type { Project } from "../domain/entities";
+import {
+  createDrumMachineInstrument,
+  createDrumPad,
+  createFactoryContext,
+} from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
   createPianoRollFixtureProject,
@@ -63,6 +69,39 @@ let repository: InMemoryProjectRepository;
 vi.mock("../projectRepositoryClient", () => ({
   getProjectRepository: () => Promise.resolve(repository),
 }));
+
+/**
+ * The slice fixture as a drum machine: one "BD" pad on the kick sample, the
+ * four-on-the-floor clip re-pointed at that pad. A sampler note clip opens the
+ * piano roll (#496), so the step grid is only reachable through a drum machine.
+ */
+function createStepGridProject(): Project {
+  const project = createSliceFixtureProject();
+  const [track] = project.song.tracks;
+  const [asset] = project.song.assets;
+  const pad = createDrumPad(createFactoryContext(), { name: "BD", assetId: asset.id });
+  return {
+    ...project,
+    song: {
+      ...project.song,
+      tracks: [{ ...track, instrument: createDrumMachineInstrument([pad]) }],
+    },
+    clips: project.clips.map((clip) =>
+      clip.content.kind === "notes"
+        ? {
+            ...clip,
+            content: {
+              ...clip.content,
+              events: clip.content.events.map((event) => ({
+                ...event,
+                trigger: { kind: "pad" as const, padId: pad.id },
+              })),
+            },
+          }
+        : clip,
+    ),
+  };
+}
 
 /**
  * Paints or erases one step-editor cell the way a pointer does: `pointerdown`
@@ -260,7 +299,7 @@ describe("EditorView", () => {
 
   it("loads a project and renders its step editor with the saved steps", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
@@ -270,12 +309,9 @@ describe("EditorView", () => {
     expect(
       within(editor).getByRole("region", { name: "Step editor" }),
     ).toBeInTheDocument();
-    // The slice fixture's four-on-the-floor clip: steps 1, 5, 9, 13 on the
-    // single pitched "Notes" lane.
-    expect(screen.getByRole("button", { name: "Notes, step 1, on" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Notes, step 2, off" }),
-    ).toBeInTheDocument();
+    // The four-on-the-floor clip: steps 1, 5, 9, 13 on the "BD" pad lane.
+    expect(screen.getByRole("button", { name: "BD, step 1, on" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "BD, step 2, off" })).toBeInTheDocument();
     // The track name appears in the step-editor's track-info header. (The
     // ARR-001 arrangement shell also lists it in its virtualized headers and
     // accessible track list, so scope this to the track editor.)
@@ -327,6 +363,23 @@ describe("EditorView", () => {
     ).toBeInTheDocument();
     // The step editor is a two-dimensional pitch editor's poor fit, so a
     // synth note clip shows the piano roll instead.
+    expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
+  });
+
+  it("renders the piano roll (not the step grid) for a sampler track's note clip (#496)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    renderEditor(project.metadata.id);
+
+    // A sampler is a tonal instrument, so its clip opens the piano roll like a
+    // synth's; only a drum machine keeps the step grid.
+    const editor = await openSequenceEditor();
+    expect(
+      within(editor).getByRole("region", { name: /Piano roll/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
   });
 
@@ -586,16 +639,16 @@ describe("EditorView", () => {
 
   it("toggling a step enables undo, and undo reverts it", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
     expect(
-      await screen.findByRole("button", { name: "Notes, step 2, on" }),
+      await screen.findByRole("button", { name: "BD, step 2, on" }),
     ).toBeInTheDocument();
 
     const undoButton = await screen.findByRole("button", { name: /^Undo/ });
@@ -603,13 +656,13 @@ describe("EditorView", () => {
     fireEvent.click(undoButton);
 
     expect(
-      await screen.findByRole("button", { name: "Notes, step 2, off" }),
+      await screen.findByRole("button", { name: "BD, step 2, off" }),
     ).toBeInTheDocument();
   });
 
   it("autosaves an edit, and the save status settles to Saved with an advanced revision", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     const startingRevision = project.metadata.revision;
@@ -617,7 +670,7 @@ describe("EditorView", () => {
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
 
     const saveStatus = await screen.findByText("Saved", {}, { timeout: 3_000 });
     expect(
@@ -633,21 +686,21 @@ describe("EditorView", () => {
 
   it("the save status revision keeps advancing across undo, so a stale echo cannot restore the undone note", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
     await screen.findByText("Saved", {}, { timeout: 3_000 });
     const saveStatusEl = document.querySelector(".save-status");
     const revisionAfterAdd = Number(saveStatusEl?.getAttribute("data-revision"));
 
     const undoButton = await screen.findByRole("button", { name: /^Undo/ });
     fireEvent.click(undoButton);
-    await screen.findByRole("button", { name: "Notes, step 2, off" });
+    await screen.findByRole("button", { name: "BD, step 2, off" });
 
     await vi.waitFor(() => {
       const revisionAfterUndo = Number(saveStatusEl?.getAttribute("data-revision"));
@@ -664,7 +717,7 @@ describe("EditorView", () => {
 
   it("shows an actionable Save failed state with an explicit retry, and recovers", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
@@ -672,7 +725,7 @@ describe("EditorView", () => {
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
 
     await screen.findByText("Save failed", {}, { timeout: 3_000 });
     expect(
@@ -696,7 +749,7 @@ describe("EditorView", () => {
 
   it("does not offer a retry button for a non-retryable failure", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
@@ -717,7 +770,7 @@ describe("EditorView", () => {
       revision: (stored.revision as number) + 1,
     });
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
 
     await screen.findByText("Save failed", {}, { timeout: 3_000 });
     expect(
@@ -1243,9 +1296,8 @@ describe("EditorView track selection keys (#533)", () => {
 });
 
 describe("EditorView keyboard shortcuts", () => {
-  async function renderSlice() {
+  async function renderSlice(project: Project = createStepGridProject()) {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
@@ -1256,13 +1308,13 @@ describe("EditorView keyboard shortcuts", () => {
   it("undoes an edit from the keyboard, through the same command path as the button", async () => {
     await renderSlice();
 
-    paintStep("Notes, step 2, off");
-    await screen.findByRole("button", { name: "Notes, step 2, on" });
+    paintStep("BD, step 2, off");
+    await screen.findByRole("button", { name: "BD, step 2, on" });
 
     fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
     expect(
-      await screen.findByRole("button", { name: "Notes, step 2, off" }),
+      await screen.findByRole("button", { name: "BD, step 2, off" }),
     ).toBeInTheDocument();
   });
 
@@ -1273,7 +1325,7 @@ describe("EditorView keyboard shortcuts", () => {
     fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Notes, step 1, on" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "BD, step 1, on" })).toBeInTheDocument();
   });
 
   it("does not fire a shortcut typed into a text field", async () => {
@@ -1324,7 +1376,8 @@ describe("EditorView keyboard shortcuts", () => {
   });
 
   it("does not toggle playback while the pack browser is open, and Escape closes it", async () => {
-    await renderSlice();
+    // The library opens from the sampler's sample slot.
+    await renderSlice(createSliceFixtureProject());
 
     // The pack browser is a modal surface like the guide, so it takes the
     // keyboard the same way (PRD KEY-02). It opens from the library, which
@@ -1666,7 +1719,7 @@ function firePointerAtStarterClip(canvas: Element, type: string): void {
 describe("EditorView sequence editor", () => {
   async function renderSlice() {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     return { ...renderEditor(project.metadata.id), project };
@@ -1684,9 +1737,7 @@ describe("EditorView sequence editor", () => {
     await renderSlice();
     const editor = await openSequenceEditor();
 
-    expect(
-      within(editor).getByRole("button", { name: "Notes, step 1, on" }),
-    ).toBeVisible();
+    expect(within(editor).getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -1735,7 +1786,7 @@ describe("EditorView sequence editor", () => {
 describe("EditorView views", () => {
   async function renderViews(analytics?: Analytics) {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     const rendered = renderEditor(project.metadata.id, { analytics });
@@ -1839,8 +1890,8 @@ describe("EditorView views", () => {
     // what "switching views never rebuilds audio nodes or loses transport
     // position" rests on, since the audio graph has the same lifetime.
     await openSequenceEditor();
-    paintStep("Notes, step 2, off");
-    await screen.findByRole("button", { name: "Notes, step 2, on" });
+    paintStep("BD, step 2, off");
+    await screen.findByRole("button", { name: "BD, step 2, on" });
     const undoBefore = screen.getByRole("button", { name: /^Undo / });
 
     clickAndFlush(viewLink("Mixer"));
@@ -1958,35 +2009,91 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
   });
 
-  it("moves and resizes the loop brace from its keyboard controls", async () => {
+  it("zooms with +, - and Shift+Z (the whole song), the keys of the zoom group's buttons", async () => {
+    await renderLooping();
+    const root = screen.getByTestId("arrangement-view-ready");
+    const scale = () => Number(root.getAttribute("data-pixels-per-tick"));
+    const before = scale();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "+", shiftKey: true }));
+    expect(scale()).toBeGreaterThan(before);
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "-" }));
+    expect(scale()).toBeCloseTo(before);
+    // The starter song is one bar long, so it fills jsdom's 960px viewport.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Z", shiftKey: true }));
+    expect(scale()).toBeCloseTo(960 / 768);
+  });
+
+  const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  it("exposes the loop brace as a focusable slider described by the range readout", async () => {
+    await renderLooping();
+    const live = screen.getByTestId("arrangement-loop-live");
+    const brace = screen.getByRole("slider", { name: "Loop brace" });
+    expect(brace).toHaveAttribute("tabindex", "0");
+    expect(brace).toHaveAttribute("aria-valuenow", "1");
+    expect(brace).toHaveAttribute("aria-valuetext", "bar 1");
+    expect(brace).toHaveAttribute("aria-describedby", live.id);
+    expect(screen.queryByRole("spinbutton", { name: "Loop start" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "Loop length" })).toBeNull();
+  });
+
+  it("moves and resizes the focused loop brace with the arrow keys, one command per press", async () => {
     const transport = await renderLooping();
     const live = screen.getByTestId("arrangement-loop-live");
-    expect(live).toHaveTextContent("Loop over bar 1, looping on");
-    const length = screen.getByRole("spinbutton", { name: "Loop length" });
-    const start = screen.getByRole("spinbutton", { name: "Loop start" });
-    // A new project's brace spans the first bar.
-    expect(start).toHaveValue(1);
-    expect(length).toHaveValue(1);
-    // Each control is described by the one readout of the range.
-    expect(start).toHaveAttribute("aria-describedby", live.id);
-    expect(length).toHaveAttribute("aria-describedby", live.id);
+    const brace = screen.getByRole("slider", { name: "Loop brace" });
+    const press = async (key: string, shiftKey = false) => {
+      fireEvent.keyDown(brace, { key, shiftKey });
+      await settle();
+    };
+    brace.focus();
+    // Solid batches the focus write: the keys see it a tick later.
+    await settle();
 
-    fireEvent.change(length, { target: { value: "2" } });
+    // Shift+Right lengthens from the end edge: bar 1 becomes bars 1 to 2.
+    await press("ArrowRight", true);
     await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
     expect(live).toHaveTextContent("Loop over bars 1 to 2, looping on");
-    fireEvent.change(start, { target: { value: "3" } });
-    await screen.findByRole("button", { name: "Undo Loop bars 3-4" });
-    expect(live).toHaveTextContent("Loop over bars 3 to 4, looping on");
-    // Both read back from the song, so the brace moved without changing length.
-    expect(start).toHaveValue(3);
-    expect(length).toHaveValue(2);
-    // Something that is not a whole bar is refused, and the brace stays put.
-    fireEvent.change(length, { target: { value: "0" } });
-    expect(length).toHaveValue(2);
+    // Right moves the whole brace a bar, keeping its length.
+    await press("ArrowRight");
+    await screen.findByRole("button", { name: "Undo Loop bars 2-3" });
+    expect(live).toHaveTextContent("Loop over bars 2 to 3, looping on");
+    expect(brace).toHaveAttribute("aria-valuenow", "2");
+    expect(brace).toHaveAttribute("aria-valuetext", "bars 2 to 3");
+    // Left moves back; at the top of the song it stops rather than going negative.
+    await press("ArrowLeft");
+    await press("ArrowLeft");
+    await screen.findByRole("button", { name: "Undo Loop bars 1-2" });
+    expect(live).toHaveTextContent("Loop over bars 1 to 2, looping on");
+    // Shift+Left shortens down to one bar and no further.
+    await press("ArrowLeft", true);
+    await press("ArrowLeft", true);
+    expect(live).toHaveTextContent("Loop over bar 1, looping on");
 
+    // One event per press that changed the range; the clamped ones logged none.
     expect(
       transport.named("loop_range_set").map((event) => event.params.bar_count),
-    ).toEqual([2, 2]);
+    ).toEqual([2, 2, 2, 1]);
+  });
+
+  it("leaves Left and Right to the rest of the editor when the brace is not focused", async () => {
+    const transport = await renderLooping();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true });
+    expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
+      "Loop over bar 1, looping on",
+    );
+    expect(transport.named("loop_range_set")).toHaveLength(0);
+
+    const brace = screen.getByRole("slider", { name: "Loop brace" });
+    brace.focus();
+    await settle();
+    brace.blur();
+    await settle();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(screen.getByTestId("arrangement-loop-live")).toHaveTextContent(
+      "Loop over bar 1, looping on",
+    );
   });
 
   it("the metronome shortcut O toggles the click from the keyboard", async () => {

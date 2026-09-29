@@ -17,6 +17,7 @@ import { EditorSession } from "../editor/EditorSession";
 import { orderedTrackIds } from "../editor/trackReorder";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
+import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
@@ -148,13 +149,37 @@ function renderView(analytics: Analytics) {
 }
 
 describe("ArrangementView shell", () => {
-  it("renders the four named DOM actions for keyboard/accessibility workflows", () => {
+  it("floats a four-button, icon-only zoom group, top to bottom, with the keys as tooltips", () => {
     const { analytics } = analyticsAllowing();
     renderView(analytics);
-    expect(screen.getByLabelText("Zoom in")).toBeInTheDocument();
-    expect(screen.getByLabelText("Zoom out")).toBeInTheDocument();
-    expect(screen.getByLabelText("Zoom to selection")).toBeInTheDocument();
-    expect(screen.getByLabelText("Scroll to playhead")).toBeInTheDocument();
+    const group = screen.getByRole("group", { name: "Zoom" });
+    const buttons = within(group).getAllByRole("button");
+    const platform = detectPlatform();
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Zoom to arrangement",
+      "Zoom to selection",
+      "Zoom in",
+      "Zoom out",
+    ]);
+    // Icons only: no button carries visible text, and each tooltip names its key
+    // as the registry spells it.
+    for (const button of buttons) expect(button).toHaveTextContent("");
+    expect(buttons.map((button) => button.getAttribute("title"))).toEqual([
+      `Zoom to arrangement (${shortcutLabel("view.zoom_to_arrangement", platform)})`,
+      `Zoom to selection (${shortcutLabel("view.zoom_to_selection", platform)})`,
+      `Zoom in (${shortcutLabel("view.zoom_in", platform)})`,
+      `Zoom out (${shortcutLabel("view.zoom_out", platform)})`,
+    ]);
+    // Zoom to selection has nothing to frame yet; the others always work.
+    expect(buttons.map((button) => (button as HTMLButtonElement).disabled)).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ]);
+    // Scroll to playhead is keyboard-only now, and the old toolbar is gone.
+    expect(screen.queryByRole("button", { name: "Scroll to playhead" })).toBeNull();
+    expect(document.querySelector(".arrangement-toolbar")).toBeNull();
   });
 
   /** UI-001/CF-004: a clip is canvas pixels with no node to aim at, so the
@@ -645,7 +670,36 @@ describe("the one arrangement selection (#292)", () => {
     expect(said()).toBe("Position 5.1.1");
   });
 
-  it("zooms to a clicked clip from the toolbar, and has nothing to zoom to without one", async () => {
+  it("zooms to the whole arrangement from its button, framing bar 1 to the last clip's end", async () => {
+    await twoTracks();
+    clickAndFlush(screen.getByRole("button", { name: "Zoom to arrangement" }));
+    const root = document.querySelector(".arrangement-view") as HTMLElement;
+    // The song is three bars long; jsdom's viewport is the shell's initial 960px.
+    expect(scale(root.parentElement as HTMLElement)).toBeCloseTo(960 / (3 * BAR));
+  });
+
+  it("scrolls a distant playhead into view through its action", async () => {
+    const built = buildArrangementProject([[{ startTicks: 0, durationTicks: 40 * BAR }]]);
+    const { session } = await setUpEditing(built.project);
+    const actions: { current: PlacementEditingActions | null } = { current: null };
+    render(() => (
+      <ArrangementView
+        project={session.project}
+        dispatch={session.dispatch.bind(session)}
+        playheadTicks={() => 30 * BAR}
+        onEditingActionsReady={(ready) => {
+          actions.current = ready;
+        }}
+      />
+    ));
+    const viewport = document.querySelector<HTMLElement>(".arrangement-viewport");
+    expect(viewport?.scrollLeft).toBe(0);
+    actions.current?.scrollToPlayhead();
+    flush();
+    expect(viewport?.scrollLeft).toBeGreaterThan(0);
+  });
+
+  it("zooms to a clicked clip from its button, and has nothing to zoom to without one", async () => {
     const { canvas } = await twoTracks();
     const zoom = screen.getByRole("button", { name: "Zoom to selection" });
     expect(zoom).toBeDisabled();
