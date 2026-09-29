@@ -488,6 +488,43 @@ describe("Mixer controls (TRK-02)", () => {
     expect(history.entries).toHaveLength(1);
   });
 
+  it("double-clicking a volume fader resets it to 0 dB as one history entry (#536)", () => {
+    const { history } = renderMixer();
+    const track = history.project.song.tracks[0];
+    const fader = screen.getByLabelText(`Volume for ${track.name}`) as HTMLInputElement;
+    fader.value = "0.3";
+    fireEvent.input(fader);
+    fireEvent.change(fader);
+    flush();
+    expect(history.project.song.tracks[0].mixer.volume).not.toBe(0);
+    const before = history.entries.length;
+
+    fireEvent.dblClick(fader);
+    flush();
+
+    expect(history.project.song.tracks[0].mixer.volume).toBe(0);
+    expect(history.entries).toHaveLength(before + 1);
+  });
+
+  it("double-clicking a pan control resets it to centre as one history entry (#536)", () => {
+    const { history } = renderMixer();
+    const pan = screen.getByLabelText(
+      `Pan for ${history.project.song.tracks[0].name}`,
+    ) as HTMLInputElement;
+    pan.value = "0.6";
+    fireEvent.input(pan);
+    fireEvent.change(pan);
+    flush();
+    expect(history.project.song.tracks[0].mixer.pan).toBe(0.6);
+    const before = history.entries.length;
+
+    fireEvent.dblClick(pan);
+    flush();
+
+    expect(history.project.song.tracks[0].mixer.pan).toBe(0);
+    expect(history.entries).toHaveLength(before + 1);
+  });
+
   it("shows a human-readable dB value and a pan readout", () => {
     const { history } = renderMixer();
     const track = history.project.song.tracks[0];

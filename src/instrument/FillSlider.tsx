@@ -61,6 +61,13 @@ export interface FillSliderProps {
    * parameter's own unit.
    */
   readonly parseEntry?: (text: string) => number | null;
+  /**
+   * Where a double-click puts the slider back, in the slider's own coordinate
+   * space. It defaults to the parameter's declared default, which is only right
+   * when the slider moves in the parameter's own space, so a slider with a
+   * different `range` (a volume fader's positions) must supply it.
+   */
+  readonly resetValue?: number;
 }
 
 /**
@@ -75,6 +82,8 @@ export interface FillSliderProps {
  * range's own `step` follows the parameter definition, so a stepped parameter
  * (pitch in semitones, waveform index) snaps and a continuous one (cutoff) does
  * not.
+ *
+ * Double-clicking the slider reverts it to the parameter's default.
  *
  * `onInput` fires per movement so the audio graph can follow live; `onCommit`
  * fires once when the gesture ends, which is where the caller opens/closes a
@@ -145,6 +154,20 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     revert();
   };
 
+  /**
+   * Double-clicking the slider puts it back to its default, as the same `input`
+   * then `commit` a typed value lands with, so it is one history entry. The
+   * value field is left alone: a double-click there selects text.
+   */
+  const reset = () => {
+    const target =
+      props.resetValue ?? (props.range ? undefined : props.definition.defaultValue);
+    if (target === undefined) return;
+    const value = coerce(target);
+    props.onInput(value);
+    props.onCommit(value);
+  };
+
   const coerce = (raw: number): number => {
     const range = props.range;
     if (!range) return clampParameterValue(props.definition, raw);
@@ -205,6 +228,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           // up/cancel close the same gesture; extra commits are a safe no-op.
           // (`PianoRollNote` already covers its velocity slider this way.)
           onChange={(event) => props.onCommit(coerce(event.currentTarget.valueAsNumber))}
+          onDblClick={reset}
           onPointerUp={(event) =>
             props.onCommit(coerce(event.currentTarget.valueAsNumber))
           }

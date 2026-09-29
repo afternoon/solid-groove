@@ -77,6 +77,7 @@ export function DbFader(props: DbFaderProps): JSX.Element {
       label="Vol"
       ariaLabel={props.ariaLabel}
       range={FADER_RANGE}
+      resetValue={dbToFaderPosition(props.definition, props.definition.defaultValue)}
       value={dbToFaderPosition(props.definition, props.value)}
       displayValue={formatDb(props.definition, props.value)}
       // The field takes decibels; the fader travels in positions.

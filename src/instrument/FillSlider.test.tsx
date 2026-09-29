@@ -85,3 +85,49 @@ describe("FillSlider value field (#447)", () => {
     expect(onCommit).toHaveBeenCalledExactlyOnceWith(1);
   });
 });
+
+describe("FillSlider double-click reset (#536)", () => {
+  function renderResettable(props: { range?: boolean; resetValue?: number } = {}) {
+    const onInput = vi.fn();
+    const onCommit = vi.fn();
+    render(() => (
+      <FillSlider
+        definition={SYNTH_FILTER_CUTOFF}
+        value={5000}
+        displayValue="5 kHz"
+        onInput={onInput}
+        onCommit={onCommit}
+        range={props.range ? { min: 0, max: 1, step: 0.01 } : undefined}
+        resetValue={props.resetValue}
+      />
+    ));
+    return { onInput, onCommit, slider: screen.getByRole("slider") };
+  }
+
+  it("reverts to the declared default as one input and one commit", () => {
+    const { slider, onInput, onCommit } = renderResettable();
+    fireEvent.dblClick(slider);
+    expect(onInput).toHaveBeenCalledExactlyOnceWith(SYNTH_FILTER_CUTOFF.defaultValue);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(SYNTH_FILTER_CUTOFF.defaultValue);
+  });
+
+  it("uses resetValue in the slider's own space when it has a range", () => {
+    const { slider, onCommit } = renderResettable({ range: true, resetValue: 0.75 });
+    fireEvent.dblClick(slider);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(0.75);
+  });
+
+  it("does nothing on a ranged slider that gave no resetValue", () => {
+    const { slider, onInput, onCommit } = renderResettable({ range: true });
+    fireEvent.dblClick(slider);
+    expect(onInput).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("leaves the value field's double-click to select text", () => {
+    const { onInput, onCommit } = renderResettable();
+    fireEvent.dblClick(screen.getByRole("textbox"));
+    expect(onInput).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+});
