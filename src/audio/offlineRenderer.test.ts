@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project } from "../domain/entities";
 import {
   createPianoRollFixtureProject,
@@ -25,6 +25,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await runtimeModule.getAudioRuntime().close();
   runtimeModule.__resetAudioRuntimeForTests();
 });
@@ -42,6 +43,13 @@ function toneLoader() {
       return Tone.ToneAudioBuffer.fromArray(data);
     },
   };
+}
+
+function nativeContexts(created: OfflineAudioContext[] = []) {
+  const construct = (target: typeof OfflineAudioContext, args: unknown[]) =>
+    created[created.push(Reflect.construct(target, args)) - 1];
+  vi.stubGlobal("OfflineAudioContext", new Proxy(OfflineAudioContext, { construct }));
+  return created;
 }
 
 async function render(
@@ -162,6 +170,7 @@ describe("renderProjectOffline cancellation and failure", () => {
 
   it("stops mid-render when cancelled, and releases every offline resource", async () => {
     const live = Tone.getContext();
+    const contexts = nativeContexts();
     const controller = new AbortController();
     const yields: unknown[] = [];
     const scheduler: Scheduler = {
@@ -183,9 +192,22 @@ describe("renderProjectOffline cancellation and failure", () => {
     const error = await rejection(outcome);
     expect(error.code).toBe("aborted");
     expect(registry.isEmpty()).toBe(true);
+    expect(contexts.map((context) => context.state)).toEqual(["closed"]);
     expect(yields.length).toBeGreaterThan(0);
     for (const context of yields) expect(context).toBe(live);
     expect(Tone.getContext()).toBe(live);
+  });
+
+  it("fails as an internal error mid-render, and still finishes the render", async () => {
+    const contexts = nativeContexts();
+    const { outcome } = await render(createPianoRollFixtureProject(), {
+      maxTailSeconds: 20,
+      onProgress: (fraction) => {
+        if (fraction > 0.5) throw new Error("bug");
+      },
+    });
+    expect((await rejection(outcome)).code).toBe("internal");
+    expect(contexts.map((context) => context.state)).toEqual(["closed"]);
   });
 
   it("fails with a decode error when an asset will not load, and releases everything", async () => {

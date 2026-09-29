@@ -4,7 +4,11 @@ import type { Scheduler } from "../shared/scheduler";
 import type { AssetBufferLoader } from "./AudioBufferCache";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import { disposeVoicesFinishedBy } from "./instruments/assetVoice";
-import { renderOfflineInStep, withGlobalContext } from "./offlineClock";
+import {
+  finishOfflineRender,
+  renderOfflineInStep,
+  withGlobalContext,
+} from "./offlineClock";
 import {
   OfflineRenderError,
   openOfflineSession,
@@ -136,5 +140,7 @@ export async function renderProjectOffline(
     });
   } finally {
     await session.release();
+    // A render cancelled or failed part-way finishes, as silence now the graph is gone.
+    await finishOfflineRender(session.context);
   }
 }
