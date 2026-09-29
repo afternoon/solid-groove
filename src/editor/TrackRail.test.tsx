@@ -91,3 +91,23 @@ describe("TrackRail reorder (#447)", () => {
     expect(history.project.song.tracks[0].mixer.volume).toBeLessThan(track.mixer.volume);
   });
 });
+
+describe("TrackRail delete (#537)", () => {
+  it("hands the pressed row's track to onDelete", () => {
+    const [a, b] = createReferenceProject({ trackCount: 2, placementCount: 2 }).song
+      .tracks;
+    const onDelete = vi.fn<(trackId: TrackId) => void>();
+    render(() => (
+      <TrackRail
+        tracks={[a, b]}
+        selectedTrackId={null}
+        onSelect={() => {}}
+        onDelete={onDelete}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+    fireEvent.click(screen.getByRole("button", { name: `Delete ${b.name}` }));
+    expect(onDelete).toHaveBeenCalledExactlyOnceWith(b.id);
+  });
+});
