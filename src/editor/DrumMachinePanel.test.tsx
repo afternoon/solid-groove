@@ -11,8 +11,10 @@ import {
   type TransactionResult,
 } from "../commands";
 import type { DrumPad, NoteTrigger, Track } from "../domain/entities";
+import { dbToFaderPosition, faderPositionToDb } from "../domain/faders";
 import { createDrumMachineFixtureProject } from "../domain/fixtures";
 import type { PadId, TrackId } from "../domain/ids";
+import { TRACK_VOLUME } from "../domain/parameters";
 import { fillExtent, moveTo, testAnalytics } from "../instrument/panelTesting";
 import type { WatchPeaks } from "../instrument/SampleWell";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
@@ -257,6 +259,47 @@ describe("DrumMachinePanel table (#447)", () => {
     expect(preview.querySelector("path")?.getAttribute("d")).toMatch(/^M/);
     fireEvent.click(preview);
     expect(audition).toHaveBeenCalledExactlyOnceWith(pad?.id);
+  });
+});
+
+/**
+ * The last value a pad-level control dispatched through `drum.setPadParameter`.
+ * With no history behind the render, each step lands as one plain dispatch.
+ */
+function lastPadLevel(dispatch: ReturnType<typeof renderPanel>["dispatch"]): number {
+  const command = dispatch.mock.calls.at(-1)?.[0] as RawCommandInput;
+  expect(command.type).toBe("drum.setPadParameter");
+  const payload = command.payload as { parameterId: string; value: number };
+  expect(payload.parameterId).toBe(TRACK_VOLUME.id);
+  return payload.value;
+}
+
+describe("DrumMachinePanel pad level fader law (#634)", () => {
+  it("moves the row's and the editor's pad level on the mixer faders' curve", () => {
+    const { track, dispatch } = renderPanel();
+    const instrument = track.instrument;
+    if (instrument?.kind !== "drumMachine") throw new Error("expected a drum machine");
+    const [first] = instrument.pads;
+    const editor = screen.getByRole("region", { name: `${first.name} pad` });
+    const levels = [
+      screen.getByRole("slider", { name: `Level for ${first.name}` }),
+      within(editor).getByRole("slider", { name: "Level" }),
+    ] as HTMLInputElement[];
+    for (const level of levels) {
+      // The pad's level sits where a mixer fader shows the same decibels.
+      expect(Number(level.value)).toBeCloseTo(
+        dbToFaderPosition(TRACK_VOLUME, first.mixer.volume),
+        2,
+      );
+      // The same travel stores the same decibels a mixer fader would.
+      moveTo(level, "0.5");
+      expect(lastPadLevel(dispatch)).toBeCloseTo(faderPositionToDb(TRACK_VOLUME, 0.5));
+      // Double-click still puts the pad back to 0 dB (#536).
+      fireAndFlush(() => {
+        fireEvent.dblClick(level);
+      });
+      expect(lastPadLevel(dispatch)).toBeCloseTo(TRACK_VOLUME.defaultValue);
+    }
   });
 });
 
