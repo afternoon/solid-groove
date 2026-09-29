@@ -130,7 +130,7 @@ export const PACKS = [
     family: "drums",
     name: "Core Electronic Drums",
     version: "1.0.0",
-    publisher: "Solid Groove",
+    publisher: "Groove",
     kind: "factory",
     description:
       "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
@@ -143,7 +143,7 @@ export const PACKS = [
     family: "bass",
     name: "Foundation Bass",
     version: "1.0.0",
-    publisher: "Solid Groove",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Sub, sustained, reese, and stab bass one-shots for dubstep, drum & bass, techno, and beyond. Contains no drums, tonal, texture, or FX material.",
@@ -171,7 +171,7 @@ export const PACKS = [
     family: "tonal",
     name: "Tonal Elements",
     version: "1.0.0",
-    publisher: "Solid Groove",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Chords, stabs, plucks, keys, mallets, and bells for melodic and harmonic material. Contains no drums, bass, texture, or FX material.",
@@ -199,7 +199,7 @@ export const PACKS = [
     family: "texture",
     name: "Ambient Textures",
     version: "1.0.0",
-    publisher: "Solid Groove",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Noise, ambience, drones, mechanical, and organic textures for atmosphere and sound design. Contains no drums, bass, tonal, or FX material.",
@@ -216,7 +216,7 @@ export const PACKS = [
     family: "fx",
     name: "Transitions & FX",
     version: "1.0.0",
-    publisher: "Solid Groove",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Impacts, risers, downers, sweeps, reverses, and glitches for transitions and drops. Contains no drums, bass, tonal, or texture material.",
@@ -243,7 +243,7 @@ export const PACKS = [
     family: null,
     name: "CC0 Community Content",
     version: "1.0.0",
-    publisher: "Solid Groove",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, FreePats banks (synth drum hits, world percussion, synth basses, leads, pads, strings, brass, bells, and FX), and Karoryfer Caveman Cosmonaut organ-synth tones. Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",

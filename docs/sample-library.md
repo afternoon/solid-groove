@@ -1,4 +1,4 @@
-# Solid Groove Sample Library Plan
+# Groove Sample Library Plan
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@ Related document: [Product principles](./prd.md)
 
 ## 1. Purpose
 
-Solid Groove needs a sample library that is useful immediately, broad enough to support its initial genres, small enough to curate properly, and legally safe to expose through a sampler, stem export, and Ableton Live export.
+Groove needs a sample library that is useful immediately, broad enough to support its initial genres, small enough to curate properly, and legally safe to expose through a sampler, stem export, and Ableton Live export.
 
 The library is not a large undifferentiated download catalogue. It is an opinionated factory collection whose assets work together, cover the roles needed to build complete electronic tracks, and give the assistant reliable material for creating editable ideas.
 
@@ -46,7 +46,7 @@ This is a content-acquisition and implementation plan, not legal advice. Any amb
 
 ### 3.1 Why royalty-free is insufficient
 
-Most commercial and free sample-pack licences let a producer incorporate samples into finished music but prohibit redistribution of the raw files. Solid Groove exposes individual sounds in a browser, lets users load them into samplers, and copies or renders content during stem and Ableton export. That use resembles a sample library or DAW factory-content distribution, not merely use in a composition.
+Most commercial and free sample-pack licences let a producer incorporate samples into finished music but prohibit redistribution of the raw files. Groove exposes individual sounds in a browser, lets users load them into samplers, and copies or renders content during stem and Ableton export. That use resembles a sample library or DAW factory-content distribution, not merely use in a composition.
 
 For example:
 
@@ -54,16 +54,16 @@ For example:
 - [Splice](https://splice.com/terms) prohibits sublicensing or redistributing isolated sounds and prohibits competitive sample-library use.
 - [MusicRadar SampleRadar](https://www.musicradar.com/news/sampleradar-digital-vs-analogue-samples) allows use in music but asks users not to redistribute the samples.
 
-None of those standard licences permits bundling in Solid Groove. They may be revisited only through a separate OEM, partnership, or direct-licensing agreement.
+None of those standard licences permits bundling in Groove. They may be revisited only through a separate OEM, partnership, or direct-licensing agreement.
 
 ### 3.2 Accepted rights for the alpha
 
 An asset may be bundled only when one of these applies:
 
 - It is released under CC0 1.0 by a credible rights holder with recorded provenance.
-- Solid Groove created it entirely from sources it owns or that independently satisfy this policy.
+- Groove created it entirely from sources it owns or that independently satisfy this policy.
 - A commissioned creator signed an agreement explicitly allowing commercial raw-sample redistribution inside a DAW, user audition and manipulation, project collaboration, WAV/stem export, native-project export, caching, format conversion, and derivative processing.
-- A third-party owner granted Solid Groove equivalent written OEM rights.
+- A third-party owner granted Groove equivalent written OEM rights.
 
 The alpha factory library will not bundle CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL-licensed audio, or assets with custom attribution terms. Some may legally be usable, but they add user-facing attribution, share-alike, DRM, export, or interpretation obligations that are unnecessary while suitable CC0 material exists.
 
@@ -95,7 +95,7 @@ Every accepted asset needs an immutable evidence record containing:
 - Pack/archive checksum where applicable.
 - Any direct permission or commissioned-content agreement ID.
 - Known source tools or recordings when supplied.
-- Modifications made by Solid Groove.
+- Modifications made by Groove.
 - Reviewer, review date, and approval status.
 
 If the evidence disappears later, the archived record must still establish what was granted at acquisition time. A takedown process must be able to disable an asset for new projects without breaking existing project documents.
@@ -115,7 +115,7 @@ They must remain outside the approved manifest and be replaced with internally s
 | [Producer Space](https://producerspace.com/) | Electronic one-shots, percussion, house material, MIDI, selected non-vocal loops | The [official clearance](https://producerspace.com/license) places the entire library under CC0 and expressly grants reproduction, modification, and distribution rights | Audit pack authorship and avoid vocals until performer provenance is documented |
 | [FreePats](https://freepats.zenvoid.org/) | Electronic percussion, synth bass multisamples, pads, leads, tuned percussion, selected acoustic instruments | Licences are stated per bank; use CC0 banks only | Begin with [electronic percussion](https://freepats.zenvoid.org/Percussion/electric-percussion.html), [synth bass](https://freepats.zenvoid.org/Synthesizer/synth-bass.html), and [synth pads](https://freepats.zenvoid.org/Synthesizer/synth-pad.html) |
 | [Versilian Community Sample Library](https://versilian-studios.com/vcsl/) | Experimental instruments, organic percussion, mallets, unusual resonances, textures, and multisamples | CC0; the publisher explicitly permits commercial software, DAWs, granular synths, and samplers | Select a small electronic-production subset rather than ingesting the full multi-gigabyte library |
-| Internally synthesized and recorded content | Core drum hits, noise, sub tones, oscillator cycles, risers, impacts, and processing-derived textures | Owned by Solid Groove when created without restricted source presets or samples | Highest-priority route for a coherent core kit and reliable genre coverage |
+| Internally synthesized and recorded content | Core drum hits, noise, sub tones, oscillator cycles, risers, impacts, and processing-derived textures | Owned by Groove when created without restricted source presets or samples | Highest-priority route for a coherent core kit and reliable genre coverage |
 
 ### 4.2 Tier 2: useful after asset-level audit
 
@@ -150,7 +150,7 @@ A pack record carries:
 | ID | Stable, opaque, and permanent. Never derived from the name. |
 | Name and description | User-facing. The description states what the pack is for and what it does not contain. |
 | Version | Immutable once published. Changed audio or changed metadata is a new version. |
-| Publisher | Solid Groove for factory packs; later a user or a third party. |
+| Publisher | Groove for factory packs; later a user or a third party. |
 | Kind | `factory`, `user`, or `third-party`. |
 | Rights position | One licence and redistribution posture covering every asset in the pack (section 3). |
 | Coverage claim | The roles, genres, and tempo range the pack claims to serve, and the intensity range it covers. |
@@ -418,7 +418,7 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
     "slug": "techno-drums",
     "name": "Techno Drums",
     "version": "1.0.0",
-    "publisher": "Solid Groove",
+    "publisher": "Groove",
     "kind": "factory",
     "description": "Driven kicks, metallic hats, and industrial percussion for 125-150 BPM techno. Drums and percussion only; no tonal material.",
     "coverage": {
@@ -566,7 +566,7 @@ Each approved asset must pass:
 - **Usefulness:** It can serve a clear role or valuable experimental purpose.
 - **Editability:** It leaves room for user processing unless its finished character is the point.
 - **Technical integrity:** It has no accidental clipping, clicks, corrupt data, or false metadata.
-- **Context fit:** It works in a real Solid Groove kit, instrument, loop, or project.
+- **Context fit:** It works in a real Groove kit, instrument, loop, or project.
 - **Pack fit:** It belongs in the pack that holds it — it serves that pack's stated purpose and shares its rights position.
 - **Naming:** The name describes the sound without unauthorized brands, artist imitation, or misleading genre claims.
 
@@ -674,7 +674,7 @@ The library is built from two independent routes through section 3.2, and both a
 
 | | Synthesized (`library:build`) | Acquired (`library:acquire`) |
 | --- | --- | --- |
-| Rights route | 3.2 route 2 — created entirely from sources Solid Groove owns | 3.2 route 1 — CC0 1.0 from a credible rights holder |
+| Rights route | 3.2 route 2 — created entirely from sources Groove owns | 3.2 route 1 — CC0 1.0 from a credible rights holder |
 | Source | `scripts/starter-library/catalog/` | The section 4 sources, pinned in `sources.lock.json` |
 | Needs network | No | Yes |
 | Reproducible | Byte-for-byte from a seed | By checksum, against a pinned download |

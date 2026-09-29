@@ -31,9 +31,9 @@ export const APPROVED_LICENSES = ["CC0-1.0", "solid-groove-owned"];
  */
 export const REJECTED_LICENSES = {
   "CC-BY-4.0":
-    "requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
+    "requires user-facing attribution Groove cannot carry through stem and Ableton export",
   "CC-BY-3.0":
-    "requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
+    "requires user-facing attribution Groove cannot carry through stem and Ableton export",
   "CC-BY-SA-4.0": "share-alike would attach to user projects",
   "CC-BY-NC-4.0": "non-commercial conflicts with a paid product",
   "CC-BY-ND-4.0": "no-derivatives conflicts with sampler use and processing",

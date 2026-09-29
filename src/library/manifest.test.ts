@@ -93,7 +93,7 @@ describe("delivery origin (issue #226)", () => {
             slug: "core-electronic-drums",
             name: "Core Electronic Drums",
             version: "1.0.0",
-            publisher: "Solid Groove",
+            publisher: "Groove",
             kind: "factory",
             description: "",
             assetCount: 1,
