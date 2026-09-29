@@ -3,7 +3,9 @@
 How Groove looks, and why. These principles hold on every surface: the
 arrangement, the instrument view, the mixer, the library and the dialogs.
 [`faceplate-system.html`](./faceplate-system.html) is the reference design
-they came from, and it plays. [`src/theme.css`](../src/theme.css) is the only
+they came from, and it plays. The library follows
+[`library-browser.html`](./library-browser.html) (#449), which plays too.
+[`src/theme.css`](../src/theme.css) is the only
 place a colour is written down. Where a rule below is enforced by a test, the
 test is named.
 
