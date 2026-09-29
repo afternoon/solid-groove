@@ -108,11 +108,13 @@ export function playAudioLoop(
   player.onstop = () => {
     // The last grains are scheduled up to one grain plus its crossfade past
     // the stop, so let them ring out instead of cutting the tail.
-    const tailMs = (LOOP_GRAIN_SIZE_SECONDS + LOOP_GRAIN_OVERLAP_SECONDS) * 1000 + 50;
-    disposeFinishedVoice(player, () =>
-      setTimeout(() => {
+    const tailSeconds = LOOP_GRAIN_SIZE_SECONDS + LOOP_GRAIN_OVERLAP_SECONDS + 0.05;
+    disposeFinishedVoice(
+      player,
+      () => {
         if (!player.disposed) player.dispose();
-      }, tailMs),
+      },
+      tailSeconds,
     );
   };
   return player;

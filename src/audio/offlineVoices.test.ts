@@ -51,22 +51,29 @@ async function instrumentContext() {
   return { scope, assetsById: new Map([[ASSET, asset]]), bufferCache };
 }
 
+/** Voices still waiting to be disposed at the last pause of the last render. */
+let waitingAtLastPause = Number.NaN;
+
 /**
  * Renders one voice the way an offline render plays it: built inside a
- * transport callback while Tone's offline clock runs through the whole
- * render, and only then handed to the audio thread.
+ * transport callback while Tone's offline clock runs ahead of the audio,
+ * which pauses every quarter second to dispose what has finished sounding.
  */
 async function renderVoice(build: () => (time: number) => void): Promise<Float32Array> {
-  const offline = new Tone.OfflineContext(1, 1, RATE);
+  const offline = clock.createOfflineContext(1, RATE, RATE);
   const play = clock.withGlobalContext(offline, build);
   // Give an asset cache a turn to deliver its buffer.
   await new Promise((resolve) => setTimeout(resolve, 0));
   offline.transport.schedule((time) => play(time), 0.1);
   clock.withGlobalContext(offline, () => offline.transport.start(0));
-  await clock.runOfflineClock(offline);
-  const raw = offline.rawContext as unknown as OfflineAudioContext;
-  const rendered = await raw.startRendering();
+  const rendered = await clock.renderOfflineInStep(offline, {
+    chunkSeconds: 0.25,
+    onRendered: (seconds) => {
+      waitingAtLastPause = assetVoice.disposeVoicesFinishedBy(offline, seconds);
+    },
+  });
   offline.dispose();
+  if (rendered === "stopped") throw new Error("expected audio");
   return rendered.getChannelData(0);
 }
 
@@ -82,6 +89,7 @@ describe("voices in an offline render (EXP-001)", () => {
       return (time) => node.trigger({ kind: "pitch", pitch: 60 }, time, 0.1, 1);
     });
     expect(rms(data.subarray(0.1 * RATE, 0.2 * RATE))).toBeGreaterThan(0.01);
+    expect(waitingAtLastPause).toBe(0); // and has left the render since
   });
 
   it("a drum-machine hit sounds", async () => {
@@ -103,6 +111,7 @@ describe("voices in an offline render (EXP-001)", () => {
       return (time) => node.trigger({ kind: "pad", padId: PAD }, time, 0.1, 1);
     });
     expect(rms(data.subarray(0.1 * RATE, 0.15 * RATE))).toBeGreaterThan(0.01);
+    expect(waitingAtLastPause).toBe(0); // and has left the render since
   });
 
   it.each([1, 1.5])("an audio loop at playback rate %d sounds", async (playbackRate) => {
@@ -117,6 +126,7 @@ describe("voices in an offline render (EXP-001)", () => {
       });
     });
     expect(rms(data.subarray(0.1 * RATE, 0.25 * RATE))).toBeGreaterThan(0.01);
+    expect(waitingAtLastPause).toBe(0); // and has left the render since
   });
 
   it("a one-shot sounds", async () => {
@@ -125,6 +135,7 @@ describe("voices in an offline render (EXP-001)", () => {
       assetVoice.playOneShot(buffer, Tone.getContext().destination, time, 0.1);
     });
     expect(rms(data.subarray(0.1 * RATE, 0.2 * RATE))).toBeGreaterThan(0.01);
+    expect(waitingAtLastPause).toBe(0); // and has left the render since
   });
 });
 
@@ -135,11 +146,25 @@ describe("disposeFinishedVoice", () => {
     expect(dispose).toHaveBeenCalledOnce();
   });
 
-  it("leaves a voice on an offline context to the render's teardown", () => {
+  it("lets a live voice ring before disposing it", async () => {
     const dispose = vi.fn();
-    const offline = new Tone.OfflineContext(1, 0.1, RATE);
-    assetVoice.disposeFinishedVoice({ context: offline }, dispose);
+    assetVoice.disposeFinishedVoice({ context: Tone.getContext() }, dispose, 0.01);
     expect(dispose).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it("disposes an offline voice only once the render has passed its ring", () => {
+    const dispose = vi.fn();
+    const offline = clock.createOfflineContext(1, RATE, RATE);
+    // Stopped at the offline clock's time 0, ringing for half a second more.
+    assetVoice.disposeFinishedVoice({ context: offline }, dispose, 0.5);
+    expect(assetVoice.disposeVoicesFinishedBy(offline, 0.49)).toBe(1);
+    expect(dispose).not.toHaveBeenCalled();
+    expect(assetVoice.disposeVoicesFinishedBy(offline, 0.5)).toBe(0);
+    expect(dispose).toHaveBeenCalledOnce();
+    assetVoice.disposeVoicesFinishedBy(offline, Number.POSITIVE_INFINITY);
+    expect(dispose).toHaveBeenCalledOnce();
     offline.dispose();
   });
 });

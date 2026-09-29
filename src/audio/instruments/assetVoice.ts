@@ -28,22 +28,52 @@ export function playOneShot(
 }
 
 /**
- * Disposes a voice's nodes once it has stopped — except in an offline render
- * (EXP-001), where it leaves them alone.
+ * Disposes a voice's nodes once it has stopped and then rung for
+ * `ringSeconds` — live at once (or after the ring), offline (EXP-001) only
+ * once the audio has actually rendered that far.
  *
  * Tone fires `onstop` from its JavaScript clock. Live, that clock runs in step
  * with the audio, so a stopped voice has already sounded. Offline, the clock
- * runs through the whole song *before* the audio thread renders any of it, so
- * disposing a voice there would disconnect it before it made a sound. An
- * offline render tears down its whole context when it ends, which releases
- * these nodes with it.
+ * runs *ahead* of the audio thread, so disposing a voice there would
+ * disconnect it before it made a sound. So an offline disposal is queued
+ * against its context, and the renderer runs it through
+ * {@link disposeVoicesFinishedBy} once the render has passed it. That keeps
+ * only the voices sounding alive in a render, as live, instead of every note
+ * in the song for the whole of it.
  */
 export function disposeFinishedVoice(
   node: { readonly context: Tone.BaseContext },
   dispose: () => void,
+  ringSeconds = 0,
 ): void {
-  if (node.context.isOffline) return;
-  dispose();
+  const { context } = node;
+  if (context.isOffline) {
+    const queue = offlineDisposals.get(context) ?? [];
+    offlineDisposals.set(context, queue);
+    queue.push({ at: context.now() + ringSeconds, dispose });
+  } else if (ringSeconds > 0) {
+    setTimeout(dispose, ringSeconds * 1000);
+  } else {
+    dispose();
+  }
+}
+
+const offlineDisposals = new WeakMap<
+  Tone.BaseContext,
+  { at: number; dispose: () => void }[]
+>();
+
+/** Runs every disposal queued on an offline `context` that is due by
+ * `seconds` of rendered audio. Returns how many are still waiting. */
+export function disposeVoicesFinishedBy(
+  context: Tone.BaseContext,
+  seconds: number,
+): number {
+  const queue = offlineDisposals.get(context) ?? [];
+  const waiting = queue.filter((entry) => entry.at > seconds);
+  offlineDisposals.set(context, waiting);
+  for (const entry of queue) if (entry.at <= seconds) entry.dispose();
+  return waiting.length;
 }
 
 /** A live subscription to one asset's decoded buffer, reattachable to a new asset id. */

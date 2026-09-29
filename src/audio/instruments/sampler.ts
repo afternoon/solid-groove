@@ -92,15 +92,15 @@ function playSampledVoice(
   );
   envelope.triggerAttackRelease(holdSeconds, time, velocity);
   player.start(time, offset, windowSeconds);
-  player.onstop = () =>
+  player.onstop = () => {
     disposeFinishedVoice(player, () => {
       player.dispose();
       gain.dispose();
-      // The envelope's release runs past the player's stop, so let it ring out
-      // before disposal rather than cutting the tail.
-      const releaseMs = (settings.release + 0.05) * 1000;
-      setTimeout(() => envelope.dispose(), releaseMs);
     });
+    // The envelope's release runs past the player's stop, so let it ring out
+    // before disposal rather than cutting the tail.
+    disposeFinishedVoice(player, () => envelope.dispose(), settings.release + 0.05);
+  };
 }
 
 export function createSamplerInstrumentNode(
