@@ -56,6 +56,10 @@ src/
 │   ├── Transport.ts         # Play/pause/stop/seek, playhead, tempo mirror, bar loop, metronome
 │   ├── underrun.ts          # Sampled late-dispatch counter behind `audio_underrun`
 │   ├── audioLoopPlayer.ts   # Pitch-preserving time-stretch for a tempo-labelled loop event
+│   ├── offlineRenderer.ts   # `renderProjectOffline`: the shared, cancellable offline renderer behind export (EXP-001)
+│   ├── offlineSession.ts    # One render's `OfflineContext` with the live `ProjectAudioGraph` built on it; coded `OfflineRenderError`
+│   ├── offlineClock.ts      # Runs Tone's offline clock in chunks, the offline context installed only while each chunk runs
+│   ├── renderLength.ts      # Where a render ends: the last clip, plus a tail trimmed to the last audible sample
 │   └── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
