@@ -29,6 +29,14 @@ import { toneBufferLoader } from "./toneBufferLoader";
 /** Stereo: the export format, and the width of the master bus. */
 export const RENDER_CHANNELS = 2;
 
+/**
+ * How far ahead of the offline clock transport events fire: live playback's
+ * own default. With none (Tone's offline default), an event fires on the
+ * first 128-frame block after its time and a voice's start is clamped to that
+ * block, so every note lands up to a block late.
+ */
+export const OFFLINE_LOOKAHEAD_SECONDS = 0.1;
+
 /** The owner every offline resource registers under. */
 export const OFFLINE_OWNER = "offline-render";
 
@@ -144,6 +152,9 @@ export function openOfflineSession(
           },
         });
         graph.reconcile(projection);
+        // Only now: built with none, every initial value (the tempo above
+        // included) lands at time 0 rather than one look-ahead in.
+        context.lookAhead = OFFLINE_LOOKAHEAD_SECONDS;
       });
     },
     async prepare() {
