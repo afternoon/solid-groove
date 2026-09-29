@@ -34,8 +34,18 @@ export const SHORTCUT_CONTEXTS = [
   "sequence_editor",
   "dialog",
   "gesture",
+  "loop_brace",
 ] as const;
 export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
+
+/**
+ * Contexts that exist only while one element has keyboard focus. A key such as
+ * `Left` already means something to the wider editor (`track.move_left`), so
+ * while the focused element claims it the focused element wins; the wider
+ * meaning is untouched everywhere else. Unlike `dialog` nothing else is
+ * suppressed: the transport and every other mapping keep working.
+ */
+export const FOCUS_CONTEXTS: readonly ShortcutContext[] = ["loop_brace"];
 
 /** The context that suppresses every other one while it is active. */
 export const MODAL_CONTEXT: ShortcutContext = "dialog";

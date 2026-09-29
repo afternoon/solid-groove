@@ -202,15 +202,17 @@ export function packDependencyLabel(project: Project | null): string | null {
 }
 
 /**
- * A synth track's note clip gets the CLP-03 piano roll instead of the FND-009
- * step grid: pitched notes want two dimensions (pitch x time), which the
- * 16-step grid cannot show.
+ * A synth or sampler track's note clip gets the CLP-03 piano roll instead of
+ * the FND-009 step grid: both are tonal instruments (#496), and pitched notes
+ * want two dimensions (pitch x time), which the 16-step grid cannot show. Only
+ * a drum machine, whose lanes are pads rather than pitches, keeps the grid.
  *
  * Asked of a clip rather than of a track (`UI-001`): the sequence editor opens
  * the clip you double-clicked, which need not be the only one on its track.
  */
 export function showPianoRoll(track: Track | null, clip: Clip | null): boolean {
-  return editedInstrument(track)?.kind === "synth" && clip?.content.kind === "notes";
+  const kind = editedInstrument(track)?.kind;
+  return (kind === "synth" || kind === "sampler") && clip?.content.kind === "notes";
 }
 
 /** A clip opened in the sequence editor, with the track it belongs to. */

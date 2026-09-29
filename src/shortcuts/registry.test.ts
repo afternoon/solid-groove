@@ -3,6 +3,7 @@ import { type ChordEvent, matchesChord, parseChord, type ShortcutPlatform } from
 import {
   chordsFor,
   matchShortcut,
+  preferFocused,
   RESERVED_CHORDS,
   resolveContexts,
   SHORTCUT_ACTION_IDS,
@@ -144,7 +145,8 @@ describe("conflict rules", () => {
             matchesChord(otherChord, chordEvent(chord, platform), platform),
           ),
         );
-        if (matches.length > 1) {
+        // A focus context outranks the ambient ones for its own keys.
+        if (preferFocused(matches, resolveContexts(active)).length > 1) {
           clashes.push(matches.map((match) => match.id).join(" vs "));
         }
       }
@@ -240,6 +242,7 @@ describe("context resolution", () => {
         sequence_editor: { key: "1", id: "view.show_arrangement" },
         dialog: { key: "escape", id: "view.close_surface" },
         gesture: { key: "escape", id: "view.close_surface" },
+        loop_brace: { key: "arrowleft", id: "arrangement.loop_move_earlier" },
       };
     for (const context of SHORTCUT_CONTEXTS) {
       const probe = expected[context];
@@ -293,5 +296,39 @@ describe("guide sections", () => {
   it("puts every shortcut into exactly one section", () => {
     const grouped = shortcutSections().flatMap((section) => section.shortcuts);
     expect(grouped).toHaveLength(SHORTCUTS.length);
+  });
+
+  describe("the focused loop brace's keys", () => {
+    const arrow = (key: string, shiftKey = false) =>
+      ({ key, shiftKey, ctrlKey: false, metaKey: false, altKey: false }) as ChordEvent;
+
+    it("act only while the brace has focus", () => {
+      expect(matchShortcut(arrow("ArrowLeft"), "other", ["editor"])?.id).toBe(
+        "track.move_left",
+      );
+      expect(
+        matchShortcut(arrow("ArrowLeft"), "other", ["editor", "loop_brace"])?.id,
+      ).toBe("arrangement.loop_move_earlier");
+    });
+
+    it("map each arrow, plain and shifted, to its own action", () => {
+      const active: readonly ShortcutContext[] = ["editor", "loop_brace"];
+      const id = (key: string, shift: boolean) =>
+        matchShortcut(arrow(key, shift), "mac", active)?.id;
+      expect(id("ArrowRight", false)).toBe("arrangement.loop_move_later");
+      expect(id("ArrowLeft", true)).toBe("arrangement.loop_shorten");
+      expect(id("ArrowRight", true)).toBe("arrangement.loop_lengthen");
+    });
+
+    it("leaves every other mapping live while it is focused", () => {
+      expect(matchShortcut(arrow(" "), "other", ["editor", "loop_brace"])?.id).toBe(
+        "transport.play_stop",
+      );
+    });
+
+    it("only narrows when a focus mapping is among the matches", () => {
+      const matches = [shortcutById("track.move_left")];
+      expect(preferFocused(matches, ["global", "editor", "loop_brace"])).toEqual(matches);
+    });
   });
 });
