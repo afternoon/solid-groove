@@ -1,0 +1,42 @@
+{
+  "id": "CF-007",
+  "title": "A producer drives the whole mix through an overdrive",
+  "steps": [
+    {
+      "file": "01-a-project-with-the-starter-kick-and-a-library-loop.png",
+      "caption": "A project with the starter kick and a library loop"
+    },
+    {
+      "file": "02-both-parts-play-over-the-loop-brace.png",
+      "caption": "Both parts play over the loop brace"
+    },
+    {
+      "file": "03-switch-to-the-mixer.png",
+      "caption": "Switch to the mixer"
+    },
+    {
+      "file": "04-the-master-is-on-screen-with-an-empty-chain.png",
+      "caption": "The master is on screen, with an empty chain"
+    },
+    {
+      "file": "05-add-an-overdrive-to-the-master-chain.png",
+      "caption": "Add an overdrive to the master chain"
+    },
+    {
+      "file": "06-undo-once-the-overdrive-comes-off.png",
+      "caption": "Undo once — the overdrive comes off"
+    },
+    {
+      "file": "07-redo-it-is-back.png",
+      "caption": "Redo — it is back"
+    },
+    {
+      "file": "08-drive-it-up-while-it-plays.png",
+      "caption": "Drive it up while it plays"
+    },
+    {
+      "file": "09-reload-the-overdrive-is-still-there-still-at-that-drive.png",
+      "caption": "Reload — the overdrive is still there, still at that drive"
+    }
+  ]
+}
