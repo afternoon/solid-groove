@@ -13,6 +13,7 @@ import type { Clip, NoteEvent, Project } from "../../domain/entities";
 import { createFactoryContext } from "../../domain/factories";
 import type { EventId } from "../../domain/ids";
 import { detectPlatform } from "../../shortcuts/keys";
+import { toggleTrackFlag } from "../trackSurface";
 import { pitchOf } from "./edits";
 import Gutter from "./Gutter";
 import { ROW_HEIGHT, stepWidth, ticksToSteps } from "./layout";
@@ -191,6 +192,11 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     deleteNotes([note.id]);
   }
 
+  /** The track the clip is on, whose solo the toolbar toggles (#657). */
+  const track = createMemo(() =>
+    props.project.song.tracks.find((candidate) => candidate.id === props.clip.trackId),
+  );
+
   const playheadLeft = createMemo<number | null>(() => {
     const ticks = props.playheadTicks;
     if (!props.playing || ticks === undefined || ticks >= props.clip.lengthTicks) {
@@ -211,6 +217,11 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
         onDelete={() => deleteNotes([...selected()])}
         preview={preview()}
         onTogglePreview={() => setPreview((on) => !on)}
+        soloed={track()?.mixer.soloed ?? false}
+        onToggleSolo={() => {
+          const current = track();
+          if (current) toggleTrackFlag(props.dispatch, current, "soloed");
+        }}
         zoom={zoom()}
         onZoomIn={viewport.zoomIn}
         onZoomOut={viewport.zoomOut}

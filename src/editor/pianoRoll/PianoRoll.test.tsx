@@ -131,4 +131,21 @@ describe("piano roll", () => {
     fireEvent.pointerDown(c3);
     expect(audition).toHaveBeenCalledTimes(1);
   });
+
+  it("solos the clip's track from the toolbar, as one undoable edit (#657)", async () => {
+    const { renderRoll, session } = await setUpRoll();
+    renderRoll();
+    const solo = screen.getByRole("button", { name: "Solo" });
+    const soloed = () => session.project.song.tracks[0].mixer.soloed;
+    expect(solo).toHaveAttribute("aria-pressed", "false");
+
+    clickAndFlush(solo);
+    expect(soloed()).toBe(true);
+    expect(solo).toHaveAttribute("aria-pressed", "true");
+
+    session.undo();
+    flush();
+    expect(soloed()).toBe(false);
+    expect(solo).toHaveAttribute("aria-pressed", "false");
+  });
 });
