@@ -7,22 +7,30 @@
 // this tag" mode would defeat the point of the section 3 policy, so the fetcher
 // has no such capability.
 //
-// Adding a source is a rights decision, not a coding one. Section 3.2 accepts
-// exactly four routes, and only two of them apply to downloadable content:
-// CC0 1.0 from a credible rights holder with recorded provenance, or a written
-// OEM grant. Everything else — CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL audio,
-// custom attribution terms — is rejected by `APPROVED_LICENSES` below, however
-// permissive it looks.
+// Adding a source is a rights decision, not a coding one. Section 3.2 lists the
+// accepted routes; three apply to downloadable content: CC0 1.0 from a credible
+// rights holder with recorded provenance, a royalty-free licence whose text
+// explicitly permits redistributing the raw samples, or a written OEM grant.
+// Everything else — CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL audio, custom
+// attribution terms, and ordinary "use in your music only" royalty-free terms —
+// is rejected by `APPROVED_LICENSES` below, however permissive it looks.
 
 /**
  * Licence identifiers that may be bundled.
  *
- * `CC0-1.0` is the only third-party licence on the list. `solid-groove-owned`
- * covers the synthesized library. Commissioned and OEM content will add their
- * own identifiers alongside an agreement ID when section 3.2's third and fourth
- * routes are first used.
+ * `CC0-1.0` and `royalty-free-redistributable` are the third-party licences on
+ * the list. The second is a royalty-free licence whose own text grants
+ * redistribution of the raw samples with no attribution requirement; the exact
+ * grant is quoted in each pack's licence evidence, because the identifier alone
+ * proves nothing. `solid-groove-owned` covers the synthesized library.
+ * Commissioned and OEM content will add their own identifiers alongside an
+ * agreement ID when those routes are first used.
  */
-export const APPROVED_LICENSES = ["CC0-1.0", "solid-groove-owned"];
+export const APPROVED_LICENSES = [
+  "CC0-1.0",
+  "royalty-free-redistributable",
+  "solid-groove-owned",
+];
 
 /**
  * Licences that are *specifically* rejected, so a validation failure explains
@@ -39,7 +47,7 @@ export const REJECTED_LICENSES = {
   "CC-BY-ND-4.0": "no-derivatives conflicts with sampler use and processing",
   "GPL-3.0": "copyleft audio would attach to user projects",
   "royalty-free":
-    "standard royalty-free terms permit use in a composition but prohibit redistributing raw files (section 3.1)",
+    "standard royalty-free terms permit use in a composition but prohibit redistributing raw files (section 3.1); use royalty-free-redistributable only when the licence text explicitly grants redistribution",
 };
 
 /**
