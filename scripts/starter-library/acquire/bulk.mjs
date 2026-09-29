@@ -8,13 +8,22 @@
 // standard, and emitted in the exact shape ingest.mjs produces, so there is one
 // validator and one delivery layout downstream.
 //
-// The rights posture is identical to VCSL's: `reviewState: "bulk-cc0"`, the
+// The rights posture is identical to VCSL's: `reviewState: "metadata-review"`, the
 // archive-wide statement as evidence, and IDs in a disjoint range. The honesty
 // boundary (one archive == one CC0 licence) lives in bulkSources.mjs; this module
 // assumes it and takes the whole archive.
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
 import { packBySlug, packRef, RESERVED_CC0_PACK_SLUG } from "../packs.mjs";
 import { analyze, encodeWav, sha256, storageKeyFor, waveformPeaks } from "../wav.mjs";
 import { isArchive, listArchiveMembers, unsupportedArchiveReason } from "./archive.mjs";
@@ -22,6 +31,7 @@ import { decodeToSamples, prepareOneShot } from "./audio.mjs";
 import { isPlaceholderArchiveUrl, mapBulkMember } from "./bulkSources.mjs";
 import { download } from "./fetch.mjs";
 import { writeAcquiredBundle } from "./ingest.mjs";
+import { cloneRepo } from "./vcsl.mjs";
 
 const AUDIO_MEMBER = /\.(wav|flac|aiff?|ogg)$/i;
 
@@ -43,14 +53,21 @@ function memberName(source, memberPath) {
     .pop()
     .replace(AUDIO_MEMBER, "")
     .replace(/[_-]+/g, " ")
+    // "ClosedHiHat01" -> "Closed Hi Hat 01"
+    .replace(/([a-z])([A-Z0-9])/g, "$1 $2")
     .trim();
   const titled = base.replace(/\b\w/g, (c) => c.toUpperCase());
-  return `${source.name.split("—").pop().trim()} ${titled}`.trim();
+  const prefix = source.name
+    .split("—")
+    .pop()
+    .replace(/\s*\(CC0 [^)]*\)/, "")
+    .trim();
+  return `${prefix} ${titled}`.trim();
 }
 
 /**
  * Decode and prepare one archive member into a manifest-shaped asset, in the
- * exact shape ingest.mjs produces. `reviewState: "bulk-cc0"` and the archive-wide
+ * exact shape ingest.mjs produces. `reviewState: "metadata-review"` and the archive-wide
  * evidence path mirror VCSL: the rights review is the archive's own CC0 licence,
  * not a per-file human pass.
  */
@@ -74,7 +91,7 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
       id: bulkAssetId(source, mapped.family, mapped.role, index),
       version: 1,
       pack: packRef(pack),
-      name: memberName(source, member.name),
+      name: mapped.name ?? memberName(source, member.name),
       type: "one-shot",
       family: mapped.family,
       role: mapped.role,
@@ -88,8 +105,8 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
       },
       audio: {
         ...analyze(prepared),
-        rootNote: null,
-        tuningCents: null,
+        rootNote: mapped.rootNote ?? null,
+        tuningCents: mapped.rootNote ? 0 : null,
         bpm: null,
         bars: null,
         loopable: false,
@@ -134,7 +151,7 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
         ],
         // The rights review is the archive-wide CC0 licence, captured as
         // evidence, not a per-file human pass. Same posture as VCSL.
-        reviewState: "bulk-cc0",
+        reviewState: "metadata-review",
         reviewer: `${source.sourceId}-cc0-bulk`,
         reviewedAt: null,
       },
@@ -151,7 +168,7 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
 export function captureBulkEvidence(
   evidenceDir,
   source,
-  { archiveUrl, archiveSha256, now },
+  { archiveUrl, archiveSha256, commit, now },
 ) {
   const evidenceSlug = slug(source.id);
   const record = [
@@ -163,7 +180,7 @@ export function captureBulkEvidence(
     `| Parent source | \`${source.sourceId}\` |`,
     "| Licence | CC0-1.0 |",
     `| Archive | ${archiveUrl} |`,
-    `| Archive SHA-256 | ${archiveSha256} |`,
+    commit ? `| Commit | ${commit} |` : `| Archive SHA-256 | ${archiveSha256} |`,
     `| Licence statement | ${source.licenseUrl} |`,
     `| Retrieved | ${now.slice(0, 10)} |`,
     "",
@@ -199,9 +216,21 @@ export async function acquireBulkSource(
     log = () => {},
     downloadImpl = download,
     archiveBytes: providedBytes,
+    cloneImpl = cloneRepo,
   } = {},
 ) {
   const timestamp = now ?? new Date().toISOString();
+  if (source.repoUrl) {
+    const { commit, members } = readRepoMembers(source, { cloneImpl, log });
+    return ingestMembers(source, members, {
+      archiveUrl: `${source.repoUrl}@${commit}`,
+      commit,
+      acquiredDir,
+      evidenceDir,
+      timestamp,
+      log,
+    });
+  }
   const archiveUrl = source.archiveUrl;
 
   if (!providedBytes && isPlaceholderArchiveUrl(archiveUrl)) {
@@ -225,7 +254,62 @@ export async function acquireBulkSource(
   }
 
   const archiveSha256 = sha256(Buffer.from(bytes));
-  const members = listArchiveMembers(bytes).filter((m) => AUDIO_MEMBER.test(m.name));
+  const { extractMember } = await import("./archive.mjs");
+  const members = listArchiveMembers(bytes)
+    .filter((m) => AUDIO_MEMBER.test(m.name))
+    .map((m) => ({ name: m.name, read: () => extractMember(bytes, m.name) }));
+  return ingestMembers(source, members, {
+    archiveUrl,
+    archiveSha256,
+    acquiredDir,
+    evidenceDir,
+    timestamp,
+    log,
+  });
+}
+
+/**
+ * Shallow-clone a bulk source's git repository, read the audio files its
+ * `include` pattern selects (every audio file when it has none), and delete the
+ * clone. The commit SHA is the pin: it names exactly the bytes that were read.
+ */
+export function readRepoMembers(source, { cloneImpl = cloneRepo, log = () => {} } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "bulk-repo-"));
+  try {
+    log(`cloning ${source.repoUrl} (shallow) …`);
+    const commit = cloneImpl(dir, { repo: source.repoUrl });
+    const members = walk(dir)
+      .map((path) => relative(dir, path).split("\\").join("/"))
+      .filter((name) => AUDIO_MEMBER.test(name))
+      .filter((name) => !source.include || source.include.test(name))
+      .sort()
+      .map((name) => {
+        const bytes = readFileSync(join(dir, name));
+        return { name, read: () => bytes };
+      });
+    return { commit, members };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function walk(dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    if (name === ".git") continue;
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) out.push(...walk(full));
+    else out.push(full);
+  }
+  return out;
+}
+
+/** Ingest resolved members, capture the evidence, and write the bundle. */
+async function ingestMembers(
+  source,
+  members,
+  { archiveUrl, archiveSha256, commit, acquiredDir, evidenceDir, timestamp, log },
+) {
   const capped = source.maxMembers ? members.slice(0, source.maxMembers) : members;
   if (source.maxMembers && members.length > source.maxMembers) {
     log(
@@ -234,10 +318,10 @@ export async function acquireBulkSource(
   }
   log(`ingesting ${capped.length} members from ${source.name}`);
 
-  const { extractMember } = await import("./archive.mjs");
   const evidence = captureBulkEvidence(evidenceDir, source, {
     archiveUrl,
     archiveSha256,
+    commit,
     now: timestamp,
   });
 
@@ -245,7 +329,7 @@ export async function acquireBulkSource(
   for (let i = 0; i < capped.length; i++) {
     const member = capped[i];
     try {
-      const memberBytes = extractMember(bytes, member.name);
+      const memberBytes = member.read();
       const result = await ingestMember(
         source,
         { name: member.name, bytes: memberBytes },
@@ -265,7 +349,8 @@ export async function acquireBulkSource(
   return {
     ingested: ingested.length,
     bundleDir,
-    archiveSha256,
+    archiveSha256: archiveSha256 ?? null,
+    commit: commit ?? null,
     evidencePath: evidence.evidencePath,
   };
 }
