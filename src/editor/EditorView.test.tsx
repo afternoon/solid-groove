@@ -366,6 +366,23 @@ describe("EditorView", () => {
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
   });
 
+  it("renders the piano roll (not the step grid) for a sampler track's note clip (#496)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    renderEditor(project.metadata.id);
+
+    // A sampler is a tonal instrument, so its clip opens the piano roll like a
+    // synth's; only a drum machine keeps the step grid.
+    const editor = await openSequenceEditor();
+    expect(
+      within(editor).getByRole("region", { name: /Piano roll/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
+  });
+
   it("shows the sampler instrument panel for the slice's sampler track", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();
