@@ -7,8 +7,15 @@ import type {
 } from "../commands";
 import { createControlGesture, setPadParameter } from "../commands";
 import type { DrumPad, Track } from "../domain/entities";
-import type { ParameterDefinition } from "../domain/parameters";
+import { dbToFaderPosition, faderPositionToDb } from "../domain/faders";
+import {
+  clampParameterValue,
+  type ParameterDefinition,
+  TRACK_VOLUME,
+} from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
+import { parseParameterInput } from "../instrument/parseValue";
+import { FADER_RANGE } from "./TrackFaders";
 
 export interface PadControlProps {
   readonly trackId: Track["id"];
@@ -41,6 +48,17 @@ export interface PadControlProps {
  * one drag dozens of revisions and dozens of undo steps.
  */
 export default function PadControl(props: PadControlProps): JSX.Element {
+  /**
+   * A pad's level is a volume, so it travels on the same perceptual fader law
+   * as the mixer's (`DbFader`, #634): the slider moves in `0..1` positions and
+   * the command stores decibels. Every other pad value moves in its own units.
+   */
+  const faderLaw = () => props.definition.id === TRACK_VOLUME.id;
+  const toStored = (value: number) =>
+    faderLaw() ? faderPositionToDb(props.definition, value) : value;
+  const toSlider = (value: number) =>
+    faderLaw() ? dbToFaderPosition(props.definition, value) : value;
+
   const control = createControlGesture({
     beginGesture: (options) => props.beginGesture(options),
     dispatch: (commands) => props.dispatch(commands),
@@ -50,7 +68,7 @@ export default function PadControl(props: PadControlProps): JSX.Element {
         props.trackId,
         props.pad.id,
         props.definition.id as Parameters<typeof setPadParameter>[2],
-        value,
+        toStored(value),
       ),
   });
 
@@ -63,7 +81,20 @@ export default function PadControl(props: PadControlProps): JSX.Element {
       ariaLabel={props.ariaLabel ?? `${props.label} for ${props.pad.name}`}
       orientation={props.orientation ?? "horizontal"}
       bipolar={props.bipolar}
-      value={props.value}
+      range={faderLaw() ? FADER_RANGE : undefined}
+      resetValue={faderLaw() ? toSlider(props.definition.defaultValue) : undefined}
+      // The field takes decibels; the fader travels in positions.
+      parseEntry={
+        faderLaw()
+          ? (text) => {
+              const db = parseParameterInput(props.definition, text, props.value);
+              return db === null
+                ? null
+                : toSlider(clampParameterValue(props.definition, db));
+            }
+          : undefined
+      }
+      value={toSlider(props.value)}
       displayValue={props.displayValue}
       onInput={(value) => {
         props.onFirstUse();

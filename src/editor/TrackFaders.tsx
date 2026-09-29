@@ -21,7 +21,7 @@ import { parseParameterInput } from "../instrument/parseValue";
  * decibels it writes. `src/domain/faders.ts` maps between the two so the travel
  * is perceptual rather than linear in dB.
  */
-const FADER_RANGE = { min: 0, max: 1, step: 0.001 } as const;
+export const FADER_RANGE = { min: 0, max: 1, step: 0.001 } as const;
 
 export interface FaderProps {
   readonly track: Track;

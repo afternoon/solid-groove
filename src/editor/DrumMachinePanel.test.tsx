@@ -202,15 +202,16 @@ describe("DrumMachinePanel", () => {
 
     // Mid-drag: `input` has fired, `change` has not. The value still has to
     // follow the pointer, on screen and in the project the audio graph reads.
-    moveTo(level, "-6");
-    expect(pad().mixer.volume).toBeCloseTo(-6);
-    moveTo(level, "-12");
-    expect(pad().mixer.volume).toBeCloseTo(-12);
+    // The level travels in fader positions, and stores decibels (#634).
+    moveTo(level, "0.6");
+    expect(pad().mixer.volume).toBeCloseTo(faderPositionToDb(TRACK_VOLUME, 0.6));
+    moveTo(level, "0.5");
+    expect(pad().mixer.volume).toBeCloseTo(faderPositionToDb(TRACK_VOLUME, 0.5));
     // Nothing is committed until the drag ends.
     expect(history.entries).toHaveLength(0);
 
     fireAndFlush(() => {
-      fireEvent.change(level, { target: { value: "-12" } });
+      fireEvent.change(level, { target: { value: "0.5" } });
     });
     expect(history.entries).toHaveLength(1);
     expect(project().metadata.revision).toBe(startRevision + 1);
@@ -299,6 +300,14 @@ describe("DrumMachinePanel pad level fader law (#634)", () => {
         fireEvent.dblClick(level);
       });
       expect(lastPadLevel(dispatch)).toBeCloseTo(TRACK_VOLUME.defaultValue);
+      // The value field still takes decibels, not fader positions.
+      const field = level
+        .closest(".fill-slider")
+        ?.querySelector<HTMLInputElement>(".fill-slider-entry") as HTMLInputElement;
+      fireAndFlush(() => {
+        fireEvent.change(field, { target: { value: "-6" } });
+      });
+      expect(lastPadLevel(dispatch)).toBeCloseTo(-6, 1);
     }
   });
 });
