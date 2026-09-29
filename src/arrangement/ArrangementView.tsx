@@ -37,7 +37,6 @@ import {
   pointerModifierHeld,
   suppressModifierDefault,
 } from "../shortcuts/pointerGestures";
-import { ArrangementToolbar } from "./ArrangementToolbar";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
 import {
   createArrangementWaveformCache,
@@ -61,14 +60,19 @@ import {
 import { type ArrangementProjection, buildArrangementProjection } from "./projection";
 import { describeArrangementSelection } from "./selectionAnnouncement";
 import { useArrangementCanvas } from "./useArrangementCanvas";
+import { ZoomControls } from "./ZoomControls";
 import "./ArrangementView.css";
 
 /** The placement-editing operations `EditorView` wires into the KEY-01
- * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`, plus
- * zoom to selection for the `Z` mapping (`view.zoom_to_selection`). */
+ * registry, mirroring `PianoRollActions`, plus the zoom actions: zoom to
+ * selection for `Z` (`view.zoom_to_selection`), to arrangement, in and out. */
 export type PlacementEditingActions = PlacementEditing & {
   zoomToSelection(): void;
   canZoomToSelection(): boolean;
+  zoomToArrangement(): void;
+  zoomIn(): void;
+  zoomOut(): void;
+  scrollToPlayhead(): void;
 };
 
 /**
@@ -88,7 +92,7 @@ export type PlacementEditingActions = PlacementEditing & {
  * - a transport-driven playhead that follows during playback, and the one
  *   arrangement selection (#292): a point, or whole clips a click or a drag
  *   band selected;
- * - named DOM actions (zoom in/out, zoom to selection, scroll to playhead) and
+ * - a floating zoom group (to arrangement, to selection, in, out) and
  *   an accessible, virtualized track/selection list, so canvas pixels are never
  *   the sole representation of state (PRD 9.3 accessibility).
  *
@@ -442,6 +446,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
         ...editing,
         zoomToSelection,
         canZoomToSelection: () => canZoomToSelection(),
+        zoomToArrangement,
+        zoomIn,
+        zoomOut,
+        scrollToPlayhead,
       });
     }
 
@@ -825,6 +833,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
     bumpState();
     noteFirstUse();
   }
+  /** Frame the whole song, from its first bar to the end of its last clip. */
+  function zoomToArrangement(): void {
+    shell?.zoomToSpan(0, Math.max(projection().lengthTicks, TICKS_PER_BAR));
+    syncSpacer();
+    syncScrollElToShell();
+    bumpState();
+    noteFirstUse();
+  }
   function scrollToPlayhead(): void {
     shell?.scrollToPlayhead();
     syncScrollElToShell();
@@ -932,13 +948,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
       data-pixels-per-tick={pixelsPerTick()}
       {...VERTICAL_SCALE}
     >
-      <ArrangementToolbar
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onZoomToSelection={zoomToSelection}
-        onScrollToPlayhead={scrollToPlayhead}
-        hasSelection={canZoomToSelection()}
-      />
       <div class="arrangement-body">
         <div
           class="arrangement-headers"
@@ -1031,6 +1040,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
             />
           </div>
         </div>
+        <ZoomControls
+          onZoomToArrangement={zoomToArrangement}
+          onZoomToSelection={zoomToSelection}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          hasSelection={canZoomToSelection()}
+        />
         <Show when={props.onLoopBraceFocusChange}>
           {(onFocusChange) => (
             <LoopBraceFocus

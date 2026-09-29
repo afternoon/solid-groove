@@ -18,38 +18,57 @@
   overflow: hidden;
 }
 
-.arrangement-toolbar {
+/* The zoom group (PRD 9.3): four icon buttons stacked into one segmented
+   control over the bottom-right of the arrangement, clear of the scrollbars
+   and of the fixed privacy chip beneath the corner. It floats, so it does not
+   scroll with the canvas. Square, monochrome. */
+.arrangement-zoom {
+  position: absolute;
+  right: 24px;
+  bottom: 72px;
+  z-index: 2;
   display: flex;
-  gap: 8px;
-  padding: 6px 8px;
-  background: var(--color-background-well);
-  border-bottom: 1px solid var(--color-background-tertiary);
-  flex-shrink: 0;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  box-shadow: 0 4px 12px var(--shade-medium);
 }
 
-.arrangement-action {
+.arrangement-zoom-button {
   appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: var(--color-background-secondary);
   color: var(--color-text);
   border: 1px solid var(--color-border-strong);
   border-radius: 0;
-  padding: 4px 10px;
-  font-size: 12px;
   cursor: pointer;
 }
 
-.arrangement-action:hover:not(:disabled) {
-  border-color: var(--color-accent);
+/* Segments share a hairline rather than doubling it. */
+.arrangement-zoom-button + .arrangement-zoom-button {
+  margin-top: -1px;
 }
 
-.arrangement-action:disabled {
+.arrangement-zoom-button:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
+}
+
+.arrangement-zoom-button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.arrangement-action:focus-visible {
+.arrangement-zoom-button:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 /* The loop brace's DOM twin (LOOP-018), laid over the ruler's drawing. `clip`,

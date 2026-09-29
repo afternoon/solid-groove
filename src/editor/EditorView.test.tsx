@@ -1867,6 +1867,21 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(screen.getByRole("button", { name: "Undo Turn looping off" })).toBeEnabled();
   });
 
+  it("zooms with +, - and Shift+Z (the whole song), the keys of the zoom group's buttons", async () => {
+    await renderLooping();
+    const root = screen.getByTestId("arrangement-view-ready");
+    const scale = () => Number(root.getAttribute("data-pixels-per-tick"));
+    const before = scale();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "+", shiftKey: true }));
+    expect(scale()).toBeGreaterThan(before);
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "-" }));
+    expect(scale()).toBeCloseTo(before);
+    // The starter song is one bar long, so it fills jsdom's 960px viewport.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Z", shiftKey: true }));
+    expect(scale()).toBeCloseTo(960 / 768);
+  });
+
   const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
   it("exposes the loop brace as a focusable slider described by the range readout", async () => {
