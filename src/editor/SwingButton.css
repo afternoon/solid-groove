@@ -3,7 +3,7 @@
 .swing-panel {
   position: fixed;
   z-index: 30;
-  padding: 8px;
+  padding: 18px;
   background-color: var(--color-background);
   box-shadow:
     0 10px 30px var(--scrim),
