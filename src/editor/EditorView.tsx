@@ -51,6 +51,12 @@ import {
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import ProjectLoadStates from "./ProjectLoadStates";
+import {
+  emptyPadSelection,
+  type PadSelection,
+  selectedPadOf,
+  withSelectedPad,
+} from "./padSelection";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
@@ -317,6 +323,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 
   const track = createMemo(() => model.editedTrack(project(), selectedTrackId()));
   const drumTrack = createMemo(() => model.drumTrack(track()));
+  // Each drum track's selected pad (#643): one selection the instrument view's
+  // pad editor and the step grid's selected row share, held here so it
+  // outlives a switch of view.
+  const [padSelection, setPadSelection] = createSignal<PadSelection>(emptyPadSelection);
+  function selectPad(trackId: TrackId, padId: PadId): void {
+    setPadSelection((current) => withSelectedPad(current, trackId, padId));
+  }
   const sampleAssets = createMemo(() => model.sampleAssets(project()));
   /** The clip being programmed: the opened one, not the selection's. */
   const clip = createMemo(() => opened()?.clip ?? null);
@@ -605,6 +618,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       watchTriggers={audio.watchTriggers}
                       trackLevel={audio.trackLevel}
                       onSelectTrack={selectTrack}
+                      selectedPadId={selectedPadOf(padSelection(), drumTrack() ?? null)}
+                      onSelectPad={selectPad}
                       onAddTrack={(spec) =>
                         addTrack(currentProject(), spec, "instrument_add_track")
                       }
@@ -689,6 +704,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         AUDITION_DURATION_TICKS,
                         velocity,
                       )
+                    }
+                    selectedPadId={selectedPadOf(padSelection(), open().track)}
+                    onSelectPad={(padId) => selectPad(open().track.id, padId)}
+                    auditionPad={(padId) =>
+                      void audio.auditionPad(open().track.id, padId)
                     }
                     dispatch={session.dispatch}
                     beginGesture={session.beginGesture}

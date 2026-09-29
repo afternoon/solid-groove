@@ -268,6 +268,11 @@ export const FEATURE_KEYS = [
   "velocity_lane",
   "note_audition",
   "swing",
+  // The step grid's Generate panel (#643): one key per kind of generator.
+  "step_pattern",
+  "step_euclidean",
+  "step_random",
+  "step_clear_row",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
