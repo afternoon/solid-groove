@@ -25,6 +25,10 @@ open dialog receives normal typing and nothing fires underneath it.
 `UI-001` opens over the arrangement is `role="dialog"` to a screen reader, but
 the transport, the note shortcuts and the view switches all have to keep working
 while a producer programs a clip in it, so it gets a context of its own instead.
+`loop_brace` is a focus context: it is active only while the ruler's loop brace
+has keyboard focus, and for the keys it claims (`Left`, `Right` and their
+`Shift` forms) it outranks the wider editor, so `Left` moves the brace rather
+than also meaning `track.move_left`. It suppresses nothing else.
 
 | Action ID | Action | macOS | Windows/Linux | Guide group | Contexts | Ableton Live 12 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -47,8 +51,14 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `clip.toggle_draw_mode` | Toggle draw mode | `B` | `B` | Clips and Notes | step_editor, piano_roll, automation_lane | Follows Live (`B`) |
 | `view.zoom_to_selection` | Zoom to selection | `Z` | `Z` | Navigation | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`Z`) |
 | `view.zoom_back` | Zoom back | `X` | `X` | Navigation | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`X`) |
-| `view.zoom_in` | Zoom in | `+` | `+` | Navigation | timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`+`) |
-| `view.zoom_out` | Zoom out | `-` | `-` | Navigation | timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`-`) |
+| `view.zoom_in` | Zoom in | `+` | `+` | Navigation | editor, timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`+`) |
+| `view.zoom_out` | Zoom out | `-` | `-` | Navigation | editor, timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`-`) |
+| `arrangement.loop_move_earlier` | Move loop earlier | `Left` | `Left` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.loop_move_later` | Move loop later | `Right` | `Right` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.loop_shorten` | Shorten loop | `Shift+Left` | `Shift+Left` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.loop_lengthen` | Lengthen loop | `Shift+Right` | `Shift+Right` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Solid Groove addition — Live has no single key that frames the whole set |
+| `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Solid Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
 | `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
 | `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
 | `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |

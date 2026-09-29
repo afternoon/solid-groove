@@ -737,6 +737,51 @@ describe("one-shot sampler (PRD INS-01)", () => {
     }
   });
 
+  it("repitches by the note's distance from C4, with the pitch parameter as a transpose", async () => {
+    const Tone = await import("tone");
+    const buffer = await rampBuffer();
+    const { runtime, context } = realBufferContext(buffer);
+    const assetId = ids("asset");
+    context.assetsById.set(assetId, asset(assetId));
+
+    const rates: number[] = [];
+    const startSpy = vi
+      .spyOn(Tone.Player.prototype, "start")
+      .mockImplementation(function mocked(this: { playbackRate: number }) {
+        rates.push(this.playbackRate);
+        return this as never;
+      });
+
+    try {
+      const node = InstrumentGraphModule.createInstrumentNode(
+        {
+          kind: "sampler",
+          assetId,
+          parameters: { [SAMPLER_PITCH_KEY]: 12 },
+        },
+        context,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // C4 plays as recorded, before the +12 transpose: one octave up.
+      node.trigger({ kind: "pitch", pitch: 60 }, 0, "192i", 1);
+      // An octave above C4, transposed up another octave: two octaves up.
+      node.trigger({ kind: "pitch", pitch: 72 }, 0, "192i", 1);
+      // An octave below C4 cancels the transpose: as recorded.
+      node.trigger({ kind: "pitch", pitch: 48 }, 0, "192i", 1);
+      expect(rates[0]).toBeCloseTo(2, 5);
+      expect(rates[1]).toBeCloseTo(4, 5);
+      expect(rates[2]).toBeCloseTo(1, 5);
+
+      node.dispose();
+    } finally {
+      startSpy.mockRestore();
+      buffer.dispose();
+      await runtime.close();
+    }
+  });
+
   it("swapping the sample cancels the old subscription (cache ownership)", async () => {
     const { runtime, context } = bareContext();
     const assetA = ids("asset");
