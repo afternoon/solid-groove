@@ -1878,6 +1878,10 @@ describe("EditorView sequence editor", () => {
     let editor = await openSequenceEditor();
     expect(rowButton(editor, "CP")).toHaveAttribute("aria-pressed", "true");
     expect(rowButton(editor, "BD")).toHaveAttribute("aria-pressed", "false");
+    // Generate writes into that same row.
+    expect(within(editor).getByRole("region", { name: "Generate" })).toHaveTextContent(
+      "into CP",
+    );
 
     // And back: a row picked in the grid is the pad the instrument view shows.
     clickAndFlush(rowButton(editor, "BD"));
@@ -1890,6 +1894,9 @@ describe("EditorView sequence editor", () => {
     await goToView("Arrangement");
     editor = await openSequenceEditor();
     expect(rowButton(editor, "BD")).toHaveAttribute("aria-pressed", "true");
+    expect(within(editor).getByRole("region", { name: "Generate" })).toHaveTextContent(
+      "into BD",
+    );
   });
 });
 
