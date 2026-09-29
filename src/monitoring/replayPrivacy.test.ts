@@ -132,11 +132,6 @@ const MASKED_NAMES: readonly {
     renders: "the track name, editable in place",
   },
   {
-    file: "editor/TrackClipEditor.tsx",
-    anchor: "track-name",
-    renders: "the selected track's name",
-  },
-  {
     file: "editor/InstrumentHeader.tsx",
     anchor: "instrument-header-name",
     renders: "the track's name atop the instrument view",

@@ -495,8 +495,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     });
   }
 
-  const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
-
   return (
     <main class={["editor", `editor-${props.view}`]}>
       <Switch>
@@ -652,7 +650,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     clip={open().clip}
                     track={open().track}
                     project={currentProject()}
-                    packDependencyLabel={packDependencyLabel()}
                     showPianoRoll={showPianoRoll}
                     loop={model.loopEntryFor(currentProject(), open().clip)}
                     songTempo={tempo()}
