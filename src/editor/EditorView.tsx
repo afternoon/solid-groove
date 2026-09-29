@@ -7,6 +7,7 @@ import ArrangementView, {
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
 import { setParameter } from "../commands/definitions/parameters";
+import { renameProject } from "../commands/definitions/project";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
@@ -514,6 +515,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
             <>
               <EditorHeader
                 projectName={currentProject().metadata.name}
+                onRename={(name) => session.dispatch(renameProject(name))}
                 session={session}
                 audio={audio}
                 onToggleLoop={() => toggleLooping(loopActions)}

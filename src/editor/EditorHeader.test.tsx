@@ -72,10 +72,12 @@ function renderHeader(
   audio: HeaderAudio,
   onToggleLoop: () => void = () => {},
   analytics: Analytics = recordingAnalytics().analytics,
+  onRename: (name: string) => void = () => {},
 ) {
   return render(() => (
     <EditorHeader
       projectName="Untitled"
+      onRename={onRename}
       session={session}
       audio={audio}
       onToggleLoop={onToggleLoop}
@@ -89,6 +91,44 @@ function renderHeader(
 }
 
 describe("EditorHeader", () => {
+  it("renames the project in place: click, type, Enter commits once", async () => {
+    const onRename = vi.fn();
+    renderHeader(
+      fakeSession().session,
+      fakeAudio().audio,
+      undefined,
+      undefined,
+      onRename,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Untitled" }));
+    const input = await screen.findByRole("textbox", { name: "Project name" });
+    fireEvent.change(input, { target: { value: "  Night Drive " } });
+
+    expect(onRename).toHaveBeenCalledExactlyOnceWith("Night Drive");
+    // The input gives way to the button once the edit is over.
+    await screen.findByRole("button", { name: "Untitled" });
+    expect(screen.queryByRole("textbox", { name: "Project name" })).toBeNull();
+  });
+
+  it("commits nothing for an empty or unchanged name", async () => {
+    const onRename = vi.fn();
+    renderHeader(
+      fakeSession().session,
+      fakeAudio().audio,
+      undefined,
+      undefined,
+      onRename,
+    );
+
+    for (const value of ["   ", "Untitled"]) {
+      fireEvent.click(await screen.findByRole("button", { name: "Untitled" }));
+      const input = await screen.findByRole("textbox", { name: "Project name" });
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
   it("drives the audio module it is handed and tracks its accessors", async () => {
     const { audio, setPositionTicks, toggleLoop } = fakeAudio();
     renderHeader(fakeSession().session, audio, toggleLoop);

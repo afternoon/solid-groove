@@ -58,6 +58,7 @@ const EXPECTED_COMMANDS = [
   "device.restoreParameters",
   "loop.setRange",
   "loop.setEnabled",
+  "project.rename",
 ];
 
 describe("command registry", () => {

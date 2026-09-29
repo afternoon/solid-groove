@@ -7,6 +7,7 @@ import {
   addPack,
   removeNotes,
   removeTrack,
+  renameProject,
   setLoopEnabled,
   setLoopRange,
   setParameter,
@@ -273,6 +274,25 @@ describe("EditorSession", () => {
     const loaded = await repository.loadProject(project.metadata.id);
     if (!loaded.ok) throw new Error("expected the project to load");
     expect(loaded.value.metadata.addedPacks).toContainEqual(shelved);
+  });
+
+  it("persists a rename to the metadata tier only, and undo restores the name", async () => {
+    const { session, repository, project } = ctx;
+    const saveSong = vi.spyOn(repository, "saveSong");
+    const original = project.metadata.name;
+
+    session.dispatch(renameProject("Night Drive"));
+    await session.autosave.flush();
+    const renamed = await repository.loadProject(project.metadata.id);
+    if (!renamed.ok) throw new Error("expected the project to load");
+    expect(renamed.value.metadata.name).toBe("Night Drive");
+    expect(saveSong).not.toHaveBeenCalled();
+
+    session.undo();
+    await session.autosave.flush();
+    const restored = await repository.loadProject(project.metadata.id);
+    if (!restored.ok) throw new Error("expected the project to load");
+    expect(restored.value.metadata.name).toBe(original);
   });
 
   it("writes a loop edit to the song tier only, never rewriting a clip (LOOP-017)", async () => {
