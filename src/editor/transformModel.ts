@@ -12,6 +12,7 @@ import type { Clip, Project } from "../domain/entities";
 import type { EventId, IdFactory } from "../domain/ids";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
 import { doubleClip } from "./doubleClip";
+import { halveClip } from "./halveClip";
 
 /**
  * Pure, framework-free model behind the CLP-04 transformation panel.
@@ -34,6 +35,7 @@ export const TRANSFORM_KINDS = [
   "quantize",
   "quantizeToScale",
   "duplicate",
+  "halve",
   "clear",
 ] as const;
 export type TransformKind = (typeof TRANSFORM_KINDS)[number];
@@ -131,6 +133,9 @@ export function buildTransform(
     case "duplicate":
       // Double copies the whole clip, whatever is selected (#647).
       return doubleClip(context.project, clip, context.ids);
+    case "halve":
+      // Halve keeps the whole clip's first half, whatever is selected (#662).
+      return halveClip(context.project, clip);
     case "clear":
       // `notes.clear` empties the whole clip by definition — it takes no
       // selection — so the panel labels it for the clip, never the selection.
@@ -160,7 +165,7 @@ export function transformedEventCount(
   scope: TransformScope,
   clip: Clip,
 ): number {
-  if (kind === "clear" || kind === "duplicate") {
+  if (kind === "clear" || kind === "duplicate" || kind === "halve") {
     // Clear and Double act on the whole clip, whatever happened to be selected.
     return (noteEventsOf(clip) ?? []).length;
   }
@@ -173,6 +178,7 @@ export const TRANSFORM_LABELS: Readonly<Record<TransformKind, string>> = {
   quantize: "Quantize",
   quantizeToScale: "Quantize to scale",
   duplicate: "Double",
+  halve: "Halve",
   clear: "Clear clip",
   vary: "Vary timing",
   varyVelocity: "Vary velocity",
@@ -184,6 +190,7 @@ export const TRANSFORM_OPERATIONS: Readonly<Record<TransformKind, NoteEditOperat
   quantize: "quantize",
   quantizeToScale: "quantize_to_scale",
   duplicate: "double",
+  halve: "halve",
   clear: "clear",
   vary: "vary",
   varyVelocity: "vary_velocity",

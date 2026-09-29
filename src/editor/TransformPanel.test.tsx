@@ -147,6 +147,22 @@ describe("TransformPanel (CLP-04)", () => {
     expect(screen.getByRole("region", { name: "Transform" })).toBeInTheDocument();
   });
 
+  it("halves the clip, whatever is selected, and stops at one bar (#662)", async () => {
+    const { session, renderPanel } = await setUp();
+    const length = session.project.clips[0].lengthTicks;
+    renderPanel([currentNotes(session)[0].id]);
+
+    clickTransform("Halve");
+
+    expect(session.project.clips[0].lengthTicks).toBe(length / 2);
+    // The fixture is two bars, so one bar is left, and Halve goes no further.
+    cleanup();
+    renderPanel([]);
+    expect(screen.getByRole("button", { name: "Halve" })).toBeDisabled();
+    session.undo();
+    expect(session.project.clips[0].lengthTicks).toBe(length);
+  });
+
   it("refuses Double at the longest clip length, changing nothing", async () => {
     const { session, renderPanel, transport } = await setUp();
     session.dispatch(
