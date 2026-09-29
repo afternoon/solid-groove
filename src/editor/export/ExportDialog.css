@@ -1,0 +1,68 @@
+/* The Export dialog (EXP-002): a format choice, a note on what is rendered,
+   progress while it renders, and one action. */
+
+.export-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.export-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.export-formats {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.export-format {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-format:has(input:disabled) {
+  color: var(--color-foreground-muted);
+}
+
+.export-note {
+  margin: 0;
+  color: var(--color-foreground);
+}
+
+.export-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-progress progress {
+  flex: 1 1 auto;
+  accent-color: var(--color-accent);
+}
+
+.export-status {
+  display: block;
+  margin: 0;
+}
+
+.export-error {
+  padding: 8px 10px;
+  border: 1px solid var(--color-danger-edge);
+  background: var(--color-danger-wash);
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.export-start {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
