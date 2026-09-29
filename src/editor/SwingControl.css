@@ -1,0 +1,7 @@
+/* Swing sits in the transport toolbar beside tempo: the shared horizontal
+   fader, shrunk to the header's height. */
+.editor-header .swing-control {
+  display: inline-flex;
+  width: 7.5rem;
+  --fill-slider-track-thickness: 12px;
+}

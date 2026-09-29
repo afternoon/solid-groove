@@ -6,12 +6,13 @@ import ArrangementView, {
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
+import { createControlGesture } from "../commands";
 import { setParameter } from "../commands/definitions/parameters";
 import { renameProject } from "../commands/definitions/project";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
-import { SONG_TEMPO } from "../domain/parameters";
+import { SONG_SWING, SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
@@ -239,6 +240,22 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     session.dispatch(
       setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, clampTempo(value)),
     );
+  };
+
+  // Swing is song state written through the same `parameter.set` as tempo
+  // (#500). A drag is one gesture, so it is one undo step and one save; the
+  // first commit counts as first use of the feature.
+  const swing = createMemo(() => project()?.song.swing ?? SONG_SWING.defaultValue);
+  const swingGesture = createControlGesture({
+    beginGesture: (options) => session.beginGesture(options),
+    dispatch: (commands) => session.dispatch(commands),
+    summary: () => "Set swing",
+    command: (value) =>
+      setParameter({ scope: "song", parameterId: SONG_SWING.id }, value),
+  });
+  const commitSwing = (value: number) => {
+    swingGesture.commit(value);
+    (props.analytics ?? defaultAnalytics).logFeatureFirstUse("swing");
   };
 
   // The loop is song state too (LOOP-017): the header's toggle dispatches
@@ -519,6 +536,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onToggleLoop={() => toggleLooping(loopActions)}
                 tempo={tempo}
                 onTempoChange={applyTempo}
+                swing={swing}
+                onSwingInput={swingGesture.input}
+                onSwingCommit={commitSwing}
                 onOpenGuide={() => setGuideOpen(true)}
                 keyHint={keyHint}
               />

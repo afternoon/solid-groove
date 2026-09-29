@@ -83,6 +83,9 @@ function renderHeader(
       onToggleLoop={onToggleLoop}
       tempo={() => 120}
       onTempoChange={() => {}}
+      swing={() => 50}
+      onSwingInput={() => {}}
+      onSwingCommit={() => {}}
       onOpenGuide={() => {}}
       keyHint={() => "K"}
       analytics={analytics}

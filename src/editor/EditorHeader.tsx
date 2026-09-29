@@ -16,6 +16,7 @@ import type { shortcutLabel } from "../shortcuts";
 import PlayheadInput from "./PlayheadInput";
 import ProjectNameInput from "./ProjectNameInput";
 import SaveStatus from "./SaveStatus";
+import SwingControl from "./SwingControl";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
 
@@ -56,6 +57,10 @@ export interface EditorHeaderProps {
   readonly onToggleLoop: () => void;
   readonly tempo: Accessor<number>;
   readonly onTempoChange: (value: number) => void;
+  /** Song swing (%), 50-75, and the input/commit halves of its gesture (#500). */
+  readonly swing: Accessor<number>;
+  readonly onSwingInput: (value: number) => void;
+  readonly onSwingCommit: (value: number) => void;
   readonly onOpenGuide: () => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
   /** Injected in tests; defaults to the app-wide instance. */
@@ -187,6 +192,11 @@ export default function EditorHeader(props: EditorHeaderProps) {
             onChange={(event) => props.onTempoChange(event.currentTarget.valueAsNumber)}
           />
         </div>
+        <SwingControl
+          swing={props.swing}
+          onInput={props.onSwingInput}
+          onCommit={props.onSwingCommit}
+        />
         <button
           type="button"
           class="metronome-toggle"
