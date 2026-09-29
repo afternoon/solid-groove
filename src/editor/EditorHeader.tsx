@@ -13,6 +13,7 @@ import {
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
+import ExportDialog from "./export/ExportDialog";
 import PlayheadInput from "./PlayheadInput";
 import ProjectNameInput from "./ProjectNameInput";
 import SaveStatus from "./SaveStatus";
@@ -80,6 +81,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
   const history = () => props.session.state;
   const analytics = () => props.analytics ?? defaultAnalytics;
   const [renaming, setRenaming] = createSignal(false);
+  const [exporting, setExporting] = createSignal(false);
   function seek(ticks: number): void {
     analytics().logFeatureFirstUse("playhead_seek");
     props.audio.seekTicks(ticks);
@@ -216,6 +218,25 @@ export default function EditorHeader(props: EditorHeaderProps) {
           saveStatus={() => history().saveStatus}
           onRetry={() => void props.session.retry()}
         />
+        {/* Export (EXP-002): the dialog renders the project as it stands when
+            Export is pressed, and never edits it. */}
+        <button
+          type="button"
+          class="export-button"
+          disabled={history().project === null}
+          onClick={() => setExporting(true)}
+        >
+          Export
+        </button>
+        <Show when={exporting() && history().project}>
+          {(project) => (
+            <ExportDialog
+              project={project}
+              analytics={props.analytics}
+              onClose={() => setExporting(false)}
+            />
+          )}
+        </Show>
         <button
           type="button"
           class="shortcut-guide-button"
