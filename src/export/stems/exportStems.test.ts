@@ -110,34 +110,39 @@ describe("exportStems", () => {
   });
 
   it("refuses an archive over the size limit once the renders show it", async () => {
-    const error = await exportFailure(
-      exportStems(createStemFixtureProject(), {
-        bitDepth: 24,
-        sampleRate: RATE,
-        maxBytes: 10_000,
-        render: fakeRenderer(() => 2_000).render,
-      }),
-    );
-    expect(error.code).toBe("quota_exceeded");
+    const at = (bitDepth: 16 | 24, maxBytes: number) =>
+      exportFailure(
+        exportStems(createStemFixtureProject(), {
+          bitDepth,
+          sampleRate: 8,
+          maxBytes,
+          render: fakeRenderer(() => 20_000).render,
+        }),
+      );
+    expect((await at(24, 550_000)).smallerBitDepthFits).toBe(true);
+    expect((await at(24, 300_000)).smallerBitDepthFits).toBe(false);
+    expect((await at(16, 300_000)).smallerBitDepthFits).toBe(false);
+    expect((await at(16, 300_000)).code).toBe("quota_exceeded");
   });
 });
 
-describe("exportStems with the maximum reference fixture (40 tracks, ten minutes)", () => {
-  const project = createReferenceProject({ trackCount: 40, minutes: 10 });
+describe("exportStems with the PRD reference project (50 tracks, ten minutes)", () => {
+  const project = createReferenceProject();
 
   it.each([16, 24] as const)(
-    "refuses %i-bit stems over the memory budget before rendering anything",
+    "refuses %i-bit stems at 48 kHz, over the budget, before rendering",
     async (bitDepth) => {
       const { render, calls } = fakeRenderer();
       const error = await exportFailure(
         exportStems(project, { bitDepth, sampleRate: 48_000, render }),
       );
       expect(error.code).toBe("quota_exceeded");
+      expect(error.smallerBitDepthFits).toBe(false);
       expect(calls).toEqual([]);
     },
   );
 
-  it("plans 41 files and cancels cleanly mid-export at a rate that fits", async () => {
+  it("plans 51 files and cancels cleanly mid-export (plumbing, at a toy rate)", async () => {
     const controller = new AbortController();
     const progress: number[] = [];
     const { render, calls } = fakeRenderer(() => 16);
@@ -155,23 +160,23 @@ describe("exportStems with the maximum reference fixture (40 tracks, ten minutes
     );
     expect(error.code).toBe("aborted");
     expect(calls.length).toBeGreaterThan(10);
-    expect(calls.length).toBeLessThan(41);
+    expect(calls.length).toBeLessThan(51);
     expect(progress).toEqual([...progress].sort((a, b) => a - b));
   });
 
-  it("exports all 41 aligned files when it fits", async () => {
+  it("packages all 51 aligned files (plumbing, at a toy rate)", async () => {
     const archive = await exportStems(project, {
       bitDepth: 16,
       sampleRate: 8,
       render: fakeRenderer((call) => 4_000 + call).render,
     });
     const entries = unzipSync(concat(archive.parts));
-    expect(Object.keys(entries)).toHaveLength(42);
+    expect(Object.keys(entries)).toHaveLength(52);
     const lengths = new Set(
       Object.entries(entries)
         .filter(([path]) => path.endsWith(".wav"))
         .map(([, bytes]) => bytes.byteLength),
     );
-    expect([...lengths]).toEqual([44 + 4_040 * 4]);
+    expect([...lengths]).toEqual([44 + 4_050 * 4]);
   });
 });
