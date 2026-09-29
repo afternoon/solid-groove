@@ -425,6 +425,41 @@ describe("EditorView", () => {
     expect(names()).toEqual([]);
   });
 
+  // ARR-010: a focused Transform value field takes ↑/↓ and Esc from the roll,
+  // through the registry's `value_field` context.
+  it("nudges and cancels a Transform value field from the keyboard", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    const editor = await openSequenceEditor();
+    const field = within(editor).getByLabelText("Semitones") as HTMLInputElement;
+    const firstNote = () =>
+      within(editor).getAllByRole("option")[0].getAttribute("aria-label");
+    const before = firstNote();
+    const press = (key: string) =>
+      fireAndFlush(() => fireEvent.keyDown(field, { key, bubbles: true }));
+
+    fireAndFlush(() => field.focus());
+    press("ArrowUp");
+    press("ArrowUp");
+    press("ArrowDown");
+    await Promise.resolve();
+    expect(field.value).toBe("+13 st");
+    // The arrows nudged the field, not the notes.
+    expect(firstNote()).toBe(before);
+
+    field.value = "-5";
+    press("Escape");
+    expect(field.value).toBe("+13 st");
+    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
+
+    fireAndFlush(() => field.blur());
+    clickAndFlush(within(editor).getByRole("button", { name: "Transpose" }));
+    expect(firstNote()).not.toBe(before);
+  });
+
   it("shows the sampler instrument panel for the slice's sampler track", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();

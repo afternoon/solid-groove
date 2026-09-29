@@ -13,6 +13,9 @@ import {
   DEFAULT_TRANSFORM_OPTIONS,
   formatFactor,
   formatSemitones,
+  nudgeFactor,
+  nudgeSeed,
+  nudgeSemitones,
   parseFactor,
   parseSeed,
   parseSemitones,
@@ -209,5 +212,16 @@ describe("Double and the value fields (ARR-010)", () => {
   it("takes any seed that is not blank", () => {
     expect(parseSeed(" groove ")).toBe("groove");
     expect(parseSeed("  ")).toBeNull();
+  });
+
+  it("nudges each value by one step, within its range", () => {
+    expect(nudgeSemitones(12, 1)).toBe(13);
+    expect(nudgeSemitones(-127, -1)).toBe(-127);
+    expect(nudgeFactor(1.25, 1)).toBe(1.3);
+    expect(nudgeFactor(0.05, -1)).toBe(0.05);
+    expect(nudgeFactor(4, 1)).toBe(4);
+    expect(nudgeSeed("vary-1", 1)).toBe("vary-2");
+    expect(nudgeSeed("vary-0", -1)).toBe("vary-0");
+    expect(nudgeSeed("groove", 1)).toBe("groove-1");
   });
 });

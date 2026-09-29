@@ -13,6 +13,9 @@ import {
   DEFAULT_TRANSFORM_OPTIONS,
   formatFactor,
   formatSemitones,
+  nudgeFactor,
+  nudgeSeed,
+  nudgeSemitones,
   parseFactor,
   parseSeed,
   parseSemitones,
@@ -24,6 +27,11 @@ import {
   transformedEventCount,
 } from "./transformModel";
 import "./TransformPanel.css";
+import {
+  blurValueField,
+  type FocusedValueField,
+  focusValueField,
+} from "./valueFieldFocus";
 
 /** Mints event IDs for the copies `notes.duplicate` creates (see StepEditor). */
 const factoryContext = createFactoryContext();
@@ -149,6 +157,7 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
           <TransformButton kind="transpose" />
           <ValueField
             label="Semitones"
+            nudge={nudgeSemitones}
             display={formatSemitones(options().semitones)}
             parse={parseSemitones}
             onCommit={(semitones) => setOptions((c) => ({ ...c, semitones }))}
@@ -158,6 +167,7 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
           <TransformButton kind="scaleVelocity" />
           <ValueField
             label="Velocity multiplier"
+            nudge={nudgeFactor}
             display={formatFactor(options().velocityFactor)}
             parse={parseFactor}
             onCommit={(velocityFactor) => setOptions((c) => ({ ...c, velocityFactor }))}
@@ -167,6 +177,7 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
           <TransformButton kind="vary" />
           <ValueField
             label="Vary seed"
+            nudge={nudgeSeed}
             display={options().seed}
             parse={parseSeed}
             onCommit={(seed) => setOptions((c) => ({ ...c, seed }))}
@@ -208,18 +219,51 @@ function rejectionMessage(kind: TransformKind): string {
 /**
  * A value you can type into. Enter or leaving the field commits what was
  * typed; anything that does not read as a value is refused, flagged, and put
- * back to the last good one. Keys are otherwise left alone: key handling
- * lives in src/shortcuts.
+ * back to the last good one. While it has focus the shortcut registry's
+ * ↑/↓ nudge it and Esc puts back what was typed (see `valueFieldFocus.ts`):
+ * the field never reads a key itself.
  */
 function ValueField<T>(props: {
   readonly label: string;
   readonly display: string;
   parse(text: string): T | null;
+  nudge(value: T, direction: 1 | -1): T;
   onCommit(value: T): void;
 }): JSX.Element {
   const [invalid, setInvalid] = createSignal(false);
+  let input: HTMLInputElement | undefined;
+
+  function commit(text: string): void {
+    const value = props.parse(text);
+    setInvalid(value === null);
+    if (value !== null) props.onCommit(value);
+    // Either the committed value, formatted, or the last good one.
+    queueMicrotask(() => {
+      if (input) input.value = props.display;
+    });
+  }
+
+  const field: FocusedValueField = {
+    nudge(direction) {
+      // From what is typed if it reads as a value, else from the last good one.
+      const current = props.parse(input?.value ?? "") ?? props.parse(props.display);
+      if (current !== null) props.onCommit(props.nudge(current, direction));
+      setInvalid(false);
+      queueMicrotask(() => {
+        if (!input) return;
+        input.value = props.display;
+        input.select();
+      });
+    },
+    cancel() {
+      setInvalid(false);
+      if (input) input.value = props.display;
+    },
+  };
+
   return (
     <input
+      ref={input}
       type="text"
       class="transform-value"
       aria-label={props.label}
@@ -227,17 +271,12 @@ function ValueField<T>(props: {
       spellcheck={false}
       autocomplete="off"
       value={props.display}
-      onFocus={(event) => event.currentTarget.select()}
-      onChange={(event) => {
-        const input = event.currentTarget;
-        const value = props.parse(input.value);
-        setInvalid(value === null);
-        if (value !== null) props.onCommit(value);
-        // Either the committed value, formatted, or the last good one.
-        queueMicrotask(() => {
-          input.value = props.display;
-        });
+      onFocus={(event) => {
+        event.currentTarget.select();
+        focusValueField(field);
       }}
+      onBlur={() => blurValueField(field)}
+      onChange={(event) => commit(event.currentTarget.value)}
     />
   );
 }
