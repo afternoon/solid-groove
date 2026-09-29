@@ -1,0 +1,232 @@
+import * as Tone from "tone";
+import type { ErrorCode } from "../analytics/errorCodes";
+import type {
+  AudioAssetProjection,
+  AudioSongProjection,
+} from "../projection/audioProjection";
+import { type Scheduler, timeoutScheduler } from "../shared/scheduler";
+import type { AssetBufferLoader } from "./AudioBufferCache";
+import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
+import type { DeviceNode, DeviceNodeFactory } from "./DeviceChain";
+import { createDeviceNodeFactory } from "./devices";
+import type { InstrumentNodeFactory } from "./InstrumentGraph";
+import { withGlobalContext } from "./offlineClock";
+import { type AudioTransport, ProjectAudioGraph } from "./ProjectAudioGraph";
+import { ResourceRegistry } from "./resourceRegistry";
+import { toneBufferLoader } from "./toneBufferLoader";
+
+/**
+ * One offline render's context and the project graph built on it (EXP-001).
+ *
+ * The graph is the **same** `ProjectAudioGraph` live playback builds, from the
+ * same `AudioSongProjection`, with the same device factory; only the host
+ * differs — an `OfflineContext`'s destination and transport instead of the
+ * live `AudioRuntime`'s. Nothing here reaches the live runtime, its context,
+ * its transport or its resource registry.
+ */
+
+/** Stereo: the export format, and the width of the master bus. */
+export const RENDER_CHANNELS = 2;
+
+/** The owner every offline resource registers under. */
+export const OFFLINE_OWNER = "offline-render";
+
+/**
+ * Why a render did not produce audio. `code` is a stable analytics error code,
+ * so an export can report `export_failed` without inspecting messages, and a
+ * cancelled render is `"aborted"` — never a failure in disguise.
+ */
+export class OfflineRenderError extends Error {
+  constructor(
+    readonly code: ErrorCode,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "OfflineRenderError";
+  }
+
+  get cancelled(): boolean {
+    return this.code === "aborted";
+  }
+}
+
+export const renderCancelled = (): OfflineRenderError =>
+  new OfflineRenderError("aborted", "The render was cancelled");
+
+export interface OfflineSessionOptions {
+  sampleRate: number;
+  /** How long the render runs, in seconds. */
+  durationSeconds: number;
+  signal?: AbortSignal;
+  /** Decodes assets. Production uses Tone's loader; tests inject buffers. */
+  bufferLoader?: AssetBufferLoader<Tone.ToneAudioBuffer>;
+  /** Where the graph registers its resources; a private registry otherwise. */
+  registry?: ResourceRegistry;
+  scheduler?: Scheduler;
+  /** Test seam: the instrument factory `ProjectAudioGraph` would use. */
+  createInstrument?: InstrumentNodeFactory;
+}
+
+export interface OfflineSession {
+  readonly context: Tone.OfflineContext;
+  /** Builds and reconciles the graph, with the offline context installed. */
+  build(): void;
+  /** Waits for every asset and every asynchronously-built device. */
+  prepare(): Promise<void>;
+  /** Tears down the graph and the context. Idempotent. */
+  release(): Promise<void>;
+}
+
+/** Opens a session. Throws `not_supported` if no offline context can exist. */
+export function openOfflineSession(
+  projection: AudioSongProjection,
+  options: OfflineSessionOptions,
+): OfflineSession {
+  const { sampleRate } = options;
+  const scheduler = options.scheduler ?? timeoutScheduler;
+  const frames = Math.ceil(options.durationSeconds * sampleRate);
+  let context: Tone.OfflineContext;
+  try {
+    // Half a frame over, so the length Web Audio truncates to is `frames`.
+    context = new Tone.OfflineContext(
+      RENDER_CHANNELS,
+      (frames + 0.5) / sampleRate,
+      sampleRate,
+    );
+  } catch (error) {
+    throw new OfflineRenderError("not_supported", "Offline rendering is unavailable", {
+      cause: error,
+    });
+  }
+
+  const registry = options.registry ?? new ResourceRegistry();
+  const scope = openScope(registry);
+  const host: AudioHost = {
+    getDestination: () => context.destination,
+    getSampleRate: () => sampleRate,
+    resume: async () => {},
+    openProjectScope: () => scope,
+  };
+
+  const loads: Promise<unknown>[] = [];
+  const baseLoader = options.bufferLoader ?? toneBufferLoader;
+  const bufferLoader: AssetBufferLoader<Tone.ToneAudioBuffer> = {
+    load(asset) {
+      const load = baseLoader.load(asset);
+      loads.push(load);
+      return load;
+    },
+  };
+  let failedAsset: { asset: AudioAssetProjection; error: unknown } | null = null;
+
+  // The factory live playback uses, reading the tempo this render is at.
+  const devices: DeviceNode[] = [];
+  const baseDevices = createDeviceNodeFactory({ scope, tempo: () => projection.tempo });
+  const createDeviceNode: DeviceNodeFactory = (device) => {
+    const node = baseDevices(device);
+    if (node) devices.push(node);
+    return node;
+  };
+
+  let graph: ProjectAudioGraph | null = null;
+  let released = false;
+
+  return {
+    context,
+    build() {
+      withGlobalContext(context, () => {
+        graph = new ProjectAudioGraph(host, OFFLINE_OWNER, {
+          transport: offlineTransport(context),
+          bufferLoader,
+          createInstrument: options.createInstrument,
+          createDeviceNode,
+          now: () => context.immediate(),
+          onAssetLoadFailure: (asset, error) => {
+            failedAsset ??= { asset, error };
+          },
+        });
+        graph.reconcile(projection);
+      });
+    },
+    async prepare() {
+      await untilSettledOrAborted(Promise.allSettled(loads), options.signal);
+      await untilSettledOrAborted(
+        Promise.all(devices.map((node) => node.ready?.())),
+        options.signal,
+      );
+      // Let the cache install what just decoded, and a reverb its impulse.
+      await new Promise((resolve) => scheduler.schedule(() => resolve(undefined), 0));
+      if (failedAsset) throw assetError(failedAsset.asset, failedAsset.error);
+    },
+    async release() {
+      if (released) return;
+      released = true;
+      await graph?.dispose();
+      await registry.disposeOwner(OFFLINE_OWNER);
+      context.transport.stop();
+      context.dispose();
+    },
+  };
+}
+
+function openScope(registry: ResourceRegistry): AudioProjectScope {
+  return {
+    ownerId: OFFLINE_OWNER,
+    register: (type, dispose) => registry.register(OFFLINE_OWNER, type, dispose),
+    release: (handle) => registry.disposeOne(handle),
+    dispose: async () => {
+      await registry.disposeOwner(OFFLINE_OWNER);
+    },
+  };
+}
+
+/** The offline context's own transport, bound explicitly rather than read off
+ * the global context the way live playback's is. */
+function offlineTransport(context: Tone.OfflineContext): AudioTransport {
+  const transport = context.transport;
+  return {
+    bpm: transport.bpm,
+    schedule: (callback, time) => transport.schedule(callback, time),
+    clear: (id) => {
+      transport.clear(id);
+    },
+    on: (event, callback) => {
+      transport.on(event, callback);
+    },
+    off: (event, callback) => {
+      transport.off(event, callback);
+    },
+  };
+}
+
+/** Waits for `work`, but rejects as cancelled as soon as `signal` aborts, so a
+ * hung asset download cannot hold a cancelled render open. */
+async function untilSettledOrAborted(
+  work: Promise<unknown>,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  if (!signal) {
+    await work;
+    return;
+  }
+  if (signal.aborted) throw renderCancelled();
+  let onAbort = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(renderCancelled());
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    await Promise.race([work, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+function assetError(asset: AudioAssetProjection, error: unknown): OfflineRenderError {
+  // An asset id, never its name or URL: this message may reach error reports.
+  const code: ErrorCode = asset.url ? "decode_failed" : "asset_missing";
+  return new OfflineRenderError(code, `Asset ${asset.id} could not be loaded`, {
+    cause: error,
+  });
+}
