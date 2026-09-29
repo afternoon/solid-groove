@@ -93,22 +93,53 @@ function stroke(name: string): void {
   flush();
 }
 
+/** A cell's centre, in the lanes' pixels: 40 px steps and 30 px rows at 100%. */
+function centre(row: number, step: number): { x: number; y: number } {
+  return { x: (step - 1) * 40 + 20, y: row * 30 + 15 };
+}
+
 /**
- * A drag stroke: down on the first cell, entering each of the rest, then up.
- * The final `pointerUp` is fired on the editor region (where the handler lives)
- * rather than a cell, since a cell's accessible name flips from "off" to "on"
- * the moment it is painted.
+ * Fires a pointer event with a position, as the piano roll's tests do: jsdom
+ * has no `PointerEvent`, and `fireEvent.pointerMove` would drop the position.
  */
-function dragStroke(names: readonly string[]): void {
-  const first = cell(names[0]);
-  fireEvent.pointerDown(first, { button: 0 });
+function firePointer(
+  target: Element,
+  type: string,
+  at: { x: number; y: number; shiftKey?: boolean },
+): void {
+  fireEvent(
+    target,
+    new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: at.x,
+      clientY: at.y,
+      shiftKey: at.shiftKey ?? false,
+    }),
+  );
   flush();
-  for (const name of names.slice(1)) {
-    fireEvent.pointerEnter(cell(name));
-    flush();
-  }
-  fireEvent.pointerUp(screen.getByRole("region", { name: "Step editor" }));
-  flush();
+}
+
+const editorRegion = () => screen.getByRole("region", { name: "Step editor" });
+
+/**
+ * A press on one cell that moves to another before letting go. jsdom lays
+ * nothing out, so the lanes' corner is at 0,0 and a client position is a
+ * position in the lanes. Moves and the release land on the editor region,
+ * where the handlers live.
+ */
+function drag(
+  from: { name: string; row: number; step: number },
+  to: { row: number; step: number },
+  modifiers: { shiftKey?: boolean } = {},
+): void {
+  firePointer(cell(from.name), "pointerdown", {
+    ...centre(from.row, from.step),
+    ...modifiers,
+  });
+  firePointer(editorRegion(), "pointermove", centre(to.row, to.step));
+  firePointer(editorRegion(), "pointerup", centre(to.row, to.step));
 }
 
 function clipEditedEvents(transport: ReturnType<typeof createRecordingTransport>) {
@@ -155,41 +186,77 @@ describe("StepEditor", () => {
     expect(history.entries).toHaveLength(1);
   });
 
-  it("paints a multi-step drag as one gesture, one history entry, one revision", () => {
+  it("lassoes every note a drag touches across rows, and edits nothing (#643)", () => {
+    const { history, selectedIds, clip } = renderEditor(
+      createDrumMachineFixtureProject(),
+    );
+    const before = clip();
+
+    // From BD step 4 to CP step 6: BD and CP both have a note on step 5.
+    drag({ name: "BD, step 4, off", row: 0, step: 4 }, { row: 1, step: 6 });
+
+    const content = clip().content;
+    if (content.kind !== "notes") throw new Error("expected a note clip");
+    const onStep5 = content.events
+      .filter((event) => event.startTicks === 4 * 48)
+      .map((event) => event.id);
+    expect([...selectedIds()].sort()).toEqual([...onStep5].sort());
+    expect(onStep5).toHaveLength(2);
+    // A lasso only selects: the step it started on stays off, nothing is logged.
+    expect(cell("BD, step 4, off")).toBeInTheDocument();
+    expect(clip()).toBe(before);
+    expect(history.entries).toHaveLength(0);
+  });
+
+  it("draws the lasso while it is dragged, and not after", () => {
+    renderEditor(createDrumMachineFixtureProject());
+    firePointer(cell("BD, step 2, off"), "pointerdown", centre(0, 2));
+    firePointer(editorRegion(), "pointermove", centre(1, 6));
+    expect(editorRegion().querySelector(".step-lasso")).not.toBeNull();
+    firePointer(editorRegion(), "pointerup", centre(1, 6));
+    expect(editorRegion().querySelector(".step-lasso")).toBeNull();
+  });
+
+  it("adds a Shift-lasso to the selection, as the piano roll does", () => {
+    const { selectedIds, setSelectedIds, clip } = renderEditor(
+      createDrumMachineFixtureProject(),
+    );
+    const content = clip().content;
+    if (content.kind !== "notes") throw new Error("expected a note clip");
+    const first = content.events.find((event) => event.startTicks === 0);
+    if (!first) throw new Error("expected a note on step 1");
+    setSelectedIds([first.id]);
+    flush();
+
+    drag(
+      { name: "BD, step 12, off", row: 0, step: 12 },
+      { row: 0, step: 14 },
+      { shiftKey: true },
+    );
+
+    // The step-1 note stays selected, and the step-13 note joins it.
+    expect(selectedIds()).toHaveLength(2);
+    expect(selectedIds()).toContain(first.id);
+  });
+
+  it("treats a press that moves under 4 px as a click, which toggles the step", () => {
     const { history } = renderEditor(createSliceFixtureProject());
-    const startRevision = history.project.metadata.revision;
-
-    dragStroke(["Notes, step 2, off", "Notes, step 3, off", "Notes, step 4, off"]);
-
+    const { x, y } = centre(0, 2);
+    firePointer(cell("Notes, step 2, off"), "pointerdown", { x, y });
+    firePointer(editorRegion(), "pointermove", { x: x + 2, y: y + 1 });
+    firePointer(editorRegion(), "pointerup", { x: x + 2, y: y + 1 });
     expect(cell("Notes, step 2, on")).toBeInTheDocument();
-    expect(cell("Notes, step 3, on")).toBeInTheDocument();
-    expect(cell("Notes, step 4, on")).toBeInTheDocument();
-    // One entry, one revision bump, for three painted steps.
-    expect(history.entries).toHaveLength(1);
-    expect(history.project.metadata.revision).toBe(startRevision + 1);
-
-    // Undo removes all three at once.
-    history.undo();
-    expect(history.project.metadata.revision).toBe(startRevision + 2);
-  });
-
-  it("paints across multiple drum lanes in one drag", () => {
-    const { history } = renderEditor(createDrumMachineFixtureProject());
-    dragStroke(["BD, step 2, off", "CP, step 2, off"]);
-    expect(cell("BD, step 2, on")).toBeInTheDocument();
-    expect(cell("CP, step 2, on")).toBeInTheDocument();
     expect(history.entries).toHaveLength(1);
   });
 
-  it("emits clip_edited once per completed paint gesture, bucketed by changed steps", () => {
+  it("emits clip_edited once for a click, bucketed by changed steps", () => {
     const { transport } = renderEditor(createSliceFixtureProject());
 
-    dragStroke(["Notes, step 2, off", "Notes, step 3, off", "Notes, step 4, off"]);
+    stroke("Notes, step 2, off");
 
     const edited = clipEditedEvents(transport);
     expect(edited).toHaveLength(1);
     expect(edited[0].params.editor).toBe("step");
-    // Three steps changed → the 1_4 bucket.
     expect(edited[0].params.event_count_bucket).toBe("1_4");
   });
 
