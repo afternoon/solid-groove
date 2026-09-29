@@ -206,6 +206,17 @@ h1{margin:0;font-size:30px;line-height:1.1;color:var(--m100);text-wrap:balance}
 .cta:hover{background:var(--m85)}
 .cta .kbd{color:var(--m28);box-shadow:inset 0 0 0 1px var(--m47)}
 [hidden]{display:none!important}
+.k{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 3px;font-size:10px;font-weight:600;line-height:1;color:var(--m65);box-shadow:inset 0 0 0 1px var(--m28);font-variant-numeric:tabular-nums;flex:none}
+.on .k,.browse.on .k,.chip.on .k{color:var(--m28);box-shadow:inset 0 0 0 1px var(--m65)}
+.card .k{position:absolute;right:8px;bottom:8px;background:var(--m00);color:var(--m85)}
+.keys{position:absolute;inset:60px 90px 70px;z-index:8;background:var(--m00);box-shadow:0 20px 60px rgb(0 0 0/80%),0 0 0 1px var(--m28);padding:18px 22px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.keys h3{margin:0;font-size:16px;color:var(--m100)}
+.keys p{margin:0;color:var(--m65);font-size:12px;max-width:70ch}
+.keys-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.keys-grid dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-content:start;font-size:12px}
+.keys-grid dt{justify-self:start}
+.keys-grid dd{margin:0;color:var(--m85)}
+.keys-grid .lbl{grid-column:1/-1;padding-bottom:2px;border-bottom:1px solid var(--m16)}
 .done{position:absolute;inset:0;background:var(--m08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;z-index:9}
 .done b{font-size:28px;color:var(--m100)}
 .done p{margin:0;color:var(--m65);max-width:52ch}
@@ -250,9 +261,11 @@ h1{margin:0;font-size:30px;line-height:1.1;color:var(--m100);text-wrap:balance}
         </div>
         <div class="ft">
           <span class="hint" id="hint"></span>
-          <button type="button" class="ghost" id="shuffle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12"/><circle cx="5.5" cy="5.5" r=".9" fill="currentColor"/><circle cx="10.5" cy="10.5" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg>Shuffle</button>
+          <button type="button" class="ghost" id="keys-btn" aria-label="Keyboard shortcuts" aria-keyshortcuts="?" title="Keyboard shortcuts"><span class="k">?</span></button>
+          <button type="button" class="ghost" id="shuffle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12"/><circle cx="5.5" cy="5.5" r=".9" fill="currentColor"/><circle cx="10.5" cy="10.5" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg>Shuffle <span class="k">R</span></button>
           <button type="button" class="cta" id="insert"><span id="insert-label"></span><span class="kbd">⏎</span></button>
         </div>
+        <div class="keys" id="keys" role="dialog" aria-label="Library keys" hidden><div style="display:flex;justify-content:space-between;align-items:center"><h3>Library keys</h3><button type="button" class="ib" data-act="keys-close" aria-label="Close key list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div><p>These keys work only while the library is open. While it is, the editor's own shortcuts are off, so none of them clash. Typing in search keeps every key for the search; press Esc or ↓ to leave it.</p><div class="keys-grid"><dl><span class="lbl">Sounds</span><dt><span class="k">↑</span> <span class="k">↓</span></dt><dd>Previous / next sound, and hear it</dd><dt><span class="k">Space</span></dt><dd>Hear it again</dd><dt><span class="k">⏎</span></dt><dd>Insert and close</dd><dt><span class="k">L</span></dt><dd>Like: favourite the selected sound</dd><dt><span class="k">S</span></dt><dd>Similar sounds</dd><dt><span class="k">R</span></dt><dd>Shuffle</dd><dt><span class="k">Esc</span></dt><dd>Close, and put back the old sound</dd></dl><dl><span class="lbl">Categories</span><dt><span class="k">1</span> <span class="k">…</span> <span class="k">9</span></dt><dd>Pick that category; in Browse packs, open that pack</dd><dt><span class="k">0</span></dt><dd>All of the family</dd><dt><span class="k">←</span> <span class="k">→</span></dt><dd>Previous / next category</dd><dt><span class="k">[</span> <span class="k">]</span></dt><dd>Previous / next family</dd><dt><span class="k">G</span></dt><dd>Genre menu</dd><dt><span class="k">T</span></dt><dd>Loops: near the song tempo, or any</dd></dl><dl><span class="lbl">Where you are</span><dt><span class="k">A</span></dt><dd>All sounds</dd><dt><span class="k">F</span></dt><dd>Favourites</dd><dt><span class="k">P</span></dt><dd>Browse packs</dd><dt><span class="k">⌫</span></dt><dd>Back: out of similar sounds, a pack, or Browse packs</dd><dt><span class="k">/</span></dt><dd>Search</dd><dt><span class="k">?</span></dt><dd>This list</dd></dl></div></div>
         <div class="done" id="done" hidden>
           <div class="tick"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg></div>
           <span class="lbl">The Kick pad now plays</span>
@@ -437,7 +450,7 @@ function playPack(pid) {
 /* ---------- state ---------- */
 const INITIAL = () => ({view:"sounds", pack:"all", fam:"drums", cat:"Kick", genres:[], tempo:"near", bars:null,
   sel:find("Tight House Kick").id, favs:new Set([find("Deep Sub Kick").id, find("Classic House Clap").id]),
-  q:"", similar:null, trail:[], match:{cat:true, character:true, genre:false, length:true}, menu:false, packFam:null, inserted:false});
+  q:"", similar:null, trail:[], match:{cat:true, character:true, genre:false, length:true}, menu:false, packFam:null, inserted:false, keys:false});
 let st = INITIAL();
 const $ = id => document.getElementById(id);
 const qInput = $("q");
@@ -494,10 +507,10 @@ const packCount = pid => SOUNDS.filter(s => s.pack === pid).length;
 const catCount = pid => Object.values(PACK[pid].mix).filter(n => n > 0).length;
 
 function renderRail() {
-  const pk = (id, label, n) => `<button type="button" class="pk${st.view === "sounds" && st.pack === id ? " on" : ""}" data-pack="${id}"><span>${esc(label)}</span><small class="num">${n}</small></button>`;
+  const pk = (id, label, n, key) => `<button type="button" class="pk${st.view === "sounds" && st.pack === id ? " on" : ""}" data-pack="${id}"${key ? ` aria-keyshortcuts="${key.toUpperCase()}"` : ""}><span>${esc(label)}</span><span style="display:flex;gap:8px;align-items:center"><small class="num">${n}</small>${key ? `<span class="k">${key.toUpperCase()}</span>` : ""}</span></button>`;
   $("rail").innerHTML =
-    `<button type="button" class="browse${st.view === "packs" ? " on" : ""}" data-act="browse">${svg(ICON.grid)}Browse packs</button>` +
-    pk("all", "All sounds", SOUNDS.length) + pk("fav", "Favourites", st.favs.size) +
+    `<button type="button" class="browse${st.view === "packs" ? " on" : ""}" data-act="browse">${svg(ICON.grid)}<span style="flex:1">Browse packs</span><span class="k">P</span></button>` +
+    pk("all", "All sounds", SOUNDS.length, "a") + pk("fav", "Favourites", st.favs.size, "f") +
     `<div class="rule"><span class="lbl">In this project</span></div>` +
     PACKS.filter(p => p.inProject).map(p => pk(p.id, p.name, packCount(p.id))).join("") +
     `<div class="rule"><span class="lbl">Recently viewed</span></div>` +
@@ -522,8 +535,8 @@ function renderSounds() {
     h += `<div class="shelf"><div class="fams" role="tablist" aria-label="Families">` +
       fams.map(f => `<button type="button" role="tab" aria-selected="${f.id === st.fam}" class="fam${f.id === st.fam ? " on" : ""}" data-fam="${f.id}"><b>${f.label}</b><small class="num">${p.filter(s => s.fam === f.id).length} sounds</small></button>`).join("") +
       `</div><div class="cats"><button type="button" class="arrow" data-scroll="-1" aria-label="Scroll categories left">${svg(ICON.l)}</button><div class="cat-scroll" id="cat-scroll">` +
-      `<button type="button" class="chip${!st.cat ? " on" : ""}" data-cat="">All ${fam.label.toLowerCase()} <small class="num">${famSounds.length}</small></button>` +
-      cats.map(([c, n]) => `<button type="button" class="chip${st.cat === c ? " on" : ""}" data-cat="${esc(c)}" aria-pressed="${st.cat === c}">${esc(c)} <small class="num">${n}</small></button>`).join("") +
+      `<button type="button" class="chip${!st.cat ? " on" : ""}" data-cat="" aria-keyshortcuts="0"><span class="k">0</span>All ${fam.label.toLowerCase()} <small class="num">${famSounds.length}</small></button>` +
+      cats.map(([c, n], i) => `<button type="button" class="chip${st.cat === c ? " on" : ""}" data-cat="${esc(c)}" aria-pressed="${st.cat === c}"${i < 9 ? ` aria-keyshortcuts="${i + 1}"` : ""}>${i < 9 ? `<span class="k">${i + 1}</span>` : ""}${esc(c)} <small class="num">${n}</small></button>`).join("") +
       `</div><button type="button" class="arrow" data-scroll="1" aria-label="Scroll categories right">${svg(ICON.r)}</button></div></div>`;
     if (jumps.length) h += `<div class="jump"><span class="lbl">Categories</span>${jumps.map(c => `<button type="button" class="chip" data-jump="${esc(c)}">${esc(c)} →</button>`).join("")}</div>`;
     const gl = st.genres.length ? (st.genres.length === 1 ? st.genres[0] : st.genres.length + " genres") : "Any genre";
@@ -553,7 +566,7 @@ function rowHtml(s, pct) {
     `<span style="min-width:0"><span class="nm">${esc(s.name)}</span><span class="pn">${esc(PACK[s.pack].name)} · ${esc(s.cat)}</span></span>` +
     (pct != null ? `<span class="match" title="${pct}% match"><i style="--p:${pct}%"></i><span class="num">${pct}%</span></span>` : `<span class="tg">${esc(s.tags)}</span>`) +
     `<span class="du num">${esc(s.meta)}</span></button>` +
-    `<button type="button" class="ib${fav ? " fav" : ""}" data-fav="${esc(s.id)}" aria-pressed="${fav}" aria-label="Favourite ${esc(s.name)}">${svg(ICON.heart, fav ? 'fill="currentColor"' : "")}</button>` +
+    `<button type="button" class="ib${fav ? " fav" : ""}" data-fav="${esc(s.id)}" aria-pressed="${fav}" aria-label="Favourite ${esc(s.name)}" aria-keyshortcuts="L" title="Favourite (L)">${svg(ICON.heart, fav ? 'fill="currentColor"' : "")}</button>` +
     `<button type="button" class="ib" data-similar="${esc(s.id)}" aria-label="Sounds like ${esc(s.name)}" title="Similar sounds">${svg(ICON.sim)}</button></li>`;
 }
 
@@ -576,9 +589,9 @@ function renderPacks() {
   let h = `<div class="packs-h"><span class="lbl" style="margin-right:6px">Packs with</span>` +
     [null, ...FAMILIES.map(f => f.id)].map(id => `<button type="button" class="chip${st.packFam === id ? " on" : ""}" data-packfam="${id ?? ""}">${id ? FAMILIES.find(f => f.id === id).label : "Anything"}</button>`).join("") +
     `<span class="count num">${list.length} of ${PACKS.length} packs</span></div><div class="grid">`;
-  h += list.map(p => {
+  h += list.map((p, i) => {
     const top = Object.entries(p.mix).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]), n = top.length;
-    return `<div class="card"><button type="button" class="card-open" data-pack="${p.id}" aria-label="Open ${esc(p.name)}"><span class="cov">${cover(p)}${p.inProject ? '<span class="tag">In project</span>' : ""}</span>` +
+    return `<div class="card"><button type="button" class="card-open" data-pack="${p.id}" aria-label="Open ${esc(p.name)}"><span class="cov">${cover(p)}${p.inProject ? '<span class="tag">In project</span>' : ""}${i < 9 ? `<span class="k">${i + 1}</span>` : ""}</span>` +
       `<b>${esc(p.name)}</b><span class="meta">${esc(p.pub)} · ${packCount(p.id)} sounds · ${n} categories</span>` +
       `<span class="mix">${top.slice(0, 3).map(x => esc(x[0])).join(" · ")}${n > 3 ? ` · +${n - 3} more` : ""}</span></button>` +
       `<button type="button" class="demo" data-demo="${p.id}" aria-label="Hear ${esc(p.name)}">${svg(ICON.play, 'width="10" height="10"')}Hear it</button></div>`;
@@ -598,6 +611,7 @@ function render() {
     : st.similar ? `Every result plays in the <b>Kick pad</b>. Press its similar button to hop on from it; the trail above takes you back.`
     : `Playing in the <b>Kick pad</b> over your beat. <span class="kbd">↑</span> <span class="kbd">↓</span> for the next, <span class="kbd">Esc</span> puts back Rounded Club Kick.`;
   $("done").hidden = !st.inserted;
+  $("keys").hidden = !st.keys;
   if (st.inserted) {
     const p = PACK[s.pack];
     $("done-name").textContent = s.name;
@@ -617,7 +631,7 @@ $("main").addEventListener("click", e => {
   const b = e.target.closest("button, input"); if (!b) return; const d = b.dataset;
   if (d.sel) select(d.sel);
   else if (d.fav) { st.favs.has(d.fav) ? st.favs.delete(d.fav) : st.favs.add(d.fav); render(); }
-  else if (d.similar) { if (!st.similar) st.trail = []; st.trail = [...st.trail.slice(0, st.trail.indexOf(st.similar) + 1), d.similar]; st.similar = d.similar; st.sel = d.similar; st.menu = false; play(byId[d.similar]); render(); $("list")?.scrollTo(0, 0); }
+  else if (d.similar) { openSimilar(d.similar); $("list")?.scrollTo(0, 0); }
   else if (d.hop) { st.similar = st.trail[+d.hop]; st.sel = st.similar; play(byId[st.similar]); render(); }
   else if (d.match) { st.match[d.match] = !st.match[d.match]; render(); }
   else if (d.fam) { st.fam = d.fam; st.cat = null; st.menu = false; render(); }
@@ -642,17 +656,57 @@ $("rail").addEventListener("click", e => {
   else if (b.dataset.pack) openPack(b.dataset.pack);
 });
 document.addEventListener("click", e => { if (st.menu && !e.target.closest(".menu, [data-act='menu']")) { st.menu = false; render(); } });
-$("main").addEventListener("keydown", e => {
-  if (e.target.id !== "list") return;
-  const rows = st.similar ? similarTo(byId[st.similar]).map(x => x.s) : results(), i = rows.findIndex(s => s.id === st.sel);
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const n = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))]; if (n) { select(n.id); $("list").focus(); } }
-  else if (e.key === "Enter") insert();
+/* The library's own keys. In the product these are registry entries in a
+   `library` shortcut context, active only while the library is open; the
+   modal's `dialog` context already switches every global binding off. */
+const visibleRows = () => st.similar ? similarTo(byId[st.similar]).map(x => x.s) : results();
+function stepSound(d) { const rows = visibleRows(), i = rows.findIndex(s => s.id === st.sel); const n = rows[Math.max(0, Math.min(rows.length - 1, i + d))]; if (n) select(n.id); }
+function catList() { settle(); const p = pool(), fam = FAMILIES.find(f => f.id === st.fam); return [null, ...fam.cats.filter(c => p.some(s => s.fam === st.fam && s.cat === c))]; }
+function famList() { const p = pool(); return FAMILIES.filter(f => p.some(s => s.fam === f.id)).map(f => f.id); }
+function openSimilar(id) { if (!st.similar) st.trail = []; st.trail = [...st.trail.slice(0, st.trail.indexOf(st.similar) + 1), id]; st.similar = id; st.sel = id; st.menu = false; st.view = "sounds"; play(byId[id]); render(); }
+function back() { if (st.menu) st.menu = false; else if (st.similar) { st.similar = null; st.trail = []; } else if (st.view === "packs") st.view = "sounds"; else if (st.pack !== "all") st.pack = "all"; render(); }
+document.addEventListener("keydown", e => {
+  if (st.inserted || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key, typing = e.target === qInput;
+  if (k === "Escape") { e.preventDefault(); if (st.keys) { st.keys = false; render(); } else if (typing) qInput.blur(); else if (st.menu) { st.menu = false; render(); } else { $("hint").innerHTML = `<b>Esc</b> closes the library and puts back Rounded Club Kick. (The mockup stays open.)`; } return; }
+  if (typing) { if (k === "ArrowDown" || k === "Enter") { e.preventDefault(); qInput.blur(); if (k === "ArrowDown") stepSound(1); } return; }
+  // A focused button or checkbox keeps Enter and Space, so keyboard users can still press it.
+  if ((k === "Enter" || k === " ") && e.target.closest && e.target.closest("button, input, label")) return;
+  const act = {
+    "/": () => qInput.focus(),
+    "?": () => { st.keys = !st.keys; render(); },
+    "ArrowDown": () => st.view === "sounds" && stepSound(1),
+    "ArrowUp": () => st.view === "sounds" && stepSound(-1),
+    "ArrowRight": () => { if (st.view !== "sounds" || st.similar) return; const c = catList(), i = c.indexOf(st.cat); st.cat = c[Math.min(c.length - 1, i + 1)]; render(); },
+    "ArrowLeft": () => { if (st.view !== "sounds" || st.similar) return; const c = catList(), i = c.indexOf(st.cat); st.cat = c[Math.max(0, i - 1)]; render(); },
+    "]": () => { if (st.view !== "sounds" || st.similar) return; const f = famList(), i = f.indexOf(st.fam); st.fam = f[(i + 1) % f.length]; st.cat = null; render(); },
+    "[": () => { if (st.view !== "sounds" || st.similar) return; const f = famList(), i = f.indexOf(st.fam); st.fam = f[(i - 1 + f.length) % f.length]; st.cat = null; render(); },
+    "Enter": () => insert(),
+    " ": () => play(byId[st.sel]),
+    "a": () => openPack("all"),
+    "f": () => openPack("fav"),
+    "p": () => { st.view = "packs"; st.similar = null; st.menu = false; render(); },
+    "l": () => { st.favs.has(st.sel) ? st.favs.delete(st.sel) : st.favs.add(st.sel); render(); },
+    "s": () => openSimilar(st.sel),
+    "r": () => $("shuffle").click(),
+    "g": () => { if (st.view === "sounds" && !st.similar) { st.menu = !st.menu; render(); } },
+    "t": () => { if (st.fam === "loops" && st.view === "sounds") { st.tempo = st.tempo === "near" ? "any" : "near"; render(); } },
+    "Backspace": () => back(),
+  }[k.length === 1 ? k.toLowerCase() === k ? k : k.toLowerCase() : k];
+  if (act) { e.preventDefault(); act(); return; }
+  if (/^[0-9]$/.test(k)) {
+    e.preventDefault(); const n = +k;
+    if (st.view === "packs") { const cards = [...document.querySelectorAll(".card-open")]; if (n > 0 && cards[n - 1]) openPack(cards[n - 1].dataset.pack); }
+    else if (!st.similar) { const c = catList(); if (n < c.length) { st.cat = c[n]; render(); } }
+  }
 });
 qInput.addEventListener("input", () => { st.q = qInput.value; st.similar = null; st.trail = []; render(); });
 $("shuffle").addEventListener("click", () => { const r = st.view === "packs" ? SOUNDS.filter(s => s.fam === "drums") : results(); const pool = st.similar ? similarTo(byId[st.similar]).map(x => x.s) : r.length ? r : SOUNDS; select(pool[Math.floor(Math.random() * pool.length)].id); });
 function insert() { stopAll(); st.inserted = true; render(); markStep(); }
 $("insert").addEventListener("click", insert);
 $("again").addEventListener("click", () => go(0));
+$("keys-btn").addEventListener("click", () => { st.keys = !st.keys; render(); });
+$("keys").addEventListener("click", e => { if (e.target.closest("[data-act='keys-close']")) { st.keys = false; render(); } });
 
 /* ---------- the flow ---------- */
 const STEPS = [
@@ -670,6 +724,8 @@ const STEPS = [
    s:() => ({fam:"loops", cat:null})},
   {t:"Similar sounds", n:"Every row has a similar button, the two circles beside the heart. It opens the closest sounds from every pack, each with a match meter. <b>Match on</b> chooses what counts as close. Press it on a result to hop on; the trail at the top goes back, and the back button returns to the list you came from.",
    s:() => { const a = find("Tight House Kick").id, b = find("Short Punch Kick").id; return {similar:b, sel:b, trail:[a, b]}; }},
+  {t:"Keyboard", n:"The library has its own keys, scoped to it: while it is open the editor's shortcuts are off, so single letters and digits are free. <b>F</b> Favourites, <b>A</b> all sounds, <b>P</b> packs; <b>1</b>–<b>9</b> pick a category (or open a pack), <b>0</b> is all of the family, <b>[</b> <b>]</b> change family; <b>↑</b> <b>↓</b> audition, <b>L</b> likes, <b>⏎</b> inserts. The badges show them, and <b>?</b> lists them all. Try them on the library below.",
+   s:() => ({keys:true})},
   {t:"Insert", n:"Insert keeps the sound in the pad and closes the library. If its pack was not in the project, it is now. Escape instead would have put back Rounded Club Kick.",
    s:() => ({sel:find("Hard Club Clap") ? SOUNDS.find(x => x.pack === "machines" && x.cat === "Kick").id : undefined, inserted:true})},
 ];
