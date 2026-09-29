@@ -31,26 +31,40 @@ export function encodeWav(
   sampleRate: number,
   bitDepth: WavBitDepth,
 ): Uint8Array {
-  if (channels.length === 0) throw new RangeError("A WAV needs at least one channel");
-  const frames = channels[0].length;
-  if (channels.some((channel) => channel.length !== frames)) {
-    throw new RangeError("Every channel of a WAV must be the same length");
-  }
+  const frames = channels[0]?.length ?? 0;
+  const header = wavHeader(channels.length, sampleRate, bitDepth, frames);
+  const pcm = encodePcm(channels, bitDepth);
+  const bytes = new Uint8Array(header.byteLength + pcm.byteLength);
+  bytes.set(header);
+  bytes.set(pcm, header.byteLength);
+  return bytes;
+}
+
+/**
+ * The canonical 44-byte header for `frames` frames of integer PCM. Separate
+ * from the samples so a stem can be padded to a longer length than it was
+ * rendered at without copying its samples (EXP-003).
+ */
+export function wavHeader(
+  channelCount: number,
+  sampleRate: number,
+  bitDepth: WavBitDepth,
+  frames: number,
+): Uint8Array {
+  if (channelCount < 1) throw new RangeError("A WAV needs at least one channel");
   if (!Number.isInteger(sampleRate) || sampleRate <= 0) {
     throw new RangeError(`Invalid sample rate: ${sampleRate}`);
   }
   if (!WAV_BIT_DEPTHS.includes(bitDepth)) {
     throw new RangeError(`Unsupported bit depth: ${bitDepth}`);
   }
-
-  const bytesPerSample = bitDepth / 8;
-  const blockAlign = channels.length * bytesPerSample;
+  const blockAlign = channelCount * (bitDepth / 8);
   const dataBytes = frames * blockAlign;
   if (WAV_HEADER_BYTES - 8 + dataBytes > 0xffffffff) {
     throw new RangeError("The audio is too long for a WAV file");
   }
 
-  const bytes = new Uint8Array(WAV_HEADER_BYTES + dataBytes);
+  const bytes = new Uint8Array(WAV_HEADER_BYTES);
   const view = new DataView(bytes.buffer);
   writeAscii(bytes, 0, "RIFF");
   view.setUint32(4, WAV_HEADER_BYTES - 8 + dataBytes, true);
@@ -58,16 +72,34 @@ export function encodeWav(
   writeAscii(bytes, 12, "fmt ");
   view.setUint32(16, 16, true);
   view.setUint16(20, PCM_FORMAT_TAG, true);
-  view.setUint16(22, channels.length, true);
+  view.setUint16(22, channelCount, true);
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * blockAlign, true);
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, bitDepth, true);
   writeAscii(bytes, 36, "data");
   view.setUint32(40, dataBytes, true);
+  return bytes;
+}
 
+/** A WAV's `data` chunk body: `channels` interleaved as little-endian signed
+ * integers. Every channel must be the same length. */
+export function encodePcm(
+  channels: readonly Float32Array[],
+  bitDepth: WavBitDepth,
+): Uint8Array {
+  const frames = channels[0]?.length ?? 0;
+  if (channels.some((channel) => channel.length !== frames)) {
+    throw new RangeError("Every channel of a WAV must be the same length");
+  }
+  if (!WAV_BIT_DEPTHS.includes(bitDepth)) {
+    throw new RangeError(`Unsupported bit depth: ${bitDepth}`);
+  }
+  const bytesPerSample = bitDepth / 8;
+  const bytes = new Uint8Array(frames * channels.length * bytesPerSample);
+  const view = new DataView(bytes.buffer);
   const scale = 2 ** (bitDepth - 1) - 1;
-  let at = WAV_HEADER_BYTES;
+  let at = 0;
   for (let frame = 0; frame < frames; frame++) {
     for (const channel of channels) {
       const value = toInteger(channel[frame], scale);
