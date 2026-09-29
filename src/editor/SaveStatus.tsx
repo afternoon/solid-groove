@@ -21,7 +21,7 @@ const SAVE_FAILURE_REASON_LABEL: Record<SaveFailureReason, string> = {
   revision_conflict: "This project changed in another tab or session.",
   not_found: "This project no longer exists.",
   already_exists: "A save conflict occurred.",
-  unsupported_schema_version: "This project needs a newer version of Solid Groove.",
+  unsupported_schema_version: "This project needs a newer version of Groove.",
   invalid_document: "Something about this save wasn't valid.",
   document_too_large: "This project is too large to save further changes.",
 };

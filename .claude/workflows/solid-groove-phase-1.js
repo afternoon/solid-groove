@@ -1,9 +1,9 @@
 export const meta = {
   name: 'solid-groove-phase-1',
   description:
-    'Implement every unblocked Solid Groove alpha issue (milestones #2..#5) — Opus implements, Opus reviews every branch before its PR opens',
+    'Implement every unblocked Groove alpha issue (milestones #2..#5) — Opus implements, Opus reviews every branch before its PR opens',
   whenToUse:
-    'Run to drive the Solid Groove alpha forward. ONE scheduler with ONE concurrency budget consumes every unblocked issue across the alpha milestones (#2 Loop Workflow, #3 Arrangement + Export, #4 AI Assistant, #5 Private Alpha Hardening; Post-Alpha #6 is out of scope). Milestones are only a scope filter, never a per-run partition — do not launch one workflow per milestone (that made two runs collide on the same task). Each pass it reads every in-scope milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestones: [2,3,4,5], maxConcurrent: 3 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once across ALL milestones; default 3 balances throughput against contention, raise it in cloud.',
+    'Run to drive the Groove alpha forward. ONE scheduler with ONE concurrency budget consumes every unblocked issue across the alpha milestones (#2 Loop Workflow, #3 Arrangement + Export, #4 AI Assistant, #5 Private Alpha Hardening; Post-Alpha #6 is out of scope). Milestones are only a scope filter, never a per-run partition — do not launch one workflow per milestone (that made two runs collide on the same task). Each pass it reads every in-scope milestone\'s open issues, their Projects "Status" (Todo/In Progress/Done), and the native issue-dependency graph, then starts every "Todo" issue whose blockers are all closed. It sets an issue to "In Progress" when it starts it, and exits when nothing is ready. Config via args: { milestones: [2,3,4,5], maxConcurrent: 3 } — maxConcurrent caps how many issue pipelines (each a worktree running the full test suite) run at once across ALL milestones; default 3 balances throughput against contention, raise it in cloud.',
   phases: [
     { title: 'Foundations', detail: 'transport, autosave, shortcuts, dashboard, asset pipeline — everything that only needs FND-009' },
     { title: 'Instruments', detail: 'synth/sampler, drum machine, audio loops, tracks and mixer, library browser' },
@@ -250,7 +250,7 @@ const MILESTONE_SCHEMA = {
 // server here — only `gh` is authenticated). It reads the Projects Status via
 // `gh api graphql` (needs the `read:project` scope) and the dependency graph via
 // the issue-dependencies REST endpoint. Read-only.
-const discoveryPrompt = (milestoneNumber) => `You are the scheduler's eyes for the Solid Groove Alpha Milestone workflow, repo \`afternoon/solid-groove\`. Use the **\`gh\` CLI** for every GitHub read (there is **no GitHub MCP server** in this environment — do not look for \`mcp__github__*\` tools, they do not exist; \`gh\` is already authenticated). This is **read-only** — do not modify any issue, project, or PR.
+const discoveryPrompt = (milestoneNumber) => `You are the scheduler's eyes for the Groove Alpha Milestone workflow, repo \`afternoon/solid-groove\`. Use the **\`gh\` CLI** for every GitHub read (there is **no GitHub MCP server** in this environment — do not look for \`mcp__github__*\` tools, they do not exist; \`gh\` is already authenticated). This is **read-only** — do not modify any issue, project, or PR.
 
 Report the live state of **GitHub milestone #${milestoneNumber}**. For every issue that is currently **open** in that milestone, return one entry with:
 

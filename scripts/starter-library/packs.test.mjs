@@ -63,7 +63,7 @@ describe("PACKS", () => {
     for (const pack of PACKS) {
       expect(pack.name).toBeTruthy();
       expect(pack.version).toMatch(PACK_VERSION);
-      expect(pack.publisher).toBe("Solid Groove");
+      expect(pack.publisher).toBe("Groove");
       expect(["factory", "user", "third-party"]).toContain(pack.kind);
       expect(pack.description).toBeTruthy();
       // Every pack states what it does not contain (section 6.5).

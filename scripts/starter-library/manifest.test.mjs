@@ -83,7 +83,7 @@ describe("buildAsset", () => {
     () => {
       const { asset } = buildAsset(sampleEntries[0]);
       expect(asset.license).toMatchObject({
-        creator: "Solid Groove",
+        creator: "Groove",
         rawRedistributionAllowed: true,
         evidencePath: "docs/licenses/starter-library-v1.md",
       });
@@ -203,7 +203,7 @@ function validAsset(pack, overrides = {}, index = 0) {
     license: {
       id: pack.rights.licence,
       rawRedistributionAllowed: pack.rights.rawRedistribution,
-      creator: "Solid Groove",
+      creator: "Groove",
       sourceUrl: null,
       retrievedAt: "2026-07-25",
       evidencePath: "docs/licenses/starter-library-v1.md",

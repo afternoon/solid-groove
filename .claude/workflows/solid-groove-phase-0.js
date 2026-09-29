@@ -1,7 +1,7 @@
 export const meta = {
   name: 'solid-groove-phase-0',
   description:
-    'Implement Solid Groove Alpha Milestone 0 (FND-001..009) — Opus implements, Opus reviews every branch before its PR opens',
+    'Implement Groove Alpha Milestone 0 (FND-001..009) — Opus implements, Opus reviews every branch before its PR opens',
   whenToUse:
     'Run to execute Alpha Milestone 0. Name tasks to run a subset, either positionally (solid-groove-phase-0 FND-003 FND-004) or as args: ["FND-003","FND-004"]. Omit them entirely to run the whole phase. Named tasks still execute in dependency order, not the order given.',
   phases: [

@@ -12,7 +12,7 @@ import * as Tone from "tone";
  *   wrong for a loop carrying tuned material.
  * - **Time-stretching** — change the duration while holding the pitch.
  *
- * Solid Groove time-stretches. `Tone.GrainPlayer` advances its read position
+ * Groove time-stretches. `Tone.GrainPlayer` advances its read position
  * through the buffer at `playbackRate` while each grain is played back at the
  * buffer's native rate, so a loop authored at 90 BPM played in a 120 BPM song
  * takes 3/4 of the time and keeps every pitch it was recorded with.
