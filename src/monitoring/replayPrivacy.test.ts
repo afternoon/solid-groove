@@ -126,8 +126,9 @@ const MASKED_NAMES: readonly {
     renders: "the open project's name",
   },
   {
-    file: "editor/Mixer.tsx",
-    anchor: "mixer-strip-name",
+    // The one rename input the mixer strip and the track header share.
+    file: "editor/TrackNameInput.tsx",
+    anchor: "track-name-",
     renders: "the track name, editable in place",
   },
   {
