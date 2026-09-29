@@ -34,7 +34,7 @@ import {
   TAXONOMY,
   TIME_SIGNATURES,
 } from "./taxonomy.mjs";
-import { storageKeyFor } from "./wav.mjs";
+import { PEAK_BINS, storageKeyFor } from "./wav.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -372,6 +372,21 @@ function validateAsset(
     const waveform = asset?.waveform;
     if (!waveform || waveform.peaks?.length !== waveform.buckets * 2) {
       errors.push(`${where}: waveform peaks do not match the declared bucket count`);
+    }
+  }
+
+  // `peaks` is optional (older manifests lack it), but a present one is the
+  // fixed 48-bin, 0..255 overview the library draws — and only audio has one.
+  if (asset?.peaks !== undefined) {
+    const peaks = asset.peaks;
+    if (asset.type === "preset") {
+      errors.push(`${where}: a preset must not carry peaks`);
+    } else if (
+      !Array.isArray(peaks) ||
+      peaks.length !== PEAK_BINS ||
+      !peaks.every((value) => Number.isInteger(value) && value >= 0 && value <= 255)
+    ) {
+      errors.push(`${where}: peaks must be exactly ${PEAK_BINS} integers from 0 to 255`);
     }
   }
 
