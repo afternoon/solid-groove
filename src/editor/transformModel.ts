@@ -236,6 +236,24 @@ export function parseFactor(text: string): number | null {
   return value > 0 && value <= 4 ? value : null;
 }
 
+/** One semitone up or down, kept within the command's range. */
+export function nudgeSemitones(value: number, direction: 1 | -1): number {
+  return Math.max(-127, Math.min(127, value + direction));
+}
+
+/** 0.05 up or down, kept above 0 and up to 4. */
+export function nudgeFactor(value: number, direction: 1 | -1): number {
+  const next = Math.round((value + direction * 0.05) * 100) / 100;
+  return Math.max(0.05, Math.min(4, next));
+}
+
+/** The seed's trailing number up or down ("vary-1" → "vary-2"), or "-1" added. */
+export function nudgeSeed(seed: string, direction: 1 | -1): string {
+  const match = /^(.*?)(\d+)$/.exec(seed);
+  if (!match) return `${seed}-1`;
+  return `${match[1]}${Math.max(0, Number(match[2]) + direction)}`;
+}
+
 /** A seed is any text that is not blank. */
 export function parseSeed(text: string): string | null {
   const seed = text.trim();

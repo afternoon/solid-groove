@@ -11,6 +11,7 @@ import type { EditorViewName } from "./editorViews";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
+import { focusedValueField } from "./valueFieldFocus";
 
 export interface UseEditorShortcutsOptions {
   readonly audio: ProjectAudioControls;
@@ -238,14 +239,29 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // in it, and its close control is how it closes.
     "view.close_surface": {
       run: () => {
-        if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
+        if (focusedValueField()) focusedValueField()?.cancel();
+        else if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) closeLibrary();
         else if (roll()) roll()?.clearSelection();
         else closeSequenceEditor();
       },
       isEnabled: () =>
-        arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen(),
+        focusedValueField() !== null ||
+        arrangementDragging() ||
+        guideOpen() ||
+        libraryOpen() ||
+        sequenceEditorOpen(),
+    },
+    // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
+    // the roll's note moves, which its context replaces.
+    "value.nudge_up": {
+      run: () => focusedValueField()?.nudge(1),
+      isEnabled: () => focusedValueField() !== null,
+    },
+    "value.nudge_down": {
+      run: () => focusedValueField()?.nudge(-1),
+      isEnabled: () => focusedValueField() !== null,
     },
     // The piano roll's note moves (ARR-010): arrows step through the rows the
     // roll shows and through steps; Shift moves by octaves or changes length.
@@ -337,9 +353,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   };
 
   const editorContexts = (): readonly ShortcutContext[] => {
-    const base: readonly ShortcutContext[] = showPianoRoll()
-      ? ["editor", "step_editor", "piano_roll", "selection"]
-      : ["editor", "step_editor"];
+    // A focused value field takes the arrows from the note editors
+    // (`DISJOINT_CONTEXTS`); its text keeps every other key anyway.
+    const base: readonly ShortcutContext[] = focusedValueField()
+      ? ["editor", "value_field"]
+      : showPianoRoll()
+        ? ["editor", "step_editor", "piano_roll", "selection"]
+        : ["editor", "step_editor"];
     // A live placement selection makes the arrangement's own mappings active
     // whichever editor is mounted below it (#258), not only when that editor
     // happens to be the step grid.
