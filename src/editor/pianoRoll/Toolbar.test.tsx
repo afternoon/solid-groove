@@ -12,6 +12,8 @@ describe("toolbar", () => {
       onDelete: vi.fn(),
       preview: true,
       onTogglePreview: vi.fn(),
+      soloed: false,
+      onToggleSolo: vi.fn(),
       zoom: 1,
       onZoomIn: vi.fn(),
       onZoomOut: vi.fn(),
@@ -52,5 +54,13 @@ describe("toolbar", () => {
     expect(props.onTogglePlay).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Select all" }));
     expect(props.onSelectAll).toHaveBeenCalledOnce();
+  });
+
+  it("shows and toggles the track's solo (#657)", () => {
+    const props = renderToolbar({ soloed: true });
+    const solo = screen.getByRole("button", { name: "Solo" });
+    expect(solo).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(solo);
+    expect(props.onToggleSolo).toHaveBeenCalledOnce();
   });
 });

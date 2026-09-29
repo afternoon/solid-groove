@@ -8,6 +8,9 @@ export interface ToolbarProps {
   /** Whether adding, clicking or dragging a note plays it. */
   readonly preview: boolean;
   onTogglePreview(): void;
+  /** Whether the clip's track is soloed (#657). */
+  readonly soloed: boolean;
+  onToggleSolo(): void;
   /** Time-only zoom, 0.5 to 2. */
   readonly zoom: number;
   onZoomIn(): void;
@@ -18,7 +21,7 @@ export interface ToolbarProps {
 
 /**
  * The roll's toolbar: Select all, Delete and the selection count on the left;
- * Preview sound, time zoom and Play on the right, Play being the one white
+ * Solo, Preview sound, time zoom and Play on the right, Play being the one white
  * primary action. It has no Duplicate: that is Cmd/Ctrl+D, and the Transform
  * panel's Double.
  *
@@ -44,6 +47,14 @@ export default function Toolbar(props: ToolbarProps): JSX.Element {
           : `${props.selectionCount} selected`}
       </span>
       <span class="pr-spacer" />
+      <button
+        type="button"
+        class="pr-tool pr-preview"
+        aria-pressed={props.soloed ? "true" : "false"}
+        onClick={() => props.onToggleSolo()}
+      >
+        Solo
+      </button>
       <button
         type="button"
         class="pr-tool pr-preview"
