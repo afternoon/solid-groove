@@ -73,14 +73,18 @@ function firePointer(
 /** A one-placement fixture wired to a real `EditorSession`, so a test asserts
  * against the project a gesture actually produced (mirrors `PianoRoll.test.tsx`
  * and the `placementEditingHarness`'s own approach). */
-async function setUpEditing(project: Project = createSliceFixtureProject()) {
+async function setUpEditing(
+  project: Project = createSliceFixtureProject(),
+  options: { analyticsEnabled?: boolean } = {},
+) {
   const repository = createInMemoryProjectRepository();
   const created = await repository.createProject(project);
   if (!created.ok) throw new Error("fixture failed to create");
 
   const transport = createRecordingTransport();
   const consent = new ConsentStore(memoryStorage());
-  consent.optIn();
+  if (options.analyticsEnabled === false) consent.optOut();
+  else consent.optIn();
   const analytics = new Analytics({
     transport,
     consent,
@@ -454,6 +458,49 @@ describe("opening a placement (UI-001)", () => {
     const { renderView } = await setUpEditing();
     renderView((): void => undefined);
     expect(screen.queryByRole("button", { name: "Open clip" })).not.toBeInTheDocument();
+  });
+});
+
+describe("creating a clip (#661)", () => {
+  const emptyBarNine = {
+    clientX: (TICKS_PER_BAR * 8 + TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+    clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+  };
+
+  it("creates a one-bar clip on a double-clicked empty bar, as one undo step", async () => {
+    const { renderView, session, transport } = await setUpEditing();
+    const clips = session.project.clips.length;
+    const { container } = renderView();
+
+    fireEvent.dblClick(interactionCanvasOf(container), emptyBarNine);
+    flush();
+
+    const created = session.project.song.placements.at(-1);
+    expect(session.project.clips).toHaveLength(clips + 1);
+    expect(created?.startTicks).toBe(TICKS_PER_BAR * 8);
+    expect(created?.durationTicks).toBe(TICKS_PER_BAR);
+    const firstUses = transport.events.filter(
+      (event) =>
+        event.name === "feature_first_use" &&
+        event.params.feature === "arrangement_create_clip",
+    );
+    expect(firstUses).toHaveLength(1);
+
+    session.undo();
+    expect(session.project.clips).toHaveLength(clips);
+  });
+
+  it("creates the same clip with analytics off, logging nothing", async () => {
+    const { renderView, session, transport } = await setUpEditing(undefined, {
+      analyticsEnabled: false,
+    });
+    const { container } = renderView();
+
+    fireEvent.dblClick(interactionCanvasOf(container), emptyBarNine);
+    flush();
+
+    expect(session.project.song.placements.at(-1)?.startTicks).toBe(TICKS_PER_BAR * 8);
+    expect(transport.events).toHaveLength(0);
   });
 });
 
