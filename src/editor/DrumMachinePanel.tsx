@@ -26,6 +26,7 @@ import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MuteSoloToggles from "./MuteSoloToggles";
 import PadControl from "./PadControl";
+import PadName from "./PadName";
 import PadSound from "./PadSound";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
@@ -251,18 +252,19 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               >
                 <td class="pad-index">{String(index() + 1).padStart(2, "0")}</td>
                 <td>
-                  <button
-                    type="button"
-                    class="pad-audition"
-                    onClick={() => {
+                  <PadName
+                    track={props.track}
+                    pad={pad()}
+                    dispatch={props.dispatch}
+                    onAudition={() => {
                       setChosenPad(pad().id);
                       audition(pad());
                     }}
-                    aria-label={`Audition ${pad().name}`}
-                    title={`Audition ${pad().name}`}
-                  >
-                    <span class="pad-name">{pad().name}</span>
-                  </button>
+                    onRenamed={() => {
+                      markFeatureUse();
+                      analytics().logFeatureFirstUse("drum_pad_rename");
+                    }}
+                  />
                 </td>
 
                 {/* The row names its sound; choosing one is the editor's job. */}
