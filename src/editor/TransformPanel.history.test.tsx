@@ -175,4 +175,18 @@ describe("TransformPanel analytics", () => {
     expect(pitches(session)).toEqual(before.map((pitch) => pitch + 12));
     expect(transport.events).toHaveLength(0);
   });
+
+  it("doubles the same with analytics on or off, logging one clip_edited when on", async () => {
+    for (const analyticsEnabled of [true, false]) {
+      cleanup();
+      const { session, transport, renderPanel } = await setUp({ analyticsEnabled });
+      const length = session.project.clips[0].lengthTicks;
+      renderPanel([]);
+
+      clickTransform("Double");
+
+      expect(session.project.clips[0].lengthTicks).toBe(length * 2);
+      expect(clipEdited(transport)).toHaveLength(analyticsEnabled ? 1 : 0);
+    }
+  });
 });
