@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isEntityId } from "../domain/ids";
 import { assertProject } from "../domain/parse";
-import { TICKS_PER_BAR } from "../domain/time";
+import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createStarterProject } from "./starterProject";
 
 describe("createStarterProject", () => {
@@ -21,18 +21,19 @@ describe("createStarterProject", () => {
     });
   });
 
-  it("has one sampler track whose asset resolves through a pack", () => {
+  it("has one drum-machine track with a BD pad whose asset resolves through a pack", () => {
     const project = createStarterProject("user_1");
 
     expect(project.song.tracks).toHaveLength(1);
     const track = project.song.tracks[0];
-    expect(track.instrument?.kind).toBe("sampler");
+    expect(track.name).toBe("BD");
+    if (track.instrument?.kind !== "drumMachine")
+      throw new Error("expected drum machine");
+    expect(track.instrument.pads.map((pad) => pad.name)).toEqual(["BD"]);
 
     expect(project.song.assets).toHaveLength(1);
     const asset = project.song.assets[0];
-    expect(track.instrument?.kind === "sampler" && track.instrument.assetId).toBe(
-      asset.id,
-    );
+    expect(track.instrument.pads[0].assetId).toBe(asset.id);
 
     expect(project.metadata.packDependencies).toEqual([
       { packId: asset.packId, version: asset.packVersion },
@@ -47,6 +48,16 @@ describe("createStarterProject", () => {
     expect(clip.content.kind).toBe("notes");
     if (clip.content.kind === "notes") {
       expect(clip.content.events).toHaveLength(4);
+      // Every hit triggers the BD pad, on steps 1, 5, 9, 13.
+      const track = project.song.tracks[0];
+      const padId =
+        track.instrument?.kind === "drumMachine" ? track.instrument.pads[0].id : null;
+      expect(clip.content.events.map((event) => event.trigger)).toEqual(
+        Array(4).fill({ kind: "pad", padId }),
+      );
+      expect(
+        clip.content.events.map((event) => event.startTicks / TICKS_PER_SIXTEENTH),
+      ).toEqual([0, 4, 8, 12]);
     }
     expect(project.song.placements).toHaveLength(1);
     expect(project.song.placements[0].clipId).toBe(clip.id);
