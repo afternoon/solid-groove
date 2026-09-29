@@ -530,7 +530,7 @@ project dashboard
    halfway through bar 4 on "Sampler". The sampler's clips in bars 2 and 3,
    which the drag overlaps and wholly contains, are selected as whole clips, and
    the arrangement announces "2 clips selected".
-3. Zoom to selection from the toolbar. The timeline now shows exactly the
+3. Zoom to selection from the zoom control over the arrangement. The timeline now shows exactly the
    selected clips and nothing else: the start of bar 2 at its left edge and the
    end of bar 3 at its right edge. The half bars you dragged over either side
    of them are not framed.
@@ -543,7 +543,7 @@ project dashboard
 **Outcome:** zoom to selection frames exactly the selected clips, from the first
 one's start to the last one's end, however far the drag that selected them
 reached past them, and a single clicked clip, where it used to do nothing. It
-works from the toolbar and from the keyboard.
+works from the zoom control and from the keyboard.
 
 **Out of scope:** "zoom back" to the previous zoom, which is its own shortcut. A
 selection wider than the timeline can show at its closest zoom. What the

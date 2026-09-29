@@ -1,12 +1,13 @@
 import type { Project, Song } from "../domain/entities";
 import {
+  createDrumMachineInstrument,
+  createDrumPad,
   createEmptySong,
   createFactoryContext,
   createNoteClip,
   createNoteEvent,
   createPlacement,
   createProjectMetadata,
-  createSamplerInstrument,
   createTrack,
 } from "../domain/factories";
 import { derivePackDependencies } from "../domain/packs";
@@ -15,10 +16,11 @@ import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createFactoryAsset } from "../library/factoryLibrary";
 
 /**
- * Builds a fresh `FND-009` starter project: one sampler track ("BD") whose
- * asset resolves through a real factory pack from the generated library
- * manifest (`src/library/factoryLibrary.ts`), and a one-bar four-on-the-floor note clip
- * placed once — the same shape `src/domain/fixtures.ts`'s
+ * Builds a fresh `FND-009` starter project: one drum-machine track ("BD") with
+ * a single "BD" pad whose kick resolves through a real factory pack from the
+ * generated library manifest (`src/library/factoryLibrary.ts`), and a one-bar
+ * four-on-the-floor clip of pad hits placed once (#496: a drum machine is the
+ * one-shot player, a sampler the tonal instrument) — the same shape `src/domain/fixtures.ts`'s
  * `createSliceFixtureProject` pins for tests, but with real (non-seeded) IDs
  * and the current time, for "New Project" to hand to the repository.
  *
@@ -34,10 +36,11 @@ export function createStarterProject(ownerId: string): Project {
   // starter cannot drift from the library it resolves against.
   const asset = createFactoryAsset(context, "starterKick");
 
+  const kickPad = createDrumPad(context, { name: "BD", assetId: asset.id });
   const track = createTrack(context, {
     name: "BD",
     order: 0,
-    instrument: createSamplerInstrument(asset.id),
+    instrument: createDrumMachineInstrument([kickPad]),
   });
 
   const clip = createNoteClip(context, {
@@ -48,7 +51,7 @@ export function createStarterProject(ownerId: string): Project {
       createNoteEvent(context, {
         startTicks: sixteenth * TICKS_PER_SIXTEENTH,
         durationTicks: TICKS_PER_SIXTEENTH,
-        pitch: 36,
+        padId: kickPad.id,
       }),
     ),
   });

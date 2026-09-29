@@ -151,10 +151,7 @@ async function expectBdStepTwo(page: Page, bar: number, on: boolean): Promise<vo
 }
 
 test.describe("CF-016", () => {
-  // `test.fixme` until #496 lands: the starter becomes a drum-machine track,
-  // whose "BD" pad lane ("BD, step 2, off") steps 5-8 read. Alt-drag itself
-  // (#456) is already live; the PR that closes #496 removes this marker.
-  test.fixme("a producer Alt-drags clips to copy them", async ({ page }) => {
+  test("a producer Alt-drags clips to copy them", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-016",
       title: "A producer Alt-drags clips to copy them",

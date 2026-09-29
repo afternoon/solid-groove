@@ -2,11 +2,16 @@ import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Project, Track } from "../domain/entities";
 import {
+  createDrumMachineInstrument,
+  createDrumPad,
+  createFactoryContext,
+} from "../domain/factories";
+import {
   createDrumMachineFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
 import { clickAndFlush } from "../testing/events";
-import { loopEntryFor } from "./editorViewModel";
+import { loopEntryFor, showPianoRoll } from "./editorViewModel";
 import SequenceEditor from "./SequenceEditor";
 
 afterEach(cleanup);
@@ -30,7 +35,7 @@ function renderEditorFor(
       track={track}
       project={project}
       packDependencyLabel={null}
-      showPianoRoll={() => track.instrument?.kind === "synth"}
+      showPianoRoll={() => showPianoRoll(track, clip)}
       loop={loopEntryFor(project, clip)}
       songTempo={project.song.tempo}
       editorPlaybackStep={() => null}
@@ -44,6 +49,39 @@ function renderEditorFor(
     />
   ));
   return { ...rendered, clip, track };
+}
+
+/**
+ * The slice fixture as a drum machine: one "BD" pad on the kick sample, the
+ * four-on-the-floor clip re-pointed at that pad. A sampler note clip opens the
+ * piano roll (#496), so the step grid is only reachable through a drum machine.
+ */
+function createStepGridProject(): Project {
+  const project = createSliceFixtureProject();
+  const [track] = project.song.tracks;
+  const [asset] = project.song.assets;
+  const pad = createDrumPad(createFactoryContext(), { name: "BD", assetId: asset.id });
+  return {
+    ...project,
+    song: {
+      ...project.song,
+      tracks: [{ ...track, instrument: createDrumMachineInstrument([pad]) }],
+    },
+    clips: project.clips.map((clip) =>
+      clip.content.kind === "notes"
+        ? {
+            ...clip,
+            content: {
+              ...clip.content,
+              events: clip.content.events.map((event) => ({
+                ...event,
+                trigger: { kind: "pad" as const, padId: pad.id },
+              })),
+            },
+          }
+        : clip,
+    ),
+  };
 }
 
 /** The slice fixture's sampler track and its four-on-the-floor note clip. */
@@ -67,19 +105,23 @@ describe("SequenceEditor", () => {
     ).toBeInTheDocument();
   });
 
-  it("gives a step-grid clip the step editor, with the clip's own steps", () => {
-    const project = createSliceFixtureProject();
+  it("gives a drum-machine clip the step editor, with the clip's own steps", () => {
+    const project = createStepGridProject();
     renderEditorFor(project, starterClip);
 
     const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: "Step editor" })).toBeVisible();
-    expect(
-      within(dialog).getByRole("button", { name: "Notes, step 1, on" }),
-    ).toBeVisible();
-    expect(
-      within(dialog).getByRole("button", { name: "Notes, step 2, off" }),
-    ).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "BD, step 2, off" })).toBeVisible();
     expect(within(dialog).queryByRole("region", { name: /Piano roll/ })).toBeNull();
+  });
+
+  it("gives a sampler note clip the piano roll, not the step editor (#496)", () => {
+    renderEditorFor(createSliceFixtureProject(), starterClip);
+
+    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
+    expect(within(dialog).getByRole("region", { name: /Piano roll/ })).toBeVisible();
+    expect(within(dialog).queryByRole("region", { name: "Step editor" })).toBeNull();
   });
 
   it("shows the loop panel instead for a tempo-labelled audio loop", () => {

@@ -38,38 +38,39 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
     await page.getByRole("region", { name }).scrollIntoViewIfNeeded();
     await page.evaluate(() => window.scrollTo(0, 0));
   };
-  // The starter track is a sampler, and the panel now says so out loud.
-  await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
+  // The starter track is a drum machine (#496), and the panel says so.
+  await expect(page.getByRole("button", { name: "Audition BD" })).toBeVisible();
   await show(/^Instrument$/);
-  await step("Open a project: the track's instrument is a sampler");
+  await step("Open a project: the track's instrument is a drum machine");
 
-  // Sampler -> synth, in one transaction the command layer can name.
+  // Drum machine -> synth, in one transaction the command layer can name.
+  // The starter's drum hits cannot play on a synth, so the change asks first.
   await picker.getByText("Synth", { exact: true }).click();
+  await page.getByRole("button", { name: "Change instrument" }).click();
   await expect(page.getByRole("region", { name: "Synth voice" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Sampler" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Audition BD" })).toHaveCount(0);
   await show("Synth voice");
-  await expect(
-    page.getByRole("button", { name: /^Undo Change .* to synth/ }),
-  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: /^Undo Delete 4 notes/ })).toBeEnabled();
   await step("Pick Synth: the synth panel replaces the sampler's");
 
-  // ...and on to the drum machine, which arrives with the same pads a track
-  // created as a drum machine gets (BD/SD/HH/CP, from the shared kind table).
-  await picker.getByText("Drum machine", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "Audition BD" })).toBeVisible();
-  await show(/^Drum machine/);
-  await step("Pick Drum machine: it arrives with pads to load");
-
-  // The route back off a drum machine — the direction that had no UI at all,
-  // since the drum machine's own panel is mounted elsewhere.
+  // ...and on to the sampler, the tonal instrument.
   await picker.getByText("Sampler", { exact: true }).click();
   await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Synth voice" })).toHaveCount(0);
+  await show("Sampler");
+  await step("Pick Sampler: the sampler panel replaces the synth's");
+
+  // The route back to a drum machine, which arrives with the same pads a track
+  // created as a drum machine gets (BD/SD/HH/CP, from the shared kind table).
+  await picker.getByText("Drum machine", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "Audition SD" })).toBeVisible();
+  await show(/^Drum machine/);
 
   // Each switch is one history entry, so undo walks back a step at a time.
   await page.getByRole("button", { name: /^Undo/ }).click();
-  await expect(page.getByRole("button", { name: "Audition BD" })).toBeVisible();
-  await show(/^Drum machine/);
-  await step("Undo returns the drum machine, one switch at a time");
+  await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
+  await show("Sampler");
+  await step("Undo returns the sampler, one switch at a time");
 });
 
 // #246 replaced the sampler's swap list with the loaded sample's name and a
@@ -83,6 +84,13 @@ test("keeps the sampler's parameter groups on one row", async ({ page }) => {
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   await goToInstrument(page);
+  // The starter is a drum machine (#496); the sampler is one pick away, once
+  // the drum hits it cannot play are confirmed away.
+  await page
+    .getByRole("region", { name: "Instrument", exact: true })
+    .getByText("Sampler", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "Change instrument" }).click();
   await expect(page.getByRole("region", { name: "Sampler" })).toBeVisible();
 
   const groups = page.locator(".sampler-panel .instrument-panel-group");
