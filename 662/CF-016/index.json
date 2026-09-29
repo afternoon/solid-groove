@@ -1,0 +1,34 @@
+{
+  "id": "CF-016",
+  "title": "A producer Alt-drags clips to copy them",
+  "steps": [
+    {
+      "file": "01-bd-and-sampler-each-have-one-clip-in-bar-1.png",
+      "caption": "BD and Sampler each have one clip, in bar 1"
+    },
+    {
+      "file": "02-drag-across-both-tracks-both-clips-in-bar-1-are-selected.png",
+      "caption": "Drag across both tracks: both clips in bar 1 are selected"
+    },
+    {
+      "file": "03-alt-drag-the-bd-clip-to-bar-3-both-clips-are-copied.png",
+      "caption": "Alt-drag the BD clip to bar 3: both clips are copied"
+    },
+    {
+      "file": "04-alt-drag-again-the-copies-are-copied-to-bar-5.png",
+      "caption": "Alt-drag again: the copies are copied to bar 5"
+    },
+    {
+      "file": "05-turn-on-a-step-in-the-bd-copy-in-bar-5.png",
+      "caption": "Turn on a step in the BD copy in bar 5"
+    },
+    {
+      "file": "06-the-bd-clip-in-bar-1-is-unchanged-the-copy-is-independent.png",
+      "caption": "The BD clip in bar 1 is unchanged: the copy is independent"
+    },
+    {
+      "file": "07-reopened-exactly-as-it-was-left.png",
+      "caption": "Reopened exactly as it was left"
+    }
+  ]
+}
