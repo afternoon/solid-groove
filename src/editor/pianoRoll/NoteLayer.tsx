@@ -4,6 +4,7 @@ import type { EventId } from "../../domain/ids";
 import { pitchOf } from "./edits";
 import { noteBox, ticksToSteps } from "./layout";
 import { type PianoRollRow, pitchName, rowIndexOf } from "./rows";
+import "./grid.css";
 
 export interface NoteLayerProps {
   readonly notes: readonly NoteEvent[];
