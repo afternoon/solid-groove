@@ -1,0 +1,38 @@
+{
+  "id": "CF-008",
+  "title": "A producer works across the arrangement, the instrument and the mixer",
+  "steps": [
+    {
+      "file": "01.png",
+      "caption": "A new project opens on a full-page arrangement, with the dock"
+    },
+    {
+      "file": "02.png",
+      "caption": "Open the clip \u2014 the sequence editor fills the window"
+    },
+    {
+      "file": "03.png",
+      "caption": "Turn on a step that was off"
+    },
+    {
+      "file": "04.png",
+      "caption": "Close it \u2014 the arrangement is underneath, unchanged"
+    },
+    {
+      "file": "05.png",
+      "caption": "Press 2 \u2014 the instrument fills the page, tracks down the left"
+    },
+    {
+      "file": "06.png",
+      "caption": "Press 3 \u2014 pull the track's fader down in the mixer"
+    },
+    {
+      "file": "07.png",
+      "caption": "Back to the arrangement from the dock"
+    },
+    {
+      "file": "08.png",
+      "caption": "Reload the mixer \u2014 it reopens there, fader where you left it"
+    }
+  ]
+}
