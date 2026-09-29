@@ -344,6 +344,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     sequenceEditorOpen: () => opened() !== null,
     closeSequenceEditor: () => setOpenPlacementId(null),
     toggleLooping: () => toggleLooping(loopActions),
+    // The mixer keeps the arrows: its strips are moved with them (#447).
+    adjacentTrack: (by) => {
+      if (props.view === "mixer") return undefined;
+      const id = model.adjacentTrackId(project(), selectedTrackId(), by);
+      return id ? () => selectTrack(id) : undefined;
+    },
   });
 
   const instrumentPanelTrackId = createMemo(() => model.instrumentPanelTrackId(track()));

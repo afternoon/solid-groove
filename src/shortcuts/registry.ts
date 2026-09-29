@@ -84,6 +84,8 @@ export const SHORTCUT_ACTION_IDS = [
   "device.move_later",
   "track.move_left",
   "track.move_right",
+  "track.select_previous",
+  "track.select_next",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -479,6 +481,32 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       kind: "solid_groove",
       reason:
         "Live reorders tracks by dragging only; this is the keyboard way to do what the drag does.",
+    },
+  }),
+  define({
+    id: "track.select_previous",
+    label: "Select previous track",
+    description:
+      "Selects the track above the current one in the arrangement and instrument views; stops at the first track.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "ArrowUp",
+    ableton: {
+      kind: "solid_groove",
+      reason: "the arrow keys step the editor's selected track through the track list.",
+    },
+  }),
+  define({
+    id: "track.select_next",
+    label: "Select next track",
+    description:
+      "Selects the track below the current one in the arrangement and instrument views; stops at the last track.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "ArrowDown",
+    ableton: {
+      kind: "solid_groove",
+      reason: "the arrow keys step the editor's selected track through the track list.",
     },
   }),
 ];

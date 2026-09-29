@@ -58,6 +58,8 @@ while a producer programs a clip in it, so it gets a context of its own instead.
 | `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
 | `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
 | `track.move_right` | Move track right | `Right` | `Right` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
+| `track.select_previous` | Select previous track | `Up` | `Up` | Navigation | editor | Solid Groove addition — the arrow keys step the editor's selected track through the track list. |
+| `track.select_next` | Select next track | `Down` | `Down` | Navigation | editor | Solid Groove addition — the arrow keys step the editor's selected track through the track list. |
 
 `Browser` is a declared guide group with no mappings yet. The task that builds
 that surface adds entries to the existing group rather than inventing a section.

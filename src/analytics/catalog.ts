@@ -222,6 +222,7 @@ export const FEATURE_KEYS = [
   "export_stems",
   "playhead_seek",
   "track_color",
+  "track_delete",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -320,6 +321,8 @@ export const SHORTCUT_ACTION_IDS = [
   "device.move_later",
   "track.move_left",
   "track.move_right",
+  "track.select_previous",
+  "track.select_next",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
