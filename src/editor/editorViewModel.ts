@@ -130,6 +130,22 @@ export function editedTrack(
 }
 
 /**
+ * The track `by` places from the edited one (-1 previous, +1 next), or null at
+ * either end of the track list: selection stops at the ends rather than
+ * wrapping, so holding the key against the last track leaves it selected.
+ */
+export function adjacentTrackId(
+  project: Project | null,
+  selectedTrackId: TrackId | null,
+  by: -1 | 1,
+): TrackId | null {
+  const tracks = project?.song.tracks ?? [];
+  const current = editedTrack(project, selectedTrackId);
+  if (!current) return null;
+  return tracks[tracks.indexOf(current) + by]?.id ?? null;
+}
+
+/**
  * The edited track when it is a drum machine, which gets the `LOOP-005` pad
  * panel instead of the sampler/synth panel. Following the selection rather
  * than searching the project for the first drum-machine track is the point of

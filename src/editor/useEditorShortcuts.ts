@@ -52,7 +52,21 @@ export interface UseEditorShortcutsOptions {
    * command through the same path as a drag. */
   readonly moveLoop: (bars: number) => void;
   readonly resizeLoop: (bars: number) => void;
+  /** The track selection's `-1`/`+1` step (`track.select_previous`/`_next`):
+   * `undefined` when there is no track that way (the ends, or a view where the
+   * arrows keep another meaning), so the key is left to the browser. */
+  readonly adjacentTrack: (by: -1 | 1) => (() => void) | undefined;
+  /** Deletes the selected track (#537): `undefined` where a track is not the
+   * selection (the mixer, the sequence editor, an empty project). */
+  readonly deleteSelectedTrack: () => (() => void) | undefined;
 }
+
+/** Controls that use the vertical arrows themselves, so a track step must not
+ * steal them while one has focus (text entry is already left alone). */
+const OWN_ARROWS =
+  'input[type="range"], [role="slider"], [role="listbox"], [role="menu"]';
+const focusKeepsArrows = (): boolean =>
+  document.activeElement?.matches(OWN_ARROWS) ?? false;
 
 /**
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
@@ -95,6 +109,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     loopBraceFocused,
     moveLoop,
     resizeLoop,
+    adjacentTrack,
+    deleteSelectedTrack,
   } = options;
 
   /**
@@ -152,15 +168,18 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // component (CLP-02), and the arrangement's placement selection is lifted
     // the same way (ARR-002). Only fires when some surface's selection is
     // non-empty, so an empty-selection Delete leaves the browser default alone
-    // (PRD KEY-02).
+    // (PRD KEY-02). The selected track is the last resort (#537): a selection
+    // of notes or clips is more specific and keeps the key, so the track goes
+    // only when nothing inside it is selected.
     "edit.delete": {
       run: () => {
         const owner = selectionOwner();
         if (owner === "piano_roll") pianoRollActions()?.deleteSelection();
         else if (owner === "arrangement") arrangementEditingActions()?.deleteSelection();
         else if (owner === "step_editor") deleteSelection();
+        else deleteSelectedTrack()?.();
       },
-      isEnabled: () => selectionOwner() !== null,
+      isEnabled: () => selectionOwner() !== null || deleteSelectedTrack() !== undefined,
     },
     // The three views (UI-001). No `isEnabled`: a view is always reachable,
     // and asking for the one you are on is a no-op inside `selectView`.
@@ -168,6 +187,17 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
     "help.shortcut_guide": { run: () => setGuideOpen(true) },
+    // Up/Down walk the selected track in the arrangement and instrument views.
+    // Plain arrows only: Alt+Up/Down stay `device.move_*` (exact-modifier
+    // matching), and a fader or list that has focus keeps its own arrows.
+    "track.select_previous": {
+      run: () => adjacentTrack(-1)?.(),
+      isEnabled: () => !focusKeepsArrows() && adjacentTrack(-1) !== undefined,
+    },
+    "track.select_next": {
+      run: () => adjacentTrack(1)?.(),
+      isEnabled: () => !focusKeepsArrows() && adjacentTrack(1) !== undefined,
+    },
     // Frames the arrangement's selection (#292), the toolbar button's twin.
     // The arrangement is on screen in every editor state, so this is live
     // whenever it has something to frame.

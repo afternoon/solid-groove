@@ -20,6 +20,7 @@ import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import "../editor/trackDrag.css";
 import TrackHeader from "../editor/TrackHeader";
+import { deleteTrack } from "../editor/trackDeletion";
 import type { TrackLevel } from "../editor/trackLevels";
 import { moveTrack, orderedTrackIds, previewTrackOrder } from "../editor/trackReorder";
 import { useTrackDrag } from "../editor/useTrackDrag";
@@ -230,6 +231,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
       );
     },
   });
+
+  /** The header's trash button (#537): delete, then show the neighbour. */
+  const deleteSelectedTrack = (trackId: TrackId) => {
+    const dispatch = props.dispatch;
+    if (!dispatch) return;
+    deleteTrack(
+      {
+        project: () => props.project,
+        dispatch,
+        select: (id) => props.onSelectTrack?.(id),
+        analytics: analytics(),
+      },
+      trackId,
+    );
+  };
 
   /** Whether `trackId` is the one drawn at a drag's would-be landing row. */
   const previewing = (trackId: TrackId) =>
@@ -968,6 +984,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
                         onDragStart={(event) => {
                           if (props.dispatch) trackDrag.begin(event, track().id);
                         }}
+                        onDelete={() => deleteSelectedTrack(track().id)}
                         surface="arrangement"
                         analytics={analytics()}
                       />

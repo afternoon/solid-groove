@@ -19,13 +19,21 @@ import { walkthrough } from "../../support/walkthrough";
  *  - Steps 7-11 are `ARR-003`'s own surface: the loop-range selection, the
  *    structure template, and section markers on the ruler.
  *
+ * **Revised for #496 (a sampler is a tonal instrument; the drum machine is the
+ * one-shot player).** Hats and Claps are drum-machine tracks sequenced on the
+ * step grid by pad ("HH, step 3, on"); Chords and Bass are sampler tracks
+ * written in the piano roll at C4, which plays the sample as recorded. The
+ * starter kick is read off the "BD" pad. Only what the new model forces has
+ * changed: the loop, the outline and the undos are as before.
+ *
  * Where an existing surface already has an accessible name — the dashboard, the
  * step grid, the transport, undo, the arrangement's DOM mirror of its selection
  * — this file uses the real one. Everything else is a requirement being placed
  * on the implementation, and is called out where it appears.
  */
 
-// Grid steps are 1-indexed, matching the accessible names the step editor emits.
+// Grid steps are 1-indexed, matching the accessible names the step editor and
+// the piano roll emit.
 
 /** The "and" of each beat: the offbeat a closed hat sits on. */
 const OFFBEATS = [3, 7, 11, 15];
@@ -35,44 +43,85 @@ const BACKBEAT = [5, 13];
 const RAVE_STAB = [1, 4, 7, 10, 13, 16];
 /** Four on the floor, with the starter kick. */
 const WITH_THE_KICK = [1, 5, 9, 13];
+/** C4 plays a sampler's sample as it was recorded (#496). */
+const AS_RECORDED = "C4";
+
+/** One bar of the alpha's fixed 4/4 at 192 PPQ (`src/domain/time.ts`). */
+const TICKS_PER_BAR = 4 * 192;
+
+/** The interaction canvas the tracks are drawn on: a `<canvas>`, so a class (CF-016). */
+const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
+
+/** The clip editor that opens over the arrangement (CF-001). */
+const sequenceEditor = (page: Page): Locator =>
+  page.getByRole("dialog", { name: "Sequence editor" });
+
+/** Open the clip in bar 1 of track row `rowIndex`, and return its editor. */
+async function openClip(page: Page, rowIndex: number): Promise<Locator> {
+  const root = page.getByTestId("arrangement-view-ready");
+  const pixelsPerTick = Number(await root.getAttribute("data-pixels-per-tick"));
+  const rulerHeight = Number(await root.getAttribute("data-ruler-height"));
+  const rowHeight = Number(await root.getAttribute("data-row-height"));
+  expect(pixelsPerTick).toBeGreaterThan(0);
+  expect(rowHeight).toBeGreaterThan(0);
+  await timeline(page).dblclick({
+    position: {
+      x: 0.5 * TICKS_PER_BAR * pixelsPerTick,
+      y: rulerHeight + rowIndex * rowHeight + rowHeight / 2,
+    },
+  });
+  await expect(sequenceEditor(page)).toBeVisible();
+  return sequenceEditor(page);
+}
+
+async function closeEditor(page: Page): Promise<void> {
+  await page.keyboard.press("Escape");
+  await expect(sequenceEditor(page)).toHaveCount(0);
+}
+
+/** Name the track just added, through the mixer's name field. */
+async function nameTrack(page: Page, name: string): Promise<void> {
+  await page.getByRole("textbox", { name: "Track name" }).fill(name);
+  await page.getByRole("textbox", { name: "Track name" }).press("Enter");
+}
 
 /**
- * One track's step grid.
- *
- * Every step editor on screen is currently labelled "Step editor"
- * (`src/editor/StepEditor.tsx`), which is unambiguous only while a project has
- * one track. This flow puts five on screen, so each track's grid has to carry
- * its own name — for assistive technology first, and for this spec second.
+ * Add a named drum-machine track and put one of its pads on `steps`, on the
+ * step grid. The starter kit already carries a hat on "HH" and a clap on "CP",
+ * so no library sound is loaded (#496: the drum machine is the one-shot
+ * player, and drum one-shots live on its pads).
  */
-const stepGrid = (page: Page, track: string): Locator =>
-  page.getByRole("region", { name: `${track} step editor` });
+async function addDrumTrack(
+  page: Page,
+  part: { name: string; row: number; pad: string; steps: readonly number[] },
+): Promise<void> {
+  await page.getByRole("button", { name: "Add drum machine track" }).click();
+  await nameTrack(page, part.name);
 
-/** Turn on each step of a pattern, asserting each one took. */
-async function program(grid: Locator, steps: readonly number[]): Promise<void> {
-  for (const step of steps) {
-    await grid.getByRole("button", { name: `Notes, step ${step}, off` }).click();
+  const editor = await openClip(page, part.row);
+  for (const step of part.steps) {
+    await editor.getByRole("button", { name: `${part.pad}, step ${step}, off` }).click();
     await expect(
-      grid.getByRole("button", { name: `Notes, step ${step}, on` }),
+      editor.getByRole("button", { name: `${part.pad}, step ${step}, on` }),
     ).toBeVisible();
   }
+  await closeEditor(page);
 }
 
 /**
  * Add a named sampler track, drag a library sound onto its instrument, and
- * program its pattern.
+ * write its notes in the piano roll. A sampler is a tonal instrument (#496):
+ * its clip opens in the piano roll, and a note plays the sample at its pitch.
  *
- * The two affordances this leans on are the ones #223 and #225 exist to
- * deliver: choosing the instrument kind when creating a track, and dropping a
- * library asset onto a sampler. Today "Add track" always mints a synth, and the
- * library's insert path is never wired into the editor.
+ * The library drop is what #225 exists to deliver; the piano roll's rows and
+ * ruler are the ones CF-017 uses.
  */
 async function addSamplerTrack(
   page: Page,
-  part: { name: string; sound: string; steps: readonly number[] },
+  part: { name: string; row: number; sound: string; steps: readonly number[] },
 ): Promise<void> {
   await page.getByRole("button", { name: "Add sampler track" }).click();
-  await page.getByRole("textbox", { name: "Track name" }).fill(part.name);
-  await page.getByRole("textbox", { name: "Track name" }).press("Enter");
+  await nameTrack(page, part.name);
 
   await page.getByRole("button", { name: "Library" }).click();
   await page.getByRole("searchbox", { name: "Search sounds" }).fill(part.sound);
@@ -82,13 +131,37 @@ async function addSamplerTrack(
     .dragTo(page.getByRole("region", { name: `${part.name} instrument` }));
 
   // The sampler names what it is holding, so the drop is visible rather than
-  // inferred from a later sound. #225 replaces the swap list with this label.
+  // inferred from a later sound.
   await expect(
     page.getByRole("region", { name: `${part.name} instrument` }),
   ).toContainText(part.sound);
   await page.getByRole("button", { name: "Library" }).click();
 
-  await program(stepGrid(page, part.name), part.steps);
+  const editor = await openClip(page, part.row);
+  await expect(editor.getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
+  const row = editor
+    .getByRole("group", { name: "Pitches" })
+    .getByRole("button", { name: new RegExp(`^${AS_RECORDED}(\\W*Off)?$`) });
+  await row.scrollIntoViewIfNeeded();
+  const rowBox = await row.boundingBox();
+  if (!rowBox) throw new Error("expected a visible pitch row to measure");
+  for (const step of part.steps) {
+    const column = editor
+      .getByRole("group", { name: "Ruler" })
+      .getByRole("button", { name: `Step ${step}`, exact: true });
+    const columnBox = await column.boundingBox();
+    if (!columnBox) throw new Error("expected a visible ruler step to measure");
+    await page.mouse.click(
+      columnBox.x + columnBox.width / 2,
+      rowBox.y + rowBox.height / 2,
+    );
+    await expect(
+      editor
+        .getByRole("listbox", { name: "Notes" })
+        .getByRole("option", { name: new RegExp(`^${AS_RECORDED}, step ${step},`) }),
+    ).toBeVisible();
+  }
+  await closeEditor(page);
 }
 
 /** The arrangement's DOM mirror of what is selected (`ArrangementView.tsx`). */
@@ -96,49 +169,67 @@ const selectedPlacements = (page: Page): Locator =>
   page.getByTestId("placement-selection").locator("li");
 
 test.describe("CF-002", () => {
+  // `test.fixme` for #61 (the outline) and, since #496, for the starter drum
+  // machine (step 1) and the sampler's piano roll (steps 4-5). The PR that
+  // closes the last of them removes this marker.
   test.fixme("a producer turns a loop into a song outline", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-002",
       title: "A producer turns a loop into a song outline",
     });
 
-    // 1. Create a new project. It opens on the step editor with the starter
-    //    kick, four on the floor.
+    // 1. Create a new project. It opens on the arrangement with the starter
+    //    kick, a drum machine named "BD", four on the floor.
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
-    await expect(page.getByRole("button", { name: "Notes, step 1, on" })).toBeVisible();
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    const kick = await openClip(page, 0);
+    for (const kickStep of WITH_THE_KICK) {
+      await expect(
+        kick.getByRole("button", { name: `BD, step ${kickStep}, on` }),
+      ).toBeVisible();
+    }
     await step("The new project opens on the starter kick");
+    await closeEditor(page);
 
-    // 2. Add a sampler track named "Hats", load a closed hat onto it from
-    //    the library, and put the hat on every offbeat.
-    await addSamplerTrack(page, {
+    // 2. Add a drum-machine track named "Hats", and put the "HH" pad on
+    //    every offbeat.
+    await addDrumTrack(page, {
       name: "Hats",
-      sound: "closed hat",
+      row: 1,
+      pad: "HH",
       steps: OFFBEATS,
     });
     await step("Add a hat track, on every offbeat");
 
-    // 3. Add a sampler track named "Claps", with a clap on beats 2 and 4.
-    await addSamplerTrack(page, {
+    // 3. Add a drum-machine track named "Claps", with the "CP" pad on beats
+    //    2 and 4.
+    await addDrumTrack(page, {
       name: "Claps",
-      sound: "clap",
+      row: 2,
+      pad: "CP",
       steps: BACKBEAT,
     });
     await step("Add a clap track, on beats 2 and 4");
 
-    // 4. Add a sampler track named "Chords", with a chord stab on steps 1,
-    //    4, 7, 10, 13 and 16.
+    // 4. Add a sampler track named "Chords", load a chord stab onto it from
+    //    the library, and write a C4 in the piano roll on steps 1, 4, 7, 10,
+    //    13 and 16.
     await addSamplerTrack(page, {
       name: "Chords",
+      row: 3,
       sound: "chord",
       steps: RAVE_STAB,
     });
     await step("Add a chord stab");
 
-    // 5. Add a sampler track named "Bass", following the kick.
+    // 5. Add a sampler track named "Bass", load a bass note onto it from the
+    //    library, and write a C4 in the piano roll following the kick, on
+    //    steps 1, 5, 9 and 13.
     await addSamplerTrack(page, {
       name: "Bass",
+      row: 4,
       sound: "bass",
       steps: WITH_THE_KICK,
     });
