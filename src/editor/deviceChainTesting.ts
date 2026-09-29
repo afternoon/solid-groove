@@ -1,49 +1,54 @@
-import { createEvent, fireEvent } from "@solidjs/testing-library";
-import { fireAndFlush } from "../testing/events";
+import { afterEach, vi } from "vitest";
+import { dragTrackHandle, stubTrackDragLayout } from "../testing/trackDrag";
 
 /**
  * Dragging a device card in a chain's tests, shared by the track chain
  * (`DeviceChainPanel`) and the master's (`MasterPanel`), which are one
- * component.
+ * component. A card is picked up with the same pointer drag every reorder uses
+ * (#539), so it is driven through `testing/trackDrag`.
  */
 
-export const dataTransfer = {
-  setData() {},
-  getData: () => "",
-  effectAllowed: "",
-  dropEffect: "",
-};
-
-/**
- * Pointer heights for a card's upper and lower half. jsdom lays nothing out,
- * so every card's box is zero-sized at the top of the page: a pointer above
- * its middle is any negative height, one below it any positive one.
- */
+/** Pointer positions over a card's upper and lower half. */
 export const UPPER = -1;
 export const LOWER = 1;
 
-/**
- * A drag event at a pointer height. jsdom has no `DragEvent`, so the event is
- * a plain `Event` and drops `clientY` from its init; it is set on it instead.
- */
-export function dragAt(type: "dragOver" | "drop", target: Element, clientY: number) {
-  const event = createEvent[type](target, { dataTransfer });
-  Object.defineProperty(event, "clientY", { value: clientY });
-  fireEvent(target, event);
+const CARD_SIZE = 80;
+
+afterEach(() => vi.restoreAllMocks());
+
+/** The cards in the order they show, which mid-drag is the previewed order. */
+export function shownCards(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>(".device-chain-item")].sort(
+    (a, b) => Number(a.style.order) - Number(b.style.order),
+  );
 }
 
-/** A drag of `from`'s card, pressed on `handle`, dropped over one half of `to`. */
-export function dragCard(
-  from: HTMLElement,
-  handle: Element,
-  to: HTMLElement,
-  clientY = UPPER,
-) {
-  fireAndFlush(() => {
-    fireEvent.pointerDown(handle);
-    fireEvent.dragStart(from, { dataTransfer });
-    dragAt("dragOver", to, clientY);
-    dragAt("drop", to, clientY);
-    fireEvent.dragEnd(from, { dataTransfer });
+/**
+ * jsdom lays nothing out, so give each card a box at its shown position in a
+ * tall chain. Called before a drag; restored after each test.
+ */
+export function stubChainLayout(): void {
+  stubTrackDragLayout({
+    axis: "y",
+    zoneSelector: ".device-chain-list",
+    size: CARD_SIZE,
+    zoneLength: CARD_SIZE * 20,
+    order: () => shownCards().map((card) => card.dataset.trackDrag as string),
   });
+}
+
+/** A pointer height over one half of `card`, as it is laid out right now. */
+export function overCard(card: HTMLElement, half: number): number {
+  return shownCards().indexOf(card) * CARD_SIZE + (half === UPPER ? 10 : 70);
+}
+
+/**
+ * A drag pressed on `handle`, let go over one half of `to`. It waits out the
+ * click a real release ends in, which the controller swallows, so that wait
+ * cannot eat the next test's first click.
+ */
+export async function dragCard(handle: Element, to: HTMLElement, half = UPPER) {
+  stubChainLayout();
+  dragTrackHandle(handle, { x: 50, y: overCard(to, half) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }

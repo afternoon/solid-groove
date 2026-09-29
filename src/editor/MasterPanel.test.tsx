@@ -82,13 +82,13 @@ describe("MasterPanel", () => {
     expect(names()).toEqual(["Overdrive"]);
   });
 
-  it("reorders the master by dragging a card, as one entry", () => {
+  it("reorders the master by dragging a card, as one entry", async () => {
     const { history, add, items, names } = renderPanel();
     add("Overdrive");
     add("Reverb");
     const entries = history.entries.length;
     const [overdrive, reverb] = items();
-    dragCard(reverb, reverb.querySelector("header") as Element, overdrive);
+    await dragCard(reverb.querySelector("header") as Element, overdrive);
     expect(names()).toEqual(["Reverb", "Overdrive"]);
     expect(history.entries.length).toBe(entries + 1);
   });
