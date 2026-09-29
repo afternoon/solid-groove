@@ -5,7 +5,6 @@ import {
   noteEventsOf,
   quantizeNotes,
   quantizeNotesToScale,
-  scaleNoteVelocity,
   transposeNotes,
   varyNotes,
 } from "../commands";
@@ -30,8 +29,8 @@ import { doubleClip } from "./doubleClip";
 /** The transformations the panel exposes, in the order it renders them. */
 export const TRANSFORM_KINDS = [
   "transpose",
-  "scaleVelocity",
   "vary",
+  "varyVelocity",
   "quantize",
   "quantizeToScale",
   "duplicate",
@@ -93,18 +92,12 @@ export function canTransform(scope: TransformScope): boolean {
 export interface TransformOptions {
   /** Semitones for `transpose`. */
   readonly semitones: number;
-  /** Multiplier for `scaleVelocity`. */
-  readonly velocityFactor: number;
-  /** Seed for `vary`; the caller supplies it so the result is reproducible. */
-  readonly seed: string;
-  /** Share of notes `vary` may touch, 0..1. */
+  /** Share of notes Vary timing may move, 0..1. */
   readonly amount: number;
 }
 
 export const DEFAULT_TRANSFORM_OPTIONS: TransformOptions = {
   semitones: 12,
-  velocityFactor: 1.25,
-  seed: "vary-1",
   amount: 0.5,
 };
 
@@ -130,8 +123,6 @@ export function buildTransform(
   switch (kind) {
     case "transpose":
       return transposeNotes(clip.id, scope.eventIds, options.semitones);
-    case "scaleVelocity":
-      return scaleNoteVelocity(clip.id, scope.eventIds, options.velocityFactor);
     case "quantize":
       return quantizeNotes(clip.id, scope.eventIds, TRANSFORM_GRID_TICKS, 1);
     case "quantizeToScale":
@@ -144,11 +135,21 @@ export function buildTransform(
       // `notes.clear` empties the whole clip by definition — it takes no
       // selection — so the panel labels it for the clip, never the selection.
       return clearNotes(clip.id);
+    // Both Varies are random on every press (#653): the seed is minted here,
+    // never shown, and carried in the payload so undo and redo replay it.
     case "vary":
       return varyNotes(clip.id, scope.eventIds, {
-        seed: options.seed,
+        seed: context.ids("event"),
         amount: options.amount,
         gridTicks: TRANSFORM_GRID_TICKS,
+        target: "timing",
+      });
+    case "varyVelocity":
+      return varyNotes(clip.id, scope.eventIds, {
+        seed: context.ids("event"),
+        amount: 1,
+        gridTicks: TRANSFORM_GRID_TICKS,
+        target: "velocity",
       });
   }
 }
@@ -169,23 +170,23 @@ export function transformedEventCount(
 /** The button label for each transformation. `duplicate` reads as Double. */
 export const TRANSFORM_LABELS: Readonly<Record<TransformKind, string>> = {
   transpose: "Transpose",
-  scaleVelocity: "Velocity",
   quantize: "Quantize",
   quantizeToScale: "Quantize to scale",
   duplicate: "Double",
   clear: "Clear clip",
-  vary: "Vary",
+  vary: "Vary timing",
+  varyVelocity: "Vary velocity",
 };
 
 /** How a refused transformation is named in `note_edit_failed`. */
 export const TRANSFORM_OPERATIONS: Readonly<Record<TransformKind, NoteEditOperation>> = {
   transpose: "transpose",
-  scaleVelocity: "scale_velocity",
   quantize: "quantize",
   quantizeToScale: "quantize_to_scale",
   duplicate: "double",
   clear: "clear",
   vary: "vary",
+  varyVelocity: "vary_velocity",
 };
 
 /** "+12 st", "−5 st": a semitone count as its field shows it. */
@@ -202,38 +203,7 @@ export function parseSemitones(text: string): number | null {
   return Math.max(-127, Math.min(127, value));
 }
 
-/** "×1.25": a velocity multiplier as its field shows it. */
-export function formatFactor(value: number): string {
-  return `×${Number(value.toFixed(2))}`;
-}
-
-/** A typed multiplier above 0 and up to 4, or null. */
-export function parseFactor(text: string): number | null {
-  const match = /^\s*[×x*]?\s*(\d*\.?\d+)\s*$/i.exec(text);
-  const value = match ? Number(match[1]) : Number.NaN;
-  return value > 0 && value <= 4 ? value : null;
-}
-
 /** One semitone up or down, kept within the command's range. */
 export function nudgeSemitones(value: number, direction: 1 | -1): number {
   return Math.max(-127, Math.min(127, value + direction));
-}
-
-/** 0.05 up or down, kept above 0 and up to 4. */
-export function nudgeFactor(value: number, direction: 1 | -1): number {
-  const next = Math.round((value + direction * 0.05) * 100) / 100;
-  return Math.max(0.05, Math.min(4, next));
-}
-
-/** The seed's trailing number up or down ("vary-1" → "vary-2"), or "-1" added. */
-export function nudgeSeed(seed: string, direction: 1 | -1): string {
-  const match = /^(.*?)(\d+)$/.exec(seed);
-  if (!match) return `${seed}-1`;
-  return `${match[1]}${Math.max(0, Number(match[2]) + direction)}`;
-}
-
-/** A seed is any text that is not blank. */
-export function parseSeed(text: string): string | null {
-  const seed = text.trim();
-  return seed.length > 0 ? seed : null;
 }

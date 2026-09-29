@@ -11,13 +11,8 @@ import {
   buildTransform,
   canTransform,
   DEFAULT_TRANSFORM_OPTIONS,
-  formatFactor,
   formatSemitones,
-  nudgeFactor,
-  nudgeSeed,
   nudgeSemitones,
-  parseFactor,
-  parseSeed,
   parseSemitones,
   resolveTransformScope,
   TRANSFORM_LABELS,
@@ -51,13 +46,14 @@ export interface TransformPanelProps {
 }
 
 /**
- * The Transform panel (CLP-04, ARR-010): transpose, velocity, vary, quantize,
- * quantize to scale, double and clear, for the selection or, with nothing
- * selected, the whole clip.
+ * The Transform panel (CLP-04, ARR-010): transpose, vary timing, vary
+ * velocity, quantize, quantize to scale, double and clear, for the selection
+ * or, with nothing selected, the whole clip.
  *
  * Every button dispatches registered commands — the same ones the assistant
- * calls — as one transaction and one undo step, and `vary` is replayable from
- * its seed. A refusal changes nothing and says why under the buttons, in the
+ * calls — as one transaction and one undo step. Both Varies are random on
+ * every press, from a seed minted per press and never shown, so undo and redo
+ * replay them exactly (#653). A refusal changes nothing and says why under the buttons, in the
  * user's terms. Double acts on the whole clip: it doubles the clip and copies
  * every note into the new half (#647), refusing only at the longest clip
  * length. Quantize to scale is for pitched notes, so only the piano roll
@@ -130,11 +126,16 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
     });
   }
 
-  function TransformButton(button: { kind: TransformKind; disabled?: boolean }) {
+  function TransformButton(button: {
+    kind: TransformKind;
+    disabled?: boolean;
+    /** As wide as a button and its field together: the first row's thirds. */
+    wide?: boolean;
+  }) {
     return (
       <button
         type="button"
-        class="transform-button"
+        class={["transform-button", { "transform-wide": button.wide === true }]}
         onClick={() => applyTransform(button.kind)}
         disabled={!enabled() || button.disabled === true}
       >
@@ -165,26 +166,8 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
             onCommit={(semitones) => setOptions((c) => ({ ...c, semitones }))}
           />
         </div>
-        <div class="transform-pair">
-          <TransformButton kind="scaleVelocity" />
-          <ValueField
-            label="Velocity multiplier"
-            nudge={nudgeFactor}
-            display={formatFactor(options().velocityFactor)}
-            parse={parseFactor}
-            onCommit={(velocityFactor) => setOptions((c) => ({ ...c, velocityFactor }))}
-          />
-        </div>
-        <div class="transform-pair">
-          <TransformButton kind="vary" />
-          <ValueField
-            label="Vary seed"
-            nudge={nudgeSeed}
-            display={options().seed}
-            parse={parseSeed}
-            onCommit={(seed) => setOptions((c) => ({ ...c, seed }))}
-          />
-        </div>
+        <TransformButton kind="vary" wide />
+        <TransformButton kind="varyVelocity" wide />
         <For each={buttons()}>
           {(kind) => (
             <TransformButton

@@ -99,6 +99,11 @@ export const notesVaryPayloadSchema = z.strictObject({
   /** Share of notes the variation may touch, 0..1. */
   amount: z.number().min(0).max(1),
   gridTicks: z.int().min(1),
+  /**
+   * What varies (#653): timing, velocity, or both. Absent means both, which
+   * is what `notes.vary` did before it had a target.
+   */
+  target: z.enum(["both", "timing", "velocity"]).optional(),
 });
 export type NotesVaryPayload = z.infer<typeof notesVaryPayloadSchema>;
 
@@ -473,15 +478,24 @@ export const notesVaryCommand = defineCommand<NotesVaryPayload>({
       if (roll >= payload.amount) {
         continue;
       }
-      const startTicks = shiftedStart(
-        event.startTicks,
-        direction * payload.gridTicks,
-        selection.clip.lengthTicks,
-      );
-      const velocity = clampParameterValue(
-        NOTE_VELOCITY,
-        event.velocity * (0.7 + accent * 0.6),
-      );
+      const target = payload.target ?? "both";
+      const startTicks =
+        target === "velocity"
+          ? event.startTicks
+          : shiftedStart(
+              event.startTicks,
+              direction * payload.gridTicks,
+              selection.clip.lengthTicks,
+            );
+      // Both: x0.7-1.3, as before targets. Velocity alone: within 20% (#653).
+      const spread = target === "velocity" ? 0.2 : 0.3;
+      const velocity =
+        target === "timing"
+          ? event.velocity
+          : clampParameterValue(
+              NOTE_VELOCITY,
+              event.velocity * (1 - spread + accent * spread * 2),
+            );
       if (startTicks === event.startTicks && velocity === event.velocity) {
         continue;
       }
@@ -593,7 +607,12 @@ export function clearNotes(clipId: ClipId): CommandInput<NotesClearPayload> {
 export function varyNotes(
   clipId: ClipId,
   eventIds: readonly EventId[] | null,
-  options: { seed: string; amount: number; gridTicks: number },
+  options: {
+    seed: string;
+    amount: number;
+    gridTicks: number;
+    target?: NotesVaryPayload["target"];
+  },
 ): CommandInput<NotesVaryPayload> {
   return {
     type: notesVaryCommand.type,

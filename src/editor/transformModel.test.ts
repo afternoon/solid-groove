@@ -10,13 +10,8 @@ import {
   buildTransform,
   canTransform,
   DEFAULT_TRANSFORM_OPTIONS,
-  formatFactor,
   formatSemitones,
-  nudgeFactor,
-  nudgeSeed,
   nudgeSemitones,
-  parseFactor,
-  parseSeed,
   parseSemitones,
   resolveTransformScope,
   TRANSFORM_GRID_TICKS,
@@ -100,11 +95,15 @@ describe("buildTransform", () => {
     expect(quantize.payload.gridTicks).toBe(TRANSFORM_GRID_TICKS);
     expect(quantize.payload.strength).toBe(1);
 
-    const vary = buildTransform("vary", context) as {
-      payload: { gridTicks: number; seed: string };
-    };
+    type VaryPayload = { gridTicks: number; seed: string; target: string };
+    const vary = buildTransform("vary", context) as { payload: VaryPayload };
     expect(vary.payload.gridTicks).toBe(TRANSFORM_GRID_TICKS);
-    expect(vary.payload.seed).toBe(DEFAULT_TRANSFORM_OPTIONS.seed);
+    expect(vary.payload.target).toBe("timing");
+    // A fresh seed per press (#653), minted by the caller's id factory.
+    const again = buildTransform("vary", context) as { payload: VaryPayload };
+    expect(again.payload.seed).not.toBe(vary.payload.seed);
+    const velocity = buildTransform("varyVelocity", context) as { payload: VaryPayload };
+    expect(velocity.payload.target).toBe("velocity");
   });
 
   it("doubles the whole clip, minting one new id per note, whatever is selected", () => {
@@ -204,28 +203,8 @@ describe("Double and the value fields (ARR-010)", () => {
     expect(parseSemitones("up")).toBeNull();
   });
 
-  it("shows and reads a velocity multiplier above 0 and up to 4", () => {
-    expect(formatFactor(1.25)).toBe("×1.25");
-    expect(parseFactor("×1.5")).toBe(1.5);
-    expect(parseFactor("0.5")).toBe(0.5);
-    expect(parseFactor("0")).toBeNull();
-    expect(parseFactor("9")).toBeNull();
-    expect(parseFactor("loud")).toBeNull();
-  });
-
-  it("takes any seed that is not blank", () => {
-    expect(parseSeed(" groove ")).toBe("groove");
-    expect(parseSeed("  ")).toBeNull();
-  });
-
-  it("nudges each value by one step, within its range", () => {
+  it("nudges the semitones by one, within its range", () => {
     expect(nudgeSemitones(12, 1)).toBe(13);
     expect(nudgeSemitones(-127, -1)).toBe(-127);
-    expect(nudgeFactor(1.25, 1)).toBe(1.3);
-    expect(nudgeFactor(0.05, -1)).toBe(0.05);
-    expect(nudgeFactor(4, 1)).toBe(4);
-    expect(nudgeSeed("vary-1", 1)).toBe("vary-2");
-    expect(nudgeSeed("vary-0", -1)).toBe("vary-0");
-    expect(nudgeSeed("groove", 1)).toBe("groove-1");
   });
 });

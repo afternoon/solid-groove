@@ -54,6 +54,10 @@
   grid-column: span 3;
 }
 
+.transform-grid > .transform-wide {
+  grid-column: span 4;
+}
+
 .transform-button {
   flex: 1;
   height: 28px;
@@ -125,7 +129,8 @@
     grid-column: span 12;
   }
 
-  .transform-grid > .transform-button {
+  .transform-grid > .transform-button,
+  .transform-grid > .transform-wide {
     grid-column: span 6;
   }
 }

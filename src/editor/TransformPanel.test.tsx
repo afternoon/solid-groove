@@ -48,15 +48,19 @@ describe("TransformPanel (CLP-04)", () => {
     }
   });
 
-  it("scales velocity through the shared command, clamping at the range end", async () => {
+  it("varies velocity within 20% of each note's own, through the shared command", async () => {
     const { session, renderPanel } = await setUp();
+    const before = new Map(
+      currentNotes(session).map((event) => [event.id, event.velocity]),
+    );
     renderPanel([]);
 
-    clickTransform("Velocity");
+    clickTransform("Vary velocity");
 
     for (const event of currentNotes(session)) {
+      const was = before.get(event.id) ?? 0;
+      expect(Math.abs(event.velocity - was)).toBeLessThanOrEqual(was * 0.2 + 1e-9);
       expect(event.velocity).toBeLessThanOrEqual(1);
-      expect(event.velocity).toBeGreaterThan(0);
     }
   });
 
@@ -181,7 +185,8 @@ describe("TransformPanel (CLP-04)", () => {
     renderPanel([]);
     const semitones = screen.getByLabelText("Semitones") as HTMLInputElement;
     expect(semitones).toHaveValue("+12 st");
-    expect(screen.getByLabelText("Velocity multiplier")).toHaveValue("×1.25");
+    // Semitones is the panel's only field now: the Varies take none (#653).
+    expect(screen.getAllByRole("textbox")).toEqual([semitones]);
 
     setOption("Semitones", "-5");
     await Promise.resolve();
