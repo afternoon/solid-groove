@@ -94,6 +94,8 @@ export interface RunOfflineClockOptions {
   shouldStop?: () => boolean;
   /** The fraction of the render's clock that has run, after every chunk. */
   onProgress?: (fraction: number) => void;
+  /** Awaited after every chunk but the last, before the yield. */
+  afterChunk?: (untilSeconds: number) => Promise<void>;
 }
 
 /** Five seconds of audio per chunk keeps each synchronous span short while
@@ -120,6 +122,94 @@ export async function runOfflineClock(
     const finished = advanceOfflineClock(context, until);
     options.onProgress?.(finished ? 1 : Math.min(1, until / duration));
     if (finished) return "done";
+    await options.afterChunk?.(until);
     await new Promise<void>((resolve) => scheduler.schedule(resolve, 0));
   }
+}
+
+/**
+ * A `Tone.OfflineContext` on the platform's **native** `OfflineAudioContext`
+ * where there is one. Tone's wrapped context makes an offline render's
+ * connections only as rendering starts, never breaks one, and cannot suspend,
+ * so a voice built or disposed mid-render would never reach it. A native one
+ * can render in step with the clock (below); without one, Tone's is the fallback.
+ */
+export function createOfflineContext(
+  channels: number,
+  frames: number,
+  sampleRate: number,
+): Tone.OfflineContext {
+  const Native = globalThis.OfflineAudioContext;
+  if (typeof Native !== "function") {
+    // Half a frame over, so the length Web Audio truncates to is `frames`.
+    return new Tone.OfflineContext(channels, (frames + 0.5) / sampleRate, sampleRate);
+  }
+  const raw = new Native(channels, frames, sampleRate);
+  return new Tone.OfflineContext(
+    raw as unknown as ConstructorParameters<typeof Tone.OfflineContext>[0],
+  );
+}
+
+export interface RenderInStepOptions extends Omit<RunOfflineClockOptions, "afterChunk"> {
+  /** Called with the render suspended at `seconds`: everything before it has
+   * rendered, so a voice that finished sounding before it can be disposed. */
+  onRendered?: (seconds: number) => void;
+}
+
+/**
+ * Runs the clock and the audio thread **in step**: after each clock chunk the
+ * audio renders up to where the clock has reached, and pauses there. A render
+ * then only holds the voices sounding around that point, as live playback
+ * does, so its cost grows with the song's length rather than with notes times
+ * length, and a stop takes effect at the next chunk. A context that cannot
+ * suspend runs the clock through, then renders in one pass.
+ * Resolves the rendered audio, or `"stopped"`.
+ */
+export async function renderOfflineInStep(
+  context: Tone.OfflineContext,
+  options: RenderInStepOptions = {},
+): Promise<AudioBuffer | "stopped"> {
+  const raw = context.rawContext as unknown as OfflineAudioContext;
+  const pauses = schedulePauses(context, options.chunkSeconds);
+  let rendering: Promise<AudioBuffer> | null = null;
+  const run = (): Promise<AudioBuffer> => {
+    if (rendering) {
+      void raw.resume();
+      return rendering;
+    }
+    rendering = raw.startRendering();
+    // A stopped render is abandoned while paused: never an unhandled rejection.
+    rendering.catch(() => {});
+    return rendering;
+  };
+  const renderTo = async (seconds: number) => {
+    for (let pause = pauses[0]; pause && pause.at <= seconds; pause = pauses[0]) {
+      pauses.shift();
+      await Promise.race([pause.reached, run()]);
+      options.onRendered?.(pause.at);
+    }
+  };
+  const clock = await runOfflineClock(context, { ...options, afterChunk: renderTo });
+  if (clock === "stopped") return "stopped";
+  await renderTo(Number.POSITIVE_INFINITY);
+  return run();
+}
+
+/**
+ * Suspends the render at the block boundary at or before each chunk's end,
+ * all before rendering starts: not every implementation accepts one after.
+ */
+function schedulePauses(context: Tone.OfflineContext, chunkSeconds?: number) {
+  const raw = context.rawContext as unknown as Partial<OfflineAudioContext>;
+  const pauses: { at: number; reached: Promise<void> }[] = [];
+  if (typeof raw.suspend !== "function") return pauses;
+  const chunk = chunkSeconds ?? DEFAULT_CLOCK_CHUNK_SECONDS;
+  const block = 128 / context.sampleRate;
+  // Stepped exactly as `runOfflineClock` steps its chunks.
+  for (let until = chunk; until < clockInternals(context)._duration; until += chunk) {
+    const at = Math.floor(until / block) * block;
+    if (at > (pauses.at(-1)?.at ?? 0))
+      pauses.push({ at, reached: raw.suspend.call(raw, at) });
+  }
+  return pauses;
 }

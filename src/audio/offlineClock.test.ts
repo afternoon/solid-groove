@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createManualScheduler } from "../shared/scheduler";
 import { installWebAudioGlobals } from "./testAudioContext";
 
@@ -114,6 +114,66 @@ describe("runOfflineClock", () => {
     expect(result).toBe("stopped");
     expect(chunks).toBe(2);
     expect(offline.currentTime).toBeLessThan(1.1);
+    offline.dispose();
+  });
+});
+
+describe("renderOfflineInStep", () => {
+  const RATE = 8_000;
+
+  it("pauses the audio at each chunk, where a node disposed then stops sounding", async () => {
+    const offline = clock.createOfflineContext(1, 3 * RATE, RATE);
+    const raw = offline.rawContext as unknown as OfflineAudioContext;
+    expect(raw.length).toBe(3 * RATE);
+    const source = new Tone.Signal({ context: offline, value: 0.5 });
+    source.connect(offline.destination);
+    const paused: { at: number; audio: number }[] = [];
+    const rendered = await clock.renderOfflineInStep(offline, {
+      chunkSeconds: 1,
+      onRendered: (at) => {
+        paused.push({ at, audio: raw.currentTime });
+        if (paused.length === 1) source.dispose();
+      },
+    });
+    if (rendered === "stopped") throw new Error("expected audio");
+
+    // Each pause lands on the block at or before its chunk's end, with the
+    // audio thread stopped exactly there.
+    const block = 128 / RATE;
+    expect(paused.map((p) => p.at)).toEqual([
+      Math.floor(1 / block) * block,
+      Math.floor(2 / block) * block,
+    ]);
+    for (const { at, audio } of paused) expect(audio).toBeCloseTo(at, 9);
+    const data = rendered.getChannelData(0);
+    const cut = Math.round(paused[0].at * RATE);
+    expect(data[cut - 1]).toBeCloseTo(0.5, 6);
+    expect(data.subarray(cut).every((sample) => sample === 0)).toBe(true);
+    offline.dispose();
+  });
+
+  it("renders a context that cannot pause in one pass, after the clock", async () => {
+    const offline = new Tone.OfflineContext(1, 2, RATE);
+    const onRendered = vi.fn();
+    const rendered = await clock.renderOfflineInStep(offline, {
+      chunkSeconds: 0.5,
+      onRendered,
+    });
+    expect(rendered).not.toBe("stopped");
+    expect(onRendered).not.toHaveBeenCalled();
+    offline.dispose();
+  });
+
+  it("stops at the next chunk when asked to, without finishing the render", async () => {
+    const offline = clock.createOfflineContext(1, 3 * RATE, RATE);
+    const onRendered = vi.fn();
+    const result = await clock.renderOfflineInStep(offline, {
+      chunkSeconds: 1,
+      shouldStop: () => onRendered.mock.calls.length > 0,
+      onRendered,
+    });
+    expect(result).toBe("stopped");
+    expect(onRendered).toHaveBeenCalledOnce();
     offline.dispose();
   });
 });
