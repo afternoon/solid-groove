@@ -18,6 +18,7 @@ import {
 } from "../domain/factories";
 import { formatDb, formatPan } from "../domain/faders";
 import type { AssetId, PadId, TrackId } from "../domain/ids";
+import { nextPadName } from "../domain/padNames";
 import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import { formatInstrumentValue } from "../instrument/formatValue";
 import SampleSlot from "../instrument/SampleSlot";
@@ -35,16 +36,10 @@ const PAD_FLASH_MS = 120;
 /** Bars in a pad's waveform preview. */
 const PREVIEW_BUCKETS = 56;
 
+export { nextPadName };
+
 /** Mints the IDs of pads this panel adds. A module singleton. */
 const defaultFactoryContext = createFactoryContext();
-
-/** The first "Pad N" no pad on the machine is already called. */
-export function nextPadName(existing: readonly DrumPad[]): string {
-  const taken = new Set(existing.map((pad) => pad.name));
-  let n = existing.length + 1;
-  while (taken.has(`Pad ${n}`)) n++;
-  return `Pad ${n}`;
-}
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
 /** The pad table's columns; the three faders share what the fixed ones leave. */
