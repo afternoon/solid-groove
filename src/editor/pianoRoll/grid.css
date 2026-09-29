@@ -58,12 +58,13 @@
   background: var(--tint-subtle);
 }
 
+/* Points down, at the grid it marks. */
 .pr-ruler-marker {
   position: absolute;
   bottom: 0;
   margin-left: -5px;
+  border-top: 6px solid var(--color-accent);
   border-right: 5px solid transparent;
-  border-bottom: 6px solid var(--color-accent);
   border-left: 5px solid transparent;
   pointer-events: none;
 }
