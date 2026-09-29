@@ -2034,11 +2034,19 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
   });
 
   describe("swing (#500)", () => {
+    const swingButton = () => screen.getByRole("button", { name: "Swing" });
+    const openSwing = async () => {
+      if (swingButton().getAttribute("aria-expanded") !== "true") {
+        fireEvent.click(swingButton());
+      }
+      await screen.findByRole("slider", { name: "Swing" });
+    };
     const swingSlider = () => screen.getByRole("slider", { name: "Swing" });
     const swingField = () => screen.getByRole("textbox", { name: "Swing value" });
 
     it("shows the song's swing and writes a drag as one undoable, clamped edit", async () => {
       await renderSlice();
+      await openSwing();
       expect(swingSlider()).toHaveAttribute("min", "50");
       expect(swingSlider()).toHaveAttribute("max", "75");
       expect(swingField()).toHaveValue("50%");
@@ -2059,6 +2067,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
 
     it("takes a typed value from the keyboard and clamps it to 75%", async () => {
       await renderSlice();
+      await openSwing();
       fireEvent.change(swingField(), { target: { value: "99" } });
       await waitFor(() => expect(swingField()).toHaveValue("75%"));
     });
@@ -2070,6 +2079,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
       await repository.createProject(project);
       renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
       await openSequenceEditor();
+      await openSwing();
 
       fireEvent.change(swingSlider(), { target: { value: "60" } });
       fireEvent.change(swingSlider(), { target: { value: "62" } });
@@ -2091,6 +2101,7 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
         analytics: recordingAnalytics(transport, consent),
       });
       await openSequenceEditor();
+      await openSwing();
 
       fireEvent.change(swingSlider(), { target: { value: "70" } });
       await waitFor(() => expect(swingField()).toHaveValue("70%"));

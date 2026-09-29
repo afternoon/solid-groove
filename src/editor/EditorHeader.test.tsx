@@ -73,6 +73,7 @@ function renderHeader(
   onToggleLoop: () => void = () => {},
   analytics: Analytics = recordingAnalytics().analytics,
   onRename: (name: string) => void = () => {},
+  swing: () => number = () => 50,
 ) {
   return render(() => (
     <EditorHeader
@@ -83,7 +84,7 @@ function renderHeader(
       onToggleLoop={onToggleLoop}
       tempo={() => 120}
       onTempoChange={() => {}}
-      swing={() => 50}
+      swing={swing}
       onSwingInput={() => {}}
       onSwingCommit={() => {}}
       onOpenGuide={() => {}}
@@ -229,6 +230,70 @@ describe("EditorHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start playback" }));
     const stop = await screen.findByRole("button", { name: "Stop playback" });
     expect(stop.querySelector("svg")?.getAttribute("width")).toBe("24");
+  });
+
+  describe("swing button (#500)", () => {
+    const button = () => screen.getByRole("button", { name: "Swing" });
+
+    it("is an icon-only popup button that reports its expanded state", () => {
+      renderHeader(
+        fakeSession().session,
+        fakeAudio().audio,
+        undefined,
+        undefined,
+        undefined,
+        () => 62,
+      );
+      expect(button()).toHaveAttribute("aria-haspopup", "dialog");
+      expect(button()).toHaveAttribute("aria-expanded", "false");
+      expect(button()).toHaveAttribute("title", "Swing 62%");
+      expect(button().querySelector("svg")?.getAttribute("width")).toBe("18");
+      expect(button()).toHaveTextContent("");
+      expect(screen.queryByRole("slider", { name: "Swing" })).toBeNull();
+    });
+
+    it("reads as on above 50% and idle at 50%", () => {
+      renderHeader(
+        fakeSession().session,
+        fakeAudio().audio,
+        undefined,
+        undefined,
+        undefined,
+        () => 50,
+      );
+      expect(button()).not.toHaveClass("is-on");
+      cleanup();
+      renderHeader(
+        fakeSession().session,
+        fakeAudio().audio,
+        undefined,
+        undefined,
+        undefined,
+        () => 51,
+      );
+      expect(button()).toHaveClass("is-on");
+    });
+
+    it("opens onto the slider, and Escape closes it back onto the button", async () => {
+      renderHeader(fakeSession().session, fakeAudio().audio);
+      fireEvent.click(button());
+      const slider = await screen.findByRole("slider", { name: "Swing" });
+      expect(button()).toHaveAttribute("aria-expanded", "true");
+      await vi.waitFor(() => expect(slider).toHaveFocus());
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      await vi.waitFor(() => expect(screen.queryByRole("slider")).toBeNull());
+      expect(button()).toHaveAttribute("aria-expanded", "false");
+      expect(button()).toHaveFocus();
+    });
+
+    it("closes on a press outside", async () => {
+      renderHeader(fakeSession().session, fakeAudio().audio);
+      fireEvent.click(button());
+      await screen.findByRole("slider", { name: "Swing" });
+      fireEvent.pointerDown(document.body);
+      await vi.waitFor(() => expect(screen.queryByRole("slider")).toBeNull());
+    });
   });
 
   it("drops the time signature and the printed BPM suffix", () => {

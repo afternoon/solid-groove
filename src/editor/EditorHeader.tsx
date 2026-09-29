@@ -16,7 +16,7 @@ import type { shortcutLabel } from "../shortcuts";
 import PlayheadInput from "./PlayheadInput";
 import ProjectNameInput from "./ProjectNameInput";
 import SaveStatus from "./SaveStatus";
-import SwingControl from "./SwingControl";
+import SwingButton from "./SwingButton";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
 
@@ -192,7 +192,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
             onChange={(event) => props.onTempoChange(event.currentTarget.valueAsNumber)}
           />
         </div>
-        <SwingControl
+        <SwingButton
           swing={props.swing}
           onInput={props.onSwingInput}
           onCommit={props.onSwingCommit}

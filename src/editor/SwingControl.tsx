@@ -2,7 +2,6 @@ import type { JSX } from "@solidjs/web";
 import type { Accessor } from "solid-js";
 import { SONG_SWING } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
-import "./SwingControl.css";
 
 export interface SwingControlProps {
   /** The song's swing, 50-75 (%). */
