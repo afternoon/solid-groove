@@ -1,4 +1,4 @@
-import { type Accessor, createSignal, Show } from "solid-js";
+import { type Accessor, createMemo, createSignal, Show } from "solid-js";
 import type {
   Gesture,
   GestureOptions,
@@ -7,10 +7,14 @@ import type {
 } from "../commands";
 import type { Clip, Instrument, Project } from "../domain/entities";
 import type { EventId, PadId } from "../domain/ids";
+import GeneratePanel from "./GeneratePanel";
+import { previewRow } from "./generatedRow";
 import KeyPanel from "./pianoRoll/KeyPanel";
 import PianoRoll from "./pianoRoll/PianoRoll";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import StepEditor from "./StepEditor";
+import { lanesFor, selectedLane } from "./stepEditorModel";
+import type { Hit } from "./stepGenerators";
 import TransformPanel from "./TransformPanel";
 import { toggleTrackFlag } from "./trackSurface";
 
@@ -54,6 +58,24 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
   // `EditorView`), and mirrors it out here for the Transform panel.
   const [rollSelection, setRollSelection] = createSignal<readonly EventId[]>([]);
 
+  // The step grid's selected row (#643), which the Generate panel writes
+  // into: the host's selected pad when it owns one, else held here.
+  const [ownPad, setOwnPad] = createSignal<PadId | null>(null);
+  const padId = () =>
+    props.selectedPadId !== undefined ? props.selectedPadId : ownPad();
+  function selectPad(id: PadId): void {
+    setOwnPad(id);
+    props.onSelectPad?.(id);
+  }
+  const row = createMemo(() => selectedLane(lanesFor(props.instrument), padId()));
+  // What the hovered or focused generator would write, drawn in the grid.
+  const [generated, setGenerated] = createSignal<readonly Hit[] | null>(null);
+  const preview = (clip: Clip) => {
+    const hits = generated();
+    const target = row();
+    return hits && target ? previewRow(clip, target.trigger, hits) : null;
+  };
+
   return (
     <div class={["track-clip-editor", { "with-roll": props.showPianoRoll() }]}>
       {/*
@@ -84,17 +106,27 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
                   }}
                   selectedIds={props.selectedNoteIds}
                   setSelectedIds={props.setSelectedNoteIds}
-                  selectedPadId={props.selectedPadId}
-                  onSelectPad={(padId) => props.onSelectPad?.(padId)}
-                  auditionPad={(padId) => props.auditionPad?.(padId)}
+                  selectedPadId={padId()}
+                  onSelectPad={selectPad}
+                  auditionPad={(id) => props.auditionPad?.(id)}
+                  preview={preview(clip())}
                 />
-                <TransformPanel
-                  clip={clip()}
-                  project={props.project}
-                  selectedIds={props.selectedNoteIds()}
-                  dispatch={props.dispatch}
-                  editor="step"
-                />
+                {/* Generate takes the Key panel's place beside Transform. */}
+                <div class="roll-panels step-panels">
+                  <GeneratePanel
+                    clip={clip()}
+                    row={row()}
+                    dispatch={props.dispatch}
+                    onPreview={setGenerated}
+                  />
+                  <TransformPanel
+                    clip={clip()}
+                    project={props.project}
+                    selectedIds={props.selectedNoteIds()}
+                    dispatch={props.dispatch}
+                    editor="step"
+                  />
+                </div>
               </>
             }
           >

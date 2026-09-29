@@ -1,4 +1,5 @@
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setTrackFlag } from "../commands";
 import type { Clip, Project, Track } from "../domain/entities";
@@ -152,6 +153,29 @@ describe("SequenceEditor", () => {
     clickAndFlush(screen.getByRole("button", { name: "Solo" }));
     expect(dispatch).toHaveBeenCalledExactlyOnceWith(
       setTrackFlag(track.id, "soloed", true),
+    );
+  });
+
+  it("puts Generate beside Transform, previewing into the selected row (#643)", () => {
+    const dispatch = vi.fn(() => ({ ok: true }) as never);
+    renderEditorFor(createStepGridProject(), starterClip, () => {}, { dispatch });
+    const generate = within(screen.getByRole("region", { name: "Generate" }));
+    expect(screen.getByRole("region", { name: "Generate" })).toHaveTextContent("into BD");
+    expect(screen.getByRole("region", { name: "Transform" })).toBeInTheDocument();
+
+    // Offbeats over the kick: its four steps hatched, the kick's four fading.
+    fireEvent.pointerEnter(generate.getByRole("button", { name: "Offbeats" }));
+    flush();
+    expect(screen.getByRole("button", { name: "BD, step 3, off" })).toHaveClass("ghost");
+    expect(screen.getByRole("button", { name: "BD, step 1, on" })).toHaveClass("fading");
+    expect(dispatch).not.toHaveBeenCalled();
+
+    clickAndFlush(generate.getByRole("button", { name: "Offbeats" }));
+    expect(dispatch).toHaveBeenCalledOnce();
+    fireEvent.pointerLeave(screen.getByRole("region", { name: "Generate" }));
+    flush();
+    expect(document.querySelectorAll(".step-cell.ghost, .step-cell.fading")).toHaveLength(
+      0,
     );
   });
 

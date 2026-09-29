@@ -44,7 +44,9 @@
   gap: 28px;
 }
 
-.track-clip-editor > .transform-panel {
+/* The step grid's Generate and Transform panels, side by side (#643). */
+.step-panels {
+  grid-template-columns: minmax(0, 8fr) minmax(0, 5fr);
   margin-top: 12px;
 }
 

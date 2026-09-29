@@ -8,6 +8,7 @@ import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import type { RowPreview } from "./generatedRow";
 import { clampZoom, stepWidth, ZOOM_FACTOR } from "./pianoRoll/layout";
 import Ruler from "./pianoRoll/Ruler";
 import Toolbar from "./pianoRoll/Toolbar";
@@ -71,6 +72,11 @@ export interface StepEditorProps {
   onSelectPad?(padId: PadId): void;
   /** Plays one pad, as its row is picked. */
   auditionPad?(padId: PadId): void;
+  /**
+   * What a hovered Generate panel generator would do to the selected row
+   * (#643): steps it adds are hatched, notes it removes fade.
+   */
+  readonly preview?: RowPreview | null;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -318,6 +324,12 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                       return current ? isSelected(current.id) : false;
                     };
                     const playing = () => currentPlaybackStep() === step;
+                    const ghost = () =>
+                      row()?.key === lane.key && !!props.preview?.added.has(step);
+                    const fading = () => {
+                      const current = note();
+                      return !!current && !!props.preview?.removed.has(current.id);
+                    };
                     return (
                       <button
                         type="button"
@@ -329,6 +341,8 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                             playing: playing(),
                             "bar-start": isBarStart(step),
                             shade: isShadedBeat(step),
+                            ghost: ghost(),
+                            fading: fading(),
                           },
                         ]}
                         aria-pressed={ariaBool(active())}
