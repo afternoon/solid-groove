@@ -106,9 +106,13 @@ export async function runOfflineClock(
 }
 
 /**
- * A `Tone.OfflineContext` on a **native** `OfflineAudioContext` if there is
- * one: Tone's own connects only as rendering starts and cannot suspend, so a
- * voice built or disposed mid-render never reaches it. It is the fallback.
+ * A `Tone.OfflineContext` on a **native** `OfflineAudioContext` if it can
+ * suspend: Tone's own connects only as rendering starts and cannot suspend, so
+ * a voice built or disposed mid-render never reaches it. It is the fallback,
+ * and the only choice where suspending is missing (Gecko): the native context
+ * is worth having only to render in step, and Gecko's native `AudioListener`
+ * lacks the `positionX`-style params Tone's own context supplies, so Tone
+ * cannot even initialize its transport on it.
  */
 export function createOfflineContext(
   channels: number,
@@ -116,7 +120,7 @@ export function createOfflineContext(
   sampleRate: number,
 ): Tone.OfflineContext {
   const Native = globalThis.OfflineAudioContext;
-  if (typeof Native !== "function") {
+  if (typeof Native !== "function" || typeof Native.prototype.suspend !== "function") {
     // Half a frame over, so the length Web Audio truncates to is `frames`.
     return new Tone.OfflineContext(channels, (frames + 0.5) / sampleRate, sampleRate);
   }

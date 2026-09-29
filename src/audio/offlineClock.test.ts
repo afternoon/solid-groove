@@ -118,6 +118,45 @@ describe("runOfflineClock", () => {
   });
 });
 
+describe("createOfflineContext", () => {
+  const RATE = 8_000;
+
+  /** Gecko's native offline context, as Firefox ships it: no `suspend()`, and
+   * an `AudioListener` with only the legacy setters, none of the `positionX`
+   * params Tone's listener asserts on. */
+  function stubGeckoOfflineAudioContext(): typeof OfflineAudioContext {
+    const Native = globalThis.OfflineAudioContext;
+    class GeckoOfflineAudioContext extends Native {
+      get listener(): AudioListener {
+        return { setPosition() {}, setOrientation() {} } as unknown as AudioListener;
+      }
+    }
+    Object.defineProperty(GeckoOfflineAudioContext.prototype, "suspend", {
+      value: undefined,
+    });
+    vi.stubGlobal("OfflineAudioContext", GeckoOfflineAudioContext);
+    return GeckoOfflineAudioContext;
+  }
+
+  it("falls back to Tone's own context where the native one cannot suspend", async () => {
+    const Gecko = stubGeckoOfflineAudioContext();
+    try {
+      const offline = clock.createOfflineContext(1, RATE, RATE);
+      // What failed in Firefox: Tone initializes its listener with the transport.
+      offline.transport.start(0);
+      expect(offline.rawContext).not.toBeInstanceOf(Gecko);
+      new Tone.Signal({ context: offline, value: 0.5 }).connect(offline.destination);
+      const rendered = await clock.renderOfflineInStep(offline, { chunkSeconds: 0.25 });
+      if (rendered === "stopped") throw new Error("expected audio");
+      expect(rendered.length).toBe(RATE);
+      expect(rendered.getChannelData(0)[RATE - 1]).toBeCloseTo(0.5, 6);
+      offline.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe("renderOfflineInStep", () => {
   const RATE = 8_000;
 
