@@ -1,0 +1,38 @@
+{
+  "id": "CF-017",
+  "title": "A producer writes a bassline in the piano roll",
+  "steps": [
+    {
+      "file": "01-open-the-synth-clip-in-the-piano-roll.png",
+      "caption": "Open the synth clip in the piano roll"
+    },
+    {
+      "file": "02-click-four-cells-to-add-four-notes.png",
+      "caption": "Click four cells to add four notes"
+    },
+    {
+      "file": "03-stretch-a-note-the-next-note-matches-it.png",
+      "caption": "Stretch a note; the next note matches it"
+    },
+    {
+      "file": "04-drag-a-note-up-two-rows-and-right-one-step.png",
+      "caption": "Drag a note up two rows and right one step"
+    },
+    {
+      "file": "05-lasso-the-two-c2-notes.png",
+      "caption": "Lasso the two C2 notes"
+    },
+    {
+      "file": "06-alt-drag-the-pair-eight-steps-to-copy-it.png",
+      "caption": "Alt-drag the pair eight steps to copy it"
+    },
+    {
+      "file": "07-double-click-a-note-to-delete-it.png",
+      "caption": "Double-click a note to delete it"
+    },
+    {
+      "file": "08-reload-the-bassline-is-still-there.png",
+      "caption": "Reload: the bassline is still there"
+    }
+  ]
+}
