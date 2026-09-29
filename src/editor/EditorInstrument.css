@@ -85,5 +85,5 @@
   align-self: flex-start;
   position: sticky;
   /* Where it stands unscrolled: under the header and the gap below it. */
-  top: calc(var(--editor-header-height) + var(--size-divider));
+  top: calc(var(--editor-header-height) + 3 * var(--size-divider));
 }
