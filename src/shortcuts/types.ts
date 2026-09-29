@@ -99,7 +99,7 @@ export const SHORTCUT_GROUP_LABELS: Record<ShortcutGroup, string> = {
  * baseline.
  *
  * `differs` always carries the Live combination it deviates from *and* why, so
- * "browser conflicts and Solid Groove deviations are documented rather than
+ * "browser conflicts and Groove deviations are documented rather than
  * handled inconsistently" is a property of the data, not of a wiki page that
  * can drift. `solid_groove` claims no Live baseline at all rather than
  * inventing one.
@@ -114,7 +114,7 @@ export type AbletonParity =
   | { readonly kind: "solid_groove"; readonly reason: string };
 
 /**
- * A browser combination Solid Groove deliberately takes over.
+ * A browser combination Groove deliberately takes over.
  *
  * Distinct from `RESERVED_CHORDS` in `registry.ts`: those the browser or OS
  * keeps for itself and the registry may never claim. These are ones a page can

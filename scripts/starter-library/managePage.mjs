@@ -40,7 +40,7 @@ export function renderManagePage({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solid Groove — sample library management</title>
+<title>Groove — sample library management</title>
 <style>
 :root {
 	color-scheme: dark;

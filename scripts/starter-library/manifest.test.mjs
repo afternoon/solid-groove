@@ -83,7 +83,7 @@ describe("buildAsset", () => {
     () => {
       const { asset } = buildAsset(sampleEntries[0]);
       expect(asset.license).toMatchObject({
-        creator: "Solid Groove",
+        creator: "Groove",
         rawRedistributionAllowed: true,
         evidencePath: "docs/licenses/starter-library-v1.md",
       });
@@ -203,7 +203,7 @@ function validAsset(pack, overrides = {}, index = 0) {
     license: {
       id: pack.rights.licence,
       rawRedistributionAllowed: pack.rights.rawRedistribution,
-      creator: "Solid Groove",
+      creator: "Groove",
       sourceUrl: null,
       retrievedAt: "2026-07-25",
       evidencePath: "docs/licenses/starter-library-v1.md",
@@ -431,6 +431,15 @@ describe("validatePackManifest", () => {
     },
   );
 
+  it("lets a private-alpha pack name the machine a kit was recorded from", () => {
+    const errors = errorsFor((m) => {
+      m.pack.rights = { ...m.pack.rights, licence: "private-alpha" };
+      for (const asset of m.assets) asset.license.id = "private-alpha";
+      m.assets[0].name = "TR-909 Kick";
+    });
+    expect(errors.join("\n")).not.toMatch(/third-party branding/);
+  });
+
   it("rejects an empty pack rather than reporting a healthy one", () => {
     const { errors } = validatePackManifest({
       schemaVersion: 1,
@@ -555,6 +564,16 @@ describe("collection balance (section 6.4, measured library-wide — section 6.5
     expect(errors).toEqual([]);
     // The synthesized-library gap is always reported, never silently passed.
     expect(warnings.join(" ")).toMatch(/recorded or field-recorded/);
+  });
+
+  it("leaves private-alpha content out of the collection balance", () => {
+    const assets = balanceAssets();
+    const alpha = balanceAssets().map((asset) => ({
+      ...asset,
+      license: { ...asset.license, id: "private-alpha" },
+      tags: { ...asset.tags, characters: ["punchy"] },
+    }));
+    expect(validateLibraryBalance([...assets, ...alpha, ...alpha]).errors).toEqual([]);
   });
 
   it("rejects a library with too little experimental material", () => {

@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-Solid Groove's keyboard mappings live in one typed registry,
+Groove's keyboard mappings live in one typed registry,
 [`src/shortcuts/registry.ts`](../src/shortcuts/registry.ts). Event handling,
 tooltips, menu labels, the in-app `?` guide, the `shortcut_used` analytics
 `action_id` set, and the table below are all derived from it — a key combination
@@ -34,8 +34,8 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | --- | --- | --- | --- | --- | --- | --- |
 | `transport.play_stop` | Play/stop | `Space` | `Space` | Transport | editor | Follows Live (`Space`) |
 | `transport.continue` | Continue from stop position | `Shift+Space` | `Shift+Space` | Transport | editor | Follows Live (`Shift+Space`) |
-| `transport.metronome` | Toggle metronome | `O` | `O` | Transport | editor | Solid Groove addition — no single-key Live equivalent is claimed |
-| `transport.toggle_loop` | Toggle loop | `Shift+L` | `Shift+L` | Transport | editor | Solid Groove addition — no Live shortcut is claimed for the loop switch itself |
+| `transport.metronome` | Toggle metronome | `O` | `O` | Transport | editor | Groove addition — no single-key Live equivalent is claimed |
+| `transport.toggle_loop` | Toggle loop | `Shift+L` | `Shift+L` | Transport | editor | Groove addition — no Live shortcut is claimed for the loop switch itself |
 | `edit.undo` | Undo | `Cmd+Z` | `Ctrl+Z` | Global Editing | global | Follows Live (`Cmd/Ctrl+Z`) |
 | `edit.redo` | Redo | `Cmd+Shift+Z` | `Ctrl+Y / Ctrl+Shift+Z` | Global Editing | global | Follows Live (`Cmd+Shift+Z / Ctrl+Y`) |
 | `edit.cut` | Cut | `Cmd+X` | `Ctrl+X` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+X`) |
@@ -53,23 +53,23 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `view.zoom_back` | Zoom back | `X` | `X` | Navigation | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`X`) |
 | `view.zoom_in` | Zoom in | `+` | `+` | Navigation | editor, timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`+`) |
 | `view.zoom_out` | Zoom out | `-` | `-` | Navigation | editor, timeline, arrangement, step_editor, piano_roll, automation_lane | Follows Live (`-`) |
-| `arrangement.loop_move_earlier` | Move loop earlier | `Left` | `Left` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
-| `arrangement.loop_move_later` | Move loop later | `Right` | `Right` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
-| `arrangement.loop_shorten` | Shorten loop | `Shift+Left` | `Shift+Left` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
-| `arrangement.loop_lengthen` | Lengthen loop | `Shift+Right` | `Shift+Right` | Arrangement | loop_brace | Solid Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
-| `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Solid Groove addition — Live has no single key that frames the whole set |
-| `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Solid Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
-| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Solid Groove addition — Live shows everything at once and has no view to switch to |
+| `arrangement.loop_move_earlier` | Move loop earlier | `Left` | `Left` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.loop_move_later` | Move loop later | `Right` | `Right` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.loop_shorten` | Shorten loop | `Shift+Left` | `Shift+Left` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.loop_lengthen` | Lengthen loop | `Shift+Right` | `Shift+Right` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Groove addition — Live has no single key that frames the whole set |
+| `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
+| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
-| `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor | Solid Groove addition — `?` is the web convention |
-| `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
-| `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Solid Groove addition — Live reorders devices by dragging only |
-| `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
-| `track.move_right` | Move track right | `Right` | `Right` | Mixer and Devices | editor | Solid Groove addition — Live reorders tracks by dragging only |
-| `track.select_previous` | Select previous track | `Up` | `Up` | Navigation | editor | Solid Groove addition — the arrow keys step the editor's selected track through the track list. |
-| `track.select_next` | Select next track | `Down` | `Down` | Navigation | editor | Solid Groove addition — the arrow keys step the editor's selected track through the track list. |
+| `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor | Groove addition — `?` is the web convention |
+| `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
+| `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
+| `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Groove addition — Live reorders tracks by dragging only |
+| `track.move_right` | Move track right | `Right` | `Right` | Mixer and Devices | editor | Groove addition — Live reorders tracks by dragging only |
+| `track.select_previous` | Select previous track | `Up` | `Up` | Navigation | editor | Groove addition — the arrow keys step the editor's selected track through the track list. |
+| `track.select_next` | Select next track | `Down` | `Down` | Navigation | editor | Groove addition — the arrow keys step the editor's selected track through the track list. |
 | `note.move_up` | Move notes up | `Up` | `Up` | Clips and Notes | piano_roll | Follows Live (`Up`) |
 | `note.move_down` | Move notes down | `Down` | `Down` | Clips and Notes | piano_roll | Follows Live (`Down`) |
 | `note.octave_up` | Move notes up an octave | `Shift+Up` | `Shift+Up` | Clips and Notes | piano_roll | Follows Live (`Shift+Up`) |
@@ -96,11 +96,11 @@ nudge the value.
 
 ## Deviations from Ableton Live
 
-Solid Groove follows Live where the same concept exists *and* the browser leaves
+Groove follows Live where the same concept exists *and* the browser leaves
 the combination alone. Three mappings drop Live's modifier because the browser
 owns it:
 
-| Action | Live | Solid Groove | Why |
+| Action | Live | Groove | Why |
 | --- | --- | --- | --- |
 | Split clip | `Cmd/Ctrl+E` | `E` | `Cmd/Ctrl+E` drives browser search / the address bar. |
 | Toggle arrangement loop | `Cmd/Ctrl+L` | `L` | `Cmd/Ctrl+L` focuses the address bar and cannot be reclaimed. |
@@ -155,7 +155,7 @@ override recorded on the entry:
 
 | Action | Combination | Note |
 | --- | --- | --- |
-| `edit.duplicate` | `Cmd/Ctrl+D` | Bookmarks the page in most browsers. Solid Groove cancels the default while an editor selection exists, matching Live. |
+| `edit.duplicate` | `Cmd/Ctrl+D` | Bookmarks the page in most browsers. Groove cancels the default while an editor selection exists, matching Live. |
 
 ## Rules the registry enforces
 
@@ -195,7 +195,7 @@ override recorded on the entry:
 
 ## Recorded deviation: enabled state is not in the registry
 
-The `KEY-01` specification listed "enabled state" among what an entry declares. Solid Groove keeps
+The `KEY-01` specification listed "enabled state" among what an entry declares. Groove keeps
 it on the *handler* instead: a surface passes `isEnabled()` alongside `run()`,
 and an action with no registered handler is simply unavailable. Whether Undo can
 run is a property of the open session, not of the mapping, and the registry is

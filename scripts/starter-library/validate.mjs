@@ -15,7 +15,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { licenseRejectionReason } from "./acquire/sources.mjs";
+import { licenseRejectionReason, PRIVATE_ALPHA_LICENSE } from "./acquire/sources.mjs";
 import { isDeliverable, isKnownIntakeState } from "./intake.mjs";
 import { SEAM_CYCLES } from "./loops.mjs";
 import { noteToMidi } from "./music.mjs";
@@ -282,7 +282,12 @@ function validateAsset(
     seenNames.add(asset.name);
     const lowered = asset.name.toLowerCase();
     const brand = BRAND_TOKENS.find((token) => lowered.includes(token));
-    if (brand) errors.push(`${where}: name contains third-party branding "${brand}"`);
+    // Private-alpha kits are named for the machine they were recorded from
+    // (DEC-010); the name is the point of them, and they leave with CNT-003.
+    const alphaOnly = pack?.rights?.licence === PRIVATE_ALPHA_LICENSE;
+    if (brand && !alphaOnly) {
+      errors.push(`${where}: name contains third-party branding "${brand}"`);
+    }
   }
 
   if (!ASSET_TYPES.includes(asset?.type)) {
@@ -789,7 +794,10 @@ function bump(counter, key) {
  *
  * @returns {{ errors: string[], warnings: string[], stats: object }}
  */
-export function validateLibraryBalance(assets) {
+export function validateLibraryBalance(allAssets) {
+  // Private-alpha content is not part of the approved library (section 3.2),
+  // so it neither helps nor hurts the section 6.4 balance.
+  const assets = allAssets.filter((asset) => asset.license?.id !== PRIVATE_ALPHA_LICENSE);
   const errors = [];
   const warnings = [];
   if (assets.length === 0) {

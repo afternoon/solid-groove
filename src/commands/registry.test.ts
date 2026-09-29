@@ -38,6 +38,7 @@ const EXPECTED_COMMANDS = [
   "placement.update",
   "parameter.set",
   "drum.setPadAsset",
+  "drum.renamePad",
   "drum.setPadFlag",
   "drum.setPadChoke",
   "drum.setPadParameter",

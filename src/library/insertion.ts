@@ -3,6 +3,7 @@ import {
   addAsset,
   addTrack,
   type RawCommandInput,
+  renamePad,
   setPadAsset,
   setSample,
 } from "../commands";
@@ -16,6 +17,7 @@ import {
   createTrack,
 } from "../domain/factories";
 import { type AssetId, type PadId, packIdSchema, type TrackId } from "../domain/ids";
+import { isAutoPadName } from "../domain/padNames";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { assetStorageRef, type LibraryAsset } from "./manifest";
@@ -182,9 +184,25 @@ export function loadPadSampleCommands(
   sample: LibrarySample,
   context: DomainFactoryContext,
 ): readonly RawCommandInput[] {
-  return carryThen(project, sample, context, (assetId) =>
+  const commands = carryThen(project, sample, context, (assetId) =>
     setPadAsset(trackId, padId, assetId),
   );
+  // A pad still called "Pad N" takes the sound's name in the same transaction,
+  // so one undo reverts both. A name a person typed is never overwritten.
+  const pad = drumPadOf(project, trackId, padId);
+  const name = sample.name.trim();
+  return pad && isAutoPadName(pad.name) && name !== ""
+    ? [...commands, renamePad(trackId, padId, name)]
+    : commands;
+}
+
+function drumPadOf(project: Project, trackId: TrackId, padId: PadId) {
+  const instrument = project.song.tracks.find(
+    (track) => track.id === trackId,
+  )?.instrument;
+  return instrument?.kind === "drumMachine"
+    ? instrument.pads.find((pad) => pad.id === padId)
+    : undefined;
 }
 
 /** The asset the project carries for a sound, adding it first when it does not. */

@@ -47,13 +47,13 @@ export const GENERATOR = {
  * Every asset is synthesized by this repository's own code from first
  * principles — no third-party sample, preset, recording, or model is involved —
  * so it satisfies docs/sample-library.md section 3.2's second route: content
- * Solid Groove created entirely from sources it owns. Raw redistribution is
+ * Groove created entirely from sources it owns. Raw redistribution is
  * therefore unrestricted, and there is no attribution, share-alike, or export
  * obligation to carry into stems or an Ableton package.
  */
 const LICENSE = {
   id: "solid-groove-owned",
-  creator: "Solid Groove",
+  creator: "Groove",
   sourceUrl: null,
   retrievedAt: RELEASED_AT,
   evidencePath: "docs/licenses/starter-library-v1.md",

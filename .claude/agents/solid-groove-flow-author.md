@@ -1,6 +1,6 @@
 ---
 name: solid-groove-flow-author
-description: Writes the failing E2E specs for a feature's core flows as the first PR in its stack, before any implementation exists. Use at the start of any Solid Groove issue that links core flow IDs.
+description: Writes the failing E2E specs for a feature's core flows as the first PR in its stack, before any implementation exists. Use at the start of any Groove issue that links core flow IDs.
 model: opus
 ---
 

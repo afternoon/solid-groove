@@ -7,7 +7,7 @@ import { SHORTCUT_GROUP_LABELS } from "./types";
 
 /**
  * `docs/shortcuts.md` is the human copy of the registry — the PRD `KEY-01`
- * requirement that "browser conflicts and Solid Groove deviations from Ableton
+ * requirement that "browser conflicts and Groove deviations from Ableton
  * are documented rather than handled inconsistently". Prose drifts silently;
  * this is what stops it.
  */

@@ -1,7 +1,7 @@
 // Payload scrubbing for the error-monitoring transport (PRD `OPS-03`,
 // ADR 0001 "What this costs").
 //
-// Solid Groove's value to a user is their private music. A third-party error
+// Groove's value to a user is their private music. A third-party error
 // SDK collects more by default than a hand-built reporter would — console
 // arguments, request URLs, DOM text — so this file exists to remove it
 // *before* transmission rather than to trust configuration alone.
@@ -119,7 +119,7 @@ export function scrubFramePath(value: unknown): string | undefined {
 }
 
 /**
- * Static path segments that appear in Solid Groove's own routes.
+ * Static path segments that appear in Groove's own routes.
  *
  * Kept in step with `src/routes`. A segment missing from here is not a leak,
  * only a less specific transaction name, which is the correct direction to

@@ -1,6 +1,6 @@
 # Design principles
 
-How Solid Groove looks, and why. These principles hold on every surface: the
+How Groove looks, and why. These principles hold on every surface: the
 arrangement, the instrument view, the mixer, the library and the dialogs.
 [`faceplate-system.html`](./faceplate-system.html) is the reference design
 they came from, and it plays. [`src/theme.css`](../src/theme.css) is the only

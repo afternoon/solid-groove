@@ -1,7 +1,7 @@
 export const meta = {
   name: 'solid-groove-feature',
   description:
-    'Implement one Solid Groove issue against core flows already specced on main: verify the contract, implement, review, land the stack, capture the walkthrough',
+    'Implement one Groove issue against core flows already specced on main: verify the contract, implement, review, land the stack, capture the walkthrough',
   whenToUse:
     'Run to implement ONE GitHub issue in afternoon/solid-groove whose core flows (CF-001, ...) are already registered in docs/core-flows.md AND written as test.fixme Playwright specs on main. Pass the issue number: { issue: 123 } (or just 123). The pipeline verifies that contract exists, implements the feature against it, reviews and fixes for up to two rounds, opens the stack, then removes the fixme markers, captures the screenshot walkthrough from the now-passing flows and labels the top PR deploy-preview. It never writes or edits a flow spec. Use solid-groove-phase-1 instead to drain a whole milestone unattended.',
   phases: [

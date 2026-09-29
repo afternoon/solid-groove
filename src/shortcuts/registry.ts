@@ -1,6 +1,6 @@
 // The one typed shortcut registry (PRD `KEY-01`).
 //
-// This file is the *only* place a Solid Groove key combination is written
+// This file is the *only* place a Groove key combination is written
 // down. Event handling (`ShortcutController`), tooltips and menu labels
 // (`shortcutLabel`), the `?` mapping guide (`ShortcutGuide.tsx`), the analytics
 // `action_id` set, and `docs/shortcuts.md` are all generated from these
@@ -194,7 +194,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     ableton: {
       kind: "solid_groove",
       reason:
-        "No single-key Live equivalent is claimed; O is unassigned in Solid Groove and free in the browser.",
+        "No single-key Live equivalent is claimed; O is unassigned in Groove and free in the browser.",
     },
   }),
   define({
@@ -286,7 +286,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     ableton: { kind: "follows", abletonKeys: "Cmd/Ctrl+D" },
     browserConflict: {
       keys: "Cmd/Ctrl+D",
-      note: "Bookmarks the page in most browsers. Solid Groove cancels the default while an editor selection exists, matching Live.",
+      note: "Bookmarks the page in most browsers. Groove cancels the default while an editor selection exists, matching Live.",
     },
   }),
   define({
@@ -390,7 +390,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     ableton: {
       kind: "solid_groove",
       reason:
-        "Live scrolls with its Follow switch (Cmd/Ctrl+Shift+F), which the browser and Solid Groove's transport do not share; P is a one-shot jump instead.",
+        "Live scrolls with its Follow switch (Cmd/Ctrl+Shift+F), which the browser and Groove's transport do not share; P is a one-shot jump instead.",
     },
   }),
   define({

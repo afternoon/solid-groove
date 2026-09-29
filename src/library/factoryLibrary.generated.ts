@@ -24,7 +24,7 @@ export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [
 			id: "pak_SdlN_OazweXrwury0j27Y",
 			name: "Core Electronic Drums",
 			version: "1.0.0",
-			publisher: "Solid Groove",
+			publisher: "Groove",
 			kind: "factory",
 			description: "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
 			rights: {
@@ -51,7 +51,7 @@ export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [
 			id: "pak_SdlN_OazweXrwury0j27Y",
 			name: "Core Electronic Drums",
 			version: "1.0.0",
-			publisher: "Solid Groove",
+			publisher: "Groove",
 			kind: "factory",
 			description: "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
 			rights: {
@@ -78,7 +78,7 @@ export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [
 			id: "pak_SdlN_OazweXrwury0j27Y",
 			name: "Core Electronic Drums",
 			version: "1.0.0",
-			publisher: "Solid Groove",
+			publisher: "Groove",
 			kind: "factory",
 			description: "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
 			rights: {
@@ -105,7 +105,7 @@ export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [
 			id: "pak_SdlN_OazweXrwury0j27Y",
 			name: "Core Electronic Drums",
 			version: "1.0.0",
-			publisher: "Solid Groove",
+			publisher: "Groove",
 			kind: "factory",
 			description: "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
 			rights: {
@@ -132,7 +132,7 @@ export const FACTORY_LIBRARY: readonly FactoryLibraryEntry[] = [
 			id: "pak_SdlN_OazweXrwury0j27Y",
 			name: "Core Electronic Drums",
 			version: "1.0.0",
-			publisher: "Solid Groove",
+			publisher: "Groove",
 			kind: "factory",
 			description: "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
 			rights: {
