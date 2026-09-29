@@ -1,9 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project } from "../domain/entities";
+import { createFactoryContext, createReturnBus, createSend } from "../domain/factories";
 import {
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
+import { createSeededIdFactory } from "../domain/ids";
 import { stringifyProject } from "../domain/serialize";
 import { buildAudioProjection } from "../projection/audioProjection";
 import type { Scheduler } from "../shared/scheduler";
@@ -151,6 +153,41 @@ describe("renderProjectOffline", () => {
     expect(Tone.getTransport().bpm.value).toBe(liveBpm);
     expect(live.diagnostics().tracks).toBe(1);
     await live.dispose();
+  });
+});
+
+/** The piano-roll fixture with one return, fed by the Lead's send when `send`. */
+function withReturn(send: boolean): Project {
+  const project = createPianoRollFixtureProject();
+  const context = createFactoryContext({ ids: createSeededIdFactory(7), now: 0 });
+  const bus = createReturnBus(context, { name: "Verb", order: 0 });
+  const [lead] = project.song.tracks;
+  return {
+    ...project,
+    song: {
+      ...project.song,
+      returns: [bus],
+      tracks: [{ ...lead, sendConfig: send ? [createSend(bus.id, 1)] : [] }],
+    },
+  };
+}
+
+describe("renderProjectOffline with tracksSendOnly (a return's stem)", () => {
+  it("silences every track's direct output, so only what reaches a return sounds", async () => {
+    const dry = await (await render(withReturn(false), { tracksSendOnly: true })).outcome;
+    expect(rms(dry.channels[0])).toBe(0);
+
+    const { outcome, registry } = await render(withReturn(true), {
+      tracksSendOnly: true,
+    });
+    const wet = await outcome;
+    expect(rms(wet.channels[0])).toBeGreaterThan(0.001);
+    expect(registry.isEmpty()).toBe(true);
+  });
+
+  it("is off by default: a track with no send still sounds", async () => {
+    const result = await (await render(withReturn(false))).outcome;
+    expect(rms(result.channels[0])).toBeGreaterThan(0.001);
   });
 });
 
