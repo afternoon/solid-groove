@@ -220,6 +220,7 @@ export const NOTE_EDIT_OPERATIONS = [
   "quantize",
   "quantize_to_scale",
   "double",
+  "halve",
   "clear",
   "vary",
   "vary_velocity",
