@@ -264,6 +264,7 @@ export const FEATURE_KEYS = [
   "note_clipboard",
   "velocity_lane",
   "note_audition",
+  "swing",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
