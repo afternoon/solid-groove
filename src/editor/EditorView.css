@@ -63,6 +63,8 @@
   display: flex;
   align-items: center;
   gap: var(--size-divider);
+  box-sizing: border-box;
+  height: var(--editor-header-height);
 }
 
 .editor-header-start,
@@ -91,7 +93,7 @@
 }
 
 .editor-header .project-name {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-title);
   margin: 0;
   min-width: 0;
   overflow: hidden;
@@ -127,7 +129,23 @@
   opacity: 0.75;
 }
 
-.editor-header .transport-toggle[aria-pressed="true"],
+/* The play well: recessed while idle, a white fill while playing (state is
+ * brightness). A fixed box, so swapping Play for the smaller Stop glyph
+ * never resizes it. */
+.editor-header .transport-toggle {
+  width: 36px;
+  height: 36px;
+  background: var(--color-background-well);
+  border-radius: 0;
+  color: var(--color-text-primary);
+}
+
+.editor-header .transport-toggle[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  opacity: 1;
+}
+
 .editor-header .loop-toggle[aria-pressed="true"],
 .editor-header .metronome-toggle[aria-pressed="true"] {
   color: var(--color-accent);
@@ -361,6 +379,9 @@
   z-index: 50;
   margin: calc(-1 * var(--size-divider)) calc(-1 * var(--size-divider)) 0;
   padding: var(--size-divider);
+  /* The padding goes around the header's height, not inside it, so the
+     header row is as tall here as in the arrangement. */
+  box-sizing: content-box;
   background-color: var(--color-background);
 }
 

@@ -64,6 +64,7 @@ import {
   setPlacementLooped,
   snapToBar,
 } from "./placementGeometry";
+import { tileCommands, tileOverwrites, tileTarget } from "./placementTile";
 
 /** Applies commands as one transaction; returns whether anything landed. */
 export type DispatchCommands = (commands: readonly RawCommandInput[]) => void;
@@ -112,6 +113,14 @@ interface DragState {
   placedAt: number | null;
   /** The body offset the pointer last asked for, snapped to a bar. */
   offsetTicks: number;
+  /** The pressed clip's end at the press: past it, an end drag tiles (#493). */
+  readonly originEndTicks: number;
+  /** The linked copies' IDs, minted as the tiling first needs each one. */
+  readonly tileIds: PlacementId[];
+  /** The end the last end-drag step asked for; 0 while that step resizes. */
+  tileTo: number;
+  /** Which end-drag step was applied last, so a repeat of it is skipped. */
+  endKey: string | null;
 }
 
 export function createPlacementEditing(options: PlacementEditingOptions) {
@@ -293,6 +302,10 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
       plan: null,
       placedAt: null,
       offsetTicks: 0,
+      originEndTicks: placement.startTicks + placement.durationTicks,
+      tileIds: [],
+      tileTo: 0,
+      endKey: null,
     };
   }
 
@@ -314,6 +327,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
         return;
       }
     }
+    if (drag.handle === "end" && stepEnd(drag, pointerTicks)) return;
     const commands =
       drag.handle === "body"
         ? movePlacement(current, drag.placementId, pointerTicks - drag.grabOffsetTicks)
@@ -332,6 +346,80 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     }
     drag.applied = true;
     changed();
+  }
+
+  // --- Right-edge repeat (#493) ---------------------------------------------
+
+  const tileIdAt = (state: DragState) => (index: number) => {
+    while (state.tileIds.length <= index) state.tileIds.push(options.ids("placement"));
+    return state.tileIds[index];
+  };
+
+  /**
+   * One step of an end-edge drag: past the clip's own end it tiles linked
+   * copies (the source is never lengthened); at or inside it, it trims. Each
+   * change of target reapplies from the project at the press in a fresh
+   * gesture. Returns false to leave the no-gesture trim to the resize path.
+   */
+  function stepEnd(state: DragState, pointerTicks: number): boolean {
+    const target = tileTarget(pointerTicks);
+    const tiling = target > state.originEndTicks;
+    if (!tiling && !state.gesture) return false;
+    const key = `${tiling ? "tile" : "resize"}:${snapToBar(pointerTicks)}`;
+    if (key === state.endKey) return true;
+    state.endKey = key;
+    state.tileTo = tiling ? target : 0;
+    if (!state.gesture) {
+      changed(); // no gesture: the copies land at the drop
+      return true;
+    }
+    if (state.applied) {
+      state.gesture.cancel();
+      state.gesture = options.beginGesture?.(
+        tiling ? "Repeat placement" : "Resize placement",
+      );
+      state.applied = false;
+    }
+    const commands = tiling
+      ? tileCommands(state.base, state.placementId, target, tileIdAt(state)).commands
+      : resizePlacement(state.base, state.placementId, "end", pointerTicks);
+    if (commands.length > 0 && state.gesture) {
+      state.gesture.apply(commands);
+      state.applied = true;
+    }
+    changed();
+    return true;
+  }
+
+  /** An end-drag's drop past the clip's end: the copies land and overwrite
+   * what they cover (#290), as one entry, resolved from the project at the press. */
+  function dropTiles(state: DragState): void {
+    const { commands, placementIds } = tileCommands(
+      state.base,
+      state.placementId,
+      state.tileTo,
+      tileIdAt(state),
+    );
+    const landed = executeTransaction(state.base, commands, {
+      commitRevision: false,
+      deferredInvariants: ["placement_overlap"],
+    });
+    if (commands.length === 0 || !landed.ok) {
+      dropNothing(state);
+      return;
+    }
+    const overwrite = tileOverwrites(landed.project, placementIds, () =>
+      options.ids("placement"),
+    );
+    const shown = state.applied && state.gesture !== undefined;
+    const all = shown ? overwrite : [...commands, ...overwrite];
+    if (state.gesture) {
+      if (all.length > 0) state.gesture.apply(all);
+      state.gesture.commit("Repeat placement");
+    } else {
+      options.dispatch(all);
+    }
+    options.analytics?.log("placement_duplicated", { mode: "linked" });
   }
 
   // --- Alt-drag copy (ARR-011) ----------------------------------------------
@@ -429,6 +517,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const body = drag.handle === "body";
     if (body && copy) dropCopy(drag);
     else if (body && drag.copying) dropMove(drag);
+    else if (drag.tileTo > 0) dropTiles(drag);
     else commitDrag(drag);
     drag = null;
     changed();

@@ -128,6 +128,44 @@ describe("compressor (FX-01)", () => {
     );
   });
 
+  it("keeps the dry and wet legs time-aligned at a partial mix (#490)", async () => {
+    // A `DynamicsCompressorNode` delays its output by a fixed lookahead (6 ms
+    // in Chromium, 384 samples at 48 kHz in node-web-audio-api). If the dry leg
+    // is not delayed by the same amount, a partial mix sums two offset copies
+    // of the input and comb-filters it -- the "phasing" in #490. An impulse
+    // makes the offset visible directly: an aligned mix puts all of the
+    // impulse's energy in one place, a misaligned one in two.
+    const impulseAt = 100;
+    const buffer = await Tone.Offline(({ sampleRate }) => {
+      const samples = new Float32Array(Math.floor(sampleRate * 0.1));
+      samples[impulseAt] = 0.5;
+      const player = new Tone.Player(Tone.ToneAudioBuffer.fromArray(samples));
+      // Threshold 0 dB at 1:1 does not compress, so the wet leg is the dry
+      // signal plus only the node's own latency: nothing else could differ.
+      const node = deviceNode.buildDeviceNode(
+        device({ wet: 0.5, threshold: 0, ratio: 1, makeup: 0 }),
+        context,
+        compressor.createCompressorCore,
+      );
+      player.connect(node.input);
+      node.output.toDestination();
+      player.start(0);
+    }, 0.1);
+    const data = buffer.getChannelData(0);
+    const peak = data.reduce((max, x) => Math.max(max, Math.abs(x)), 0);
+    const loud: number[] = [];
+    data.forEach((x, i) => {
+      if (Math.abs(x) > peak * 0.25) loud.push(i);
+    });
+    expect(loud.length).toBeGreaterThan(0);
+    // One cluster: every significant sample sits within a couple of samples
+    // of the others, rather than a dry copy and a wet copy milliseconds apart.
+    expect(loud[loud.length - 1] - loud[0]).toBeLessThanOrEqual(2);
+    // And the two halves sum back to the input level: whatever aligns the dry
+    // leg must delay it without colouring its gain.
+    expect(peak).toBeCloseTo(0.5, 2);
+  });
+
   it("exposes a gain-reduction read for metering", () => {
     const node = deviceNode.buildDeviceNode(
       device({ threshold: -40, ratio: 20 }),

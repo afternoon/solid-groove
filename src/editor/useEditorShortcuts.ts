@@ -207,21 +207,16 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // (KEY-01), not by a listener the roll owns. Each is enabled only while the
     // roll is showing; duplicate additionally needs a selection.
     //
-    // The arrangement branch defaults a bare Cmd/Ctrl+D to a *linked*
-    // duplicate rather than leaving it unimplemented. CLP-01's whole point is
-    // that "reuse vs. independent variation" must be an explicit choice, not a
-    // silent guess — but the registry's own `edit.duplicate` entry declares
-    // `ableton: { kind: "follows" }`, and Ableton Live's own Ctrl/Cmd+D always
-    // performs its linked-style duplicate with no second prompt. Matching that
-    // documented parity is a defensible default; a user who wants the
-    // independent copy has the two explicit `PlacementToolbar` buttons
-    // (CLP-01's actual UI requirement) right above the arrangement.
+    // Cmd/Ctrl+D in the arrangement makes an *independent* copy (#493): a fork
+    // the user can edit on its own. A linked copy is made by dragging a clip's
+    // right edge past its end instead, so the two are different gestures and
+    // neither needs a toolbar to state which will run.
     "edit.duplicate": {
       run: () => {
         const owner = selectionOwner();
         if (owner === "piano_roll") pianoRollActions()?.duplicateSelection();
         else if (owner === "arrangement")
-          arrangementEditingActions()?.duplicate("linked");
+          arrangementEditingActions()?.duplicate("independent");
       },
       isEnabled: () => {
         const owner = selectionOwner();

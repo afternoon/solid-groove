@@ -340,7 +340,10 @@ export const SYNTH_FILTER_CUTOFF = register({
   unit: "hertz",
   min: 20,
   max: 20_000,
-  defaultValue: 12_000,
+  // A raw sawtooth with the filter wide open is buzzy and harsh, especially in
+  // chords. 4 kHz tames the top octaves so a fresh synth is pleasant, and it
+  // leaves room to open the filter (or close it) on purpose.
+  defaultValue: 4_000,
   scale: "logarithmic",
   automatable: true,
 });

@@ -52,7 +52,7 @@ test.describe("CF-003", () => {
         .first()
         .click();
       await expect(selectedPlacements(page)).toHaveCount(1);
-      await page.getByRole("button", { name: /^Duplicate as a linked copy/ }).click();
+      await page.keyboard.press("ControlOrMeta+D");
       await expect(selectedPlacements(page)).toHaveCount(1);
       await step("A project with two parts on the timeline");
 

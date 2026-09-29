@@ -137,3 +137,39 @@ describe("Alt-drag in the arrangement (ARR-011)", () => {
     expect(key("keydown")).toBe(false);
   });
 });
+
+describe("the resize cursor on a clip's edge (#493)", () => {
+  /** A point `px` pixels left of bar `bar`'s end (1-based), on `row`. */
+  function at(canvas: Element, type: string, bar: number, px: number, altKey = false) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: bar * BAR * INITIAL_PIXELS_PER_TICK - px,
+      clientY: y(0),
+      altKey,
+    });
+    Object.defineProperty(event, "pointerId", { value: 1 });
+    fireEvent(canvas, event);
+    flush();
+  }
+
+  it("shows while hovering the edge, and not over the body or empty space", async () => {
+    const { canvas } = await setUp();
+    at(canvas, "pointermove", 1, 1);
+    expect(canvas.style.cursor).toBe("ew-resize");
+    pointer(canvas, "pointermove", 1, 0);
+    expect(canvas.style.cursor).toBe("");
+    pointer(canvas, "pointermove", 3, 0);
+    expect(canvas.style.cursor).toBe("");
+  });
+
+  it("stays through an edge drag, with or without Alt, and clears at the drop", async () => {
+    const { canvas } = await setUp();
+    at(canvas, "pointerdown", 1, 1);
+    at(canvas, "pointermove", 3, 1, true);
+    expect(canvas.style.cursor).toBe("ew-resize");
+    at(canvas, "pointerup", 3, 1);
+    expect(canvas.style.cursor).toBe("");
+  });
+});

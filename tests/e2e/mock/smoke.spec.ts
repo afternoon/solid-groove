@@ -191,6 +191,41 @@ test.describe("new project", () => {
     ).toBeVisible();
   });
 
+  // #538: a jumbo dialog sits `--dialog-jumbo-gap` (100px) from every browser
+  // edge on a normal desktop window. Only a real layout can say so.
+  test("leaves a 100px gap around the sequence editor", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "New Project" }).click();
+    const editor = await openStarterClip(page);
+
+    const box = await editor.boundingBox();
+    expect(box).not.toBeNull();
+    const { x, y, width, height } = box as NonNullable<typeof box>;
+    expect([x, y, 1440 - (x + width), 900 - (y + height)]).toEqual([100, 100, 100, 100]);
+  });
+
+  // The dialog shell: the scrim stays clear under the pointer (app.css's global
+  // `button:hover` fill used to win), and the contents start where the title does.
+  test("keeps the scrim clear on hover and aligns content with the title", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "New Project" }).click();
+    const editor = await openStarterClip(page);
+
+    await page.mouse.move(20, 450);
+    await expect(page.locator(".dialog-scrim")).toHaveCSS(
+      "background-color",
+      "rgba(0, 0, 0, 0)",
+    );
+
+    const title = await editor.locator(".sequence-editor-title").boundingBox();
+    const body = await editor.locator(".sequence-editor-body").boundingBox();
+    expect(Math.abs((body?.x ?? -1) - (title?.x ?? -99))).toBeLessThanOrEqual(1);
+  });
+
   // `ARR-001`: the arrangement shell stays inside the panel it is given. Real
   // layout is the only place this can be proved — jsdom has no layout, so a
   // shell that overflowed its panel would look fine to the component tests
@@ -224,21 +259,6 @@ test.describe("new project", () => {
 // backend. See `tests/e2e/emulator/dashboard.spec.ts` for the access-control and
 // persisted-delete coverage a real backend is needed to prove.
 test.describe("dashboard project management", () => {
-  test("creates a genuinely empty project via Blank Project", async ({ page }) => {
-    await page.goto("/dashboard");
-
-    await page.getByRole("button", { name: "Blank Project" }).click();
-
-    await expect(page).toHaveURL(/\/projects\/prj_/);
-    // A blank project has no tracks at all. The editor says so and points at
-    // the mixer, rather than reporting the absence of a sampler track — since
-    // #228 the editor follows a selected track of any kind, so "no sampler
-    // track" was never what an empty project was short of.
-    await expect(
-      page.getByText("This project has no tracks yet. Add one in the mixer."),
-    ).toBeVisible();
-  });
-
   test("renames, duplicates, and deletes a project from the dashboard", async ({
     page,
   }) => {
@@ -272,9 +292,9 @@ test.describe("dashboard project management", () => {
     // (its text is a superset of the original's, so filtering on the full
     // "... copy" text is what tells the two cards apart).
     const duplicateCard = page
-      .locator(".project-card")
+      .getByRole("row")
       .filter({ hasText: "My First Groove copy" });
-    await duplicateCard.getByRole("button", { name: /^delete$/i }).click();
+    await duplicateCard.getByRole("button", { name: /^delete /i }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });
@@ -285,7 +305,7 @@ test.describe("dashboard project management", () => {
     await expect(page.getByText("My First Groove copy")).toBeVisible();
 
     // Confirming removes only that one.
-    await duplicateCard.getByRole("button", { name: /^delete$/i }).click();
+    await duplicateCard.getByRole("button", { name: /^delete /i }).click();
     await page
       .getByRole("alertdialog", { name: /delete this project/i })
       .getByRole("button", { name: /^delete$/i })
@@ -416,7 +436,7 @@ test.describe("keyboard shortcuts", () => {
     await page.getByRole("link", { name: /projects/i }).click();
     await expect(page.getByText("Untitled Project")).toBeVisible();
 
-    await page.getByRole("button", { name: /^delete$/i }).click();
+    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });

@@ -5,36 +5,18 @@
   min-width: 0;
 }
 
-/* The dense pad table (#447): one row per pad, every row on the same columns
-   as the header above it. Rows part by a hairline; no cards. */
-.drum-pad {
-  display: grid;
-  grid-template-columns:
-    24px 92px minmax(120px, 176px) 120px repeat(3, minmax(0, 1fr))
-    76px 62px;
-  align-items: center;
-  gap: 0 20px;
-  min-height: 44px;
-  padding: 0 12px;
-  border-top: 1px solid var(--color-border);
-}
-
+/* The dense pad table (#447) is the shared `DataTable`; this is what is
+   particular to pads: the selected row, a muted row, the hit flash. */
 .drum-pad-head {
-  min-height: 28px;
-  border-top: none;
-  font-size: var(--font-size-tiny);
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-foreground-muted);
+  height: 28px;
 }
 
 /* A muted pad dims, but its mute and solo stay readable to undo it. */
-.drum-pad.muted > :not(.mute-solo) {
+.drum-pad.muted > :not(.pad-mute-solo-cell) {
   opacity: var(--muted-opacity);
 }
 
-.pad-index {
+td.pad-index {
   font-size: var(--font-size-small);
   color: var(--color-foreground-muted);
   font-variant-numeric: tabular-nums;
@@ -81,7 +63,6 @@
 .pad-audition {
   display: flex;
   align-items: center;
-  justify-self: start;
   padding: 4px 6px;
   margin-left: -6px;
   background: none;
@@ -115,7 +96,8 @@
 
 /* Pitch/level/pan are fill sliders sitting straight in the lane grid; like the
    other cells they have to be allowed to shrink below their content. */
-.drum-pad > .fill-slider {
+.drum-pad td > .fill-slider {
+  width: 100%;
   min-width: 0;
 }
 
@@ -156,7 +138,7 @@
   cursor: pointer;
 }
 
-.drum-pad[aria-current="true"] {
+.drum-pad[aria-current="true"] > td {
   background-color: var(--color-background);
 }
 
@@ -165,7 +147,7 @@
   background-color: var(--color-background-secondary);
 }
 
-.pad-sample {
+td.pad-sample {
   overflow: hidden;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);

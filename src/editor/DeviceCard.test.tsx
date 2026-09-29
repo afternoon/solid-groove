@@ -227,13 +227,13 @@ describe("DeviceCard dynamics and time wells (#447)", () => {
   it("sets a compressor's threshold from its knee and its ratio from the curve's end", () => {
     const { devices } = renderChain(["compressor"]);
     const press = surfaceOf(0, "compressor-well");
-    // The default knee sits at -24 dB in: press near it, further left.
+    // The default knee sits at -12 dB in: press near it, further left.
     press(80, 60);
     expect(devices()[0].parameters.threshold).toBeCloseTo(-36);
 
-    // Pressing the right edge at the height of -18 dB out (makeup 0) gives
-    // (0 - -36) / (-18 - -36) = 2:1.
-    press(200, 100 * (1 - (-18 + 60) / 84));
+    // Pressing the right edge at the height of -15 dB out (default makeup 3)
+    // gives (0 - -36) / ((-15 - 3) - -36) = 2:1.
+    press(200, 100 * (1 - (-15 + 60) / 84));
     expect(devices()[0].parameters.ratio).toBeCloseTo(2);
   });
 

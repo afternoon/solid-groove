@@ -166,6 +166,28 @@ describe("EditorHeader", () => {
     );
   });
 
+  it("sizes the primary icons up and leaves the secondary controls alone", () => {
+    renderHeader(fakeSession().session, fakeAudio().audio);
+    const iconSize = (el: HTMLElement) => el.querySelector("svg")?.getAttribute("width");
+
+    expect(iconSize(screen.getByRole("link", { name: "Projects" }))).toBe("24");
+    expect(iconSize(screen.getByRole("button", { name: "Start playback" }))).toBe("28");
+    expect(iconSize(screen.getByRole("button", { name: "Keyboard shortcuts" }))).toBe(
+      "24",
+    );
+    for (const name of ["Undo", "Redo", "Enable loop", "Enable metronome"]) {
+      expect(iconSize(screen.getByRole("button", { name }))).toBe("18");
+    }
+  });
+
+  it("draws Stop smaller than Play so the two glyphs read as one size", async () => {
+    const { audio } = fakeAudio();
+    renderHeader(fakeSession().session, audio);
+    fireEvent.click(screen.getByRole("button", { name: "Start playback" }));
+    const stop = await screen.findByRole("button", { name: "Stop playback" });
+    expect(stop.querySelector("svg")?.getAttribute("width")).toBe("24");
+  });
+
   it("drops the time signature and the printed BPM suffix", () => {
     const { container } = renderHeader(fakeSession().session, fakeAudio().audio);
     expect(container.querySelector(".time-signature")).toBeNull();
