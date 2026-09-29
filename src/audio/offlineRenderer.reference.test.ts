@@ -1,6 +1,12 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { Project } from "../domain/entities";
-import { createSliceFixtureProject } from "../domain/fixtures";
+import { createDevice, type DeviceTypeId } from "../domain/devices";
+import type { Device, Project, Track } from "../domain/entities";
+import { createFactoryContext, createReturnBus, createSend } from "../domain/factories";
+import {
+  createPianoRollFixtureProject,
+  createSliceFixtureProject,
+} from "../domain/fixtures";
+import { createSeededIdFactory, type DeviceId } from "../domain/ids";
 import {
   TICKS_PER_BAR,
   TICKS_PER_QUARTER,
@@ -8,7 +14,7 @@ import {
   ticksToSeconds,
 } from "../domain/time";
 import { buildAudioProjection } from "../projection/audioProjection";
-import { installWebAudioGlobals } from "./testAudioContext";
+import { installWebAudioGlobals, rms } from "./testAudioContext";
 
 /**
  * Deterministic reference renders for the offline renderer (EXP-001): small
@@ -51,6 +57,7 @@ interface Note {
   tick: number;
   pitch?: number;
   ticks?: number;
+  velocity?: number;
 }
 
 /** The slice fixture's sampler track playing `notes` in one clip. */
@@ -60,6 +67,11 @@ function samplerSong(notes: Note[], options: { bars?: number; tempo?: number } =
     notes,
     options.bars,
   );
+}
+
+/** The piano-roll fixture's synth track playing `notes` in one clip. */
+function synthSong(notes: Note[], bars = 1): Project {
+  return withNotes(createPianoRollFixtureProject(), notes, bars);
 }
 
 function withNotes(project: Project, notes: Note[], bars = 1): Project {
@@ -73,7 +85,7 @@ function withNotes(project: Project, notes: Note[], bars = 1): Project {
     trigger: { kind: "pitch" as const, pitch: note.pitch ?? 60 },
     startTicks: note.tick as Ticks,
     durationTicks: (note.ticks ?? 48) as Ticks,
-    velocity: 1,
+    velocity: note.velocity ?? 1,
   }));
   return {
     ...project,
@@ -168,5 +180,165 @@ describe("offline reference renders: timing and alignment", () => {
     );
     const result = await render(samplerSong([{ tick: 0 }]));
     expect(onset(result.channels[0])).toBeLessThanOrEqual(LEAD_IN);
+  });
+});
+
+const ids = createSeededIdFactory("offline-reference");
+
+function device(type: DeviceTypeId, values: Record<string, number> = {}): Device {
+  const base = createDevice(ids("device") as DeviceId, type, 0);
+  return { ...base, parameters: { ...base.parameters, ...values } };
+}
+
+function editTrack(project: Project, edit: (track: Track) => Track): Project {
+  return { ...project, song: { ...project.song, tracks: project.song.tracks.map(edit) } };
+}
+
+/** The last frame whose level passes `threshold`. */
+function lastSound(data: Float32Array, threshold = 1e-3): number {
+  for (let i = data.length - 1; i >= 0; i--) if (Math.abs(data[i]) > threshold) return i;
+  return -1;
+}
+
+/** The synth song the parity renders share: a track strip, inserts, a send to
+ * a return with a tempo-synced delay, and a master chain, all off default. */
+function paritySong(): Project {
+  const bus = {
+    ...createReturnBus(createFactoryContext({ ids }), { name: "FX", order: 0 }),
+  };
+  bus.devices = [device("delay", { feedback: 0.5, wet: 1 })];
+  const project = editTrack(
+    withNotes(createPianoRollFixtureProject({ tempo: 90 }), [
+      { tick: 0, pitch: 57, ticks: 96, velocity: 0.8 },
+    ]),
+    (track) => ({
+      ...track,
+      instrument: { kind: "synth", parameters: { filterCutoff: 1_200, ampRelease: 0.3 } },
+      devices: [device("filter", { cutoff: 2_500 }), device("saturator", { drive: 0.6 })],
+      sendConfig: [createSend(bus.id, 0.5)],
+      mixer: { ...track.mixer, volume: -6, pan: 0.4 },
+    }),
+  );
+  return {
+    ...project,
+    song: {
+      ...project.song,
+      returns: [bus],
+      master: { volume: -3, devices: [device("compressor")] },
+    },
+  };
+}
+
+describe("offline reference renders: duration and tails", () => {
+  it("ends exactly at the end of the last clip when nothing rings past it", async () => {
+    const result = await render(samplerSong([{ tick: 0 }]));
+    expect(result.frames).toBe(2 * RATE);
+    expect(result.tailTruncated).toBe(false);
+  });
+
+  it("keeps a synth note's release, and no more, past the end of the song", async () => {
+    const release = 0.5;
+    const project = editTrack(
+      synthSong([{ tick: TICKS_PER_BAR - 48, ticks: 48 }]),
+      (track) => ({
+        ...track,
+        instrument: { kind: "synth", parameters: { ampRelease: release } },
+      }),
+    );
+    const result = await render(project, 3);
+    const end = 2 * RATE;
+    expect(rms(result.channels[0].subarray(end, end + 0.05 * RATE))).toBeGreaterThan(
+      1e-3,
+    );
+    expect(result.frames).toBeGreaterThan(end + 0.1 * RATE);
+    expect(result.frames).toBeLessThan(end + (release + 0.1) * RATE);
+  });
+
+  it("keeps a reverb's tail, longer for a longer decay, within the decay it was set to", async () => {
+    async function tailSeconds(decay: number): Promise<number> {
+      const project = editTrack(samplerSong([{ tick: TICKS_PER_BAR - 96 }]), (track) => ({
+        ...track,
+        devices: [device("reverb", { decay, size: 0, predelay: 0, wet: 1 })],
+      }));
+      const result = await render(project, 5);
+      return lastSound(result.channels[0], 1e-4) / RATE - 2;
+    }
+    // Size 0 rings for half the stated decay (see devices/reverb.ts).
+    const short = await tailSeconds(1);
+    const long = await tailSeconds(3);
+    expect(short).toBeGreaterThan(0.1);
+    expect(short).toBeLessThan(0.5 + 0.1);
+    expect(long).toBeGreaterThan(short + 0.3);
+    expect(long).toBeLessThan(1.5 + 0.1);
+  });
+
+  it("fades a tail that outlasts the budget instead of cutting it", async () => {
+    const project = editTrack(samplerSong([{ tick: TICKS_PER_BAR - 96 }]), (track) => ({
+      ...track,
+      devices: [device("delay", { sync: 0, time: 0.05, feedback: 0.97, wet: 1 })],
+    }));
+    const result = await render(project, 0.5);
+    expect(result.tailTruncated).toBe(true);
+    expect(Math.abs(result.frames - 2.5 * RATE)).toBeLessThanOrEqual(1);
+    expect(result.channels[0][result.frames - 1]).toBe(0);
+  });
+});
+
+describe("offline reference renders: parity with live playback", () => {
+  it("renders a note exactly as the live graph plays it, every parameter included", async () => {
+    const project = paritySong();
+    const projection = buildAudioProjection(project);
+    const trackId = project.song.tracks[0].id;
+    const graphModule = await import("./ProjectAudioGraph");
+    // Live: the graph live playback builds — on its default transport, the
+    // global one, which is this render's while the callback runs — auditioning
+    // the same note now. An audition is an immediate trigger, so it needs no
+    // transport clock to sound.
+    const live = await Tone.Offline(
+      async ({ destination }) => {
+        const runtime = new runtimeModule.AudioRuntime();
+        const graph = new graphModule.ProjectAudioGraph(
+          {
+            getDestination: () => destination,
+            getSampleRate: () => RATE,
+            resume: async () => {},
+            openProjectScope: (owner) => runtime.openProjectScope(owner),
+          },
+          "live",
+          { now: () => 0 },
+        );
+        graph.reconcile(projection);
+        graph.auditionTrack(trackId, { kind: "pitch", pitch: 57 }, 96, 0.8);
+      },
+      1.5,
+      2,
+      RATE,
+    );
+    const offline = await render(project, 2);
+    const latency = await masterLatency.masterLatencyFrames(RATE);
+    for (const channel of [0, 1]) {
+      const heard = live.getChannelData(channel).subarray(latency);
+      const rendered = offline.channels[channel];
+      expect(rms(rendered.subarray(0, RATE))).toBeGreaterThan(1e-3);
+      let worst = 0;
+      const frames = Math.min(heard.length, rendered.length);
+      for (let i = 0; i < frames; i++) {
+        worst = Math.max(worst, Math.abs(heard[i] - rendered[i]));
+      }
+      expect(worst, `channel ${channel}`).toBeLessThan(1e-4);
+    }
+  });
+
+  it("renders the same song to the same samples every time", async () => {
+    const first = await render(paritySong(), 2);
+    const second = await render(paritySong(), 2);
+    expect(second.frames).toBe(first.frames);
+    for (const channel of [0, 1]) {
+      const a = first.channels[channel];
+      const b = second.channels[channel];
+      let differing = 0;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
+      expect(differing, `channel ${channel}`).toBe(0);
+    }
   });
 });
