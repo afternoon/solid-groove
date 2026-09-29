@@ -350,7 +350,7 @@ interface TrackStripProps {
  * the handle, not an 18px chip.
  */
 const STRIP_CONTROLS =
-  "input, textarea, select, a, [role='slider'], .fill-slider, button:not(.mixer-strip-select)";
+  "input, textarea, select, a, [role='slider'], .fill-slider-track, button:not(.mixer-strip-select)";
 
 /** What a strip's select control reads: the track's instrument, or "Loop". */
 function trackKindLabel(track: Track): string {

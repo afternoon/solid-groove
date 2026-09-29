@@ -46,8 +46,13 @@ export interface TrackHeaderProps {
   readonly analytics?: Analytics;
 }
 
-/** What a press on starts no drag from: the header's own controls. */
-const CONTROLS = "input, button:not(.track-header-select), [role='slider'], .fill-slider";
+/**
+ * What a press on starts no drag from: the header's own controls. A fader is
+ * its track and its value field, not its whole box: the label and the gaps
+ * around them are header, and show the grab cursor, so they must lift it.
+ */
+const CONTROLS =
+  "input, button:not(.track-header-select), [role='slider'], .fill-slider-track";
 
 /**
  * A track's header (#447): one component for the arrangement's header column

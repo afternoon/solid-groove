@@ -29,9 +29,9 @@ describe("liftItem (#539)", () => {
     );
     const lift = liftItem(items[1], { clientX: 15, clientY: 45 });
 
-    const copy = ul.querySelector<HTMLElement>(`.${LIFT_CLASS}`);
+    const copy = document.querySelector<HTMLElement>(`.${LIFT_CLASS}`);
     expect(copy).not.toBeNull();
-    expect(copy?.parentElement).toBe(ul);
+    expect(copy?.parentElement).toBe(document.body);
     expect(copy?.textContent).toBe("b");
     expect(copy?.style).toMatchObject({ left: "10px", top: "40px", width: "200px" });
     // Never measurable as one of the list's items, and never a second element
@@ -47,11 +47,11 @@ describe("liftItem (#539)", () => {
   });
 
   it("puts the copy away, once", () => {
-    const { ul, items } = list();
+    const { items } = list();
     const lift = liftItem(items[0], { clientX: 0, clientY: 0 });
     lift.dispose();
     lift.dispose();
-    expect(ul.querySelector(`.${LIFT_CLASS}`)).toBeNull();
+    expect(document.querySelector(`.${LIFT_CLASS}`)).toBeNull();
     expect(document.documentElement).not.toHaveClass(LIFTING_CLASS);
   });
 });
