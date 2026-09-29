@@ -15,6 +15,16 @@
 // attribution terms, and ordinary "use in your music only" royalty-free terms —
 // is rejected by `APPROVED_LICENSES` below, however permissive it looks.
 
+import { alphaOnlyContentAllowed } from "../../../release.config.mjs";
+
+/**
+ * The rights position of content admitted only for the free, invite-only
+ * alpha: a rights grant that is informal or unconfirmed (docs/sample-library.md
+ * section 3.2). It is approved only while `release.config.mjs` says the
+ * product is a not-for-profit private alpha.
+ */
+export const PRIVATE_ALPHA_LICENSE = "private-alpha";
+
 /**
  * Licence identifiers that may be bundled.
  *
@@ -30,6 +40,7 @@ export const APPROVED_LICENSES = [
   "CC0-1.0",
   "royalty-free-redistributable",
   "solid-groove-owned",
+  ...(alphaOnlyContentAllowed() ? [PRIVATE_ALPHA_LICENSE] : []),
 ];
 
 /**
@@ -227,8 +238,16 @@ export function findSource(id) {
   return SOURCES.find((source) => source.id === id) ?? null;
 }
 
-/** Why a licence is not bundleable, or null if it is approved. */
-export function licenseRejectionReason(licenseId) {
+/**
+ * Why a licence is not bundleable, or null if it is approved. `release`
+ * overrides `release.config.mjs`, so tests can prove the alpha gate closes.
+ */
+export function licenseRejectionReason(licenseId, release) {
+  if (licenseId === PRIVATE_ALPHA_LICENSE) {
+    return alphaOnlyContentAllowed(release)
+      ? null
+      : "private-alpha content may only ship while release.config.mjs says the product is a not-for-profit private alpha; replace or remove it first (CNT-003)";
+  }
   if (APPROVED_LICENSES.includes(licenseId)) return null;
   return (
     REJECTED_LICENSES[licenseId] ??
