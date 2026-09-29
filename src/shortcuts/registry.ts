@@ -48,6 +48,7 @@ import {
   AMBIENT_CONTEXT,
   FOCUS_CONTEXTS,
   MODAL_CONTEXT,
+  MODAL_OWNED_CONTEXTS,
   OVERLAY_CONTEXTS,
   SHORTCUT_GROUPS,
 } from "./types";
@@ -108,6 +109,34 @@ export const SHORTCUT_ACTION_IDS = [
   "note.lengthen",
   "value.nudge_up",
   "value.nudge_down",
+  "library.select_previous",
+  "library.select_next",
+  "library.audition",
+  "library.insert",
+  "library.like",
+  "library.similar",
+  "library.shuffle",
+  "library.pick_1",
+  "library.pick_2",
+  "library.pick_3",
+  "library.pick_4",
+  "library.pick_5",
+  "library.pick_6",
+  "library.pick_7",
+  "library.pick_8",
+  "library.pick_9",
+  "library.pick_all",
+  "library.category_previous",
+  "library.category_next",
+  "library.family_previous",
+  "library.family_next",
+  "library.genre_menu",
+  "library.loop_tempo",
+  "library.all_sounds",
+  "library.favourites",
+  "library.browse_packs",
+  "library.back",
+  "library.search",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -157,6 +186,54 @@ function define(
 ): ShortcutDefinition {
   return { ...definition, keys: toKeys(definition.keys) };
 }
+
+const LIBRARY_KEY_PARITY: AbletonParity = {
+  kind: "solid_groove",
+  reason:
+    "Live's browser has no single-key equivalent; the library's own keys are Groove's.",
+};
+
+/** One key of the library modal (`LIB-010`), live only in the `library` context. */
+function libraryKey(
+  id: ShortcutActionId,
+  label: string,
+  description: string,
+  keys: string,
+  extra: Partial<ShortcutDefinition> = {},
+): ShortcutDefinition {
+  return define({
+    id,
+    label,
+    description,
+    keys,
+    group: "browser",
+    contexts: ["library"],
+    ableton: LIBRARY_KEY_PARITY,
+    ...extra,
+  });
+}
+
+const ORDINALS = [
+  "first",
+  "second",
+  "third",
+  "fourth",
+  "fifth",
+  "sixth",
+  "seventh",
+  "eighth",
+  "ninth",
+];
+
+/** `1`-`9`: the nth category, or in Browse packs the nth pack. */
+const LIBRARY_PICKS = ORDINALS.map((nth, i) =>
+  libraryKey(
+    `library.pick_${i + 1}` as ShortcutActionId,
+    `Pick ${i + 1}`,
+    `Picks the ${nth} category; in Browse packs, opens the ${nth} pack.`,
+    String(i + 1),
+  ),
+);
 
 /**
  * The PRD `KEY-01` initial mapping, in guide order.
@@ -483,7 +560,8 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     label: "Open keyboard mapping guide",
     description: "Opens the searchable list of keyboard shortcuts.",
     group: "navigation",
-    contexts: ["editor"],
+    // The library modal reuses this action for "list the library's keys".
+    contexts: ["editor", "library"],
     keys: "?",
     ableton: {
       kind: "solid_groove",
@@ -726,6 +804,130 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     textEntry: "allowed",
     ableton: { kind: "follows", abletonKeys: "Down" },
   }),
+  ...LIBRARY_PICKS,
+  libraryKey(
+    "library.select_previous",
+    "Previous sound",
+    "Selects the previous sound in the library and auditions it.",
+    "ArrowUp",
+    { ableton: { kind: "follows", abletonKeys: "Up" } },
+  ),
+  libraryKey(
+    "library.select_next",
+    "Next sound",
+    "Selects the next sound and auditions it; from the search field it leaves the field.",
+    "ArrowDown",
+    {
+      // Down is how a producer leaves the search field for the list.
+      textEntry: "allowed",
+      ableton: { kind: "follows", abletonKeys: "Down" },
+    },
+  ),
+  libraryKey(
+    "library.audition",
+    "Audition again",
+    "Plays the selected sound again.",
+    "Space",
+    {
+      // A focused button or checkbox still presses on Space and Enter.
+      preventDefault: false,
+    },
+  ),
+  libraryKey(
+    "library.insert",
+    "Insert sound",
+    "Puts the selected sound in the slot and closes the library.",
+    "Enter",
+    {
+      preventDefault: false,
+      ableton: { kind: "follows", abletonKeys: "Enter" },
+    },
+  ),
+  libraryKey(
+    "library.like",
+    "Like sound",
+    "Adds the selected sound to your favourites, or takes it out.",
+    "L",
+  ),
+  libraryKey(
+    "library.similar",
+    "Similar sounds",
+    "Opens the similar-sounds view for the selected sound.",
+    "S",
+  ),
+  libraryKey(
+    "library.shuffle",
+    "Shuffle",
+    "Selects and auditions a random sound from the current list.",
+    "R",
+  ),
+  libraryKey(
+    "library.pick_all",
+    "All of the family",
+    "Shows every sound in the current family.",
+    "0",
+  ),
+  libraryKey(
+    "library.category_previous",
+    "Previous category",
+    "Moves to the previous category in the family.",
+    "ArrowLeft",
+  ),
+  libraryKey(
+    "library.category_next",
+    "Next category",
+    "Moves to the next category in the family.",
+    "ArrowRight",
+  ),
+  libraryKey(
+    "library.family_previous",
+    "Previous family",
+    "Moves to the previous family of sounds.",
+    "[",
+  ),
+  libraryKey(
+    "library.family_next",
+    "Next family",
+    "Moves to the next family of sounds.",
+    "]",
+  ),
+  libraryKey("library.genre_menu", "Genre menu", "Opens the genre filter.", "G"),
+  libraryKey(
+    "library.loop_tempo",
+    "Loop tempo",
+    "Under Loops, switches between loops near the song tempo and any tempo.",
+    "T",
+  ),
+  libraryKey(
+    "library.all_sounds",
+    "All sounds",
+    "Shows every sound in the library.",
+    "A",
+  ),
+  libraryKey(
+    "library.favourites",
+    "Favourites",
+    "Shows only the sounds you have liked.",
+    "F",
+  ),
+  libraryKey(
+    "library.browse_packs",
+    "Browse packs",
+    "Swaps the list for the grid of packs.",
+    "P",
+  ),
+  libraryKey(
+    "library.back",
+    "Back",
+    "Goes back out of similar sounds, a pack, or Browse packs.",
+    "Backspace",
+  ),
+  libraryKey(
+    "library.search",
+    "Search",
+    "Moves focus to the library's search field.",
+    "/",
+  ),
 ];
 
 /**
@@ -832,7 +1034,9 @@ export function shortcutLabels(
 export function resolveContexts(
   active: readonly ShortcutContext[],
 ): readonly ShortcutContext[] {
-  if (active.includes(MODAL_CONTEXT)) return [MODAL_CONTEXT];
+  if (active.includes(MODAL_CONTEXT)) {
+    return [MODAL_CONTEXT, ...MODAL_OWNED_CONTEXTS.filter((c) => active.includes(c))];
+  }
   return active.includes(AMBIENT_CONTEXT) ? active : [AMBIENT_CONTEXT, ...active];
 }
 
