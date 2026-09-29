@@ -1613,6 +1613,20 @@ describe("EditorView keyboard shortcuts", () => {
 
     await expectStoredStarts(projectId, [768, 768 * 3]);
   });
+
+  // #493: Cmd/Ctrl+D is the independent duplicate. It forks the clip, so the
+  // copy in bar 3 has a clip of its own instead of sharing its source's.
+  it("Ctrl+D duplicates the selected clip as an independent copy (#493)", async () => {
+    const projectId = await openWithPlacementInBar2();
+
+    fireEvent.keyDown(window, { key: "d", ctrlKey: true });
+
+    await expectStoredStarts(projectId, [768, 768 * 2]);
+    const loaded = await repository.loadProject(projectId);
+    if (!loaded.ok) throw new Error("expected the project to load");
+    const clipIds = loaded.value.song.placements.map((p) => p.clipId);
+    expect(new Set(clipIds).size).toBe(2);
+  });
 });
 
 /** The LOOP-003 transport surface: tempo, 4/4 display, loop, and metronome. */

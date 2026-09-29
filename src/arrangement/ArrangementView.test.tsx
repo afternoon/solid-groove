@@ -346,43 +346,41 @@ describe("placement editing wiring (ARR-002)", () => {
     expect(holder.current?.hasSelection()).toBe(true);
   });
 
-  it("shows the CLP-01 duplicate-mode choice only once a placement is selected, and disables it otherwise", async () => {
+  it("has no placement toolbar: duplication is Cmd/Ctrl+D and the right-edge drag (#493)", async () => {
     const { renderView } = await setUpEditing();
     renderView();
-    const linked = screen
-      .getByTestId("placement-toolbar")
-      .querySelector('[data-action="duplicate-linked"]') as HTMLButtonElement;
-    const independent = screen
-      .getByTestId("placement-toolbar")
-      .querySelector('[data-action="duplicate-independent"]') as HTMLButtonElement;
-    expect(linked.disabled).toBe(true);
-    expect(independent.disabled).toBe(true);
-    expect(linked.textContent).toMatch(/linked copy/);
-    expect(independent.textContent).toMatch(/independent copy/);
+    expect(screen.queryByTestId("placement-toolbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Duplicate as/)).not.toBeInTheDocument();
   });
 
   it("linked duplicate reuses the source clip; independent duplicate forks a new one", async () => {
-    const { session, renderView, placementId } = await setUpEditing();
-    const { container } = renderView();
-    const canvas = interactionCanvasOf(container);
-    firePointer(canvas, "pointerdown", {
-      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
-      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
-    });
-    firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
+    const { session, placementId } = await setUpEditing();
+    const holder: { current: PlacementEditingActions | null } = { current: null };
+    render(() => (
+      <ArrangementView
+        project={session.project}
+        dispatch={session.dispatch.bind(session)}
+        beginGesture={session.beginGesture.bind(session)}
+        onEditingActionsReady={(actions) => {
+          holder.current = actions;
+        }}
+      />
+    ));
+    holder.current?.select(placementId);
 
     const originalClipCount = session.project.clips.length;
     const sourcePlacement = session.project.song.placements.find(
       (p) => p.id === placementId,
     );
 
-    clickAndFlush(screen.getByText(/Duplicate as a linked copy/));
+    holder.current?.duplicate("linked");
     expect(session.project.clips.length).toBe(originalClipCount);
     expect(session.project.song.placements.length).toBe(2);
     const linkedCopy = session.project.song.placements.find((p) => p.id !== placementId);
     expect(linkedCopy?.clipId).toBe(sourcePlacement?.clipId);
 
-    clickAndFlush(screen.getByText(/Duplicate as an independent copy/));
+    // The linked copy is now the selection, so this forks it into the next bar.
+    holder.current?.duplicate("independent");
     expect(session.project.clips.length).toBe(originalClipCount + 1);
     expect(session.project.song.placements.length).toBe(3);
   });
@@ -427,29 +425,9 @@ describe("opening a placement (UI-001)", () => {
     expect(opened).toEqual([]);
   });
 
-  it("offers a keyboard-reachable Open for the selected placement", async () => {
-    const { renderView, placementId } = await setUpEditing();
-    const opened: string[] = [];
-    const { container } = renderView((id) => opened.push(id));
-    const canvas = interactionCanvasOf(container);
-
-    // Disabled until something is selected — there is nothing to open.
-    const open = screen.getByRole("button", { name: "Open clip" });
-    expect(open).toBeDisabled();
-
-    firePointer(canvas, "pointerdown", {
-      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
-      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
-    });
-    firePointer(canvas, "pointerup", { clientX: 0, clientY: 0 });
-
-    clickAndFlush(screen.getByRole("button", { name: "Open clip" }));
-    expect(opened).toEqual([placementId]);
-  });
-
-  it("offers no Open at all where nothing handles opening", async () => {
+  it("has no Open clip button: a double-click is the way in (#493)", async () => {
     const { renderView } = await setUpEditing();
-    renderView();
+    renderView((): void => undefined);
     expect(screen.queryByRole("button", { name: "Open clip" })).not.toBeInTheDocument();
   });
 });

@@ -82,15 +82,20 @@ describe("drag: move and resize commit as one gesture", () => {
     expect(h.editing.isDragging()).toBe(false);
   });
 
-  it("dragging the end handle resizes instead of moving", () => {
+  it("dragging the end handle past the end repeats instead of moving (#493)", () => {
     const h = harness();
     const id = h.placementId();
     h.editing.beginDrag(id, "end", TICKS_PER_BAR);
     h.editing.updateDrag(TICKS_PER_BAR * 4);
     h.editing.endDrag();
-    const placement = h.getProject().song.placements[0];
+    const [placement, ...copies] = h.getProject().song.placements;
     expect(placement.startTicks).toBe(0);
-    expect(placement.durationTicks).toBe(TICKS_PER_BAR * 4);
+    expect(placement.durationTicks).toBe(TICKS_PER_BAR);
+    expect(copies.map((p) => p.startTicks)).toEqual([
+      TICKS_PER_BAR,
+      TICKS_PER_BAR * 2,
+      TICKS_PER_BAR * 3,
+    ]);
   });
 
   it("beginning a drag selects the placement being dragged", () => {
