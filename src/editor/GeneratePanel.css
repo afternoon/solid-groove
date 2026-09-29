@@ -1,5 +1,6 @@
-/* The Generate panel (#643): a head naming the row it writes into, then
-   three columns of quiet grey buttons. Nothing here is coloured. */
+/* The Generate panel (#643): a group rule naming the row it writes into,
+   then three columns (patterns, Euclidean, random) of quiet grey buttons.
+   A Write is the black button with a white frame; nothing here is coloured. */
 
 .generate-panel {
   display: flex;
@@ -52,7 +53,8 @@
   min-width: 0;
 }
 
-.generate-button {
+.generate-button,
+.generate-write {
   height: 28px;
   padding: 0 10px;
   border: 0;
@@ -71,12 +73,27 @@
   color: var(--color-text);
 }
 
-.generate-button:disabled {
+.generate-write {
+  background: var(--color-background);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  font-weight: 600;
+}
+
+.generate-write:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.generate-button:disabled,
+.generate-write:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.generate-button:focus-visible {
+.generate-button:focus-visible,
+.generate-write:focus-visible,
+.generate-field input:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
@@ -101,4 +118,35 @@
 
 .generate-glyph i.on {
   background: currentColor;
+}
+
+.generate-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.generate-field input[type="number"] {
+  width: 56px;
+  height: 28px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.generate-field input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--color-accent);
+}
+
+.generate-field output {
+  min-width: 36px;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
