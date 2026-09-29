@@ -33,6 +33,7 @@ import {
   duplicateNotes,
   insertChain,
   quantizeNotes,
+  quantizeNotesToScale,
   removeAsset,
   removeClip,
   removeDevice,
@@ -96,6 +97,8 @@ interface InverseCase {
    * commit.
    */
   signature?(project: CommandTestProject["project"]): string;
+  /** The project the round trip starts from, when the fixture's will not do. */
+  start?(fixture: CommandTestProject): CommandTestProject["project"];
 }
 
 /** A signature that includes the pack shelf but not volatile metadata. */
@@ -164,6 +167,17 @@ const cases: InverseCase[] = [
         amount: 1,
         gridTicks: 24,
       }),
+  },
+  {
+    type: "notes.quantizeToScale",
+    // The fixture is chromatic, which has no scale to quantize to. In C minor
+    // its E (40) is the one stray note.
+    start: (fixture) => {
+      const keyed = executeCommand(fixture.project, setKey({ root: 0, scale: "minor" }));
+      if (!keyed.ok) throw new Error(keyed.issues[0].message);
+      return keyed.project;
+    },
+    build: (fixture) => quantizeNotesToScale(fixture.clipAId, null),
   },
   {
     type: "clip.create",
@@ -415,11 +429,12 @@ describe("generated inverses", () => {
     const signatureOf = testCase.signature ?? contentSignature;
     it(`${testCase.type} undoes and redoes exactly`, () => {
       const fixture = createCommandTestProject();
-      const history = createCommandHistory(fixture.project);
+      const start = testCase.start?.(fixture) ?? fixture.project;
+      const history = createCommandHistory(start);
       const command = testCase.build(fixture);
       expect(command.type).toBe(testCase.type);
 
-      const before = signatureOf(fixture.project);
+      const before = signatureOf(start);
       const result = history.execute(command);
       expect(result.ok, result.ok ? "" : result.issues[0].message).toBe(true);
 
@@ -440,9 +455,10 @@ describe("generated inverses", () => {
       // or an assistant preview, a redo, and a peer would each land
       // somewhere different.
       const fixture = createCommandTestProject();
+      const start = testCase.start?.(fixture) ?? fixture.project;
       const command = testCase.build(fixture);
-      const first = executeCommand(fixture.project, command);
-      const second = executeCommand(fixture.project, command);
+      const first = executeCommand(start, command);
+      const second = executeCommand(start, command);
 
       expect(first.ok && second.ok).toBe(true);
       if (!first.ok || !second.ok) return;

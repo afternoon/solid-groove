@@ -12,7 +12,9 @@ import {
   clearNotes,
   duplicateNotes,
   quantizeNotes,
+  quantizeNotesToScale,
   scaleNoteVelocity,
+  setKey,
   transposeNotes,
   updateClip,
   updateNote,
@@ -325,6 +327,60 @@ describe("musical transformations (CLP-04)", () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.issues[0].message).toMatch(/needs 4 new ids/);
+    });
+  });
+
+  describe("notes.quantizeToScale (ARR-010)", () => {
+    // The fixture's notes are C (36), E (40), G# (44) and C (48).
+    function inKey(root: number, scale: "minor" | "major"): Project {
+      return apply(fixture.project, setKey({ root, scale }));
+    }
+
+    it("moves only the notes outside the key, to the nearest scale pitch", () => {
+      // In C minor, E sits between D# and F: a tie, so it rounds down.
+      const next = apply(inKey(0, "minor"), quantizeNotesToScale(fixture.clipAId, null));
+      expect(pitchesOf(next, fixture.clipAId)).toEqual([36, 39, 44, 48]);
+    });
+
+    it("acts on the selection alone when there is one", () => {
+      // In C major, E is in key and G# is not; only the G# is selected.
+      const keyed = inKey(0, "major");
+      const next = apply(
+        keyed,
+        quantizeNotesToScale(fixture.clipAId, [fixture.eventIds[2]]),
+      );
+      expect(pitchesOf(next, fixture.clipAId)).toEqual([36, 40, 43, 48]);
+    });
+
+    it("keeps each note's timing, length and velocity", () => {
+      const keyed = inKey(0, "minor");
+      const next = apply(keyed, quantizeNotesToScale(fixture.clipAId, null));
+      const [before, after] = [
+        eventsOf(keyed, fixture.clipAId),
+        eventsOf(next, fixture.clipAId),
+      ];
+      expect(after.map(({ trigger: _t, ...rest }) => rest)).toEqual(
+        before.map(({ trigger: _t, ...rest }) => rest),
+      );
+    });
+
+    it("refuses while the key is chromatic", () => {
+      const result = executeCommand(
+        fixture.project,
+        quantizeNotesToScale(fixture.clipAId, null),
+      );
+      expect(result.ok).toBe(false);
+      expect(result.project).toBe(fixture.project);
+    });
+
+    it("refuses when every note in scope is already in the key", () => {
+      const keyed = inKey(0, "minor");
+      const result = executeCommand(
+        keyed,
+        quantizeNotesToScale(fixture.clipAId, [fixture.eventIds[0]]),
+      );
+      expect(result.ok).toBe(false);
+      expect(result.project).toBe(keyed);
     });
   });
 
