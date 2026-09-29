@@ -7,6 +7,7 @@ import type { Clip, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId } from "../domain/ids";
 import { canDouble } from "./doubleClip";
+import { canHalve } from "./halveClip";
 import {
   buildTransform,
   canTransform,
@@ -47,7 +48,7 @@ export interface TransformPanelProps {
 
 /**
  * The Transform panel (CLP-04, ARR-010): transpose, vary timing, vary
- * velocity, quantize, quantize to scale, double and clear, for the selection
+ * velocity, quantize, quantize to scale, halve, double and clear, for the selection
  * or, with nothing selected, the whole clip.
  *
  * Every button dispatches registered commands — the same ones the assistant
@@ -146,8 +147,13 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
 
   const buttons = (): readonly TransformKind[] =>
     props.editor === "piano_roll"
-      ? ["quantize", "quantizeToScale", "duplicate", "clear"]
-      : ["quantize", "duplicate", "clear"];
+      ? ["quantize", "quantizeToScale", "halve", "duplicate", "clear"]
+      : ["quantize", "halve", "duplicate", "clear"];
+
+  /** Quantize to scale needs a key; Halve stops at one bar (#662). */
+  const unavailable = (kind: TransformKind): boolean =>
+    (kind === "quantizeToScale" && chromatic()) ||
+    (kind === "halve" && !canHalve(props.clip));
 
   return (
     <section class="transform-panel" aria-label="Transform">
@@ -168,14 +174,12 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
         </div>
         <TransformButton kind="vary" wide />
         <TransformButton kind="varyVelocity" wide />
-        <For each={buttons()}>
-          {(kind) => (
-            <TransformButton
-              kind={kind}
-              disabled={kind === "quantizeToScale" && chromatic()}
-            />
-          )}
-        </For>
+        {/* One full row, however many buttons the editor offers. */}
+        <div class="transform-row">
+          <For each={buttons()}>
+            {(kind) => <TransformButton kind={kind} disabled={unavailable(kind)} />}
+          </For>
+        </div>
       </div>
       {/* A refusal is shown, not swallowed: nothing moved, and this says why. */}
       <p class="transform-error" role="alert">

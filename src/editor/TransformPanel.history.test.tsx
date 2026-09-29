@@ -188,6 +188,20 @@ describe("TransformPanel analytics", () => {
     }
   });
 
+  it("halves the same with analytics on or off, logging one clip_edited when on", async () => {
+    for (const analyticsEnabled of [true, false]) {
+      cleanup();
+      const { session, transport, renderPanel } = await setUp({ analyticsEnabled });
+      const length = session.project.clips[0].lengthTicks;
+      renderPanel([]);
+
+      clickTransform("Halve");
+
+      expect(session.project.clips[0].lengthTicks).toBe(length / 2);
+      expect(clipEdited(transport)).toHaveLength(analyticsEnabled ? 1 : 0);
+    }
+  });
+
   it("doubles the same with analytics on or off, logging one clip_edited when on", async () => {
     for (const analyticsEnabled of [true, false]) {
       cleanup();
