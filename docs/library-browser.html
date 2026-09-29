@@ -450,7 +450,7 @@ function playPack(pid) {
 /* ---------- state ---------- */
 const INITIAL = () => ({view:"sounds", pack:"all", fam:"drums", cat:"Kick", genres:[], tempo:"near", bars:null,
   sel:find("Tight House Kick").id, favs:new Set([find("Deep Sub Kick").id, find("Classic House Clap").id]),
-  q:"", similar:null, trail:[], match:{cat:true, character:true, genre:false, length:true}, menu:false, packFam:null, inserted:false, keys:false});
+  q:"", similar:null, trail:[], match:{cat:true, character:true, genre:true, length:true}, menu:false, packFam:null, inserted:false, keys:false});
 let st = INITIAL();
 const $ = id => document.getElementById(id);
 const qInput = $("q");
