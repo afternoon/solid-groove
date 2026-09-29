@@ -157,6 +157,7 @@ tests/                  # Every suite that is not a src/ unit or component test
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 public/robots.txt       # Allows `/`, disallows the app's own routes (ADR 0008)
 site.config.mjs         # The public origin, titles, and description. One place to change the domain
+release.config.mjs      # Release stage and for-profit flag. Leaving the private alpha is one deliberate edit here; the library build then rejects alpha-only packs
 ```
 
 ## Task tracking and landing work
