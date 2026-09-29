@@ -175,4 +175,41 @@ describe("device factory", () => {
       expect(defaults[bareParameterId(parameter.id)]).toBe(parameter.defaultValue);
     }
   });
+  // #492: a freshly inserted device should be musical, not a demo of extremes.
+  describe("musical defaults", () => {
+    it("pins the default Dry/Wet of every device that has one", () => {
+      const wet = (type: string) => defaultDeviceParameters(type).wet;
+      expect(wet("reverb")).toBe(0.25);
+      expect(wet("delay")).toBe(0.25);
+      expect(wet("overdrive")).toBe(0.5);
+      expect(wet("saturator")).toBe(0.5);
+      expect(wet("compressor")).toBe(1);
+      expect(wet("filter")).toBe(1);
+    });
+
+    it("keeps drive devices audible but short of destructive", () => {
+      expect(defaultDeviceParameters("overdrive").drive).toBe(0.2);
+      expect(defaultDeviceParameters("overdrive").tone).toBe(0.6);
+      // Character above 0.5 is mostly wavefolder: destructive by design.
+      expect(defaultDeviceParameters("saturator").character).toBeLessThanOrEqual(0.25);
+      expect(defaultDeviceParameters("saturator").drive).toBeLessThanOrEqual(6);
+    });
+
+    it("compensates the compressor so it is not quieter than bypass", () => {
+      const c = defaultDeviceParameters("compressor");
+      expect(c).toMatchObject({ threshold: -12, ratio: 3, attack: 0.01, release: 0.2 });
+      // A -6 dB peak's gain reduction, then makeup: net level within 2 dB.
+      const reduction = (-6 - c.threshold) * (1 - 1 / c.ratio);
+      expect(Math.abs(c.makeup - reduction)).toBeLessThanOrEqual(2);
+    });
+
+    it("starts the filter open enough to leave body and the delay/reverb tails moderate", () => {
+      expect(defaultDeviceParameters("filter")).toMatchObject({
+        cutoff: 2_000,
+        resonance: 1,
+      });
+      expect(defaultDeviceParameters("delay").feedback).toBeLessThanOrEqual(0.5);
+      expect(defaultDeviceParameters("reverb").decay).toBeLessThanOrEqual(3);
+    });
+  });
 });

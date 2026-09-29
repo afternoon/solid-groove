@@ -209,14 +209,14 @@ describe("Alt changes the mode mid-drag", () => {
     expect(h.events("placement_duplicated")).toEqual([]);
   });
 
-  it("Alt-drag on an edge resizes, as a plain edge drag does", () => {
+  it("Alt-drag on an edge repeats linked copies, as a plain edge drag does (#493)", () => {
     const h = setup();
     h.editing.beginDrag(h.first.id, "end", h.first.durationTicks);
     h.editing.updateDrag(4 * BAR, true);
     h.editing.endDrag(true);
-    const resized = h.history.project.song.placements.find((p) => p.id === h.first.id);
-    expect(resized?.durationTicks).toBe(4 * BAR);
-    expect(h.history.project.song.placements).toHaveLength(2);
+    const source = h.history.project.song.placements.find((p) => p.id === h.first.id);
+    expect(source?.durationTicks).toBe(h.first.durationTicks);
+    expect(h.history.project.song.placements.length).toBeGreaterThan(2);
   });
 });
 

@@ -148,6 +148,11 @@ a shell that does not exist yet without reddening `main`. It is the register's
 one flow that was live before this, so getting it back to live is part of what
 #304 is finished by.
 
+**Revised for #496 (a sampler is a tonal instrument; the drum machine is the
+one-shot player).** The starter project is a drum-machine track, its kick on the
+"BD" pad, so steps 5-7 read the pattern as a pad lane rather than a sampler's
+single lane. The journey is unchanged. Parked at `test.fixme` until #496 lands.
+
 **Preconditions:** none. No account, no existing project.
 
 1. Open the landing page.
@@ -155,10 +160,10 @@ one flow that was live before this, so getting it back to live is part of what
 3. You arrive at the dashboard, signed in as a guest, with no projects yet.
 4. Create a new project.
 5. The project opens on the arrangement, with a four-on-the-floor starter
-   pattern sitting on its only track.
+   pattern sitting on its only track, a drum machine named "BD".
 6. Open that clip. The sequence editor comes up over the arrangement, showing
-   the pattern.
-7. Turn on a step that was off, and close the editor.
+   the pattern on the "BD" pad: steps 1, 5, 9 and 13 on.
+7. Turn on a step that was off on the "BD" pad, and close the editor.
 8. Start playback.
 
 **Outcome:** a visitor who arrived with no account is listening to a loop they
@@ -177,19 +182,25 @@ CF-004 onwards are where coming back to your work is proved.
 **Issue:** #61 · **Suite:** `tests/e2e/emulator/flows/CF-002.spec.ts` · **Entrypoint:** the
 project dashboard
 
-**Preconditions:** signed in as a guest with no projects — where CF-001 ends.
-Building the loop in steps 2-5 depends on #223 (creating a sampler track) and
-#225 (loading a library sound onto a sampler); until both land, this flow cannot
-be walked by hand.
+**Revised for #496 (a sampler is a tonal instrument; the drum machine is the
+one-shot player).** The drum parts are drum-machine tracks and are sequenced on
+the step grid by pad; the pitched parts (chord stab, bass) are sampler tracks
+written in the piano roll, where a note plays the sample at its pitch and C4
+plays it as recorded. The loop, the outline and the undos are unchanged.
 
-1. Create a new project. It opens on the step editor with the starter kick,
-   four on the floor.
-2. Add a sampler track named "Hats", load a closed hat onto it from the library,
-   and put the hat on every offbeat.
-3. Add a sampler track named "Claps", with a clap on beats 2 and 4.
-4. Add a sampler track named "Chords", with a chord stab on steps 1, 4, 7, 10,
-   13 and 16.
-5. Add a sampler track named "Bass", following the kick.
+**Preconditions:** signed in as a guest with no projects — where CF-001 ends.
+Building the pitched parts in steps 4-5 depends on #225 (loading a library sound
+onto a sampler) and #496 (a sampler's clip opens in the piano roll); until both
+land, this flow cannot be walked by hand.
+
+1. Create a new project. It opens on the arrangement with the starter kick, a
+   drum machine named "BD", four on the floor.
+2. Add a drum-machine track named "Hats", and put the "HH" pad on every offbeat.
+3. Add a drum-machine track named "Claps", with the "CP" pad on beats 2 and 4.
+4. Add a sampler track named "Chords", load a chord stab onto it from the
+   library, and write a C4 in the piano roll on steps 1, 4, 7, 10, 13 and 16.
+5. Add a sampler track named "Bass", load a bass note onto it from the library,
+   and write a C4 in the piano roll following the kick, on steps 1, 5, 9 and 13.
 6. Play the loop — five parts, one bar, tight.
 7. Select the loop's bar range in the arrangement.
 8. Apply the structure template. The arrangement fills out: named, coloured
@@ -210,8 +221,8 @@ survive the outline untouched, which is asserted at the command layer; nor
 automation across the new sections (`ARR-004`); nor persistence, since this runs
 against the mock backend.
 
-Note that steps 1-6 exercise track management, the library browser, and the step
-editor before the flow reaches its own subject. That is deliberate — a loop-to-song
+Note that steps 1-6 exercise track management, the library browser, the step
+editor and the piano roll before the flow reaches its own subject. That is deliberate — a loop-to-song
 outline stamped onto a single-track project demonstrates nothing — but it does
 mean a break in any of those surfaces will surface here as an `ARR-003` failure.
 
@@ -398,15 +409,20 @@ afterwards would assert something the product does not promise.
 **Issue:** #304 · **Suite:** `tests/e2e/emulator/flows/CF-008.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #496.** The starter track is a drum machine, so steps 2-3 work on
+its "BD" pad lane. The track keeps the name "BD", so steps 4-7 are unchanged.
+Parked at `test.fixme` until #496 lands.
+
 **Preconditions:** signed in with no projects.
 
 1. Create a new project. It opens on the arrangement, which fills the page, with
    the starter pattern sitting on the only track and a dock floating along the
    bottom naming the three views.
 2. Open the clip on the timeline. The sequence editor comes up over the
-   arrangement, nearly filling the window, showing the four-on-the-floor pattern.
-3. Turn on a step that was off, then close the editor. The arrangement is
-   underneath, exactly as it was apart from the edit.
+   arrangement, nearly filling the window, showing the four-on-the-floor pattern
+   on the starter drum machine's "BD" pad.
+3. Turn on a step that was off on the "BD" pad, then close the editor. The
+   arrangement is underneath, exactly as it was apart from the edit.
 4. Go to the instrument view with the keyboard. The track's instrument fills the
    page, with a list of the project's tracks down the left edge and the dock
    still showing which view you are on.
@@ -473,20 +489,23 @@ project dashboard
 1. Create a new project, duplicate the "BD" clip, and drag the copy along to
    bar 3, so "BD" has a clip in bar 1 and another in bar 3 with bar 2 empty
    between them. Add a sampler track and drag the right edge of its clip out to
-   the end of bar 3, so "Sampler" has one clip across bars 1 to 3.
+   the end of bar 2, so "Sampler" repeats its clip: one in bar 1 and a linked
+   copy in bar 2.
 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along to 4.3.1
    on "Sampler". A dotted outline follows the pointer across both tracks. When
    you let go it goes away, and the clips it touched are selected as whole
    clips: the "BD" clip in bar 3, which it wholly contained, and the "Sampler"
-   clip, which it overlapped. Each gets a solid outline, and the arrangement
-   announces "2 clips selected". The "BD" clip in bar 1 is not selected.
+   clip in bar 2, which it overlapped. Each gets a solid outline, and the
+   arrangement announces "2 clips selected". The "BD" and "Sampler" clips in
+   bar 1 are not selected.
 3. Press Delete. Both selected clips are gone, whole: nothing is trimmed. The
-   "BD" clip in bar 1 is untouched. Clicking in bar 1 on "Sampler", where its
-   clip started, finds empty space and announces "Position 1.1.1". The same
-   drag as in step 2 now touches no clip, and is announced as "No selection".
+   clips in bar 1 on "BD" and "Sampler" are untouched. Clicking in bar 2 on
+   "Sampler", where the deleted copy was, finds empty space and announces
+   "Position 2.1.1". The same drag as in step 2 now touches no clip, and is
+   announced as "No selection".
 4. Reload the page.
 5. The project reopens exactly as step 3 left it: both tracks are still there,
-   "BD" has only its clip in bar 1, and "Sampler" has no clips.
+   and "BD" and "Sampler" each have only their clip in bar 1.
 
 **Outcome:** a drag across more than one track selected every clip it contained
 or overlapped, as whole clips. Delete removed exactly those clips, whole, and
@@ -688,10 +707,14 @@ layer. What the outlines look like, as in CF-009.
 **Issue:** #456 · **Suite:** `tests/e2e/emulator/flows/CF-016.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #496.** The "BD" clip is a drum-machine clip, so steps 5-8 read
+and edit the "BD" pad's lane. Alt-drag itself is unchanged and already live;
+parked at `test.fixme` only until #496's starter lands.
+
 **Preconditions:** signed in with no projects.
 
-1. Create a new project and add a sampler track, so "BD" and "Sampler" each have
-   one clip, in bar 1.
+1. Create a new project and add a sampler track, so "BD" (the starter drum
+   machine) and "Sampler" each have one clip, in bar 1.
 2. Press in the empty bar 2 on "BD" and drag down and back to the middle of bar 1
    on "Sampler". Both clips in bar 1 are selected, and the arrangement announces
    "2 clips selected".
@@ -703,9 +726,10 @@ project dashboard
 4. Hold Alt again, press on the "BD" clip in bar 3, and drag it along to bar 5.
    Copies of both clips from bar 3 land in bar 5, one on each track, so the copies
    made in step 3 were what was selected.
-5. Open the "BD" clip in bar 5. Turn on a step that was off, and close the editor.
-6. Open the "BD" clip in bar 1. The step you turned on in bar 5 is still off here.
-   Close the editor.
+5. Open the "BD" clip in bar 5. Turn on a step that was off on the "BD" pad, and
+   close the editor.
+6. Open the "BD" clip in bar 1. The step you turned on in bar 5 is still off on
+   the "BD" pad here. Close the editor.
 7. Reload the page.
 8. The project reopens exactly as step 6 left it: "BD" and "Sampler" each have
    clips in bars 1, 3 and 5, with bars 2 and 4 empty, and the step you turned on
@@ -723,6 +747,97 @@ Escape mid-drag and undoing an Alt-drag as one step. A copy landing on another
 clip, which overwrites it exactly as a plain drag does (#290). Alt-drag on a clip
 edge, which resizes as a plain edge drag does. Touch input. What the dragged
 copies look like while they move, as in CF-009.
+
+### CF-017 — A producer writes a bassline in the piano roll
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-017.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and add a synth track. Its clip sits in bar 1. Open it. The
+   sequence editor shows the piano roll: 16 steps, rows named down the left with
+   white rows for white keys and black rows for black keys, and the key reads
+   "Chromatic".
+2. Click the empty cell at C2, step 1. A one-step note appears there, selected.
+   Click C2 step 5, D♯2 step 9 and G2 step 13. The clip has four notes.
+3. Drag the right edge of the note at C2 step 1 one step to the right. It is now two
+   steps long. Click the empty cell at F2 step 15. The new note is also two steps
+   long.
+4. Drag the note at D♯2 step 9 up two rows and right one step. It lands at F2
+   step 10.
+5. Press in the empty cell at C2 step 6 and drag left to step 1. The two C2 notes
+   are selected, and the roll reads "2 selected".
+6. Hold Alt (Option on macOS), press on the note at C2 step 1, drag it right by
+   eight steps and let go. Copies land at C2 steps 9 and 13. The originals have not
+   moved.
+7. Double-click the note at G2 step 13. It is deleted.
+8. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the clip holds six notes: C2 at steps 1 (two steps long), 5, 9 (two
+steps long) and 13, F2 at step 10, and F2 at step 15 (two steps long). Clicking,
+dragging, resizing, lassoing, Alt-copying and double-click deleting all went through
+the command layer, and the result survived a reload.
+
+**Out of scope:** keyboard nudges and shortcuts (CF-019), the velocity lane, zoom,
+auto-scroll, audition and Shift/Cmd-click toggling, which are tested at the
+component layer. Touch input.
+
+### CF-018 — A producer picks a key and pulls stray notes into it
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-018.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a synth track and open its clip. The key reads
+   "Chromatic", the root buttons are disabled, and Quantize to scale is disabled.
+2. Add notes at C2 step 1, F♯2 step 5 and D♯2 step 9.
+3. Choose Minor from the scale switch. The root buttons are enabled with C chosen,
+   and the key reads "C minor". The roll shows only C minor rows, plus an F♯2 row
+   marked Off, which holds the F♯2 note. No C♯2 or E2 row is shown.
+4. Press Quantize to scale. The F♯2 note moves onto a C minor row, and the Off row
+   disappears. The C2 and D♯2 notes have not changed.
+5. Undo. The F♯2 note and its Off row are back. Redo. They are gone again.
+6. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the key reads "C minor" and the roll shows only C minor rows, so the key
+was saved with the project. The clip holds three notes, all in C minor.
+
+**Out of scope:** which scale note Quantize to scale picks (the rule is the
+implementer's, tested at the unit layer). Every scale other than Minor. Changing the
+root with notes out of key. Key changes from anywhere other than the piano roll.
+
+### CF-019 — A producer copies, pastes and transforms notes from the keyboard
+
+**Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-019.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, add a synth track and open its clip. Add notes at C2 step 1
+   and G2 step 3.
+2. Press ⌘A (Ctrl+A on Windows and Linux). The roll reads "2 selected". Press ⌘C.
+   Click the ruler at step 9, then press ⌘V. Copies land at C2 step 9 and G2
+   step 11, and the copies are now the selection.
+3. Press ↑. The copies move up one row, to C♯2 step 9 and G♯2 step 11. Undo. They
+   are back at C2 and G2.
+4. Press Delete. The copies are gone and two notes remain.
+5. Press Esc so nothing is selected. The Transform panel reads "All 2 notes". The
+   Transpose field reads "+12 st". Press Transpose. The notes are now at C3 step 1
+   and G3 step 3.
+6. Press Double. It refuses with "The copies would not fit inside this clip. Make
+   the clip longer first.", and the notes are unchanged.
+7. Close the editor and reload the page. Open the clip again.
+
+**Outcome:** the clip holds C3 at step 1 and G3 at step 3. Keyboard copy and paste
+landed at the insert marker, arrow keys and Delete acted on the selection, and a
+transform with nothing selected acted on the whole clip. A refused transform changed
+nothing and said why.
+
+**Out of scope:** ⌘D, cut, Shift+arrow resizing and octave moves, Quantize,
+Velocity, Vary, Clear clip, and editing the value fields, which are tested at the
+component layer.
 
 <!--
   New flows go here, in ascending ID order. Never renumber or reuse an ID: a

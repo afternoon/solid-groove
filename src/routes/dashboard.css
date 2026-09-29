@@ -1,6 +1,7 @@
 .dashboard {
+  position: relative;
   width: 100%;
-  max-width: 900px;
+  max-width: 1048px;
   margin: 64px auto;
   padding: 0 24px;
   box-sizing: border-box;
@@ -10,9 +11,13 @@
   margin: 48px auto;
 }
 
+/* The page's header (#532): large, bold, white. */
 .dashboard-title {
-  font-size: var(--font-size-lg);
-  margin-bottom: 24px;
+  margin: 0 0 32px;
+  font-size: calc(var(--font-size-base) * 2.5);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-foreground-bright);
 }
 
 .upgrade-prompt {
@@ -33,8 +38,7 @@
 }
 
 .upgrade-prompt button,
-.dashboard-actions .new-project,
-.dashboard-actions .blank-project {
+.dashboard-actions .new-project {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -44,8 +48,7 @@
 }
 
 .upgrade-prompt button:disabled,
-.dashboard-actions .new-project:disabled,
-.dashboard-actions .blank-project:disabled {
+.dashboard-actions .new-project:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -55,14 +58,10 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  /* Pull the buttons up so they align with the "Projects" header row. */
-  margin-top: -68px;
-  margin-bottom: 28px;
-}
-
-.dashboard-actions .action-row {
-  display: flex;
-  gap: 8px;
+  /* Sits on the "Projects" header row, out of flow so the header keeps its size. */
+  position: absolute;
+  top: 0;
+  right: 24px;
 }
 
 .dashboard-actions .create-error {
@@ -71,77 +70,57 @@
   color: var(--color-danger);
 }
 
+/* The project table (#532) is the shared `DataTable`, at most 1000px wide.
+   On a phone it scrolls inside its own box, never the page. */
 .project-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+  width: 100%;
+  max-width: 1000px;
+  overflow-x: auto;
 }
 
-.project-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px;
-  border: 1px solid var(--tint-soft);
-  border-radius: 0;
-  background: var(--color-background-secondary);
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.15s ease;
+.project-table {
+  min-width: 560px;
 }
 
-.project-card:hover {
-  border-color: var(--tint-medium);
-  background: var(--color-background-highlight);
-  transform: translateY(-2px);
+.project-table td {
+  height: 64px;
 }
 
-.project-card .project-title {
+.project-swatch {
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+
+.project-name-cell {
+  overflow: hidden;
+}
+
+.project-title {
   margin: 0;
   font-size: var(--font-size-base);
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.project-card .project-title a {
+.project-title a {
   color: var(--color-text);
   text-decoration: none;
 }
 
-.project-card .project-title a::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+.project-title a:hover {
+  text-decoration: underline;
 }
 
-.project-card .project-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
+.project-date {
   font-size: var(--font-size-small);
-  color: var(--color-foreground);
-}
-
-.project-card .project-badge {
-  padding: 2px 8px;
-  border-radius: 0;
-  font-size: var(--font-size-tiny);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--tint-soft);
   color: var(--color-text-secondary);
-}
-
-.project-card .project-badge.is-public {
-  background: var(--color-success-wash);
-  color: var(--color-success);
+  white-space: nowrap;
 }
 
 .empty-projects {
-  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -191,38 +170,30 @@
   cursor: pointer;
 }
 
-/* The card title's stretched link (`.project-title a::after`) covers the
-   whole card, so the row actions below need their own stacking context to
-   stay clickable above it. */
-.project-card-actions,
+.project-actions,
 .project-rename-form {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
-.project-card-actions .project-action {
+.project-actions .project-action {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  padding: 6px 8px;
   border-radius: 0;
-  font-size: var(--font-size-small);
   background: var(--tint-soft);
   border: 1px solid var(--tint-medium);
   color: var(--color-text);
   cursor: pointer;
 }
 
-.project-card-actions .project-action:disabled {
+.project-actions .project-action:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.project-card-actions .project-action-destructive {
+.project-actions .project-action-destructive {
   color: var(--color-danger);
 }
 
@@ -243,9 +214,8 @@
 }
 
 .project-row-error {
-  position: relative;
-  z-index: 1;
-  margin: 0;
+  margin: 4px 0 0;
   font-size: var(--font-size-small);
   color: var(--color-danger);
+  white-space: normal;
 }
