@@ -26,14 +26,6 @@
   color: var(--color-text-secondary);
 }
 
-/* Wide enough for the fill slider to be draggable, narrow enough to leave the
-   toolbar room; the slider itself measures this box rather than setting it. */
-.step-editor-velocity {
-  width: 140px;
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-}
-
 /* Row names and ruler corner in the first column, steps in the second; the
    velocity lane spans both. Everything scrolls sideways together, and the
    names stay put against the left edge. */

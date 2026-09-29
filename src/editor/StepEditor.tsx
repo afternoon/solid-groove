@@ -1,20 +1,21 @@
-import { For, type JSX, Show } from "@solidjs/web";
+import { For, type JSX } from "@solidjs/web";
 import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
-import { createControlGesture, removeNotes, updateClip, updateNote } from "../commands";
+import { removeNotes, updateClip } from "../commands";
 import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
-import FillSlider from "../instrument/FillSlider";
 import { clampZoom, stepWidth, ZOOM_FACTOR } from "./pianoRoll/layout";
 import Ruler from "./pianoRoll/Ruler";
 import Toolbar from "./pianoRoll/Toolbar";
+import VelocityLane from "./pianoRoll/VelocityLane";
 import {
   barCount,
   barOptions,
+  eventCountBucket,
   isBarStart,
   isShadedBeat,
   lanesFor,
@@ -26,6 +27,7 @@ import {
   selectedLane,
   stepCount,
   stepStartTicks,
+  triggersMatch,
 } from "./stepEditorModel";
 import { createStroke } from "./stepStroke";
 import "./StepEditor.css";
@@ -117,6 +119,15 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
   function audition(lane: StepLane): void {
     if (preview() && lane.trigger.kind === "pad") props.auditionPad?.(lane.trigger.padId);
   }
+  // The velocity lane shows the selected row's notes and nothing else (#643).
+  const rowNotes = createMemo(() => {
+    const trigger = row()?.trigger;
+    if (!trigger) return [];
+    return noteEventsOf(props.clip).filter((note) =>
+      triggersMatch(note.trigger, trigger),
+    );
+  });
+
   // Selection is UI-only state (PRD 9.2) — it points at notes by their stable
   // event id and never mutates the project. Controlled by the parent when it
   // supplies the accessor/setter (so the `edit.delete` shortcut shares it),
@@ -143,18 +154,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
       ids.includes(id) ? ids.filter((existing) => existing !== id) : [...ids, id],
     );
 
-  // The single selected note, if exactly one is selected — the target of the
-  // velocity control below.
-  const selectedNote = createMemo<NoteEvent | null>(() => {
-    const ids = selectedIds();
-    if (ids.length !== 1) return null;
-    const [id] = ids;
-    return (
-      (props.clip.content.kind === "notes"
-        ? props.clip.content.events.find((event) => event.id === id)
-        : undefined) ?? null
-    );
-  });
+  const selectedSet = createMemo<ReadonlySet<EventId>>(() => new Set(selectedIds()));
 
   function noteForCell(lane: StepLane, step: number): NoteEvent | undefined {
     return noteAt(props.clip, lane, step);
@@ -219,30 +219,6 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     stroke.paint(lane, step);
   }
 
-  function velocityFor(note: NoteEvent): number {
-    return note.velocity;
-  }
-
-  /**
-   * The selected step's velocity, as one gesture per drag (#255). Dispatching
-   * a `note.update` straight from `input` made every pointer sample its own
-   * transaction — dozens of revisions, dozens of autosaves, and one undo press
-   * per sample to get back. The control gesture applies each step live inside
-   * a single open gesture and commits it once on release.
-   */
-  const velocityControl = createControlGesture({
-    beginGesture: (options) => props.beginGesture(options),
-    dispatch: (commands) => {
-      props.dispatch(commands);
-      return undefined;
-    },
-    summary: () => "Set velocity",
-    command: (value) =>
-      updateNote(props.clip.id, selectedNote()?.id as EventId, {
-        velocity: value as NoteEvent["velocity"],
-      }),
-  });
-
   function resizeToBars(nextBars: number): void {
     const clamped = Math.min(MAX_BARS, Math.max(MIN_BARS, Math.round(nextBars)));
     const lengthTicks = clamped * TICKS_PER_BAR;
@@ -272,39 +248,18 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     >
       <Toolbar
         leading={
-          <>
-            <label class="step-editor-length">
-              <span class="step-editor-length-label">Bars</span>
-              <select
-                class="step-editor-length-select"
-                value={bars()}
-                onChange={(event) => resizeToBars(Number(event.currentTarget.value))}
-              >
-                <For each={barOptions(props.clip)}>
-                  {(count) => <option value={count}>{count}</option>}
-                </For>
-              </select>
-            </label>
-            <Show when={selectedNote()}>
-              {(note) => (
-                <div class="step-editor-velocity">
-                  <FillSlider
-                    definition={NOTE_VELOCITY}
-                    inputId="step-editor-velocity"
-                    label="Velocity"
-                    // The value already reads as a left-right axis, as the mixer's
-                    // pan does, and the toolbar is a single row.
-                    orientation="horizontal"
-                    value={velocityFor(note())}
-                    // MIDI velocity, which is what the readout always showed.
-                    displayValue={String(Math.round(velocityFor(note()) * 127))}
-                    onInput={(value) => velocityControl.input(value)}
-                    onCommit={(value) => velocityControl.commit(value)}
-                  />
-                </div>
-              )}
-            </Show>
-          </>
+          <label class="step-editor-length">
+            <span class="step-editor-length-label">Bars</span>
+            <select
+              class="step-editor-length-select"
+              value={bars()}
+              onChange={(event) => resizeToBars(Number(event.currentTarget.value))}
+            >
+              <For each={barOptions(props.clip)}>
+                {(count) => <option value={count}>{count}</option>}
+              </For>
+            </select>
+          </label>
         }
         selectionCount={selectedIds().length}
         onSelectAll={() =>
@@ -390,6 +345,26 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
             )}
           </For>
         </div>
+        <VelocityLane
+          clipId={props.clip.id}
+          notes={rowNotes()}
+          selected={selectedSet()}
+          steps={stepCount(props.clip)}
+          zoom={zoom()}
+          beginGesture={(options) => props.beginGesture(options)}
+          onEdited={(count) => {
+            analytics().logFeatureFirstUse("velocity_lane");
+            analytics().log("clip_edited", {
+              editor: "step",
+              event_count_bucket: eventCountBucket(count),
+            });
+          }}
+          audition={() => {
+            const current = row();
+            if (current) audition(current);
+          }}
+          viewport={() => {}}
+        />
       </div>
     </section>
   );
