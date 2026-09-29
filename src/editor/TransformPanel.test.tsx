@@ -1,5 +1,7 @@
 import { cleanup, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
+import { setKey, updateClip } from "../commands";
+import { toTicks } from "../domain/time";
 import {
   clickTransform,
   currentNotes,
@@ -68,12 +70,12 @@ describe("TransformPanel (CLP-04)", () => {
     }
   });
 
-  it("duplicates every note in scope", async () => {
+  it("doubles every note in scope", async () => {
     const { session, renderPanel } = await setUp();
     const before = currentNotes(session).length;
     renderPanel([]);
 
-    clickTransform("Duplicate");
+    clickTransform("Double");
 
     expect(currentNotes(session)).toHaveLength(before * 2);
   });
@@ -82,7 +84,7 @@ describe("TransformPanel (CLP-04)", () => {
     const { session, renderPanel } = await setUp();
     renderPanel([]);
 
-    clickTransform("Clear");
+    clickTransform("Clear clip");
 
     expect(currentNotes(session)).toHaveLength(0);
   });
@@ -90,7 +92,7 @@ describe("TransformPanel (CLP-04)", () => {
   it("disables every transformation when the clip has no notes", async () => {
     const { session, renderPanel } = await setUp();
     renderPanel([]);
-    clickTransform("Clear");
+    clickTransform("Clear clip");
     cleanup();
     renderPanel([]);
 
@@ -122,5 +124,62 @@ describe("TransformPanel (CLP-04)", () => {
     // put it: nothing was clamped to the edge of the range.
     expect(pitches(session).every((pitch) => pitch <= 127)).toBe(true);
     expect(pitches(session)).not.toEqual(before);
+  });
+
+  it("labels its scope: the whole clip, or the selection", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
+    expect(screen.getByText("All 4 notes")).toBeInTheDocument();
+    cleanup();
+    renderPanel([currentNotes(session)[0].id, currentNotes(session)[1].id]);
+    expect(screen.getByText("2 selected notes")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Transform" })).toBeInTheDocument();
+  });
+
+  it("refuses Double when the copies would not fit, changing nothing", async () => {
+    const { session, renderPanel, transport } = await setUp();
+    session.dispatch(
+      updateClip(session.project.clips[0].id, { lengthTicks: toTicks(768) }),
+    );
+    const before = currentNotes(session);
+    renderPanel([]);
+
+    clickTransform("Double");
+
+    expect(currentNotes(session)).toEqual(before);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The copies would not fit inside this clip. Make the clip longer first.",
+    );
+    const failed = transport.events.filter((event) => event.name === "note_edit_failed");
+    expect(failed.map((event) => event.params.operation)).toEqual(["double"]);
+  });
+
+  it("offers Quantize to scale in the piano roll, off while the key is chromatic", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
+    expect(screen.getByRole("button", { name: "Quantize to scale" })).toBeDisabled();
+    cleanup();
+
+    // C minor: the fixture's E3 is its one stray note, and it moves to D#3.
+    session.dispatch(setKey({ root: 0, scale: "minor" }));
+    renderPanel([]);
+    clickTransform("Quantize to scale");
+    expect(pitches(session)).toEqual([60, 63, 67, 72]);
+  });
+
+  it("shows its values formatted, and puts back one that does not read", async () => {
+    const { renderPanel } = await setUp();
+    renderPanel([]);
+    const semitones = screen.getByLabelText("Semitones") as HTMLInputElement;
+    expect(semitones).toHaveValue("+12 st");
+    expect(screen.getByLabelText("Velocity multiplier")).toHaveValue("×1.25");
+
+    setOption("Semitones", "-5");
+    await Promise.resolve();
+    expect(semitones).toHaveValue("−5 st");
+    setOption("Semitones", "lots");
+    await Promise.resolve();
+    expect(semitones).toHaveValue("−5 st");
+    expect(semitones).toHaveAttribute("aria-invalid", "true");
   });
 });

@@ -137,11 +137,6 @@ const MASKED_NAMES: readonly {
     renders: "the track name, editable in place",
   },
   {
-    file: "editor/TrackClipEditor.tsx",
-    anchor: "track-name",
-    renders: "the selected track's name",
-  },
-  {
     file: "editor/InstrumentHeader.tsx",
     anchor: "instrument-header-name",
     renders: "the track's name atop the instrument view",
@@ -234,7 +229,7 @@ const DELIBERATELY_UNMARKED: readonly {
     literal: 'class="project-row"',
   },
   {
-    file: "editor/PianoRoll.tsx",
+    file: "editor/pianoRoll/PianoRoll.tsx",
     literal: 'class="piano-roll"',
   },
   {

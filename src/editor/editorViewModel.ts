@@ -195,12 +195,6 @@ export function sampleName(project: Project | null, track: Track | null): string
   return project?.song.assets.find((asset) => asset.id === current.assetId)?.name ?? null;
 }
 
-/** The project's first pack dependency, labelled for display. */
-export function packDependencyLabel(project: Project | null): string | null {
-  const dependency = project?.metadata.packDependencies[0];
-  return dependency ? `${dependency.packId} @ ${dependency.version}` : null;
-}
-
 /**
  * A synth or sampler track's note clip gets the CLP-03 piano roll instead of
  * the FND-009 step grid: both are tonal instruments (#496), and pitched notes

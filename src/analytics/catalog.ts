@@ -192,6 +192,42 @@ export const DEVICE_OPERATIONS = [
 export type DeviceOperation = (typeof DEVICE_OPERATIONS)[number];
 
 /**
+ * The song key's scales, as `key_changed`'s `scale` (ARR-010). Pinned here
+ * like `COMMAND_IDS` rather than imported from the domain: `catalog.test.ts`
+ * asserts it equals `SCALE_IDS` exactly, so a new scale needs an analytics
+ * decision in the same change.
+ */
+export const SCALE_KEYS = [
+  "chromatic",
+  "major",
+  "minor",
+  "dorian",
+  "mixolydian",
+  "harmonic_minor",
+  "major_pentatonic",
+  "minor_pentatonic",
+  "blues",
+] as const;
+
+/**
+ * One value per piano roll edit that a command can refuse (ARR-010), so a
+ * refusal can be attributed to the edit that caused it without carrying the
+ * command id or any clip, note, or project identity.
+ */
+export const NOTE_EDIT_OPERATIONS = [
+  "transpose",
+  "scale_velocity",
+  "quantize",
+  "quantize_to_scale",
+  "double",
+  "clear",
+  "vary",
+  "paste",
+  "nudge",
+] as const;
+export type NoteEditOperation = (typeof NOTE_EDIT_OPERATIONS)[number];
+
+/**
  * `feature_first_use` keys (PRD `OPS-02`). One low-cardinality key rather than
  * an event name per feature, so first-use is comparable across features in one
  * report and the catalog stays well inside GA4's distinct-event-name limit.
@@ -224,6 +260,10 @@ export const FEATURE_KEYS = [
   "track_color",
   "track_delete",
   "instrument_add_track",
+  "musical_key",
+  "note_clipboard",
+  "velocity_lane",
+  "note_audition",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -246,6 +286,7 @@ export const COMMAND_IDS = [
   "notes.scaleVelocity",
   "notes.transpose",
   "notes.vary",
+  "notes.quantizeToScale",
   "clip.create",
   "clip.delete",
   "clip.update",
@@ -280,6 +321,7 @@ export const COMMAND_IDS = [
   "device.restoreParameters",
   "loop.setRange",
   "loop.setEnabled",
+  "key.set",
   "project.rename",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
@@ -331,6 +373,16 @@ export const SHORTCUT_ACTION_IDS = [
   "arrangement.loop_lengthen",
   "track.select_previous",
   "track.select_next",
+  "note.move_up",
+  "note.move_down",
+  "note.octave_up",
+  "note.octave_down",
+  "note.move_earlier",
+  "note.move_later",
+  "note.shorten",
+  "note.lengthen",
+  "value.nudge_up",
+  "value.nudge_down",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -642,6 +694,15 @@ export const ANALYTICS_EVENTS = {
     params: { action_id: enumParam(SHORTCUT_ACTION_IDS) },
   },
 
+  key_changed: {
+    phase: 1,
+    owners: ["ARR-010"],
+    // One committed change of the song's key from the piano roll. Only the
+    // scale travels: which keys producers reach for, and how often they leave
+    // chromatic, is the measure. The root is left out as noise.
+    params: { scale: enumParam(SCALE_KEYS) },
+  },
+
   loop_range_set: {
     phase: 1,
     owners: ["LOOP-017", "LOOP-018"],
@@ -838,6 +899,17 @@ export const ANALYTICS_EVENTS = {
     owners: ["LOOP-020"],
     params: {
       operation: enumParam(DEVICE_OPERATIONS),
+      error_code: enumParam(ERROR_CODES),
+    },
+  },
+
+  note_edit_failed: {
+    phase: 1,
+    owners: ["ARR-010"],
+    // A piano roll edit the command layer refused: the roll's principal
+    // failure. The operation and a stable code only, never a note or a clip.
+    params: {
+      operation: enumParam(NOTE_EDIT_OPERATIONS),
       error_code: enumParam(ERROR_CODES),
     },
   },

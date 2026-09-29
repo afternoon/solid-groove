@@ -24,7 +24,7 @@ import {
 
 describe("migration harness", () => {
   it("passes a current-schema project through untouched", async () => {
-    const stored = await loadStoredProjectFixture("v4-slice-project.json");
+    const stored = await loadStoredProjectFixture("v5-slice-project.json");
 
     const result = migrateProjectDocuments(stored);
 
@@ -37,7 +37,7 @@ describe("migration harness", () => {
   it("decodes the checked-in current-schema fixture into the fixture project", async () => {
     // This pins the stored wire format: if encoding changes shape, the file on
     // disk stops decoding and the change has to be a deliberate migration.
-    const stored = await loadStoredProjectFixture("v4-slice-project.json");
+    const stored = await loadStoredProjectFixture("v5-slice-project.json");
 
     const decoded = decodeProject(stored);
 
@@ -134,7 +134,7 @@ describe("migration harness", () => {
   });
 
   it("refuses a newer schema version without touching it", async () => {
-    const stored = await loadStoredProjectFixture("v5-future-project.json");
+    const stored = await loadStoredProjectFixture("v6-future-project.json");
 
     const result = migrateProjectDocuments(stored);
 
@@ -143,6 +143,23 @@ describe("migration harness", () => {
     expect(result.reason).toBe("future_version");
     expect(result.storedVersion).toBe(SCHEMA_VERSION + 1);
     expect(result.message).toContain("will not read or overwrite it");
+  });
+
+  it("opens a v4 project saved before the key existed as chromatic (ARR-010)", async () => {
+    // The v4 fixture is the slice project exactly as it was stored before
+    // `song.key` was added.
+    const stored = await loadStoredProjectFixture("v4-slice-project.json");
+    expect(stored.song).not.toHaveProperty("key");
+
+    const decoded = decodeStoredProject(stored);
+
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.value.metadata.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(decoded.value.song.key).toEqual({ root: 0, scale: "chromatic" });
+    expect(stringifyProject(decoded.value)).toBe(
+      stringifyProject(createSliceFixtureProject()),
+    );
   });
 
   it("reports an older version with no registered migration rather than guessing", () => {
@@ -223,6 +240,7 @@ describe("a migrated project after its first partial save", () => {
     ["v1-slice-project.json", 1],
     ["v2-slice-project.json", 2],
     ["v3-slice-project.json", 3],
+    ["v4-slice-project.json", 4],
   ] as const;
 
   it.each(OLDER_FIXTURES)(

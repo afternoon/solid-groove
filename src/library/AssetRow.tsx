@@ -1,5 +1,6 @@
 import { type JSX, Show } from "@solidjs/web";
-import { HiSolidPlay, HiSolidPlus, HiSolidStop } from "solid-icons/hi";
+import { HiSolidPlus } from "solid-icons/hi";
+import { PlayIcon, StopIcon } from "../components/icons";
 import { writeLibrarySampleDrag } from "./assetDrag";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset } from "./manifest";
@@ -57,8 +58,8 @@ export default function AssetRow(props: {
         aria-pressed={ariaBool(props.active)}
         onClick={() => (props.active ? props.onStop() : props.onPlay())}
       >
-        <Show when={props.active} fallback={<HiSolidPlay size={12} />}>
-          <HiSolidStop size={12} />
+        <Show when={props.active} fallback={<PlayIcon size={12} />}>
+          <StopIcon size={12} />
         </Show>
       </button>
       <div class="library-row-meta">

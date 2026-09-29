@@ -37,6 +37,36 @@ async function openStarterClip(page: Page): Promise<Locator> {
   return editor;
 }
 
+/** Where `firebase emulators:exec` bound Firestore, as the config reads it. */
+const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080";
+
+interface StoredPackDependency {
+  mapValue: {
+    fields: { packId: { stringValue: string }; version: { stringValue: string } };
+  };
+}
+
+/**
+ * The open project's saved pack dependencies, as `id @ version`, read from the
+ * emulator's metadata document (`Bearer owner` is the emulator's admin
+ * token, so the rules do not apply). The editor does not print them.
+ */
+async function savedPackDependencies(page: Page): Promise<string[]> {
+  const projectId = new URL(page.url()).pathname.split("/").pop();
+  const response = await page.request.get(
+    `http://${firestoreEmulatorHost}/v1/projects/demo-solid-groove/databases/(default)/documents/projects/${projectId}`,
+    { headers: { Authorization: "Bearer owner" } },
+  );
+  expect(response.ok()).toBe(true);
+  const document = await response.json();
+  const values: StoredPackDependency[] =
+    document.fields?.packDependencies?.arrayValue?.values ?? [];
+  return values.map(
+    ({ mapValue: { fields } }) =>
+      `${fields.packId.stringValue} @ ${fields.version.stringValue}`,
+  );
+}
+
 /**
  * `FND-009` — the foundation vertical slice, exercised against a real
  * (emulated) backend: open a schema-v1 project, add one note, play it, undo
@@ -82,11 +112,12 @@ test.describe("foundation vertical slice", () => {
     await expect(editor.getByRole("button", { name: "BD, step 3, off" })).toBeVisible();
 
     // The reopened project must report the same pack dependency it saved
-    // (PRD LIB-05, invariant 12) — visible as soon as the starter project
-    // loads, since its drum pad's asset resolves through a pack from the start.
-    const packLabel = page.getByText(/^Pack: pak_/);
-    await expect(packLabel).toBeVisible();
-    const packDependencyText = await packLabel.textContent();
+    // (PRD LIB-05, invariant 12) — saved as soon as the starter project
+    // is created, since its drum pad's asset resolves through a pack from the start.
+    const packDependencies = await savedPackDependencies(page);
+    expect(packDependencies).toEqual([
+      expect.stringMatching(/^pak_\S+ @ \d+\.\d+\.\d+$/),
+    ]);
 
     // Add a note: dispatches note.add through the shared command layer.
     await editor.getByRole("button", { name: "BD, step 3, off" }).click();
@@ -220,7 +251,7 @@ test.describe("foundation vertical slice", () => {
     // never got the chance to restore it, and the reload reads the
     // post-undo revision that was actually persisted.
     await expect(reopened.getByRole("button", { name: "BD, step 3, off" })).toBeVisible();
-    await expect(page.getByText(packDependencyText ?? "")).toBeVisible();
+    expect(await savedPackDependencies(page)).toEqual(packDependencies);
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
 

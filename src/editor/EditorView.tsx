@@ -49,8 +49,8 @@ import {
 } from "./loopActions";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
-import type { PianoRollActions } from "./PianoRoll";
 import ProjectLoadStates from "./ProjectLoadStates";
+import type { PianoRollActions } from "./pianoRoll/rollActions";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
@@ -496,8 +496,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     });
   }
 
-  const packDependencyLabel = createMemo(() => model.packDependencyLabel(project()));
-
   return (
     <main class={["editor", `editor-${props.view}`]}>
       <Switch>
@@ -654,7 +652,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     clip={open().clip}
                     track={open().track}
                     project={currentProject()}
-                    packDependencyLabel={packDependencyLabel()}
                     showPianoRoll={showPianoRoll}
                     loop={model.loopEntryFor(currentProject(), open().clip)}
                     songTempo={tempo()}
@@ -663,6 +660,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     setSelectedNoteIds={setSelectedNoteIds}
                     playheadTicks={audio.positionTicks()}
                     registerPianoRollActions={setPianoRollActions}
+                    playing={audio.isPlaying()}
+                    onTogglePlay={() => void audio.toggle()}
+                    audition={(pitch, velocity) =>
+                      void audio.auditionTrack(
+                        open().track.id,
+                        { kind: "pitch", pitch },
+                        AUDITION_DURATION_TICKS,
+                        velocity,
+                      )
+                    }
                     dispatch={session.dispatch}
                     beginGesture={session.beginGesture}
                     onClose={() => setOpenPlacementId(null)}

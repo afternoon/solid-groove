@@ -88,6 +88,7 @@ export function serializeSong(song: Song): JsonObject {
       endTicks: song.loop.endTicks,
       enabled: song.loop.enabled,
     },
+    key: { root: song.key.root, scale: song.key.scale },
     tracks: sortBy(song.tracks, (track) => [track.order, track.id]).map(serializeTrack),
     returns: sortBy(song.returns, (bus) => [bus.order, bus.id]).map(serializeReturnBus),
     master: {

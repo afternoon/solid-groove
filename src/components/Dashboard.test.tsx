@@ -277,6 +277,7 @@ describe("Dashboard", () => {
             tempo: 120,
             timeSignature: { numerator: 4, denominator: 4 },
             loop: createDefaultSongLoop(),
+            key: { root: 0, scale: "chromatic" },
             tracks: [],
             returns: [],
             master: { volume: 0, devices: [] },

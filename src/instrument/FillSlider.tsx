@@ -226,7 +226,6 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           // touched anywhere in the editor threw "a gesture is already in
           // progress" out of its own `input` handler and locked up. Pointer
           // up/cancel close the same gesture; extra commits are a safe no-op.
-          // (`PianoRollNote` already covers its velocity slider this way.)
           onChange={(event) => props.onCommit(coerce(event.currentTarget.valueAsNumber))}
           onDblClick={reset}
           onPointerUp={(event) =>

@@ -1,9 +1,11 @@
+import type { NoteEditOperation } from "../analytics/catalog";
 import type { CommandInput, RawCommandInput } from "../commands";
 import {
   clearNotes,
   duplicateNotes,
   noteEventsOf,
   quantizeNotes,
+  quantizeNotesToScale,
   scaleNoteVelocity,
   transposeNotes,
   varyNotes,
@@ -29,10 +31,11 @@ import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 export const TRANSFORM_KINDS = [
   "transpose",
   "scaleVelocity",
+  "vary",
   "quantize",
+  "quantizeToScale",
   "duplicate",
   "clear",
-  "vary",
 ] as const;
 export type TransformKind = (typeof TRANSFORM_KINDS)[number];
 
@@ -132,6 +135,9 @@ export function buildTransform(
       return scaleNoteVelocity(clip.id, scope.eventIds, options.velocityFactor);
     case "quantize":
       return quantizeNotes(clip.id, scope.eventIds, TRANSFORM_GRID_TICKS, 1);
+    case "quantizeToScale":
+      // The key is the song's; the command reads it, so it is not passed.
+      return quantizeNotesToScale(clip.id, scope.eventIds);
     case "duplicate":
       return duplicateNotes(context.ids, context.project, {
         clipId: clip.id,
@@ -164,12 +170,92 @@ export function transformedEventCount(
   return scope.count;
 }
 
-/** The button label for each transformation. */
+/** The button label for each transformation. `duplicate` reads as Double. */
 export const TRANSFORM_LABELS: Readonly<Record<TransformKind, string>> = {
   transpose: "Transpose",
   scaleVelocity: "Velocity",
   quantize: "Quantize",
-  duplicate: "Duplicate",
-  clear: "Clear",
+  quantizeToScale: "Quantize to scale",
+  duplicate: "Double",
+  clear: "Clear clip",
   vary: "Vary",
 };
+
+/** How a refused transformation is named in `note_edit_failed`. */
+export const TRANSFORM_OPERATIONS: Readonly<Record<TransformKind, NoteEditOperation>> = {
+  transpose: "transpose",
+  scaleVelocity: "scale_velocity",
+  quantize: "quantize",
+  quantizeToScale: "quantize_to_scale",
+  duplicate: "double",
+  clear: "clear",
+  vary: "vary",
+};
+
+/**
+ * Whether Double's copies fit inside the clip as it is. Double is a copy one
+ * bar later *within* the clip, and it refuses rather than growing the clip:
+ * Cmd/Ctrl+D is the edit that extends a clip to hold what it copies.
+ */
+export function copiesFit(clip: Clip, scope: TransformScope): boolean {
+  const events = noteEventsOf(clip) ?? [];
+  const inScope =
+    scope.eventIds === null
+      ? events
+      : events.filter((event) => scope.eventIds?.includes(event.id));
+  return inScope.every(
+    (event) =>
+      event.startTicks + TRANSFORM_DUPLICATE_OFFSET_TICKS + event.durationTicks <=
+      clip.lengthTicks,
+  );
+}
+
+/** "+12 st", "−5 st": a semitone count as its field shows it. */
+export function formatSemitones(value: number): string {
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value)} st`;
+}
+
+/** A typed semitone count, within the command's range, or null. */
+export function parseSemitones(text: string): number | null {
+  const match = /^\s*([+\-−]?)\s*(\d+)/.exec(text);
+  if (!match) return null;
+  const magnitude = Number(match[2]);
+  const value = match[1] === "-" || match[1] === "−" ? -magnitude : magnitude;
+  return Math.max(-127, Math.min(127, value));
+}
+
+/** "×1.25": a velocity multiplier as its field shows it. */
+export function formatFactor(value: number): string {
+  return `×${Number(value.toFixed(2))}`;
+}
+
+/** A typed multiplier above 0 and up to 4, or null. */
+export function parseFactor(text: string): number | null {
+  const match = /^\s*[×x*]?\s*(\d*\.?\d+)\s*$/i.exec(text);
+  const value = match ? Number(match[1]) : Number.NaN;
+  return value > 0 && value <= 4 ? value : null;
+}
+
+/** One semitone up or down, kept within the command's range. */
+export function nudgeSemitones(value: number, direction: 1 | -1): number {
+  return Math.max(-127, Math.min(127, value + direction));
+}
+
+/** 0.05 up or down, kept above 0 and up to 4. */
+export function nudgeFactor(value: number, direction: 1 | -1): number {
+  const next = Math.round((value + direction * 0.05) * 100) / 100;
+  return Math.max(0.05, Math.min(4, next));
+}
+
+/** The seed's trailing number up or down ("vary-1" → "vary-2"), or "-1" added. */
+export function nudgeSeed(seed: string, direction: 1 | -1): string {
+  const match = /^(.*?)(\d+)$/.exec(seed);
+  if (!match) return `${seed}-1`;
+  return `${match[1]}${Math.max(0, Number(match[2]) + direction)}`;
+}
+
+/** A seed is any text that is not blank. */
+export function parseSeed(text: string): string | null {
+  const seed = text.trim();
+  return seed.length > 0 ? seed : null;
+}

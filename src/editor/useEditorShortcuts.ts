@@ -8,9 +8,10 @@ import {
   useShortcuts,
 } from "../shortcuts";
 import type { EditorViewName } from "./editorViews";
-import type { PianoRollActions } from "./PianoRoll";
+import type { PianoRollActions } from "./pianoRoll/rollActions";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
+import { focusedValueField } from "./valueFieldFocus";
 
 export interface UseEditorShortcutsOptions {
   readonly audio: ProjectAudioControls;
@@ -135,6 +136,20 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     return null;
   };
 
+  /** The piano roll's operations while it is on screen, else null. */
+  const roll = (): PianoRollActions | null =>
+    showPianoRoll() ? pianoRollActions() : null;
+  /** Whether the roll on screen has notes selected, for the note moves. */
+  const rollHasSelection = (): boolean => roll()?.hasSelection() ?? false;
+  /** A note move: enabled while the roll holds a selection (ARR-010). */
+  const noteMove = (run: (actions: PianoRollActions) => void) => ({
+    run: () => {
+      const actions = roll();
+      if (actions) run(actions);
+    },
+    isEnabled: rollHasSelection,
+  });
+
   /** Whether a clip is being dragged in the arrangement right now. */
   const arrangementDragging = (): boolean =>
     arrangementEditingActions()?.isDragging() ?? false;
@@ -219,16 +234,45 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
     // drag in flight is innermost of all: Escape cancels it (ARR-011).
+    // The piano roll is the exception: there Esc lets the selection go and
+    // leaves the roll open (ARR-010, CF-019), since a producer keeps working
+    // in it, and its close control is how it closes.
     "view.close_surface": {
       run: () => {
-        if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
+        if (focusedValueField()) focusedValueField()?.cancel();
+        else if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) closeLibrary();
+        else if (roll()) roll()?.clearSelection();
         else closeSequenceEditor();
       },
       isEnabled: () =>
-        arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen(),
+        focusedValueField() !== null ||
+        arrangementDragging() ||
+        guideOpen() ||
+        libraryOpen() ||
+        sequenceEditorOpen(),
     },
+    // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
+    // the roll's note moves, which its context replaces.
+    "value.nudge_up": {
+      run: () => focusedValueField()?.nudge(1),
+      isEnabled: () => focusedValueField() !== null,
+    },
+    "value.nudge_down": {
+      run: () => focusedValueField()?.nudge(-1),
+      isEnabled: () => focusedValueField() !== null,
+    },
+    // The piano roll's note moves (ARR-010): arrows step through the rows the
+    // roll shows and through steps; Shift moves by octaves or changes length.
+    "note.move_up": noteMove((actions) => actions.moveRows(-1)),
+    "note.move_down": noteMove((actions) => actions.moveRows(1)),
+    "note.octave_up": noteMove((actions) => actions.moveOctaves(1)),
+    "note.octave_down": noteMove((actions) => actions.moveOctaves(-1)),
+    "note.move_earlier": noteMove((actions) => actions.moveSteps(-1)),
+    "note.move_later": noteMove((actions) => actions.moveSteps(1)),
+    "note.shorten": noteMove((actions) => actions.resizeSteps(-1)),
+    "note.lengthen": noteMove((actions) => actions.resizeSteps(1)),
     // The piano roll's remaining note operations, dispatched by the registry
     // (KEY-01), not by a listener the roll owns. Each is enabled only while the
     // roll is showing; duplicate additionally needs a selection.
@@ -253,27 +297,34 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       run: () => pianoRollActions()?.selectAll(),
       isEnabled: () => pianoRollActions() !== null,
     },
-    // The arrangement's clipboard (ARR-002). Only active while the arrangement
-    // itself has a selection — whichever editor is mounted below it, matching
-    // `edit.delete`/`edit.duplicate` above (#258). Nothing is stolen from the
-    // piano roll: it registers no cut/copy handler of its own.
+    // Cut and copy act on the piano roll's notes while it holds a selection
+    // (ARR-010), and otherwise on the arrangement's clips (ARR-002) — whichever
+    // editor is mounted below it (#258).
     "edit.cut": {
-      run: () => arrangementEditingActions()?.cut(),
-      isEnabled: () => hasArrangementSelection(),
+      run: () => {
+        if (rollHasSelection()) roll()?.cut();
+        else arrangementEditingActions()?.cut();
+      },
+      isEnabled: () => rollHasSelection() || hasArrangementSelection(),
     },
     "edit.copy": {
-      run: () => arrangementEditingActions()?.copy(),
-      isEnabled: () => hasArrangementSelection(),
+      run: () => {
+        if (rollHasSelection()) roll()?.copy();
+        else arrangementEditingActions()?.copy();
+      },
+      isEnabled: () => rollHasSelection() || hasArrangementSelection(),
     },
     "edit.paste": {
-      // Pastes at the selection's start (#292); the arrangement falls back to
-      // the live playhead only when nothing is selected.
-      run: () => arrangementEditingActions()?.paste(audio.positionTicks()),
-      // Gated on the clipboard alone (#258), not on which editor is mounted
-      // below the arrangement — the same term the rest of this block shed.
-      // Nothing is stolen from the piano roll: it registers no clipboard
-      // action of its own, so Mod+V has exactly one meaning in the editor.
-      isEnabled: () => (arrangementEditingActions()?.getClipboard().length ?? 0) > 0,
+      // Copied notes paste into the roll on screen at its insert marker. Clips
+      // paste at the arrangement selection's start (#292), or the playhead
+      // when nothing is selected, gated on the clipboard alone (#258).
+      run: () => {
+        if (roll()?.hasClipboard()) roll()?.paste();
+        else arrangementEditingActions()?.paste(audio.positionTicks());
+      },
+      isEnabled: () =>
+        (roll()?.hasClipboard() ?? false) ||
+        (arrangementEditingActions()?.getClipboard().length ?? 0) > 0,
     },
   });
 
@@ -302,9 +353,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   };
 
   const editorContexts = (): readonly ShortcutContext[] => {
-    const base: readonly ShortcutContext[] = showPianoRoll()
-      ? ["editor", "step_editor", "piano_roll", "selection"]
-      : ["editor", "step_editor"];
+    // A focused value field takes the arrows from the note editors
+    // (`DISJOINT_CONTEXTS`); its text keeps every other key anyway.
+    const base: readonly ShortcutContext[] = focusedValueField()
+      ? ["editor", "value_field"]
+      : showPianoRoll()
+        ? ["editor", "step_editor", "piano_roll", "selection"]
+        : ["editor", "step_editor"];
     // A live placement selection makes the arrangement's own mappings active
     // whichever editor is mounted below it (#258), not only when that editor
     // happens to be the step grid.

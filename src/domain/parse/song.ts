@@ -1,5 +1,6 @@
 import { deviceParameters } from "../devices";
 import type { Device, Song, SongLoop, Track } from "../entities";
+import { isChromatic, type MusicalKey } from "../musicalKey";
 import {
   bareParameterId,
   getParameterDefinition,
@@ -57,6 +58,22 @@ function checkLoop(loop: SongLoop, path: ReadonlyArray<string | number>): Domain
     );
   }
   return issues;
+}
+
+/**
+ * A chromatic key names no root, so its root is pinned to C (ARR-010). Checked
+ * here rather than in the schema so a `key.set` transaction refuses a free
+ * root too, not only a stored document.
+ */
+function checkKey(key: MusicalKey, path: ReadonlyArray<string | number>): DomainIssue[] {
+  if (!isChromatic(key) || key.root === 0) return [];
+  return [
+    issue(
+      "invalid_parameter",
+      [...path, "root"],
+      `A chromatic key has no root, so its root must be 0 (C), not ${key.root}`,
+    ),
+  ];
 }
 
 /**
@@ -155,6 +172,7 @@ export function checkSongIntegrity(
   );
 
   issues.push(...checkLoop(song.loop, [...path, "loop"]));
+  issues.push(...checkKey(song.key, [...path, "key"]));
 
   song.sections.forEach((section, index) => {
     claimId(seenIds, section.id, [...path, "sections", index, "id"], issues);

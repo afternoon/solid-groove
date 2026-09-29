@@ -3,6 +3,7 @@ import { clipCommands } from "./definitions/clips";
 import { deviceCommands } from "./definitions/devices";
 import { drumCommands } from "./definitions/drum";
 import { instrumentCommands } from "./definitions/instruments";
+import { keyCommands } from "./definitions/key";
 import { loopCommands } from "./definitions/loop";
 import { noteCommands } from "./definitions/notes";
 import { packCommands } from "./definitions/packs";
@@ -39,6 +40,7 @@ const ALL_DEFINITIONS: readonly RegisteredCommand[] = [
   ...assetCommands,
   ...deviceCommands,
   ...loopCommands,
+  ...keyCommands,
   ...projectCommands,
 ];
 

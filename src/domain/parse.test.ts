@@ -38,6 +38,7 @@ interface MutableProject {
     tempo: number;
     timeSignature: JsonRecord;
     loop: { startTicks: number; endTicks: number; enabled: boolean };
+    key: { root: number; scale: string };
     tracks: MutableTrack[];
     returns: JsonRecord[];
     master: JsonRecord;
@@ -773,6 +774,32 @@ describe("song loop range and toggle (LOOP-017)", () => {
     const noToggle = baseProject();
     delete (noToggle.song.loop as Partial<MutableProject["song"]["loop"]>).enabled;
     expectIssue(parseProject(noToggle), "invalid_shape");
+  });
+});
+
+describe("song key (ARR-010)", () => {
+  it("accepts every scale on any root", () => {
+    const input = baseProject();
+    input.song.key = { root: 9, scale: "harmonic_minor" };
+    expect(parseProject(input).ok).toBe(true);
+  });
+
+  it.each<[string, { root: number; scale: string }, DomainIssueCode]>([
+    ["a chromatic key with a root", { root: 2, scale: "chromatic" }, "invalid_parameter"],
+    ["a root past B", { root: 12, scale: "major" }, "invalid_shape"],
+    ["a fractional root", { root: 1.5, scale: "major" }, "invalid_shape"],
+    ["an unknown scale", { root: 0, scale: "lydian" }, "invalid_shape"],
+  ])("rejects %s rather than repairing it", (_label, key, code) => {
+    const input = baseProject();
+    input.song.key = key;
+    expectIssue(parseProject(input), code);
+    expectIssue(parseSong(input.song), code);
+  });
+
+  it("rejects a song with no key", () => {
+    const input = baseProject();
+    delete (input.song as Partial<MutableProject["song"]>).key;
+    expectIssue(parseProject(input), "invalid_shape");
   });
 });
 

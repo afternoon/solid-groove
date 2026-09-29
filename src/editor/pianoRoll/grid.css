@@ -1,0 +1,188 @@
+/* The piano roll's grid (ARR-010): the ruler, the note-name gutter, the rows
+   and the notes. Monochrome throughout: a note is white whatever its velocity,
+   a row's key colour is black or white, and a selection is a frame, never a
+   hue. The roll sets the sizes every part reads; it overrides the step width
+   from markup as zoom changes it. */
+
+.piano-roll {
+  --pr-step: 40px;
+  --pr-gutter: 76px;
+  --pr-ruler: 22px;
+  --pr-row: 30px;
+}
+
+/* --- Ruler ------------------------------------------------------------- */
+
+.pr-ruler {
+  position: relative;
+  height: var(--pr-ruler);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.pr-ruler-step {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding: 4px 0 0 5px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-foreground-muted);
+  font: inherit;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pr-ruler-step.beat {
+  box-shadow: inset 1px 0 0 var(--color-border-strong);
+}
+
+.pr-ruler-step.bar {
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: inset 1px 0 0 var(--color-foreground);
+}
+
+.pr-ruler-step:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.pr-ruler-step:hover {
+  background: var(--tint-subtle);
+}
+
+/* Points down, at the grid it marks. */
+.pr-ruler-marker {
+  position: absolute;
+  bottom: 0;
+  margin-left: -5px;
+  border-top: 6px solid var(--color-accent);
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+  pointer-events: none;
+}
+
+/* --- Gutter ------------------------------------------------------------ */
+
+.pr-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: var(--pr-gutter);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  background: var(--color-background);
+}
+
+/* A white key's name is white with black on it; a black key's the reverse.
+   The 2px black foot is the gap between rows, as in the grid. */
+.pr-key {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  height: var(--pr-row);
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: inset 0 -2px 0 var(--color-background);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pr-key.black {
+  background-color: var(--color-background);
+  color: var(--color-accent);
+}
+
+.pr-key.off {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--shade-soft) 0 2px,
+    transparent 2px 7px
+  );
+}
+
+.pr-key.black.off {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--tint-soft) 0 2px,
+    transparent 2px 7px
+  );
+}
+
+.pr-key-off {
+  padding: 0 3px;
+  border: 1px solid currentColor;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --- Grid and notes ---------------------------------------------------- */
+
+/* Each row draws its cells: a 2px black line at every step's right edge and
+   along the row's foot, beats shaded in alternating groups of four. */
+.pr-row {
+  height: var(--pr-row);
+  background-color: var(--color-background-tertiary);
+  background-image:
+    linear-gradient(to top, var(--color-background) 2px, transparent 0),
+    linear-gradient(to right, transparent calc(100% - 2px), var(--color-background) 0),
+    linear-gradient(to right, var(--tint-subtle) 50%, transparent 0);
+  background-size:
+    100% 100%,
+    var(--pr-step) 100%,
+    calc(var(--pr-step) * 8) 100%;
+}
+
+.pr-row.black {
+  background-color: var(--color-background-secondary);
+}
+
+.pr-row.off {
+  background-image:
+    linear-gradient(to top, var(--color-background) 2px, transparent 0),
+    linear-gradient(to right, transparent calc(100% - 2px), var(--color-background) 0),
+    repeating-linear-gradient(-45deg, var(--tint-soft) 0 2px, transparent 2px 7px);
+}
+
+.pr-notes {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* Every note is white; velocity reads in the lane, not here. */
+.pr-note {
+  position: absolute;
+  background: var(--color-accent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.pr-note.selected {
+  box-shadow:
+    inset 0 0 0 2px var(--color-on-accent),
+    0 0 0 2px var(--color-accent);
+}

@@ -114,9 +114,9 @@ export function clickTransform(label: string): void {
   flush();
 }
 
-/** Types into one of the panel's labelled option inputs. */
+/** Types into one of the panel's labelled value fields and commits it. */
 export function setOption(label: string, value: string): void {
-  fireEvent.input(screen.getByLabelText(label, { exact: false }), {
+  fireEvent.change(screen.getByLabelText(label, { exact: false }), {
     target: { value },
   });
   flush();

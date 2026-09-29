@@ -312,17 +312,12 @@ describe("EditorView", () => {
     // The four-on-the-floor clip: steps 1, 5, 9, 13 on the "BD" pad lane.
     expect(screen.getByRole("button", { name: "BD, step 1, on" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "BD, step 2, off" })).toBeInTheDocument();
-    // The track name appears in the step-editor's track-info header. (The
-    // ARR-001 arrangement shell also lists it in its virtualized headers and
-    // accessible track list, so scope this to the track editor.)
+    // The track's name is the editor's title, once: no second row repeats it
+    // with the pack dependency beneath the title bar.
     expect(
-      within(editor).getByText(project.song.tracks[0].name, { selector: ".track-name" }),
+      within(editor).getByRole("heading", { name: project.song.tracks[0].name }),
     ).toBeInTheDocument();
-    // The reopened project reports the pack dependency it saved.
-    const dependency = project.metadata.packDependencies[0];
-    expect(
-      screen.getByText(`Pack: ${dependency.packId} @ ${dependency.version}`),
-    ).toBeInTheDocument();
+    expect(within(editor).queryByText(/^Pack:/)).not.toBeInTheDocument();
 
     // Undo starts disabled: nothing has been edited yet in this session.
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
@@ -381,6 +376,83 @@ describe("EditorView", () => {
       within(editor).getByRole("region", { name: /Piano roll/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
+  });
+
+  // ARR-010: every key the redesigned roll answers goes through the registry,
+  // pressed on the window as a person presses it, never on an element.
+  it("moves, copies, pastes and deletes the roll's notes from the keyboard", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    const editor = await openSequenceEditor();
+    const names = () =>
+      within(within(editor).getByRole("listbox", { name: "Notes" }))
+        .queryAllByRole("option")
+        .map((option) => option.getAttribute("aria-label"));
+    const press = (key: string, init: { ctrlKey?: boolean; shiftKey?: boolean } = {}) =>
+      fireAndFlush(() => fireEvent.keyDown(window, { key, ...init }));
+
+    press("a", { ctrlKey: true });
+    expect(within(editor).getByText("4 selected")).toBeInTheDocument();
+    press("ArrowUp");
+    press("ArrowRight");
+    press("ArrowRight", { shiftKey: true });
+    expect(names()[0]).toBe("C♯3, step 2, 2 steps");
+    press("ArrowUp", { shiftKey: true });
+    expect(names()[0]).toBe("C♯4, step 2, 2 steps");
+
+    press("c", { ctrlKey: true });
+    clickAndFlush(within(editor).getByRole("button", { name: "Step 20" }));
+    press("v", { ctrlKey: true });
+    expect(names()).toHaveLength(8);
+    expect(names()).toContain("C♯4, step 20, 2 steps");
+    expect(within(editor).getByText("4 selected")).toBeInTheDocument();
+
+    // Esc lets the selection go and leaves the roll open.
+    press("Escape");
+    expect(within(editor).getByText("None selected")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
+
+    press("a", { ctrlKey: true });
+    press("Delete");
+    expect(names()).toEqual([]);
+  });
+
+  // ARR-010: a focused Transform value field takes ↑/↓ and Esc from the roll,
+  // through the registry's `value_field` context.
+  it("nudges and cancels a Transform value field from the keyboard", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    const editor = await openSequenceEditor();
+    const field = within(editor).getByLabelText("Semitones") as HTMLInputElement;
+    const firstNote = () =>
+      within(editor).getAllByRole("option")[0].getAttribute("aria-label");
+    const before = firstNote();
+    const press = (key: string) =>
+      fireAndFlush(() => fireEvent.keyDown(field, { key, bubbles: true }));
+
+    fireAndFlush(() => field.focus());
+    press("ArrowUp");
+    press("ArrowUp");
+    press("ArrowDown");
+    await Promise.resolve();
+    expect(field.value).toBe("+13 st");
+    // The arrows nudged the field, not the notes.
+    expect(firstNote()).toBe(before);
+
+    field.value = "-5";
+    press("Escape");
+    expect(field.value).toBe("+13 st");
+    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
+
+    fireAndFlush(() => field.blur());
+    clickAndFlush(within(editor).getByRole("button", { name: "Transpose" }));
+    expect(firstNote()).not.toBe(before);
   });
 
   it("shows the sampler instrument panel for the slice's sampler track", async () => {

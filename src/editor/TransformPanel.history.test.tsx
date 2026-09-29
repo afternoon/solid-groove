@@ -109,7 +109,7 @@ describe("TransformPanel history", () => {
     const before = currentNotes(session).length;
     renderPanel([]);
 
-    clickTransform("Duplicate");
+    clickTransform("Double");
     const duplicated = currentNotes(session).map((event) => event.id);
     expect(duplicated).toHaveLength(before * 2);
 

@@ -24,6 +24,7 @@ const EXPECTED_COMMANDS = [
   "notes.duplicate",
   "notes.clear",
   "notes.vary",
+  "notes.quantizeToScale",
   "clip.create",
   "clip.delete",
   "clip.update",
@@ -58,6 +59,7 @@ const EXPECTED_COMMANDS = [
   "device.restoreParameters",
   "loop.setRange",
   "loop.setEnabled",
+  "key.set",
   "project.rename",
 ];
 

@@ -1,16 +1,15 @@
-import {
-  HiSolidArrowPathRoundedSquare,
-  HiSolidArrowUturnLeft,
-  HiSolidArrowUturnRight,
-  HiSolidMusicalNote,
-  HiSolidPlay,
-  HiSolidQuestionMarkCircle,
-  HiSolidSquares2x2,
-  HiSolidStop,
-} from "solid-icons/hi";
+import { HiSolidQuestionMarkCircle, HiSolidSquares2x2 } from "solid-icons/hi";
 import { type Accessor, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
+import {
+  LoopIcon,
+  MetronomeIcon,
+  PlayIcon,
+  RedoIcon,
+  StopIcon,
+  UndoIcon,
+} from "../components/icons";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
@@ -130,7 +129,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           title={`${history().undoSummary ?? "Undo"} (${props.keyHint("edit.undo")})`}
           onClick={() => props.session.undo()}
         >
-          <HiSolidArrowUturnLeft size={18} />
+          <UndoIcon size={18} />
         </button>
         <button
           type="button"
@@ -140,7 +139,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           title={`${history().redoSummary ?? "Redo"} (${props.keyHint("edit.redo")})`}
           onClick={() => props.session.redo()}
         >
-          <HiSolidArrowUturnRight size={18} />
+          <RedoIcon size={18} />
         </button>
         <button
           type="button"
@@ -152,10 +151,10 @@ export default function EditorHeader(props: EditorHeaderProps) {
             "transport.play_stop",
           )})`}
         >
-          <Show when={props.audio.isPlaying()} fallback={<HiSolidPlay size={28} />}>
-            {/* Heroicons' stop square outweighs its play triangle at one
-                size, so it is drawn smaller to read as the same size. */}
-            <HiSolidStop size={24} />
+          <Show when={props.audio.isPlaying()} fallback={<PlayIcon size={28} />}>
+            {/* A filled square outweighs a triangle at one size, so Stop
+                is drawn smaller to read as the same size as Play. */}
+            <StopIcon size={24} />
           </Show>
         </button>
         <button
@@ -168,7 +167,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
             "transport.toggle_loop",
           )})`}
         >
-          <HiSolidArrowPathRoundedSquare size={18} />
+          <LoopIcon size={18} />
         </button>
         <div class="tempo-control">
           {/* The label is the input's only accessible name — no
@@ -198,7 +197,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           }
           title={`Metronome (${props.keyHint("transport.metronome")})`}
         >
-          <HiSolidMusicalNote size={18} />
+          <MetronomeIcon size={18} />
         </button>
         <PlayheadInput positionTicks={props.audio.positionTicks} onSeek={seek} />
       </div>

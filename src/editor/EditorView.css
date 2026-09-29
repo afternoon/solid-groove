@@ -313,21 +313,6 @@
   max-width: 640px;
 }
 
-.track-info {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.track-info .track-name {
-  font-weight: bold;
-}
-
-.track-info .pack-dependency {
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-}
-
 /* Where the step editor or piano roll would be for a track that has no clip
    yet. Set in the panel's own body text rather than shouted, because the track
    is fine — there is simply nothing to program on it. */

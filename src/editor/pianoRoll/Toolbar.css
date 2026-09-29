@@ -1,0 +1,113 @@
+/* The piano roll's toolbar (ARR-010): quiet grey tools, the selection count,
+   and Play as the one white primary action. */
+
+.pr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.pr-tool {
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pr-tool:hover:not(:disabled) {
+  background: var(--color-background-hover);
+  color: var(--color-text);
+}
+
+.pr-tool:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pr-square {
+  width: 28px;
+  padding: 0;
+}
+
+.pr-count {
+  min-width: 92px;
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-spacer {
+  flex: 1;
+}
+
+/* A pressed toggle is the brightest thing on its button: a filled square. */
+.pr-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pr-preview::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  box-shadow: inset 0 0 0 1px var(--color-foreground);
+}
+
+.pr-preview[aria-pressed="true"] {
+  color: var(--color-text);
+}
+
+.pr-preview[aria-pressed="true"]::before {
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.pr-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pr-zoom-label {
+  margin-right: 4px;
+  color: var(--color-foreground-muted);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pr-zoom-value {
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Play is the one primary action: white, with black on it. */
+.pr-play {
+  height: 30px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pr-play:hover {
+  background: var(--color-accent-dim);
+}
+
+.pr-tool:focus-visible,
+.pr-play:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
