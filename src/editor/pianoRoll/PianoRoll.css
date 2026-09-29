@@ -89,3 +89,11 @@
   margin-left: -1px;
   background: var(--color-accent);
 }
+
+.pr-lasso {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid var(--color-accent);
+  background: var(--tint-soft);
+  pointer-events: none;
+}
