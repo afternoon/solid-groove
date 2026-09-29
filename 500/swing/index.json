@@ -1,0 +1,18 @@
+{
+  "id": "swing",
+  "title": "MPC-style swing (#500)",
+  "steps": [
+    {
+      "file": "01-new-project-swing-sits-beside-tempo-at-50.png",
+      "caption": "New project: Swing sits beside tempo at 50%"
+    },
+    {
+      "file": "02-set-swing-to-62.png",
+      "caption": "Set swing to 62%"
+    },
+    {
+      "file": "03-reload-swing-is-still-62.png",
+      "caption": "Reload: swing is still 62%"
+    }
+  ]
+}
