@@ -103,6 +103,26 @@ describe("clipboard: copy, cut, paste, delete (ARR-01)", () => {
     expect(pasted[1] - pasted[0]).toBe(gap);
   });
 
+  it("pastes an unlinked copy: a new clip that edits independently (#493)", () => {
+    const { project, placementId, clip } = fixture();
+    const clipboard = copyPlacements(project, [placementId]);
+    const next = apply(
+      project,
+      pastePlacements(
+        project,
+        clipboard,
+        TICKS_PER_BAR * 4,
+        createSeededIdFactory("unlinked"),
+      ),
+    );
+    const pasted = next.song.placements.find((p) => p.id !== placementId);
+    expect(pasted?.clipId).not.toBe(clip.id);
+    const copy = next.clips.find((c) => c.id === pasted?.clipId);
+    expect(copy).toBeDefined();
+    expect(copy?.content.kind).toBe(clip.content.kind);
+    expect(next.clips.find((c) => c.id === clip.id)).toEqual(clip);
+  });
+
   it("skips a clipboard entry whose clip no longer exists", () => {
     const { project, placementId } = fixture();
     const clipboard = copyPlacements(project, [placementId]);
@@ -133,7 +153,8 @@ describe("clipboard: copy, cut, paste, delete (ARR-01)", () => {
       target,
       createSeededIdFactory("minute-nine"),
     );
-    expect(commands).toHaveLength(1);
+    // The clip copy, then the placement (#493).
+    expect(commands).toHaveLength(2);
     const next = apply(project, commands);
     const pasted = next.song.placements.filter((p) => p.id !== placementId);
     expect(pasted).toHaveLength(1);
@@ -247,8 +268,13 @@ describe("paste overwrites what it lands on (#291)", () => {
     expect(next.song.placements).toHaveLength(1);
     const [pasted] = next.song.placements;
     expect(pasted.id).not.toBe(placementId);
-    const { id: _pastedId, ...pastedFields } = pasted;
-    const { id: _sourceId, ...sourceFields } = project.song.placements[0];
+    // Identical but unlinked: only the IDs differ (#493).
+    const { id: _pastedId, clipId: _pastedClip, ...pastedFields } = pasted;
+    const {
+      id: _sourceId,
+      clipId: _sourceClip,
+      ...sourceFields
+    } = project.song.placements[0];
     expect(pastedFields).toEqual(sourceFields);
   });
 
