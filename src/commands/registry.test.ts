@@ -60,6 +60,7 @@ const EXPECTED_COMMANDS = [
   "loop.setRange",
   "loop.setEnabled",
   "key.set",
+  "project.rename",
 ];
 
 describe("command registry", () => {

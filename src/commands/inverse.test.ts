@@ -42,6 +42,7 @@ import {
   removePad,
   removePlacement,
   removeTrack,
+  renameProject,
   reorderDevice,
   reorderPad,
   reorderTrack,
@@ -106,6 +107,11 @@ function shelfSignature(project: CommandTestProject["project"]): string {
   return `${contentSignature(project)}::shelf=${JSON.stringify(
     project.metadata.addedPacks,
   )}`;
+}
+
+/** A signature that includes the project's name, which `project.rename` edits. */
+function nameSignature(project: CommandTestProject["project"]): string {
+  return `${contentSignature(project)}::name=${project.metadata.name}`;
 }
 
 const cases: InverseCase[] = [
@@ -324,6 +330,11 @@ const cases: InverseCase[] = [
   {
     type: "instrument.setSample",
     build: (fixture) => setSample(fixture.trackAId, null),
+  },
+  {
+    type: "project.rename",
+    build: () => renameProject("Renamed in the round trip"),
+    signature: nameSignature,
   },
   {
     type: "pack.add",

@@ -101,6 +101,26 @@
   white-space: nowrap;
 }
 
+.editor-header .project-name-button {
+  max-width: 100%;
+  font: inherit;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.editor-header .project-name-input {
+  min-width: 0;
+  width: 20ch;
+  padding: 1px 4px;
+  background-color: var(--color-background);
+  border-radius: 0;
+  font: inherit;
+  color: var(--color-foreground-bright);
+  outline: 1px solid var(--color-accent);
+}
+
 .editor-header .transport-controls {
   flex: 0 0 auto;
   display: flex;

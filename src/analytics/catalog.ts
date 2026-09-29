@@ -322,6 +322,7 @@ export const COMMAND_IDS = [
   "loop.setRange",
   "loop.setEnabled",
   "key.set",
+  "project.rename",
 ] as const;
 export type CommandId = (typeof COMMAND_IDS)[number];
 

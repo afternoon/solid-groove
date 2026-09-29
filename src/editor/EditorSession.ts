@@ -262,6 +262,9 @@ export class EditorSession {
     if (next.metadata.addedPacks !== before.metadata.addedPacks) {
       this.autosave.queueMetadata({ addedPacks: next.metadata.addedPacks });
     }
+    if (next.metadata.name !== before.metadata.name) {
+      this.autosave.queueMetadata({ name: next.metadata.name });
+    }
     this.queueChangedClips(next, before);
   }
 

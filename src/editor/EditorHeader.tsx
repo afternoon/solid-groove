@@ -1,5 +1,5 @@
 import { HiSolidQuestionMarkCircle, HiSolidSquares2x2 } from "solid-icons/hi";
-import { type Accessor, Show } from "solid-js";
+import { type Accessor, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import {
@@ -14,6 +14,7 @@ import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
 import PlayheadInput from "./PlayheadInput";
+import ProjectNameInput from "./ProjectNameInput";
 import SaveStatus from "./SaveStatus";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
@@ -44,6 +45,8 @@ export type HeaderSession = Pick<
 
 export interface EditorHeaderProps {
   readonly projectName: string;
+  /** Commit a new project name: one `project.rename` through the command layer. */
+  readonly onRename: (name: string) => void;
   readonly session: HeaderSession;
   readonly audio: HeaderAudio;
   /**
@@ -71,6 +74,7 @@ export interface EditorHeaderProps {
 export default function EditorHeader(props: EditorHeaderProps) {
   const history = () => props.session.state;
   const analytics = () => props.analytics ?? defaultAnalytics;
+  const [renaming, setRenaming] = createSignal(false);
   function seek(ticks: number): void {
     analytics().logFeatureFirstUse("playhead_seek");
     props.audio.seekTicks(ticks);
@@ -92,8 +96,29 @@ export default function EditorHeader(props: EditorHeaderProps) {
         >
           <HiSolidSquares2x2 size={24} />
         </a>
-        {/* The project's name, chosen by the user (ADR 0002 decision 2). */}
-        <h1 class={`project-name ${MASK_CONTENT}`}>{props.projectName}</h1>
+        {/* The project's name, chosen by the user (ADR 0002 decision 2). A click
+            turns it into an input. */}
+        <h1 class={`project-name ${MASK_CONTENT}`}>
+          <Show
+            when={renaming()}
+            fallback={
+              <button
+                type="button"
+                class="project-name-button"
+                title="Rename project"
+                onClick={() => setRenaming(true)}
+              >
+                {props.projectName}
+              </button>
+            }
+          >
+            <ProjectNameInput
+              name={props.projectName}
+              onRename={(name) => props.onRename(name)}
+              onDone={() => setRenaming(false)}
+            />
+          </Show>
+        </h1>
       </div>
       <div class="editor-header-center transport-controls">
         <button
