@@ -252,6 +252,17 @@ describe("Mixer track management (TRK-01)", () => {
     expect(history.project.song.tracks[0].name).toBe("Kick drum");
   });
 
+  it("puts the name back on Escape, with no undo entry", () => {
+    const { history } = renderMixer();
+    const name = history.project.song.tracks[0].name;
+    const input = screen.getByLabelText("Track name") as HTMLInputElement;
+    fireAndFlush(() => input.focus());
+    input.value = "Nope";
+    fireAndFlush(() => fireEvent.keyDown(input, { key: "Escape" }));
+    expect(input.value).toBe(name);
+    expect(history.canUndo).toBe(false);
+  });
+
   it("reorders tracks while preserving clip ownership and routing", () => {
     const { history } = renderMixer(createDrumMachineFixtureProject());
     const [first, second] = history.project.song.tracks;

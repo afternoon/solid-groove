@@ -1,4 +1,5 @@
 import { type JSX, Show } from "@solidjs/web";
+import { createSignal } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import type {
   Gesture,
@@ -14,6 +15,7 @@ import LevelMeter from "./LevelMeter";
 import MuteSoloToggles from "./MuteSoloToggles";
 import TrackColorPicker from "./TrackColorPicker";
 import { VolumeFader } from "./TrackFaders";
+import TrackNameInput from "./TrackNameInput";
 import type { TrackLevel } from "./trackLevels";
 import "./TrackHeader.css";
 import { toggleTrackFlag, trackSurfaceHandlers } from "./trackSurface";
@@ -71,6 +73,10 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
     clickExempt: ".track-header-select, .track-header-delete",
   });
 
+  // Clicking the name starts rename, as on the mixer strip (one shared
+  // `TrackNameInput`); the Edit button around it still selects.
+  const [renaming, setRenaming] = createSignal(false);
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the header's own Edit button
     // biome-ignore lint/a11y/useKeyWithClickEvents: the Edit button, and every control's own keys, are the keyboard path
@@ -101,16 +107,41 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
             />
           )}
         </Show>
-        <button
-          type="button"
-          class="track-header-select"
-          aria-pressed={ariaBool(props.selected)}
-          aria-label={`Edit ${props.track.name}${props.track.mixer.muted ? " (muted)" : ""}`}
-          onClick={() => props.onSelect()}
+        <Show
+          when={renaming() && props.dispatch}
+          fallback={
+            <button
+              type="button"
+              class="track-header-select"
+              aria-pressed={ariaBool(props.selected)}
+              aria-label={`Edit ${props.track.name}${props.track.mixer.muted ? " (muted)" : ""}`}
+              onClick={() => props.onSelect()}
+            >
+              {/* The track's name, chosen by the user (ADR 0002 decision 2). A
+                  click on the text starts rename; a press-and-drag on it still
+                  picks the header up, since a drag is not a click. */}
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: the Edit button is the keyboard path */}
+              {/* biome-ignore lint/a11y/useKeyWithClickEvents: the Edit button is the keyboard path */}
+              <span
+                class={`track-header-name ${MASK_CONTENT}`}
+                onClick={() => props.dispatch && setRenaming(true)}
+              >
+                {props.track.name}
+              </span>
+            </button>
+          }
         >
-          {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
-          <span class={`track-header-name ${MASK_CONTENT}`}>{props.track.name}</span>
-        </button>
+          {(_) => (
+            <TrackNameInput
+              track={props.track}
+              dispatch={props.dispatch as NonNullable<typeof props.dispatch>}
+              class="track-header-name-input"
+              label="Track name"
+              autofocus
+              onDone={() => setRenaming(false)}
+            />
+          )}
+        </Show>
         <Show when={props.dispatch}>
           {(dispatch) => (
             <MuteSoloToggles

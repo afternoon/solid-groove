@@ -57,10 +57,28 @@
 }
 
 .track-header-name {
-  display: block;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+  /* A click on the text starts a rename, so it says so; the rest of the header
+     keeps the drag handle's grab hand (`trackDrag.css`). */
+  cursor: text;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The name being renamed: the same bold text, as the mixer strip's input. */
+.track-header-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 0;
+  background-color: var(--color-background);
+  border-radius: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--color-foreground-bright);
+  outline: 1px solid var(--color-accent);
 }
 
 /* A muted track recedes, as a muted strip or pad does; its M and S stay at
