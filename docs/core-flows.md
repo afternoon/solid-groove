@@ -877,3 +877,80 @@ row, as one undo step, and the result survived a reload.
 which are tested at the component layer. The hover preview. Generated
 velocities and the velocity lane. The piano-roll toolbar's Zoom, Select all and
 Delete, which CF-017 and CF-019 cover in the piano roll. The other presets.
+
+### CF-021 — A producer exports their song as a stereo WAV
+
+**Issue:** #64, #65 · **Suite:** `tests/e2e/emulator/flows/CF-021.spec.ts` · **Entrypoint:**
+the project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. It opens with the starter drum machine, its "BD" pad four on
+   the floor. Put the "HH" pad on every offbeat and the "CP" pad on beats 2 and 4.
+2. Add a synth track named "Bass" and write a bassline in the piano roll: C2 on steps
+   1 and 9, D♯2 on step 5, G2 on step 13.
+3. Add a loop from the library: a drum loop recorded at a different tempo from the
+   project's. It lands on a new track as a clip starting at bar 1.
+4. Add a sampler track named "Piano" and load a piano one-shot from the library. In the
+   piano roll write a C minor chord on step 1 (C3, D♯3 and G3 at once) and a single A♯3
+   on step 9, so the sample plays at four pitches and three at a time.
+5. Add a reverb to the Piano track's effects.
+6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
+   to the master's effects.
+7. There are now four tracks, each with a clip in bar 1. Play the song, then stop.
+8. Press Export in the editor header. A dialog opens with two choices, Stereo WAV and
+   Stems (ZIP). Stereo WAV is chosen.
+9. Press Export. A progress bar with a Cancel button shows while it renders. When it
+   finishes, the browser downloads one file named `<project name> <YYYY-MM-DD>.wav`, and
+   the dialog says the export is done.
+10. Close the dialog and reload the page.
+
+**Outcome:** the file is a valid stereo WAV (two channels, 24-bit PCM, the project's
+sample rate), and it is not silent. It runs from bar 1 to the end of the last clip at
+the song tempo, plus no more than the release tail. Its level is the project's own:
+nothing was normalized (DEC-004). After the reload the project is unchanged — four
+tracks, same clips and notes, the reverb on Piano and the saturator and compressor on
+the master — so exporting did not edit it.
+
+**Out of scope:** cancelling, failure paths and analytics (unit and component layers).
+Exact tail length, sample-accurate timing and live/offline parity (reference renders,
+#64). The 40-track ten-minute fixture and memory limits. Stems (CF-022).
+
+### CF-022 — A producer exports aligned stems for another DAW
+
+**Issue:** #66 · **Suite:** `tests/e2e/emulator/flows/CF-022.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. It opens with the starter drum machine, its "BD" pad four on
+   the floor. Put the "HH" pad on every offbeat and the "CP" pad on beats 2 and 4.
+2. Add a synth track named "Bass" and write a bassline in the piano roll: C2 on steps
+   1 and 9, D♯2 on step 5, G2 on step 13.
+3. Add a loop from the library: a drum loop recorded at a different tempo from the
+   project's. It lands on a new track as a clip starting at bar 1.
+4. Add a sampler track named "Piano" and load a piano one-shot from the library. In the
+   piano roll write a C minor chord on step 1 (C3, D♯3 and G3 at once) and a single A♯3
+   on step 9, so the sample plays at four pitches and three at a time.
+5. Add a reverb to the Piano track's effects.
+6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
+   to the master's effects.
+7. There are now four tracks, each with a clip in bar 1. Play the song, then stop.
+8. Press Export in the editor header and choose Stems (ZIP). A bit-depth choice appears,
+   16-bit or 24-bit, with 24-bit chosen.
+9. Press Export and let it finish. The browser downloads one file named
+   `<project name> <YYYY-MM-DD> stems.zip`.
+10. Close the dialog and reload the page.
+
+**Outcome:** the ZIP holds four WAVs, one per track, named with its position and track
+name (`01 BD.wav`, `02 Bass.wav`, `03 <loop track>.wav`, `04 Piano.wav`) so they sort in
+track order, each with sound in it, plus `Reference mix.wav` and `manifest.json`. Every
+WAV is stereo, 24-bit PCM, at the same sample rate, and exactly the same length. After
+the reload the project is unchanged, devices included.
+
+**Out of scope:** the 16-bit choice, mute/solo (every track is exported whatever its
+mute/solo state), return-bus stems (these go in a `Returns/` folder, but no UI adds a
+return yet), the manifest's fields, sample-by-sample alignment, master processing
+being excluded, cancelling, the maximum reference fixture, worker/memory limits,
+failure paths and analytics — all tested at the unit and component layers.
+Stereo export (CF-021).
