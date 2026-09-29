@@ -20,7 +20,6 @@ import {
   loopEntryFor,
   normalizePlayheadSegments,
   openedClip,
-  packDependencyLabel,
   playheadLabel,
   playheadSegments,
   playheadSegmentsToTicks,
@@ -275,23 +274,6 @@ describe("samplerTrackId", () => {
     expect(samplerTrackId(editedTrack(drums, null))).toBeNull();
     expect(samplerTrackId(editedTrack(synth, null))).toBeNull();
     expect(samplerTrackId(null)).toBeNull();
-  });
-});
-
-describe("packDependencyLabel", () => {
-  it("labels the project's first pack dependency as `id @ version`", () => {
-    const project = createSliceFixtureProject();
-    const dependency = project.metadata.packDependencies[0];
-    expect(packDependencyLabel(project)).toBe(
-      `${dependency.packId} @ ${dependency.version}`,
-    );
-  });
-
-  it("is null for a project with no pack dependency, and with none open", () => {
-    // The piano-roll fixture is the synth-only, pack-free fixture.
-    expect(createPianoRollFixtureProject().metadata.packDependencies).toEqual([]);
-    expect(packDependencyLabel(createPianoRollFixtureProject())).toBeNull();
-    expect(packDependencyLabel(null)).toBeNull();
   });
 });
 

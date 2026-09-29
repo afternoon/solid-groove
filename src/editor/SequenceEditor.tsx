@@ -20,7 +20,6 @@ export interface SequenceEditorProps {
   readonly clip: Clip;
   readonly track: Track;
   readonly project: Project;
-  readonly packDependencyLabel: string | null;
   /** The clip takes the CLP-03 piano roll rather than the CLP-02 step grid. */
   readonly showPianoRoll: Accessor<boolean>;
   /** Set when the opened clip is a tempo-labelled audio loop (LOOP-006). */
@@ -82,8 +81,6 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
           fallback={
             <TrackClipEditor
               clip={props.clip}
-              trackName={props.track.name}
-              packDependencyLabel={props.packDependencyLabel}
               showPianoRoll={props.showPianoRoll}
               instrument={props.track.instrument ?? null}
               dispatch={props.dispatch}

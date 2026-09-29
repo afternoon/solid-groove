@@ -312,17 +312,12 @@ describe("EditorView", () => {
     // The four-on-the-floor clip: steps 1, 5, 9, 13 on the "BD" pad lane.
     expect(screen.getByRole("button", { name: "BD, step 1, on" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "BD, step 2, off" })).toBeInTheDocument();
-    // The track name appears in the step-editor's track-info header. (The
-    // ARR-001 arrangement shell also lists it in its virtualized headers and
-    // accessible track list, so scope this to the track editor.)
+    // The track's name is the editor's title, once: no second row repeats it
+    // with the pack dependency beneath the title bar.
     expect(
-      within(editor).getByText(project.song.tracks[0].name, { selector: ".track-name" }),
+      within(editor).getByRole("heading", { name: project.song.tracks[0].name }),
     ).toBeInTheDocument();
-    // The reopened project reports the pack dependency it saved.
-    const dependency = project.metadata.packDependencies[0];
-    expect(
-      screen.getByText(`Pack: ${dependency.packId} @ ${dependency.version}`),
-    ).toBeInTheDocument();
+    expect(within(editor).queryByText(/^Pack:/)).not.toBeInTheDocument();
 
     // Undo starts disabled: nothing has been edited yet in this session.
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();

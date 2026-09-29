@@ -57,9 +57,19 @@ describe("key panel", () => {
     expect(buttons).toHaveLength(12);
     for (const button of buttons) expect(button).toBeDisabled();
     expect(scaleButton("Chromatic")).toHaveAttribute("aria-pressed", "true");
-    expect(within(panel()).getByRole("group", { name: "Scale" }).children).toHaveLength(
-      9,
-    );
+    const scales = within(panel()).getByRole("group", { name: "Scale" }).children;
+    expect([...scales].map((button) => button.textContent)).toEqual([
+      "Chr",
+      "Maj",
+      "Min",
+      "Dor",
+      "Mix",
+      "HMin",
+      "MajP",
+      "MinP",
+      "Blu",
+    ]);
+    expect(scaleButton("Harmonic minor")).toHaveTextContent("HMin");
   });
 
   it("chooses a scale on C, then a root, saving each on the song", () => {

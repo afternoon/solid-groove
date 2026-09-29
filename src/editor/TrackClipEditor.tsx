@@ -7,7 +7,6 @@ import type {
 } from "../commands";
 import type { Clip, Instrument, Project } from "../domain/entities";
 import type { EventId } from "../domain/ids";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import KeyPanel from "./pianoRoll/KeyPanel";
 import PianoRoll from "./pianoRoll/PianoRoll";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
@@ -17,8 +16,6 @@ import TransformPanel from "./TransformPanel";
 export interface TrackClipEditorProps {
   /** The edited track's clip, or null when it has none yet (#228). */
   readonly clip: Clip | null;
-  readonly trackName: string | undefined;
-  readonly packDependencyLabel: string | null;
   /** A synth or sampler note clip gets the piano roll; a drum machine, the grid. */
   readonly showPianoRoll: Accessor<boolean>;
   readonly instrument: Instrument | null;
@@ -40,8 +37,8 @@ export interface TrackClipEditorProps {
 }
 
 /**
- * One track's clip: its name and pack dependency, and whichever of the two
- * editors that clip takes — the `CLP-02` step grid, with the Transform panel
+ * One track's clip, in whichever of the two editors it takes (the sequence
+ * editor's title bar already names the track) — the `CLP-02` step grid, with the Transform panel
  * beneath, or the ARR-010 piano roll, with the Key and Transform panels side
  * by side beneath it.
  */
@@ -52,13 +49,6 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
 
   return (
     <div class={["track-clip-editor", { "with-roll": props.showPianoRoll() }]}>
-      <div class="track-info">
-        {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
-        <span class={`track-name ${MASK_CONTENT}`}>{props.trackName}</span>
-        <Show when={props.packDependencyLabel}>
-          <span class="pack-dependency">Pack: {props.packDependencyLabel}</span>
-        </Show>
-      </div>
       {/*
        * A track carries no clip until one is placed on it — a track added
        * from the mixer starts empty (#228).

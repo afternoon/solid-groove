@@ -1,5 +1,5 @@
-/* The Key panel (ARR-010): a group rule with the key's name, a pad of twelve
-   roots and a three-by-three scale switch. The chosen button is white with
+/* The Key panel (ARR-010): a group rule with the key's name, a row of twelve
+   roots and a row of nine equal scale buttons. The chosen button is white with
    black on it; the rest are quiet grey. */
 
 .key-panel {
@@ -52,7 +52,7 @@
 }
 
 .key-scales {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
 }
 
 .key-roots button,
@@ -76,8 +76,7 @@
 }
 
 .key-scales button {
-  height: 26px;
-  text-align: left;
+  padding: 0;
 }
 
 .key-roots button:hover:not(:disabled),

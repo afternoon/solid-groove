@@ -36,7 +36,6 @@ function renderEditorFor(
       clip={clip}
       track={track}
       project={project}
-      packDependencyLabel={null}
       showPianoRoll={() => showPianoRoll(track, clip)}
       loop={loopEntryFor(project, clip)}
       songTempo={project.song.tempo}

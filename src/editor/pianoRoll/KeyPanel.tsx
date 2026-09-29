@@ -19,6 +19,19 @@ export const SCALE_LABELS: Readonly<Record<ScaleId, string>> = {
   blues: "Blues",
 };
 
+/** Each scale's short name, as the one-row scale switch shows it. */
+export const SCALE_SHORT_LABELS: Readonly<Record<ScaleId, string>> = {
+  chromatic: "Chr",
+  major: "Maj",
+  minor: "Min",
+  dorian: "Dor",
+  mixolydian: "Mix",
+  harmonic_minor: "HMin",
+  major_pentatonic: "MajP",
+  minor_pentatonic: "MinP",
+  blues: "Blu",
+};
+
 /** "Chromatic", or the root and the scale: "C minor", "F♯ harmonic minor". */
 export function keyName(key: MusicalKey): string {
   if (key.scale === "chromatic") return SCALE_LABELS.chromatic;
@@ -36,7 +49,8 @@ export interface KeyPanelProps {
 
 /**
  * The Key panel under the piano roll (ARR-010): a readout of the song's key,
- * a pad of the twelve roots and a switch of the nine scales, the chosen one
+ * a row of the twelve roots and a row of the nine scales, each shown by
+ * its short name and named in full to a screen reader, the chosen one
  * in each white. Chromatic, the default, has no root, so the root pad is off
  * while it is chosen, and choosing a scale from chromatic starts on C.
  *
@@ -88,10 +102,12 @@ export default function KeyPanel(props: KeyPanelProps): JSX.Element {
           {(scale) => (
             <button
               type="button"
+              aria-label={SCALE_LABELS[scale]}
+              title={SCALE_LABELS[scale]}
               aria-pressed={props.musicalKey.scale === scale ? "true" : "false"}
               onClick={() => chooseScale(scale)}
             >
-              {SCALE_LABELS[scale]}
+              {SCALE_SHORT_LABELS[scale]}
             </button>
           )}
         </For>
