@@ -3,19 +3,19 @@
   "title": "A producer exports aligned stems for another DAW",
   "steps": [
     {
-      "file": "01-add-a-drum-machine-track-named-drums-hats-on-the-offbeats-cl.png",
+      "file": "01-add-a-drum-machine-track-named-dr.png",
       "caption": "Add a drum-machine track named Drums: hats on the offbeats, clap on 2 and 4"
     },
     {
-      "file": "02-add-a-synth-track-named-bass-and-write-a-bassline.png",
+      "file": "02-add-a-synth-track-named-bass-and.png",
       "caption": "Add a synth track named Bass and write a bassline"
     },
     {
-      "file": "03-add-a-drum-loop-from-the-library-at-bar-1.png",
+      "file": "03-add-a-drum-loop-from-the-library.png",
       "caption": "Add a drum loop from the library at bar 1"
     },
     {
-      "file": "04-add-a-sampler-track-named-piano-load-tine-electric-key-write.png",
+      "file": "04-add-a-sampler-track-named-piano-l.png",
       "caption": "Add a sampler track named Piano, load Tine Electric Key, write a chord"
     },
     {
@@ -23,19 +23,19 @@
       "caption": "Add a reverb to the Piano track"
     },
     {
-      "file": "06-add-a-saturator-then-a-compressor-to-the-master.png",
+      "file": "06-add-a-saturator-then-a-compressor.png",
       "caption": "Add a saturator, then a compressor, to the master"
     },
     {
-      "file": "07-five-tracks-each-with-a-clip-in-bar-1-play-then-stop.png",
-      "caption": "Five tracks, each with a clip in bar 1 — play, then stop"
+      "file": "07-five-tracks-each-with-a-clip-in-b.png",
+      "caption": "Five tracks, each with a clip in bar 1 \u2014 play, then stop"
     },
     {
       "file": "08-choose-stems-zip-24-bit-is-chosen.png",
       "caption": "Choose Stems (ZIP): 24-bit is chosen"
     },
     {
-      "file": "09-press-export-the-stems-download-as-one-zip.png",
+      "file": "09-press-export-the-stems-download-a.png",
       "caption": "Press Export: the stems download as one ZIP"
     },
     {
