@@ -126,6 +126,12 @@ export interface ProjectAudioGraphOptions {
    * failed load attempt; a stale-generation failure is never reported.
    */
   onAssetLoadFailure?: BufferLoadFailureListener;
+  /**
+   * Every track feeds only its sends: its direct output goes to a sink that
+   * reaches nothing, so only the returns sound. A return's stem is rendered
+   * this way (EXP-003); live playback never sets it.
+   */
+  tracksSendOnly?: boolean;
 }
 
 /** Everything scheduled for one placement, so a later reconcile pass can tell
@@ -152,6 +158,9 @@ export class ProjectAudioGraph {
   private readonly transport: AudioTransport;
   private readonly bufferCache: AudioBufferCache<Tone.ToneAudioBuffer>;
   private readonly master: MasterAudioGraph;
+  /** Where every track's direct output goes: the master, or with
+   * `tracksSendOnly` a gain connected to nothing. */
+  private readonly trackDestination: Tone.ToneAudioNode;
   private readonly returns = new Map<ReturnId, ReturnAudioGraph>();
   private readonly tracks = new Map<TrackId, TrackAudioGraph>();
   private readonly placementSchedules = new Map<PlacementId, PlacementScheduleEntry>();
@@ -227,6 +236,15 @@ export class ProjectAudioGraph {
       this.runtime.getDestination(),
       this.createDeviceNode,
     );
+    if (options.tracksSendOnly) {
+      const sink = new Tone.Gain(1);
+      this.scope.register("node", () => {
+        sink.dispose();
+      });
+      this.trackDestination = sink;
+    } else {
+      this.trackDestination = this.master.input;
+    }
   }
 
   /** Read access for tests and diagnostics; not part of the reconciliation contract. */
@@ -440,7 +458,7 @@ export class ProjectAudioGraph {
             createInstrument: this.createInstrument,
             createDeviceNode: this.createDeviceNode,
           },
-          this.master.input,
+          this.trackDestination,
         );
         this.tracks.set(trackProjection.id, graph);
       }
