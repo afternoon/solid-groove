@@ -27,7 +27,7 @@ import {
  *    "Favourites", the one in view marked `aria-current`, and the project's
  *    packs in a group named "In this project";
  *  - family tabs are tabs named for the family ("Drums…"); category chips are
- *    toggle buttons named for the category ("Kick…", "Clap…");
+ *    toggle buttons named for the category ("Kick…", "Impact…");
  *  - the genre menu opens from a button named "Any genre" and holds a
  *    checkbox per genre, named for it ("House…");
  *  - the result count reads "<n> sounds";
@@ -243,9 +243,17 @@ export async function deliveredLibrary(page: Page): Promise<DeliveredSound[]> {
   return sounds;
 }
 
-/** The one-shots of one drum role ("kick", "clap"), which a pad's list shows. */
+/** The one-shots of one family's role (drums' "kick", fx's "impact"), as a category lists them. */
+export const oneShots = (
+  sounds: readonly DeliveredSound[],
+  family: string,
+  role: string,
+) =>
+  sounds.filter((s) => s.family === family && s.role === role && s.type === "one-shot");
+
+/** The one-shots of one drum role ("kick"), which a pad's list opens on. */
 export const drumOneShots = (sounds: readonly DeliveredSound[], role: string) =>
-  sounds.filter((s) => s.family === "drums" && s.role === role && s.type === "one-shot");
+  oneShots(sounds, "drums", role);
 
 /** Fail by name when the served library lacks what a flow's preconditions state. */
 export function precondition(met: unknown, flow: string, what: string): asserts met {

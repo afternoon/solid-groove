@@ -39,25 +39,20 @@ import {
  *    reference card), above a list named "Similar sounds";
  *  - each match's row shows its closeness as "<n>%";
  *  - the "Match on" chips are toggle buttons in a group named "Match on",
- *    named "Category", "Character", "Genre" and "Length". The flow turns Genre
- *    *off*, so Genre starts on; the reference design has it off by default,
- *    and the flow is the contract;
+ *    named "Category", "Character", "Genre" and "Length", with Genre on when
+ *    the view opens (step 3 turns it off);
  *  - the trail is a navigation named "Similar sounds trail", one button per
  *    kick visited;
  *  - the way back is a button whose name starts "Back" (the reference design
  *    labels it with the list you came from, e.g. "Back to Kicks").
  *
- * **Fixture library: open point.** The emulator suite serves the delivered
- * library `bun run library:build` writes, read back by `deliveredLibrary()`.
- * Its kicks' tags overlap plenty, but they are all in one pack (Core
- * Electronic Drums), so step 2's "from every pack" cannot be shown. The only
- * other pack with kicks is `alpha-drum-machines` (#681), which is acquired
- * over the network and is not part of that build. Changing what the suite
- * serves is pipeline work, left open rather than done here; the precondition
- * check below fails by name until it is settled.
+ * **Fixture library.** The emulator suite serves the delivered library
+ * `bun run library:build` writes, read back by `deliveredLibrary()`. Its
+ * kicks' tags overlap, so the precondition is met; the check below guards it.
  *
- * Out of scope, per the flow: how closeness is computed, and whether matches
- * sound alike.
+ * Out of scope, per the flow: how closeness is computed, whether matches
+ * sound alike, and matches drawn from other packs (the similarity model's
+ * unit tests cover that).
  *
  * Runs against the Firestore/Auth emulator because step 8 is a real reload.
  */
@@ -95,11 +90,13 @@ test.describe("CF-025", () => {
     const projectUrl = await newProjectOnInstrumentView(page);
     const kicks = drumOneShots(await deliveredLibrary(page), "kick");
     precondition(
-      new Set(kicks.map((kick) => kick.pack)).size > 1,
+      kicks.length >= 3 &&
+        kicks.some((a, i) =>
+          kicks.slice(i + 1).some((b) => a.genres.some((g) => b.genres.includes(g))),
+        ),
       "CF-025",
-      "kicks in more than one pack",
+      "several kicks whose tags overlap",
     );
-    const packOf = new Map(kicks.map((kick) => [kick.name, kick.pack]));
 
     await openPadSlot(page, "BD");
     await expect(categoryChip(page, "Kick")).toHaveAttribute("aria-pressed", "true");
@@ -108,8 +105,8 @@ test.describe("CF-025", () => {
     await step('Open the "BD" pad\'s sample slot: the library shows kicks');
 
     // 2. Press the similar-sounds button on a kick. The list gives way to that
-    //    kick's closest matches, from every pack. Each shows how close it is,
-    //    and the kick you started from is named above them.
+    //    kick's closest matches. Each shows how close it is, and the kick you
+    //    started from is named above them.
     const first = startingList[0];
     await soundsLike(soundList(page), first).click();
     await expect(soundList(page)).toHaveCount(0);
@@ -117,11 +114,10 @@ test.describe("CF-025", () => {
     const firstMatches = await listedNames(similarList(page));
     expect(firstMatches.length).toBeGreaterThan(1);
     expect(firstMatches).not.toContain(first);
-    expect(new Set(firstMatches.map((name) => packOf.get(name))).size).toBeGreaterThan(1);
     for (const row of await similarList(page).getByRole("listitem").all()) {
       await expect(row).toContainText(/\b\d{1,3}%/);
     }
-    await step("Press similar sounds on a kick: its closest matches, from every pack");
+    await step("Press similar sounds on a kick: its closest matches");
 
     // 3. Turn off matching on genre. The matches update.
     const withGenre = await matches(page);

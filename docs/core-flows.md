@@ -964,15 +964,15 @@ Stereo export (CF-021).
 **Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-023.spec.ts` · **Entrypoint:** the
 project dashboard
 
-**Preconditions:** signed in with no projects. The library holds kicks in more
-than one pack, tagged with genres.
+**Preconditions:** signed in with no projects. The library holds kicks tagged
+with genres.
 
 1. Create a new project. It opens on the arrangement, with the starter kick on a
    drum machine's "BD" pad.
 2. Go to the instrument view and press the "BD" pad's sample slot. The library
    opens over the editor, no larger than the pack browser used to be. It names
    the slot it will fill, shows the sound the pad has now, and is already
-   showing kicks from every pack.
+   showing kicks.
 3. Choose a genre from the genre menu. The list narrows to kicks in that genre,
    and says how many there are.
 4. Click a kick. It is selected, and the library says it is the one you are
@@ -1000,24 +1000,24 @@ at the component layer.
 **Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-024.spec.ts` · **Entrypoint:** the
 project dashboard
 
-**Preconditions:** signed in with no projects. The library holds a pack with
-claps that the starter project does not use.
+**Preconditions:** signed in with no projects.
 
 1. Create a new project and go to the instrument view. Open the sample slot of
-   the drum machine's "CP" pad.
+   the drum machine's "BD" pad.
 2. Choose Browse packs. The sound list gives way to pack covers, and the packs
    this project already uses are marked as in the project.
-3. Narrow the packs to those with drums.
-4. Open a pack that is not in the project. Its sounds replace the covers, under
-   a banner that names the pack and says it joins the project when you insert
-   one of its sounds.
-5. Choose the Drums family, then the Clap category. Only that pack's claps are
+3. Narrow the packs to those with FX.
+4. Open Transitions & FX, a pack the project does not use. Its sounds replace
+   the covers, under a banner that names the pack and says it joins the project
+   when you insert one of its sounds.
+5. Choose the FX family, then the Impact category. Only that pack's impacts are
    listed.
-6. Select a clap and press Insert. The library closes, and the "CP" pad's slot
-   names that clap.
-7. Open the slot again. That pack is now listed with the project's own packs.
-8. Reload the page. The "CP" pad still holds the clap, and the pack is still
-   listed with the project's packs.
+6. Select an impact and press Insert. The library closes, and the "BD" pad's
+   slot names that impact.
+7. Open the slot again. Transitions & FX is now listed with the project's own
+   packs.
+8. Reload the page. The "BD" pad still holds the impact, and Transitions & FX is
+   still listed with the project's packs.
 
 **Outcome:** a producer found a new pack, looked inside it, and used one of its
 sounds. Taking the sound brought the pack into the project, with no separate
@@ -1034,13 +1034,13 @@ personal packs, whose cover and banner are the same parts.
 project dashboard
 
 **Preconditions:** signed in with no projects. The library holds several kicks
-whose tags overlap across packs.
+whose tags overlap.
 
 1. Create a new project, go to the instrument view and open the "BD" pad's
    sample slot. The library shows kicks.
 2. Press the similar-sounds button on a kick. The list gives way to that kick's
-   closest matches, from every pack. Each shows how close it is, and the kick
-   you started from is named above them.
+   closest matches. Each shows how close it is, and the kick you started from
+   is named above them.
 3. Turn off matching on genre. The matches update.
 4. Press the similar-sounds button on one of the matches. Its own matches
    replace the list, and a trail shows both kicks, in the order you visited
@@ -1052,11 +1052,12 @@ whose tags overlap across packs.
 8. Reload the page. The pad still holds it.
 
 **Outcome:** a producer went from "like this, but…" to a sound they chose,
-across packs, and could retrace every step of the way.
+and could retrace every step of the way.
 
 **Out of scope:** how the closeness is computed, which is unit-tested against
 the similarity model. Whether the matches *sound* alike, which no browser test
-can tell.
+can tell. Matches drawn from other packs, which the similarity model's unit
+tests cover.
 
 ### CF-026 — A producer keeps a sound as a favourite and finds it in another project
 

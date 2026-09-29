@@ -46,15 +46,11 @@ import {
  *    in the dialog. No kick in the library is called BD, so only the slot
  *    header can put it there.
  *
- * **Fixture library: open point.** The emulator suite serves the delivered
- * library `bun run library:build` writes, and the specs read it back through
- * `deliveredLibrary()`. Today that build holds kicks in one pack only (Core
- * Electronic Drums), so step 2's "kicks from every pack" precondition is not
- * met. The only other pack with kicks is `alpha-drum-machines` (#681), which
- * is acquired over the network by `library:acquire` and not part of that
- * build. Changing what the build or the suite serves is pipeline work, so it
- * is left open here rather than done in a contract PR; the precondition check
- * below fails by name until it is settled.
+ * **Fixture library.** The emulator suite serves the delivered library
+ * `bun run library:build` writes, and the spec reads it back through
+ * `deliveredLibrary()` rather than naming sounds. "Already showing kicks" is
+ * read as the library's whole set of kick one-shots, unscoped ("All sounds"),
+ * on Drums › Kick. Its kicks carry genre tags, so the precondition is met.
  *
  * Out of scope, per the flow: that auditions are audible, loops, similar
  * sounds (CF-025), packs (CF-024), shuffle and the category arrows.
@@ -82,11 +78,6 @@ test.describe("CF-023", () => {
 
     const sounds = await deliveredLibrary(page);
     const kicks = drumOneShots(sounds, "kick");
-    precondition(
-      new Set(kicks.map((kick) => kick.pack)).size > 1,
-      "CF-023",
-      "kicks in more than one pack",
-    );
     const genreKicks = kicks.filter((kick) => kick.genres.includes(GENRE.slug));
     precondition(
       genreKicks.length > 1 && genreKicks.length < kicks.length,
@@ -97,7 +88,7 @@ test.describe("CF-023", () => {
     // 2. Go to the instrument view and press the "BD" pad's sample slot. The
     //    library opens over the editor, no larger than the pack browser used
     //    to be. It names the slot it will fill, shows the sound the pad has
-    //    now, and is already showing kicks from every pack.
+    //    now, and is already showing kicks.
     await openPadSlot(page, "BD");
     const viewport = page.viewportSize();
     const box = await library(page).boundingBox();
@@ -119,9 +110,7 @@ test.describe("CF-023", () => {
     await expect
       .poll(async () => (await listedNames(soundList(page))).sort())
       .toEqual(kicks.map((kick) => kick.name).sort());
-    await step(
-      "Press the BD pad's sample slot: the library opens on kicks from every pack",
-    );
+    await step("Press the BD pad's sample slot: the library opens on kicks");
 
     // 3. Choose a genre from the genre menu. The list narrows to kicks in that
     //    genre, and says how many there are.

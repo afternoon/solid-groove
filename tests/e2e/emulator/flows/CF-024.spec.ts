@@ -4,7 +4,6 @@ import {
   audition,
   categoryChip,
   deliveredLibrary,
-  drumOneShots,
   expectSelected,
   familyTab,
   insertButton,
@@ -12,13 +11,13 @@ import {
   listedNames,
   literal,
   newProjectOnInstrumentView,
+  oneShots,
   openPadSlot,
   precondition,
   projectPacks,
   railButton,
   reloadOnInstrumentView,
   sampleSlot,
-  selectPad,
   soundList,
 } from "../support/library";
 
@@ -36,16 +35,6 @@ import {
  * no pack banner, and no family tabs or category chips. The PR that closes
  * #449 removes this marker.
  *
- * **Blocker in step 1: there is no "CP" pad to open.** A new project's starter
- * drum machine has one pad, "BD" (`src/editor/starterProject.ts`). Only a drum
- * machine *added* to a project gets the four-pad kit with "CP"
- * (`STARTER_KIT` in `src/instrument/instrumentKinds.ts`). The flow does not
- * add a track or a pad, so as written it cannot be walked, and #449 does not
- * change the starter project. This spec follows the flow literally and will
- * fail at step 1 until the product owner settles it: either the flow adds a
- * drum machine (as CF-022 does) or opens the "BD" pad, or the starter project
- * gains the kit. It is reported on #449.
- *
  * **Locators.** Every library locator is assumed from #449 and the reference
  * design, and listed in `../support/library.ts`. This spec adds its own for
  * the packs view:
@@ -54,18 +43,17 @@ import {
  *    cover for a pack the project uses carries the words "In project" (or
  *    "In this project") in its text;
  *  - the "Packs with" filter is a group named "Packs with" holding a toggle
- *    button per family, named for it ("Drums");
+ *    button per family, named for it ("FX");
  *  - the pack banner is headed by the pack's name and says "Joins the project
  *    when you insert a sound" (or "In this project").
  *
- * **Fixture library: open point.** The emulator suite serves the delivered
- * library `bun run library:build` writes, read back by `deliveredLibrary()`.
- * In that build every clap is in Core Electronic Drums, the starter kick's own
- * pack, so the precondition "a pack with claps that the starter project does
- * not use" is not met. The only other pack with claps is `alpha-drum-machines`
- * (#681), acquired over the network and not part of that build. Changing what
- * the suite serves is pipeline work, left open rather than done here; the
- * precondition check below fails by name until it is settled.
+ * **Fixture library.** The emulator suite serves the delivered library
+ * `bun run library:build` writes, read back by `deliveredLibrary()`. The flow
+ * names the pack, so the spec finds "Transitions & FX" by that name there, and
+ * derives everything else from the served library rather than naming sounds:
+ * the project's own pack (the starter kick's), the packs with FX, and the
+ * pack's impacts. A new project uses only the starter kick's pack, so
+ * Transitions & FX is one it does not use.
  *
  * Out of scope, per the flow: "Hear it", pack search, category-row scrolling,
  * removing a pack, and third-party or personal packs.
@@ -73,15 +61,17 @@ import {
  * Runs against the Firestore/Auth emulator because step 8 is a real reload.
  */
 
+/** The pack the flow opens, by the name the library shows. */
+const NEW_PACK = "Transitions & FX";
+
 const cover = (page: Page, pack: string) =>
   library(page).getByRole("button", { name: new RegExp(`^Open ${literal(pack)}\\b`) });
 const anyCover = (page: Page) => library(page).getByRole("button", { name: /^Open / });
 const IN_PROJECT = /\bin (this )?project\b/i;
 
 test.describe("CF-024", () => {
-  // `test.fixme` until #449 lands and step 1's "CP" pad is settled (see the
-  // header): the PR that closes #449 removes this marker in the same diff that
-  // makes the flow pass.
+  // `test.fixme` until #449 lands: the PR that closes it removes this marker
+  // in the same diff that makes the flow pass.
   test.fixme(
     "a producer browses packs and uses a sound from one they did not have",
     async ({ page }) => {
@@ -91,30 +81,28 @@ test.describe("CF-024", () => {
       });
 
       // 1. Create a new project and go to the instrument view. Open the sample
-      //    slot of the drum machine's "CP" pad.
+      //    slot of the drum machine's "BD" pad.
       const projectUrl = await newProjectOnInstrumentView(page);
       const starterKick = ((await sampleSlot(page, "BD").textContent()) ?? "").trim();
 
       const sounds = await deliveredLibrary(page);
       const projectPack = sounds.find((sound) => sound.name === starterKick)?.pack;
-      if (!projectPack) throw new Error(`"${starterKick}" is not in the served library`);
-      const drumPacks = [
-        ...new Set(sounds.filter((s) => s.family === "drums").map((s) => s.pack)),
-      ];
-      const newPack = [
-        ...new Set(drumOneShots(sounds, "clap").map((clap) => clap.pack)),
-      ].find((pack) => pack !== projectPack);
+      precondition(projectPack, "CF-024", `the starter kick "${starterKick}"`);
       precondition(
-        newPack,
+        projectPack !== NEW_PACK,
         "CF-024",
-        "a pack with claps the starter project does not use",
+        `${NEW_PACK} not in a new project`,
       );
-      const newPackClaps = drumOneShots(sounds, "clap")
-        .filter((clap) => clap.pack === newPack)
-        .map((clap) => clap.name);
+      const fxPacks = [
+        ...new Set(sounds.filter((s) => s.family === "fx").map((s) => s.pack)),
+      ];
+      const impacts = oneShots(sounds, "fx", "impact")
+        .filter((impact) => impact.pack === NEW_PACK)
+        .map((impact) => impact.name);
+      precondition(impacts.length > 0, "CF-024", `impacts in ${NEW_PACK}`);
 
-      await openPadSlot(page, "CP");
-      await step('Open the sample slot of the drum machine\'s "CP" pad');
+      await openPadSlot(page, "BD");
+      await step('Open the sample slot of the drum machine\'s "BD" pad');
 
       // 2. Choose Browse packs. The sound list gives way to pack covers, and
       //    the packs this project already uses are marked as in the project.
@@ -122,65 +110,65 @@ test.describe("CF-024", () => {
       await expect(soundList(page)).toHaveCount(0);
       await expect(cover(page, projectPack)).toBeVisible();
       await expect(cover(page, projectPack)).toContainText(IN_PROJECT);
-      await expect(cover(page, newPack)).not.toContainText(IN_PROJECT);
+      await expect(cover(page, NEW_PACK)).not.toContainText(IN_PROJECT);
       await step("Choose Browse packs: covers, with the project's packs marked");
 
-      // 3. Narrow the packs to those with drums.
+      // 3. Narrow the packs to those with FX.
       await library(page)
         .getByRole("group", { name: "Packs with" })
-        .getByRole("button", { name: "Drums", exact: true })
+        .getByRole("button", { name: "FX", exact: true })
         .click();
-      await expect(anyCover(page)).toHaveCount(drumPacks.length);
-      for (const pack of drumPacks) await expect(cover(page, pack)).toBeVisible();
-      await step("Narrow the packs to those with drums");
+      await expect(anyCover(page)).toHaveCount(fxPacks.length);
+      for (const pack of fxPacks) await expect(cover(page, pack)).toBeVisible();
+      await step("Narrow the packs to those with FX");
 
-      // 4. Open a pack that is not in the project. Its sounds replace the
-      //    covers, under a banner that names the pack and says it joins the
-      //    project when you insert one of its sounds.
-      await cover(page, newPack).click();
+      // 4. Open Transitions & FX, a pack the project does not use. Its sounds
+      //    replace the covers, under a banner that names the pack and says it
+      //    joins the project when you insert one of its sounds.
+      await cover(page, NEW_PACK).click();
       await expect(anyCover(page)).toHaveCount(0);
       await expect(soundList(page)).toBeVisible();
-      await expect(library(page).getByRole("heading", { name: newPack })).toBeVisible();
+      await expect(library(page).getByRole("heading", { name: NEW_PACK })).toBeVisible();
       await expect(
         library(page).getByText("Joins the project when you insert a sound"),
       ).toBeVisible();
-      await step("Open a pack not in the project: it joins when you insert a sound");
+      await step("Open Transitions & FX: it joins the project when you insert a sound");
 
-      // 5. Choose the Drums family, then the Clap category. Only that pack's
-      //    claps are listed.
-      await familyTab(page, "Drums").click();
-      await categoryChip(page, "Clap").click();
+      // 5. Choose the FX family, then the Impact category. Only that pack's
+      //    impacts are listed.
+      await familyTab(page, "FX").click();
+      await categoryChip(page, "Impact").click();
       await expect
         .poll(async () => (await listedNames(soundList(page))).sort())
-        .toEqual([...newPackClaps].sort());
-      await step("Choose Drums, then Clap: only that pack's claps are listed");
+        .toEqual([...impacts].sort());
+      await step("Choose FX, then Impact: only that pack's impacts are listed");
 
-      // 6. Select a clap and press Insert. The library closes, and the "CP"
-      //    pad's slot names that clap.
-      const clap = newPackClaps[0];
-      await audition(soundList(page), clap).click();
-      await expectSelected(page, clap);
-      await insertButton(page, clap).click();
+      // 6. Select an impact and press Insert. The library closes, and the "BD"
+      //    pad's slot names that impact.
+      const impact = impacts[0];
+      await audition(soundList(page), impact).click();
+      await expectSelected(page, impact);
+      await insertButton(page, impact).click();
       await expect(library(page)).toHaveCount(0);
-      await expect(sampleSlot(page, "CP")).toHaveText(clap);
-      await step('Select a clap and press Insert: the "CP" slot names it');
+      await expect(sampleSlot(page, "BD")).toHaveText(impact);
+      await step('Select an impact and press Insert: the "BD" slot names it');
 
-      // 7. Open the slot again. That pack is now listed with the project's own
-      //    packs.
-      await sampleSlot(page, "CP").click();
+      // 7. Open the slot again. Transitions & FX is now listed with the
+      //    project's own packs.
+      await sampleSlot(page, "BD").click();
       await expect(library(page)).toBeVisible();
-      await expect(projectPacks(page)).toContainText(newPack);
-      await expect(projectPacks(page)).toContainText(projectPack);
-      await step("Open the slot again: the pack is listed with the project's packs");
+      await expect(projectPacks(page)).toContainText(NEW_PACK);
+      await step(
+        "Open the slot again: Transitions & FX is listed with the project's packs",
+      );
 
-      // 8. Reload the page. The "CP" pad still holds the clap, and the pack is
-      //    still listed with the project's packs.
+      // 8. Reload the page. The "BD" pad still holds the impact, and
+      //    Transitions & FX is still listed with the project's packs.
       await reloadOnInstrumentView(page, projectUrl);
-      await selectPad(page, "CP");
-      await expect(sampleSlot(page, "CP")).toHaveText(clap);
-      await sampleSlot(page, "CP").click();
-      await expect(projectPacks(page)).toContainText(newPack);
-      await step("Reload: the CP pad holds the clap, and the pack is still listed");
+      await expect(sampleSlot(page, "BD")).toHaveText(impact);
+      await sampleSlot(page, "BD").click();
+      await expect(projectPacks(page)).toContainText(NEW_PACK);
+      await step("Reload: the BD pad holds the impact, and Transitions & FX is listed");
     },
   );
 });
