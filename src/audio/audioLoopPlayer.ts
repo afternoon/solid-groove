@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { disposeFinishedVoice } from "./instruments/assetVoice";
 
 /**
  * How a tempo-labelled audio loop is made to follow the project tempo
@@ -83,9 +84,10 @@ export function playAudioLoop(
   if (!isLoopStretched(playbackRate)) {
     // Source tempo already matches the song: play the recording as recorded.
     const player = new Tone.Player(buffer).connect(destination);
-    player.onstop = () => {
-      if (!player.disposed) player.dispose();
-    };
+    player.onstop = () =>
+      disposeFinishedVoice(player, () => {
+        if (!player.disposed) player.dispose();
+      });
     player.start(time, offsetSeconds, durationSeconds);
     return player;
   }
@@ -106,10 +108,14 @@ export function playAudioLoop(
   player.onstop = () => {
     // The last grains are scheduled up to one grain plus its crossfade past
     // the stop, so let them ring out instead of cutting the tail.
-    const tailMs = (LOOP_GRAIN_SIZE_SECONDS + LOOP_GRAIN_OVERLAP_SECONDS) * 1000 + 50;
-    setTimeout(() => {
-      if (!player.disposed) player.dispose();
-    }, tailMs);
+    const tailSeconds = LOOP_GRAIN_SIZE_SECONDS + LOOP_GRAIN_OVERLAP_SECONDS + 0.05;
+    disposeFinishedVoice(
+      player,
+      () => {
+        if (!player.disposed) player.dispose();
+      },
+      tailSeconds,
+    );
   };
   return player;
 }

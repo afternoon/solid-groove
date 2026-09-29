@@ -438,6 +438,8 @@ export const LIBRARY_PACK_SLUGS = [
   "ambient-textures",
   "transitions-fx",
   "cc0-community",
+  // Private-alpha only; leaves with the pack itself (CNT-003, #676).
+  "alpha-drum-machines",
 ] as const;
 export type LibraryPackSlug = (typeof LIBRARY_PACK_SLUGS)[number];
 
