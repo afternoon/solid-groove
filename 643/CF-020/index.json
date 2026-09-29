@@ -3,35 +3,35 @@
   "title": "A producer fills a drum row from the Generate panel",
   "steps": [
     {
-      "file": "01-add-a-second-pad-to-the-starter-drum-machine.png",
+      "file": "01.png",
       "caption": "Add a second pad to the starter drum machine"
     },
     {
-      "file": "02-open-the-bd-clip-a-kick-row-and-an-empty-pad-2-row.png",
+      "file": "02.png",
       "caption": "Open the BD clip: a kick row and an empty Pad 2 row"
     },
     {
-      "file": "03-click-the-pad-2-row-s-name-to-select-it.png",
+      "file": "03.png",
       "caption": "Click the Pad 2 row's name to select it"
     },
     {
-      "file": "04-press-offbeats-the-row-fills-with-offbeats.png",
+      "file": "04.png",
       "caption": "Press Offbeats: the row fills with offbeats"
     },
     {
-      "file": "05-write-a-3-over-8-euclidean-rhythm-over-the-offbeats.png",
+      "file": "05.png",
       "caption": "Write a 3-over-8 Euclidean rhythm over the offbeats"
     },
     {
-      "file": "06-undo-and-redo-the-generate-as-one-step.png",
+      "file": "06.png",
       "caption": "Undo and redo the generate as one step"
     },
     {
-      "file": "07-the-instrument-view-has-pad-2-selected-too.png",
+      "file": "07.png",
       "caption": "The instrument view has Pad 2 selected too"
     },
     {
-      "file": "08-reload-both-rows-are-still-there.png",
+      "file": "08.png",
       "caption": "Reload: both rows are still there"
     }
   ]
