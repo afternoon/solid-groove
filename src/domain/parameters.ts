@@ -21,6 +21,7 @@ export type ParameterUnit =
   | "normalized"
   | "bipolar"
   | "hertz"
+  | "percent"
   | "seconds"
   | "semitones";
 
@@ -109,6 +110,21 @@ export const SONG_TEMPO = register({
   min: 20,
   max: 300,
   defaultValue: 120,
+  automatable: false,
+});
+
+/**
+ * MPC-style swing (#500): the share of each 1/8 pair (96 ticks) that the first
+ * 1/16 takes, in percent. 50 is straight; 75 is the dotted maximum.
+ */
+export const SONG_SWING = register({
+  id: "song.swing",
+  label: "Swing",
+  unit: "percent",
+  min: 50,
+  max: 75,
+  defaultValue: 50,
+  step: 1,
   automatable: false,
 });
 

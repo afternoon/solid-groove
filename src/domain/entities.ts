@@ -23,6 +23,7 @@ import {
   parameterValueSchema,
   RETURN_PAN,
   RETURN_VOLUME,
+  SONG_SWING,
   SONG_TEMPO,
   TRACK_PAN,
   TRACK_SEND_LEVEL,
@@ -405,6 +406,8 @@ export type SongLoop = z.infer<typeof songLoopSchema>;
 
 export const songSchema = z.strictObject({
   tempo: parameterValueSchema(SONG_TEMPO),
+  // A project saved before swing existed has no field: it reads as straight.
+  swing: parameterValueSchema(SONG_SWING).default(SONG_SWING.defaultValue),
   timeSignature: timeSignatureSchema,
   loop: songLoopSchema,
   /** The song's key and scale (ARR-010); chromatic until a producer picks one. */

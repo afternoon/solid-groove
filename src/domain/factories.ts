@@ -37,6 +37,7 @@ import {
   NOTE_VELOCITY,
   RETURN_PAN,
   RETURN_VOLUME,
+  SONG_SWING,
   SONG_TEMPO,
   TRACK_PAN,
   TRACK_SEND_LEVEL,
@@ -435,6 +436,7 @@ export function createDefaultSongLoop(): SongLoop {
 export function createEmptySong(tempo: number = SONG_TEMPO.defaultValue): Song {
   return {
     tempo: clampParameterValue(SONG_TEMPO, tempo),
+    swing: SONG_SWING.defaultValue,
     timeSignature: { numerator: 4, denominator: 4 },
     loop: createDefaultSongLoop(),
     key: createChromaticKey(),
