@@ -1,0 +1,38 @@
+{
+  "id": "CF-020",
+  "title": "A producer fills a drum row from the Generate panel",
+  "steps": [
+    {
+      "file": "01.png",
+      "caption": "Add a second pad to the starter drum machine"
+    },
+    {
+      "file": "02.png",
+      "caption": "Open the BD clip: a kick row and an empty Pad 2 row"
+    },
+    {
+      "file": "03.png",
+      "caption": "Click the Pad 2 row's name to select it"
+    },
+    {
+      "file": "04.png",
+      "caption": "Press Offbeats: the row fills with offbeats"
+    },
+    {
+      "file": "05.png",
+      "caption": "Write a 3-over-8 Euclidean rhythm over the offbeats"
+    },
+    {
+      "file": "06.png",
+      "caption": "Undo and redo the generate as one step"
+    },
+    {
+      "file": "07.png",
+      "caption": "The instrument view has Pad 2 selected too"
+    },
+    {
+      "file": "08.png",
+      "caption": "Reload: both rows are still there"
+    }
+  ]
+}
