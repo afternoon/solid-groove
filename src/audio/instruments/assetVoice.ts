@@ -23,8 +23,27 @@ export function playOneShot(
 ): void {
   const player = new Tone.Player(buffer).connect(destination);
   player.playbackRate = playbackRate;
-  player.onstop = () => player.dispose();
+  player.onstop = () => disposeFinishedVoice(player, () => player.dispose());
   player.start(time, offsetSeconds, duration);
+}
+
+/**
+ * Disposes a voice's nodes once it has stopped — except in an offline render
+ * (EXP-001), where it leaves them alone.
+ *
+ * Tone fires `onstop` from its JavaScript clock. Live, that clock runs in step
+ * with the audio, so a stopped voice has already sounded. Offline, the clock
+ * runs through the whole song *before* the audio thread renders any of it, so
+ * disposing a voice there would disconnect it before it made a sound. An
+ * offline render tears down its whole context when it ends, which releases
+ * these nodes with it.
+ */
+export function disposeFinishedVoice(
+  node: { readonly context: Tone.BaseContext },
+  dispose: () => void,
+): void {
+  if (node.context.isOffline) return;
+  dispose();
 }
 
 /** A live subscription to one asset's decoded buffer, reattachable to a new asset id. */
