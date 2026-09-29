@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDevice, type DeviceTypeId } from "../domain/devices";
 import type { Device, Project, Track } from "../domain/entities";
 import { createFactoryContext, createReturnBus, createSend } from "../domain/factories";
@@ -339,6 +339,39 @@ describe("offline reference renders: parity with live playback", () => {
       let differing = 0;
       for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
       expect(differing, `channel ${channel}`).toBe(0);
+    }
+  });
+});
+
+describe("offline reference renders: cost", () => {
+  it("holds only the voices around the playhead, however long the song", async () => {
+    // 24 bars of 16ths: 384 sampler notes over 48 seconds.
+    const bars = 24;
+    const notes = Array.from({ length: bars * 16 }, (_, i) => ({ tick: i * 48 }));
+    const started = vi.spyOn(Tone.Player.prototype, "start");
+    const disposed = vi.spyOn(Tone.Player.prototype, "dispose");
+    let mostAlive = 0;
+    try {
+      const projection = buildAudioProjection(samplerSong(notes, { bars }));
+      await renderer.renderProjectOffline(projection, {
+        sampleRate: RATE,
+        maxTailSeconds: 1,
+        bufferLoader: stepLoader,
+        onProgress: () => {
+          const alive = started.mock.calls.length - disposed.mock.calls.length;
+          mostAlive = Math.max(mostAlive, alive);
+        },
+      });
+      expect(started.mock.calls.length).toBeGreaterThanOrEqual(notes.length);
+      // A five-second chunk holds 40 notes; every other note is either not
+      // built yet or has already left the render. Before voices were released
+      // in step, every note stayed alive for the whole render.
+      expect(mostAlive).toBeGreaterThan(0);
+      expect(mostAlive).toBeLessThanOrEqual(48);
+      expect(disposed.mock.calls.length).toBeGreaterThanOrEqual(notes.length);
+    } finally {
+      started.mockRestore();
+      disposed.mockRestore();
     }
   });
 });
