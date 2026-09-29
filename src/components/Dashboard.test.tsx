@@ -16,6 +16,8 @@ import Dashboard from "./Dashboard";
 // explicit `flush()`.
 afterEach(() => {
   cleanup();
+  auth.setUser({ uid: "user-1" });
+  flush();
   // `resetAllMocks`, not `restoreAllMocks`: the mocks here are module-level
   // `vi.fn()`s (see the `vi.hoisted` block below), and from Vitest 4
   // `restoreAllMocks` only restores spies created with `vi.spyOn` — it no
@@ -29,13 +31,24 @@ afterEach(() => {
 // Dashboard reaches out to useAuth() and the project repository client. Both
 // are mocked here so we can drive the error/retry/create-failure UI directly
 // without a real Firebase/auth setup.
-vi.mock("../auth/AuthProvider", () => ({
-  useAuth: () => ({
-    user: { uid: "user-1" },
-    loading: false,
-    isAnonymous: false,
-  }),
+// A store, so a test can resolve sign-in after the first render the way the
+// real provider does. Every test starts signed in unless it says otherwise.
+const auth = vi.hoisted(() => ({
+  setUser: (_user: { uid: string } | null) => {},
 }));
+vi.mock("../auth/AuthProvider", async () => {
+  const { createStore } = await import("solid-js");
+  const [state, setState] = createStore<{
+    user: { uid: string } | null;
+    loading: boolean;
+    isAnonymous: boolean;
+  }>({ user: { uid: "user-1" }, loading: false, isAnonymous: false });
+  auth.setUser = (user) =>
+    setState((draft) => {
+      draft.user = user;
+    });
+  return { useAuth: () => state };
+});
 
 const navigate = vi.fn();
 // Router 2 deleted `<A>`; `ProjectList` links with a plain `<a>`, so the mock
@@ -124,6 +137,29 @@ describe("Dashboard", () => {
     expect(calls).toBe(2);
   });
 
+  it("stays on the loader, not the empty state, until a late sign-in's listing arrives", async () => {
+    auth.setUser(null);
+    flush();
+    let resolveListing: (projects: ProjectMetadata[]) => void = () => {};
+    listProjects.mockReturnValue(
+      new Promise<ProjectMetadata[]>((resolve) => {
+        resolveListing = resolve;
+      }),
+    );
+
+    renderDashboard();
+    auth.setUser({ uid: "user-1" });
+    flush();
+    await vi.waitFor(() => expect(listProjects).toHaveBeenCalled());
+
+    expect(screen.getByText("Loading projects")).toBeInTheDocument();
+    expect(screen.queryByText("No projects yet")).not.toBeInTheDocument();
+
+    resolveListing([makeMetadata()]);
+    expect(await screen.findByText("My Groove")).toBeInTheDocument();
+    expect(screen.queryByText("Loading projects")).not.toBeInTheDocument();
+  });
+
   it("renders the listed projects", async () => {
     listProjects.mockResolvedValue([makeMetadata()]);
 
@@ -177,23 +213,12 @@ describe("Dashboard", () => {
       expect(navigate).toHaveBeenCalledWith(`/projects/${created.metadata.id}`);
     });
 
-    it("creates a genuinely empty project and logs project_created(source: blank)", async () => {
+    it("offers no Blank Project button", async () => {
       listProjects.mockResolvedValue([]);
-      createProject.mockResolvedValue({
-        ok: true,
-        revision: 0,
-        modifiedAt: Date.now(),
-      });
-      const { transport } = renderDashboard();
+      renderDashboard();
 
-      fireEvent.click(await screen.findByRole("button", { name: /blank project/i }));
-
-      await vi.waitFor(() => expect(createProject).toHaveBeenCalledTimes(1));
-      const created = createProject.mock.calls[0][0];
-      expect(created.song.tracks).toHaveLength(0);
-      expect(transport.named("project_created")[0]?.params).toMatchObject({
-        source: "blank",
-      });
+      await screen.findByRole("button", { name: /^new project$/i });
+      expect(screen.queryByRole("button", { name: /blank project/i })).toBeNull();
     });
   });
 
@@ -287,7 +312,7 @@ describe("Dashboard", () => {
       listProjects.mockResolvedValue([makeMetadata()]);
       renderDashboard();
 
-      clickAndFlush(await screen.findByRole("button", { name: /^delete$/i }));
+      clickAndFlush(await screen.findByRole("button", { name: /^delete my groove$/i }));
 
       expect(
         screen.getByRole("alertdialog", { name: /delete this project/i }),
@@ -299,7 +324,7 @@ describe("Dashboard", () => {
       listProjects.mockResolvedValue([makeMetadata()]);
       renderDashboard();
 
-      clickAndFlush(await screen.findByRole("button", { name: /^delete$/i }));
+      clickAndFlush(await screen.findByRole("button", { name: /^delete my groove$/i }));
       clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
       expect(deleteProject).not.toHaveBeenCalled();
@@ -311,7 +336,7 @@ describe("Dashboard", () => {
       deleteProject.mockResolvedValue(undefined);
       const { transport } = renderDashboard();
 
-      clickAndFlush(await screen.findByRole("button", { name: /^delete$/i }));
+      clickAndFlush(await screen.findByRole("button", { name: /^delete my groove$/i }));
       const dialog = screen.getByRole("alertdialog", {
         name: /delete this project/i,
       });

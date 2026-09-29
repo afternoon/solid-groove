@@ -9,9 +9,9 @@ import { walkthrough } from "../../support/walkthrough";
  * frozen once it lands: a later PR that changes an assertion here has to say
  * so in its body and justify it.
  *
- * It is `test.fixme` because none of this exists yet. Today a drag on a clip's
- * body moves only the clip pressed on, whatever modifier is held. The PR that
- * closes #456 removes this marker.
+ * Alt-drag copy shipped with #456. The spec is parked at `test.fixme` only
+ * because the starter's step lane is now a drum-machine pad (#496); the PR
+ * that closes #496 removes the marker.
  *
  * What it holds #456 to, from the product owner's decisions (2026-09-27):
  *
@@ -138,21 +138,23 @@ async function closeEditor(page: Page): Promise<void> {
 }
 
 /**
- * Step 2 of the "BD" clip in `bar`, read in its editor. The starter kick is
- * four on the floor (steps 1, 5, 9, 13), so step 2 starts off in every copy.
+ * Step 2 of the "BD" pad in the "BD" track's clip in `bar`, read in its
+ * editor. The starter is a drum machine (#496) whose kick pad "BD" is four on
+ * the floor (steps 1, 5, 9, 13), so step 2 starts off in every copy.
  */
 async function expectBdStepTwo(page: Page, bar: number, on: boolean): Promise<void> {
   const editor = await openBdClip(page, bar);
   await expect(
-    editor.getByRole("button", { name: `Notes, step 2, ${on ? "on" : "off"}` }),
+    editor.getByRole("button", { name: `BD, step 2, ${on ? "on" : "off"}` }),
   ).toBeVisible();
   await closeEditor(page);
 }
 
 test.describe("CF-016", () => {
-  // `test.fixme` until #456 lands: the PR that closes it removes this marker in
-  // the same diff that makes the flow pass.
-  test("a producer Alt-drags clips to copy them", async ({ page }) => {
+  // `test.fixme` until #496 lands: the starter becomes a drum-machine track,
+  // whose "BD" pad lane ("BD, step 2, off") steps 5-8 read. Alt-drag itself
+  // (#456) is already live; the PR that closes #496 removes this marker.
+  test.fixme("a producer Alt-drags clips to copy them", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-016",
       title: "A producer Alt-drags clips to copy them",
@@ -204,8 +206,8 @@ test.describe("CF-016", () => {
     // 5. Open the "BD" clip in bar 5. Turn on a step that was off, and close
     //    the editor.
     const editor = await openBdClip(page, 5);
-    await editor.getByRole("button", { name: "Notes, step 2, off" }).click();
-    await expect(editor.getByRole("button", { name: "Notes, step 2, on" })).toBeVisible();
+    await editor.getByRole("button", { name: "BD, step 2, off" }).click();
+    await expect(editor.getByRole("button", { name: "BD, step 2, on" })).toBeVisible();
     await step("Turn on a step in the BD copy in bar 5");
     await closeEditor(page);
 

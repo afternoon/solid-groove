@@ -39,9 +39,13 @@ import { walkthrough } from "../../support/walkthrough";
  * bar line, where the pointer landing on a whole pixel (about 7 ticks at the
  * opening zoom) cannot change which clips the drag touches.
  *
- * Step 1 moves one clip by its body and lengthens another by the resize handle
- * on its right edge. Both are ARR-002 gestures that #292 keeps, and both still
- * snap to whole bars, so the clips step 1 makes are named by whole bars.
+ * Step 1 moves one clip by its body and drags another's right edge out. Since
+ * #493 that edge drag tiles linked copies a bar at a time rather than
+ * lengthening the clip, so "Sampler" gets one-bar clips in bars 1 and 2 and the
+ * clip the step 2 drag overlaps is the one in bar 2.
+ *
+ * The register says "one clip across bars 1 to 3"; this spec differs (#493),
+ * and the assertions that follow from it are marked "#493" below.
  *
  * Whether a clip is still there is read the way a screen-reader user would
  * find out: select it and listen.
@@ -138,10 +142,12 @@ async function dragAcrossBothTracks(page: Page): Promise<void> {
  * The state steps 3 and 5 both promise.
  *
  *  - The "BD" clip in bar 1 is still there, and still one bar long.
- *  - Nothing is left in bar 1 on "Sampler", where its clip started. A click
- *    there is a click in empty space, so it sets a point at the bar's start.
- *    A clip trimmed to the part the drag did not cover would still be here,
- *    and would be announced as a clip instead.
+ *  - The "Sampler" clip in bar 1 is still there too (#493: it was the whole
+ *    lengthened clip, and is now the source the edge drag repeated).
+ *  - Nothing is left in bar 2 on "Sampler", where the overlapped clip started.
+ *    A click there is a click in empty space, so it sets a point at the bar's
+ *    start. A clip trimmed to the part the drag did not cover would still be
+ *    here, and would be announced as a clip instead.
  *  - Step 2's drag now touches no clip on either track, so it selects nothing.
  *    That shows the "BD" clip in bar 3 and the rest of the "Sampler" clip are
  *    gone too.
@@ -150,7 +156,9 @@ async function expectAfterDelete(page: Page): Promise<void> {
   await clickAt(page, 0, midBar(1));
   await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
   await clickAt(page, 1, midBar(1));
-  await expect(announcement(page)).toHaveText("Position 1.1.1");
+  await expect(announcement(page)).toHaveText("Selected clip on Sampler, bar 1");
+  await clickAt(page, 1, midBar(2));
+  await expect(announcement(page)).toHaveText("Position 2.1.1");
   await dragAcrossBothTracks(page);
   await expect(announcement(page)).toHaveText("No selection");
 }
@@ -171,6 +179,8 @@ test.describe("CF-010", () => {
     //    with bar 2 empty between them. Add a sampler track and drag the
     //    right edge of its clip out to the end of bar 3, so "Sampler" has one
     //    clip across bars 1 to 3.
+    //    #493: an edge drag now tiles linked copies, so it ends at the end
+    //    of bar 2 and "Sampler" has clips in bars 1 and 2.
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
@@ -179,7 +189,7 @@ test.describe("CF-010", () => {
     await page.getByTestId("arrangement-view-ready").waitFor();
 
     await clickAt(page, 0, midBar(1));
-    await page.getByRole("button", { name: /^Duplicate as a linked copy/ }).click();
+    await page.keyboard.press("ControlOrMeta+D");
     // Pressing on a clip's body and dragging moves it, a bar at a time.
     await drag(
       page,
@@ -194,14 +204,15 @@ test.describe("CF-010", () => {
     await drag(
       page,
       { ...rightEdge, x: rightEdge.x - 1 },
-      await pointAt(page, 1, 3 * TICKS_PER_BAR),
+      await pointAt(page, 1, 2 * TICKS_PER_BAR),
     );
 
     await clickAt(page, 0, midBar(3));
     await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
     await clickAt(page, 1, midBar(2));
-    await expect(announcement(page)).toHaveText("Selected clip on Sampler, bars 1 to 3");
-    await step("BD has clips in bars 1 and 3; Sampler has one clip across bars 1 to 3");
+    // #493: was "bars 1 to 3", one lengthened clip.
+    await expect(announcement(page)).toHaveText("Selected clip on Sampler, bar 2");
+    await step("BD has clips in bars 1 and 3; Sampler has clips in bars 1 and 2");
 
     // 2. Press in the empty bar 2 on "BD", at 2.3.1, and drag down and along
     //    to 4.3.1 on "Sampler". A dotted outline follows the pointer across
@@ -223,7 +234,7 @@ test.describe("CF-010", () => {
     //    and is announced as "No selection".
     await page.keyboard.press("Delete");
     await expectAfterDelete(page);
-    await step("Press Delete: both clips are gone, whole; BD bar 1 is untouched");
+    await step("Press Delete: both clips are gone, whole; the bar 1 clips are untouched");
 
     // 4. Reload the page.
     //

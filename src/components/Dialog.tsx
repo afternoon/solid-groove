@@ -30,6 +30,11 @@ export interface DialogProps {
    */
   readonly header?: JSX.Element;
   readonly footer?: JSX.Element;
+  /**
+   * No padding around the contents, for full-bleed panes that draw their own
+   * edges. Everything else gets the shell's inset, aligned with the header.
+   */
+  readonly flush?: boolean;
   readonly children: JSX.Element;
   /** What the close button, and a click on the scrim, both do. */
   onClose(): void;
@@ -113,7 +118,9 @@ export default function Dialog(props: DialogProps): JSX.Element {
             </button>
           </header>
         </Show>
-        <div class="dialog-body">{props.children}</div>
+        <div class={props.flush ? "dialog-body dialog-body-flush" : "dialog-body"}>
+          {props.children}
+        </div>
         <Show when={props.footer}>
           <footer class="dialog-footer">{props.footer}</footer>
         </Show>

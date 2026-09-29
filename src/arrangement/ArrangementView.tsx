@@ -52,7 +52,6 @@ import {
   hitTestLoopBrace,
   type LoopBraceDrag,
 } from "./loopBrace";
-import { PlacementToolbar } from "./PlacementToolbar";
 import {
   createPlacementEditing,
   type EditingGesture,
@@ -286,6 +285,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // The placement drag in flight, if any: which pointer owns it, so a stray
   // move/up from another pointer is ignored.
   let activePointerId: number | null = null;
+  // Whether that drag holds a clip's edge, which resizes or tiles rather than
+  // moving, so it keeps the resize cursor for its whole length.
+  let edgeDrag = false;
   // The loop brace on the ruler (LOOP-018): one drag at a time, one gesture
   // each. It only exists when the host supplies gestures.
   let loopDrag: LoopBraceDrag | null = null;
@@ -645,8 +647,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
       const { tick } = shell.pointToArrangement(x, y);
       const copy = copyHeld(event);
       editing.updateDrag(tick, copy);
-      // The cursor says which a drop here would do: copy or move.
-      interactionCanvas.style.cursor = copy ? "copy" : "";
+      // The cursor says which a drop here would do: resize (an edge, where Alt
+      // changes nothing), copy, or move.
+      interactionCanvas.style.cursor = edgeDrag ? "ew-resize" : copy ? "copy" : "";
       return;
     }
     const { x, y } = localPoint(event);
@@ -655,14 +658,19 @@ export default function ArrangementView(props: ArrangementViewProps) {
       interactionCanvas.style.cursor = loopCursor(loopHandleAt(x));
       return;
     }
-    interactionCanvas.style.cursor = "";
     shell.handlePointerMove(x, y);
+    interactionCanvas.style.cursor = placementCursor(shell.hitTestAt(x, y));
+  }
+
+  /** A clip's edge is its resize handle, so hovering it shows a resize cursor. */
+  function placementCursor(hit: ReturnType<ArrangementShell["hitTestAt"]>): string {
+    return hit.kind === "placement" && hit.handle !== "body" ? "ew-resize" : "";
   }
 
   /**
    * Open the placement under the pointer (`UI-001`). Double-click is the
    * gesture every DAW uses for "open this clip", and the one CF-001 and CF-008
-   * walk; the placement toolbar carries its keyboard-reachable twin.
+   * walk.
    */
   function handleDoubleClick(event: MouseEvent): void {
     if (!shell || !props.onOpenPlacement) return;
@@ -727,6 +735,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (hit.kind === "placement") {
       const { tick } = shell.pointToArrangement(x, y);
       editing.beginDrag(hit.placementId, hit.handle, tick);
+      edgeDrag = hit.handle !== "body";
       if (hit.handle === "body") {
         releaseCopyModifier?.();
         releaseCopyModifier = suppressModifierDefault("arrangement.drag_copy", window);
@@ -784,6 +793,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     const copy = event.type !== "pointercancel" && copyHeld(event);
     releaseCopyModifier?.(copy);
     interactionCanvas.style.cursor = "";
+    edgeDrag = false;
     if (editing?.isDragging()) editing.endDrag(copy);
     activePointerId = null;
     (event.currentTarget as Element).releasePointerCapture?.(event.pointerId);
@@ -927,20 +937,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
           )}
         </Show>
       </ArrangementToolbar>
-      <Show when={props.dispatch}>
-        <PlacementToolbar
-          selectionCount={placementSelection().length}
-          onDuplicateLinked={() => editing?.duplicate("linked")}
-          onDuplicateIndependent={() => editing?.duplicate("independent")}
-          onOpen={
-            props.onOpenPlacement &&
-            (() => {
-              const [first] = placementSelection();
-              if (first) props.onOpenPlacement?.(first);
-            })
-          }
-        />
-      </Show>
       <div class="arrangement-body">
         <div
           class="arrangement-headers"

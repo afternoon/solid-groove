@@ -14,10 +14,15 @@
   z-index: 80;
 }
 
-/* Almost the whole view: what is left over reads as a frame, not a margin.
-   The working surfaces take this — the piano roll is why it exists. */
+/* A working window over the view that opened it: the piano roll is why it
+   exists. What is left over reads as a frame, not a margin.
+
+   --dialog-jumbo-gap is the knob: the gap between the window and the browser
+   edge on every side. On a window under about 830px tall or wide it shrinks
+   to 12% of that side, so the dialog keeps room to work in. */
 .dialog-backdrop-jumbo {
-  padding: 16px;
+  --dialog-jumbo-gap: 100px;
+  padding: min(var(--dialog-jumbo-gap), 12vh) min(var(--dialog-jumbo-gap), 12vw);
 }
 
 .dialog-backdrop-panel {
@@ -38,6 +43,13 @@
   cursor: default;
 }
 
+/* A <button>, so app.css's global `button:hover` fill would otherwise win on
+   specificity and turn the scrim an opaque grey under the pointer. */
+.dialog-scrim:hover,
+.dialog-scrim:active {
+  background: transparent;
+}
+
 .dialog {
   position: relative;
   display: flex;
@@ -45,7 +57,9 @@
   min-height: 0;
   border-radius: 0;
   background: var(--color-background-secondary);
-  border: 1px solid var(--tint-medium);
+  /* The one inset the header, body, footer and floating close share, so a
+     dialog's contents start where its title does. */
+  --dialog-inset: 14px;
   box-shadow: 0 16px 48px var(--shade-medium);
   overflow: hidden;
 }
@@ -64,8 +78,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--color-divider);
+  padding: 10px var(--dialog-inset);
 }
 
 .dialog-body {
@@ -74,14 +87,20 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  padding: 0 var(--dialog-inset) var(--dialog-inset);
+}
+
+/* For contents made of full-bleed panes with their own edges and backgrounds
+   (the library, the pack browser): the shell adds no padding around them. */
+.dialog-body-flush {
+  padding: 0;
 }
 
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--color-divider);
+  padding: 10px var(--dialog-inset);
 }
 
 .dialog-close {
@@ -114,6 +133,6 @@
 .dialog-close-floating {
   position: absolute;
   top: 10px;
-  right: 14px;
+  right: var(--dialog-inset);
   z-index: 1;
 }

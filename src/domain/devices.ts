@@ -71,14 +71,19 @@ function deviceParameter(
 
 // Wet/dry mix and output trim are common to the mix-affecting devices; a helper
 // keeps their range declared once (FX-01: "wet/dry mix and output trim").
-function wetParameter(type: DeviceTypeId): ParameterDefinition {
+//
+// The default is chosen per device (#492): a freshly inserted device should be
+// basically musical and invite tweaking, so time-based effects start as a
+// send-like blend (25%) rather than fully wet, and the two drive devices start
+// as a 50% parallel blend so the dirt is audible without replacing the source.
+function wetParameter(type: DeviceTypeId, defaultValue: number): ParameterDefinition {
   return deviceParameter(type, {
     id: "wet",
     label: "Dry/Wet",
     unit: "normalized",
     min: 0,
     max: 1,
-    defaultValue: 1,
+    defaultValue,
   });
 }
 
@@ -101,7 +106,10 @@ const FILTER_CUTOFF = deviceParameter("filter", {
   unit: "hertz",
   min: 20,
   max: 20_000,
-  defaultValue: 1_000,
+  // 2 kHz, not 1 kHz: a fresh low-pass at 1 kHz muffles most sources into a
+  // dull, quiet-sounding blanket; 2 kHz is clearly audible as a filter yet
+  // leaves body and presence, and sits mid-travel so a sweep either way works.
+  defaultValue: 2_000,
   scale: "logarithmic",
 });
 const FILTER_RESONANCE = deviceParameter("filter", {
@@ -139,7 +147,10 @@ const OVERDRIVE_DRIVE = deviceParameter("overdrive", {
   // climbs but the output stays bounded by the master limiter and trim.
   min: 0,
   max: 1,
-  defaultValue: 0.3,
+  // The clipping curve is already steep (tanh(3x)), so drive 0.3 (4.5x gain
+  // into it) hard-clips any normal-level source. 0.2 (2.6x) adds obvious warmth
+  // and edge without flattening the transients; wet 0.5 keeps the source in.
+  defaultValue: 0.2,
 });
 const OVERDRIVE_TONE = deviceParameter("overdrive", {
   id: "tone",
@@ -147,7 +158,9 @@ const OVERDRIVE_TONE = deviceParameter("overdrive", {
   unit: "normalized",
   min: 0,
   max: 1,
-  defaultValue: 0.5,
+  // The tone control is a low-pass swept 400 Hz..20 kHz; 0.5 is 2.8 kHz, which
+  // reads as muffled. 0.6 is about 4.2 kHz: warm but still bright.
+  defaultValue: 0.6,
 });
 
 // --- Saturator -------------------------------------------------------------
@@ -158,7 +171,9 @@ const SATURATOR_DRIVE = deviceParameter("saturator", {
   unit: "decibels",
   min: 0,
   max: 48,
-  defaultValue: 6,
+  // 4 dB: a normal-level source already reaches the soft knee, and the partial
+  // (drive/2) output compensation keeps the level within a few dB of bypass.
+  defaultValue: 4,
 });
 const SATURATOR_CHARACTER = deviceParameter("saturator", {
   id: "character",
@@ -166,7 +181,11 @@ const SATURATOR_CHARACTER = deviceParameter("saturator", {
   unit: "normalized",
   min: 0,
   max: 1,
-  defaultValue: 0.5,
+  // Character crossfades tape-soft to a sine wavefolder. At 0.5 the fold is half
+  // the signal and a source peaking at 0.5 with a few dB of drive is folded to
+  // near silence (sin(pi) = 0), which sounds broken. 0.2 is mostly soft
+  // saturation with a hint of bite; the fold stays one turn of the knob away.
+  defaultValue: 0.2,
 });
 
 // --- Compressor ------------------------------------------------------------
@@ -177,7 +196,10 @@ const COMPRESSOR_THRESHOLD = deviceParameter("compressor", {
   unit: "decibels",
   min: -60,
   max: 0,
-  defaultValue: -24,
+  // -12 dB (was -24) with a 3:1 ratio: -24 dB with 4:1 and no makeup pulls a
+  // typical -6 dB peak down ~13 dB, so a fresh compressor sounds much quieter.
+  // Here the same peak loses ~4 dB, and 3 dB of makeup returns it to about level.
+  defaultValue: -12,
 });
 const COMPRESSOR_RATIO = deviceParameter("compressor", {
   id: "ratio",
@@ -186,7 +208,7 @@ const COMPRESSOR_RATIO = deviceParameter("compressor", {
   // 1:1 (no compression) up to 20:1 (effectively limiting).
   min: 1,
   max: 20,
-  defaultValue: 4,
+  defaultValue: 3,
 });
 const COMPRESSOR_ATTACK = deviceParameter("compressor", {
   id: "attack",
@@ -194,7 +216,8 @@ const COMPRESSOR_ATTACK = deviceParameter("compressor", {
   unit: "seconds",
   min: 0,
   max: 1,
-  defaultValue: 0.003,
+  // 10 ms lets drum and pluck transients through instead of clamping them.
+  defaultValue: 0.01,
   scale: "logarithmic",
 });
 const COMPRESSOR_RELEASE = deviceParameter("compressor", {
@@ -203,7 +226,7 @@ const COMPRESSOR_RELEASE = deviceParameter("compressor", {
   unit: "seconds",
   min: 0.01,
   max: 2,
-  defaultValue: 0.25,
+  defaultValue: 0.2,
   scale: "logarithmic",
 });
 const COMPRESSOR_MAKEUP = deviceParameter("compressor", {
@@ -212,7 +235,7 @@ const COMPRESSOR_MAKEUP = deviceParameter("compressor", {
   unit: "decibels",
   min: 0,
   max: 24,
-  defaultValue: 0,
+  defaultValue: 3,
 });
 
 // --- Delay -----------------------------------------------------------------
@@ -372,7 +395,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
   {
     type: "filter",
     label: "Filter",
-    parameters: [FILTER_CUTOFF, FILTER_RESONANCE, FILTER_MODE, wetParameter("filter")],
+    parameters: [FILTER_CUTOFF, FILTER_RESONANCE, FILTER_MODE, wetParameter("filter", 1)],
   },
   {
     type: "overdrive",
@@ -380,7 +403,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
     parameters: [
       OVERDRIVE_DRIVE,
       OVERDRIVE_TONE,
-      wetParameter("overdrive"),
+      wetParameter("overdrive", 0.5),
       outputTrimParameter("overdrive"),
     ],
   },
@@ -390,7 +413,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
     parameters: [
       SATURATOR_DRIVE,
       SATURATOR_CHARACTER,
-      wetParameter("saturator"),
+      wetParameter("saturator", 0.5),
       outputTrimParameter("saturator"),
     ],
   },
@@ -405,7 +428,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
       COMPRESSOR_MAKEUP,
       // Wet/dry makes parallel ("New York") compression reachable without a
       // second track, which is why FX-01 lists it for applicable devices.
-      wetParameter("compressor"),
+      wetParameter("compressor", 1),
     ],
   },
   {
@@ -418,7 +441,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
       DELAY_FEEDBACK,
       DELAY_FILTER,
       DELAY_SPREAD,
-      wetParameter("delay"),
+      wetParameter("delay", 0.25),
       outputTrimParameter("delay"),
     ],
   },
@@ -430,7 +453,7 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
       REVERB_DECAY,
       REVERB_PREDELAY,
       REVERB_FILTER,
-      wetParameter("reverb"),
+      wetParameter("reverb", 0.25),
       outputTrimParameter("reverb"),
     ],
   },

@@ -66,26 +66,59 @@ describe("ProjectList", () => {
     expect(screen.getByText("Create your first one to get started.")).toBeInTheDocument();
   });
 
-  it("renders a card per project when projects are present", () => {
+  it("renders a table row per project when projects are present", () => {
     renderWithRouter([makeProjectMetadata({ name: "My Groove" })]);
 
-    expect(screen.getByText("My Groove")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "My Groove" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(2); // header + one project
     expect(screen.queryByText("No projects yet")).not.toBeInTheDocument();
   });
 
-  it("shows last-modified time and the template/genre badges when present", () => {
+  it("names its columns: Preview, Title, Created, Updated, Actions", () => {
+    renderWithRouter([makeProjectMetadata()]);
+
+    expect(
+      screen.getAllByRole("columnheader").map((header) => header.textContent),
+    ).toEqual(["Preview", "Title", "Created", "Updated", "Actions"]);
+  });
+
+  it("links the title to the project", () => {
+    const project = makeProjectMetadata({ name: "My Groove" });
+    renderWithRouter([project]);
+
+    expect(screen.getByRole("link", { name: "My Groove" })).toHaveAttribute(
+      "href",
+      `/projects/${project.id}`,
+    );
+  });
+
+  it("orders rows by updated time, most recent first", () => {
     renderWithRouter([
-      makeProjectMetadata({
-        name: "House Jam",
-        modifiedAt: Date.now(),
-        template: "starter",
-        genre: "house",
-      }),
+      makeProjectMetadata({ name: "Oldest", modifiedAt: 1_000 }),
+      makeProjectMetadata({ name: "Newest", modifiedAt: 3_000 }),
+      makeProjectMetadata({ name: "Middle", modifiedAt: 2_000 }),
     ]);
 
-    expect(screen.getByText(/Edited/)).toBeInTheDocument();
-    expect(screen.getByText("starter")).toBeInTheDocument();
-    expect(screen.getByText("house")).toBeInTheDocument();
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Newest",
+      "Middle",
+      "Oldest",
+    ]);
+  });
+
+  it("shows created and updated times, and a swatch coloured from the project ID", () => {
+    const project = makeProjectMetadata({
+      name: "House Jam",
+      createdAt: Date.UTC(2024, 0, 15, 12),
+      modifiedAt: Date.now(),
+    });
+    const { container } = renderWithRouter([project]);
+
+    expect(screen.getByText(/2024/)).toBeInTheDocument();
+    expect(container.querySelector("time")).toBeInTheDocument();
+    const swatch = container.querySelector(".project-swatch") as HTMLElement;
+    expect(swatch.style.backgroundColor).not.toBe("");
+    expect(swatch).toHaveAttribute("aria-hidden", "true");
   });
 
   it("renames a project via the inline form", async () => {
@@ -139,7 +172,7 @@ describe("ProjectList", () => {
     const onDuplicate = vi.fn().mockResolvedValue({ ok: true });
     renderWithRouter([project], { onDuplicate });
 
-    fireEvent.click(screen.getByRole("button", { name: /duplicate/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^duplicate my groove$/i }));
 
     await vi.waitFor(() => expect(onDuplicate).toHaveBeenCalledWith(project.id));
   });
@@ -150,7 +183,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn();
       renderWithRouter([project], { onDelete });
 
-      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^delete my groove$/i }));
 
       expect(
         screen.getByRole("alertdialog", { name: /delete this project/i }),
@@ -166,7 +199,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn().mockResolvedValue({ ok: true });
       renderWithRouter([project], { onDelete });
 
-      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^delete my groove$/i }));
       const dialog = screen.getByRole("alertdialog", {
         name: /delete this project/i,
       });
@@ -180,7 +213,7 @@ describe("ProjectList", () => {
       const onDelete = vi.fn();
       renderWithRouter([project], { onDelete });
 
-      clickAndFlush(screen.getByRole("button", { name: /^delete$/i }));
+      clickAndFlush(screen.getByRole("button", { name: /^delete my groove$/i }));
       clickAndFlush(screen.getByRole("button", { name: /^cancel$/i }));
 
       expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();

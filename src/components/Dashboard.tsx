@@ -1,12 +1,11 @@
 import { useNavigate } from "@solidjs/router";
-import { HiSolidArrowPath, HiSolidDocumentText, HiSolidPlus } from "solid-icons/hi";
+import { HiSolidArrowPath, HiSolidPlus } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { projectAgeBucket } from "../analytics/buckets";
 import { useAuth } from "../auth/AuthProvider";
 import { duplicateProject } from "../domain/duplicateProject";
 import type { ProjectMetadata } from "../domain/entities";
-import { createBlankProject } from "../domain/factories";
 import type { ProjectId } from "../domain/ids";
 import { createStarterProject } from "../editor/starterProject";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -27,7 +26,8 @@ interface ProjectsListing {
   id: string | undefined;
   /** Carried for its dependency alone: bumping it re-runs the fetch. */
   retry: number;
-  isFirstRun: boolean;
+  /** A different user from the last run: their first fetch shows the loader. */
+  isNewUser: boolean;
 }
 
 export interface DashboardProps {
@@ -58,9 +58,11 @@ export default function Dashboard(props: DashboardProps = {}) {
   // where a write is sanctioned, and the cancellation that used to be a
   // nested `onCleanup` is the cleanup that half returns.
   //
-  // `prev === undefined` is how "first run" is spelled now that
-  // `createEffect`'s second argument is the apply function rather than 1.x's
-  // `initialValue`.
+  // `isNewUser` is keyed on the user, not on the effect's first run: sign-in
+  // usually resolves after the dashboard mounts, so the run that first sees
+  // an id is the second one, and keying on the first run left `loading`
+  // false with an empty list -- the "No projects yet" state -- until the
+  // listing arrived.
   createEffect<ProjectsListing>(
     (previous) => ({
       id: userId(),
@@ -69,20 +71,20 @@ export default function Dashboard(props: DashboardProps = {}) {
       // button silently stops retrying. `Dashboard.test.tsx`'s "retries the
       // listing when 'Try again' is clicked" is what catches that.
       retry: retryCount(),
-      isFirstRun: previous === undefined,
+      isNewUser: previous?.id !== userId(),
     }),
-    ({ id, isFirstRun }) => {
+    ({ id, isNewUser }) => {
       if (!id) {
         setProjectsState({ loading: false, error: null, data: [] });
         return;
       }
 
-      // Only show the full loading state on the very first fetch. A retry
+      // Only show the full loading state on a user's first fetch. A retry
       // re-runs this same effect, but the dashboard chrome (button, error
       // panel) is already on screen, so swapping back to the loader would
       // just flash the tape deck in and out again for no benefit — the error
       // panel stays up until the retry resolves one way or the other.
-      if (isFirstRun) {
+      if (isNewUser) {
         setProjectsState({ loading: true, error: null, data: [] });
       }
 
@@ -111,31 +113,20 @@ export default function Dashboard(props: DashboardProps = {}) {
 
   const retryFetchProjects = () => setRetryCount((count) => count + 1);
 
-  /**
-   * `source: "blank"` creates a genuinely empty project; `source: "template"`
-   * uses the `FND-009` starter — audible content with no genre attached.
-   * Both are the PRD `PRJ-01`/`PRJ-02` creation paths this task owns.
-   */
-  const createProject = async (source: "blank" | "template") => {
+  /** Creates the `FND-009` starter: audible content with no genre attached. */
+  const createProject = async () => {
     const id = userId();
     if (!id || creating()) return;
     setCreating(true);
     setCreateError(null);
     try {
       const repository = await getProjectRepository();
-      const project =
-        source === "blank"
-          ? createBlankProject({
-              ownerId: id,
-              name: "Untitled Project",
-              template: "blank",
-            })
-          : createStarterProject(id);
+      const project = createStarterProject(id);
       const result = await repository.createProject(project);
       if (!result.ok) {
         throw new Error(result.message);
       }
-      analytics.log("project_created", { source });
+      analytics.log("project_created", { source: "template" });
       navigate(`/projects/${project.metadata.id}`);
     } catch (error) {
       console.error("Error creating project:", error);
@@ -249,19 +240,10 @@ export default function Dashboard(props: DashboardProps = {}) {
                 type="button"
                 class="new-project"
                 disabled={creating()}
-                onClick={() => void createProject("template")}
+                onClick={() => void createProject()}
               >
                 <HiSolidPlus size={18} />
                 <span>New Project</span>
-              </button>
-              <button
-                type="button"
-                class="blank-project"
-                disabled={creating()}
-                onClick={() => void createProject("blank")}
-              >
-                <HiSolidDocumentText size={18} />
-                <span>Blank Project</span>
               </button>
             </div>
             <Show when={createError()}>
