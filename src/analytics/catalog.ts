@@ -222,6 +222,7 @@ export const NOTE_EDIT_OPERATIONS = [
   "double",
   "clear",
   "vary",
+  "vary_velocity",
   "paste",
   "nudge",
 ] as const;
