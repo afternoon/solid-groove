@@ -16,8 +16,10 @@ import type {
   TransactionResult,
 } from "../commands";
 import type { Project } from "../domain/entities";
+import { createFactoryContext } from "../domain/factories";
 import { createIdFactory, type PlacementId, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import { createClipAt } from "./clipCreation";
 import "../editor/trackDrag.css";
 import TrackHeader from "../editor/TrackHeader";
 import { deleteTrack } from "../editor/trackDeletion";
@@ -681,13 +683,35 @@ export default function ArrangementView(props: ArrangementViewProps) {
    * walk.
    */
   function handleDoubleClick(event: MouseEvent): void {
-    if (!shell || !props.onOpenPlacement) return;
+    if (!shell) return;
     const { x, y } = localPoint(event);
     if (y < 0) return;
     const hit = shell.hitTestAt(x, y);
-    if (hit.kind !== "placement") return;
-    props.onOpenPlacement(hit.placementId);
-    noteFirstUse();
+    if (hit.kind === "placement") {
+      props.onOpenPlacement?.(hit.placementId);
+      noteFirstUse();
+      return;
+    }
+    createClipAtPoint(x, y);
+  }
+
+  /** An empty bar double-clicked gets a new, selected one-bar clip (#661). */
+  function createClipAtPoint(x: number, y: number): void {
+    if (!shell || !props.dispatch) return;
+    const { tick, rowIndex } = shell.pointToArrangement(x, y);
+    const track = projection().tracks[rowIndex];
+    if (!track) return;
+    const created = createClipAt(
+      props.project,
+      createFactoryContext({ ids }),
+      track.id,
+      tick,
+    );
+    if (!created) return;
+    const result = props.dispatch(created.commands);
+    if (result && !result.ok) return;
+    editing?.select(created.placementId);
+    analytics().logFeatureFirstUse("arrangement_create_clip");
   }
 
   /** The part of the loop brace under a ruler x, if any. */
