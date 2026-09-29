@@ -10,6 +10,7 @@
   --pr-row: 30px;
 
   display: flex;
+  flex: 1 0 auto;
   flex-direction: column;
   font-size: var(--font-size-small);
   /* A paint or erase drag must never start a text selection (CLP-02). */
@@ -31,7 +32,10 @@
    names stay put against the left edge. */
 .step-editor-grid {
   display: grid;
+  flex: 1 0 auto;
   grid-template-columns: var(--pr-gutter) max-content;
+  /* The rows take whatever height the dialog has left over the panels. */
+  grid-template-rows: auto minmax(min-content, 1fr) auto;
   width: max-content;
   max-width: 100%;
   overflow-x: auto;
@@ -65,6 +69,14 @@
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* Never fewer than five rows tall, so a kit with a pad or two does not leave
+   the grid a thin strip, yet the dialog still fits a 720px-high screen
+   unscrolled. The room under the last pad is empty ground. */
+.step-rows,
+.step-lanes {
+  min-height: calc(5 * var(--pr-row));
 }
 
 .step-rows {
