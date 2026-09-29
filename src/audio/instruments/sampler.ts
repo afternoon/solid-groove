@@ -13,9 +13,17 @@ import {
   attachAssetVoice,
   clampUnit,
   createAssetVoice,
+  pitchToPlaybackRate,
   releaseAssetVoice,
 } from "./assetVoice";
 import type { InstrumentGraphContext, InstrumentNode, SamplerInstrument } from "./types";
+
+/**
+ * The MIDI note (C4) at which the sampler plays a sample as recorded. A note
+ * above or below it repitches by the difference in semitones, so the sampler is
+ * a tonal instrument; `SAMPLER_PITCH` transposes on top of that.
+ */
+export const SAMPLER_ROOT_NOTE = 60;
 
 /** The sampler's playback + envelope settings, resolved from its parameters. */
 interface SamplerSettings {
@@ -55,6 +63,7 @@ function playSampledVoice(
   time: Tone.Unit.Time,
   duration: Tone.Unit.Time,
   velocity: number,
+  note: number,
 ): void {
   const bufferSeconds = buffer.duration;
   const offset = clampUnit(settings.sampleStart) * bufferSeconds;
@@ -72,7 +81,7 @@ function playSampledVoice(
   // envelope's own shape.
   const gain = new Tone.Gain(velocity).connect(envelope);
   const player = new Tone.Player(buffer).connect(gain);
-  player.playbackRate = 2 ** (settings.pitch / 12);
+  player.playbackRate = pitchToPlaybackRate(note - SAMPLER_ROOT_NOTE + settings.pitch);
 
   // The audible slice is the sample window, but the amp envelope's release
   // tail is what actually ends the voice; hold the player through both.
@@ -106,7 +115,15 @@ export function createSamplerInstrumentNode(
     output,
     trigger(trigger, time, duration, velocity) {
       if (trigger.kind !== "pitch" || !voice.buffer) return;
-      playSampledVoice(voice.buffer, output, settings, time, duration, velocity);
+      playSampledVoice(
+        voice.buffer,
+        output,
+        settings,
+        time,
+        duration,
+        velocity,
+        trigger.pitch,
+      );
     },
     update(next) {
       if (next.kind !== "sampler") return;

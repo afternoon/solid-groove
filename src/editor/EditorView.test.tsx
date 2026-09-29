@@ -14,6 +14,12 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
+import type { Project } from "../domain/entities";
+import {
+  createDrumMachineInstrument,
+  createDrumPad,
+  createFactoryContext,
+} from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
   createPianoRollFixtureProject,
@@ -63,6 +69,39 @@ let repository: InMemoryProjectRepository;
 vi.mock("../projectRepositoryClient", () => ({
   getProjectRepository: () => Promise.resolve(repository),
 }));
+
+/**
+ * The slice fixture as a drum machine: one "BD" pad on the kick sample, the
+ * four-on-the-floor clip re-pointed at that pad. A sampler note clip opens the
+ * piano roll (#496), so the step grid is only reachable through a drum machine.
+ */
+function createStepGridProject(): Project {
+  const project = createSliceFixtureProject();
+  const [track] = project.song.tracks;
+  const [asset] = project.song.assets;
+  const pad = createDrumPad(createFactoryContext(), { name: "BD", assetId: asset.id });
+  return {
+    ...project,
+    song: {
+      ...project.song,
+      tracks: [{ ...track, instrument: createDrumMachineInstrument([pad]) }],
+    },
+    clips: project.clips.map((clip) =>
+      clip.content.kind === "notes"
+        ? {
+            ...clip,
+            content: {
+              ...clip.content,
+              events: clip.content.events.map((event) => ({
+                ...event,
+                trigger: { kind: "pad" as const, padId: pad.id },
+              })),
+            },
+          }
+        : clip,
+    ),
+  };
+}
 
 /**
  * Paints or erases one step-editor cell the way a pointer does: `pointerdown`
@@ -260,7 +299,7 @@ describe("EditorView", () => {
 
   it("loads a project and renders its step editor with the saved steps", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
@@ -270,12 +309,9 @@ describe("EditorView", () => {
     expect(
       within(editor).getByRole("region", { name: "Step editor" }),
     ).toBeInTheDocument();
-    // The slice fixture's four-on-the-floor clip: steps 1, 5, 9, 13 on the
-    // single pitched "Notes" lane.
-    expect(screen.getByRole("button", { name: "Notes, step 1, on" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Notes, step 2, off" }),
-    ).toBeInTheDocument();
+    // The four-on-the-floor clip: steps 1, 5, 9, 13 on the "BD" pad lane.
+    expect(screen.getByRole("button", { name: "BD, step 1, on" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "BD, step 2, off" })).toBeInTheDocument();
     // The track name appears in the step-editor's track-info header. (The
     // ARR-001 arrangement shell also lists it in its virtualized headers and
     // accessible track list, so scope this to the track editor.)
@@ -327,6 +363,23 @@ describe("EditorView", () => {
     ).toBeInTheDocument();
     // The step editor is a two-dimensional pitch editor's poor fit, so a
     // synth note clip shows the piano roll instead.
+    expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
+  });
+
+  it("renders the piano roll (not the step grid) for a sampler track's note clip (#496)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    renderEditor(project.metadata.id);
+
+    // A sampler is a tonal instrument, so its clip opens the piano roll like a
+    // synth's; only a drum machine keeps the step grid.
+    const editor = await openSequenceEditor();
+    expect(
+      within(editor).getByRole("region", { name: /Piano roll/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
   });
 
@@ -586,16 +639,16 @@ describe("EditorView", () => {
 
   it("toggling a step enables undo, and undo reverts it", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
     expect(
-      await screen.findByRole("button", { name: "Notes, step 2, on" }),
+      await screen.findByRole("button", { name: "BD, step 2, on" }),
     ).toBeInTheDocument();
 
     const undoButton = await screen.findByRole("button", { name: /^Undo/ });
@@ -603,13 +656,13 @@ describe("EditorView", () => {
     fireEvent.click(undoButton);
 
     expect(
-      await screen.findByRole("button", { name: "Notes, step 2, off" }),
+      await screen.findByRole("button", { name: "BD, step 2, off" }),
     ).toBeInTheDocument();
   });
 
   it("autosaves an edit, and the save status settles to Saved with an advanced revision", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     const startingRevision = project.metadata.revision;
@@ -617,7 +670,7 @@ describe("EditorView", () => {
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
 
     const saveStatus = await screen.findByText("Saved", {}, { timeout: 3_000 });
     expect(
@@ -633,21 +686,21 @@ describe("EditorView", () => {
 
   it("the save status revision keeps advancing across undo, so a stale echo cannot restore the undone note", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
     await screen.findByText("Saved", {}, { timeout: 3_000 });
     const saveStatusEl = document.querySelector(".save-status");
     const revisionAfterAdd = Number(saveStatusEl?.getAttribute("data-revision"));
 
     const undoButton = await screen.findByRole("button", { name: /^Undo/ });
     fireEvent.click(undoButton);
-    await screen.findByRole("button", { name: "Notes, step 2, off" });
+    await screen.findByRole("button", { name: "BD, step 2, off" });
 
     await vi.waitFor(() => {
       const revisionAfterUndo = Number(saveStatusEl?.getAttribute("data-revision"));
@@ -664,7 +717,7 @@ describe("EditorView", () => {
 
   it("shows an actionable Save failed state with an explicit retry, and recovers", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
@@ -672,7 +725,7 @@ describe("EditorView", () => {
     renderEditor(project.metadata.id);
     await openSequenceEditor();
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
 
     await screen.findByText("Save failed", {}, { timeout: 3_000 });
     expect(
@@ -696,7 +749,7 @@ describe("EditorView", () => {
 
   it("does not offer a retry button for a non-retryable failure", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
 
@@ -717,7 +770,7 @@ describe("EditorView", () => {
       revision: (stored.revision as number) + 1,
     });
 
-    paintStep("Notes, step 2, off");
+    paintStep("BD, step 2, off");
 
     await screen.findByText("Save failed", {}, { timeout: 3_000 });
     expect(
@@ -1152,9 +1205,8 @@ describe("EditorView track selection keys (#533)", () => {
 });
 
 describe("EditorView keyboard shortcuts", () => {
-  async function renderSlice() {
+  async function renderSlice(project: Project = createStepGridProject()) {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     renderEditor(project.metadata.id);
@@ -1165,13 +1217,13 @@ describe("EditorView keyboard shortcuts", () => {
   it("undoes an edit from the keyboard, through the same command path as the button", async () => {
     await renderSlice();
 
-    paintStep("Notes, step 2, off");
-    await screen.findByRole("button", { name: "Notes, step 2, on" });
+    paintStep("BD, step 2, off");
+    await screen.findByRole("button", { name: "BD, step 2, on" });
 
     fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
     expect(
-      await screen.findByRole("button", { name: "Notes, step 2, off" }),
+      await screen.findByRole("button", { name: "BD, step 2, off" }),
     ).toBeInTheDocument();
   });
 
@@ -1182,7 +1234,7 @@ describe("EditorView keyboard shortcuts", () => {
     fireEvent.keyDown(window, { key: "z", ctrlKey: true });
 
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Notes, step 1, on" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "BD, step 1, on" })).toBeInTheDocument();
   });
 
   it("does not fire a shortcut typed into a text field", async () => {
@@ -1233,7 +1285,8 @@ describe("EditorView keyboard shortcuts", () => {
   });
 
   it("does not toggle playback while the pack browser is open, and Escape closes it", async () => {
-    await renderSlice();
+    // The library opens from the sampler's sample slot.
+    await renderSlice(createSliceFixtureProject());
 
     // The pack browser is a modal surface like the guide, so it takes the
     // keyboard the same way (PRD KEY-02). It opens from the library, which
@@ -1575,7 +1628,7 @@ function firePointerAtStarterClip(canvas: Element, type: string): void {
 describe("EditorView sequence editor", () => {
   async function renderSlice() {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     return { ...renderEditor(project.metadata.id), project };
@@ -1593,9 +1646,7 @@ describe("EditorView sequence editor", () => {
     await renderSlice();
     const editor = await openSequenceEditor();
 
-    expect(
-      within(editor).getByRole("button", { name: "Notes, step 1, on" }),
-    ).toBeVisible();
+    expect(within(editor).getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -1644,7 +1695,7 @@ describe("EditorView sequence editor", () => {
 describe("EditorView views", () => {
   async function renderViews(analytics?: Analytics) {
     repository = inMemoryModule.createInMemoryProjectRepository();
-    const project = createSliceFixtureProject();
+    const project = createStepGridProject();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
     const rendered = renderEditor(project.metadata.id, { analytics });
@@ -1748,8 +1799,8 @@ describe("EditorView views", () => {
     // what "switching views never rebuilds audio nodes or loses transport
     // position" rests on, since the audio graph has the same lifetime.
     await openSequenceEditor();
-    paintStep("Notes, step 2, off");
-    await screen.findByRole("button", { name: "Notes, step 2, on" });
+    paintStep("BD, step 2, off");
+    await screen.findByRole("button", { name: "BD, step 2, on" });
     const undoBefore = screen.getByRole("button", { name: /^Undo / });
 
     clickAndFlush(viewLink("Mixer"));
