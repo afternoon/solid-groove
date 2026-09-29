@@ -99,6 +99,37 @@ describe("track mixer audio graph (LOOP-007 / TRK-02)", () => {
     await runtime.close();
   });
 
+  it("a track edited while solo-silenced comes back audible when solo ends", async () => {
+    const base = createReferenceProject({
+      trackCount: 3,
+      placementCount: 3,
+      automationLaneCount: 0,
+    });
+    const [a, , c] = base.song.tracks;
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport: fakeTransport(),
+    });
+
+    let project = setFlags(base, a.id, { soloed: true });
+    graph.reconcile(buildAudioProjection(project));
+    // c is silenced by a's solo; a gain edit lands on it in that state.
+    project = setFlags(project, c.id, { volume: -6 });
+    graph.reconcile(buildAudioProjection(project));
+    project = setFlags(project, a.id, { soloed: false });
+    graph.reconcile(buildAudioProjection(project));
+
+    const track = graph.trackGraphs.get(c.id);
+    expect(track?.isMuted).toBe(false);
+    // The signal path itself is open, not just the flag: neither the mute
+    // stage nor the fader may be left at silence.
+    expect(track?.["muteGain"].gain.value).toBe(1);
+    expect(track?.["panVol"].volume.value).toBeCloseTo(-6);
+
+    await graph.dispose();
+    await runtime.close();
+  });
+
   it("multiple soloed tracks play together; unsoloed tracks are silenced", async () => {
     const base = createReferenceProject({
       trackCount: 3,

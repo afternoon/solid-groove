@@ -67,6 +67,9 @@ export class TrackAudioGraph {
   private lastInstrumentRef: AudioTrackProjection["instrument"] | null = null;
   private readonly sends = new Map<ReturnId, TrackedSend>();
   private lastProjection: AudioTrackProjection | null = null;
+  private readonly muteGain: Tone.Gain;
+  private readonly muteGainHandle: ReturnType<AudioProjectScope["register"]>;
+  private muted = false;
   private disposed = false;
 
   constructor(
@@ -102,7 +105,16 @@ export class TrackAudioGraph {
     this.peakTapHandle = context.scope.register("node", () => {
       this.peakTap.dispose();
     });
-    this.deviceChain.output.connect(this.panVol.input);
+    // Mute is its own gain stage, not `PanVol.mute`: Tone's mute stashes the
+    // fader value and restores it on unmute, so a volume ramp that lands while
+    // the strip is muted (an edit made under another track's solo) corrupts
+    // the stash and the track comes back silent.
+    this.muteGain = new Tone.Gain(1);
+    this.muteGainHandle = context.scope.register("node", () => {
+      this.muteGain.dispose();
+    });
+    this.deviceChain.output.connect(this.muteGain);
+    this.muteGain.connect(this.panVol.input);
     this.panVol.connect(destination);
     this.panVol.connect(this.meter);
     this.panVol.connect(this.peakTap);
@@ -132,7 +144,7 @@ export class TrackAudioGraph {
    * value is set by {@link reconcile}'s `effectiveMuted` argument.
    */
   get isMuted(): boolean {
-    return this.panVol.mute;
+    return this.muted;
   }
 
   /** The live node for one of this track's devices, for a panel readout (gain
@@ -184,7 +196,8 @@ export class TrackAudioGraph {
     } else if (reapplyDevices) {
       this.deviceChain.reconcile(next.devices, true);
     }
-    this.panVol.mute = effectiveMuted;
+    this.muted = effectiveMuted;
+    this.muteGain.gain.value = effectiveMuted ? 0 : 1;
   }
 
   /** Triggers this track's instrument, if it has one. A no-op for `audio` tracks (no instrument) or while nothing is loaded yet. */
@@ -285,6 +298,7 @@ export class TrackAudioGraph {
     }
     this.sends.clear();
     this.deviceChain.dispose();
+    void this.context.scope.release(this.muteGainHandle);
     void this.context.scope.release(this.panVolHandle);
     void this.context.scope.release(this.meterHandle);
     void this.context.scope.release(this.peakTapHandle);
