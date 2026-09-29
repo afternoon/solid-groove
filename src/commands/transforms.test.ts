@@ -438,6 +438,49 @@ describe("musical transformations (CLP-04)", () => {
       );
     });
 
+    it("varies only timing, or only velocity, when targeted (#653)", () => {
+      const before = eventsOf(fixture.project, fixture.clipAId);
+      const vary = (target: "timing" | "velocity") =>
+        eventsOf(
+          apply(
+            fixture.project,
+            varyNotes(fixture.clipAId, null, { ...options, target }),
+          ),
+          fixture.clipAId,
+        );
+      const timing = vary("timing");
+      expect(timing.map((event) => event.velocity)).toEqual(
+        before.map((event) => event.velocity),
+      );
+      expect(timing.map((event) => event.startTicks)).not.toEqual(
+        before.map((event) => event.startTicks),
+      );
+      const velocity = vary("velocity");
+      expect(velocity.map((event) => event.startTicks)).toEqual(
+        before.map((event) => event.startTicks),
+      );
+      velocity.forEach((event, index) => {
+        expect(Math.abs(event.velocity - before[index].velocity)).toBeLessThanOrEqual(
+          before[index].velocity * 0.2 + 1e-9,
+        );
+      });
+      expect(velocity).not.toEqual(before);
+    });
+
+    it("varies both without a target, exactly as before targets", () => {
+      const both = apply(
+        fixture.project,
+        varyNotes(fixture.clipAId, null, { ...options, target: "both" }),
+      );
+      const untargeted = apply(
+        fixture.project,
+        varyNotes(fixture.clipAId, null, options),
+      );
+      expect(eventsOf(both, fixture.clipAId)).toEqual(
+        eventsOf(untargeted, fixture.clipAId),
+      );
+    });
+
     it("keeps every note inside its clip", () => {
       const next = apply(
         fixture.project,

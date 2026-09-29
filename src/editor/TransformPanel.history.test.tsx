@@ -19,36 +19,34 @@ afterEach(() => cleanup());
  * OPS-02 events. What each transformation computes has its own suite
  * (`TransformPanel.test.tsx`).
  */
-describe("TransformPanel determinism", () => {
-  it("produces the same variation for the same seed", async () => {
-    const first = await setUp();
-    first.renderPanel([]);
-    clickTransform("Vary");
-    const a = rhythmOf(first.session);
-    cleanup();
-
-    const second = await setUp();
-    second.renderPanel([]);
-    clickTransform("Vary");
-
-    // Same seed, same variation — this is what makes the command previewable
-    // by the assistant and reproducible on redo.
-    expect(rhythmOf(second.session)).toEqual(a);
-  });
-
-  it("produces a different variation for a different seed", async () => {
-    const baseline = await setUp();
-    baseline.renderPanel([]);
-    clickTransform("Vary");
-    const defaultSeed = rhythmOf(baseline.session);
-    cleanup();
-
+describe("TransformPanel randomness (#653)", () => {
+  it("varies velocity differently on each press", async () => {
     const { session, renderPanel } = await setUp();
     renderPanel([]);
-    setOption("Vary seed", "another-seed");
-    clickTransform("Vary");
+    const velocities = () => currentNotes(session).map((event) => event.velocity);
 
-    expect(rhythmOf(session)).not.toEqual(defaultSeed);
+    clickTransform("Vary velocity");
+    const first = velocities();
+    session.undo();
+    flush();
+    clickTransform("Vary velocity");
+
+    expect(velocities()).not.toEqual(first);
+  });
+
+  it("varies timing without touching velocity, and velocity without touching timing", async () => {
+    const { session, renderPanel } = await setUp();
+    renderPanel([]);
+    const velocities = () => currentNotes(session).map((event) => event.velocity);
+    const starts = () => rhythmOf(session).map(([start]) => start);
+    const before = { starts: starts(), velocities: velocities() };
+
+    clickTransform("Vary timing");
+    expect(velocities()).toEqual(before.velocities);
+    session.undo();
+    flush();
+    clickTransform("Vary velocity");
+    expect(starts()).toEqual(before.starts);
   });
 });
 
@@ -93,7 +91,7 @@ describe("TransformPanel history", () => {
     const { session, renderPanel } = await setUp();
     renderPanel([]);
 
-    clickTransform("Vary");
+    clickTransform("Vary timing");
     const applied = rhythmOf(session);
 
     session.undo();
@@ -174,6 +172,20 @@ describe("TransformPanel analytics", () => {
 
     expect(pitches(session)).toEqual(before.map((pitch) => pitch + 12));
     expect(transport.events).toHaveLength(0);
+  });
+
+  it("varies velocity the same way with analytics off, logging one clip_edited when on", async () => {
+    for (const analyticsEnabled of [true, false]) {
+      cleanup();
+      const { session, transport, renderPanel } = await setUp({ analyticsEnabled });
+      const starts = rhythmOf(session).map(([start]) => start);
+      renderPanel([]);
+
+      clickTransform("Vary velocity");
+
+      expect(rhythmOf(session).map(([start]) => start)).toEqual(starts);
+      expect(clipEdited(transport)).toHaveLength(analyticsEnabled ? 1 : 0);
+    }
   });
 
   it("doubles the same with analytics on or off, logging one clip_edited when on", async () => {
