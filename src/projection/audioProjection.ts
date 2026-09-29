@@ -146,6 +146,8 @@ export interface AudioSongProjection {
   /** The project's own revision counter — the real, stored "song" granularity. */
   readonly revision: number;
   readonly tempo: number;
+  /** MPC-style swing, 50-75 (%); applied by scheduling, never to stored notes. */
+  readonly swing: number;
   readonly timeSignature: Readonly<{ numerator: number; denominator: number }>;
   readonly master: AudioMasterProjection;
   readonly returns: readonly AudioReturnProjection[];
@@ -497,6 +499,7 @@ export function buildAudioProjection(
   return {
     revision: project.metadata.revision,
     tempo: project.song.tempo,
+    swing: project.song.swing,
     timeSignature: project.song.timeSignature,
     master,
     returns,

@@ -74,6 +74,21 @@ export function audioLoopDurationSeconds(
   return ticksToSeconds(loop.durationTicks, tempo);
 }
 
+/** Swing grid: the 1/16 note, and the 1/8 pair (two of them) it swings within. */
+const SWING_GRID_TICKS = 48;
+const SWING_PAIR_TICKS = SWING_GRID_TICKS * 2;
+
+/**
+ * MPC-style swing delay for a note at `songTicks`, in ticks (#500). The
+ * amount is the percentage of each 1/8 pair the first 1/16 takes, so the
+ * off-16th (tick % 96 == 48) lands `(amount - 50)% * 96` ticks late and
+ * every other position stays put. Playback only — stored notes never move.
+ */
+export function swingDelayTicks(songTicks: number, swing: number): number {
+  if (songTicks % SWING_PAIR_TICKS !== SWING_GRID_TICKS) return 0;
+  return Math.round(((swing - 50) / 100) * SWING_PAIR_TICKS);
+}
+
 export interface PlacementSchedule {
   readonly notes: readonly ScheduledNote[];
   readonly audioLoops: readonly ScheduledAudioLoop[];
@@ -87,6 +102,7 @@ export function computePlacementSchedule(
   placement: AudioPlacementProjection,
   clip: AudioClipProjection,
   tempo: number,
+  swing = 50,
 ): PlacementSchedule {
   const notes: ScheduledNote[] = [];
   const audioLoops: ScheduledAudioLoop[] = [];
@@ -113,9 +129,10 @@ export function computePlacementSchedule(
           continue;
         }
         const remaining = placement.durationTicks - startInPlacement;
+        const songTicks = placement.startTicks + startInPlacement;
         notes.push({
           trackId: placement.trackId,
-          absoluteTicks: toTicks(placement.startTicks + startInPlacement),
+          absoluteTicks: toTicks(songTicks + swingDelayTicks(songTicks, swing)),
           durationTicks: toTicks(Math.min(event.durationTicks, remaining)),
           trigger: event.trigger,
           velocity: event.velocity,

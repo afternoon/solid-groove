@@ -10,6 +10,7 @@ import {
   audioLoopDurationSeconds,
   audioLoopOffsetSeconds,
   computePlacementSchedule,
+  swingDelayTicks,
   ticksToToneTime,
 } from "./scheduling";
 
@@ -355,5 +356,86 @@ describe("ticksToToneTime", () => {
   it("rounds and clamps to a non-negative integer", () => {
     expect(ticksToToneTime(3.6)).toBe("4i");
     expect(ticksToToneTime(-5)).toBe("0i");
+  });
+});
+
+describe("swing (#500)", () => {
+  const offbeats = [48, 144, 240, 336].map((t) => note(t, 24));
+  const straight = [0, 96, 192, 288].map((t) => note(t, 24));
+  const ticksOf = (schedule: ReturnType<typeof computePlacementSchedule>) =>
+    schedule.notes.map((n) => n.absoluteTicks);
+
+  it("moves nothing at 50%", () => {
+    const clip = notesClip([...straight, ...offbeats]);
+    expect(ticksOf(computePlacementSchedule(placement(), clip, 120, 50))).toEqual([
+      0, 96, 192, 288, 48, 144, 240, 336,
+    ]);
+  });
+
+  it("delays only off-16th notes: +24 at 75% and +16 at about 66.7%", () => {
+    const clip = notesClip([...straight, ...offbeats]);
+    const at75 = ticksOf(computePlacementSchedule(placement(), clip, 120, 75));
+    expect(at75).toEqual([0, 96, 192, 288, 72, 168, 264, 360]);
+    const at67 = ticksOf(computePlacementSchedule(placement(), clip, 120, 200 / 3));
+    expect(at67).toEqual([0, 96, 192, 288, 64, 160, 256, 352]);
+  });
+
+  it("does not swing notes off the 1/16 grid or on the on-16ths", () => {
+    const clip = notesClip([note(24, 12), note(72, 12), note(192 + 48 - 1, 12)]);
+    expect(ticksOf(computePlacementSchedule(placement(), clip, 120, 75))).toEqual([
+      24, 72, 239,
+    ]);
+  });
+
+  it("uses song time, so a placement off the 96-tick pair swings by where the note lands", () => {
+    // Placement starts 48 ticks in: a clip note at tick 0 lands on song tick 48.
+    const clip = notesClip([note(0, 24), note(48, 24)]);
+    const schedule = computePlacementSchedule(
+      placement({ startTicks: toTicks(48), durationTicks: toTicks(96) }),
+      clip,
+      120,
+      75,
+    );
+    expect(ticksOf(schedule)).toEqual([72, 96]);
+  });
+
+  it("holds for looped and trimmed clips", () => {
+    const clip = notesClip([note(48, 24)], 192);
+    const looped = computePlacementSchedule(
+      placement({ looped: true, durationTicks: toTicks(576) }),
+      clip,
+      120,
+      75,
+    );
+    expect(ticksOf(looped)).toEqual([72, 264, 456]);
+    const trimmed = computePlacementSchedule(
+      placement({
+        looped: true,
+        durationTicks: toTicks(384),
+        clipOffsetTicks: toTicks(96),
+      }),
+      clip,
+      120,
+      75,
+    );
+    // Trim by 96: repeat 0's note is cut; repeats land at song ticks 144 and 336.
+    expect(ticksOf(trimmed)).toEqual([168, 360]);
+  });
+
+  it("does not move audio-loop events", () => {
+    const schedule = computePlacementSchedule(
+      placement({ startTicks: toTicks(48), durationTicks: toTicks(192) }),
+      audioLoopClip(120, 192),
+      120,
+      75,
+    );
+    expect(schedule.audioLoops.map((l) => l.absoluteTicks)).toEqual([48]);
+  });
+
+  it("swingDelayTicks rounds to whole ticks", () => {
+    expect(swingDelayTicks(48, 50)).toBe(0);
+    expect(swingDelayTicks(48, 75)).toBe(24);
+    expect(swingDelayTicks(48, 60)).toBe(10);
+    expect(swingDelayTicks(96, 75)).toBe(0);
   });
 });
