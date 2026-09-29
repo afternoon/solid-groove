@@ -15,3 +15,41 @@
   min-height: 0;
   overflow: auto;
 }
+
+/* The piano roll takes every pixel the dialog has (ARR-010): the roll itself
+   scrolls, so the body does not, and the Key and Transform panels sit side by
+   side under it. */
+.sequence-editor-body.with-roll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.track-clip-editor.with-roll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.track-clip-editor.with-roll .pr-scroller {
+  min-height: 120px;
+}
+
+.roll-panels {
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 28px;
+}
+
+.track-clip-editor > .transform-panel {
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .roll-panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

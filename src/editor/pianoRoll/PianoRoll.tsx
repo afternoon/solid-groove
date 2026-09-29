@@ -124,6 +124,22 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
     },
   );
 
+  // A new key lays the roll out again, so the selection made against the old
+  // rows is let go: with nothing selected, the Transform panel acts on the
+  // whole clip, which is what a producer who has just chosen a key reaches
+  // Quantize to scale for (CF-018).
+  // A memo, so an edit that leaves the key alone does not count as a change.
+  const keyName = createMemo(
+    () => `${props.project.song.key.root}:${props.project.song.key.scale}`,
+  );
+  createEffect(
+    () => keyName(),
+    () => {
+      setSelection(new Set<EventId>());
+    },
+    { defer: true },
+  );
+
   function logClipEdited(count: number): void {
     analytics().log("clip_edited", {
       editor: "piano_roll",
