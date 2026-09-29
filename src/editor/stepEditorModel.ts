@@ -92,9 +92,9 @@ export function triggersMatch(a: NoteTrigger, b: NoteTrigger): boolean {
  *
  * - A `drumMachine` instrument yields one named lane per pad, top pad first, so
  *   hits can be painted across multiple lanes (CLP-02).
- * - Any other instrument (sampler, or none) yields a single pitched lane. The
- *   pitch matches the `FND-009` slice's kick so an existing slice clip keeps its
- *   notes on the one lane.
+ * - Any other instrument yields a single pitched lane. A sampler or synth
+ *   note clip opens the piano roll instead (#496), so this is only the fallback
+ *   for a track with no instrument; the pitch keeps a legacy kick on one lane.
  */
 export const SAMPLER_LANE_PITCH = 36;
 

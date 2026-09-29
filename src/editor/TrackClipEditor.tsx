@@ -72,8 +72,8 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
         {(clip) => (
           <>
             {/*
-             * A synth track's note clip gets the CLP-03 piano roll; everything
-             * else stays on LOOP-010's CLP-02 step editor. Pitched notes want
+             * A synth or sampler track's note clip gets the CLP-03 piano roll;
+             * a drum machine stays on LOOP-010's CLP-02 step editor. Pitched notes want
              * two dimensions (pitch x time), which a one-row-per-step grid
              * cannot show.
              */}

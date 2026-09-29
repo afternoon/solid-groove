@@ -5,6 +5,7 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
   onSettled,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
@@ -36,7 +37,6 @@ import {
   pointerModifierHeld,
   suppressModifierDefault,
 } from "../shortcuts/pointerGestures";
-import { ArrangementToolbar } from "./ArrangementToolbar";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
 import {
   createArrangementWaveformCache,
@@ -44,8 +44,8 @@ import {
   RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import { clipClickGesture } from "./clipClickGesture";
-import type { RowMetrics, Viewport } from "./geometry";
-import { LoopBraceControls } from "./LoopBraceControls";
+import { type RowMetrics, ticksToPixels, type Viewport } from "./geometry";
+import { LoopBraceFocus } from "./LoopBraceFocus";
 import {
   createLoopBraceDrag,
   describeLoopBars,
@@ -60,14 +60,19 @@ import {
 import { type ArrangementProjection, buildArrangementProjection } from "./projection";
 import { describeArrangementSelection } from "./selectionAnnouncement";
 import { useArrangementCanvas } from "./useArrangementCanvas";
+import { ZoomControls } from "./ZoomControls";
 import "./ArrangementView.css";
 
 /** The placement-editing operations `EditorView` wires into the KEY-01
- * registry and a duplicate-mode toolbar, mirroring `PianoRollActions`, plus
- * zoom to selection for the `Z` mapping (`view.zoom_to_selection`). */
+ * registry, mirroring `PianoRollActions`, plus the zoom actions: zoom to
+ * selection for `Z` (`view.zoom_to_selection`), to arrangement, in and out. */
 export type PlacementEditingActions = PlacementEditing & {
   zoomToSelection(): void;
   canZoomToSelection(): boolean;
+  zoomToArrangement(): void;
+  zoomIn(): void;
+  zoomOut(): void;
+  scrollToPlayhead(): void;
 };
 
 /**
@@ -87,7 +92,7 @@ export type PlacementEditingActions = PlacementEditing & {
  * - a transport-driven playhead that follows during playback, and the one
  *   arrangement selection (#292): a point, or whole clips a click or a drag
  *   band selected;
- * - named DOM actions (zoom in/out, zoom to selection, scroll to playhead) and
+ * - a floating zoom group (to arrangement, to selection, in, out) and
  *   an accessible, virtualized track/selection list, so canvas pixels are never
  *   the sole representation of state (PRD 9.3 accessibility).
  *
@@ -204,12 +209,11 @@ export interface ArrangementViewProps {
    */
   readonly belowTracks?: JSX.Element;
   /**
-   * Commits a loop range the keyboard controls asked for (`LOOP-018`). The
-   * editor owns what committing means (`loopActions.setLoopRangeFromDrag`);
-   * without it the brace is still drawn and still dragged, and the keyboard
-   * controls are left out.
+   * Reports whether the ruler's loop brace has keyboard focus (`LOOP-018`).
+   * The brace's keys are registry mappings, so the editor needs to know when to
+   * turn their context on. Without it the brace has no keyboard twin.
    */
-  readonly onSetLoopRange?: (startTicks: number, endTicks: number) => void;
+  readonly onLoopBraceFocusChange?: (focused: boolean) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -442,6 +446,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
         ...editing,
         zoomToSelection,
         canZoomToSelection: () => canZoomToSelection(),
+        zoomToArrangement,
+        zoomIn,
+        zoomOut,
+        scrollToPlayhead,
       });
     }
 
@@ -825,6 +833,14 @@ export default function ArrangementView(props: ArrangementViewProps) {
     bumpState();
     noteFirstUse();
   }
+  /** Frame the whole song, from its first bar to the end of its last clip. */
+  function zoomToArrangement(): void {
+    shell?.zoomToSpan(0, Math.max(projection().lengthTicks, TICKS_PER_BAR));
+    syncSpacer();
+    syncScrollElToShell();
+    bumpState();
+    noteFirstUse();
+  }
   function scrollToPlayhead(): void {
     shell?.scrollToPlayhead();
     syncScrollElToShell();
@@ -890,6 +906,18 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return shell?.getViewport().scrollTop ?? 0;
   });
 
+  /** Where the loop brace sits on the timeline, in pixels local to it. */
+  const braceBox = createMemo(() => {
+    stateVersion();
+    const viewport = shell?.getViewport() ?? initialViewport();
+    const { startTicks, endTicks } = props.project.song.loop;
+    const left = ticksToPixels(startTicks, viewport) - viewport.scrollLeft;
+    return { leftPx: left, widthPx: ticksToPixels(endTicks - startTicks, viewport) };
+  });
+
+  // A brace that goes away with focus in it must not leave its key context on.
+  onCleanup(() => props.onLoopBraceFocusChange?.(false));
+
   /** What the `aria-live` mirror says about the one selection (#292). */
   const announcement = createMemo(() => {
     stateVersion();
@@ -920,23 +948,6 @@ export default function ArrangementView(props: ArrangementViewProps) {
       data-pixels-per-tick={pixelsPerTick()}
       {...VERTICAL_SCALE}
     >
-      <ArrangementToolbar
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onZoomToSelection={zoomToSelection}
-        onScrollToPlayhead={scrollToPlayhead}
-        hasSelection={canZoomToSelection()}
-      >
-        <Show when={props.onSetLoopRange}>
-          {(onSetLoopRange) => (
-            <LoopBraceControls
-              loop={props.project.song.loop}
-              onSetRange={onSetLoopRange()}
-              describedBy={loopMirrorId}
-            />
-          )}
-        </Show>
-      </ArrangementToolbar>
       <div class="arrangement-body">
         <div
           class="arrangement-headers"
@@ -1029,6 +1040,25 @@ export default function ArrangementView(props: ArrangementViewProps) {
             />
           </div>
         </div>
+        <ZoomControls
+          onZoomToArrangement={zoomToArrangement}
+          onZoomToSelection={zoomToSelection}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          hasSelection={canZoomToSelection()}
+        />
+        <Show when={props.onLoopBraceFocusChange}>
+          {(onFocusChange) => (
+            <LoopBraceFocus
+              loop={props.project.song.loop}
+              leftPx={braceBox().leftPx}
+              widthPx={braceBox().widthPx}
+              insetPx={HEADER_WIDTH_PX}
+              describedBy={loopMirrorId}
+              onFocusChange={onFocusChange()}
+            />
+          )}
+        </Show>
         {/* Outside the "Tracks" list on purpose: it is not a track, and
             counting it as one would make the list longer than the song. It
             sits over the timeline rather than in the header column, because
