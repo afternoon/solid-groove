@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project } from "../domain/entities";
 import {
   createPianoRollFixtureProject,
@@ -80,6 +80,15 @@ describe("openOfflineSession", () => {
     await session.release();
     await session.release();
     expect(registry.isEmpty()).toBe(true);
+  });
+
+  it("disposes a voice still waiting on the render when it is released", async () => {
+    const { session } = open(createSliceFixtureProject());
+    const dispose = vi.fn();
+    const { disposeFinishedVoice } = await import("./instruments/assetVoice");
+    disposeFinishedVoice({ context: session.context }, dispose, 60);
+    await session.release();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it("prepares only once every asset has decoded", async () => {

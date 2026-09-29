@@ -1,4 +1,4 @@
-import * as Tone from "tone";
+import type * as Tone from "tone";
 import type { ErrorCode } from "../analytics/errorCodes";
 import type {
   AudioAssetProjection,
@@ -10,7 +10,8 @@ import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
 import type { DeviceNode, DeviceNodeFactory } from "./DeviceChain";
 import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
-import { withGlobalContext } from "./offlineClock";
+import { disposeVoicesFinishedBy } from "./instruments/assetVoice";
+import { createOfflineContext, withGlobalContext } from "./offlineClock";
 import { type AudioTransport, ProjectAudioGraph } from "./ProjectAudioGraph";
 import { ResourceRegistry } from "./resourceRegistry";
 import { toneBufferLoader } from "./toneBufferLoader";
@@ -88,12 +89,8 @@ export function openOfflineSession(
   const frames = Math.ceil(options.durationSeconds * sampleRate);
   let context: Tone.OfflineContext;
   try {
-    // Half a frame over, so the length Web Audio truncates to is `frames`.
-    context = new Tone.OfflineContext(
-      RENDER_CHANNELS,
-      (frames + 0.5) / sampleRate,
-      sampleRate,
-    );
+    // Native where it can be, so the render can run in step with its clock.
+    context = createOfflineContext(RENDER_CHANNELS, frames, sampleRate);
   } catch (error) {
     throw new OfflineRenderError("not_supported", "Offline rendering is unavailable", {
       cause: error,
@@ -162,6 +159,7 @@ export function openOfflineSession(
     async release() {
       if (released) return;
       released = true;
+      disposeVoicesFinishedBy(context, Number.POSITIVE_INFINITY);
       await graph?.dispose();
       await registry.disposeOwner(OFFLINE_OWNER);
       context.transport.stop();
