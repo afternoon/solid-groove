@@ -20,10 +20,15 @@ export const LIFTING_CLASS = "drag-lifting";
 
 /**
  * Lift `source`: a copy at its exact box, following the pointer from where it
- * was pressed. The copy sits beside `source` so the list's own styles still
- * reach it, is fixed and pointer-transparent so it never changes a layout or
- * receives an event, and carries none of the original's identity — no ids and
- * no `data-track-drag`, so a list never measures it as one of its items.
+ * was pressed. The copy is fixed and pointer-transparent so it never changes a
+ * layout or receives an event, and carries none of the original's identity — no
+ * ids and no `data-track-drag`, so a list never measures it as one of its items.
+ *
+ * It is appended to `document.body`, never beside `source`: a `position: fixed`
+ * element resolves against the nearest ancestor with a transform, `will-change`,
+ * `filter` or `contain` (the arrangement's scrolling header column has one), and
+ * inside that it drew offset from the pointer by the ancestor's own position.
+ * Its styles are class-based on the item itself, so they still reach it there.
  */
 export function liftItem(
   source: HTMLElement,
@@ -46,7 +51,7 @@ export function liftItem(
     width: `${box.width}px`,
     height: `${box.height}px`,
   });
-  source.parentElement?.append(copy);
+  document.body.append(copy);
   document.documentElement.classList.add(LIFTING_CLASS);
 
   let disposed = false;
