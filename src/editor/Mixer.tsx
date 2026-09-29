@@ -8,13 +8,7 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import {
-  addTrack,
-  createControlGesture,
-  removeTrack,
-  setParameter,
-  updateTrack,
-} from "../commands";
+import { addTrack, createControlGesture, removeTrack, setParameter } from "../commands";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { duplicateTrack } from "../domain/duplicateTrack";
 import type { Project, Track } from "../domain/entities";
@@ -24,7 +18,6 @@ import type { TrackId } from "../domain/ids";
 import { TRACK_PAN } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { instrumentKindSpec } from "../instrument/instrumentKinds";
-import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import LevelMeter from "./LevelMeter";
 import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
@@ -32,6 +25,7 @@ import MuteSoloToggles from "./MuteSoloToggles";
 import NewTrackButtons from "./NewTrackButtons";
 import TrackColorPicker from "./TrackColorPicker";
 import { type FaderProps, VolumeFader } from "./TrackFaders";
+import TrackNameInput from "./TrackNameInput";
 import type { TrackLevel } from "./trackLevels";
 import "./trackDrag.css";
 import {
@@ -413,21 +407,10 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
         <label class="visually-hidden" for={`track-name-${props.track.id}`}>
           Track name
         </label>
-        {/* The track's name, typed here (ADR 0002 decision 2). The rest of the
-				    strip stays visible — that is the mixing replay exists to observe. */}
-        <input
-          id={`track-name-${props.track.id}`}
-          class={`mixer-strip-name ${MASK_CONTENT}`}
-          type="text"
-          value={props.track.name}
-          onChange={(event) => {
-            const name = event.currentTarget.value.trim();
-            if (name && name !== props.track.name) {
-              props.dispatch(updateTrack(props.track.id, { name }));
-            } else {
-              event.currentTarget.value = props.track.name;
-            }
-          }}
+        <TrackNameInput
+          track={props.track}
+          dispatch={props.dispatch}
+          class="mixer-strip-name"
         />
         {/* Selecting a track is this one control, reading the track's kind,
 				    rather than a click anywhere on the strip: a container handler has
