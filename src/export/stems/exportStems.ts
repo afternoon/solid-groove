@@ -1,3 +1,5 @@
+import type { Analytics } from "../../analytics/analytics";
+import { bucketOf } from "../../analytics/buckets";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import {
   OfflineRenderError,
@@ -6,6 +8,7 @@ import {
 } from "../../audio/offlineRenderer";
 import { MAX_TAIL_SECONDS, songEndSeconds } from "../../audio/renderLength";
 import type { Project } from "../../domain/entities";
+import { type Clock, systemClock } from "../../shared/clock";
 import { encodePcm, WAV_HEADER_BYTES } from "../wav";
 import {
   buildStemArchive,
@@ -59,6 +62,9 @@ export interface StemExportOptions {
   readonly signal?: AbortSignal;
   /** Monotonic 0..1 progress across the whole export. */
   readonly onProgress?: (fraction: number) => void;
+  /** Where the export's events go. Nothing about the export depends on it. */
+  readonly analytics?: Pick<Analytics, "log" | "logFeatureFirstUse">;
+  readonly clock?: Clock;
   /** How far past the song a tail may ring; see `MAX_TAIL_SECONDS`. */
   readonly maxTailSeconds?: number;
   /** The largest archive the export may produce; {@link MAX_STEM_EXPORT_BYTES}
@@ -94,11 +100,20 @@ export async function exportStems(
   project: Project,
   options: StemExportOptions,
 ): Promise<StemArchive> {
-  const { sampleRate, signal } = options;
+  const { sampleRate, signal, analytics } = options;
+  const clock = options.clock ?? systemClock;
   const render = options.render ?? renderProjectOffline;
+  const started = clock.now();
   const plan = planStems(project);
   const mix = plan[plan.length - 1].projection;
   const songSeconds = songEndSeconds(mix);
+
+  analytics?.logFeatureFirstUse("export_stems");
+  analytics?.log("export_started", {
+    export_type: "stems",
+    duration_bucket: bucketOf("musical_duration", songSeconds),
+    track_count_bucket: bucketOf("track_count", project.song.tracks.length),
+  });
 
   let progress = 0;
   const report = (fraction: number) => {
@@ -150,9 +165,19 @@ export async function exportStems(
       timeSignature: mix.timeSignature,
     });
     report(1);
+    analytics?.log("export_completed", {
+      export_type: "stems",
+      elapsed_ms_bucket: bucketOf("elapsed_ms", clock.now() - started),
+    });
     return archive;
   } catch (error) {
-    throw asStemExportError(error, signal);
+    const failure = asStemExportError(error, signal);
+    analytics?.log("export_failed", {
+      export_type: "stems",
+      error_code: failure.code,
+      was_cancelled: failure.cancelled,
+    });
+    throw failure;
   }
 }
 
