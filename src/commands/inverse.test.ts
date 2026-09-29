@@ -47,6 +47,7 @@ import {
   resetDevice,
   scaleNoteVelocity,
   setDeviceBypass,
+  setKey,
   setLoopEnabled,
   setLoopRange,
   setPadAsset,
@@ -256,6 +257,11 @@ const cases: InverseCase[] = [
     type: "loop.setEnabled",
     // The fixture starts from the new-project default, looping on.
     build: () => setLoopEnabled(false),
+  },
+  {
+    type: "key.set",
+    // The fixture starts chromatic, the new-project default.
+    build: () => setKey({ root: 9, scale: "minor" }),
   },
   {
     type: "drum.setPadAsset",

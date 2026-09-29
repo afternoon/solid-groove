@@ -16,6 +16,7 @@ export * from "./entities";
 export * from "./factories";
 export * from "./fixtures";
 export * from "./ids";
+export * from "./musicalKey";
 export * from "./packs";
 export * from "./parameters";
 export * from "./parse";
