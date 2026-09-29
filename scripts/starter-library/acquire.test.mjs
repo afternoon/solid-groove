@@ -105,6 +105,13 @@ describe("source registry", () => {
     expect(licenseRejectionReason(licenseId)).toMatch(expected);
   });
 
+  it("accepts royalty-free only when the licence explicitly grants redistribution", () => {
+    expect(licenseRejectionReason("royalty-free-redistributable")).toBeNull();
+    expect(licenseRejectionReason("royalty-free")).toMatch(
+      /explicitly grants redistribution/,
+    );
+  });
+
   it("rejects an unrecognized licence rather than assuming it is fine", () => {
     expect(licenseRejectionReason("MIT-but-for-audio")).toMatch(
       /not an approved licence/,

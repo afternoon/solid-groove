@@ -56,18 +56,23 @@ For example:
 
 None of those standard licences permits bundling in Solid Groove. They may be revisited only through a separate OEM, partnership, or direct-licensing agreement.
 
+A royalty-free licence is not rejected for being royalty-free. It is rejected because of what it forbids, so a royalty-free pack whose licence text explicitly permits redistributing the raw samples is acceptable (section 3.2).
+
 ### 3.2 Accepted rights for the alpha
 
 An asset may be bundled only when one of these applies:
 
 - It is released under CC0 1.0 by a credible rights holder with recorded provenance.
 - Solid Groove created it entirely from sources it owns or that independently satisfy this policy.
+- It is released under a royalty-free licence whose own text explicitly permits redistributing the raw sample files (for example, inclusion in software, sample libraries, or products that pass the sounds on to their users), requires no attribution, and is granted by the person who made the recordings. The exact granting sentence is quoted in the pack's licence evidence, and the licence identifier is `royalty-free-redistributable`. A licence that permits "use in your music" but is silent on redistribution does not qualify.
 - A commissioned creator signed an agreement explicitly allowing commercial raw-sample redistribution inside a DAW, user audition and manipulation, project collaboration, WAV/stem export, native-project export, caching, format conversion, and derivative processing.
 - A third-party owner granted Solid Groove equivalent written OEM rights.
 
 The alpha factory library will not bundle CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL-licensed audio, or assets with custom attribution terms. Some may legally be usable, but they add user-facing attribution, share-alike, DRM, export, or interpretation obligations that are unnecessary while suitable CC0 material exists.
 
 **`DEC-003` is decided** (recorded in PRD section 16). The alpha bundles CC0 1.0 and Solid-Groove-owned content only, and commissions nothing — the commissioning budget is zero and premium or commissioned sources are deferred to a later milestone. Because CC0 carries no attribution obligation, there is no user-facing attribution and no per-asset export exclusion: every bundled asset is safe in stems and Ableton packages, and the export-exclusion machinery exists for future OEM content, not the alpha. Sourcing runs three routes in priority order — synthesis (section 15.1), trusted bulk CC0 archives (section 15.8: VCSL, Producer Space, FreePats CC0 banks), and the Freesound API filtered to CC0 against named coverage gaps (section 15.10) — and the alpha library is expected to be usable but not yet rounded, which is an accepted state for a prototype. This unblocks `CNT-002` on licensing; the specific shipped pack list remains `DEC-010`.
+
+**`DEC-010` widened this on 2026-09-29.** The product owner accepted royalty-free packs whose licence explicitly permits raw redistribution (the new section 3.2 route, identifier `royalty-free-redistributable`), and recordings of commercial drum machines and synthesizers made by the licensor (section 3.3). This was so classic drum-machine kits such as the TR-909 can ship. Such packs carry their own pack and rights position, never the CC0 one.
 
 ### 3.3 Additional rights checks
 
@@ -76,7 +81,7 @@ CC0 or a permissive copyright licence does not automatically resolve every right
 - Performer consent and personality/publicity rights for vocals, speech, and identifiable people.
 - Composition rights for recognizable melodies, lyrics, performances, and arrangements.
 - Trademark and passing-off concerns in names, artwork, and marketing.
-- Whether the uploader actually created the recording or sampled another pack, record, film, game, or commercial instrument.
+- Whether the uploader actually created the recording or sampled another pack, record, film, or game. A recording the licensor made of hardware they played — a drum machine, synthesizer, or other commercial instrument — is acceptable. Re-hosted recordings are not, unless the original recordist's grant is in the evidence.
 - Contractual restrictions inherited from software instruments, presets, source libraries, or recording locations.
 - Content-ID disputes and whether the sound is already widely registered inside released tracks.
 - Privacy and sensitive-context concerns in field recordings.
