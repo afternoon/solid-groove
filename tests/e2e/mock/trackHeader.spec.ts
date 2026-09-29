@@ -173,3 +173,37 @@ test("a track header lifts from anywhere it shows the grab hand, and not from it
     expect(await lifts(fader), `${view}: the fader's track`).toBe(false);
   }
 });
+
+// A device card is lifted by the same mechanism (#539); its copy must also
+// keep the grab point under the pointer.
+test("a lifted device card keeps its grab point under the pointer", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "New Project" }).click();
+  await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
+  await toView(page, "Instrument");
+  const add = page.getByRole("group", { name: "Add device" }).getByRole("button");
+  await add.nth(0).click();
+  await add.nth(1).click();
+  const cards = page.locator(".device-chain-item");
+  await expect(cards).toHaveCount(2);
+
+  const box = await cards.nth(0).boundingBox();
+  if (!box) throw new Error("the card has no box");
+  const [gx, gy] = [box.width / 2, 6];
+  const grab = { x: box.x + gx, y: box.y + gy };
+  await page.mouse.move(grab.x, grab.y);
+  await page.mouse.down();
+  for (const [dx, dy] of [
+    [0, 12],
+    [40, 30],
+    [-20, 60],
+  ]) {
+    await page.mouse.move(grab.x + dx, grab.y + dy, { steps: 3 });
+    const copy = await page.locator(".drag-lift").boundingBox();
+    if (!copy) throw new Error("no lifted copy");
+    expect(Math.abs(copy.x - (grab.x + dx - gx))).toBeLessThanOrEqual(2);
+    expect(Math.abs(copy.y - (grab.y + dy - gy))).toBeLessThanOrEqual(2);
+  }
+  await page.mouse.up();
+});
