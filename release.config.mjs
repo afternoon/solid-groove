@@ -1,5 +1,5 @@
 /**
- * Where Solid Groove is in its life, and whether it makes money.
+ * Where Groove is in its life, and whether it makes money.
  *
  * One file, deliberately small, read by the build scripts (plain Node ESM).
  * It exists so that leaving the private alpha is a single, deliberate edit
@@ -17,7 +17,7 @@
 /** @type {"private-alpha" | "public-beta" | "general-availability"} */
 export const RELEASE_STAGE = "private-alpha";
 
-/** Whether Solid Groove charges for anything, directly or indirectly. */
+/** Whether Groove charges for anything, directly or indirectly. */
 export const FOR_PROFIT = false;
 
 /**

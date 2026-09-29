@@ -196,6 +196,34 @@ describe("acquireBulkSource", () => {
     expect(byName).toEqual({ Bongo: "percussion", "Hand Clap": "clap" });
   });
 
+  it("ingests a private-alpha kit into its own pack, quoting the recordist", async () => {
+    const acquiredDir = tmp("bulk-acq-");
+    const evidenceDir = tmp("bulk-ev-");
+    const source = findBulkSource("open-drums:tr-909");
+    const cloneImpl = (dir) => {
+      mkdirSync(join(dir, "tr-909", "TR909all"), { recursive: true });
+      writeFileSync(join(dir, "tr-909", "TR909all", "BT3A0D3.WAV"), tone(44100, 0.4, 55));
+      return "d".repeat(40);
+    };
+
+    await acquireBulkSource(source, {
+      acquiredDir,
+      evidenceDir,
+      now: "2026-09-29T00:00:00.000Z",
+      cloneImpl,
+    });
+
+    const [{ asset }] = loadAcquiredAssets(acquiredDir);
+    expect(asset.name).toBe("TR-909 Kick");
+    expect(asset.role).toBe("kick");
+    expect(asset.license.id).toBe("private-alpha");
+    expect(asset.provenance.reviewer).toBe("open-drums-private-alpha-bulk");
+    const evidence = readFileSync(join(evidenceDir, "open-drums-tr-909.md"), "utf8");
+    expect(evidence).toContain("| Licence | private-alpha |");
+    expect(evidence).toContain("You may not distribute these samples for profit");
+    expect(evidence).not.toContain("archive-wide dedication");
+  });
+
   it("writes archive-wide licence evidence with the archive checksum", () => {
     const evidenceDir = tmp("bulk-ev-");
     const source = findBulkSource("producer-space:tech-house-essentials");

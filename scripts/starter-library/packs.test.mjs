@@ -28,6 +28,7 @@ const EXPECTED_IDS = {
   "ambient-textures": "pak_gUou3hBgXF47EwgR-9gZ1",
   "transitions-fx": "pak_PrUvdIGkCE3uRGYeKOGRg",
   "cc0-community": "pak_5o6qI8YY27cYVyqstlJyG",
+  "alpha-drum-machines": "pak_CtXJaikSASIyJkhxZaczN",
 };
 
 describe("packId", () => {

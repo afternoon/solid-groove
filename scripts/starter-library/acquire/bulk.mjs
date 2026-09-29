@@ -78,10 +78,17 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
   const master = encodeWav(prepared);
   const hash = sha256(master);
 
-  const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+  const packSlug = source.pack ?? RESERVED_CC0_PACK_SLUG;
+  const pack = packBySlug(packSlug);
   if (!pack) {
     throw new Error(
-      `bulk source "${source.id}" destination pack "${RESERVED_CC0_PACK_SLUG}" is not registered`,
+      `bulk source "${source.id}" destination pack "${packSlug}" is not registered`,
+    );
+  }
+  const licenseId = licenseOf(source);
+  if (pack.rights.licence !== licenseId) {
+    throw new Error(
+      `bulk source "${source.id}" is ${licenseId} but pack "${packSlug}" holds ${pack.rights.licence}`,
     );
   }
 
@@ -121,7 +128,7 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
         sourceTypes: ["recorded"],
       },
       license: {
-        id: "CC0-1.0",
+        id: licenseId,
         creator: source.name,
         sourceUrl: source.licenseUrl,
         retrievedAt: null,
@@ -149,14 +156,19 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
           "peak-normalize",
           "edge-fades",
         ],
-        // The rights review is the archive-wide CC0 licence, captured as
+        // The rights review is the archive-wide licence, captured as
         // evidence, not a per-file human pass. Same posture as VCSL.
         reviewState: "metadata-review",
-        reviewer: `${source.sourceId}-cc0-bulk`,
+        reviewer: `${source.sourceId}-${licenseId === "CC0-1.0" ? "cc0" : licenseId}-bulk`,
         reviewedAt: null,
       },
     },
   };
+}
+
+/** A bulk source's licence; CC0 unless it declares otherwise. */
+function licenseOf(source) {
+  return source.licenseId ?? "CC0-1.0";
 }
 
 /**
@@ -178,7 +190,7 @@ export function captureBulkEvidence(
     "| --- | --- |",
     `| Bulk source ID | \`${source.id}\` |`,
     `| Parent source | \`${source.sourceId}\` |`,
-    "| Licence | CC0-1.0 |",
+    `| Licence | ${licenseOf(source)} |`,
     `| Archive | ${archiveUrl} |`,
     commit ? `| Commit | ${commit} |` : `| Archive SHA-256 | ${archiveSha256} |`,
     `| Licence statement | ${source.licenseUrl} |`,
@@ -186,9 +198,18 @@ export function captureBulkEvidence(
     "",
     `Rights position: ${source.rightsNote}`,
     "",
-    "As a bulk CC0 source, the confirmation is this archive-wide dedication",
-    "rather than a per-file pin in sources.lock.json. The archive was confirmed",
-    "CC0 on its licence page before ingest; every member shares the one licence.",
+    ...(licenseOf(source) === "CC0-1.0"
+      ? [
+          "As a bulk CC0 source, the confirmation is this archive-wide dedication",
+          "rather than a per-file pin in sources.lock.json. The archive was confirmed",
+          "CC0 on its licence page before ingest; every member shares the one licence.",
+        ]
+      : [
+          `This source ships under the \`${licenseOf(source)}\` rights position, not CC0.`,
+          ...(source.rightsQuote
+            ? ["", "What the recordist or host says:", "", `> ${source.rightsQuote}`]
+            : []),
+        ]),
     "",
   ].join("\n");
   const path = join(evidenceDir, `${evidenceSlug}.md`);
