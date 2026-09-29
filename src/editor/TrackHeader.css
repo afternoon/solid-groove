@@ -60,6 +60,9 @@
   display: inline-block;
   max-width: 100%;
   vertical-align: bottom;
+  /* A click on the text starts a rename, so it says so; the rest of the header
+     keeps the drag handle's grab hand (`trackDrag.css`). */
+  cursor: text;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

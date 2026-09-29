@@ -207,3 +207,28 @@ test("a lifted device card keeps its grab point under the pointer", async ({ pag
   }
   await page.mouse.up();
 });
+
+// Clicking a name starts a rename, so the name says so with the I-beam; the
+// header around it stays the drag handle's grab hand.
+test("a track name shows the text cursor, in the header and the mixer strip", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "New Project" }).click();
+  await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
+  const cursorOf = (locator: Locator) =>
+    locator.evaluate((el) => getComputedStyle(el).cursor);
+
+  for (const view of ["Arrangement", "Instrument"]) {
+    await toView(page, view);
+    const header = page.locator("[data-track-drag]").first();
+    expect(await cursorOf(header.locator(".track-header-name")), view).toBe("text");
+    expect(await cursorOf(header), view).toBe("grab");
+    expect(await cursorOf(header.locator(".track-header-title")), view).toBe("grab");
+  }
+
+  await toView(page, "Mixer");
+  await expect(page.locator(".mixer-strip-name").first()).toBeVisible();
+  expect(await cursorOf(page.locator(".mixer-strip-name").first())).toBe("text");
+});
