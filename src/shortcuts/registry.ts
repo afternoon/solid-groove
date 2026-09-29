@@ -469,8 +469,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   define({
     id: "view.close_surface",
     label: "Close or cancel",
-    description:
-      "Closes the open dialog or popover, or cancels the active gesture or selection.",
+    description: "Closes the open dialog or popover, or cancels the active gesture.",
     group: "navigation",
     contexts: ["global", "dialog", "gesture"],
     keys: "Escape",

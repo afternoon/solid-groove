@@ -1,5 +1,5 @@
 import { For, type JSX } from "@solidjs/web";
-import { createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
 import type { RawCommandInput, TransactionResult } from "../commands";
@@ -222,8 +222,8 @@ function rejectionMessage(kind: TransformKind): string {
  * A value you can type into. Enter or leaving the field commits what was
  * typed; anything that does not read as a value is refused, flagged, and put
  * back to the last good one. While it has focus the shortcut registry's
- * ↑/↓ nudge it and Esc puts back what was typed (see `valueFieldFocus.ts`):
- * the field never reads a key itself.
+ * ↑/↓ nudge it (see `valueFieldFocus.ts`), and Esc closes the dialog as
+ * everywhere: the field never reads a key itself.
  */
 function ValueField<T>(props: {
   readonly label: string;
@@ -257,11 +257,10 @@ function ValueField<T>(props: {
         input.select();
       });
     },
-    cancel() {
-      setInvalid(false);
-      if (input) input.value = props.display;
-    },
   };
+  // A dialog closed with the field focused removes it without a blur, so the
+  // field lets go of the keys when it unmounts too.
+  onCleanup(() => blurValueField(field));
 
   return (
     <input

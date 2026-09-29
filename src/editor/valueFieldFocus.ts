@@ -2,12 +2,12 @@ import { createSignal } from "solid-js";
 
 /**
  * What the shortcut registry reaches in the focused value field (ARR-010):
- * `value.nudge_up`/`value.nudge_down` nudge it and `view.close_surface`
- * cancels what was typed. The field never reads a key itself.
+ * `value.nudge_up`/`value.nudge_down` nudge it. Escape is not the field's: it
+ * closes the dialog the field sits in, as everywhere (#650). The field never
+ * reads a key itself.
  */
 export interface FocusedValueField {
   nudge(direction: 1 | -1): void;
-  cancel(): void;
 }
 
 // One field has focus at a time, so the editor needs one slot, not a registry.

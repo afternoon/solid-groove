@@ -141,105 +141,102 @@ const TRANSPOSED = ["C3, step 1, 1 step", "G3, step 3, 1 step"];
 const DOUBLED = ["C3, step 17, 1 step", "G3, step 19, 1 step"];
 
 test.describe("CF-019", () => {
-  // `test.fixme` until #650 lands: step 7 now expects Esc to close the piano
-  // roll, and the PR that closes #650 removes this marker.
-  test.fixme(
-    "a producer copies, pastes and transforms notes from the keyboard",
-    async ({ page }) => {
-      const step = walkthrough(page, {
-        id: "CF-019",
-        title: "A producer copies, pastes and transforms notes from the keyboard",
-      });
+  test("a producer copies, pastes and transforms notes from the keyboard", async ({
+    page,
+  }) => {
+    const step = walkthrough(page, {
+      id: "CF-019",
+      title: "A producer copies, pastes and transforms notes from the keyboard",
+    });
 
-      // 1. Create a new project, add a synth track and open its clip. Add notes
-      //    at C2 step 1 and G2 step 3.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await page.getByRole("button", { name: "Add synth track" }).click();
-      await expect(trackList(page)).toHaveText(["BD", "Synth"]);
-      const editor = await openSynthClip(page);
-      await clickCell(page, editor, "C2", 1);
-      await clickCell(page, editor, "G2", 3);
-      await expectNotes(editor, ORIGINALS);
-      await step("Add notes at C2 step 1 and G2 step 3");
+    // 1. Create a new project, add a synth track and open its clip. Add notes
+    //    at C2 step 1 and G2 step 3.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    const projectUrl = page.url();
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await page.getByRole("button", { name: "Add synth track" }).click();
+    await expect(trackList(page)).toHaveText(["BD", "Synth"]);
+    const editor = await openSynthClip(page);
+    await clickCell(page, editor, "C2", 1);
+    await clickCell(page, editor, "G2", 3);
+    await expectNotes(editor, ORIGINALS);
+    await step("Add notes at C2 step 1 and G2 step 3");
 
-      // 2. Press ⌘A (Ctrl+A on Windows and Linux). The roll reads "2 selected".
-      //    Press ⌘C. Click the ruler at step 9, then press ⌘V. Copies land at C2
-      //    step 9 and G2 step 11, and the copies are now the selection.
-      await page.keyboard.press("ControlOrMeta+a");
-      await expect(selectionCount(editor)).toHaveText("2 selected");
-      await page.keyboard.press("ControlOrMeta+c");
-      await rulerStep(editor, 9).click();
-      await page.keyboard.press("ControlOrMeta+v");
-      await expectNotes(editor, [...ORIGINALS, ...COPIES]);
-      await expectSelected(editor, COPIES);
-      await step("Copy, click the ruler at step 9, paste");
+    // 2. Press ⌘A (Ctrl+A on Windows and Linux). The roll reads "2 selected".
+    //    Press ⌘C. Click the ruler at step 9, then press ⌘V. Copies land at C2
+    //    step 9 and G2 step 11, and the copies are now the selection.
+    await page.keyboard.press("ControlOrMeta+a");
+    await expect(selectionCount(editor)).toHaveText("2 selected");
+    await page.keyboard.press("ControlOrMeta+c");
+    await rulerStep(editor, 9).click();
+    await page.keyboard.press("ControlOrMeta+v");
+    await expectNotes(editor, [...ORIGINALS, ...COPIES]);
+    await expectSelected(editor, COPIES);
+    await step("Copy, click the ruler at step 9, paste");
 
-      // 3. Press ↑. The copies move up one row, to C♯2 step 9 and G♯2 step 11.
-      //    Undo. They are back at C2 and G2.
-      await page.keyboard.press("ArrowUp");
-      await expectNotes(editor, [
-        ...ORIGINALS,
-        "C♯2, step 9, 1 step",
-        "G♯2, step 11, 1 step",
-      ]);
-      await step("Press ↑: the copies move up a row");
-      await page.keyboard.press("ControlOrMeta+z");
-      await expectNotes(editor, [...ORIGINALS, ...COPIES]);
-      await step("Undo: the copies are back");
+    // 3. Press ↑. The copies move up one row, to C♯2 step 9 and G♯2 step 11.
+    //    Undo. They are back at C2 and G2.
+    await page.keyboard.press("ArrowUp");
+    await expectNotes(editor, [
+      ...ORIGINALS,
+      "C♯2, step 9, 1 step",
+      "G♯2, step 11, 1 step",
+    ]);
+    await step("Press ↑: the copies move up a row");
+    await page.keyboard.press("ControlOrMeta+z");
+    await expectNotes(editor, [...ORIGINALS, ...COPIES]);
+    await step("Undo: the copies are back");
 
-      // 4. Press Delete. The copies are gone and two notes remain.
-      await page.keyboard.press("Delete");
-      await expectNotes(editor, ORIGINALS);
-      await step("Press Delete: the copies are gone");
+    // 4. Press Delete. The copies are gone and two notes remain.
+    await page.keyboard.press("Delete");
+    await expectNotes(editor, ORIGINALS);
+    await step("Press Delete: the copies are gone");
 
-      // 5. Nothing is selected now. The Transform panel reads "All 2 notes".
-      //    The Transpose field reads "+12 st". Press Transpose. The notes are
-      //    now at C3 step 1 and G3 step 3.
-      await expectSelected(editor, []);
-      await expect(
-        transformPanel(editor).getByText("All 2 notes", { exact: true }),
-      ).toBeVisible();
-      await expect(transformPanel(editor).getByLabel("Semitones")).toHaveValue("+12 st");
-      await transformPanel(editor)
-        .getByRole("button", { name: /^Transpose\b/ })
-        .click();
-      await expectNotes(editor, TRANSPOSED);
-      await step("Transpose the whole clip up an octave");
+    // 5. Nothing is selected now. The Transform panel reads "All 2 notes".
+    //    The Transpose field reads "+12 st". Press Transpose. The notes are
+    //    now at C3 step 1 and G3 step 3.
+    await expectSelected(editor, []);
+    await expect(
+      transformPanel(editor).getByText("All 2 notes", { exact: true }),
+    ).toBeVisible();
+    await expect(transformPanel(editor).getByLabel("Semitones")).toHaveValue("+12 st");
+    await transformPanel(editor)
+      .getByRole("button", { name: /^Transpose\b/ })
+      .click();
+    await expectNotes(editor, TRANSPOSED);
+    await step("Transpose the whole clip up an octave");
 
-      // 6. Press Double. The one-bar clip becomes two bars long, and copies land
-      //    at C3 step 17 and G3 step 19.
-      await transformPanel(editor)
-        .getByRole("button", { name: /^Double\b/ })
-        .click();
-      await expectNotes(editor, [...TRANSPOSED, ...DOUBLED]);
-      await expect(rulerStep(editor, 32)).toBeVisible();
-      await expect(rulerStep(editor, 33)).toHaveCount(0);
-      await step("Double makes the clip two bars");
+    // 6. Press Double. The one-bar clip becomes two bars long, and copies land
+    //    at C3 step 17 and G3 step 19.
+    await transformPanel(editor)
+      .getByRole("button", { name: /^Double\b/ })
+      .click();
+    await expectNotes(editor, [...TRANSPOSED, ...DOUBLED]);
+    await expect(rulerStep(editor, 32)).toBeVisible();
+    await expect(rulerStep(editor, 33)).toHaveCount(0);
+    await step("Double makes the clip two bars");
 
-      // 7. Press Esc. The editor closes, as every dialog does on Esc (#650).
-      //    Reload the page and open the clip again.
-      //
-      // The save status is how the editor reports that a revision-checked write
-      // completed, so the reload tests persistence rather than a race (CF-016).
-      await page.keyboard.press("Escape");
-      await expect(sequenceEditor(page)).toHaveCount(0);
-      await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
-      await page.reload();
-      await expect(page).toHaveURL(projectUrl);
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expect(trackList(page)).toHaveText(["BD", "Synth"]);
-      const reopened = await openSynthClip(page);
+    // 7. Press Esc. The editor closes, as every dialog does on Esc (#650).
+    //    Reload the page and open the clip again.
+    //
+    // The save status is how the editor reports that a revision-checked write
+    // completed, so the reload tests persistence rather than a race (CF-016).
+    await page.keyboard.press("Escape");
+    await expect(sequenceEditor(page)).toHaveCount(0);
+    await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
+    await page.reload();
+    await expect(page).toHaveURL(projectUrl);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expect(trackList(page)).toHaveText(["BD", "Synth"]);
+    const reopened = await openSynthClip(page);
 
-      // Outcome: the clip is two bars long and holds C3 at steps 1 and 17 and G3
-      // at steps 3 and 19.
-      await expectNotes(reopened, [...TRANSPOSED, ...DOUBLED]);
-      await expect(rulerStep(reopened, 32)).toBeVisible();
-      await step("Reload: both bars are kept");
-    },
-  );
+    // Outcome: the clip is two bars long and holds C3 at steps 1 and 17 and G3
+    // at steps 3 and 19.
+    await expectNotes(reopened, [...TRANSPOSED, ...DOUBLED]);
+    await expect(rulerStep(reopened, 32)).toBeVisible();
+    await step("Reload: both bars are kept");
+  });
 });
