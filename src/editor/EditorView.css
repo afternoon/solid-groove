@@ -172,6 +172,19 @@
   opacity: 1;
 }
 
+/* Swing reads "on" above 50% like the toggles above, and pressed while its
+ * panel is open (brightness, not hue). */
+.editor-header .swing-toggle.is-on {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+.editor-header .swing-toggle[aria-expanded="true"] {
+  background: var(--color-background-well);
+  color: var(--color-accent);
+  opacity: 1;
+}
+
 .editor-header .tempo-control {
   display: inline-flex;
   font-size: var(--font-size-small);

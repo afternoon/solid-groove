@@ -2033,6 +2033,82 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(metronomeOn).toHaveAttribute("aria-pressed", "true");
   });
 
+  describe("swing (#500)", () => {
+    const swingButton = () => screen.getByRole("button", { name: "Swing" });
+    const openSwing = async () => {
+      if (swingButton().getAttribute("aria-expanded") !== "true") {
+        fireEvent.click(swingButton());
+      }
+      await screen.findByRole("slider", { name: "Swing" });
+    };
+    const swingSlider = () => screen.getByRole("slider", { name: "Swing" });
+    const swingField = () => screen.getByRole("textbox", { name: "Swing value" });
+
+    it("shows the song's swing and writes a drag as one undoable, clamped edit", async () => {
+      await renderSlice();
+      await openSwing();
+      expect(swingSlider()).toHaveAttribute("min", "50");
+      expect(swingSlider()).toHaveAttribute("max", "75");
+      expect(swingField()).toHaveValue("50%");
+
+      // A pointer drag: several `input` steps, then the settling `change`.
+      fireEvent.input(swingSlider(), { target: { value: "58" } });
+      fireEvent.input(swingSlider(), { target: { value: "66" } });
+      fireEvent.change(swingSlider(), { target: { value: "66" } });
+
+      await waitFor(() => expect(swingField()).toHaveValue("66%"));
+      expect(swingSlider()).toHaveAttribute("aria-valuetext", "66%");
+      const undo = await screen.findByRole("button", { name: "Undo Set swing" });
+      fireEvent.click(undo);
+      await waitFor(() => expect(swingField()).toHaveValue("50%"));
+      // One gesture, one history entry: nothing is left to undo.
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    });
+
+    it("takes a typed value from the keyboard and clamps it to 75%", async () => {
+      await renderSlice();
+      await openSwing();
+      fireEvent.change(swingField(), { target: { value: "99" } });
+      await waitFor(() => expect(swingField()).toHaveValue("75%"));
+    });
+
+    it("emits feature_first_use once per session, and nothing when analytics is off", async () => {
+      const transport = createRecordingTransport();
+      repository = inMemoryModule.createInMemoryProjectRepository();
+      const project = createSliceFixtureProject();
+      await repository.createProject(project);
+      renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+      await openSequenceEditor();
+      await openSwing();
+
+      fireEvent.change(swingSlider(), { target: { value: "60" } });
+      fireEvent.change(swingSlider(), { target: { value: "62" } });
+      await waitFor(() => expect(swingField()).toHaveValue("62%"));
+      const swings = transport.events.filter(
+        (event) => event.name === "feature_first_use" && event.params.feature === "swing",
+      );
+      expect(swings).toHaveLength(1);
+    });
+
+    it("changes nothing else when analytics is disabled", async () => {
+      const transport = createRecordingTransport();
+      const consent = new ConsentStore(memoryStorage());
+      consent.set({ productAnalytics: false });
+      repository = inMemoryModule.createInMemoryProjectRepository();
+      const project = createSliceFixtureProject();
+      await repository.createProject(project);
+      renderEditor(project.metadata.id, {
+        analytics: recordingAnalytics(transport, consent),
+      });
+      await openSequenceEditor();
+      await openSwing();
+
+      fireEvent.change(swingSlider(), { target: { value: "70" } });
+      await waitFor(() => expect(swingField()).toHaveValue("70%"));
+      expect(transport.events).toHaveLength(0);
+    });
+  });
+
   it("dispatches a clamped tempo command from the BPM input", async () => {
     await renderSlice();
     const tempo = screen.getByRole("spinbutton", { name: "Tempo (BPM)" });
