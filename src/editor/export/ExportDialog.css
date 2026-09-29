@@ -26,6 +26,11 @@
   gap: 6px;
 }
 
+.export-format input {
+  /* The browser's own radio is blue; the interface is monochrome. */
+  accent-color: var(--color-accent);
+}
+
 .export-format:has(input:disabled) {
   color: var(--color-foreground-muted);
 }
