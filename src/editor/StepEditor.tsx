@@ -9,15 +9,19 @@ import type { EventId, PadId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import FillSlider from "../instrument/FillSlider";
+import { clampZoom, stepWidth, ZOOM_FACTOR } from "./pianoRoll/layout";
+import Ruler from "./pianoRoll/Ruler";
+import Toolbar from "./pianoRoll/Toolbar";
 import {
   barCount,
   barOptions,
   isBarStart,
-  isBeatStart,
+  isShadedBeat,
   lanesFor,
   MAX_BARS,
   MIN_BARS,
   noteAt,
+  noteEventsOf,
   type StepLane,
   selectedLane,
   stepCount,
@@ -43,6 +47,12 @@ export interface StepEditorProps {
   beginGesture(options?: GestureOptions): Gesture | undefined;
   /** The step the playhead is over while playing, or null. */
   readonly playbackStep?: () => number | null;
+  /** Whether the transport runs, and how the toolbar's Play toggles it. */
+  readonly playing?: boolean;
+  onTogglePlay?(): void;
+  /** Whether the clip's track is soloed, and how the toolbar's Solo toggles it (#657). */
+  readonly soloed?: boolean;
+  onToggleSolo?(): void;
   /**
    * Controlled selection: the set of selected note ids and its setter. Lifted
    * to the parent so the editor's `edit.delete` shortcut (owned by
@@ -96,9 +106,17 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     setOwnRow(lane.key);
     if (lane.trigger.kind !== "pad") return;
     props.onSelectPad?.(lane.trigger.padId);
-    props.auditionPad?.(lane.trigger.padId);
+    audition(lane);
   }
 
+  // What is only a view, as in the piano roll (ARR-010): preview and zoom.
+  const [preview, setPreview] = createSignal(true);
+  const [zoom, setZoom] = createSignal(1);
+  const width = () => stepWidth(zoom());
+  /** Plays a row's pad, while Preview sound is on. */
+  function audition(lane: StepLane): void {
+    if (preview() && lane.trigger.kind === "pad") props.auditionPad?.(lane.trigger.padId);
+  }
   // Selection is UI-only state (PRD 9.2) — it points at notes by their stable
   // event id and never mutates the project. Controlled by the parent when it
   // supplies the accessor/setter (so the `edit.delete` shortcut shares it),
@@ -143,6 +161,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
   }
 
   function newNote(lane: StepLane, step: number): NoteEvent {
+    audition(lane);
     return {
       id: factoryContext.ids("event"),
       trigger: lane.trigger satisfies NoteTrigger,
@@ -237,6 +256,11 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 
   const currentPlaybackStep = () => props.playbackStep?.() ?? null;
 
+  function deleteSelection(): void {
+    deleteSelectedNotes(props.clip, selectedIds(), props.dispatch);
+    setSelectedIds([]);
+  }
+
   return (
     <section
       class="step-editor"
@@ -246,43 +270,66 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
       onPointerUp={() => stroke.end()}
       onPointerLeave={() => stroke.end()}
     >
-      <div class="step-editor-toolbar">
-        <label class="step-editor-length">
-          <span class="step-editor-length-label">Bars</span>
-          <select
-            class="step-editor-length-select"
-            value={bars()}
-            onChange={(event) => resizeToBars(Number(event.currentTarget.value))}
-          >
-            <For each={barOptions(props.clip)}>
-              {(count) => <option value={count}>{count}</option>}
-            </For>
-          </select>
-        </label>
-        <Show when={selectedNote()}>
-          {(note) => (
-            <div class="step-editor-velocity">
-              <FillSlider
-                definition={NOTE_VELOCITY}
-                inputId="step-editor-velocity"
-                label="Velocity"
-                // The value already reads as a left-right axis, as the mixer's
-                // pan does, and the toolbar is a single row.
-                orientation="horizontal"
-                value={velocityFor(note())}
-                // MIDI velocity, which is what the readout always showed.
-                displayValue={String(Math.round(velocityFor(note()) * 127))}
-                onInput={(value) => velocityControl.input(value)}
-                onCommit={(value) => velocityControl.commit(value)}
-              />
-            </div>
-          )}
-        </Show>
-      </div>
+      <Toolbar
+        leading={
+          <>
+            <label class="step-editor-length">
+              <span class="step-editor-length-label">Bars</span>
+              <select
+                class="step-editor-length-select"
+                value={bars()}
+                onChange={(event) => resizeToBars(Number(event.currentTarget.value))}
+              >
+                <For each={barOptions(props.clip)}>
+                  {(count) => <option value={count}>{count}</option>}
+                </For>
+              </select>
+            </label>
+            <Show when={selectedNote()}>
+              {(note) => (
+                <div class="step-editor-velocity">
+                  <FillSlider
+                    definition={NOTE_VELOCITY}
+                    inputId="step-editor-velocity"
+                    label="Velocity"
+                    // The value already reads as a left-right axis, as the mixer's
+                    // pan does, and the toolbar is a single row.
+                    orientation="horizontal"
+                    value={velocityFor(note())}
+                    // MIDI velocity, which is what the readout always showed.
+                    displayValue={String(Math.round(velocityFor(note()) * 127))}
+                    onInput={(value) => velocityControl.input(value)}
+                    onCommit={(value) => velocityControl.commit(value)}
+                  />
+                </div>
+              )}
+            </Show>
+          </>
+        }
+        selectionCount={selectedIds().length}
+        onSelectAll={() =>
+          setSelectedIds(noteEventsOf(props.clip).map((note) => note.id))
+        }
+        onDelete={deleteSelection}
+        preview={preview()}
+        onTogglePreview={() => setPreview((on) => !on)}
+        soloed={props.soloed ?? false}
+        onToggleSolo={() => props.onToggleSolo?.()}
+        zoom={zoom()}
+        onZoomIn={() => setZoom((z) => clampZoom(z * ZOOM_FACTOR))}
+        onZoomOut={() => setZoom((z) => clampZoom(z / ZOOM_FACTOR))}
+        playing={props.playing ?? false}
+        onTogglePlay={() => props.onTogglePlay?.()}
+      />
       <div
         class="step-editor-grid"
-        style={{ "--step-count": String(stepCount(props.clip)) }}
+        style={{
+          "--step-count": String(stepCount(props.clip)),
+          "--pr-step": `${width()}px`,
+        }}
       >
+        <div class="step-corner" />
+        <Ruler steps={stepCount(props.clip)} stepWidth={width()} />
         {/* The row names, one button per pad: clicking one picks the row. */}
         <fieldset class="step-rows" aria-label="Rows">
           <For each={lanes()}>
@@ -326,16 +373,9 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                             selected: selected(),
                             playing: playing(),
                             "bar-start": isBarStart(step),
-                            "beat-start": isBeatStart(step),
+                            shade: isShadedBeat(step),
                           },
                         ]}
-                        style={
-                          active()
-                            ? {
-                                "--velocity": String(note()?.velocity ?? 1),
-                              }
-                            : undefined
-                        }
                         aria-pressed={ariaBool(active())}
                         aria-label={`${lane.name}, step ${step + 1}${
                           active() ? ", on" : ", off"

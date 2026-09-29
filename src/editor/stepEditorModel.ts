@@ -80,6 +80,14 @@ export function isBeatStart(step: number): boolean {
   return step % (STEPS_PER_BAR / 4) === 0;
 }
 
+/**
+ * True on the beats the grid shades: alternating groups of four steps, as the
+ * piano roll draws them (#643).
+ */
+export function isShadedBeat(step: number): boolean {
+  return Math.floor(step / (STEPS_PER_BAR / 4)) % 2 === 0;
+}
+
 /** Whether two triggers name the same lane (pitch value, or pad id). */
 export function triggersMatch(a: NoteTrigger, b: NoteTrigger): boolean {
   if (a.kind === "pitch" && b.kind === "pitch") return a.pitch === b.pitch;
