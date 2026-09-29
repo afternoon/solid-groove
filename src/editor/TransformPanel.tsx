@@ -48,7 +48,7 @@ export interface TransformPanelProps {
 
 /**
  * The Transform panel (CLP-04, ARR-010): transpose, vary timing, vary
- * velocity, quantize, quantize to scale, double, halve and clear, for the selection
+ * velocity, quantize, quantize to scale, halve, double and clear, for the selection
  * or, with nothing selected, the whole clip.
  *
  * Every button dispatches registered commands — the same ones the assistant
@@ -147,8 +147,8 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
 
   const buttons = (): readonly TransformKind[] =>
     props.editor === "piano_roll"
-      ? ["quantize", "quantizeToScale", "duplicate", "halve", "clear"]
-      : ["quantize", "duplicate", "halve", "clear"];
+      ? ["quantize", "quantizeToScale", "halve", "duplicate", "clear"]
+      : ["quantize", "halve", "duplicate", "clear"];
 
   /** Quantize to scale needs a key; Halve stops at one bar (#662). */
   const unavailable = (kind: TransformKind): boolean =>

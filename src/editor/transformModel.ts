@@ -34,8 +34,8 @@ export const TRANSFORM_KINDS = [
   "varyVelocity",
   "quantize",
   "quantizeToScale",
-  "duplicate",
   "halve",
+  "duplicate",
   "clear",
 ] as const;
 export type TransformKind = (typeof TRANSFORM_KINDS)[number];
