@@ -36,6 +36,8 @@ export interface TrackHeaderProps {
   trackLevel(trackId: TrackId): TrackLevel | null;
   /** Starts a reorder drag, from anywhere on the header but its controls. */
   onDragStart?(event: PointerEvent): void;
+  /** Deletes the track; the trash button shows only when this is given. */
+  onDelete?(): void;
   /** Where the header is shown, so its fader's id is its own. */
   readonly surface: "arrangement" | "instrument";
   /** Defaults to the application singleton; injectable for tests. */
@@ -61,7 +63,7 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
     onSelect: () => props.onSelect(),
     onDragStart: (event) => props.onDragStart?.(event),
     controls: CONTROLS,
-    clickExempt: ".track-header-select",
+    clickExempt: ".track-header-select, .track-header-delete",
   });
 
   return (
@@ -89,6 +91,7 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
             <TrackColorPicker
               track={props.track}
               dispatch={dispatch()}
+              beginGesture={(options) => props.beginGesture?.(options)}
               analytics={props.analytics}
             />
           )}
@@ -112,6 +115,19 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
               onToggle={(flag) => toggleTrackFlag(dispatch(), props.track, flag)}
             />
           )}
+        </Show>
+        <Show when={props.dispatch && props.onDelete}>
+          <button
+            type="button"
+            class="track-header-delete"
+            aria-label={`Delete ${props.track.name}`}
+            title="Delete track"
+            onClick={() => props.onDelete?.()}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2 4h12M6 4V2h4v2M4 4l1 10h6l1-10M7 7v4M9 7v4" />
+            </svg>
+          </button>
         </Show>
       </div>
       <Show when={props.dispatch}>

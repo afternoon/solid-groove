@@ -90,6 +90,8 @@ export const SHORTCUT_ACTION_IDS = [
   "arrangement.loop_move_later",
   "arrangement.loop_shorten",
   "arrangement.loop_lengthen",
+  "track.select_previous",
+  "track.select_next",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -250,7 +252,8 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   define({
     id: "edit.delete",
     label: "Delete selection",
-    description: "Deletes the selected notes, clips, or placements.",
+    description:
+      "Deletes the selected notes, clips, or placements, or the selected track when nothing inside it is selected.",
     group: "global_editing",
     contexts: ["arrangement", "step_editor", "piano_roll", "automation_lane"],
     keys: ["Delete", "Backspace"],
@@ -577,6 +580,32 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       kind: "solid_groove",
       reason:
         "Live sets its loop by dragging or Cmd/Ctrl+L on a selection; this is the keyboard way to do what dragging the brace does.",
+    },
+  }),
+  define({
+    id: "track.select_previous",
+    label: "Select previous track",
+    description:
+      "Selects the track above the current one in the arrangement and instrument views; stops at the first track.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "ArrowUp",
+    ableton: {
+      kind: "solid_groove",
+      reason: "the arrow keys step the editor's selected track through the track list.",
+    },
+  }),
+  define({
+    id: "track.select_next",
+    label: "Select next track",
+    description:
+      "Selects the track below the current one in the arrangement and instrument views; stops at the last track.",
+    group: "navigation",
+    contexts: ["editor"],
+    keys: "ArrowDown",
+    ableton: {
+      kind: "solid_groove",
+      reason: "the arrow keys step the editor's selected track through the track list.",
     },
   }),
 ];

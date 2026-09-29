@@ -103,6 +103,27 @@ function renderMixer(initial: Project = createSliceFixtureProject()) {
   return { history, project, transport, selected };
 }
 
+describe("Mixer strip colour (#534)", () => {
+  it("opens the palette from the strip's colour edge and recolours as one undo entry", () => {
+    const { history, project } = renderMixer();
+    const track = project().song.tracks[0];
+    if (!track) throw new Error("fixture has no track");
+
+    clickAndFlush(screen.getByRole("button", { name: `Colour for ${track.name}` }));
+    const palette = screen.getByRole("group", { name: `Colour for ${track.name}` });
+    expect(within(palette).getAllByRole("radio")).toHaveLength(50);
+    clickAndFlush(within(palette).getByRole("radio", { name: "Colour 7 of 50" }));
+
+    const recoloured = project().song.tracks.find((t) => t.id === track.id);
+    expect(recoloured?.color).not.toBe(track.color);
+    history.undo();
+    expect(history.project.song.tracks.find((t) => t.id === track.id)?.color).toBe(
+      track.color,
+    );
+    expect(history.canUndo).toBe(false);
+  });
+});
+
 describe("Mixer track management (TRK-01)", () => {
   it("adds an instrument track and emits track_added + the mixer feature key", () => {
     const { history, transport } = renderMixer();
