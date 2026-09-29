@@ -185,6 +185,21 @@ export const SOURCES = [
     maxSelections: 50,
   },
   {
+    id: "karoryfer",
+    name: "Karoryfer Samples",
+    tier: "tier-1",
+    homepage: "https://github.com/sfzinstruments",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+    rightsNote:
+      "Karoryfer releases some instruments under CC0; the repository's own LICENSE is the evidence, per instrument.",
+    reviewNote:
+      "Confirm the instrument repository's LICENSE is CC0 1.0 before ingesting it.",
+    take: ["synth and organ multisamples"],
+    avoid: ["any instrument whose repository is not CC0"],
+    maxSelections: 20,
+  },
+  {
     id: "kenney",
     name: "Kenney",
     tier: "tier-2",

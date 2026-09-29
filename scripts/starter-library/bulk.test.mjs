@@ -171,6 +171,31 @@ describe("acquireBulkSource", () => {
     );
   });
 
+  it("takes only a bank's named files, under their declared names", async () => {
+    const acquiredDir = tmp("bulk-acq-");
+    const source = findBulkSource("freepats:world-percussion");
+    const cloneImpl = (dir) => {
+      for (const rel of ["Bongos/1_01.flac", "Bongos/1_02.flac", "HandClap/01_02.flac"]) {
+        mkdirSync(join(dir, "samples", rel, ".."), { recursive: true });
+        writeFileSync(join(dir, "samples", rel), tone(44100, 0.3, 400));
+      }
+      return "c".repeat(40);
+    };
+
+    const result = await acquireBulkSource(source, {
+      acquiredDir,
+      evidenceDir: tmp("bulk-ev-"),
+      now: "2026-08-03T00:00:00.000Z",
+      cloneImpl,
+    });
+
+    expect(result.ingested).toBe(2);
+    const byName = Object.fromEntries(
+      loadAcquiredAssets(acquiredDir).map(({ asset }) => [asset.name, asset.role]),
+    );
+    expect(byName).toEqual({ Bongo: "percussion", "Hand Clap": "clap" });
+  });
+
   it("writes archive-wide licence evidence with the archive checksum", () => {
     const evidenceDir = tmp("bulk-ev-");
     const source = findBulkSource("producer-space:tech-house-essentials");

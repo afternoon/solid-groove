@@ -53,9 +53,16 @@ function memberName(source, memberPath) {
     .pop()
     .replace(AUDIO_MEMBER, "")
     .replace(/[_-]+/g, " ")
+    // "ClosedHiHat01" -> "Closed Hi Hat 01"
+    .replace(/([a-z])([A-Z0-9])/g, "$1 $2")
     .trim();
   const titled = base.replace(/\b\w/g, (c) => c.toUpperCase());
-  return `${source.name.split("—").pop().trim()} ${titled}`.trim();
+  const prefix = source.name
+    .split("—")
+    .pop()
+    .replace(/\s*\(CC0 [^)]*\)/, "")
+    .trim();
+  return `${prefix} ${titled}`.trim();
 }
 
 /**
@@ -84,7 +91,7 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
       id: bulkAssetId(source, mapped.family, mapped.role, index),
       version: 1,
       pack: packRef(pack),
-      name: memberName(source, member.name),
+      name: mapped.name ?? memberName(source, member.name),
       type: "one-shot",
       family: mapped.family,
       role: mapped.role,

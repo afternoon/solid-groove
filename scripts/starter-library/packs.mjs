@@ -246,7 +246,7 @@ export const PACKS = [
     publisher: "Solid Groove",
     kind: "factory",
     description:
-      "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, and FreePats banks (drum-machine hits, a synth bass, an FM piano, a sweep pad). Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
+      "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, FreePats banks (synth drum hits, world percussion, synth basses, leads, pads, strings, brass, bells, and FX), and Karoryfer Caveman Cosmonaut organ-synth tones. Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
     rights: CC0,
     coverage: null,
   },

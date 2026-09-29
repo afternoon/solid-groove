@@ -1,13 +1,13 @@
-# Licence evidence: FreePats — Synth Bass 1 (CC0 bank)
+# Licence evidence: FreePats — Synth Brass 1 (CC0 bank)
 
 | Field | Value |
 | --- | --- |
-| Bulk source ID | `freepats:synth-bass-1` |
+| Bulk source ID | `freepats:synth-brass-1` |
 | Parent source | `freepats` |
 | Licence | CC0-1.0 |
-| Archive | https://github.com/freepats/synth-bass-1.git@17095d4d23e960b0566489dc506cc858e3b50e0b |
-| Commit | 17095d4d23e960b0566489dc506cc858e3b50e0b |
-| Licence statement | https://github.com/freepats/synth-bass-1/blob/master/README.txt |
+| Archive | https://github.com/freepats/synth-brass-1.git@a2d2111daae3e45761c5cabd480f4c60258bd645 |
+| Commit | a2d2111daae3e45761c5cabd480f4c60258bd645 |
+| Licence statement | https://github.com/freepats/synth-brass-1/blob/master/README.txt |
 | Retrieved | 2026-09-29 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).

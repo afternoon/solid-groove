@@ -36,6 +36,7 @@
  * @property {string[]} characters Seed characters.
  * @property {string} [intensity] Defaults to "medium".
  * @property {string} [rootNote]  The pitch a tonal member was sampled at, e.g. "C3".
+ * @property {string} [name]      The asset's display name, instead of one derived from the path.
  */
 
 /**
@@ -66,6 +67,7 @@
 export const BULK_ID_BASE = {
   "producer-space": 7000,
   freepats: 8000,
+  karoryfer: 9000,
 };
 
 /** @type {BulkSource[]} */
@@ -226,53 +228,108 @@ export const BULK_SOURCES = [
   },
 ];
 
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\#]/g, "\\$&");
+
+/**
+ * A CC0 bank mirrored on GitHub, taken as a handful of named files: each
+ * `take` entry is one repo path and the taxonomy (and, for a pitched sample,
+ * the note it was recorded at) it lands under. The README or LICENSE named by
+ * `licenseFile` is where the whole-bank CC0 statement lives.
+ */
+function repoBank({
+  owner = "freepats",
+  repo,
+  sourceId = "freepats",
+  name,
+  licenseFile = "README.txt",
+  idBase,
+  take,
+}) {
+  const [first] = take;
+  return {
+    id: `${sourceId}:${repo}`,
+    sourceId,
+    name: `${name} (CC0 bank)`,
+    archiveUrl: `https://github.com/${owner}/${repo}`,
+    repoUrl: `https://github.com/${owner}/${repo}.git`,
+    include: new RegExp(`^(${take.map((t) => escapeRegExp(t.file)).join("|")})$`),
+    licenseUrl: `https://github.com/${owner}/${repo}/blob/master/${licenseFile}`,
+    rightsNote:
+      "The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).",
+    idBase,
+    defaultFamily: first.family,
+    defaultRole: first.role,
+    defaultGenres: first.genres,
+    defaultCharacters: first.characters,
+    maxMembers: take.length,
+    mappings: take.map((t) => ({
+      match: new RegExp(`^${escapeRegExp(t.file)}$`),
+      family: t.family,
+      role: t.role,
+      genres: t.genres,
+      characters: t.characters,
+      rootNote: t.note ?? null,
+      name: t.name ?? null,
+    })),
+  };
+}
+
 /**
  * A FreePats pitched bank taken as one representative note: the note the
  * sampler plays at its recorded pitch, so the whole bank is one playable sound.
  */
-function freepatsNote({
-  repo,
+function freepatsNote({ repo, name, note, file, idBase, ...tags }) {
+  return repoBank({
+    repo,
+    name: `FreePats — ${name}`,
+    idBase,
+    take: [{ file: `samples/${file}`, note, name, ...tags }],
+  });
+}
+
+const note = (repo, name, n, family, role, genres, characters, idBase) =>
+  freepatsNote({
+    repo,
+    name,
+    note: n,
+    file: `${n}.flac`,
+    family,
+    role,
+    genres,
+    characters,
+    idBase,
+  });
+
+const perc = (name, file, role = "percussion", characters = ["organic", "dry"]) => ({
   name,
-  note,
-  file,
+  file: `samples/${file}`,
+  family: "drums",
+  role,
+  genres: ["house", "hip-hop", "lofi"],
+  characters,
+});
+
+const cosmonaut = (name, file, n, family, role, genres, characters) => ({
+  name: `Caveman Cosmonaut ${name}`,
+  file: `Samples/${file}`,
+  note: n,
   family,
   role,
   genres,
   characters,
-  idBase,
-}) {
-  return {
-    id: `freepats:${repo}`,
-    sourceId: "freepats",
-    name: `FreePats — ${name} (CC0 bank)`,
-    archiveUrl: `https://github.com/freepats/${repo}`,
-    repoUrl: `https://github.com/freepats/${repo}.git`,
-    include: new RegExp(`^samples/${file.replace(/[#.]/g, "\\$&")}$`),
-    licenseUrl: `https://github.com/freepats/${repo}/blob/master/README.txt`,
-    rightsNote:
-      "The bank's README states CC0 for the whole bank; it is one archive under one licence (section 4.1).",
-    idBase,
-    defaultFamily: family,
-    defaultRole: role,
-    defaultGenres: genres,
-    defaultCharacters: characters,
-    maxMembers: 1,
-    mappings: [{ match: /./, family, role, genres, characters, rootNote: note }],
-  };
-}
+});
 
 BULK_SOURCES.push(
-  freepatsNote({
-    repo: "synth-bass-1",
-    name: "Synth Bass 1",
-    note: "C3",
-    file: "C3.flac",
-    family: "bass",
-    role: "sustained",
-    genres: ["house", "techno", "electronic-pop"],
-    characters: ["warm", "round"],
-    idBase: 8100,
-  }),
+  note(
+    "synth-bass-1",
+    "Synth Bass 1",
+    "C3",
+    "bass",
+    "sustained",
+    ["house", "techno", "electronic-pop"],
+    ["warm", "round"],
+    8100,
+  ),
   freepatsNote({
     repo: "fm-piano1",
     name: "FM Piano 1",
@@ -284,16 +341,183 @@ BULK_SOURCES.push(
     characters: ["bright", "tuned"],
     idBase: 8200,
   }),
-  freepatsNote({
-    repo: "sweep-pad",
-    name: "Sweep Pad",
-    note: "C4",
-    file: "C4.flac",
-    family: "tonal",
-    role: "chord",
-    genres: ["ambient", "trance"],
-    characters: ["long", "soft"],
-    idBase: 8300,
+  note(
+    "sweep-pad",
+    "Sweep Pad",
+    "C4",
+    "tonal",
+    "chord",
+    ["ambient", "trance"],
+    ["long", "soft"],
+    8300,
+  ),
+  note(
+    "synth-bass-lead",
+    "Synth Bass & Lead",
+    "C3",
+    "bass",
+    "stab",
+    ["trance", "dubstep", "electronic-pop"],
+    ["bright", "gritty"],
+    8400,
+  ),
+  note(
+    "synth-square",
+    "Synth Lead Square",
+    "C4",
+    "tonal",
+    "pluck",
+    ["electronic-pop", "trance"],
+    ["bright", "tuned"],
+    8410,
+  ),
+  note(
+    "synth-fifths",
+    "Synth Fifths",
+    "C4",
+    "tonal",
+    "stab",
+    ["techno", "trance", "dubstep"],
+    ["bright", "layered"],
+    8420,
+  ),
+  note(
+    "new-age",
+    "New Age Pad",
+    "C4",
+    "tonal",
+    "chord",
+    ["ambient", "lofi"],
+    ["long", "soft"],
+    8430,
+  ),
+  note(
+    "synth-strings-1",
+    "Synth Strings 1",
+    "C4",
+    "tonal",
+    "chord",
+    ["trance", "ambient", "electronic-pop"],
+    ["long", "warm"],
+    8440,
+  ),
+  note(
+    "synth-brass-1",
+    "Synth Brass 1",
+    "C4",
+    "tonal",
+    "stab",
+    ["house", "electronic-pop"],
+    ["bright", "punchy"],
+    8450,
+  ),
+  note(
+    "synth-crystal",
+    "Synth Crystal",
+    "C4",
+    "tonal",
+    "bell",
+    ["ambient", "trance"],
+    ["glassy", "bright"],
+    8460,
+  ),
+  note(
+    "synth-scifi",
+    "Synth Sci-Fi",
+    "C4",
+    "texture",
+    "drone",
+    ["ambient", "dubstep"],
+    ["experimental", "resonant"],
+    8470,
+  ),
+  note(
+    "synth-soundtrack",
+    "Synth Soundtrack",
+    "C4",
+    "texture",
+    "ambience",
+    ["ambient"],
+    ["long", "layered"],
+    8480,
+  ),
+  repoBank({
+    repo: "world-percussion",
+    name: "FreePats — World Percussion",
+    idBase: 8500,
+    take: [
+      perc("Bongo", "Bongos/1_01.flac"),
+      perc("Cajon", "CajonFlamenco/101.flac", "percussion", ["wooden", "roomy"]),
+      perc("Castanets", "Castanets/01.flac", "percussion", ["wooden", "short"]),
+      perc("Claves", "Claves/01.flac", "percussion", ["wooden", "short"]),
+      perc("Conga", "Conga/v2_01_01.flac"),
+      perc("Darbuka Doum", "Darbuka/doom_01_01.flac"),
+      perc("Egg Shaker", "EggShaker/fast_01.flac", "percussion", ["short", "bright"]),
+      perc("Hand Clap", "HandClap/01_02.flac", "clap", ["organic", "roomy"]),
+      perc("High Conga", "HighConga/v2_01_01.flac"),
+      perc("Low Conga", "LowConga/v3_01_01.flac"),
+      perc("Maracas", "Maracas/01_01.flac", "percussion", ["short", "bright"]),
+      perc("Muted Conga", "MutedConga/High_v2_01_01.flac", "percussion", [
+        "organic",
+        "tight",
+      ]),
+      perc("Tambourine", "Tambourine/01_01.flac", "percussion", ["bright", "metallic"]),
+    ],
+  }),
+  repoBank({
+    owner: "sfzinstruments",
+    repo: "karoryfer.caveman-cosmonaut",
+    sourceId: "karoryfer",
+    name: "Karoryfer — Caveman Cosmonaut",
+    licenseFile: "LICENSE",
+    idBase: 9000,
+    take: [
+      cosmonaut(
+        "Full Bass",
+        "bass_all_c3.wav",
+        "C3",
+        "bass",
+        "sustained",
+        ["techno", "electronic-pop"],
+        ["warm", "layered"],
+      ),
+      cosmonaut(
+        "8' Bass",
+        "bass_8_c3.wav",
+        "C3",
+        "bass",
+        "sustained",
+        ["house", "techno"],
+        ["round", "warm"],
+      ),
+      cosmonaut(
+        "Full Stack",
+        "all_all_all_c4.wav",
+        "C4",
+        "tonal",
+        "chord",
+        ["electronic-pop", "trance"],
+        ["layered", "bright"],
+      ),
+      cosmonaut(
+        "Tremolo",
+        "tremolo_c4.wav",
+        "C4",
+        "tonal",
+        "key",
+        ["lofi", "ambient"],
+        ["warm", "resonant"],
+      ),
+      cosmonaut(
+        "Violin Stop",
+        "violin_c4.wav",
+        "C4",
+        "tonal",
+        "key",
+        ["ambient", "electronic-pop"],
+        ["bright", "tuned"],
+      ),
+    ],
   }),
 );
 
@@ -318,6 +542,7 @@ export function mapBulkMember(source, memberPath) {
         characters: rule.characters,
         intensity: rule.intensity ?? "medium",
         rootNote: rule.rootNote ?? null,
+        name: rule.name ?? null,
       };
     }
   }

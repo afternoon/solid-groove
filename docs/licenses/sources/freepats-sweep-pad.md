@@ -10,7 +10,7 @@
 | Licence statement | https://github.com/freepats/sweep-pad/blob/master/README.txt |
 | Retrieved | 2026-09-29 |
 
-Rights position: The bank's README states CC0 for the whole bank; it is one archive under one licence (section 4.1).
+Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 
 As a bulk CC0 source, the confirmation is this archive-wide dedication
 rather than a per-file pin in sources.lock.json. The archive was confirmed
