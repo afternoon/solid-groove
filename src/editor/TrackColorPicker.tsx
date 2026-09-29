@@ -26,6 +26,12 @@ export interface TrackColorPickerProps {
   readonly beginGesture?: (options?: GestureOptions) => Gesture | undefined;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
+  /**
+   * "swatch" (default) is the small colour square of a track header; "bar" is
+   * a transparent hit area laid over the colour border along a mixer strip's
+   * top edge, which is what shows the colour there.
+   */
+  readonly variant?: "swatch" | "bar";
 }
 
 /**
@@ -109,8 +115,8 @@ export default function TrackColorPicker(props: TrackColorPickerProps): JSX.Elem
       <button
         ref={button}
         type="button"
-        class="track-header-swatch"
-        style={{ background: props.track.color }}
+        class={props.variant === "bar" ? "mixer-strip-color" : "track-header-swatch"}
+        style={props.variant === "bar" ? undefined : { background: props.track.color }}
         aria-expanded={ariaBool(open())}
         aria-label={`Colour for ${props.track.name}`}
         onClick={toggle}
