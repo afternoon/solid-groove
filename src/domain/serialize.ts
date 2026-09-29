@@ -79,6 +79,7 @@ export function serializeProjectMetadata(metadata: ProjectMetadata): JsonObject 
 export function serializeSong(song: Song): JsonObject {
   return {
     tempo: song.tempo,
+    swing: song.swing,
     timeSignature: {
       numerator: song.timeSignature.numerator,
       denominator: song.timeSignature.denominator,

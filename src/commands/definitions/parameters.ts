@@ -8,6 +8,7 @@ import {
   type ParameterDefinition,
   RETURN_PAN,
   RETURN_VOLUME,
+  SONG_SWING,
   SONG_TEMPO,
   TRACK_PAN,
   TRACK_SEND_LEVEL,
@@ -136,11 +137,18 @@ function isUnresolved(resolution: Resolution): resolution is { readonly error: s
 function resolveParameter(project: Project, target: ParameterTarget): Resolution {
   switch (target.scope) {
     case "song":
-      return expectParameter(target.parameterId, [SONG_TEMPO], (definition) => ({
-        definition,
-        current: project.song.tempo,
-        write: (value) => withSong(project, { ...project.song, tempo: value }),
-      }));
+      return expectParameter(
+        target.parameterId,
+        [SONG_TEMPO, SONG_SWING],
+        (definition) => {
+          const key = definition === SONG_SWING ? "swing" : "tempo";
+          return {
+            definition,
+            current: project.song[key],
+            write: (value) => withSong(project, { ...project.song, [key]: value }),
+          };
+        },
+      );
     case "master":
       return expectParameter(target.parameterId, [MASTER_VOLUME], (definition) => ({
         definition,
@@ -329,6 +337,7 @@ const UNIT_SUFFIX: Record<ParameterDefinition["unit"], string> = {
   bpm: " BPM",
   decibels: " dB",
   hertz: " Hz",
+  percent: "%",
   seconds: " s",
   semitones: " semitones",
   normalized: "",

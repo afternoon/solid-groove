@@ -225,7 +225,7 @@ export function describeProjectRepositoryContract(
 
       const retempo = await repository.saveSong(
         project.metadata.id,
-        { ...project.song, tempo: 128 },
+        { ...project.song, tempo: 128, swing: 62 },
         renamed.revision,
       );
       expect(retempo.ok).toBe(true);
@@ -236,6 +236,7 @@ export function describeProjectRepositoryContract(
       expect(loaded.value.metadata.name).toBe("Renamed");
       expect(loaded.value.metadata.genre).toBe("house");
       expect(loaded.value.song.tempo).toBe(128);
+      expect(loaded.value.song.swing).toBe(62);
     });
 
     it("drops arrangement chunks when the arrangement shrinks below the budget", async () => {

@@ -8,6 +8,7 @@ import {
   type Project,
   RETURN_VOLUME,
   registerParameter,
+  SONG_SWING,
   SONG_TEMPO,
   TRACK_PAN,
   TRACK_SEND_LEVEL,
@@ -58,6 +59,18 @@ describe("parameter.set", () => {
       setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 128),
     );
     expect(next.song.tempo).toBe(128);
+  });
+
+  it("sets swing, clamps it to 50-75%, and undoes to the previous value", () => {
+    const target = { scope: "song", parameterId: SONG_SWING.id } as const;
+    expect(fixture.project.song.swing).toBe(50);
+    const result = executeCommand(fixture.project, setParameter(target, 67));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.song.swing).toBe(67);
+    expect(apply(result.project, result.inverse[0]).song.swing).toBe(50);
+    expect(apply(fixture.project, setParameter(target, 90)).song.swing).toBe(75);
+    expect(apply(fixture.project, setParameter(target, 10)).song.swing).toBe(50);
   });
 
   it("sets track volume and pan", () => {

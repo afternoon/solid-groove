@@ -155,8 +155,24 @@ describe("parseProject", () => {
 
   it("rejects unknown keys rather than silently dropping them", () => {
     const input = baseProject();
-    (input.song as JsonRecord).swing = 0.5;
+    (input.song as JsonRecord).groove = 0.5;
     expectIssue(parseProject(input), "invalid_shape");
+  });
+
+  it("defaults swing to 50% for a project saved before swing existed", () => {
+    const input = baseProject();
+    delete (input.song as JsonRecord).swing;
+    const result = parseProject(input);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.song.swing).toBe(50);
+  });
+
+  it("rejects swing outside 50-75%", () => {
+    for (const swing of [49, 76]) {
+      const input = baseProject();
+      (input.song as JsonRecord).swing = swing;
+      expectIssue(parseProject(input), "invalid_shape");
+    }
   });
 
   it("refuses a future schema version instead of coercing it to v1", () => {

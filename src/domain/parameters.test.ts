@@ -57,6 +57,7 @@ describe("parameter definitions", () => {
       "sampler.pitch",
       "sampler.sampleEnd",
       "sampler.sampleStart",
+      "song.swing",
       "song.tempo",
       "synth.ampAttack",
       "synth.ampDecay",
