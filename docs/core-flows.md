@@ -844,3 +844,36 @@ component layer.
   retired flow keeps its number and gains a "**Retired:** why" line, because
   closed issues, merged PRs, and old walkthroughs still reference it.
 -->
+
+### CF-020 — A producer fills a drum row from the Generate panel
+
+**Issue:** #643 · **Suite:** `tests/e2e/emulator/flows/CF-020.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project. Go to the instrument view for the starter "BD" track and
+   add a pad. It is called "Pad 2".
+2. Go to the arrangement and open the "BD" clip. The step grid shows a "BD" row
+   with steps 1, 5, 9 and 13 on, and an empty "Pad 2" row.
+3. Click the "Pad 2" row's name. It becomes the selected row, and the Generate
+   panel reads "into Pad 2".
+4. Press Offbeats. The "Pad 2" row has steps 3, 7, 11 and 15 on. The "BD" row has
+   not changed.
+5. Set the Euclidean generator to 3 hits over 8 steps and press Write. The "Pad 2"
+   row now has steps 1, 4, 7, 9, 12 and 15 on, and nothing else. The offbeats are
+   gone. The "BD" row has not changed.
+6. Undo once. The "Pad 2" row is back to the offbeats. Redo. It is back to the
+   Euclidean pattern.
+7. Close the editor and go to the instrument view. "Pad 2" is the selected pad.
+8. Reload the page. Go to the arrangement and open the "BD" clip again.
+
+**Outcome:** the "BD" row has steps 1, 5, 9 and 13 on, and the "Pad 2" row has
+steps 1, 4, 7, 9, 12 and 15 on. A producer picked a row by its name and filled it
+from a preset and from the Euclidean generator. Each generate replaced only that
+row, as one undo step, and the result survived a reload.
+
+**Out of scope:** the Random generator, whose output is random, and Clear row,
+which are tested at the component layer. The hover preview. Generated
+velocities and the velocity lane. The piano-roll toolbar's Zoom, Select all and
+Delete, which CF-017 and CF-019 cover in the piano roll. The other presets.
