@@ -1,0 +1,257 @@
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+} from "@playwright/test";
+
+/**
+ * What the redesigned library's core flows (CF-023 to CF-026, #449) share:
+ * the way from the dashboard to a drum pad's sample slot, the locators for
+ * the library modal, and a read of the library the emulator suite serves.
+ *
+ * It lives here rather than in each spec so the four contracts name the same
+ * surface the same way. Each spec keeps its own numbered steps, assertions and
+ * `step()` captions.
+ *
+ * **Every library locator below is assumed.** None of this UI exists yet. They
+ * come from #449's decisions and the reference design (`docs/library-browser.html`,
+ * on `claude/keen-hamilton-vdhzy4`), matched by role and purpose as CF-005 does.
+ * The implementing PRs build to these names, or say in their body why one had
+ * to change:
+ *
+ *  - the modal is a dialog named "Library", closed by a "Close library" button;
+ *  - the header's readouts are groups named "Was" (the sound the slot holds)
+ *    and "Hearing" (the one selected), and it names the slot's pad;
+ *  - the rail has buttons whose names start "Browse packs", "All sounds" and
+ *    "Favourites", the one in view marked `aria-current`, and the project's
+ *    packs in a group named "In this project";
+ *  - family tabs are tabs named for the family ("Drums…"); category chips are
+ *    toggle buttons named for the category ("Kick…", "Clap…");
+ *  - the genre menu opens from a button named "Any genre" and holds a
+ *    checkbox per genre, named for it ("House…");
+ *  - the result count reads "<n> sounds";
+ *  - sounds are a list named "Sounds" (or "Similar sounds"); each row has an
+ *    "Audition <name>" button, a "Favourite <name>" toggle and a
+ *    "Sounds like <name>" button;
+ *  - the primary action is a button whose name starts "Insert <name>".
+ *
+ * The rest is surface that exists today: the view dock (CF-008), the drum
+ * machine region and its pads' "Audition <pad>" and "Sample for <pad>"
+ * buttons (#447), and the header's "Undo" button.
+ */
+
+export type Step = (caption: string) => Promise<void>;
+
+/** A regular expression that matches `text` literally. */
+export const literal = (text: string): string =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// --- The editor --------------------------------------------------------------
+
+/** The view dock (CF-008): three links, one per view. */
+const dockLink = (page: Page, name: string): Locator =>
+  page.getByRole("navigation", { name: "Views" }).getByRole("link", { name });
+
+/** The starter track's drum machine, as the instrument view shows it (#447). */
+export const drumMachine = (page: Page): Locator =>
+  page.getByRole("region", { name: "Drum machine: BD" });
+
+/** One pad's sample slot: a button naming the sound it holds (#447). */
+export const sampleSlot = (page: Page, pad: string): Locator =>
+  drumMachine(page).getByRole("button", { name: `Sample for ${pad}`, exact: true });
+
+/** The header's undo button. It is named "Undo" alone while history is empty. */
+export const emptyUndo = (page: Page): Locator =>
+  page.getByRole("button", { name: "Undo", exact: true });
+
+/**
+ * Create a new project from the dashboard and go to the instrument view,
+ * where the starter drum machine's pads are. Returns the project's address.
+ */
+export async function newProjectOnInstrumentView(page: Page): Promise<string> {
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+  await page.getByRole("button", { name: "New Project" }).click();
+  await expect(page).toHaveURL(/\/projects\/prj_[^/]+$/);
+  const projectUrl = page.url();
+  await page.getByTestId("arrangement-view-ready").waitFor();
+  await goToInstrumentView(page);
+  return projectUrl;
+}
+
+export async function goToInstrumentView(page: Page): Promise<void> {
+  await dockLink(page, "Instrument").click();
+  await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
+  await expect(drumMachine(page)).toBeVisible();
+}
+
+/** Select a pad: its name button selects it, so the pad editor shows its slot. */
+export async function selectPad(page: Page, pad: string): Promise<void> {
+  await drumMachine(page)
+    .getByRole("button", { name: `Audition ${pad}`, exact: true })
+    .click();
+  await expect(sampleSlot(page, pad)).toBeVisible();
+}
+
+/** Select a pad and open its sample slot. */
+export async function openPadSlot(page: Page, pad: string): Promise<void> {
+  await selectPad(page, pad);
+  await sampleSlot(page, pad).click();
+  await expect(library(page)).toBeVisible();
+}
+
+/**
+ * Wait for the editor to report the last edit written, then reload and come
+ * back to the instrument view. `.save-status` is the class CF-004, CF-005 and
+ * CF-007 read: the save indicator has no role of its own.
+ */
+export async function reloadOnInstrumentView(
+  page: Page,
+  projectUrl: string,
+): Promise<void> {
+  await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
+  await page.reload();
+  await expect(page).toHaveURL(`${projectUrl}/instrument`);
+  await expect(drumMachine(page)).toBeVisible();
+}
+
+// --- The library modal (assumed; see the header) ------------------------------
+
+export const library = (page: Page): Locator =>
+  page.getByRole("dialog", { name: "Library" });
+
+export const readout = (page: Page, name: "Was" | "Hearing"): Locator =>
+  library(page).getByRole("group", { name });
+
+export const railButton = (
+  page: Page,
+  name: "Browse packs" | "All sounds" | "Favourites",
+): Locator => library(page).getByRole("button", { name: new RegExp(`^${name}\\b`) });
+
+export const projectPacks = (page: Page): Locator =>
+  library(page).getByRole("group", { name: "In this project" });
+
+export const familyTab = (page: Page, family: string): Locator =>
+  library(page).getByRole("tab", { name: new RegExp(`^${literal(family)}\\b`) });
+
+export const categoryChip = (page: Page, category: string): Locator =>
+  library(page).getByRole("button", { name: new RegExp(`^${literal(category)}\\b`) });
+
+export const soundList = (page: Page): Locator =>
+  library(page).getByRole("list", { name: "Sounds", exact: true });
+
+export const similarList = (page: Page): Locator =>
+  library(page).getByRole("list", { name: "Similar sounds", exact: true });
+
+export const audition = (scope: Locator, name: string): Locator =>
+  scope.getByRole("button", { name: `Audition ${name}`, exact: true });
+
+export const insertButton = (page: Page, name: string): Locator =>
+  library(page).getByRole("button", { name: new RegExp(`^Insert ${literal(name)}\\b`) });
+
+/** The result count, "<n> sounds", as a number. */
+export async function resultCount(page: Page): Promise<number> {
+  const text = await library(page)
+    .getByText(/^\d+ sounds?$/)
+    .first()
+    .textContent();
+  return Number(text?.match(/\d+/)?.[0] ?? Number.NaN);
+}
+
+/**
+ * The sound names a list shows, top to bottom, read off its audition buttons
+ * (their `aria-label`, as CF-005 reads its rows).
+ */
+export async function listedNames(list: Locator): Promise<string[]> {
+  // Every list these flows read has sounds in it; wait for the first to render.
+  await expect(list.getByRole("listitem").first()).toBeVisible();
+  const buttons = list.getByRole("button", { name: /^Audition / });
+  const labels = await buttons.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute("aria-label") ?? ""),
+  );
+  return labels.map((label) => label.replace(/^Audition /, ""));
+}
+
+/**
+ * Select a sound and check the library says so: it is the one you are
+ * hearing, and it is the one Insert would put in the slot.
+ */
+export async function expectSelected(page: Page, name: string): Promise<void> {
+  await expect(readout(page, "Hearing")).toContainText(name);
+  await expect(insertButton(page, name)).toBeVisible();
+}
+
+// --- The library the emulator suite serves ------------------------------------
+
+/**
+ * One sound in the delivered library, read from the same pack index and
+ * manifests the app fetches. The emulator suite serves whatever
+ * `bun run library:build` writes to `public/samples/starter-library` (see
+ * `tests/e2e/emulator/playwright.config.ts`), so this is the flows' fixture
+ * library: the specs derive what the UI must show from it rather than naming
+ * sounds, and a precondition it does not meet fails loudly by name.
+ */
+export interface DeliveredSound {
+  readonly name: string;
+  readonly pack: string;
+  readonly packId: string;
+  readonly family: string;
+  readonly role: string;
+  readonly type: string;
+  readonly genres: readonly string[];
+}
+
+const LIBRARY_ROOT = "/samples/starter-library";
+
+interface PackIndex {
+  readonly packs: readonly { id: string; name: string; manifestPath: string }[];
+}
+interface PackManifest {
+  readonly assets: readonly {
+    name: string;
+    family: string;
+    role: string;
+    type: string;
+    tags?: { genres?: string[] };
+  }[];
+}
+
+async function getJson<T>(request: APIRequestContext, path: string): Promise<T> {
+  const response = await request.get(`${LIBRARY_ROOT}/${path}`);
+  expect(response.ok(), `${path} is served`).toBe(true);
+  return (await response.json()) as T;
+}
+
+export async function deliveredLibrary(page: Page): Promise<DeliveredSound[]> {
+  const index = await getJson<PackIndex>(page.request, "packs/index.json");
+  const sounds: DeliveredSound[] = [];
+  for (const pack of index.packs) {
+    const manifest = await getJson<PackManifest>(page.request, pack.manifestPath);
+    for (const asset of manifest.assets) {
+      sounds.push({
+        name: asset.name,
+        pack: pack.name,
+        packId: pack.id,
+        family: asset.family,
+        role: asset.role,
+        type: asset.type,
+        genres: asset.tags?.genres ?? [],
+      });
+    }
+  }
+  return sounds;
+}
+
+/** The one-shots of one drum role ("kick", "clap"), which a pad's list shows. */
+export const drumOneShots = (sounds: readonly DeliveredSound[], role: string) =>
+  sounds.filter((s) => s.family === "drums" && s.role === role && s.type === "one-shot");
+
+/** Fail by name when the served library lacks what a flow's preconditions state. */
+export function precondition(met: unknown, flow: string, what: string): asserts met {
+  if (!met) {
+    throw new Error(
+      `${flow} precondition not met by the served library: ${what}. See the spec's header.`,
+    );
+  }
+}

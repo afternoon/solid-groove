@@ -958,3 +958,128 @@ return yet), the manifest's fields, sample-by-sample alignment, master processin
 being excluded, cancelling, the maximum reference fixture, worker/memory limits,
 failure paths and analytics — all tested at the unit and component layers.
 Stereo export (CF-021).
+
+### CF-023 — A producer finds a kick by ear and puts it on a pad
+
+**Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-023.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects. The library holds kicks in more
+than one pack, tagged with genres.
+
+1. Create a new project. It opens on the arrangement, with the starter kick on a
+   drum machine's "BD" pad.
+2. Go to the instrument view and press the "BD" pad's sample slot. The library
+   opens over the editor, no larger than the pack browser used to be. It names
+   the slot it will fill, shows the sound the pad has now, and is already
+   showing kicks from every pack.
+3. Choose a genre from the genre menu. The list narrows to kicks in that genre,
+   and says how many there are.
+4. Click a kick. It is selected, and the library says it is the one you are
+   hearing.
+5. Press the down arrow. The next kick is selected and is the one you are
+   hearing now.
+6. Press Escape. The library closes, and the pad's sample slot still names the
+   sound it had before. Nothing in the project changed while you listened.
+7. Open the slot again, select a different kick, and press Insert. The library
+   closes, and the slot names the kick you chose.
+8. Reload the page. The "BD" pad still holds the kick you inserted.
+
+**Outcome:** a producer heard several kicks in place, walked away from them
+without a trace, then chose one with a single button, and it is still there
+when they come back.
+
+**Out of scope:** that the auditions are *audible*, or heard through the pad in
+the beat. No headless browser records audio, so hot-swap audio is asserted in
+the audio suite. Loops, which are CF-005's. The similar-sounds view (CF-025) and
+packs (CF-024). Shuffle, and the arrow buttons on the category row, are covered
+at the component layer.
+
+### CF-024 — A producer browses packs and uses a sound from one they did not have
+
+**Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-024.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects. The library holds a pack with
+claps that the starter project does not use.
+
+1. Create a new project and go to the instrument view. Open the sample slot of
+   the drum machine's "CP" pad.
+2. Choose Browse packs. The sound list gives way to pack covers, and the packs
+   this project already uses are marked as in the project.
+3. Narrow the packs to those with drums.
+4. Open a pack that is not in the project. Its sounds replace the covers, under
+   a banner that names the pack and says it joins the project when you insert
+   one of its sounds.
+5. Choose the Drums family, then the Clap category. Only that pack's claps are
+   listed.
+6. Select a clap and press Insert. The library closes, and the "CP" pad's slot
+   names that clap.
+7. Open the slot again. That pack is now listed with the project's own packs.
+8. Reload the page. The "CP" pad still holds the clap, and the pack is still
+   listed with the project's packs.
+
+**Outcome:** a producer found a new pack, looked inside it, and used one of its
+sounds. Taking the sound brought the pack into the project, with no separate
+step to add it.
+
+**Out of scope:** "Hear it" on a pack cover, which is audio. The pack search
+text, and the scrolling of a long category row, which are component-layer.
+Removing a pack from a project, which this issue does not offer. Third-party and
+personal packs, whose cover and banner are the same parts.
+
+### CF-025 — A producer follows similar sounds to a better kick
+
+**Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-025.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects. The library holds several kicks
+whose tags overlap across packs.
+
+1. Create a new project, go to the instrument view and open the "BD" pad's
+   sample slot. The library shows kicks.
+2. Press the similar-sounds button on a kick. The list gives way to that kick's
+   closest matches, from every pack. Each shows how close it is, and the kick
+   you started from is named above them.
+3. Turn off matching on genre. The matches update.
+4. Press the similar-sounds button on one of the matches. Its own matches
+   replace the list, and a trail shows both kicks, in the order you visited
+   them.
+5. Choose the first kick in the trail. Its matches come back.
+6. Go back. The list of kicks you started from returns.
+7. Open similar sounds again from any kick, select one of its matches and
+   press Insert. The library closes, and the slot names that match.
+8. Reload the page. The pad still holds it.
+
+**Outcome:** a producer went from "like this, but…" to a sound they chose,
+across packs, and could retrace every step of the way.
+
+**Out of scope:** how the closeness is computed, which is unit-tested against
+the similarity model. Whether the matches *sound* alike, which no browser test
+can tell.
+
+### CF-026 — A producer keeps a sound as a favourite and finds it in another project
+
+**Issue:** #449 (favourites slice), after #691 · **Suite:**
+`tests/e2e/emulator/flows/CF-026.spec.ts` · **Entrypoint:** the project dashboard
+
+**Preconditions:** signed in with no projects and no favourites. Depends on
+#691: until per-user favourites exist, this flow cannot be walked.
+
+1. Create a new project, go to the instrument view and open the "BD" pad's
+   sample slot.
+2. Mark a kick as a favourite. Its heart fills, and Favourites counts one.
+3. Close the library without inserting anything.
+4. Go back to the dashboard and create a second project. Open its "BD" pad's
+   sample slot and choose Favourites. The kick you marked is listed.
+5. Insert it. The slot names that kick.
+6. Reload the page. Open the slot again and choose Favourites. The kick is still
+   there, still marked.
+
+**Outcome:** a sound a producer liked once stays with them, across projects and
+reloads, one click away from any slot.
+
+**Out of scope:** favourites following the account to another device or
+browser, and a guest's favourites carrying over when they register. Both are
+#691's and are asserted in the emulator rules and repository suites.
+Unfavouriting, which is component-layer.
