@@ -1,0 +1,26 @@
+{
+  "id": "swing2",
+  "title": "MPC-style swing (#500)",
+  "steps": [
+    {
+      "file": "01-swing-icon-in-the-toolbar-idle-at-50.png",
+      "caption": "Swing icon in the toolbar, idle at 50%"
+    },
+    {
+      "file": "02-click-it-the-swing-panel-opens.png",
+      "caption": "Click it: the swing panel opens"
+    },
+    {
+      "file": "03-set-swing-to-62.png",
+      "caption": "Set swing to 62%"
+    },
+    {
+      "file": "04-icon-lit-while-swing-on.png",
+      "caption": "Close it: the icon lights up while swing is on"
+    },
+    {
+      "file": "05-reload-swing-is-still-62.png",
+      "caption": "Reload: swing is still 62%"
+    }
+  ]
+}
