@@ -1,0 +1,30 @@
+{
+  "id": "CF-005",
+  "title": "A producer brings a library loop into their project",
+  "steps": [
+    {
+      "file": "01-a-new-project-opens-on-the-arrangement-with-the-starter-patt.png",
+      "caption": "A new project opens on the arrangement, with the starter pattern"
+    },
+    {
+      "file": "02-find-a-loop-in-the-library-recorded-at-another-tempo.png",
+      "caption": "Find a loop in the library recorded at another tempo"
+    },
+    {
+      "file": "03-a-new-track-at-the-bottom-carries-the-loop-at-bar-1.png",
+      "caption": "A new track at the bottom carries the loop at bar 1"
+    },
+    {
+      "file": "04-open-the-clip-it-is-a-tempo-labelled-loop-not-a-one-shot.png",
+      "caption": "Open the clip — it is a tempo-labelled loop, not a one-shot"
+    },
+    {
+      "file": "05-the-tempo-the-brace-and-the-transport-are-untouched.png",
+      "caption": "The tempo, the brace and the transport are untouched"
+    },
+    {
+      "file": "06-reload-the-new-track-and-its-loop-are-still-there.png",
+      "caption": "Reload — the new track and its loop are still there"
+    }
+  ]
+}
