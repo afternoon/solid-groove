@@ -56,8 +56,13 @@ export function useTrackDrag(options: TrackDragOptions): TrackDrag {
     );
   // The other items slide to wherever the preview has just put them. Every
   // read is in the compute half; the DOM has settled by the time apply runs.
+  // The zone is read only while a drag is held: a caller's zone is usually a
+  // ref declared after this hook runs, so reading it at setup would throw.
   createEffect(
-    () => [targetIndex(), dragging(), options.zone()] as const,
+    () => {
+      const held = dragging();
+      return [targetIndex(), held, held === null ? undefined : options.zone()] as const;
+    },
     ([, held, zone]) => {
       if (held !== null && zone) slide.settle(items(zone, held));
     },
