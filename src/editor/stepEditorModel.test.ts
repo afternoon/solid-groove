@@ -18,12 +18,22 @@ import {
   playbackStep,
   SAMPLER_LANE_PITCH,
   STEPS_PER_BAR,
+  selectedLane,
   stepCount,
   stepStartTicks,
   triggersMatch,
 } from "./stepEditorModel";
 
 describe("stepEditorModel", () => {
+  it("selects the row a key names, else the first row (#643)", () => {
+    const drum = createDrumMachineFixtureProject().song.tracks[0];
+    const lanes = lanesFor(drum.instrument);
+    expect(selectedLane(lanes, lanes[1].key)).toBe(lanes[1]);
+    expect(selectedLane(lanes, "pad_gone")).toBe(lanes[0]);
+    expect(selectedLane(lanes, null)).toBe(lanes[0]);
+    expect(selectedLane([], null)).toBeNull();
+  });
+
   it("derives a single pitched lane for a sampler clip", () => {
     const project = createSliceFixtureProject();
     const lanes = lanesFor(project.song.tracks[0].instrument);

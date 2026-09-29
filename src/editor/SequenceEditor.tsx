@@ -102,6 +102,9 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
               playing={props.playing}
               onTogglePlay={() => props.onTogglePlay?.()}
               audition={(pitch, velocity) => props.audition?.(pitch, velocity)}
+              selectedPadId={props.selectedPadId}
+              onSelectPad={(padId) => props.onSelectPad?.(padId)}
+              auditionPad={(padId) => props.auditionPad?.(padId)}
             />
           }
         >

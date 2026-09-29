@@ -5,7 +5,7 @@ import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
 import { createControlGesture, removeNotes, updateClip, updateNote } from "../commands";
 import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import type { EventId } from "../domain/ids";
+import type { EventId, PadId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import FillSlider from "../instrument/FillSlider";
@@ -19,6 +19,7 @@ import {
   MIN_BARS,
   noteAt,
   type StepLane,
+  selectedLane,
   stepCount,
   stepStartTicks,
 } from "./stepEditorModel";
@@ -50,6 +51,14 @@ export interface StepEditorProps {
    */
   readonly selectedIds?: Accessor<readonly EventId[]>;
   readonly setSelectedIds?: (next: readonly EventId[]) => void;
+  /**
+   * The selected row's pad, when the host owns it (#643): the drum machine
+   * panel's selected pad is the same selection. Held here when omitted.
+   */
+  readonly selectedPadId?: PadId | null;
+  onSelectPad?(padId: PadId): void;
+  /** Plays one pad, as its row is picked. */
+  auditionPad?(padId: PadId): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -72,6 +81,23 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     Array.from({ length: stepCount(props.clip) }, (_, index) => index),
   );
   const bars = createMemo(() => barCount(props.clip));
+
+  // The selected row (#643): the target of the Generate panel and the rows
+  // the velocity lane shows. On a drum machine it is the selected pad, shared
+  // with the drum machine panel; painting a cell never moves it.
+  const [ownRow, setOwnRow] = createSignal<string | null>(null);
+  const row = createMemo(() =>
+    selectedLane(
+      lanes(),
+      props.selectedPadId !== undefined ? props.selectedPadId : ownRow(),
+    ),
+  );
+  function selectRow(lane: StepLane): void {
+    setOwnRow(lane.key);
+    if (lane.trigger.kind !== "pad") return;
+    props.onSelectPad?.(lane.trigger.padId);
+    props.auditionPad?.(lane.trigger.padId);
+  }
 
   // Selection is UI-only state (PRD 9.2) — it points at notes by their stable
   // event id and never mutates the project. Controlled by the parent when it
@@ -257,13 +283,30 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
         class="step-editor-grid"
         style={{ "--step-count": String(stepCount(props.clip)) }}
       >
-        <For each={lanes()}>
-          {(lane) => (
-            <fieldset class="step-lane" aria-label={`Lane ${lane.name}`}>
-              <div class="step-lane-name" title={lane.name}>
+        {/* The row names, one button per pad: clicking one picks the row. */}
+        <fieldset class="step-rows" aria-label="Rows">
+          <For each={lanes()}>
+            {(lane) => (
+              <button
+                type="button"
+                class="step-row-name"
+                title={lane.name}
+                aria-pressed={ariaBool(row()?.key === lane.key)}
+                onClick={() => selectRow(lane)}
+              >
                 {lane.name}
-              </div>
-              <div class="step-lane-cells">
+              </button>
+            )}
+          </For>
+        </fieldset>
+        <div class="step-lanes">
+          <For each={lanes()}>
+            {(lane) => (
+              <fieldset
+                class="step-lane"
+                aria-label={`Lane ${lane.name}`}
+                aria-current={row()?.key === lane.key ? "true" : undefined}
+              >
                 <For each={steps()}>
                   {(step) => {
                     const note = () => noteForCell(lane, step);
@@ -303,10 +346,10 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                     );
                   }}
                 </For>
-              </div>
-            </fieldset>
-          )}
-        </For>
+              </fieldset>
+            )}
+          </For>
+        </div>
       </div>
     </section>
   );

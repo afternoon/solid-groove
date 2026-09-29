@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -11,10 +11,10 @@ import {
   createDrumMachineFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
-import type { EventId } from "../domain/ids";
+import type { EventId, PadId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { fillExtent, moveTo } from "../instrument/panelTesting";
-import { fireAndFlush } from "../testing/events";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import StepEditor from "./StepEditor";
 
@@ -380,5 +380,75 @@ describe("StepEditor", () => {
     // The handler prevents default so a drag never starts a text selection.
     const prevented = !target.dispatchEvent(event);
     expect(prevented).toBe(true);
+  });
+});
+
+describe("StepEditor rows (#643)", () => {
+  /** The drum fixture's grid, with the host owning the selected row. */
+  function renderRows(initial: PadId | null = null) {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks[0];
+    if (track.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [kick, clap] = track.instrument.pads;
+    const history = new CommandHistory(project);
+    const [clip, setClip] = createSignal<Clip>(project.clips[0]);
+    history.subscribe((snapshot) => setClip(snapshot.project.clips[0]));
+    const [selectedPad, setSelectedPad] = createSignal<PadId | null>(initial);
+    const onSelectPad = vi.fn((padId: PadId) => setSelectedPad(padId));
+    const auditionPad = vi.fn();
+    render(() => (
+      <StepEditor
+        clip={clip()}
+        instrument={track.instrument}
+        dispatch={(commands) => history.execute(commands as never)}
+        beginGesture={(options) => history.beginGesture(options)}
+        selectedPadId={selectedPad()}
+        onSelectPad={onSelectPad}
+        auditionPad={auditionPad}
+      />
+    ));
+    return { kick, clap, setSelectedPad, onSelectPad, auditionPad };
+  }
+
+  const rows = () => within(screen.getByRole("group", { name: "Rows" }));
+  const rowButton = (name: string) =>
+    rows().getByRole("button", { name: new RegExp(`^${name}$`) });
+
+  it("names one row button per pad, the first selected until one is picked", () => {
+    renderRows();
+    expect(
+      rows()
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["BD", "CP"]);
+    expect(rowButton("BD")).toHaveAttribute("aria-pressed", "true");
+    expect(rowButton("CP")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("Lane BD")).toHaveAttribute("aria-current", "true");
+  });
+
+  it("picks a row by its name, plays its pad and shares it as the selected pad", () => {
+    const { clap, onSelectPad, auditionPad } = renderRows();
+    clickAndFlush(rowButton("CP"));
+    expect(rowButton("CP")).toHaveAttribute("aria-pressed", "true");
+    expect(rowButton("BD")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("Lane CP")).toHaveAttribute("aria-current", "true");
+    expect(onSelectPad).toHaveBeenCalledExactlyOnceWith(clap.id);
+    expect(auditionPad).toHaveBeenCalledExactlyOnceWith(clap.id);
+  });
+
+  it("follows a pad selected elsewhere, in the drum machine panel", () => {
+    const { clap, setSelectedPad } = renderRows();
+    setSelectedPad(clap.id);
+    flush();
+    expect(rowButton("CP")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("never moves the row when a cell is painted", () => {
+    const { onSelectPad, auditionPad } = renderRows();
+    stroke("CP, step 2, off");
+    expect(cell("CP, step 2, on")).toBeInTheDocument();
+    expect(rowButton("BD")).toHaveAttribute("aria-pressed", "true");
+    expect(onSelectPad).not.toHaveBeenCalled();
+    expect(auditionPad).not.toHaveBeenCalled();
   });
 });
