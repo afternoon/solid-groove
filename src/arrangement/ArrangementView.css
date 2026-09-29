@@ -18,72 +18,80 @@
   overflow: hidden;
 }
 
-.arrangement-toolbar {
+/* The zoom group (PRD 9.3): four icon buttons stacked into one segmented
+   control over the bottom-right of the arrangement, clear of the scrollbars
+   and of the fixed privacy chip beneath the corner. It floats, so it does not
+   scroll with the canvas. Square, monochrome. */
+.arrangement-zoom {
+  position: absolute;
+  right: 24px;
+  bottom: 72px;
+  z-index: 2;
   display: flex;
-  gap: 8px;
-  padding: 6px 8px;
-  background: var(--color-background-well);
-  border-bottom: 1px solid var(--color-background-tertiary);
-  flex-shrink: 0;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  box-shadow: 0 4px 12px var(--shade-medium);
 }
 
-.arrangement-action {
+.arrangement-zoom-button {
   appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   background: var(--color-background-secondary);
   color: var(--color-text);
   border: 1px solid var(--color-border-strong);
   border-radius: 0;
-  padding: 4px 10px;
-  font-size: 12px;
   cursor: pointer;
 }
 
-.arrangement-action:hover:not(:disabled) {
-  border-color: var(--color-accent);
+/* Segments share a hairline rather than doubling it. */
+.arrangement-zoom-button + .arrangement-zoom-button {
+  margin-top: -1px;
 }
 
-.arrangement-action:disabled {
+.arrangement-zoom-button:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
+}
+
+.arrangement-zoom-button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.arrangement-action:focus-visible {
+.arrangement-zoom-button:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
-/* The loop brace's keyboard twins (LOOP-018), at the toolbar's far end. */
-.arrangement-loop-controls {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 0 auto;
-  padding: 0;
-  border: 0;
-  min-inline-size: 0;
+/* The loop brace's DOM twin (LOOP-018), laid over the ruler's drawing. `clip`,
+   unlike `hidden`, is never scrolled by focus; the pointer passes through. */
+.arrangement-loop-lane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 16px;
+  overflow: clip;
+  pointer-events: none;
 }
 
-.arrangement-loop-field {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
+.arrangement-loop-brace {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  box-sizing: border-box;
 }
 
-.arrangement-loop-field input {
-  width: 3.5em;
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-background-secondary);
-  border: 1px solid var(--color-border-strong);
-  border-radius: 0;
-  padding: 2px 4px;
-  text-align: right;
-}
-
-.arrangement-loop-field input:focus-visible {
+.arrangement-loop-brace:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .arrangement-body {

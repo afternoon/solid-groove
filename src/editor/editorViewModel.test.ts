@@ -305,8 +305,11 @@ describe("showPianoRoll", () => {
     expect(forProject(createPianoRollFixtureProject())).toBe(true);
   });
 
-  it("is false for a sampler or drum-machine note clip, which get the step grid", () => {
-    expect(forProject(createSliceFixtureProject())).toBe(false);
+  it("is true for a sampler track holding a note clip (#496)", () => {
+    expect(forProject(createSliceFixtureProject())).toBe(true);
+  });
+
+  it("is false for a drum-machine note clip, which keeps the step grid", () => {
     expect(forProject(createDrumMachineFixtureProject())).toBe(false);
   });
 

@@ -3,9 +3,10 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 /**
  * The arrangement's header column and the instrument view's rail are one
  * component (#447), and switching between the two views must not move a
- * track: less the arrangement's toolbars, which the instrument view does not
- * have, every header and everything inside it lands on the same pixels. Only
- * a real layout can say so, so it is asserted here.
+ * track: measured from the first header, so whatever each view puts above its
+ * rows (a ruler, a heading, a toolbar) is not part of the claim, every header
+ * and everything inside it lands on the same pixels. Only a real layout can say
+ * so, so it is asserted here.
  */
 type Rect = readonly [x: number, y: number, width: number, height: number];
 
@@ -22,6 +23,15 @@ async function rects(headers: Locator): Promise<Rect[][]> {
         return [r.x, r.y, r.width, r.height] as const;
       }),
     ),
+  );
+}
+
+/** Every rect's y measured from the first header's top, so a different amount
+ * of chrome above the rows does not count as a difference between the views. */
+function fromFirstHeader(rows: Rect[][]): Rect[][] {
+  const top = rows[0]?.[0]?.[1] ?? 0;
+  return rows.map((row) =>
+    row.map(([x, y, width, height]) => [x, y - top, width, height] as const),
   );
 }
 
@@ -44,22 +54,12 @@ test("a track header sits on the same pixels in the arrangement and the rail", a
   await expect(headers).toHaveCount(2);
 
   const arrangement = await rects(headers);
-  // What the arrangement has above its rows that the instrument view does not.
-  const toolbars = await page.evaluate(() => {
-    const view = document.querySelector(".arrangement-view")?.getBoundingClientRect();
-    const body = document.querySelector(".arrangement-body")?.getBoundingClientRect();
-    return (body?.y ?? 0) - (view?.y ?? 0);
-  });
-  expect(toolbars).toBeGreaterThan(0);
 
   await toView(page, "Instrument");
   await expect(page.getByRole("list", { name: "Tracks" })).toBeVisible();
   const rail = await rects(headers);
 
-  const shifted = arrangement.map((row) =>
-    row.map(([x, y, width, height]) => [x, y - toolbars, width, height] as const),
-  );
-  expect(rail).toEqual(shifted);
+  expect(fromFirstHeader(rail)).toEqual(fromFirstHeader(arrangement));
 });
 
 test("a track header's volume follows a pointer drag, in both views", async ({
