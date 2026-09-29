@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { encodeWav24, toPcm24, WAV_HEADER_BYTES, wav24ByteLength } from "./wavEncoder";
+import {
+  encodeWav24,
+  toPcm24,
+  WAV_CHUNK_FRAMES,
+  WAV_HEADER_BYTES,
+  wav24ByteLength,
+  wav24Chunks,
+} from "./wavEncoder";
 
 const ascii = (bytes: Uint8Array, at: number, length: number) =>
   String.fromCharCode(...bytes.subarray(at, at + length));
@@ -57,6 +64,50 @@ describe("encodeWav24", () => {
     );
     expect(() => encodeWav24([new Float32Array(2)], 0)).toThrow(RangeError);
     expect(() => encodeWav24([], 48_000)).toThrow(RangeError);
+  });
+});
+
+describe("wav24Chunks", () => {
+  const ramp = (frames: number, scale: number) =>
+    Float32Array.from({ length: frames }, (_, index) => ((index % 97) / 97) * scale);
+
+  it("yields the same file encodeWav24 writes, header first, in bounded chunks", () => {
+    const channels = [ramp(1_000, 0.9), ramp(1_000, -0.7)];
+    const chunks = [...wav24Chunks(channels, 48_000, 256)];
+
+    expect(chunks[0].byteLength).toBe(WAV_HEADER_BYTES);
+    expect(chunks.slice(1).map((chunk) => chunk.byteLength)).toEqual([
+      256 * 6,
+      256 * 6,
+      256 * 6,
+      232 * 6,
+    ]);
+    const joined = new Uint8Array(wav24ByteLength(2, 1_000));
+    let at = 0;
+    for (const chunk of chunks) {
+      joined.set(chunk, at);
+      at += chunk.byteLength;
+    }
+    expect(joined).toEqual(encodeWav24(channels, 48_000));
+  });
+
+  it("never materializes more than one chunk of a long render", () => {
+    // Every sample chunk is at most the default size however long the render,
+    // so a caller that lets each go never holds the whole WAV (EXP-002).
+    const frames = WAV_CHUNK_FRAMES * 3 + 10;
+    const channels = [new Float32Array(frames), new Float32Array(frames)];
+    let total = 0;
+    for (const chunk of wav24Chunks(channels, 48_000)) {
+      expect(chunk.byteLength).toBeLessThanOrEqual(WAV_CHUNK_FRAMES * 6);
+      total += chunk.byteLength;
+    }
+    expect(total).toBe(wav24ByteLength(2, frames));
+  });
+
+  it("refuses invalid input before yielding anything", () => {
+    expect(() => wav24Chunks([new Float32Array(2), new Float32Array(3)], 48_000)).toThrow(
+      RangeError,
+    );
   });
 });
 

@@ -6,7 +6,7 @@ import { OfflineRenderError } from "../../audio/offlineRenderer";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
 import { type ShortcutContext, useShortcuts } from "../../shortcuts";
-import { downloadBytes } from "./downloadBytes";
+import { downloadFile } from "./downloadFile";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
 import "./ExportDialog.css";
 
@@ -16,7 +16,7 @@ export interface ExportDialogProps {
   readonly analytics?: Analytics;
   /** Test seams: the export itself, and how its file reaches the browser. */
   readonly exportWav?: typeof exportStereoWav;
-  readonly download?: typeof downloadBytes;
+  readonly download?: typeof downloadFile;
   onClose(): void;
 }
 
@@ -83,7 +83,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     try {
       const file = await (props.exportWav ?? exportStereoWav)(props.project(), options);
       if (current.signal.aborted) return;
-      (props.download ?? downloadBytes)(file.bytes, file.fileName, "audio/wav");
+      (props.download ?? downloadFile)(file.blob, file.fileName);
       setPhase({ kind: "done" });
     } catch (error) {
       if (controller !== current) return;

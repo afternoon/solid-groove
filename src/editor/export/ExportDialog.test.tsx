@@ -11,7 +11,7 @@ import type { exportStereoWav, StereoExport, StereoExportOptions } from "./stere
 afterEach(cleanup);
 
 const FILE: StereoExport = {
-  bytes: new Uint8Array([1, 2, 3]),
+  blob: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" }),
   fileName: "Song 2026-09-29.wav",
   sampleRate: 48_000,
   frames: 1,
@@ -80,7 +80,7 @@ describe("ExportDialog", () => {
     pending.resolve(FILE);
     await settle();
     expect(download).toHaveBeenCalledTimes(1);
-    expect(download).toHaveBeenCalledWith(FILE.bytes, FILE.fileName, "audio/wav");
+    expect(download).toHaveBeenCalledWith(FILE.blob, FILE.fileName);
     expect(screen.getByRole("status")).toHaveTextContent(/complete/i);
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(stringifyProject(project)).toBe(before);

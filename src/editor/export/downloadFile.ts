@@ -2,13 +2,13 @@
 const REVOKE_AFTER_MS = 60_000;
 
 /**
- * Hands `bytes` to the browser as a download named `fileName`: an object URL
+ * Hands `file` to the browser as a download named `fileName`: an object URL
  * behind a transient `download` link, revoked once the browser has had time to
- * start reading it.
+ * start reading it. The `Blob` is used as it is, never copied, so a long
+ * export is not held in memory twice on its way out.
  */
-export function downloadBytes(bytes: Uint8Array, fileName: string, type: string): void {
-  const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type });
-  const url = URL.createObjectURL(blob);
+export function downloadFile(file: Blob, fileName: string): void {
+  const url = URL.createObjectURL(file);
   const link = document.createElement("a");
   link.href = url;
   link.download = fileName;
