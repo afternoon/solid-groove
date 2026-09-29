@@ -219,6 +219,36 @@ export const SOURCES = [
     maxSelections: 20,
   },
   {
+    id: "open-drums",
+    name: "fluid-music open-drums",
+    tier: "tier-2",
+    homepage: "https://github.com/fluid-music/open-drums",
+    licenseId: PRIVATE_ALPHA_LICENSE,
+    licenseUrl: "https://github.com/fluid-music/open-drums",
+    rightsNote:
+      "Re-hosts the classic machines.hyperreal.org sets (Rob Roy TR-909, Fischer TR-808) with the recordists' original notes, which are informal permissions, not redistribution grants. Private alpha only (DEC-010).",
+    reviewNote:
+      "Quote the recordist's own text in the evidence; never treat the host as the rights holder.",
+    take: ["drum-machine one-shots recorded by the set's author"],
+    avoid: ["anything without the recordist's original note"],
+    maxSelections: 40,
+  },
+  {
+    id: "smpldsnds",
+    name: "smpldsnds drum-machines",
+    tier: "tier-2",
+    homepage: "https://github.com/smpldsnds/drum-machines",
+    licenseId: PRIVATE_ALPHA_LICENSE,
+    licenseUrl: "https://github.com/smpldsnds/drum-machines",
+    rightsNote:
+      "The host's README calls the collection public domain but names no recordists, so the claim is unconfirmed. Private alpha only (DEC-010).",
+    reviewNote:
+      "Lossy Ogg Opus only; prefer a lossless copy of the same recordings where one exists.",
+    take: ["drum-machine one-shots"],
+    avoid: ["kits already available losslessly elsewhere"],
+    maxSelections: 150,
+  },
+  {
     id: "kenney",
     name: "Kenney",
     tier: "tier-2",

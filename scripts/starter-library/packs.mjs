@@ -98,6 +98,16 @@ const CC0 = {
 };
 
 /**
+ * Content admitted for the not-for-profit private alpha only (DEC-010). Its
+ * licence is approved only while release.config.mjs says so (CNT-003).
+ */
+const PRIVATE_ALPHA = {
+  licence: "private-alpha",
+  rawRedistribution: true,
+  attributionRequired: false,
+};
+
+/**
  * `docs/sample-library.md` section 9's `coverage` block: what a pack claims to
  * serve, checked by `validate.mjs`'s `validatePackManifest` against what its
  * assets actually deliver. One-shots carry no tempo (section 15.2), so
@@ -248,6 +258,19 @@ export const PACKS = [
     description:
       "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, FreePats banks (synth drum hits, world percussion, synth basses, leads, pads, strings, brass, bells, and FX), and Karoryfer Caveman Cosmonaut organ-synth tones. Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
     rights: CC0,
+    coverage: null,
+  },
+  {
+    id: "pak_CtXJaikSASIyJkhxZaczN",
+    slug: "alpha-drum-machines",
+    family: null,
+    name: "Classic Drum Machines",
+    version: "1.0.0",
+    publisher: "Groove",
+    kind: "factory",
+    description:
+      "Hits recorded from classic drum machines: TR-909, TR-808, LinnDrum LM-2, CR-8000, Drumtraks, RZ-1, MR-10, MFB-512 and more. Private-alpha content whose rights grants are informal or unconfirmed; it cannot ship once Groove leaves the not-for-profit alpha (CNT-003). Contains no loops, vocals, or presets.",
+    rights: PRIVATE_ALPHA,
     coverage: null,
   },
 ];
