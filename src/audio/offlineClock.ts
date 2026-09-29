@@ -2,24 +2,15 @@ import * as Tone from "tone";
 import { type Scheduler, timeoutScheduler } from "../shared/scheduler";
 
 /**
- * The piece of an offline render that has to run *inside* Tone's JavaScript
- * clock rather than on the audio thread: firing transport events, and the
- * nodes those events build.
- *
- * Why this exists instead of `Tone.Offline()`: every short-lived voice the
- * instruments build (a sampler note, a drum hit, a loop player) is constructed
- * inside a transport callback with `new Tone.Player(...)`, which binds to
- * whatever `Tone.getContext()` returns *at that moment*. `Tone.Offline()` puts
- * the global context back as soon as rendering has *started*, and its clock
- * then fires those callbacks later, against the live context — so a scheduled
- * note builds its player in the wrong context and never reaches the render.
- *
- * Leaving the global context pointed at the offline one for the whole render
- * would be worse: the live transport keeps ticking while an export runs, and
- * its callbacks would build *their* voices in the offline graph, silencing
- * live playback (EXP-001: an export "cannot mutate live playback"). So the
- * global context is swapped only for spans of **synchronous** work, where no
- * live callback can possibly run in between, and restored before every yield.
+ * The part of an offline render that runs inside Tone's JavaScript clock:
+ * firing transport events, and the nodes they build. Not `Tone.Offline()`:
+ * every voice (a sampler note, a drum hit, a loop player) is built in a
+ * transport callback, bound to whatever `Tone.getContext()` is *then*, and
+ * `Tone.Offline()` restores the live context once rendering starts, so its
+ * clock builds every note in the wrong context. Holding the offline context
+ * for the whole render would be worse: live callbacks would build *their*
+ * voices offline, silencing live playback (EXP-001). So the global context is
+ * swapped only for **synchronous** work, and restored before every yield.
  */
 export function withGlobalContext<T>(context: Tone.BaseContext, work: () => T): T {
   const previous = Tone.getContext();
@@ -37,11 +28,9 @@ export function withGlobalContext<T>(context: Tone.BaseContext, work: () => T): 
 }
 
 /**
- * The two fields of `Tone.OfflineContext` its own `_renderClock` loop drives.
- * Tone keeps them private, and advancing the clock in chunks — so the swap
- * above never spans a yield — means stepping them here. `offlineClock.test.ts`
- * pins the behaviour against Tone's public `currentTime`, so a Tone upgrade
- * that renames them fails there rather than rendering silence.
+ * The two private fields Tone's own `_renderClock` loop drives, stepped here
+ * so the clock runs in chunks. The tests pin them against the public
+ * `currentTime`, so a Tone upgrade that renames them fails there, not silently.
  */
 interface OfflineClockInternals {
   _currentTime: number;
@@ -60,24 +49,15 @@ function clockInternals(context: Tone.OfflineContext): OfflineClockInternals {
 }
 
 /**
- * Advances the offline clock, one 128-frame block per tick exactly as Tone's
- * own `_renderClock` does, until it passes `untilSeconds` or the render's end.
- * Returns whether the clock has reached the end of the render.
- *
- * Every tick runs with the offline context installed globally, so anything a
- * transport callback constructs is built in the offline graph.
+ * Advances the offline clock a 128-frame block per tick, as `_renderClock`
+ * does, with the offline context installed globally, until it passes
+ * `until` seconds or the render's end. Returns whether it reached the end.
  */
-export function advanceOfflineClock(
-  context: Tone.OfflineContext,
-  untilSeconds: number,
-): boolean {
+export function advanceOfflineClock(context: Tone.OfflineContext, until: number) {
   const clock = clockInternals(context);
   const blockSeconds = 128 / context.sampleRate;
   withGlobalContext(context, () => {
-    while (
-      clock._duration - clock._currentTime >= 0 &&
-      clock._currentTime <= untilSeconds
-    ) {
+    while (clock._duration - clock._currentTime >= 0 && clock._currentTime <= until) {
       context.emit("tick");
       clock._currentTime += blockSeconds;
     }
@@ -98,15 +78,13 @@ export interface RunOfflineClockOptions {
   afterChunk?: (untilSeconds: number) => Promise<void>;
 }
 
-/** Five seconds of audio per chunk keeps each synchronous span short while
- * keeping the number of yields — each at least one event-loop turn — small. */
+/** Short synchronous spans, yet few yields (each at least one event-loop turn). */
 export const DEFAULT_CLOCK_CHUNK_SECONDS = 5;
 
 /**
- * Runs the offline clock to the end of the render in chunks, yielding to the
- * event loop between them with the live context restored, so a long export
- * neither blocks the page nor holds the global swap across a yield.
- * Resolves `"stopped"` if `shouldStop` asked it to, otherwise `"done"`.
+ * Runs the offline clock to the end in chunks, yielding between them with the
+ * live context restored, so a long export never blocks the page. Resolves
+ * `"stopped"` if `shouldStop` asked it to, otherwise `"done"`.
  */
 export async function runOfflineClock(
   context: Tone.OfflineContext,
@@ -128,11 +106,9 @@ export async function runOfflineClock(
 }
 
 /**
- * A `Tone.OfflineContext` on the platform's **native** `OfflineAudioContext`
- * where there is one. Tone's wrapped context makes an offline render's
- * connections only as rendering starts, never breaks one, and cannot suspend,
- * so a voice built or disposed mid-render would never reach it. A native one
- * can render in step with the clock (below); without one, Tone's is the fallback.
+ * A `Tone.OfflineContext` on a **native** `OfflineAudioContext` if there is
+ * one: Tone's own connects only as rendering starts and cannot suspend, so a
+ * voice built or disposed mid-render never reaches it. It is the fallback.
  */
 export function createOfflineContext(
   channels: number,
@@ -157,13 +133,11 @@ export interface RenderInStepOptions extends Omit<RunOfflineClockOptions, "after
 }
 
 /**
- * Runs the clock and the audio thread **in step**: after each clock chunk the
- * audio renders up to where the clock has reached, and pauses there. A render
- * then only holds the voices sounding around that point, as live playback
- * does, so its cost grows with the song's length rather than with notes times
- * length, and a stop takes effect at the next chunk. A context that cannot
- * suspend runs the clock through, then renders in one pass.
- * Resolves the rendered audio, or `"stopped"`.
+ * Runs the clock and the audio **in step**: after each clock chunk the audio
+ * renders to where the clock reached, and pauses. A render then holds only the
+ * voices sounding near that point, as live playback does, and a stop takes
+ * effect at the next chunk. A context that cannot suspend renders in one pass
+ * after the clock. Resolves the audio, or `"stopped"`.
  */
 export async function renderOfflineInStep(
   context: Tone.OfflineContext,
@@ -178,27 +152,43 @@ export async function renderOfflineInStep(
       return rendering;
     }
     rendering = raw.startRendering();
-    // A stopped render is abandoned while paused: never an unhandled rejection.
+    // Never an unhandled rejection, however the render ends.
     rendering.catch(() => {});
     return rendering;
   };
-  const renderTo = async (seconds: number) => {
+  const end = Number.POSITIVE_INFINITY;
+  const renderTo = async (seconds: number, onRendered = options.onRendered) => {
     for (let pause = pauses[0]; pause && pause.at <= seconds; pause = pauses[0]) {
       pauses.shift();
       await Promise.race([pause.reached, run()]);
-      options.onRendered?.(pause.at);
+      onRendered?.(pause.at);
     }
   };
-  const clock = await runOfflineClock(context, { ...options, afterChunk: renderTo });
-  if (clock === "stopped") return "stopped";
-  await renderTo(Number.POSITIVE_INFINITY);
-  return run();
+  try {
+    const clock = await runOfflineClock(context, { ...options, afterChunk: renderTo });
+    if (clock === "stopped") return "stopped";
+    await renderTo(end);
+    return await run();
+  } finally {
+    // Stopped, or failed, while paused part-way: leave the rest to finish.
+    if (rendering && raw.state === "suspended")
+      unfinished.set(context, () => renderTo(end, () => {}).then(run));
+  }
 }
 
-/**
- * Suspends the render at the block boundary at or before each chunk's end,
- * all before rendering starts: not every implementation accepts one after.
- */
+const unfinished = new WeakMap<Tone.OfflineContext, () => Promise<unknown>>();
+
+/** Lets a render `renderOfflineInStep` stopped or failed part-way run to its end:
+ * left paused, a native context holds its buffer and render thread for good.
+ * Call it once the graph is torn down, so the rest renders silence, fast. */
+export async function finishOfflineRender(context: Tone.OfflineContext): Promise<void> {
+  const finish = unfinished.get(context);
+  unfinished.delete(context);
+  await finish?.().catch(() => {});
+}
+
+/** Suspends the render at the block at or before each chunk's end, all before
+ * it starts: not every implementation accepts a suspend after. */
 function schedulePauses(context: Tone.OfflineContext, chunkSeconds?: number) {
   const raw = context.rawContext as unknown as Partial<OfflineAudioContext>;
   const pauses: { at: number; reached: Promise<void> }[] = [];

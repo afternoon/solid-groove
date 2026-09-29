@@ -164,16 +164,32 @@ describe("renderOfflineInStep", () => {
     offline.dispose();
   });
 
-  it("stops at the next chunk when asked to, without finishing the render", async () => {
-    const offline = clock.createOfflineContext(1, 3 * RATE, RATE);
-    const onRendered = vi.fn();
-    const result = await clock.renderOfflineInStep(offline, {
-      chunkSeconds: 1,
-      shouldStop: () => onRendered.mock.calls.length > 0,
-      onRendered,
-    });
-    expect(result).toBe("stopped");
-    expect(onRendered).toHaveBeenCalledOnce();
-    offline.dispose();
+  it("stops or fails at a chunk mid-render, then finishes the render once asked", async () => {
+    const fail = () => {
+      throw new Error("boom");
+    };
+    for (const ending of ["stop", "onRendered", "clock"]) {
+      const offline = clock.createOfflineContext(1, 3 * RATE, RATE);
+      const raw = offline.rawContext as unknown as OfflineAudioContext;
+      if (ending === "clock") offline.transport.schedule(fail, 1.5);
+      offline.transport.start(0);
+      const onRendered = vi.fn(ending === "onRendered" ? fail : () => {});
+      const rendering = clock.renderOfflineInStep(offline, {
+        chunkSeconds: 1,
+        shouldStop: () => ending === "stop" && onRendered.mock.calls.length > 0,
+        onRendered,
+      });
+      if (ending === "stop") expect(await rendering).toBe("stopped");
+      else await expect(rendering).rejects.toThrow("boom");
+      expect(onRendered).toHaveBeenCalledOnce();
+      expect(raw.state).toBe("suspended");
+      const complete = new Promise((resolve) =>
+        raw.addEventListener("complete", resolve),
+      );
+      await clock.finishOfflineRender(offline);
+      await complete;
+      expect(raw.state).not.toBe("suspended");
+      offline.dispose();
+    }
   });
 });
