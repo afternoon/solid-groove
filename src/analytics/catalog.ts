@@ -251,6 +251,7 @@ export const FEATURE_KEYS = [
   "arrangement_toggle_select",
   "arrangement_extend_select",
   "arrangement_drag_copy",
+  "arrangement_create_clip",
   "sections",
   "automation",
   "assistant",
