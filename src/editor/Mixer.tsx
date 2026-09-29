@@ -30,6 +30,7 @@ import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
 import MuteSoloToggles from "./MuteSoloToggles";
 import NewTrackButtons from "./NewTrackButtons";
+import TrackColorPicker from "./TrackColorPicker";
 import { type FaderProps, VolumeFader } from "./TrackFaders";
 import type { TrackLevel } from "./trackLevels";
 import "./trackDrag.css";
@@ -264,6 +265,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
                       dispatch={props.dispatch}
                       beginGesture={props.beginGesture}
                       trackLevel={props.trackLevel}
+                      analytics={props.analytics}
                       onDuplicate={() => handleDuplicate(current())}
                       onDelete={() => requestDelete(current())}
                     />
@@ -342,6 +344,7 @@ interface TrackStripProps {
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
   trackLevel(trackId: TrackId): TrackLevel | null;
+  readonly analytics?: Analytics;
   onDuplicate(): void;
   onDelete(): void;
 }
@@ -400,6 +403,13 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
     >
       {/* The track's colour runs across the strip's top edge (#447). */}
       <div class="mixer-strip-head" style={{ "border-top-color": props.track.color }}>
+        {/* Clicking that colour edge opens the same palette as the track header (#534). */}
+        <TrackColorPicker
+          track={props.track}
+          dispatch={props.dispatch}
+          analytics={props.analytics}
+          variant="bar"
+        />
         <label class="visually-hidden" for={`track-name-${props.track.id}`}>
           Track name
         </label>

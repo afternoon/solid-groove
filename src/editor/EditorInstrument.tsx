@@ -27,6 +27,7 @@ import LevelMeter from "./LevelMeter";
 import LoopPanel from "./LoopPanel";
 import TrackInstrument from "./TrackInstrument";
 import TrackRail from "./TrackRail";
+import { deleteTrack } from "./trackDeletion";
 import type { TrackLevel } from "./trackLevels";
 import { moveTrack } from "./trackReorder";
 import "./EditorInstrument.css";
@@ -148,6 +149,17 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
         beginGesture={props.beginGesture}
         trackLevel={props.trackLevel}
         analytics={analytics}
+        onDelete={(trackId) =>
+          deleteTrack(
+            {
+              project: () => props.project,
+              dispatch: props.dispatch,
+              select: props.onSelectTrack,
+              analytics,
+            },
+            trackId,
+          )
+        }
         onReorder={(trackId, toIndex) =>
           moveTrack(
             { project: () => props.project, dispatch: props.dispatch, analytics },

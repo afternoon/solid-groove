@@ -54,6 +54,7 @@ import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
 import { playbackStep as playbackStepOf } from "./stepEditorModel";
 import { addTrackOfKind } from "./trackCreation";
+import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
@@ -267,6 +268,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setSelection(selectOnly({ kind: "track", id: trackId }));
   }
   const selectedTrackId = createMemo(() => model.focusedTrackId(selection()));
+  const trackDeletion: TrackDeletionContext = {
+    project,
+    dispatch: (commands) => session.dispatch(commands),
+    select: selectTrack,
+    get analytics() {
+      return props.analytics ?? defaultAnalytics;
+    },
+  };
 
   // Which placement's clip the sequence editor is open on (`UI-001`) — a
   // placement id, not a clip id: opening is a gesture on the timeline.
@@ -344,6 +353,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     sequenceEditorOpen: () => opened() !== null,
     closeSequenceEditor: () => setOpenPlacementId(null),
     toggleLooping: () => toggleLooping(loopActions),
+    // The mixer keeps the arrows: its strips are moved with them (#447).
+    adjacentTrack: (by) => {
+      if (props.view === "mixer") return undefined;
+      const id = model.adjacentTrackId(project(), selectedTrackId(), by);
+      return id ? () => selectTrack(id) : undefined;
+    },
+    // Backspace on the selected track (#537), where its header's trash button
+    // is: not the mixer, and not under the open sequence editor. Only a track
+    // the user chose — not the first-track fallback — so a stray key on a
+    // freshly opened project deletes nothing.
+    deleteSelectedTrack: () => {
+      const id = selectedTrackId();
+      if (props.view === "mixer" || opened() !== null || id === null) return undefined;
+      if (!project()?.song.tracks.some((candidate) => candidate.id === id))
+        return undefined;
+      return () => deleteTrack(trackDeletion, id);
+    },
   });
 
   const instrumentPanelTrackId = createMemo(() => model.instrumentPanelTrackId(track()));

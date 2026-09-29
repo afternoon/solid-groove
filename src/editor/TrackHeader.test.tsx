@@ -10,7 +10,7 @@ import TrackHeader from "./TrackHeader";
 afterEach(cleanup);
 
 /** One header over a real history, so a toggle really changes the track. */
-function renderHeader(selected = false) {
+function renderHeader(selected = false, withDelete = false) {
   const history = new CommandHistory(createSliceFixtureProject());
   const [project, setProject] = createSignal(history.project);
   const dispatch = (commands: RawCommandInput | readonly RawCommandInput[]) => {
@@ -22,6 +22,7 @@ function renderHeader(selected = false) {
   const track = () => project().song.tracks.find((t) => t.id === trackId) as Track;
   const onSelect = vi.fn();
   const onDragStart = vi.fn();
+  const onDelete = vi.fn();
   render(() => (
     <TrackHeader
       track={track()}
@@ -49,10 +50,11 @@ function renderHeader(selected = false) {
       }}
       trackLevel={() => null}
       onDragStart={onDragStart}
+      onDelete={withDelete ? onDelete : undefined}
       surface="arrangement"
     />
   ));
-  return { history, track, onSelect, onDragStart };
+  return { history, track, onSelect, onDragStart, onDelete };
 }
 
 describe("TrackHeader (#447)", () => {
@@ -144,5 +146,19 @@ describe("TrackHeader (#447)", () => {
     expect(screen.queryByRole("button", { name: `Mute ${track.name}` })).toBeNull();
     expect(screen.queryByRole("slider")).toBeNull();
     expect(screen.queryByRole("button", { name: `Colour for ${track.name}` })).toBeNull();
+  });
+
+  it("offers a labelled trash button that deletes without selecting the track (#537)", async () => {
+    const { track, onDelete, onSelect } = renderHeader(false, true);
+    await clickAndFlush(screen.getByRole("button", { name: `Delete ${track().name}` }));
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("shows no trash button when the surface cannot delete (#537)", () => {
+    const { track } = renderHeader(false, false);
+    expect(
+      screen.queryByRole("button", { name: `Delete ${track().name}` }),
+    ).not.toBeInTheDocument();
   });
 });

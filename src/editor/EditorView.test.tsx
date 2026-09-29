@@ -1043,6 +1043,114 @@ describe("EditorView library modal", () => {
 });
 
 /** The PRD KEY-01/KEY-02 wiring, end to end through the real registry. */
+describe("EditorView track selection keys (#533)", () => {
+  async function renderDrums(view: "Arrangement" | "Instrument" | "Mixer") {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    if (view !== "Arrangement") await goToView(view);
+    const [drums, breakTrack] = project.song.tracks;
+    return { drums, breakTrack };
+  }
+
+  const press = (key: string, init: KeyboardEventInit = {}) =>
+    fireAndFlush(() => fireEvent.keyDown(window, { key, ...init }));
+  const instrumentShows = (label: string) =>
+    screen.queryByRole("region", { name: label });
+
+  it("steps through the tracks in the instrument view and stops at both ends", async () => {
+    const { drums, breakTrack } = await renderDrums("Instrument");
+    const drumRegion = `Drum machine: ${drums.name}`;
+    const breakRegion = `${breakTrack.name} loop`;
+    expect(instrumentShows(drumRegion)).toBeInTheDocument();
+
+    press("ArrowUp"); // already first: no wrap to the last track
+    expect(instrumentShows(drumRegion)).toBeInTheDocument();
+    press("ArrowDown");
+    expect(instrumentShows(breakRegion)).toBeInTheDocument();
+    press("ArrowDown"); // already last: no wrap to the first track
+    expect(instrumentShows(breakRegion)).toBeInTheDocument();
+    press("ArrowUp");
+    expect(instrumentShows(drumRegion)).toBeInTheDocument();
+  });
+
+  it("steps the selection in the arrangement view too, which the other views follow", async () => {
+    const { drums, breakTrack } = await renderDrums("Arrangement");
+
+    press("ArrowDown");
+
+    await goToView("Instrument");
+    expect(instrumentShows(`${breakTrack.name} loop`)).toBeInTheDocument();
+    expect(instrumentShows(`Drum machine: ${drums.name}`)).not.toBeInTheDocument();
+  });
+
+  it("leaves Alt+Arrow to the device move and the mixer's own arrow keys alone", async () => {
+    const { drums, breakTrack } = await renderDrums("Instrument");
+
+    press("ArrowDown", { altKey: true });
+    expect(instrumentShows(`Drum machine: ${drums.name}`)).toBeInTheDocument();
+
+    await goToView("Mixer");
+    press("ArrowDown");
+    expect(mixerSelect(drums.name)).toHaveAttribute("aria-pressed", "true");
+    expect(mixerSelect(breakTrack.name)).toHaveAttribute("aria-pressed", "false");
+  });
+
+  const trackButton = (name: string) =>
+    screen.queryByRole("button", { name: `Edit ${name}` });
+
+  it("Backspace deletes the selected track, selects the next, and undo brings it back (#537)", async () => {
+    const { drums, breakTrack } = await renderDrums("Instrument");
+    expect(trackButton(drums.name)).toBeInTheDocument();
+
+    press("Backspace");
+    expect(trackButton(drums.name)).toBeInTheDocument();
+
+    await fireAndFlush(() => fireEvent.click(trackButton(drums.name) as HTMLElement));
+    press("Backspace");
+
+    expect(trackButton(drums.name)).not.toBeInTheDocument();
+    expect(instrumentShows(`${breakTrack.name} loop`)).toBeInTheDocument();
+
+    press("z", { ctrlKey: true });
+    expect(trackButton(drums.name)).toBeInTheDocument();
+  });
+
+  it("deletes from the arrangement view too, and leaves the mixer alone (#537)", async () => {
+    const { drums, breakTrack } = await renderDrums("Arrangement");
+    await fireAndFlush(() => fireEvent.click(trackButton(drums.name) as HTMLElement));
+    press("Backspace");
+    expect(trackButton(drums.name)).not.toBeInTheDocument();
+    expect(trackButton(breakTrack.name)).toBeInTheDocument();
+    press("z", { ctrlKey: true });
+
+    await goToView("Mixer");
+    press("Backspace");
+    expect(mixerSelect(drums.name)).toBeInTheDocument();
+    expect(mixerSelect(breakTrack.name)).toBeInTheDocument();
+  });
+
+  it("keeps Backspace for a selected placement rather than the track (#537)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    firePointerAtStarterClip(canvas, "pointerdown");
+    firePointerAtStarterClip(canvas, "pointerup");
+
+    press("Backspace");
+
+    expect(trackButton(project.song.tracks[0].name)).toBeInTheDocument();
+  });
+});
+
 describe("EditorView keyboard shortcuts", () => {
   async function renderSlice() {
     repository = inMemoryModule.createInMemoryProjectRepository();
