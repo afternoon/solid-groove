@@ -268,6 +268,7 @@ export const FEATURE_KEYS = [
   "velocity_lane",
   "note_audition",
   "swing",
+  "drum_pad_rename",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -304,6 +305,7 @@ export const COMMAND_IDS = [
   "placement.update",
   "parameter.set",
   "drum.setPadAsset",
+  "drum.renamePad",
   "drum.setPadFlag",
   "drum.setPadChoke",
   "drum.setPadParameter",
