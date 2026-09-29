@@ -233,25 +233,18 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
-    // drag in flight is innermost of all: Escape cancels it (ARR-011).
-    // The piano roll is the exception: there Esc lets the selection go and
-    // leaves the roll open (ARR-010, CF-019), since a producer keeps working
-    // in it, and its close control is how it closes.
+    // drag in flight is innermost of all: Escape cancels it (ARR-011). The
+    // sequence editor closes on Escape whichever editor it shows, and from a
+    // focused Transform value field too: every dialog does (#650).
     "view.close_surface": {
       run: () => {
-        if (focusedValueField()) focusedValueField()?.cancel();
-        else if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
+        if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) closeLibrary();
-        else if (roll()) roll()?.clearSelection();
         else closeSequenceEditor();
       },
       isEnabled: () =>
-        focusedValueField() !== null ||
-        arrangementDragging() ||
-        guideOpen() ||
-        libraryOpen() ||
-        sequenceEditorOpen(),
+        arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen(),
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.

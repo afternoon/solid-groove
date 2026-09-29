@@ -38,6 +38,7 @@ import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { editorViewFromPath, editorViewPath } from "./editorViews";
 import { NEW_TRACK_KINDS } from "./trackCreation";
+import { focusedValueField } from "./valueFieldFocus";
 
 installWebAudioGlobals();
 
@@ -410,19 +411,19 @@ describe("EditorView", () => {
     expect(names()).toContain("C♯4, step 20, 2 steps");
     expect(within(editor).getByText("4 selected")).toBeInTheDocument();
 
-    // Esc lets the selection go and leaves the roll open.
-    press("Escape");
-    expect(within(editor).getByText("None selected")).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
-
     press("a", { ctrlKey: true });
     press("Delete");
     expect(names()).toEqual([]);
+
+    // Esc closes the roll, selection or not, as it closes every dialog (#650).
+    press("Escape");
+    expect(screen.queryByRole("dialog", { name: "Sequence editor" })).toBeNull();
   });
 
-  // ARR-010: a focused Transform value field takes ↑/↓ and Esc from the roll,
-  // through the registry's `value_field` context.
-  it("nudges and cancels a Transform value field from the keyboard", async () => {
+  // ARR-010: a focused Transform value field takes ↑/↓ from the roll, through
+  // the registry's `value_field` context. Esc is not the field's: it closes the
+  // dialog, as everywhere (#650).
+  it("nudges a Transform value field from the keyboard, and Esc closes the roll", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createPianoRollFixtureProject();
     const created = await repository.createProject(project);
@@ -445,14 +446,16 @@ describe("EditorView", () => {
     // The arrows nudged the field, not the notes.
     expect(firstNote()).toBe(before);
 
-    field.value = "-5";
-    press("Escape");
-    expect(field.value).toBe("+13 st");
-    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
-
     fireAndFlush(() => field.blur());
     clickAndFlush(within(editor).getByRole("button", { name: "Transpose" }));
     expect(firstNote()).not.toBe(before);
+
+    fireAndFlush(() => field.focus());
+    field.value = "-5";
+    press("Escape");
+    expect(screen.queryByRole("dialog", { name: "Sequence editor" })).toBeNull();
+    // The closed field let go of the arrows, or they would still nudge it.
+    expect(focusedValueField()).toBeNull();
   });
 
   it("shows the sampler instrument panel for the slice's sampler track", async () => {
