@@ -3,7 +3,8 @@ import type { AudioSongProjection } from "../projection/audioProjection";
 import type { Scheduler } from "../shared/scheduler";
 import type { AssetBufferLoader } from "./AudioBufferCache";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
-import { runOfflineClock, withGlobalContext } from "./offlineClock";
+import { disposeVoicesFinishedBy } from "./instruments/assetVoice";
+import { renderOfflineInStep, withGlobalContext } from "./offlineClock";
 import {
   OfflineRenderError,
   openOfflineSession,
@@ -26,11 +27,11 @@ export { OfflineRenderError, RENDER_CHANNELS } from "./offlineSession";
  * touches the live context, transport or graph. Automation is not rendered
  * because live playback does not render it yet either (ARR-004).
  *
- * A render has three phases: prepare (decode assets, build reverb impulses),
- * the clock (fire every scheduled event, in chunks, with the offline context
- * installed only while each chunk runs — see `offlineClock.ts`), and the audio
- * thread. The first two can be cancelled at once; the audio-thread phase
- * cannot be interrupted, so a cancel during it takes effect when it ends.
+ * A render prepares (decodes assets, builds reverb impulses), then runs the
+ * clock — firing scheduled events, the offline context installed only while
+ * each chunk runs — and the audio thread in step, disposing each voice once
+ * the audio is past it (see `offlineClock.ts`). A cancel takes effect before
+ * the next chunk, at most five seconds of audio away.
  */
 
 export interface OfflineRenderOptions {
@@ -68,7 +69,7 @@ export interface OfflineRender {
 
 /** Progress reached when assets are ready, and when the clock has run. */
 const PREPARED = 0.1;
-const CLOCKED = 0.7;
+const CLOCKED = 0.95;
 
 /**
  * Renders `projection` offline. Resolves with the rendered audio, or rejects
@@ -106,16 +107,14 @@ export async function renderProjectOffline(
 
     const { context } = session;
     withGlobalContext(context, () => context.transport.start(0));
-    const clock = await runOfflineClock(context, {
+    const rendered = await renderOfflineInStep(context, {
       scheduler: options.scheduler,
       shouldStop: () => signal?.aborted === true,
       onProgress: (fraction) => report(PREPARED + (CLOCKED - PREPARED) * fraction),
+      // Voices that have finished sounding leave the render as it goes.
+      onRendered: (seconds) => disposeVoicesFinishedBy(context, seconds),
     });
-    if (clock === "stopped") throw renderCancelled();
-
-    const raw = context.rawContext as unknown as OfflineAudioContext;
-    const rendered = await raw.startRendering();
-    if (signal?.aborted) throw renderCancelled();
+    if (rendered === "stopped" || signal?.aborted) throw renderCancelled();
 
     const channels = Array.from({ length: RENDER_CHANNELS }, (_, channel) =>
       rendered.getChannelData(Math.min(channel, rendered.numberOfChannels - 1)),
