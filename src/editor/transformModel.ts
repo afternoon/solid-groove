@@ -2,7 +2,6 @@ import type { NoteEditOperation } from "../analytics/catalog";
 import type { CommandInput, RawCommandInput } from "../commands";
 import {
   clearNotes,
-  duplicateNotes,
   noteEventsOf,
   quantizeNotes,
   quantizeNotesToScale,
@@ -12,7 +11,8 @@ import {
 } from "../commands";
 import type { Clip, Project } from "../domain/entities";
 import type { EventId, IdFactory } from "../domain/ids";
-import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import { TICKS_PER_SIXTEENTH } from "../domain/time";
+import { doubleClip } from "./doubleClip";
 
 /**
  * Pure, framework-free model behind the CLP-04 transformation panel.
@@ -41,8 +41,6 @@ export type TransformKind = (typeof TRANSFORM_KINDS)[number];
 
 /** Quantize and vary both work against the editors' 16th-note grid. */
 export const TRANSFORM_GRID_TICKS = TICKS_PER_SIXTEENTH;
-/** Duplicating offsets by one bar, matching the piano roll's own duplicate. */
-export const TRANSFORM_DUPLICATE_OFFSET_TICKS = TICKS_PER_BAR;
 
 /**
  * The selection a transformation applies to.
@@ -111,10 +109,11 @@ export const DEFAULT_TRANSFORM_OPTIONS: TransformOptions = {
 };
 
 /**
- * Builds the command for one transformation.
+ * Builds the command for one transformation, or for Double the commands of
+ * one transaction (`doubleClip.ts`).
  *
- * `duplicate` needs an ID factory and the project because its payload carries
- * the new event IDs explicitly — that is what makes redo and an assistant
+ * `duplicate` needs an ID factory and the project because its copies carry
+ * their new event IDs explicitly — that is what makes redo and an assistant
  * preview reproduce the same notes rather than minting fresh ones each time.
  */
 export function buildTransform(
@@ -126,7 +125,7 @@ export function buildTransform(
     readonly ids: IdFactory;
     readonly options: TransformOptions;
   },
-): CommandInput<never> | RawCommandInput {
+): CommandInput<never> | RawCommandInput | readonly RawCommandInput[] {
   const { clip, scope, options } = context;
   switch (kind) {
     case "transpose":
@@ -139,11 +138,8 @@ export function buildTransform(
       // The key is the song's; the command reads it, so it is not passed.
       return quantizeNotesToScale(clip.id, scope.eventIds);
     case "duplicate":
-      return duplicateNotes(context.ids, context.project, {
-        clipId: clip.id,
-        eventIds: scope.eventIds,
-        offsetTicks: TRANSFORM_DUPLICATE_OFFSET_TICKS,
-      });
+      // Double copies the whole clip, whatever is selected (#647).
+      return doubleClip(context.project, clip, context.ids);
     case "clear":
       // `notes.clear` empties the whole clip by definition — it takes no
       // selection — so the panel labels it for the clip, never the selection.
@@ -163,8 +159,8 @@ export function transformedEventCount(
   scope: TransformScope,
   clip: Clip,
 ): number {
-  if (kind === "clear") {
-    // Clear always empties the clip, whatever happened to be selected.
+  if (kind === "clear" || kind === "duplicate") {
+    // Clear and Double act on the whole clip, whatever happened to be selected.
     return (noteEventsOf(clip) ?? []).length;
   }
   return scope.count;
@@ -191,24 +187,6 @@ export const TRANSFORM_OPERATIONS: Readonly<Record<TransformKind, NoteEditOperat
   clear: "clear",
   vary: "vary",
 };
-
-/**
- * Whether Double's copies fit inside the clip as it is. Double is a copy one
- * bar later *within* the clip, and it refuses rather than growing the clip:
- * Cmd/Ctrl+D is the edit that extends a clip to hold what it copies.
- */
-export function copiesFit(clip: Clip, scope: TransformScope): boolean {
-  const events = noteEventsOf(clip) ?? [];
-  const inScope =
-    scope.eventIds === null
-      ? events
-      : events.filter((event) => scope.eventIds?.includes(event.id));
-  return inScope.every(
-    (event) =>
-      event.startTicks + TRANSFORM_DUPLICATE_OFFSET_TICKS + event.durationTicks <=
-      clip.lengthTicks,
-  );
-}
 
 /** "+12 st", "−5 st": a semitone count as its field shows it. */
 export function formatSemitones(value: number): string {

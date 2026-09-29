@@ -6,10 +6,10 @@ import type { RawCommandInput, TransactionResult } from "../commands";
 import type { Clip, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId } from "../domain/ids";
+import { canDouble } from "./doubleClip";
 import {
   buildTransform,
   canTransform,
-  copiesFit,
   DEFAULT_TRANSFORM_OPTIONS,
   formatFactor,
   formatSemitones,
@@ -55,13 +55,13 @@ export interface TransformPanelProps {
  * quantize to scale, double and clear, for the selection or, with nothing
  * selected, the whole clip.
  *
- * Every button dispatches one registered `notes.*` command — the same ones
- * the assistant calls — so one transformation is one transaction and one
- * undo step, and `vary` is replayable from its seed. A refusal changes
- * nothing and says why under the buttons, in the user's terms. Double copies
- * one bar later *inside* the clip, so it refuses when the copies would not
- * fit; Quantize to scale is for pitched notes, so only the piano roll shows
- * it, and it is off while the song's key is chromatic.
+ * Every button dispatches registered commands — the same ones the assistant
+ * calls — as one transaction and one undo step, and `vary` is replayable from
+ * its seed. A refusal changes nothing and says why under the buttons, in the
+ * user's terms. Double acts on the whole clip: it doubles the clip and copies
+ * every note into the new half (#647), refusing only at the longest clip
+ * length. Quantize to scale is for pitched notes, so only the piano roll
+ * shows it, and it is off while the song's key is chromatic.
  */
 export default function TransformPanel(props: TransformPanelProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
@@ -104,7 +104,7 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
     analytics().logFeatureFirstUse(
       props.editor === "step" ? "step_editor" : "piano_roll",
     );
-    if (kind === "duplicate" && !copiesFit(props.clip, current)) {
+    if (kind === "duplicate" && !canDouble(props.clip)) {
       refuse(kind);
       return;
     }
@@ -116,7 +116,9 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
       options: options(),
     });
     const count = transformedEventCount(kind, current, props.clip);
-    const result = props.dispatch(command as RawCommandInput);
+    const result = props.dispatch(
+      command as RawCommandInput | readonly RawCommandInput[],
+    );
     if (result && !result.ok) {
       refuse(kind);
       return;
@@ -210,7 +212,7 @@ function rejectionMessage(kind: TransformKind): string {
     case "transpose":
       return "That would move a note outside the playable pitch range. Try fewer semitones.";
     case "duplicate":
-      return "The copies would not fit inside this clip. Make the clip longer first.";
+      return "This clip is already as long as a clip can be, so it cannot double.";
     default:
       return "That transformation could not be applied to this clip.";
   }

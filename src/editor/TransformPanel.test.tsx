@@ -1,6 +1,7 @@
 import { cleanup, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
 import { setKey, updateClip } from "../commands";
+import { MAX_CLIP_LENGTH_TICKS } from "../domain/clipLength";
 import { toTicks } from "../domain/time";
 import {
   clickTransform,
@@ -70,14 +71,20 @@ describe("TransformPanel (CLP-04)", () => {
     }
   });
 
-  it("doubles every note in scope", async () => {
+  it("doubles the whole clip, whatever is selected (#647)", async () => {
     const { session, renderPanel } = await setUp();
     const before = currentNotes(session).length;
-    renderPanel([]);
+    const length = session.project.clips[0].lengthTicks;
+    renderPanel([currentNotes(session)[0].id]);
 
     clickTransform("Double");
 
     expect(currentNotes(session)).toHaveLength(before * 2);
+    expect(session.project.clips[0].lengthTicks).toBe(length * 2);
+    // One undo takes back the copies and the length together.
+    session.undo();
+    expect(currentNotes(session)).toHaveLength(before);
+    expect(session.project.clips[0].lengthTicks).toBe(length);
   });
 
   it("clears every note in the clip", async () => {
@@ -136,10 +143,12 @@ describe("TransformPanel (CLP-04)", () => {
     expect(screen.getByRole("region", { name: "Transform" })).toBeInTheDocument();
   });
 
-  it("refuses Double when the copies would not fit, changing nothing", async () => {
+  it("refuses Double at the longest clip length, changing nothing", async () => {
     const { session, renderPanel, transport } = await setUp();
     session.dispatch(
-      updateClip(session.project.clips[0].id, { lengthTicks: toTicks(768) }),
+      updateClip(session.project.clips[0].id, {
+        lengthTicks: toTicks(MAX_CLIP_LENGTH_TICKS),
+      }),
     );
     const before = currentNotes(session);
     renderPanel([]);
@@ -148,7 +157,7 @@ describe("TransformPanel (CLP-04)", () => {
 
     expect(currentNotes(session)).toEqual(before);
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "The copies would not fit inside this clip. Make the clip longer first.",
+      "This clip is already as long as a clip can be, so it cannot double.",
     );
     const failed = transport.events.filter((event) => event.name === "note_edit_failed");
     expect(failed.map((event) => event.params.operation)).toEqual(["double"]);

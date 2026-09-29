@@ -9,7 +9,6 @@ import { createSeededIdFactory, type EventId } from "../domain/ids";
 import {
   buildTransform,
   canTransform,
-  copiesFit,
   DEFAULT_TRANSFORM_OPTIONS,
   formatFactor,
   formatSemitones,
@@ -20,7 +19,6 @@ import {
   parseSeed,
   parseSemitones,
   resolveTransformScope,
-  TRANSFORM_DUPLICATE_OFFSET_TICKS,
   TRANSFORM_GRID_TICKS,
   TRANSFORM_KINDS,
   transformedEventCount,
@@ -84,11 +82,14 @@ describe("buildTransform", () => {
 
   it("builds a registered command for every kind", () => {
     for (const kind of TRANSFORM_KINDS) {
-      const command = buildTransform(kind, {
+      const built = buildTransform(kind, {
         ...context,
         ids: createSeededIdFactory(`transform-${kind}`),
       });
-      expect(command.type.startsWith("notes.")).toBe(true);
+      // Double is a transaction of clip, notes and placement commands (#647).
+      for (const command of [built].flat()) {
+        expect(command.type).toMatch(/^(notes|clip|placement)\./);
+      }
     }
   });
 
@@ -106,13 +107,23 @@ describe("buildTransform", () => {
     expect(vary.payload.seed).toBe(DEFAULT_TRANSFORM_OPTIONS.seed);
   });
 
-  it("mints one new id per duplicated note, in the payload", () => {
-    const duplicate = buildTransform("duplicate", {
+  it("doubles the whole clip, minting one new id per note, whatever is selected", () => {
+    const [grow, copy] = buildTransform("duplicate", {
       ...context,
+      scope: resolveTransformScope(clip, [events[0].id]),
       ids: createSeededIdFactory("dup"),
-    }) as { payload: { newIds: string[]; offsetTicks: number } };
-    expect(duplicate.payload.newIds).toHaveLength(events.length);
-    expect(duplicate.payload.offsetTicks).toBe(TRANSFORM_DUPLICATE_OFFSET_TICKS);
+    }) as readonly {
+      type: string;
+      payload: {
+        changes?: { lengthTicks: number };
+        newIds: string[];
+        offsetTicks: number;
+      };
+    }[];
+    expect(grow.type).toBe("clip.update");
+    expect(grow.payload.changes?.lengthTicks).toBe(clip.lengthTicks * 2);
+    expect(copy.payload.newIds).toHaveLength(events.length);
+    expect(copy.payload.offsetTicks).toBe(clip.lengthTicks);
   });
 
   it("clears the whole clip regardless of the selection", () => {
@@ -171,13 +182,6 @@ describe("mixed event types", () => {
 });
 
 describe("Double and the value fields (ARR-010)", () => {
-  it("fits Double's copies only when they land inside the clip", () => {
-    // The fixture is two bars with its notes in the first: the copies fit.
-    expect(copiesFit(clip, resolveTransformScope(clip, []))).toBe(true);
-    const oneBar = { ...clip, lengthTicks: clip.lengthTicks / 2 } as Clip;
-    expect(copiesFit(oneBar, resolveTransformScope(oneBar, []))).toBe(false);
-  });
-
   it("builds Quantize to scale for the scope", () => {
     const command = buildTransform("quantizeToScale", {
       project,
