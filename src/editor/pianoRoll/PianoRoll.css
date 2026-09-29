@@ -1,0 +1,91 @@
+/* The piano roll's frame (ARR-010). The ruler sits above the grid's scroller
+   rather than sticking inside it, so it can never cover a row; the scroller
+   keeps the two horizontally in step. The gutter sticks to the scroller's left
+   edge, so it only ever covers the grid's past, never a row. */
+
+.piano-roll {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-size: var(--font-size-small);
+  user-select: none;
+}
+
+.pr-frame {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--color-background);
+}
+
+.pr-ruler-row {
+  display: flex;
+  flex: none;
+  background: var(--color-background-secondary);
+  box-shadow: inset 0 -1px 0 var(--color-border);
+}
+
+.pr-corner {
+  flex: none;
+  width: var(--pr-gutter);
+}
+
+.pr-ruler-viewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pr-scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.pr-canvas {
+  display: flex;
+  width: max-content;
+}
+
+.pr-grid {
+  position: relative;
+  flex: none;
+  cursor: cell;
+  touch-action: pan-x pan-y;
+}
+
+/* A brighter line at each bar, over the rows' own step lines. */
+.pr-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, transparent calc(100% - 2px), var(--color-foreground) 0) 0 0
+    / calc(var(--pr-step) * 16) 100%;
+}
+
+.pr-marker-line,
+.pr-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.pr-marker-line {
+  z-index: 1;
+  width: 1px;
+  background: var(--color-foreground);
+}
+
+.pr-playhead {
+  z-index: 3;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-accent);
+}
