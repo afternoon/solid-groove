@@ -23,12 +23,10 @@ export type Step = (caption: string) => Promise<void>;
 const TICKS_PER_BAR = 4 * 192;
 
 /**
- * The one-shot step 4 loads on the Piano track.
- *
- * The register asks for "a piano one-shot". The delivered library has no sound
- * called a piano; "Tine Electric Key" (Tonal Elements, role `key`) is its
- * electric-piano voice and is the product owner's fallback. It is named here,
- * once, so the flow finds the same sound however the browser orders results.
+ * The one-shot step 4 loads on the Piano track: the register names it
+ * (Tonal Elements, role `key`; the library has no sound called a piano). It is
+ * named here, once, so the flow finds the same sound however the browser
+ * orders results.
  */
 export const PIANO_SOUND = "Tine Electric Key";
 
@@ -43,12 +41,31 @@ export interface ExportSong {
   readonly loopBars: number;
 }
 
-/** The step 1 drum pattern, pad by pad, as the steps that are on. */
+/**
+ * The step 1 drum patterns, pad by pad, as the steps that are on: the starter
+ * track's "BD" pad, and the "HH" and "CP" pads of the added "Drums" track. A
+ * new project's starter drum machine has only a "BD" pad, while a drum-machine
+ * track added in the editor carries the full starter kit (`STARTER_KIT` in
+ * `src/instrument/instrumentKinds.ts`), which is why the hats and clap go on a
+ * track of their own.
+ */
+const KICK = { BD: [1, 5, 9, 13] } as const;
 const DRUMS = {
-  BD: [1, 5, 9, 13],
   HH: [3, 7, 11, 15],
   CP: [5, 13],
 } as const;
+
+/** The track names in track order, the loop's track aside (named for its loop). */
+const tracksInOrder = (loopTrack: string): string[] => [
+  "BD",
+  "Drums",
+  "Bass",
+  loopTrack,
+  "Piano",
+];
+
+/** Arrangement rows, in the order steps 1 to 4 add the tracks. */
+const ROW = { BD: 0, Drums: 1, Bass: 2, loop: 3, Piano: 4 } as const;
 
 const BASS_NOTES = [
   "C2, step 1, 1 step",
@@ -156,8 +173,11 @@ async function padStepsOn(editor: Locator, pad: string): Promise<number[]> {
   return names.map((name) => Number(name.match(/step (\d+)/)?.[1])).sort((a, b) => a - b);
 }
 
-async function expectDrums(editor: Locator): Promise<void> {
-  for (const [pad, steps] of Object.entries(DRUMS)) {
+async function expectPattern(
+  editor: Locator,
+  pattern: Readonly<Record<string, readonly number[]>>,
+): Promise<void> {
+  for (const [pad, steps] of Object.entries(pattern)) {
     await expect.poll(() => padStepsOn(editor, pad)).toEqual([...steps]);
   }
 }
@@ -231,7 +251,7 @@ async function loopAtAnotherTempo(page: Page, songTempo: number): Promise<string
 }
 
 /**
- * Steps 1 to 7 of CF-021 and CF-022: builds the four-track song, with its
+ * Steps 1 to 7 of CF-021 and CF-022: builds the five-track song, with its
  * devices, and plays it once.
  */
 export async function buildExportSong(
@@ -240,8 +260,8 @@ export async function buildExportSong(
   canAssertPlayback: boolean,
 ): Promise<ExportSong> {
   // 1. Create a new project. It opens with the starter drum machine, its "BD"
-  //    pad four on the floor. Put the "HH" pad on every offbeat and the "CP"
-  //    pad on beats 2 and 4.
+  //    pad four on the floor. Add a drum-machine track named "Drums", and on
+  //    it put the "HH" pad on every offbeat and the "CP" pad on beats 2 and 4.
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   await page.getByRole("button", { name: "New Project" }).click();
@@ -258,25 +278,33 @@ export async function buildExportSong(
   );
   expect(tempo).toBeGreaterThan(0);
 
-  const drums = await openClip(page, 0);
-  await expect.poll(() => padStepsOn(drums, "BD")).toEqual([...DRUMS.BD]);
+  await expectPattern(await openClip(page, ROW.BD), KICK);
+  await closeEditor(page);
+
+  await page.getByRole("button", { name: "Add drum machine track" }).click();
+  await expect(trackList(page)).toHaveText(["BD", "Drum machine"]);
+  await renameTrack(page, "Drum machine", "Drums");
+  await expect(trackList(page)).toHaveText(["BD", "Drums"]);
+  const drums = await openClip(page, ROW.Drums);
   for (const pad of ["HH", "CP"] as const) {
     for (const on of DRUMS[pad]) {
       await padStep(drums, pad, on, "off").click();
       await expect(padStep(drums, pad, on, "on")).toBeVisible();
     }
   }
-  await expectDrums(drums);
-  await step("Put the hats on the offbeats and the clap on 2 and 4");
+  await expectPattern(drums, DRUMS);
+  await step(
+    "Add a drum-machine track named Drums: hats on the offbeats, clap on 2 and 4",
+  );
   await closeEditor(page);
 
   // 2. Add a synth track named "Bass" and write a bassline in the piano roll:
   //    C2 on steps 1 and 9, D♯2 on step 5, G2 on step 13.
   await page.getByRole("button", { name: "Add synth track" }).click();
-  await expect(trackList(page)).toHaveText(["BD", "Synth"]);
+  await expect(trackList(page)).toHaveText(["BD", "Drums", "Synth"]);
   await renameTrack(page, "Synth", "Bass");
-  await expect(trackList(page)).toHaveText(["BD", "Bass"]);
-  const bass = await openClip(page, 1);
+  await expect(trackList(page)).toHaveText(["BD", "Drums", "Bass"]);
+  const bass = await openClip(page, ROW.Bass);
   await writeNotes(page, bass, BASS_NOTES);
   await step("Add a synth track named Bass and write a bassline");
   await closeEditor(page);
@@ -292,12 +320,12 @@ export async function buildExportSong(
     .getByRole("button", { name: `Insert ${loopTrack}` })
     .click();
   await expect(library(page)).toHaveCount(0);
-  await expect(trackList(page)).toHaveText(["BD", "Bass", loopTrack]);
-  await timeline(page).click({ position: await barOneOfRow(page, 2) });
+  await expect(trackList(page)).toHaveText(["BD", "Drums", "Bass", loopTrack]);
+  await timeline(page).click({ position: await barOneOfRow(page, ROW.loop) });
   await expect(selectedPlacements(page)).toHaveCount(1);
   // How long the loop's clip is decides where the song ends, which CF-021's
   // outcome measures the file against. The loop panel says so (INS-02).
-  const loopEditor = await openClip(page, 2);
+  const loopEditor = await openClip(page, ROW.loop);
   const loopPanel = loopEditor.getByRole("region", { name: "Audio loop" });
   await expect(loopPanel).toContainText(loopTrack);
   const loopBars = Number(
@@ -308,8 +336,8 @@ export async function buildExportSong(
   await closeEditor(page);
   await step("Add a drum loop from the library at bar 1");
 
-  // 4. Add a sampler track named "Piano" and load a piano one-shot from the
-  //    library. In the piano roll write a C minor chord on step 1 (C3, D♯3 and
+  // 4. Add a sampler track named "Piano" and load the "Tine Electric Key"
+  //    one-shot from the library. In the piano roll write a C minor chord on step 1 (C3, D♯3 and
   //    G3 at once) and a single A♯3 on step 9, so the sample plays at four
   //    pitches and three at a time.
   //
@@ -317,7 +345,7 @@ export async function buildExportSong(
   // tonal sounds are in a pack it does not, so the sound is found across the
   // whole library from "Browse packs" (LIB-02's "All sounds").
   await page.getByRole("button", { name: "Add sampler track" }).click();
-  await expect(trackList(page)).toHaveText(["BD", "Bass", loopTrack, "Sampler"]);
+  await expect(trackList(page)).toHaveText(["BD", "Drums", "Bass", loopTrack, "Sampler"]);
   await renameTrack(page, "Sampler", "Piano");
   await viewLink(page, "Instrument").click();
   await railSelect(page, "Piano").click();
@@ -342,9 +370,9 @@ export async function buildExportSong(
 
   await viewLink(page, "Arrangement").click();
   await page.getByTestId("arrangement-view-ready").waitFor();
-  const piano = await openClip(page, 3);
+  const piano = await openClip(page, ROW.Piano);
   await writeNotes(page, piano, PIANO_NOTES);
-  await step("Add a sampler track named Piano, load a piano sound, write a chord");
+  await step("Add a sampler track named Piano, load Tine Electric Key, write a chord");
   await closeEditor(page);
 
   // 5. Add a reverb to the Piano track's effects.
@@ -370,12 +398,12 @@ export async function buildExportSong(
   await expect(masterDevices(page)).toHaveText([/Saturator/, /Compressor/]);
   await step("Add a saturator, then a compressor, to the master");
 
-  // 7. There are now four tracks, each with a clip in bar 1. Play the song,
+  // 7. There are now five tracks, each with a clip in bar 1. Play the song,
   //    then stop.
   await viewLink(page, "Arrangement").click();
   await page.getByTestId("arrangement-view-ready").waitFor();
-  await expect(trackList(page)).toHaveText(["BD", "Bass", loopTrack, "Piano"]);
-  for (let row = 0; row < 4; row += 1) {
+  await expect(trackList(page)).toHaveText(tracksInOrder(loopTrack));
+  for (let row = 0; row < 5; row += 1) {
     await timeline(page).click({ position: await barOneOfRow(page, row) });
     await expect(selectedPlacements(page)).toHaveCount(1);
   }
@@ -385,14 +413,14 @@ export async function buildExportSong(
     await page.getByRole("button", { name: "Stop playback" }).click();
   }
   await expect(page.getByRole("button", { name: "Start playback" })).toBeVisible();
-  await step("Four tracks, each with a clip in bar 1 — play, then stop");
+  await step("Five tracks, each with a clip in bar 1 — play, then stop");
 
   return { projectUrl, projectName, tempo, loopTrack, loopBars };
 }
 
 /**
  * Reloads the page and asserts the song is exactly as steps 1 to 7 left it:
- * the same four tracks, the same clips and notes, the reverb on Piano, and the
+ * the same five tracks, the same clips and notes, the reverb on Piano, and the
  * saturator then the compressor on the master. Exporting must not edit it.
  */
 export async function reloadAndExpectSongUnchanged(
@@ -405,17 +433,19 @@ export async function reloadAndExpectSongUnchanged(
   await page.reload();
   await expect(page).toHaveURL(song.projectUrl);
   await page.getByTestId("arrangement-view-ready").waitFor();
-  await expect(trackList(page)).toHaveText(["BD", "Bass", song.loopTrack, "Piano"]);
+  await expect(trackList(page)).toHaveText(tracksInOrder(song.loopTrack));
 
-  await expectDrums(await openClip(page, 0));
+  await expectPattern(await openClip(page, ROW.BD), KICK);
   await closeEditor(page);
-  await expectNotes(await openClip(page, 1), BASS_NOTES);
+  await expectPattern(await openClip(page, ROW.Drums), DRUMS);
+  await closeEditor(page);
+  await expectNotes(await openClip(page, ROW.Bass), BASS_NOTES);
   await closeEditor(page);
   await expect(
-    (await openClip(page, 2)).getByRole("region", { name: "Audio loop" }),
+    (await openClip(page, ROW.loop)).getByRole("region", { name: "Audio loop" }),
   ).toContainText(song.loopTrack);
   await closeEditor(page);
-  await expectNotes(await openClip(page, 3), PIANO_NOTES);
+  await expectNotes(await openClip(page, ROW.Piano), PIANO_NOTES);
   await closeEditor(page);
 
   await viewLink(page, "Instrument").click();

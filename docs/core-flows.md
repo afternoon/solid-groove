@@ -886,18 +886,19 @@ the project dashboard
 **Preconditions:** signed in with no projects.
 
 1. Create a new project. It opens with the starter drum machine, its "BD" pad four on
-   the floor. Put the "HH" pad on every offbeat and the "CP" pad on beats 2 and 4.
+   the floor. Add a drum-machine track named "Drums", and on it put the "HH" pad on
+   every offbeat and the "CP" pad on beats 2 and 4.
 2. Add a synth track named "Bass" and write a bassline in the piano roll: C2 on steps
    1 and 9, D♯2 on step 5, G2 on step 13.
 3. Add a loop from the library: a drum loop recorded at a different tempo from the
    project's. It lands on a new track as a clip starting at bar 1.
-4. Add a sampler track named "Piano" and load a piano one-shot from the library. In the
-   piano roll write a C minor chord on step 1 (C3, D♯3 and G3 at once) and a single A♯3
+4. Add a sampler track named "Piano" and load the "Tine Electric Key" one-shot from the
+   library. In the piano roll write a C minor chord on step 1 (C3, D♯3 and G3 at once) and a single A♯3
    on step 9, so the sample plays at four pitches and three at a time.
 5. Add a reverb to the Piano track's effects.
 6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
    to the master's effects.
-7. There are now four tracks, each with a clip in bar 1. Play the song, then stop.
+7. There are now five tracks, each with a clip in bar 1. Play the song, then stop.
 8. Press Export in the editor header. A dialog opens with two choices, Stereo WAV and
    Stems (ZIP). Stereo WAV is chosen.
 9. Press Export. A progress bar with a Cancel button shows while it renders. When it
@@ -908,7 +909,7 @@ the project dashboard
 **Outcome:** the file is a valid stereo WAV (two channels, 24-bit PCM, the project's
 sample rate), and it is not silent. It runs from bar 1 to the end of the last clip at
 the song tempo, plus no more than the release tail. Its level is the project's own:
-nothing was normalized (DEC-004). After the reload the project is unchanged — four
+nothing was normalized (DEC-004). After the reload the project is unchanged — five
 tracks, same clips and notes, the reverb on Piano and the saturator and compressor on
 the master — so exporting did not edit it.
 
@@ -924,27 +925,28 @@ project dashboard
 **Preconditions:** signed in with no projects.
 
 1. Create a new project. It opens with the starter drum machine, its "BD" pad four on
-   the floor. Put the "HH" pad on every offbeat and the "CP" pad on beats 2 and 4.
+   the floor. Add a drum-machine track named "Drums", and on it put the "HH" pad on
+   every offbeat and the "CP" pad on beats 2 and 4.
 2. Add a synth track named "Bass" and write a bassline in the piano roll: C2 on steps
    1 and 9, D♯2 on step 5, G2 on step 13.
 3. Add a loop from the library: a drum loop recorded at a different tempo from the
    project's. It lands on a new track as a clip starting at bar 1.
-4. Add a sampler track named "Piano" and load a piano one-shot from the library. In the
-   piano roll write a C minor chord on step 1 (C3, D♯3 and G3 at once) and a single A♯3
+4. Add a sampler track named "Piano" and load the "Tine Electric Key" one-shot from the
+   library. In the piano roll write a C minor chord on step 1 (C3, D♯3 and G3 at once) and a single A♯3
    on step 9, so the sample plays at four pitches and three at a time.
 5. Add a reverb to the Piano track's effects.
 6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
    to the master's effects.
-7. There are now four tracks, each with a clip in bar 1. Play the song, then stop.
+7. There are now five tracks, each with a clip in bar 1. Play the song, then stop.
 8. Press Export in the editor header and choose Stems (ZIP). A bit-depth choice appears,
    16-bit or 24-bit, with 24-bit chosen.
 9. Press Export and let it finish. The browser downloads one file named
    `<project name> <YYYY-MM-DD> stems.zip`.
 10. Close the dialog and reload the page.
 
-**Outcome:** the ZIP holds four WAVs, one per track, named with its position and track
-name (`01 BD.wav`, `02 Bass.wav`, `03 <loop track>.wav`, `04 Piano.wav`) so they sort in
-track order, each with sound in it, plus `Reference mix.wav` and `manifest.json`. Every
+**Outcome:** the ZIP holds five WAVs, one per track, named with its position and track
+name (`01 BD.wav`, `02 Drums.wav`, `03 Bass.wav`, `04 <loop track>.wav`, `05 Piano.wav`)
+so they sort in track order, each with sound in it, plus `Reference mix.wav` and `manifest.json`. Every
 WAV is stereo, 24-bit PCM, at the same sample rate, and exactly the same length. After
 the reload the project is unchanged, devices included.
 

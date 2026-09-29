@@ -85,7 +85,7 @@ test.describe("CF-021", () => {
           : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
       });
 
-      // 1-7. Build the four-track song, add its devices, play it and stop.
+      // 1-7. Build the five-track song, add its devices, play it and stop.
       const song = await buildExportSong(page, step, canAssertPlayback);
 
       // 8. Press Export in the editor header. A dialog opens with two choices,
@@ -144,7 +144,7 @@ test.describe("CF-021", () => {
         .click();
       await expect(dialog).toHaveCount(0);
 
-      // Outcome, continued: after the reload the project is unchanged — four
+      // Outcome, continued: after the reload the project is unchanged — five
       // tracks, same clips and notes, the reverb on Piano and the saturator and
       // compressor on the master — so exporting did not edit it.
       await reloadAndExpectSongUnchanged(page, song);

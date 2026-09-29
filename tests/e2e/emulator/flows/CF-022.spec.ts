@@ -54,7 +54,7 @@ test.describe("CF-022", () => {
           : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
       });
 
-      // 1-7. Build the four-track song, add its devices, play it and stop.
+      // 1-7. Build the five-track song, add its devices, play it and stop.
       const song = await buildExportSong(page, step, canAssertPlayback);
 
       // 8. Press Export in the editor header and choose Stems (ZIP). A bit-depth
@@ -88,7 +88,7 @@ test.describe("CF-022", () => {
       expect(downloads).toEqual([expectedName]);
       await step("Press Export: the stems download as one ZIP");
 
-      // Outcome: the ZIP holds four WAVs, one per track, named with its position
+      // Outcome: the ZIP holds five WAVs, one per track, named with its position
       // and track name so they sort in track order, each with sound in it, plus
       // `Reference mix.wav` and `manifest.json`. Every WAV is stereo, 24-bit
       // PCM, at the same sample rate, and exactly the same length.
@@ -98,9 +98,10 @@ test.describe("CF-022", () => {
       const entries = unzipEntries(await downloadedBytes(download));
       const stems = [
         "01 BD.wav",
-        "02 Bass.wav",
-        `03 ${song.loopTrack}.wav`,
-        "04 Piano.wav",
+        "02 Drums.wav",
+        "03 Bass.wav",
+        `04 ${song.loopTrack}.wav`,
+        "05 Piano.wav",
       ];
       expect([...entries.keys()].sort()).toEqual(
         [...stems, "Reference mix.wav", "manifest.json"].sort(),
