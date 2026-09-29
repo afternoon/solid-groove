@@ -110,14 +110,15 @@ describe("drag overwrites on release (#290)", () => {
     ]);
   });
 
-  it("a resize that grows over a neighbour trims it to the new edge", () => {
+  it("an edge drag that repeats over a neighbour trims it to the copy's edge (#493)", () => {
     const { editing, source, place, spans } = setup();
     place(1, 2);
     editing.beginDrag(source.id, "end", BAR);
     editing.updateDrag(2 * BAR);
     editing.endDrag();
     expect(spans()).toEqual([
-      [0, 2, 0],
+      [0, 1, 0],
+      [1, 1, 0],
       [2, 1, 1],
     ]);
   });
@@ -186,7 +187,7 @@ describe("undo brings back what an overwrite took (#290)", () => {
     expect(history.project.song.placements.map((p) => p.id)).not.toContain(covered.id);
   });
 
-  it("restores a placement a resize trimmed to its original span and offset", () => {
+  it("restores a placement an edge-drag repeat trimmed to its original span and offset", () => {
     const { history, editing, source, place } = setup();
     const trimmed = place(1, 2);
     editing.beginDrag(source.id, "end", BAR);
@@ -204,6 +205,7 @@ describe("undo brings back what an overwrite took (#290)", () => {
     expect(history.project.song.placements.find((p) => p.id === trimmed.id)).toEqual(
       trimmed,
     );
+    expect(history.project.song.placements).toHaveLength(2);
     expect(history.project.song.placements.find((p) => p.id === source.id)).toEqual(
       source,
     );

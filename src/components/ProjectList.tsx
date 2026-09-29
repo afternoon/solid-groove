@@ -1,10 +1,12 @@
 import type { JSX } from "@solidjs/web";
 import since from "since-time-ago";
 import { HiSolidDocumentDuplicate, HiSolidPencil, HiSolidTrash } from "solid-icons/hi";
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import type { ProjectMetadata } from "../domain/entities";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import ConfirmDialog from "./ConfirmDialog";
+import DataTable, { type DataTableColumn } from "./DataTable";
+import { projectSwatchColor } from "./projectSwatch";
 
 /** The outcome of a row action, for inline per-row error display. */
 export interface ProjectActionResult {
@@ -24,6 +26,44 @@ export interface ProjectListProps {
   onDelete?: (projectId: string) => Promise<ProjectActionResult> | ProjectActionResult;
 }
 
+const COLUMNS: readonly DataTableColumn[] = [
+  { label: "Preview", width: "80px" },
+  { label: "Title" },
+  { label: "Created", width: "130px" },
+  { label: "Updated", width: "130px" },
+  { label: "Actions", width: "132px" },
+];
+
+function formatDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** An icon-only row action: its label names the project it acts on. */
+function ProjectAction(props: {
+  readonly label: string;
+  readonly disabled: boolean;
+  readonly destructive?: boolean;
+  readonly children: JSX.Element;
+  onClick(): void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      class={["project-action", { "project-action-destructive": !!props.destructive }]}
+      aria-label={props.label}
+      title={props.label}
+      disabled={props.disabled}
+      onClick={() => props.onClick()}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 export default function ProjectList(props: ProjectListProps): JSX.Element {
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [draftName, setDraftName] = createSignal("");
@@ -33,6 +73,11 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
     id: string;
     message: string;
   } | null>(null);
+
+  // Most recently updated first.
+  const sortedProjects = createMemo(() =>
+    [...props.projects].sort((a, b) => b.modifiedAt - a.modifiedAt),
+  );
 
   const startRename = (project: ProjectMetadata) => {
     setRowError(null);
@@ -108,102 +153,106 @@ export default function ProjectList(props: ProjectListProps): JSX.Element {
           </div>
         }
       >
-        <For each={props.projects}>
-          {(project) => (
-            <div class="project-card">
-              <Show
-                when={renamingId() === project.id}
-                fallback={
-                  /* The project's name, chosen by the user. The card around
-									   it — dates, badges, actions — stays legible (ADR 0002
-									   decision 2). */
-                  <p class={`project-title ${MASK_CONTENT}`}>
-                    {/* Router 2 has no <A>: it claims plain in-app anchors,
-											   so a bare <a> is the only link primitive. */}
-                    <a href={`/projects/${project.id}`}>{project.name}</a>
-                  </p>
-                }
-              >
-                <form
-                  class="project-rename-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void saveRename(project.id);
-                  }}
-                >
-                  {/* The name being typed (ADR 0002 decision 2). */}
-                  <input
-                    class={`project-rename-input ${MASK_CONTENT}`}
-                    type="text"
-                    value={draftName()}
-                    maxlength={120}
-                    aria-label={`Rename ${project.name}`}
-                    onInput={(event) => setDraftName(event.currentTarget.value)}
-                    // Opening rename mode is itself the user's request to type
-                    // a new name immediately.
-                    autofocus
+        <DataTable label="Projects" columns={COLUMNS} class="project-table">
+          <For each={sortedProjects()} keyed={(project) => project.id}>
+            {(project) => (
+              <tr class="project-row">
+                <td>
+                  <span
+                    class="project-swatch"
+                    aria-hidden="true"
+                    style={{ "background-color": projectSwatchColor(project().id) }}
                   />
-                  <button type="submit" disabled={busyId() === project.id}>
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busyId() === project.id}
-                    onClick={cancelRename}
+                </td>
+                <td class="project-name-cell">
+                  <Show
+                    when={renamingId() === project().id}
+                    fallback={
+                      /* The project's name, chosen by the user. The row around
+                         it (dates, actions) stays legible (ADR 0002 decision 2). */
+                      <p class={`project-title ${MASK_CONTENT}`}>
+                        {/* Router 2 has no <A>: it claims plain in-app anchors,
+                            so a bare <a> is the only link primitive. */}
+                        <a href={`/projects/${project().id}`}>{project().name}</a>
+                      </p>
+                    }
                   >
-                    Cancel
-                  </button>
-                </form>
-              </Show>
-
-              <p class="project-meta">
-                <span>Edited {since(new Date(project.modifiedAt))}</span>
-                <Show when={project.template}>
-                  <span class="project-badge">{project.template}</span>
-                </Show>
-                <Show when={project.genre}>
-                  <span class="project-badge">{project.genre}</span>
-                </Show>
-              </p>
-
-              <Show when={renamingId() !== project.id}>
-                <div class="project-card-actions">
-                  <button
-                    type="button"
-                    class="project-action"
-                    disabled={busyId() === project.id}
-                    onClick={() => startRename(project)}
+                    <form
+                      class="project-rename-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void saveRename(project().id);
+                      }}
+                    >
+                      {/* The name being typed (ADR 0002 decision 2). */}
+                      <input
+                        class={`project-rename-input ${MASK_CONTENT}`}
+                        type="text"
+                        value={draftName()}
+                        maxlength={120}
+                        aria-label={`Rename ${project().name}`}
+                        onInput={(event) => setDraftName(event.currentTarget.value)}
+                        // Opening rename mode is itself the user's request to
+                        // type a new name immediately.
+                        autofocus
+                      />
+                      <button type="submit" disabled={busyId() === project().id}>
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId() === project().id}
+                        onClick={cancelRename}
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  </Show>
+                  <Show when={rowError()?.id === project().id}>
+                    <p class="project-row-error">{rowError()?.message}</p>
+                  </Show>
+                </td>
+                <td class="project-date">{formatDate(project().createdAt)}</td>
+                <td class="project-date">
+                  <time
+                    datetime={new Date(project().modifiedAt).toISOString()}
+                    title={formatDate(project().modifiedAt)}
                   >
-                    <HiSolidPencil size={14} />
-                    <span>Rename</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="project-action"
-                    disabled={busyId() === project.id}
-                    onClick={() => void duplicate(project.id)}
-                  >
-                    <HiSolidDocumentDuplicate size={14} />
-                    <span>Duplicate</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="project-action project-action-destructive"
-                    disabled={busyId() === project.id}
-                    onClick={() => setPendingDeleteId(project.id)}
-                  >
-                    <HiSolidTrash size={14} />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </Show>
-
-              <Show when={rowError()?.id === project.id}>
-                <p class="project-row-error">{rowError()?.message}</p>
-              </Show>
-            </div>
-          )}
-        </For>
+                    {since(new Date(project().modifiedAt))}
+                  </time>
+                </td>
+                <td>
+                  <Show when={renamingId() !== project().id}>
+                    <div class="project-actions">
+                      <ProjectAction
+                        label={`Rename ${project().name}`}
+                        disabled={busyId() === project().id}
+                        onClick={() => startRename(project())}
+                      >
+                        <HiSolidPencil size={14} />
+                      </ProjectAction>
+                      <ProjectAction
+                        label={`Duplicate ${project().name}`}
+                        disabled={busyId() === project().id}
+                        onClick={() => void duplicate(project().id)}
+                      >
+                        <HiSolidDocumentDuplicate size={14} />
+                      </ProjectAction>
+                      <ProjectAction
+                        label={`Delete ${project().name}`}
+                        destructive
+                        disabled={busyId() === project().id}
+                        onClick={() => setPendingDeleteId(project().id)}
+                      >
+                        <HiSolidTrash size={14} />
+                      </ProjectAction>
+                    </div>
+                  </Show>
+                </td>
+              </tr>
+            )}
+          </For>
+        </DataTable>
       </Show>
 
       <Show when={pendingDeleteId()}>

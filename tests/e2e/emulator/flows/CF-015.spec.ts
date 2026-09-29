@@ -90,7 +90,7 @@ async function clickBar(
 /** Select the clip in `bar` on row `rowIndex` and duplicate it just after itself. */
 async function duplicateClip(page: Page, rowIndex: number, bar: number): Promise<void> {
   await clickBar(page, rowIndex, bar);
-  await page.getByRole("button", { name: /^Duplicate as a linked copy/ }).click();
+  await page.keyboard.press("ControlOrMeta+D");
 }
 
 /**

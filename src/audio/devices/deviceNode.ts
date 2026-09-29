@@ -44,7 +44,12 @@ export function buildDeviceNode(
 
   const core = createCore(device, context);
 
-  input.connect(dry);
+  if (core.dryAlign) {
+    input.connect(core.dryAlign);
+    core.dryAlign.connect(dry);
+  } else {
+    input.connect(dry);
+  }
   input.connect(core.input);
   core.output.connect(wet);
   dry.connect(trim);

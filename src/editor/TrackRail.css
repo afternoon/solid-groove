@@ -17,7 +17,7 @@
   flex: 0 0 var(--track-column-width);
   min-height: 0;
   /* To the window's foot, as the arrangement's column runs. */
-  height: calc(100vh - var(--editor-header-height) - var(--size-divider));
+  height: calc(100vh - var(--editor-header-height) - 3 * var(--size-divider));
   margin: calc(-1 * var(--size-divider)) 0 0 calc(-1 * var(--size-divider));
   padding: 0;
   overflow-y: auto;

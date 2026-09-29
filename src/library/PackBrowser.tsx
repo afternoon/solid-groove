@@ -103,6 +103,7 @@ export default function PackBrowser(props: PackBrowserProps): JSX.Element {
     <Dialog
       label="Packs"
       size="jumbo"
+      flush
       onClose={() => props.onClose()}
       header={<h2 class="pack-browser-title">Packs</h2>}
     >

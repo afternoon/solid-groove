@@ -45,6 +45,14 @@ export interface DeviceCore {
   ): void;
   dispose(): void;
   /**
+   * A node the shared dry leg is routed through so it arrives in step with
+   * `output`, for a core whose DSP carries inherent latency. Without it a
+   * partial wet/dry mix sums two time-offset copies of the input and
+   * comb-filters (#490). The core owns and disposes it; a latency-free core
+   * omits it and the dry leg stays a straight wire.
+   */
+  readonly dryAlign?: Tone.ToneAudioNode;
+  /**
    * An optional live read of how much gain the device is currently removing,
    * in dB (0 when it is not reducing). Only the compressor implements it; the
    * panel polls it for a gain-reduction meter (FX-01) and it is never the
