@@ -52,38 +52,27 @@
   outline-offset: 1px;
 }
 
-/* The loop brace's keyboard twins (LOOP-018), at the toolbar's far end. */
-.arrangement-loop-controls {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 0 auto;
-  padding: 0;
-  border: 0;
-  min-inline-size: 0;
+/* The loop brace's DOM twin (LOOP-018), laid over the ruler's drawing. `clip`,
+   unlike `hidden`, is never scrolled by focus; the pointer passes through. */
+.arrangement-loop-lane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 16px;
+  overflow: clip;
+  pointer-events: none;
 }
 
-.arrangement-loop-field {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
+.arrangement-loop-brace {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  box-sizing: border-box;
 }
 
-.arrangement-loop-field input {
-  width: 3.5em;
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-background-secondary);
-  border: 1px solid var(--color-border-strong);
-  border-radius: 0;
-  padding: 2px 4px;
-  text-align: right;
-}
-
-.arrangement-loop-field input:focus-visible {
+.arrangement-loop-brace:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .arrangement-body {

@@ -43,7 +43,8 @@ import {
 import LibraryModal from "./LibraryModal";
 import {
   type LoopActionContext,
-  setLoopRangeFromDrag,
+  moveLoopByBars,
+  resizeLoopByBars,
   toggleLooping,
 } from "./loopActions";
 import Mixer from "./Mixer";
@@ -170,6 +171,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // cut/copy/paste/delete/duplicate.
   const [arrangementEditingActions, setArrangementEditingActions] =
     createSignal<PlacementEditingActions | null>(null);
+  // Whether the ruler's loop brace has keyboard focus, lifted so the registry's
+  // `loop_brace` context can follow it (`LOOP-018`).
+  const [loopBraceFocused, setLoopBraceFocused] = createSignal(false);
   // The step editor's note selection, lifted here so the `edit.delete` shortcut
   // can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
   const [selectedNoteIds, setSelectedNoteIds] = createSignal<readonly EventId[]>([]);
@@ -353,6 +357,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     sequenceEditorOpen: () => opened() !== null,
     closeSequenceEditor: () => setOpenPlacementId(null),
     toggleLooping: () => toggleLooping(loopActions),
+    loopBraceFocused,
+    moveLoop: (bars) => moveLoopByBars(loopActions, bars),
+    resizeLoop: (bars) => resizeLoopByBars(loopActions, bars),
     // The mixer keeps the arrows: its strips are moved with them (#447).
     adjacentTrack: (by) => {
       if (props.view === "mixer") return undefined;
@@ -516,9 +523,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           selectedTrackId={track()?.id ?? null}
                           onSelectTrack={selectTrack}
                           onOpenPlacement={openPlacement}
-                          onSetLoopRange={(startTicks, endTicks) =>
-                            setLoopRangeFromDrag(loopActions, startTicks, endTicks)
-                          }
+                          onLoopBraceFocusChange={setLoopBraceFocused}
                           /* The arrangement's own way to add a track
                              (`UI-001`), the same unit and the same route the
                              mixer uses — rendered by the arrangement directly

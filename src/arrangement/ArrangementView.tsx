@@ -5,6 +5,7 @@ import {
   createMemo,
   createSignal,
   createUniqueId,
+  onCleanup,
   onSettled,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
@@ -44,8 +45,8 @@ import {
   RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import { clipClickGesture } from "./clipClickGesture";
-import type { RowMetrics, Viewport } from "./geometry";
-import { LoopBraceControls } from "./LoopBraceControls";
+import { type RowMetrics, ticksToPixels, type Viewport } from "./geometry";
+import { LoopBraceFocus } from "./LoopBraceFocus";
 import {
   createLoopBraceDrag,
   describeLoopBars,
@@ -204,12 +205,11 @@ export interface ArrangementViewProps {
    */
   readonly belowTracks?: JSX.Element;
   /**
-   * Commits a loop range the keyboard controls asked for (`LOOP-018`). The
-   * editor owns what committing means (`loopActions.setLoopRangeFromDrag`);
-   * without it the brace is still drawn and still dragged, and the keyboard
-   * controls are left out.
+   * Reports whether the ruler's loop brace has keyboard focus (`LOOP-018`).
+   * The brace's keys are registry mappings, so the editor needs to know when to
+   * turn their context on. Without it the brace has no keyboard twin.
    */
-  readonly onSetLoopRange?: (startTicks: number, endTicks: number) => void;
+  readonly onLoopBraceFocusChange?: (focused: boolean) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -890,6 +890,18 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return shell?.getViewport().scrollTop ?? 0;
   });
 
+  /** Where the loop brace sits on the timeline, in pixels local to it. */
+  const braceBox = createMemo(() => {
+    stateVersion();
+    const viewport = shell?.getViewport() ?? initialViewport();
+    const { startTicks, endTicks } = props.project.song.loop;
+    const left = ticksToPixels(startTicks, viewport) - viewport.scrollLeft;
+    return { leftPx: left, widthPx: ticksToPixels(endTicks - startTicks, viewport) };
+  });
+
+  // A brace that goes away with focus in it must not leave its key context on.
+  onCleanup(() => props.onLoopBraceFocusChange?.(false));
+
   /** What the `aria-live` mirror says about the one selection (#292). */
   const announcement = createMemo(() => {
     stateVersion();
@@ -926,17 +938,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
         onZoomToSelection={zoomToSelection}
         onScrollToPlayhead={scrollToPlayhead}
         hasSelection={canZoomToSelection()}
-      >
-        <Show when={props.onSetLoopRange}>
-          {(onSetLoopRange) => (
-            <LoopBraceControls
-              loop={props.project.song.loop}
-              onSetRange={onSetLoopRange()}
-              describedBy={loopMirrorId}
-            />
-          )}
-        </Show>
-      </ArrangementToolbar>
+      />
       <div class="arrangement-body">
         <div
           class="arrangement-headers"
@@ -1029,6 +1031,18 @@ export default function ArrangementView(props: ArrangementViewProps) {
             />
           </div>
         </div>
+        <Show when={props.onLoopBraceFocusChange}>
+          {(onFocusChange) => (
+            <LoopBraceFocus
+              loop={props.project.song.loop}
+              leftPx={braceBox().leftPx}
+              widthPx={braceBox().widthPx}
+              insetPx={HEADER_WIDTH_PX}
+              describedBy={loopMirrorId}
+              onFocusChange={onFocusChange()}
+            />
+          )}
+        </Show>
         {/* Outside the "Tracks" list on purpose: it is not a track, and
             counting it as one would make the list longer than the song. It
             sits over the timeline rather than in the header column, because
