@@ -2,6 +2,8 @@ import type { JSX } from "@solidjs/web";
 import "./Toolbar.css";
 
 export interface ToolbarProps {
+  /** Anything the editor puts first, as the step grid does its Bars (#643). */
+  readonly leading?: JSX.Element;
   readonly selectionCount: number;
   onSelectAll(): void;
   onDelete(): void;
@@ -30,6 +32,7 @@ export interface ToolbarProps {
 export default function Toolbar(props: ToolbarProps): JSX.Element {
   return (
     <div class="pr-toolbar">
+      {props.leading}
       <button type="button" class="pr-tool" onClick={() => props.onSelectAll()}>
         Select all
       </button>

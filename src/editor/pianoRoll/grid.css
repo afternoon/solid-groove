@@ -54,8 +54,13 @@
   outline-offset: 1px;
 }
 
-.pr-ruler-step:hover {
+.pr-ruler-step:hover:not(:disabled) {
   background: var(--tint-subtle);
+}
+
+/* A ruler with no marker only labels its steps. */
+.pr-ruler-step:disabled {
+  cursor: default;
 }
 
 /* Points down, at the grid it marks. */
