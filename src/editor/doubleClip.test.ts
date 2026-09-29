@@ -81,6 +81,37 @@ describe("Double (#647)", () => {
     expect(doubled.song.placements.map(bars)).toEqual([3, 4]);
   });
 
+  it("merges tiled linked copies in pairs, so the region plays the clip in turn", () => {
+    // The fixture's clip is two bars; a right-edge drag tiles it (#493).
+    const doubled = double(
+      withPlacements((clip, track) =>
+        [0, 2, 4, 6].map((bar) => place(clip, track, bar, 2)),
+      ),
+    );
+    const spans = doubled.song.placements
+      .map((placement) => [placement.startTicks / BAR, bars(placement)])
+      .sort((a, b) => a[0] - b[0]);
+    // Eight bars of two-bar tiles become two four-bar placements of the
+    // doubled clip, covering the same eight bars.
+    expect(spans).toEqual([
+      [0, 4],
+      [4, 4],
+    ]);
+  });
+
+  it("grows an odd tile left over after the pairs into free space", () => {
+    const doubled = double(
+      withPlacements((clip, track) => [0, 2, 4].map((bar) => place(clip, track, bar, 2))),
+    );
+    const spans = doubled.song.placements
+      .map((placement) => [placement.startTicks / BAR, bars(placement)])
+      .sort((a, b) => a[0] - b[0]);
+    expect(spans).toEqual([
+      [0, 4],
+      [4, 4],
+    ]);
+  });
+
   it("leaves looped placements and ones that show only part of the clip", () => {
     const doubled = double(
       withPlacements((clip, track) => [

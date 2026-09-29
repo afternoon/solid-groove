@@ -1,5 +1,10 @@
 import type { RawCommandInput } from "../commands";
-import { duplicateNotes, updateClip, updatePlacement } from "../commands";
+import {
+  duplicateNotes,
+  removePlacement,
+  updateClip,
+  updatePlacement,
+} from "../commands";
 import { MAX_CLIP_LENGTH_TICKS } from "../domain/clipLength";
 import type { Clip, Placement, Project } from "../domain/entities";
 import type { IdFactory } from "../domain/ids";
@@ -35,36 +40,64 @@ export function doubleClip(
       eventIds: null,
       offsetTicks: length,
     }),
-    ...stretchedPlacements(project, clip).map(({ id, durationTicks }) =>
-      updatePlacement(id, { durationTicks: toTicks(durationTicks) }),
-    ),
+    ...placementCommands(project, clip),
   ] as readonly RawCommandInput[];
 }
 
 /**
- * The clip's placements that showed its end, each grown by the clip's old
- * length but never into the next placement on its track: a track's
- * placements never overlap. A looped placement already repeats the clip, and
- * one that stops short of the end shows only part of it, so both stay as
- * they are.
+ * What happens to the clip's placements. Each one that showed the clip's end
+ * grows by the clip's old length, so the new half plays where the clip does:
+ *
+ * - When the next placement on its track is a full linked copy of the same
+ *   clip, starting right where it ends (a right-edge drag tiles those, #493),
+ *   the two merge into one placement twice as long. Four one-bar tiles become
+ *   two two-bar placements, so the region still plays the whole clip in turn.
+ * - Otherwise it grows into free space, stopping at the next placement on its
+ *   track: a track's placements never overlap.
+ *
+ * A looped placement already repeats the clip, and one that stops short of
+ * the end shows only part of it, so both stay as they are.
  */
-export function stretchedPlacements(
-  project: Project,
-  clip: Clip,
-): readonly { readonly id: Placement["id"]; readonly durationTicks: number }[] {
-  const placements = project.song.placements;
-  return placements.flatMap((placement) => {
-    if (placement.clipId !== clip.id || placement.looped) return [];
-    if (placement.clipOffsetTicks + placement.durationTicks < clip.lengthTicks) return [];
+function placementCommands(project: Project, clip: Clip): RawCommandInput[] {
+  const length = clip.lengthTicks;
+  const all = project.song.placements;
+  const showsEnd = (placement: Placement) =>
+    placement.clipId === clip.id &&
+    !placement.looped &&
+    placement.clipOffsetTicks + placement.durationTicks >= length;
+  const isFullTile = (placement: Placement) =>
+    placement.clipId === clip.id &&
+    !placement.looped &&
+    placement.clipOffsetTicks === 0 &&
+    placement.durationTicks === length;
+
+  const commands: RawCommandInput[] = [];
+  const merged = new Set<Placement["id"]>();
+  const byStart = [...all].sort((a, b) => a.startTicks - b.startTicks);
+  for (const placement of byStart) {
+    if (merged.has(placement.id) || !showsEnd(placement)) continue;
     const end = placement.startTicks + placement.durationTicks;
-    const nextStart = Math.min(
-      ...placements
-        .filter((other) => other.trackId === placement.trackId && other.startTicks >= end)
-        .map((other) => other.startTicks),
+    const next = byStart.find(
+      (other) => other.trackId === placement.trackId && other.startTicks >= end,
     );
-    const grown = Math.min(end + clip.lengthTicks, nextStart) - placement.startTicks;
-    return grown > placement.durationTicks
-      ? [{ id: placement.id, durationTicks: grown }]
-      : [];
-  });
+    if (next && next.startTicks === end && isFullTile(next) && !merged.has(next.id)) {
+      merged.add(next.id);
+      commands.push(
+        removePlacement(next.id),
+        updatePlacement(placement.id, {
+          durationTicks: toTicks(placement.durationTicks + length),
+        }),
+      );
+      continue;
+    }
+    const grown = Math.min(end + length, next?.startTicks ?? end + length);
+    if (grown > end) {
+      commands.push(
+        updatePlacement(placement.id, {
+          durationTicks: toTicks(grown - placement.startTicks),
+        }),
+      );
+    }
+  }
+  return commands;
 }
