@@ -135,6 +135,7 @@ interface PlacementScheduleEntry {
   placementRef: AudioPlacementProjection;
   clipRef: AudioClipProjection;
   tempo: number;
+  swing: number;
   handles: ResourceHandle[];
 }
 
@@ -468,7 +469,8 @@ export class ProjectAudioGraph {
         existing &&
         existing.placementRef === placement &&
         existing.clipRef === clip &&
-        existing.tempo === next.tempo
+        existing.tempo === next.tempo &&
+        existing.swing === next.swing
       ) {
         continue;
       }
@@ -478,9 +480,10 @@ export class ProjectAudioGraph {
         placementRef: placement,
         clipRef: clip,
         tempo: next.tempo,
+        swing: next.swing,
         handles: [],
       };
-      this.scheduleNotesAndLoops(placement, clip, next.tempo, entry);
+      this.scheduleNotesAndLoops(placement, clip, next.tempo, next.swing, entry);
       this.placementSchedules.set(placement.id, entry);
     }
   }
@@ -489,9 +492,10 @@ export class ProjectAudioGraph {
     placement: AudioPlacementProjection,
     clip: AudioClipProjection,
     tempo: number,
+    swing: number,
     entry: PlacementScheduleEntry,
   ): void {
-    const { notes, audioLoops } = computePlacementSchedule(placement, clip, tempo);
+    const { notes, audioLoops } = computePlacementSchedule(placement, clip, tempo, swing);
 
     for (const note of notes) {
       const scheduleId = this.transport.schedule((time) => {

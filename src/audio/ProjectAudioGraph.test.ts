@@ -335,6 +335,48 @@ describe("ProjectAudioGraph", () => {
     await runtime.close();
   });
 
+  it("re-derives a placement's schedule when swing changes, and moves only off-16th notes", async () => {
+    const project = createSliceFixtureProject();
+    const transport = fakeTransport();
+    const runtime = new AudioRuntimeModule.AudioRuntime();
+    const graph = new ProjectAudioGraphModule.ProjectAudioGraph(runtime, "p", {
+      transport,
+    });
+    const before = buildAudioProjection(project);
+    graph.reconcile(before);
+    const ticks = () => [...transport.scheduled.values()].sort();
+    const straight = ticks();
+
+    // The fixture's notes sit on beats: swing reschedules but moves none of them.
+    graph.reconcile(
+      buildAudioProjection({ ...project, song: { ...project.song, swing: 75 } }, before),
+    );
+    expect(ticks()).toEqual(straight);
+    expect(graph.diagnostics().scheduledPlacements).toBe(1);
+
+    // A note on the off-16th is delayed by 24 ticks at 75%.
+    const clip = project.clips[0];
+    const content = clip.content as Extract<typeof clip.content, { kind: "notes" }>;
+    const swung: Project = {
+      ...project,
+      clips: [
+        {
+          ...clip,
+          content: {
+            ...content,
+            events: [{ ...content.events[0], startTicks: 48 }],
+          },
+        },
+      ],
+      song: { ...project.song, swing: 75 },
+    } as Project;
+    graph.reconcile(buildAudioProjection(swung));
+    expect(ticks()).toEqual(["72i"]);
+
+    await graph.dispose();
+    await runtime.close();
+  });
+
   it("keeps every event aligned across seek, tempo change, and repeated loop passes (PRD AUD-01/AUD-02)", async () => {
     const project = createSliceFixtureProject();
     const transport = simulatedTransport();

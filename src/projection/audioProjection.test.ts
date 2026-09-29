@@ -30,6 +30,7 @@ describe("buildAudioProjection", () => {
 
     expect(projection.revision).toBe(project.metadata.revision);
     expect(projection.tempo).toBe(project.song.tempo);
+    expect(projection.swing).toBe(project.song.swing);
     expect(projection.tracks).toHaveLength(1);
     expect(projection.tracks[0].id).toBe(project.song.tracks[0].id);
     expect(projection.tracksById.get(project.song.tracks[0].id)).toBe(
