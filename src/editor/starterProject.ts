@@ -14,6 +14,7 @@ import { derivePackDependencies } from "../domain/packs";
 import { assertProject } from "../domain/parse";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import { createFactoryAsset } from "../library/factoryLibrary";
+import { generateProjectName, type RandomSource } from "./projectName";
 
 /**
  * Builds a fresh `FND-009` starter project: one drum-machine track ("BD") with
@@ -22,13 +23,17 @@ import { createFactoryAsset } from "../library/factoryLibrary";
  * four-on-the-floor clip of pad hits placed once (#496: a drum machine is the
  * one-shot player, a sampler the tonal instrument) — the same shape `src/domain/fixtures.ts`'s
  * `createSliceFixtureProject` pins for tests, but with real (non-seeded) IDs
- * and the current time, for "New Project" to hand to the repository.
+ * and the current time, for "New Project" to hand to the repository. The
+ * project is named by `generateProjectName` ("Mood Energy"), not "Untitled".
  *
  * This is deliberately the smallest project the `FND-009` 16-step slice needs
  * to be playable immediately, not the richer dashboard creation flow
  * (blank/template/duplicate, genre, etc.) — that is `LOOP-001`'s scope.
  */
-export function createStarterProject(ownerId: string): Project {
+export function createStarterProject(
+  ownerId: string,
+  random: RandomSource = Math.random,
+): Project {
   const context = createFactoryContext();
 
   // `CNT-001`: the sound, its pack, its delivery path, and its audio metadata
@@ -73,7 +78,7 @@ export function createStarterProject(ownerId: string): Project {
   return assertProject({
     metadata: createProjectMetadata(context, {
       ownerId,
-      name: "Untitled Project",
+      name: generateProjectName(random),
       template: "starter",
       packDependencies: derivePackDependencies(song),
     }),

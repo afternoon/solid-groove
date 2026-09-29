@@ -1,4 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+/** Reads the generated name of the project the editor just opened. */
+async function openedProjectName(page: Page): Promise<string> {
+  // The editor's own heading, not the dashboard's "Projects" it replaces.
+  const heading = page.locator("h1.project-name");
+  await expect(heading).not.toBeEmpty();
+  return (await heading.textContent())?.trim() ?? "";
+}
 
 /**
  * `LOOP-001` — the anonymous-start dashboard's access control and destructive
@@ -52,22 +60,23 @@ test.describe("destructive confirmation", () => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
+    const name = await openedProjectName(page);
 
     await page.goto("/dashboard");
-    await expect(page.getByText("Untitled Project")).toBeVisible();
+    await expect(page.getByText(name)).toBeVisible();
 
     // Cancelling the confirmation leaves the project in place.
-    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
+    await page.getByRole("button", { name: `Delete ${name}`, exact: true }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: /^cancel$/i }).click();
     await expect(dialog).not.toBeVisible();
-    await expect(page.getByText("Untitled Project")).toBeVisible();
+    await expect(page.getByText(name)).toBeVisible();
 
     // Confirming actually deletes it.
-    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
+    await page.getByRole("button", { name: `Delete ${name}`, exact: true }).click();
     await page
       .getByRole("alertdialog", { name: /delete this project/i })
       .getByRole("button", { name: /^delete$/i })

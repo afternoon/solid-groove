@@ -137,6 +137,14 @@ const TICKS_PER_BAR = 4 * 192;
  * of it went on passing, because the old centre still landed inside the taller
  * row. The horizontal scale was already read this way.
  */
+/** Reads the generated name of the project the editor just opened. */
+async function openedProjectName(page: Page): Promise<string> {
+  // The editor's own heading, not the dashboard's "Projects" it replaces.
+  const heading = page.locator("h1.project-name");
+  await expect(heading).not.toBeEmpty();
+  return (await heading.textContent())?.trim() ?? "";
+}
+
 async function firstRowCentreY(ready: Locator): Promise<number> {
   const rulerHeight = Number(await ready.getAttribute("data-ruler-height"));
   const rowHeight = Number(await ready.getAttribute("data-row-height"));
@@ -262,6 +270,7 @@ test.describe("dashboard project management", () => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
+    const name = await openedProjectName(page);
 
     // Return to the dashboard via the editor's client-side "Projects" link,
     // NOT page.goto("/dashboard"). A full page load would drop the in-memory
@@ -269,16 +278,14 @@ test.describe("dashboard project management", () => {
     // the router link keeps the same page alive so the new project is listed.
     await page.getByRole("link", { name: /projects/i }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByText("Untitled Project")).toBeVisible();
+    await expect(page.getByText(name)).toBeVisible();
 
     // Rename.
     await page.getByRole("button", { name: /rename/i }).click();
-    await page
-      .getByRole("textbox", { name: /rename untitled project/i })
-      .fill("My First Groove");
+    await page.getByRole("textbox", { name: `Rename ${name}` }).fill("My First Groove");
     await page.getByRole("button", { name: /^save$/i }).click();
     await expect(page.getByText("My First Groove")).toBeVisible();
-    await expect(page.getByText("Untitled Project")).not.toBeVisible();
+    await expect(page.getByText(name, { exact: true })).not.toBeVisible();
 
     // Duplicate: an independent second project appears alongside it.
     await page.getByRole("button", { name: /duplicate/i }).click();
@@ -430,10 +437,11 @@ test.describe("keyboard shortcuts", () => {
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
+    const name = await openedProjectName(page);
     await page.getByRole("link", { name: /projects/i }).click();
-    await expect(page.getByText("Untitled Project")).toBeVisible();
+    await expect(page.getByText(name)).toBeVisible();
 
-    await page.getByRole("button", { name: /^delete untitled project$/i }).click();
+    await page.getByRole("button", { name: `Delete ${name}`, exact: true }).click();
     const dialog = page.getByRole("alertdialog", {
       name: /delete this project/i,
     });
@@ -442,7 +450,7 @@ test.describe("keyboard shortcuts", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     // Cancelled, not deleted.
-    await expect(page.getByText("Untitled Project")).toBeVisible();
+    await expect(page.getByText(name)).toBeVisible();
   });
 });
 

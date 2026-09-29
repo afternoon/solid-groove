@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isEntityId } from "../domain/ids";
 import { assertProject } from "../domain/parse";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import { generateProjectName } from "./projectName";
 import { createStarterProject } from "./starterProject";
 
 describe("createStarterProject", () => {
@@ -68,6 +69,12 @@ describe("createStarterProject", () => {
     const b = createStarterProject("user_1");
     expect(a.metadata.id).not.toBe(b.metadata.id);
     expect(isEntityId("project", a.metadata.id)).toBe(true);
+  });
+
+  it("names the project with a generated track-style name", () => {
+    const project = createStarterProject("user_1", () => 0);
+    expect(project.metadata.name).toBe(generateProjectName(() => 0));
+    expect(project.metadata.name).not.toMatch(/untitled/i);
   });
 
   it("owns the project by the given user", () => {
