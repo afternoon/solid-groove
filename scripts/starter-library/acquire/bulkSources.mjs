@@ -35,6 +35,7 @@
  * @property {string[]} genres    Seed genres.
  * @property {string[]} characters Seed characters.
  * @property {string} [intensity] Defaults to "medium".
+ * @property {string} [rootNote]  The pitch a tonal member was sampled at, e.g. "C3".
  */
 
 /**
@@ -52,6 +53,9 @@
  * @property {string[]} defaultCharacters
  * @property {BulkArchiveMapping[]} [mappings] Ordered; first match wins.
  * @property {number} [maxMembers]  Ceiling, so a huge archive cannot dump.
+ * @property {string} [repoUrl]     A git repository to clone instead of a .zip;
+ *                                  the resolved commit is the pin.
+ * @property {RegExp} [include]     Only repo paths matching this are ingested.
  */
 
 /**
@@ -153,10 +157,13 @@ export const BULK_SOURCES = [
     id: "freepats:electric-percussion",
     sourceId: "freepats",
     name: "FreePats — Electric Percussion (CC0 bank)",
-    // The curator pins the exact bank .zip after confirming the bank page
-    // states CC0. FreePats ships .tar.bz2 and .zip mirrors; pin the .zip.
+    // FreePats mirrors each bank to GitHub; the README there states CC0 for
+    // the whole bank, and the cloned commit is the pin.
     archiveUrl: "https://freepats.zenvoid.org/Percussion/electric-percussion.html",
-    licenseUrl: "https://freepats.zenvoid.org/Percussion/electric-percussion.html",
+    repoUrl: "https://github.com/freepats/synthesizer-percussion.git",
+    include: /^samples\//,
+    licenseUrl:
+      "https://github.com/freepats/synthesizer-percussion/blob/master/README.md",
     rightsNote:
       "This specific FreePats bank states CC0 on its own page; the whole bank archive shares that one licence (section 4.1).",
     idBase: BULK_ID_BASE.freepats,
@@ -195,6 +202,20 @@ export const BULK_SOURCES = [
         characters: ["bright", "metallic"],
       },
       {
+        match: /tom/i,
+        family: "drums",
+        role: "tom",
+        genres: ["techno", "house"],
+        characters: ["clean", "round"],
+      },
+      {
+        match: /cymbal/i,
+        family: "drums",
+        role: "cymbal",
+        genres: ["techno", "house"],
+        characters: ["bright", "metallic"],
+      },
+      {
         match: /hat|hi.?hat|cymbal/i,
         family: "drums",
         role: "closed-hat",
@@ -204,6 +225,77 @@ export const BULK_SOURCES = [
     ],
   },
 ];
+
+/**
+ * A FreePats pitched bank taken as one representative note: the note the
+ * sampler plays at its recorded pitch, so the whole bank is one playable sound.
+ */
+function freepatsNote({
+  repo,
+  name,
+  note,
+  file,
+  family,
+  role,
+  genres,
+  characters,
+  idBase,
+}) {
+  return {
+    id: `freepats:${repo}`,
+    sourceId: "freepats",
+    name: `FreePats — ${name} (CC0 bank)`,
+    archiveUrl: `https://github.com/freepats/${repo}`,
+    repoUrl: `https://github.com/freepats/${repo}.git`,
+    include: new RegExp(`^samples/${file.replace(/[#.]/g, "\\$&")}$`),
+    licenseUrl: `https://github.com/freepats/${repo}/blob/master/README.txt`,
+    rightsNote:
+      "The bank's README states CC0 for the whole bank; it is one archive under one licence (section 4.1).",
+    idBase,
+    defaultFamily: family,
+    defaultRole: role,
+    defaultGenres: genres,
+    defaultCharacters: characters,
+    maxMembers: 1,
+    mappings: [{ match: /./, family, role, genres, characters, rootNote: note }],
+  };
+}
+
+BULK_SOURCES.push(
+  freepatsNote({
+    repo: "synth-bass-1",
+    name: "Synth Bass 1",
+    note: "C3",
+    file: "C3.flac",
+    family: "bass",
+    role: "sustained",
+    genres: ["house", "techno", "electronic-pop"],
+    characters: ["warm", "round"],
+    idBase: 8100,
+  }),
+  freepatsNote({
+    repo: "fm-piano1",
+    name: "FM Piano 1",
+    note: "C4",
+    file: "C4v80.flac",
+    family: "tonal",
+    role: "key",
+    genres: ["house", "lofi", "uk-garage"],
+    characters: ["bright", "tuned"],
+    idBase: 8200,
+  }),
+  freepatsNote({
+    repo: "sweep-pad",
+    name: "Sweep Pad",
+    note: "C4",
+    file: "C4.flac",
+    family: "tonal",
+    role: "chord",
+    genres: ["ambient", "trance"],
+    characters: ["long", "soft"],
+    idBase: 8300,
+  }),
+);
 
 export function findBulkSource(id) {
   return BULK_SOURCES.find((source) => source.id === id) ?? null;
@@ -225,6 +317,7 @@ export function mapBulkMember(source, memberPath) {
         genres: rule.genres,
         characters: rule.characters,
         intensity: rule.intensity ?? "medium",
+        rootNote: rule.rootNote ?? null,
       };
     }
   }

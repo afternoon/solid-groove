@@ -246,7 +246,7 @@ export const PACKS = [
     publisher: "Solid Groove",
     kind: "factory",
     description:
-      "Reserved destination for acquired CC0 content (`library:acquire`, `library:vcsl`). Not yet published — nothing is pinned in sources.lock.json. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
+      "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, and FreePats banks (drum-machine hits, a synth bass, an FM piano, a sweep pad). Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
     rights: CC0,
     coverage: null,
   },

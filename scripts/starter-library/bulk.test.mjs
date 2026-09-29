@@ -1,4 +1,11 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zipSync } from "fflate";
@@ -82,7 +89,7 @@ describe("bulk source registry", () => {
 });
 
 describe("acquireBulkSource", () => {
-  it("ingests every audio member of a CC0 archive as bulk-cc0", async () => {
+  it("ingests every audio member of a CC0 archive at metadata-review", async () => {
     const acquiredDir = tmp("bulk-acq-");
     const evidenceDir = tmp("bulk-ev-");
     const source = findBulkSource("producer-space:tech-house-essentials");
@@ -108,7 +115,7 @@ describe("acquireBulkSource", () => {
       expect(asset.id).toMatch(/^sg-one-shot-.+-70\d{2}$/);
       expect(asset.license.id).toBe("CC0-1.0");
       expect(asset.provenance.sourceId).toBe("producer-space");
-      expect(asset.provenance.reviewState).toBe("bulk-cc0");
+      expect(asset.provenance.reviewState).toBe("metadata-review");
       expect(asset.provenance.reviewer).toBe("producer-space-cc0-bulk");
       expect(asset.tags.sourceTypes).toEqual(["recorded"]);
       expect(asset.license.rawRedistributionAllowed).toBe(true);
@@ -122,7 +129,7 @@ describe("acquireBulkSource", () => {
   });
 
   it("refuses a placeholder archive URL until a real .zip is pinned", async () => {
-    const source = findBulkSource("freepats:electric-percussion");
+    const source = findBulkSource("producer-space:tech-house-essentials");
     await expect(
       acquireBulkSource(source, {
         acquiredDir: tmp("bulk-acq-"),
@@ -130,6 +137,38 @@ describe("acquireBulkSource", () => {
         now: "2026-08-03T00:00:00.000Z",
       }),
     ).rejects.toThrow(/placeholder archiveUrl/);
+  });
+
+  it("ingests a git-repo bank's included files, pinned by commit", async () => {
+    const acquiredDir = tmp("bulk-acq-");
+    const evidenceDir = tmp("bulk-ev-");
+    const source = findBulkSource("freepats:synth-bass-1");
+    const cloneImpl = (dir) => {
+      mkdirSync(join(dir, "samples"), { recursive: true });
+      writeFileSync(join(dir, "samples", "C3.flac.wav"), tone(44100, 0.4, 131));
+      writeFileSync(join(dir, "samples", "C3.flac"), tone(44100, 0.4, 131));
+      writeFileSync(join(dir, "samples", "E4.flac"), tone(44100, 0.4, 330));
+      return "b".repeat(40);
+    };
+
+    const result = await acquireBulkSource(source, {
+      acquiredDir,
+      evidenceDir,
+      now: "2026-08-03T00:00:00.000Z",
+      cloneImpl,
+    });
+
+    // Only the declared note is taken, not the rest of the bank.
+    expect(result.ingested).toBe(1);
+    expect(result.commit).toBe("b".repeat(40));
+    const [{ asset }] = loadAcquiredAssets(acquiredDir);
+    expect(asset.provenance.archiveMember).toBe("samples/C3.flac");
+    expect(asset.provenance.downloadUrl).toBe(`${source.repoUrl}@${"b".repeat(40)}`);
+    expect(asset.audio.rootNote).toBe("C3");
+    expect(asset.license.id).toBe("CC0-1.0");
+    expect(readFileSync(join(evidenceDir, "freepats-synth-bass-1.md"), "utf8")).toContain(
+      `| Commit | ${"b".repeat(40)} |`,
+    );
   });
 
   it("writes archive-wide licence evidence with the archive checksum", () => {
