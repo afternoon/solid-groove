@@ -1,0 +1,17 @@
+/* A reorder drag picks the item up (#539): the copy follows the pointer with
+   no frame or shadow of its own, and the item's own slot stays as an empty gap
+   that the others slide around. The gap keeps its size, so nothing reflows. */
+.drag-lift {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+}
+
+/* The hand stays closed wherever the pointer travels; the extra weight in the
+   selector is what outranks a control's own `cursor` without `!important`. */
+:root.drag-lifting :is(*, [data-track-drag], [data-track-drag] *) {
+  cursor: grabbing;
+}
