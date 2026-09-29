@@ -1,71 +1,131 @@
+/* The Transform panel (CLP-04, ARR-010): a group rule with the scope, then a
+   12-column grid — three buttons that each carry a value field, and the
+   plain buttons beneath — and the refusal, framed, under it all. */
+
 .transform-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  margin-top: 12px;
-  background-color: var(--color-background-secondary);
-  border-left: 3px solid var(--color-accent);
+  gap: 10px;
+  min-width: 0;
 }
 
-.transform-row {
+.transform-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.transform-button,
-.transform-option input {
-  font-family: inherit;
-  font-size: var(--font-size-small);
+.transform-title {
+  color: var(--color-foreground-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.transform-head::after {
+  content: "";
+  flex: 1;
+  order: 1;
+  height: 1px;
+  background: var(--color-border-strong);
+}
+
+.transform-scope {
+  order: 2;
   color: var(--color-text);
-  background-color: var(--color-background-tertiary);
-  border: 1px solid var(--color-background-hover);
+  font-size: var(--font-size-small);
+}
+
+.transform-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.transform-pair {
+  display: flex;
+  grid-column: span 4;
+  gap: 2px;
+  min-width: 0;
+}
+
+.transform-grid > .transform-button {
+  grid-column: span 3;
 }
 
 .transform-button {
-  padding: 4px 10px;
+  flex: 1;
+  height: 28px;
+  padding: 0 11px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .transform-button:hover:not(:disabled) {
-  background-color: var(--color-background-hover);
+  background: var(--color-background-hover);
+  color: var(--color-text);
 }
 
 .transform-button:disabled {
-  opacity: 0.45;
+  opacity: 0.35;
   cursor: default;
 }
 
-.transform-button:focus-visible {
-  outline: 2px solid var(--color-foreground-bright);
-  outline-offset: 1px;
-}
-
-.transform-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.transform-value {
+  flex: none;
+  width: 72px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
   font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
-.transform-option input {
-  width: 6rem;
-  padding: 2px 4px;
+.transform-value[aria-invalid="true"] {
+  outline: 1px dashed var(--color-accent);
 }
 
-.transform-scope,
+.transform-button:focus-visible,
+.transform-value:focus {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 0;
+}
+
 .transform-error {
+  min-height: 17px;
   margin: 0;
-  font-size: var(--font-size-small);
+  font-size: 11px;
 }
 
-.transform-scope {
-  color: var(--color-text-secondary);
-}
-
+/* A refusal is emphasis and words, not a colour. */
 .transform-error:not(:empty) {
-  color: var(--color-warning);
+  padding: 4px 8px;
+  background: var(--color-background-tertiary);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+  color: var(--color-text);
+}
+
+@media (max-width: 900px) {
+  .transform-pair {
+    grid-column: span 12;
+  }
+
+  .transform-grid > .transform-button {
+    grid-column: span 6;
+  }
 }

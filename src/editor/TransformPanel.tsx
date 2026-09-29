@@ -11,8 +11,12 @@ import {
   canTransform,
   copiesFit,
   DEFAULT_TRANSFORM_OPTIONS,
+  formatFactor,
+  formatSemitones,
+  parseFactor,
+  parseSeed,
+  parseSemitones,
   resolveTransformScope,
-  TRANSFORM_KINDS,
   TRANSFORM_LABELS,
   TRANSFORM_OPERATIONS,
   type TransformKind,
@@ -39,18 +43,17 @@ export interface TransformPanelProps {
 }
 
 /**
- * The CLP-04 musical-transformation panel: transpose, velocity scale, quantize,
- * duplicate, clear, and seeded rhythmic variation for the current selection.
+ * The Transform panel (CLP-04, ARR-010): transpose, velocity, vary, quantize,
+ * quantize to scale, double and clear, for the selection or, with nothing
+ * selected, the whole clip.
  *
- * Every button dispatches one of the six already-registered `notes.*` commands
- * (`src/commands/definitions/transforms.ts`) — the same ones the assistant
- * calls, with the same validation, generated inverse, and summary. The panel
- * adds no mutation path of its own (PRD section 9.6), which is what gives it
- * two properties the CLP-04 criteria turn on: one transformation is one
- * transaction (so undo is atomic and redo exact, `vary` included, its
- * randomness coming from the payload's seed rather than `Math.random`), and a
- * boundary case is a rejection rather than a clamp — surfaced to the user
- * instead of silently applying a partial result.
+ * Every button dispatches one registered `notes.*` command — the same ones
+ * the assistant calls — so one transformation is one transaction and one
+ * undo step, and `vary` is replayable from its seed. A refusal changes
+ * nothing and says why under the buttons, in the user's terms. Double copies
+ * one bar later *inside* the clip, so it refuses when the copies would not
+ * fit; Quantize to scale is for pitched notes, so only the piano roll shows
+ * it, and it is off while the song's key is chromatic.
  */
 export default function TransformPanel(props: TransformPanelProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
@@ -60,20 +63,9 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
   const scope = createMemo(() => resolveTransformScope(props.clip, props.selectedIds));
   const enabled = createMemo(() => canTransform(scope()));
   const chromatic = () => props.project.song.key.scale === "chromatic";
-  // Quantize to scale is for pitched notes, so only the piano roll offers it.
-  const kinds = () =>
-    TRANSFORM_KINDS.filter(
-      (kind) => kind !== "quantizeToScale" || props.editor === "piano_roll",
-    );
 
-  // A refusal describes the clip as it was when the user clicked. Once the clip
-  // changes underneath — another transformation, an undo, a remote edit — the
-  // message may no longer be true, so it is dropped rather than left to mislead.
-  //
-  // The 1.x `on(..., { defer: true })` wrapper is gone: a split effect's
-  // compute half *is* the dependency declaration, so `props.clip` is the whole
-  // of it, and `defer` is now an option on `createEffect` itself. Clearing the
-  // error is a write, which is why it sits in the apply half.
+  // A refusal describes the clip as it was when the user clicked, so once the
+  // clip changes underneath it is dropped rather than left to mislead.
   createEffect(
     () => props.clip,
     () => {
@@ -89,7 +81,6 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
     return isWholeClip ? `All ${count} ${noun}` : `${count} selected ${noun}`;
   }
 
-  /** A refusal changes nothing: it says why, and is reported. */
   function refuse(kind: TransformKind): void {
     setError(rejectionMessage(kind));
     analytics().log("note_edit_failed", {
@@ -101,12 +92,11 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
   function applyTransform(kind: TransformKind): void {
     const current = scope();
     if (!canTransform(current)) return;
-    // Double copies one bar later inside the clip, so it refuses copies that
-    // would not fit rather than growing the clip; Cmd/Ctrl+D is what extends.
+    // Reaching for a transformation is the feature being used, accepted or not.
+    analytics().logFeatureFirstUse(
+      props.editor === "step" ? "step_editor" : "piano_roll",
+    );
     if (kind === "duplicate" && !copiesFit(props.clip, current)) {
-      analytics().logFeatureFirstUse(
-        props.editor === "step" ? "step_editor" : "piano_roll",
-      );
       refuse(kind);
       return;
     }
@@ -118,16 +108,8 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
       options: options(),
     });
     const count = transformedEventCount(kind, current, props.clip);
-    // `feature_first_use` is marked before the dispatch: reaching for a
-    // transformation is the feature being used, whether or not the command
-    // accepts this particular payload.
-    analytics().logFeatureFirstUse(
-      props.editor === "step" ? "step_editor" : "piano_roll",
-    );
     const result = props.dispatch(command as RawCommandInput);
     if (result && !result.ok) {
-      // A rejected transformation changed nothing, so it is not an edit and
-      // emits no `clip_edited`.
       refuse(kind);
       return;
     }
@@ -138,52 +120,68 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
     });
   }
 
+  function TransformButton(button: { kind: TransformKind; disabled?: boolean }) {
+    return (
+      <button
+        type="button"
+        class="transform-button"
+        onClick={() => applyTransform(button.kind)}
+        disabled={!enabled() || button.disabled === true}
+      >
+        {TRANSFORM_LABELS[button.kind]}
+      </button>
+    );
+  }
+
+  const buttons = (): readonly TransformKind[] =>
+    props.editor === "piano_roll"
+      ? ["quantize", "quantizeToScale", "duplicate", "clear"]
+      : ["quantize", "duplicate", "clear"];
+
   return (
     <section class="transform-panel" aria-label="Transform">
-      <p class="transform-scope">{scopeLabel()}</p>
-      <div class="transform-row">
-        <For each={kinds()}>
+      <div class="transform-head">
+        <span class="transform-title">Transform</span>
+        <span class="transform-scope">{scopeLabel()}</span>
+      </div>
+      <div class="transform-grid">
+        <div class="transform-pair">
+          <TransformButton kind="transpose" />
+          <ValueField
+            label="Semitones"
+            display={formatSemitones(options().semitones)}
+            parse={parseSemitones}
+            onCommit={(semitones) => setOptions((c) => ({ ...c, semitones }))}
+          />
+        </div>
+        <div class="transform-pair">
+          <TransformButton kind="scaleVelocity" />
+          <ValueField
+            label="Velocity multiplier"
+            display={formatFactor(options().velocityFactor)}
+            parse={parseFactor}
+            onCommit={(velocityFactor) => setOptions((c) => ({ ...c, velocityFactor }))}
+          />
+        </div>
+        <div class="transform-pair">
+          <TransformButton kind="vary" />
+          <ValueField
+            label="Vary seed"
+            display={options().seed}
+            parse={parseSeed}
+            onCommit={(seed) => setOptions((c) => ({ ...c, seed }))}
+          />
+        </div>
+        <For each={buttons()}>
           {(kind) => (
-            <button
-              type="button"
-              class="transform-button"
-              onClick={() => applyTransform(kind)}
-              disabled={!enabled() || (kind === "quantizeToScale" && chromatic())}
-            >
-              {TRANSFORM_LABELS[kind]}
-            </button>
+            <TransformButton
+              kind={kind}
+              disabled={kind === "quantizeToScale" && chromatic()}
+            />
           )}
         </For>
       </div>
-      <div class="transform-row transform-options">
-        <NumberOption
-          label="Semitones"
-          step={1}
-          value={options().semitones}
-          onValue={(value) => setOptions((c) => ({ ...c, semitones: Math.round(value) }))}
-        />
-        <NumberOption
-          label="Velocity x"
-          step={0.05}
-          value={options().velocityFactor}
-          onValue={(value) =>
-            value > 0 && setOptions((c) => ({ ...c, velocityFactor: value }))
-          }
-        />
-        <label class="transform-option">
-          <span>Vary seed</span>
-          <input
-            type="text"
-            value={options().seed}
-            onInput={(event) => {
-              const seed = event.currentTarget.value;
-              if (seed.length > 0) setOptions((c) => ({ ...c, seed }));
-            }}
-          />
-        </label>
-      </div>
-      {/* A rejection is shown, not swallowed: the command refuses to clamp a
-			    note out of range, so the user needs to know why nothing moved. */}
+      {/* A refusal is shown, not swallowed: nothing moved, and this says why. */}
       <p class="transform-error" role="alert">
         {error() ?? ""}
       </p>
@@ -192,11 +190,9 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
 }
 
 /**
- * Why a transformation was refused, in the user's terms.
- *
- * The command layer's own issue text names entity IDs and raw tick counts —
- * right for a log or an assistant, wrong for a person looking at a grid. The
- * refusals are few and known, so each gets a sentence that says what to change.
+ * Why a transformation was refused, in the user's terms. The command layer's
+ * own issue text names entity IDs and raw ticks — right for a log, wrong for a
+ * person — so each known refusal gets a sentence that says what to change.
  */
 function rejectionMessage(kind: TransformKind): string {
   switch (kind) {
@@ -209,25 +205,39 @@ function rejectionMessage(kind: TransformKind): string {
   }
 }
 
-/** One labelled numeric option. Non-numeric input is ignored, never coerced. */
-function NumberOption(props: {
+/**
+ * A value you can type into. Enter or leaving the field commits what was
+ * typed; anything that does not read as a value is refused, flagged, and put
+ * back to the last good one. Keys are otherwise left alone: key handling
+ * lives in src/shortcuts.
+ */
+function ValueField<T>(props: {
   readonly label: string;
-  readonly step: number;
-  readonly value: number;
-  onValue(value: number): void;
+  readonly display: string;
+  parse(text: string): T | null;
+  onCommit(value: T): void;
 }): JSX.Element {
+  const [invalid, setInvalid] = createSignal(false);
   return (
-    <label class="transform-option">
-      <span>{props.label}</span>
-      <input
-        type="number"
-        step={props.step}
-        value={props.value}
-        onInput={(event) => {
-          const value = Number(event.currentTarget.value);
-          if (Number.isFinite(value)) props.onValue(value);
-        }}
-      />
-    </label>
+    <input
+      type="text"
+      class="transform-value"
+      aria-label={props.label}
+      aria-invalid={invalid() ? "true" : undefined}
+      spellcheck={false}
+      autocomplete="off"
+      value={props.display}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => {
+        const input = event.currentTarget;
+        const value = props.parse(input.value);
+        setInvalid(value === null);
+        if (value !== null) props.onCommit(value);
+        // Either the committed value, formatted, or the last good one.
+        queueMicrotask(() => {
+          input.value = props.display;
+        });
+      }}
+    />
   );
 }
