@@ -10,7 +10,11 @@ import TrackHeader from "./TrackHeader";
 afterEach(cleanup);
 
 /** One header over a real history, so a toggle really changes the track. */
-function renderHeader(selected = false, withDelete = false) {
+function renderHeader(
+  selected = false,
+  withDelete = false,
+  surface: "arrangement" | "instrument" = "arrangement",
+) {
   const history = new CommandHistory(createSliceFixtureProject());
   const [project, setProject] = createSignal(history.project);
   const dispatch = (commands: RawCommandInput | readonly RawCommandInput[]) => {
@@ -51,7 +55,7 @@ function renderHeader(selected = false, withDelete = false) {
       trackLevel={() => null}
       onDragStart={onDragStart}
       onDelete={withDelete ? onDelete : undefined}
-      surface="arrangement"
+      surface={surface}
     />
   ));
   return { history, track, onSelect, onDragStart, onDelete };
@@ -160,5 +164,69 @@ describe("TrackHeader (#447)", () => {
     expect(
       screen.queryByRole("button", { name: `Delete ${track().name}` }),
     ).not.toBeInTheDocument();
+  });
+
+  describe.each(["arrangement", "instrument"] as const)(
+    "renaming, on the %s",
+    (surface) => {
+      /** Clicks the name text, as a person does, and reads the input it opens. */
+      const startRename = (name: string) => {
+        const label = screen.getByText(name, { selector: ".track-header-name" });
+        clickAndFlush(label);
+        return screen.getByRole("textbox", { name: "Track name" }) as HTMLInputElement;
+      };
+
+      it("starts on a click of the name, selecting the track too", async () => {
+        const { track, onSelect } = renderHeader(false, false, surface);
+        const input = startRename(track().name);
+        await Promise.resolve();
+        expect(input).toHaveFocus();
+        expect(onSelect).toHaveBeenCalled();
+      });
+
+      it("commits one undo entry on Enter's change, and closes the editor", () => {
+        const { history, track } = renderHeader(false, false, surface);
+        const input = startRename(track().name);
+        input.value = "Kick drum";
+        fireAndFlush(() => fireEvent.change(input));
+        expect(history.project.song.tracks[0].name).toBe("Kick drum");
+        expect(screen.queryByRole("textbox", { name: "Track name" })).toBeNull();
+        history.undo();
+        expect(history.canUndo).toBe(false);
+      });
+
+      it("cancels on Escape, changing nothing", () => {
+        const { history, track } = renderHeader(false, false, surface);
+        const name = track().name;
+        const input = startRename(name);
+        input.focus();
+        input.value = "Nope";
+        fireAndFlush(() => fireEvent.keyDown(input, { key: "Escape", bubbles: true }));
+        expect(screen.queryByRole("textbox", { name: "Track name" })).toBeNull();
+        expect(history.canUndo).toBe(false);
+        expect(history.project.song.tracks[0].name).toBe(name);
+      });
+
+      it("does not drag from the open name field", () => {
+        const { track, onDragStart } = renderHeader(false, false, surface);
+        fireEvent.pointerDown(startRename(track().name));
+        expect(onDragStart).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  it("does not offer rename on a surface that cannot edit", () => {
+    const track = createSliceFixtureProject().song.tracks[0];
+    render(() => (
+      <TrackHeader
+        track={track}
+        selected={false}
+        onSelect={() => {}}
+        trackLevel={() => null}
+        surface="arrangement"
+      />
+    ));
+    clickAndFlush(screen.getByText(track.name, { selector: ".track-header-name" }));
+    expect(screen.queryByRole("textbox", { name: "Track name" })).toBeNull();
   });
 });
