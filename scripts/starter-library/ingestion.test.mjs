@@ -284,6 +284,16 @@ describe("presets (sample-library sections 5, 10)", () => {
       );
       expect(preset.audio, preset.id).toBeNull();
       expect(preset.waveform, preset.id).toBeNull();
+      expect("peaks" in preset, preset.id).toBe(false);
+    }
+  });
+
+  it("gives every audio asset 48 peaks with the loudest bin at 255", () => {
+    const audio = allAssets.filter((asset) => asset.type !== "preset");
+    expect(audio.length).toBeGreaterThan(0);
+    for (const asset of audio) {
+      expect(asset.peaks, asset.id).toHaveLength(48);
+      expect(Math.max(...asset.peaks), asset.id).toBe(255);
     }
   });
 

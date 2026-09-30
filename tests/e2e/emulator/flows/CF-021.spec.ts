@@ -61,94 +61,89 @@ const exportDialog = (page: Page): Locator =>
   page.getByRole("dialog", { name: "Export" });
 
 test.describe("CF-021", () => {
-  // `test.fixme` until #65 lands: the PR that closes it removes this marker in
-  // the same diff that makes the flow pass.
-  test.fixme(
-    "a producer exports their song as a stereo WAV",
-    async ({ page, browserName }) => {
-      test.setTimeout(180_000);
+  test("a producer exports their song as a stereo WAV", async ({ page, browserName }) => {
+    test.setTimeout(180_000);
 
-      const step = walkthrough(page, {
-        id: "CF-021",
-        title: "A producer exports their song as a stereo WAV",
-      });
+    const step = walkthrough(page, {
+      id: "CF-021",
+      title: "A producer exports their song as a stereo WAV",
+    });
 
-      // Playback is asserted in Chromium only, the known, tracked gap CF-001 and
-      // CF-007 carry (docs/testing.md, "Playback is asserted in Chromium only",
-      // #43). The export is an offline render and needs no running context, so
-      // it is asserted in every gating browser.
-      const canAssertPlayback = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
-        description: canAssertPlayback
-          ? `playback asserted in ${browserName}`
-          : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
+    // Playback is asserted in Chromium only, the known, tracked gap CF-001 and
+    // CF-007 carry (docs/testing.md, "Playback is asserted in Chromium only",
+    // #43). The export is an offline render and needs no running context, so
+    // it is asserted in every gating browser.
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
 
-      // 1-7. Build the five-track song, add its devices, play it and stop.
-      const song = await buildExportSong(page, step, canAssertPlayback);
+    // 1-7. Build the five-track song, add its devices, play it and stop.
+    const song = await buildExportSong(page, step, canAssertPlayback);
 
-      // 8. Press Export in the editor header. A dialog opens with two choices,
-      //    Stereo WAV and Stems (ZIP). Stereo WAV is chosen.
-      await page.getByRole("button", { name: "Export", exact: true }).click();
-      const dialog = exportDialog(page);
-      await expect(dialog).toBeVisible();
-      await expect(
-        dialog.getByRole("radio", { name: "Stereo WAV", exact: true }),
-      ).toBeChecked();
-      await expect(
-        dialog.getByRole("radio", { name: "Stems (ZIP)", exact: true }),
-      ).not.toBeChecked();
-      await step("Press Export: Stereo WAV is chosen");
+    // 8. Press Export in the editor header. A dialog opens with two choices,
+    //    Stereo WAV and Stems (ZIP). Stereo WAV is chosen.
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const dialog = exportDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("radio", { name: "Stereo WAV", exact: true }),
+    ).toBeChecked();
+    await expect(
+      dialog.getByRole("radio", { name: "Stems (ZIP)", exact: true }),
+    ).not.toBeChecked();
+    await step("Press Export: Stereo WAV is chosen");
 
-      // 9. Press Export. A progress bar with a Cancel button shows while it
-      //    renders. When it finishes, the browser downloads one file named
-      //    `<project name> <YYYY-MM-DD>.wav`, and the dialog says the export is
-      //    done.
-      const sawProgress = await watchForProgressWithCancel(page);
-      const date = await localDateInPage(page);
-      const downloads: string[] = [];
-      page.on("download", (download) => downloads.push(download.suggestedFilename()));
-      const downloading = page.waitForEvent("download");
-      await dialog.getByRole("button", { name: "Export", exact: true }).click();
-      const download = await downloading;
-      expect(download.suggestedFilename()).toBe(`${song.projectName} ${date}.wav`);
-      await expect(dialog.getByText(/\b(done|complete|finished)\b/i)).toBeVisible();
-      expect(await sawProgress()).toBe(true);
-      // One file: nothing else arrived while the dialog finished.
-      expect(downloads).toEqual([`${song.projectName} ${date}.wav`]);
-      await step("Press Export: the WAV downloads and the dialog says it is done");
+    // 9. Press Export. A progress bar with a Cancel button shows while it
+    //    renders. When it finishes, the browser downloads one file named
+    //    `<project name> <YYYY-MM-DD>.wav`, and the dialog says the export is
+    //    done.
+    const sawProgress = await watchForProgressWithCancel(page);
+    const date = await localDateInPage(page);
+    const downloads: string[] = [];
+    page.on("download", (download) => downloads.push(download.suggestedFilename()));
+    const downloading = page.waitForEvent("download");
+    await dialog.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloading;
+    expect(download.suggestedFilename()).toBe(`${song.projectName} ${date}.wav`);
+    await expect(dialog.getByText(/\b(done|complete|finished)\b/i)).toBeVisible();
+    expect(await sawProgress()).toBe(true);
+    // One file: nothing else arrived while the dialog finished.
+    expect(downloads).toEqual([`${song.projectName} ${date}.wav`]);
+    await step("Press Export: the WAV downloads and the dialog says it is done");
 
-      // Outcome: the file is a valid stereo WAV (two channels, 24-bit PCM, the
-      // project's sample rate), and it is not silent. It runs from bar 1 to the
-      // end of the last clip at the song tempo, plus no more than the release
-      // tail.
-      //
-      // "The project's sample rate" is not shown anywhere in the UI, so the
-      // spec holds the file to a real rate rather than a guessed number; that
-      // the rate is the project's is #65's unit layer. Likewise "nothing was
-      // normalized" (DEC-004) is a level comparison against a reference render,
-      // which is #64's, and is not asserted here.
-      const wav = parseWav(await downloadedBytes(download));
-      expectStereo24BitPcm(wav, download.suggestedFilename());
-      expect(wav.hasSound, "the mix is not silent").toBe(true);
-      const length = songSeconds(song);
-      const oneFrame = 1 / wav.sampleRate;
-      expect(wav.durationSeconds).toBeGreaterThanOrEqual(length - oneFrame);
-      expect(wav.durationSeconds).toBeLessThanOrEqual(length + MAX_RELEASE_TAIL_SECONDS);
+    // Outcome: the file is a valid stereo WAV (two channels, 24-bit PCM, the
+    // project's sample rate), and it is not silent. It runs from bar 1 to the
+    // end of the last clip at the song tempo, plus no more than the release
+    // tail.
+    //
+    // "The project's sample rate" is not shown anywhere in the UI, so the
+    // spec holds the file to a real rate rather than a guessed number; that
+    // the rate is the project's is #65's unit layer. Likewise "nothing was
+    // normalized" (DEC-004) is a level comparison against a reference render,
+    // which is #64's, and is not asserted here.
+    const wav = parseWav(await downloadedBytes(download));
+    expectStereo24BitPcm(wav, download.suggestedFilename());
+    expect(wav.hasSound, "the mix is not silent").toBe(true);
+    const length = songSeconds(song);
+    const oneFrame = 1 / wav.sampleRate;
+    expect(wav.durationSeconds).toBeGreaterThanOrEqual(length - oneFrame);
+    expect(wav.durationSeconds).toBeLessThanOrEqual(length + MAX_RELEASE_TAIL_SECONDS);
 
-      // 10. Close the dialog and reload the page.
-      await dialog
-        .getByRole("button", { name: /^Close\b/ })
-        .first()
-        .click();
-      await expect(dialog).toHaveCount(0);
+    // 10. Close the dialog and reload the page.
+    await dialog
+      .getByRole("button", { name: /^Close\b/ })
+      .first()
+      .click();
+    await expect(dialog).toHaveCount(0);
 
-      // Outcome, continued: after the reload the project is unchanged — five
-      // tracks, same clips and notes, the reverb on Piano and the saturator and
-      // compressor on the master — so exporting did not edit it.
-      await reloadAndExpectSongUnchanged(page, song);
-      await step("Reload: the project is unchanged");
-    },
-  );
+    // Outcome, continued: after the reload the project is unchanged — five
+    // tracks, same clips and notes, the reverb on Piano and the saturator and
+    // compressor on the master — so exporting did not edit it.
+    await reloadAndExpectSongUnchanged(page, song);
+    await step("Reload: the project is unchanged");
+  });
 });

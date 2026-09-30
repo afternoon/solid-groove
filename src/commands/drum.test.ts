@@ -10,6 +10,7 @@ import {
 import {
   addPad,
   removePad,
+  renamePad,
   reorderPad,
   setPadAsset,
   setPadChoke,
@@ -118,6 +119,46 @@ describe("drum-machine commands", () => {
         setPadAsset(fixture.trackAId, fixture.padIds[0], null),
       );
       expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("drum.renamePad", () => {
+    it("renames one pad, trims the name, and allows duplicates", () => {
+      const [kickId, clapId] = fixture.padIds;
+      const next = apply(
+        fixture.project,
+        renamePad(fixture.trackBId, kickId, "  Snare  "),
+      );
+      const pads = drumPadsOf(next, fixture.trackBId);
+      expect(pads.find((pad) => pad.id === kickId)?.name).toBe("Snare");
+      expect(pads.find((pad) => pad.id === clapId)?.name).toBe("CP");
+      const dup = apply(next, renamePad(fixture.trackBId, clapId, "Snare"));
+      expect(
+        drumPadsOf(dup, fixture.trackBId).filter((p) => p.name === "Snare"),
+      ).toHaveLength(2);
+    });
+
+    it("rejects an empty, whitespace-only, or over-long name and a missing pad", () => {
+      const [kickId] = fixture.padIds;
+      for (const name of ["", "   ", "x".repeat(121)]) {
+        expect(
+          executeCommand(fixture.project, renamePad(fixture.trackBId, kickId, name)).ok,
+        ).toBe(false);
+      }
+      expect(
+        executeCommand(fixture.project, renamePad(fixture.trackBId, ABSENT_IDS.pad, "A"))
+          .ok,
+      ).toBe(false);
+    });
+
+    it("undo and redo restore the name", () => {
+      const [kickId] = fixture.padIds;
+      const history = createCommandHistory(fixture.project);
+      history.execute(renamePad(fixture.trackBId, kickId, "Kick"));
+      history.undo();
+      expect(drumPadsOf(history.project, fixture.trackBId)[0].name).toBe("BD");
+      history.redo();
+      expect(drumPadsOf(history.project, fixture.trackBId)[0].name).toBe("Kick");
     });
   });
 

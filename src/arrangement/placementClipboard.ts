@@ -4,7 +4,8 @@
  *
  * Copy/cut capture a placement's fields into a plain, project-independent
  * entry; paste re-resolves the clip from the *live* project and places what it
- * still can. That indirection is deliberate — a clipboard holding a snapshot of
+ * still can. A paste is an *unlinked* copy (#493): each pasted placement gets
+ * its own deep copy of the clip, so editing it never changes the source. That indirection is deliberate — a clipboard holding a snapshot of
  * clip *content* would let a paste resurrect a clip the user deleted in
  * between, so the clipboard holds only a reference, and an entry whose clip is
  * gone is skipped rather than recreated.
@@ -14,13 +15,14 @@
  * every created entity carries an explicit ID from the injected `IdFactory`.
  */
 
+import { addClip } from "../commands/definitions/clips";
 import { addPlacement, overwritePlacements } from "../commands/definitions/placements";
 import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
 import type { Clip, Project } from "../domain/entities";
 import type { IdFactory, PlacementId, TrackId } from "../domain/ids";
 import { toTicks } from "../domain/time";
-import type { DuplicateResult } from "./placementDuplication";
+import { copyClip, type DuplicateResult } from "./placementDuplication";
 import {
   clampDuration,
   clampTick,
@@ -90,7 +92,8 @@ export interface PasteResult {
 /**
  * Paste the clipboard at a target tick, bar-snapped unless `snap` is false,
  * preserving the relative offsets between the copied placements so a
- * multi-placement paste keeps its shape. A clip that no longer exists is skipped — the paste places what it
+ * multi-placement paste keeps its shape. Every pasted placement points at a
+ * fresh deep copy of its clip, never the source clip (#493). A clip that no longer exists is skipped — the paste places what it
  * still can rather than failing the whole transaction or inventing content.
  *
  * Each pasted placement wins the ticks it lands on (#291, the #290 overwrite):
@@ -113,12 +116,14 @@ export function pasteClipboard(
   const placementIds: PlacementId[] = [];
   let working = project;
   for (const entry of clipboard) {
-    if (!findClip(project, entry.clipId)) continue;
+    const source = findClip(project, entry.clipId);
+    if (!source) continue;
     const startTicks = toTicks(clampTick(target + (entry.startTicks - anchor)));
     if (startTicks + entry.durationTicks > MAX_ARRANGEMENT_TICKS) continue;
+    const copy = copyClip(source, ids);
     const placement = {
       id: ids("placement"),
-      clipId: entry.clipId,
+      clipId: copy.id,
       trackId: entry.trackId,
       startTicks,
       durationTicks: toTicks(entry.durationTicks),
@@ -126,6 +131,7 @@ export function pasteClipboard(
       looped: entry.looped,
     };
     const step = [
+      addClip(copy),
       ...overwritePlacements(working, placement, () => ids("placement")),
       addPlacement(placement),
     ];

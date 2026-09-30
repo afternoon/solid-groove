@@ -12,6 +12,7 @@ import { bars } from "../domain/factories";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
 import type { AssetId, TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
+import type { LibraryAsset } from "../library/manifest";
 import { memoryStorage } from "../testing/storage";
 
 installWebAudioGlobals();
@@ -34,6 +35,21 @@ afterEach(async () => {
   }
   AudioRuntimeModule.__resetAudioRuntimeForTests();
 });
+
+const libraryAssetFixture = {
+  name: "Kick",
+  type: "one-shot",
+  packId: "pak_previewpreviewpreview",
+  packVersion: "1.0.0",
+  url: null,
+  storageKey: null,
+  licence: "solid-groove-owned",
+  durationSeconds: 0.5,
+  sampleRate: 48_000,
+  channelCount: 1,
+  bpm: null,
+  bars: null,
+} as unknown as LibraryAsset;
 
 function fakeAnalytics() {
   const transport = createRecordingTransport();
@@ -264,6 +280,37 @@ describe("useProjectAudio", () => {
     expect(afterDispose.byType.node ?? 0).toBe(0);
     expect(afterDispose.byType.schedule ?? 0).toBe(0);
     expect(afterDispose.byType.subscription ?? 0).toBe(0);
+  });
+
+  it("previews a library sound in a slot without touching the project, and clears back (LIB-010)", async () => {
+    const runtime = AudioRuntimeModule.getAudioRuntime();
+    const project = createSliceFixtureProject();
+    const before = structuredClone(project);
+    const { result } = renderHook(
+      () => useProjectAudioModule.useProjectAudio(() => project),
+      {},
+    );
+    void result.isPlaying();
+    await Promise.resolve();
+    await Promise.resolve();
+    const baseline = runtime.diagnostics().resources.byType.subscription ?? 0;
+    const slot = { trackId: project.song.tracks[0].id };
+    const library = (name: string, type: "one-shot" | "loop" = "one-shot") => ({
+      ...libraryAssetFixture,
+      id: name,
+      type,
+      storageKey: `${name}.wav`,
+      url: `/library/audio/${name}.wav`,
+    });
+
+    expect(result.previewInSlot(slot, library("a"))).toBe(true);
+    expect(result.previewInSlot(slot, library("a"))).toBe(true);
+    expect(result.previewInSlot(slot, library("b"))).toBe(true);
+    expect(runtime.diagnostics().resources.byType.subscription ?? 0).toBe(baseline);
+    expect(result.previewInSlot(slot, library("l", "loop"))).toBe(false);
+    result.clearPreview();
+    expect(runtime.diagnostics().resources.byType.subscription ?? 0).toBe(baseline);
+    expect(project).toEqual(before);
   });
 
   it("attaches a waveform watcher once the project's graph carries the asset (#447)", async () => {
