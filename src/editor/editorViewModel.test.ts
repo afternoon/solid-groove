@@ -16,6 +16,7 @@ import {
   editedTrack,
   focusedTrackId,
   instrumentPanelTrackId,
+  librarySlotHeader,
   loopClips,
   loopEntryFor,
   normalizePlayheadSegments,
@@ -253,6 +254,25 @@ describe("sampleName", () => {
     const synth = createPianoRollFixtureProject();
     expect(sampleName(synth, editedTrack(synth, null))).toBeNull();
     expect(sampleName(null, null)).toBeNull();
+  });
+});
+
+describe("librarySlotHeader", () => {
+  it("names the sampler slot, a drum pad slot and the loop slot", () => {
+    const sliced = createSliceFixtureProject();
+    expect(librarySlotHeader(sliced, editedTrack(sliced, null), null, false)).toEqual({
+      slot: "Sampler",
+      current: "909 Bass Drum",
+    });
+    const drums = createDrumMachineFixtureProject();
+    const track = editedTrack(drums, null);
+    const instrument = track?.instrument;
+    if (instrument?.kind !== "drumMachine") throw new Error("expected a drum machine");
+    const pad = instrument.pads[0];
+    expect(librarySlotHeader(drums, track, { padId: pad.id }, false).slot).toBe(
+      `Drums \u00b7 ${pad.name}`,
+    );
+    expect(librarySlotHeader(null, null, null, true).slot).toBe("Loops");
   });
 });
 

@@ -435,6 +435,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   const sampleName = createMemo(() => model.sampleName(project(), track()));
+  const libraryLoops = () => libraryTypes()?.includes("loop") ?? false;
+  const librarySlot = createMemo(() =>
+    model.librarySlotHeader(project(), track(), padTarget(), libraryLoops()),
+  );
 
   /**
    * Puts a library sound into the project — the one path the drag onto the
@@ -709,7 +713,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   }
                   onPackBrowserOpenChange={setPackBrowserOpen}
                   assetTypes={libraryTypes()}
-                  heading={libraryTypes()?.includes("loop") ? "Loops" : "Library"}
+                  heading={libraryLoops() ? "Loops" : "Library"}
+                  slot={librarySlot().slot}
+                  trackColor={track()?.color}
+                  onShowKeys={() => setGuideOpen(true)}
+                  current={librarySlot().current}
                   onClose={() => setLibraryOpen(false)}
                 />
               </Show>

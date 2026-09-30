@@ -1,4 +1,5 @@
 import type { JSX } from "@solidjs/web";
+import { createSignal } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import Dialog from "../components/Dialog";
 import type { PreviewEngine } from "../library/audition";
@@ -24,31 +25,89 @@ export interface LibraryModalProps {
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
   readonly heading?: string;
+  readonly slot?: string;
+  readonly trackColor?: string;
+  /** The sound the slot holds now. */
+  readonly current?: string | null;
+  onShowKeys?(): void;
   onClose(): void;
 }
 
 /**
- * The library, as a window you open from a slot (`UI-001`).
- *
- * It used to be a narrow column pinned open beside the arrangement, which cost
- * the timeline a fifth of the width for the whole session in exchange for a
- * tree you look at for a few seconds at a time. Opening it from the slot it is
- * going to fill inverts that: the arrangement gets the page, and browsing gets
- * the room — the same trade the pack browser already made inside the panel.
- *
- * It is a real modal, unlike the sequence editor: there is nothing to do
- * underneath it while you pick a sound, so `EditorView` hands it the `dialog`
- * shortcut context and `Escape` closes it like any other dialog.
+ * The library window (`UI-001`, `LIB-010`): a header naming the slot with
+ * **Was** and **Hearing** readouts, and a footer with one large Insert button.
+ * Hearing a sound selects it and inserting is a second step, so browsing never
+ * edits the project.
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
+  const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
+
   return (
-    <Dialog label="Library" size="jumbo" flush onClose={() => props.onClose()}>
+    <Dialog
+      label="Library"
+      size="modal"
+      flush
+      onClose={() => props.onClose()}
+      header={
+        <div class="library-modal-head">
+          <span
+            class="library-modal-bar"
+            style={{ background: props.trackColor ?? "var(--color-accent)" }}
+          />
+          <b class="library-modal-slot">{props.slot ?? props.heading ?? "Library"}</b>
+          <div class="library-modal-readout">
+            <span class="library-modal-label">Was</span>
+            <b>{props.current ?? "Empty"}</b>
+          </div>
+          <div class="library-modal-readout">
+            <span class="library-modal-label">Hearing</span>
+            <b>{selected()?.name ?? "Nothing yet"}</b>
+          </div>
+          <input
+            type="search"
+            class="library-modal-search"
+            placeholder="Search sounds, packs and categories"
+            aria-label="Search the library"
+          />
+        </div>
+      }
+      footer={
+        <>
+          <span class="library-modal-hint">
+            {selected() ? "Enter inserts it" : "Pick a sound to hear it"}
+          </span>
+          <button
+            type="button"
+            aria-label="Keyboard shortcuts"
+            onClick={() => props.onShowKeys?.()}
+          >
+            ?
+          </button>
+          <button type="button" disabled>
+            Shuffle
+          </button>
+          <button
+            type="button"
+            class="library-modal-insert"
+            disabled={selected() === null}
+            aria-keyshortcuts="Enter"
+            onClick={() => {
+              const asset = selected();
+              if (asset) props.onInsert(asset);
+            }}
+          >
+            {selected() ? `Insert ${selected()?.name}` : "Insert"}
+          </button>
+        </>
+      }
+    >
       <div class="library-modal-body">
         <LibraryBrowser
           client={props.client}
           previewEngine={props.previewEngine}
           analytics={props.analytics}
           onInsert={(asset) => props.onInsert(asset)}
+          onSelect={setSelected}
           addedPackIds={props.addedPackIds}
           onAddPack={(pack) => props.onAddPack(pack)}
           onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}

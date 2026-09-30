@@ -195,6 +195,28 @@ export function sampleName(project: Project | null, track: Track | null): string
   return project?.song.assets.find((asset) => asset.id === current.assetId)?.name ?? null;
 }
 
+/** What the library was opened for, named for its header (`LIB-010`). */
+export interface LibrarySlotHeader {
+  readonly slot: string;
+  readonly current: string | null;
+}
+
+export function librarySlotHeader(
+  project: Project | null,
+  track: Track | null,
+  pad: { readonly padId: string } | null,
+  loops: boolean,
+): LibrarySlotHeader {
+  if (loops) return { slot: "Loops", current: null };
+  const instrument = editedInstrument(track);
+  if (pad && instrument?.kind === "drumMachine") {
+    const found = instrument.pads.find((entry) => entry.id === pad.padId);
+    const asset = project?.song.assets.find((entry) => entry.id === found?.assetId);
+    return { slot: `Drums · ${found?.name ?? "Pad"}`, current: asset?.name ?? null };
+  }
+  return { slot: "Sampler", current: sampleName(project, track) };
+}
+
 /**
  * A synth or sampler track's note clip gets the CLP-03 piano roll instead of
  * the FND-009 step grid: both are tonal instruments (#496), and pitched notes

@@ -31,6 +31,8 @@ export interface LibraryBrowserProps {
    * (LOOP-005/LOOP-006), so the browser only announces the choice.
    */
   readonly onInsert?: (asset: LibraryAsset) => void;
+  /** Fired with a sound as it is auditioned, so a host can insert "the selected one". */
+  readonly onSelect?: (asset: LibraryAsset) => void;
   /** The packs the open project has, as pack IDs — the tree's top level. */
   readonly addedPackIds?: readonly string[];
   /** Fired when a pack is added from the pack browser. */
@@ -79,6 +81,7 @@ export default function LibraryBrowser(props: LibraryBrowserProps): JSX.Element 
     addedPackIds: () => props.addedPackIds ?? [],
     onAddPack: (pack) => props.onAddPack?.(pack),
     assetTypes: () => props.assetTypes,
+    onSelect: (asset) => props.onSelect?.(asset),
   });
 
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
