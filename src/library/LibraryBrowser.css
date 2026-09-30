@@ -4,10 +4,9 @@
  * docs/design). Sized in relative units with scrolling regions so it stays
  * usable at 200% zoom rather than clipping its controls.
  *
- * The panel is a ~250px column: a header, one scrolling tree, and a footer that
- * opens the pack browser. Every control here is full-width and stacked, because
- * anything that wants to lay out horizontally — facet chips especially — does
- * not fit and belongs in the modal (`PackBrowser.css`).
+ * The panel is a column: a header and one scrolling tree. Every control here is
+ * full-width and stacked, because anything that wants to lay out horizontally —
+ * facet chips especially — does not fit and belongs in the library window.
  */
 
 .library-browser {
