@@ -433,6 +433,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // row is included and whether it has keyboard focus. Never a name.
       "readOnly() ? !row().muted : row().included",
       "props.focusId === row().id",
+      // The Export ZIP gutter's bracket state (#724): an enum of our own
+      // ("current", "done" or none). Never a name.
+      "bracket.state",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {
