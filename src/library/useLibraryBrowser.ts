@@ -280,7 +280,7 @@ export function useLibraryBrowser(
     // exact pattern silently broke the panel.
     //
     // It does *not* quiet the STRICT_READ_UNTRACKED warnings this function
-    // raises when called from `PackBrowser`'s effect apply half: reading a
+    // raises when called from an effect apply half: reading a
     // reactive value in an untracked callback warns wherever in the function
     // it happens, so ordering cannot help. Those warnings belong to the wider
     // question of projections and view models reading store proxies from
