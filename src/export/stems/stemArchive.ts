@@ -57,12 +57,19 @@ const ZEROS = new Uint8Array(1 << 20);
 /** Every entry carries this timestamp, so the same stems make the same bytes. */
 const ENTRY_TIME = new Date(1980, 0, 1);
 
+/** A track a selection left out of the export, named in the manifest. */
+export interface LeftOutTrack {
+  readonly id: string;
+  readonly name: string;
+}
+
 /** The manifest: what another tool needs to line the stems up, and nothing
  * about the person or where the audio came from. */
 export function stemManifest(
   stems: readonly EncodedStem[],
   format: StemArchiveFormat,
   frames: number,
+  leftOut: readonly LeftOutTrack[] = [],
 ): Record<string, unknown> {
   return {
     format: "groove-stems",
@@ -76,6 +83,7 @@ export function stemManifest(
     origin: "bar 1 at frame 0",
     gain: "project gain preserved; no normalization, no dither",
     masterProcessing: "reference mix only",
+    automation: "not rendered yet; each stem carries its static fader value",
     tempo: format.tempo,
     timeSignature: format.timeSignature,
     files: stems.map((stem) => ({
@@ -84,6 +92,7 @@ export function stemManifest(
       name: stem.name,
       ...(stem.sourceId ? { id: stem.sourceId } : {}),
     })),
+    excludedTracks: leftOut.map(({ id, name }) => ({ id, name })),
   };
 }
 
@@ -105,11 +114,12 @@ export function stemArchiveBytes(
 export function buildStemArchive(
   stems: readonly EncodedStem[],
   format: StemArchiveFormat,
+  leftOut: readonly LeftOutTrack[] = [],
 ): StemArchive {
   const frames = Math.max(0, ...stems.map((stem) => stem.frames));
   const blockAlign = format.channels * (format.bitDepth / 8);
   const manifest = new TextEncoder().encode(
-    `${JSON.stringify(stemManifest(stems, format, frames), null, 2)}\n`,
+    `${JSON.stringify(stemManifest(stems, format, frames, leftOut), null, 2)}\n`,
   );
   const wavBytes = 44 + frames * blockAlign;
   const expected = stemArchiveBytes(

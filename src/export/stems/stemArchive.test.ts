@@ -95,6 +95,18 @@ describe("buildStemArchive", () => {
       },
       { path: "Reference mix.wav", kind: "mix", name: "Reference mix" },
     ]);
+    expect(manifest.excludedTracks).toEqual([]);
+    // Until ARR-004 (#62) the offline renderer plays no automation.
+    expect(manifest.automation).toMatch(/static fader value/);
+  });
+
+  it("lists the tracks a selection left out", () => {
+    const leftOut = [{ id: "trk_b", name: "Bass" }];
+    const archive = buildStemArchive(stems, FORMAT, leftOut);
+    const manifest = unzip(archive.parts).entries[MANIFEST_PATH];
+    expect(JSON.parse(new TextDecoder().decode(manifest)).excludedTracks).toEqual(
+      leftOut,
+    );
   });
 
   it("is byte-for-byte deterministic", () => {

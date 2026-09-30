@@ -3,8 +3,14 @@ import { describe, expect, it } from "vitest";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
 import { songEndSeconds } from "../../audio/renderLength";
 import { createReferenceProject } from "../../domain/fixtures";
+import { projectSampleRate } from "../../editor/export/stereoExport";
 import { buildAudioProjection } from "../../projection/audioProjection";
-import { exportStems, StemExportError } from "./exportStems";
+import {
+  estimateStemExport,
+  exportStems,
+  MAX_STEM_EXPORT_BYTES,
+  StemExportError,
+} from "./exportStems";
 import { createStemFixtureProject } from "./stemFixture";
 import { concat, exportFailure, fakeRenderer } from "./stemTestSupport";
 
@@ -38,6 +44,30 @@ describe("exportStems", () => {
     for (const [path, bytes] of Object.entries(entries)) {
       if (path.endsWith(".wav")) expect(bytes.byteLength, path).toBe(44 + 140 * 6);
     }
+  });
+
+  it("exports only the selected tracks, and the manifest names the ones left out", async () => {
+    const project = createStemFixtureProject();
+    const [lead, bass] = [...project.song.tracks].sort((a, b) => a.order - b.order);
+    const { render, calls } = fakeRenderer();
+    const archive = await exportStems(project, {
+      sampleRate: RATE,
+      trackIds: [bass.id],
+      render,
+    });
+    const entries = unzipSync(concat(archive.parts));
+    expect(Object.keys(entries)).toEqual([
+      "02 Sub Bass.wav",
+      "Returns/01 Verb.wav",
+      "Returns/02 Delay.wav",
+      "Reference mix.wav",
+      "manifest.json",
+    ]);
+    expect(calls).toHaveLength(4);
+    // The reference mix is the selection: the unselected track is not in it.
+    expect(calls[3][0].tracks.map((track) => track.id)).toEqual([bass.id]);
+    const manifest = JSON.parse(new TextDecoder().decode(entries["manifest.json"]));
+    expect(manifest.excludedTracks).toEqual([{ id: lead.id, name: lead.name }]);
   });
 
   it("reports monotonic progress that ends at 1", async () => {
@@ -136,14 +166,58 @@ describe("exportStems", () => {
 
 describe("exportStems with the PRD reference project (50 tracks, ten minutes)", () => {
   const project = createReferenceProject();
+  // The fixture's own parameters: its assets are 44.1 kHz, so its export is.
+  const sampleRate = projectSampleRate(project);
+  const tracks = [...project.song.tracks].sort((a, b) => a.order - b.order);
+  const firstTracks = (count: number) => tracks.slice(0, count).map((track) => track.id);
 
-  it("refuses stems at 48 kHz, over the budget, before rendering", async () => {
+  it("refuses stems of the whole project, over the budget, before rendering", async () => {
+    expect(sampleRate).toBe(44_100);
+    expect(estimateStemExport(project, { sampleRate }).fits).toBe(false);
     const { render, calls } = fakeRenderer();
-    const error = await exportFailure(
-      exportStems(project, { sampleRate: 48_000, render }),
-    );
+    const error = await exportFailure(exportStems(project, { sampleRate, render }));
     expect(error.code).toBe("quota_exceeded");
     expect(calls).toEqual([]);
+  });
+
+  // The song plus a 30 s tail at 44.1 kHz, 24-bit stereo, is about 165 MB a
+  // stem; with the reference mix, 12 tracks fit in 2 GiB.
+  it("a selection of 12 tracks fits the budget and one more does not", async () => {
+    const estimate = (count: number) =>
+      estimateStemExport(project, { sampleRate, trackIds: firstTracks(count) });
+    expect(estimate(12)).toMatchObject({ fits: true, limitBytes: MAX_STEM_EXPORT_BYTES });
+    expect(estimate(13).fits).toBe(false);
+    // The export itself agrees: the selection gets past the refusal to its first render.
+    const { render, calls } = fakeRenderer();
+    const controller = new AbortController();
+    const error = await exportFailure(
+      exportStems(project, {
+        sampleRate,
+        trackIds: firstTracks(12),
+        signal: controller.signal,
+        render: async (...args) => {
+          controller.abort();
+          return render(...args);
+        },
+      }),
+    );
+    expect(error.code).toBe("aborted");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("exports that selection whole, naming the 38 tracks left out (at a toy rate)", async () => {
+    const archive = await exportStems(project, {
+      sampleRate: 8,
+      trackIds: firstTracks(12),
+      render: fakeRenderer(() => 4_800).render,
+    });
+    const entries = unzipSync(concat(archive.parts));
+    expect(Object.keys(entries)).toHaveLength(14);
+    const manifest = JSON.parse(new TextDecoder().decode(entries["manifest.json"]));
+    expect(manifest.files).toHaveLength(13);
+    expect(manifest.excludedTracks.map((track: { id: string }) => track.id)).toEqual(
+      tracks.slice(12).map((track) => track.id),
+    );
   });
 
   it("plans 51 files and cancels cleanly mid-export (plumbing, at a toy rate)", async () => {
