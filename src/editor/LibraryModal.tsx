@@ -61,8 +61,6 @@ export interface LibraryModalProps {
   /** Insert the chosen sound. The host closes this on the way through. */
   onInsert(asset: LibraryAsset): void;
   readonly addedPackIds: readonly string[];
-  onAddPack(pack: LibraryPackSummary): void;
-  onPackBrowserOpenChange(open: boolean): void;
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
   readonly heading?: string;
