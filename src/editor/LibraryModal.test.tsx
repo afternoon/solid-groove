@@ -145,7 +145,7 @@ describe("LibraryModal shell", () => {
     expect(place("All sounds")).toHaveAttribute("aria-pressed", "true");
     expect(place("Browse packs")).toHaveTextContent("<library.browse_packs>");
     expect(place("In this project")).not.toHaveTextContent("<");
-    expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Shuffle/ })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Keyboard shortcuts" })).toHaveTextContent(
       "<help.shortcut_guide>",
     );
@@ -153,6 +153,8 @@ describe("LibraryModal shell", () => {
     clickAndFlush(place("Favourites"));
     expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
     expect(screen.getByText("Favourites will appear here.")).toBeVisible();
+    // Shuffle picks from a list of sounds, which only All sounds has for now.
+    expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
   });
 
   it("hands the host its shortcut actions, and takes them back on close", () => {
@@ -191,5 +193,20 @@ describe("LibraryModal shell", () => {
     await waitFor(() => expect(screen.queryByText("Nothing yet")).toBeNull());
     expect(document.activeElement).not.toBe(search);
     expect(actions.insertSelected()).toBe(true);
+  });
+
+  it("shuffles from the footer, and the search key focuses the search field", async () => {
+    const onActions = vi.fn();
+    renderShell({ onActions });
+    await screen.findAllByRole("listitem");
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+
+    clickAndFlush(screen.getByRole("button", { name: /Shuffle/ }));
+    await waitFor(() => expect(screen.queryByText("Nothing yet")).toBeNull());
+
+    actions.press("library.search");
+    expect(document.activeElement).toBe(
+      screen.getByRole("searchbox", { name: "Search sounds" }),
+    );
   });
 });

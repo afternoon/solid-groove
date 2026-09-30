@@ -27,6 +27,9 @@ export const SOUNDS_KEY_ACTIONS = [
   "library.family_next",
   "library.genre_menu",
   "library.loop_tempo",
+  "library.shuffle",
+  // The modal answers this one itself (it owns the search field).
+  "library.search",
 ] as const satisfies readonly ShortcutActionId[];
 
 export type SoundsKeyAction = (typeof SOUNDS_KEY_ACTIONS)[number];
