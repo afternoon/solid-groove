@@ -47,7 +47,7 @@ function abletonNote(shortcut: ShortcutDefinition): string {
   if (parity.kind === "differs") {
     return `Live uses ${parity.abletonKeys}. ${parity.reason}`;
   }
-  return `Solid Groove addition. ${parity.reason}`;
+  return `Groove addition. ${parity.reason}`;
 }
 
 const FOCUSABLE =

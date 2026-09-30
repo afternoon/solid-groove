@@ -18,6 +18,7 @@ import {
 } from "../domain/factories";
 import { formatDb, formatPan } from "../domain/faders";
 import type { AssetId, PadId, TrackId } from "../domain/ids";
+import { nextPadName } from "../domain/padNames";
 import { PAD_PITCH, TRACK_PAN, TRACK_VOLUME } from "../domain/parameters";
 import { formatInstrumentValue } from "../instrument/formatValue";
 import SampleSlot from "../instrument/SampleSlot";
@@ -25,6 +26,7 @@ import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import MuteSoloToggles from "./MuteSoloToggles";
 import PadControl from "./PadControl";
+import PadName from "./PadName";
 import PadSound from "./PadSound";
 import "./DrumMachinePanel.css";
 import "./NewTrackButtons.css";
@@ -35,16 +37,10 @@ const PAD_FLASH_MS = 120;
 /** Bars in a pad's waveform preview. */
 const PREVIEW_BUCKETS = 56;
 
+export { nextPadName };
+
 /** Mints the IDs of pads this panel adds. A module singleton. */
 const defaultFactoryContext = createFactoryContext();
-
-/** The first "Pad N" no pad on the machine is already called. */
-export function nextPadName(existing: readonly DrumPad[]): string {
-  const taken = new Set(existing.map((pad) => pad.name));
-  let n = existing.length + 1;
-  while (taken.has(`Pad ${n}`)) n++;
-  return `Pad ${n}`;
-}
 
 /** The choke-group options a pad can join (PRD INS-01). `none` clears it. */
 /** The pad table's columns; the three faders share what the fixed ones leave. */
@@ -256,18 +252,19 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               >
                 <td class="pad-index">{String(index() + 1).padStart(2, "0")}</td>
                 <td>
-                  <button
-                    type="button"
-                    class="pad-audition"
-                    onClick={() => {
+                  <PadName
+                    track={props.track}
+                    pad={pad()}
+                    dispatch={props.dispatch}
+                    onAudition={() => {
                       setChosenPad(pad().id);
                       audition(pad());
                     }}
-                    aria-label={`Audition ${pad().name}`}
-                    title={`Audition ${pad().name}`}
-                  >
-                    <span class="pad-name">{pad().name}</span>
-                  </button>
+                    onRenamed={() => {
+                      markFeatureUse();
+                      analytics().logFeatureFirstUse("drum_pad_rename");
+                    }}
+                  />
                 </td>
 
                 {/* The row names its sound; choosing one is the editor's job. */}

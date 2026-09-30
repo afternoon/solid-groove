@@ -1,4 +1,4 @@
-# Solid Groove Sample Library Plan
+# Groove Sample Library Plan
 
 | Field | Value |
 | --- | --- |
@@ -11,7 +11,7 @@ Related document: [Product principles](./prd.md)
 
 ## 1. Purpose
 
-Solid Groove needs a sample library that is useful immediately, broad enough to support its initial genres, small enough to curate properly, and legally safe to expose through a sampler, stem export, and Ableton Live export.
+Groove needs a sample library that is useful immediately, broad enough to support its initial genres, small enough to curate properly, and legally safe to expose through a sampler, stem export, and Ableton Live export.
 
 The library is not a large undifferentiated download catalogue. It is an opinionated factory collection whose assets work together, cover the roles needed to build complete electronic tracks, and give the assistant reliable material for creating editable ideas.
 
@@ -46,7 +46,7 @@ This is a content-acquisition and implementation plan, not legal advice. Any amb
 
 ### 3.1 Why royalty-free is insufficient
 
-Most commercial and free sample-pack licences let a producer incorporate samples into finished music but prohibit redistribution of the raw files. Solid Groove exposes individual sounds in a browser, lets users load them into samplers, and copies or renders content during stem and Ableton export. That use resembles a sample library or DAW factory-content distribution, not merely use in a composition.
+Most commercial and free sample-pack licences let a producer incorporate samples into finished music but prohibit redistribution of the raw files. Groove exposes individual sounds in a browser, lets users load them into samplers, and copies or renders content during stem and Ableton export. That use resembles a sample library or DAW factory-content distribution, not merely use in a composition.
 
 For example:
 
@@ -54,20 +54,26 @@ For example:
 - [Splice](https://splice.com/terms) prohibits sublicensing or redistributing isolated sounds and prohibits competitive sample-library use.
 - [MusicRadar SampleRadar](https://www.musicradar.com/news/sampleradar-digital-vs-analogue-samples) allows use in music but asks users not to redistribute the samples.
 
-None of those standard licences permits bundling in Solid Groove. They may be revisited only through a separate OEM, partnership, or direct-licensing agreement.
+None of those standard licences permits bundling in Groove. They may be revisited only through a separate OEM, partnership, or direct-licensing agreement.
+
+A royalty-free licence is not rejected for being royalty-free. It is rejected because of what it forbids, so a royalty-free pack whose licence text explicitly permits redistributing the raw samples is acceptable (section 3.2).
 
 ### 3.2 Accepted rights for the alpha
 
 An asset may be bundled only when one of these applies:
 
 - It is released under CC0 1.0 by a credible rights holder with recorded provenance.
-- Solid Groove created it entirely from sources it owns or that independently satisfy this policy.
+- Groove created it entirely from sources it owns or that independently satisfy this policy.
+- It is released under a royalty-free licence whose own text explicitly permits redistributing the raw sample files (for example, inclusion in software, sample libraries, or products that pass the sounds on to their users), requires no attribution, and is granted by the person who made the recordings. The exact granting sentence is quoted in the pack's licence evidence, and the licence identifier is `royalty-free-redistributable`. A licence that permits "use in your music" but is silent on redistribution does not qualify.
+- **Private alpha only.** The product owner may admit content whose rights grant is informal or unconfirmed while Groove is a free, invite-only alpha. The licence identifier is `private-alpha`. It goes in its own pack, its evidence records what is known about the source and quotes whatever permission exists, and it is approved only while `release.config.mjs` says the stage is `private-alpha` and `FOR_PROFIT` is `false`. Changing either value makes `library:build` reject these packs, so leaving the alpha forces them to be replaced, cleared, or removed (CNT-003).
 - A commissioned creator signed an agreement explicitly allowing commercial raw-sample redistribution inside a DAW, user audition and manipulation, project collaboration, WAV/stem export, native-project export, caching, format conversion, and derivative processing.
-- A third-party owner granted Solid Groove equivalent written OEM rights.
+- A third-party owner granted Groove equivalent written OEM rights.
 
 The alpha factory library will not bundle CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL-licensed audio, or assets with custom attribution terms. Some may legally be usable, but they add user-facing attribution, share-alike, DRM, export, or interpretation obligations that are unnecessary while suitable CC0 material exists.
 
 **`DEC-003` is decided** (recorded in PRD section 16). The alpha bundles CC0 1.0 and Solid-Groove-owned content only, and commissions nothing — the commissioning budget is zero and premium or commissioned sources are deferred to a later milestone. Because CC0 carries no attribution obligation, there is no user-facing attribution and no per-asset export exclusion: every bundled asset is safe in stems and Ableton packages, and the export-exclusion machinery exists for future OEM content, not the alpha. Sourcing runs three routes in priority order — synthesis (section 15.1), trusted bulk CC0 archives (section 15.8: VCSL, Producer Space, FreePats CC0 banks), and the Freesound API filtered to CC0 against named coverage gaps (section 15.10) — and the alpha library is expected to be usable but not yet rounded, which is an accepted state for a prototype. This unblocks `CNT-002` on licensing; the specific shipped pack list remains `DEC-010`.
+
+**`DEC-010` widened this on 2026-09-29.** The product owner accepted royalty-free packs whose licence explicitly permits raw redistribution (the new section 3.2 route, identifier `royalty-free-redistributable`), and recordings of commercial drum machines and synthesizers made by the licensor (section 3.3). This was so classic drum-machine kits such as the TR-909 can ship. Such packs carry their own pack and rights position, never the CC0 one.
 
 ### 3.3 Additional rights checks
 
@@ -76,7 +82,7 @@ CC0 or a permissive copyright licence does not automatically resolve every right
 - Performer consent and personality/publicity rights for vocals, speech, and identifiable people.
 - Composition rights for recognizable melodies, lyrics, performances, and arrangements.
 - Trademark and passing-off concerns in names, artwork, and marketing.
-- Whether the uploader actually created the recording or sampled another pack, record, film, game, or commercial instrument.
+- Whether the uploader actually created the recording or sampled another pack, record, film, or game. A recording the licensor made of hardware they played — a drum machine, synthesizer, or other commercial instrument — is acceptable. Re-hosted recordings are not, unless the original recordist's grant is in the evidence.
 - Contractual restrictions inherited from software instruments, presets, source libraries, or recording locations.
 - Content-ID disputes and whether the sound is already widely registered inside released tracks.
 - Privacy and sensitive-context concerns in field recordings.
@@ -95,7 +101,7 @@ Every accepted asset needs an immutable evidence record containing:
 - Pack/archive checksum where applicable.
 - Any direct permission or commissioned-content agreement ID.
 - Known source tools or recordings when supplied.
-- Modifications made by Solid Groove.
+- Modifications made by Groove.
 - Reviewer, review date, and approval status.
 
 If the evidence disappears later, the archived record must still establish what was granted at acquisition time. A takedown process must be able to disable an asset for new projects without breaking existing project documents.
@@ -115,7 +121,7 @@ They must remain outside the approved manifest and be replaced with internally s
 | [Producer Space](https://producerspace.com/) | Electronic one-shots, percussion, house material, MIDI, selected non-vocal loops | The [official clearance](https://producerspace.com/license) places the entire library under CC0 and expressly grants reproduction, modification, and distribution rights | Audit pack authorship and avoid vocals until performer provenance is documented |
 | [FreePats](https://freepats.zenvoid.org/) | Electronic percussion, synth bass multisamples, pads, leads, tuned percussion, selected acoustic instruments | Licences are stated per bank; use CC0 banks only | Begin with [electronic percussion](https://freepats.zenvoid.org/Percussion/electric-percussion.html), [synth bass](https://freepats.zenvoid.org/Synthesizer/synth-bass.html), and [synth pads](https://freepats.zenvoid.org/Synthesizer/synth-pad.html) |
 | [Versilian Community Sample Library](https://versilian-studios.com/vcsl/) | Experimental instruments, organic percussion, mallets, unusual resonances, textures, and multisamples | CC0; the publisher explicitly permits commercial software, DAWs, granular synths, and samplers | Select a small electronic-production subset rather than ingesting the full multi-gigabyte library |
-| Internally synthesized and recorded content | Core drum hits, noise, sub tones, oscillator cycles, risers, impacts, and processing-derived textures | Owned by Solid Groove when created without restricted source presets or samples | Highest-priority route for a coherent core kit and reliable genre coverage |
+| Internally synthesized and recorded content | Core drum hits, noise, sub tones, oscillator cycles, risers, impacts, and processing-derived textures | Owned by Groove when created without restricted source presets or samples | Highest-priority route for a coherent core kit and reliable genre coverage |
 
 ### 4.2 Tier 2: useful after asset-level audit
 
@@ -150,7 +156,7 @@ A pack record carries:
 | ID | Stable, opaque, and permanent. Never derived from the name. |
 | Name and description | User-facing. The description states what the pack is for and what it does not contain. |
 | Version | Immutable once published. Changed audio or changed metadata is a new version. |
-| Publisher | Solid Groove for factory packs; later a user or a third party. |
+| Publisher | Groove for factory packs; later a user or a third party. |
 | Kind | `factory`, `user`, or `third-party`. |
 | Rights position | One licence and redistribution posture covering every asset in the pack (section 3). |
 | Coverage claim | The roles, genres, and tempo range the pack claims to serve, and the intensity range it covers. |
@@ -418,7 +424,7 @@ A manifest describes one pack. Its header is the pack record from section 5.1, a
     "slug": "techno-drums",
     "name": "Techno Drums",
     "version": "1.0.0",
-    "publisher": "Solid Groove",
+    "publisher": "Groove",
     "kind": "factory",
     "description": "Driven kicks, metallic hats, and industrial percussion for 125-150 BPM techno. Drums and percussion only; no tonal material.",
     "coverage": {
@@ -566,7 +572,7 @@ Each approved asset must pass:
 - **Usefulness:** It can serve a clear role or valuable experimental purpose.
 - **Editability:** It leaves room for user processing unless its finished character is the point.
 - **Technical integrity:** It has no accidental clipping, clicks, corrupt data, or false metadata.
-- **Context fit:** It works in a real Solid Groove kit, instrument, loop, or project.
+- **Context fit:** It works in a real Groove kit, instrument, loop, or project.
 - **Pack fit:** It belongs in the pack that holds it — it serves that pack's stated purpose and shares its rights position.
 - **Naming:** The name describes the sound without unauthorized brands, artist imitation, or misleading genre claims.
 
@@ -674,7 +680,7 @@ The library is built from two independent routes through section 3.2, and both a
 
 | | Synthesized (`library:build`) | Acquired (`library:acquire`) |
 | --- | --- | --- |
-| Rights route | 3.2 route 2 — created entirely from sources Solid Groove owns | 3.2 route 1 — CC0 1.0 from a credible rights holder |
+| Rights route | 3.2 route 2 — created entirely from sources Groove owns | 3.2 route 1 — CC0 1.0 from a credible rights holder |
 | Source | `scripts/starter-library/catalog/` | The section 4 sources, pinned in `sources.lock.json` |
 | Needs network | No | Yes |
 | Reproducible | Byte-for-byte from a seed | By checksum, against a pinned download |
@@ -841,7 +847,7 @@ bun run library:vcsl                 # clone, ingest a curated subset, delete th
 Two things keep this honest rather than a back door around the section 3 policy:
 
 - **It is a curated subset, not a bulk dump.** Section 4.1 is explicit: "select a small electronic-production subset rather than ingesting the full multi-gigabyte library." The ingest maps VCSL's Hornbostel–Sachs families to the taxonomy (idiophones → mallets/bells/percussion, membranophones → drums, plucked and bowed chordophones → tonal, electrophones → keys) and takes **one representative sample per instrument** — roughly 90 instruments, not the 4231 WAVs in the repo. Aerophones (winds, organs) are dropped as out of scope. Bowed strings are included as sustained tonal material.
-- **The provenance says what it is.** Acquired VCSL assets carry `sourceType: recorded`, `reviewState: bulk-cc0`, the pinned commit in their `downloadUrl`, and the per-file GitHub URL of the sample they came from. Their IDs sit in a `sg-one-shot-<family>-<role>-6NNN` range, disjoint from both the synthesized catalogue and the lockfile ingest (base 5000), so no two paths can collide.
+- **The provenance says what it is.** Acquired VCSL assets carry `sourceType: recorded`, `reviewState: metadata-review` with a `<source>-cc0-bulk` reviewer, the pinned commit in their `downloadUrl`, and the per-file GitHub URL of the sample they came from. Their IDs sit in a `sg-one-shot-<family>-<role>-6NNN` range, disjoint from both the synthesized catalogue and the lockfile ingest (base 5000), so no two paths can collide.
 
 The acquired directory now holds one bundle per ingest path (`acquired-library/lockfile/`, `acquired-library/vcsl/`), each an `entries.json` beside its `audio/`. `manifest.loadAcquiredAssets` merges every bundle, so `library:build` combines lockfile-pinned CC0, bulk VCSL, and the synthesized catalogue, groups the result by pack, and emits one manifest per pack (section 15.8). Both acquisition routes still close the section 6.4 organic-source floor that synthesis cannot reach.
 
@@ -860,10 +866,14 @@ bun run library:acquire -- --list-bulk               # the declared bulk sources
 
 `acquire/bulkSources.mjs` declares each bulk source (its exact archive URL, licence-statement URL, one-sentence rights note, taxonomy mapping, and a disjoint asset-ID range), and `acquire/bulk.mjs` downloads the archive, decodes and prepares every audio member to the section 10 standard, captures the archive-wide licence as section 3.4 evidence, and writes an acquired bundle in the same shape as VCSL. The honesty boundary is narrow and load-bearing: a bulk source is valid **only where one archive carries exactly one CC0 licence**. A mixed-licence host (a Freesound search, a Signature Sounds pack with a stray CC-BY file) is never declared here — it stays on the per-file `library:manage` path where a person confirms each file. Section 4.2's rule that "a site-wide claim is not evidence for an individual file" is untouched; a bulk source is the opposite case — a genuinely archive-wide dedication — not a loophole around it.
 
+**A bulk source can be a git repository instead of a `.zip`.** FreePats mirrors every bank to `github.com/freepats/<bank>`, with its CC0 statement in the bank's README. A source that declares `repoUrl` is shallow-cloned rather than downloaded (the same route as VCSL), its `include` pattern chooses which files to take, and the resolved commit is the pin recorded in `downloadUrl` and in the evidence. The clone is deleted afterwards. A pitched bank is taken as one note with its `rootNote` recorded, so the sampler plays it at the right pitch. A bank can also name several files, each with its own display name and taxonomy. `bun run library:acquire -- --bulk freepats` ingests the declared FreePats banks (synthesizer percussion, world percussion, and one note from each pitched synth bank), and `-- --bulk karoryfer` ingests Karoryfer's CC0 Caveman Cosmonaut.
+
+**Private-alpha drum-machine kits.** `acquire/alphaSources.mjs` declares the DEC-010 kits in one file: the Rob Roy TR-909 and Fischer TR-808 sets (from `fluid-music/open-drums`, WAV) and nine machines from `smpldsnds/drum-machines` (Ogg Opus, decoded with `ogg-opus-decoder` because `node-web-audio-api` cannot). They ingest with `bun run library:acquire -- --bulk open-drums` and `-- --bulk smpldsnds` into the `alpha-drum-machines` pack under the `private-alpha` rights position. Their evidence quotes the recordist's or host's own words, not a licence. They may keep machine names such as "TR-909", and they are left out of the section 6.4 balance, because they are not part of the approved library and leave with CNT-003.
+
 Two guardrails keep it honest:
 
 - **A placeholder archive URL refuses to ingest.** The declared `archiveUrl` starts as the source's landing or bank page; the ingest fails until a curator confirms CC0 on that page and sets `archiveUrl` to the exact `.zip` they reviewed. A real acquisition needs the specific archive, not the page it was found on.
-- **The provenance says what it is.** Bulk-archive assets carry `sourceType: recorded`, `reviewState: bulk-cc0`, the archive URL in `downloadUrl`, and the member path they came from. Producer Space IDs sit in a `7NNN` range and FreePats in an `8NNN` range, both disjoint from the synthesized catalogue (base <5000), the lockfile ingest (5000), and VCSL (6000), so no two paths can collide.
+- **The provenance says what it is.** Bulk-archive assets carry `sourceType: recorded`, `reviewState: metadata-review` with a `<source>-cc0-bulk` reviewer, the archive URL in `downloadUrl`, and the member path they came from. Producer Space IDs sit in a `7NNN` range and FreePats in an `8NNN` range, both disjoint from the synthesized catalogue (base <5000), the lockfile ingest (5000), and VCSL (6000), so no two paths can collide.
 
 ### 15.10 Freesound via the API, filtered to CC0
 

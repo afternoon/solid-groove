@@ -1,6 +1,6 @@
 ---
 name: solid-groove-implementer
-description: Implements one Solid Groove task end to end — product code, tests, fixtures and docs — against the issue's acceptance criteria and its linked core flows. Use for any FND/LOOP/ARR/EXP task, tracked as a GitHub issue.
+description: Implements one Groove task end to end — product code, tests, fixtures and docs — against the issue's acceptance criteria and its linked core flows. Use for any FND/LOOP/ARR/EXP task, tracked as a GitHub issue.
 model: opus
 ---
 

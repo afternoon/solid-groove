@@ -329,7 +329,7 @@ export function createSection(
 }
 
 /**
- * Rights position of a bundled factory pack: content Solid Groove owns
+ * Rights position of a bundled factory pack: content Groove owns
  * outright, so raw redistribution is unrestricted and no attribution is owed
  * (see `docs/licenses/starter-library-v1.md`).
  */
@@ -365,7 +365,7 @@ export function createPack(
     name: options.name,
     version:
       options.version === undefined ? INITIAL_PACK_VERSION : packVersion(options.version),
-    publisher: options.publisher ?? "Solid Groove",
+    publisher: options.publisher ?? "Groove",
     kind: options.kind ?? "factory",
     description: options.description ?? "",
     rights: options.rights ?? FACTORY_PACK_RIGHTS,

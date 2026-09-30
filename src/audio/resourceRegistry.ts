@@ -1,7 +1,7 @@
 /**
  * Ownership tracking for everything the audio engine allocates.
  *
- * Web Audio does not expose complete graph introspection, so Solid Groove
+ * Web Audio does not expose complete graph introspection, so Groove
  * instruments its own factories instead: anything the engine creates is
  * registered here under an owner id and a resource type, and is removed the
  * moment it is disposed. Development and test builds use the resulting

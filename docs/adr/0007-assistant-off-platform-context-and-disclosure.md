@@ -54,16 +54,16 @@ This is a real cost and it is accepted rather than mitigated: a track named for 
 
 > **About the assistant**
 >
-> Solid Groove sends Anthropic — the AI service behind the assistant — your message along with a description of the project you're working in: its name, your track and section names, the tempo and structure, your mixer settings, and the notes in whatever you currently have selected. It does not send your audio, and it does not send the rest of your project.
+> Groove sends Anthropic — the AI service behind the assistant — your message along with a description of the project you're working in: its name, your track and section names, the tempo and structure, your mixer settings, and the notes in whatever you currently have selected. It does not send your audio, and it does not send the rest of your project.
 >
 > Anthropic does not use anything we send it to train their AI models, and they delete it within 30 days — unless their automated safety systems flag something, in which case they can keep it for up to two years.
 >
-> Separately, Solid Groove keeps your conversations — your messages, the assistant's replies, and the changes it proposes, including any notes it writes for you — for 30 days. Our goal is to make the assistant better. The team may read them. After 30 days they are deleted.
+> Separately, Groove keeps your conversations — your messages, the assistant's replies, and the changes it proposes, including any notes it writes for you — for 30 days. Our goal is to make the assistant better. The team may read them. After 30 days they are deleted.
 >
 > ☑ Keep my conversations with the assistant for 30 days
-> This controls Solid Groove's own copy only. It does not take back anything already sent to Anthropic.
+> This controls Groove's own copy only. It does not take back anything already sent to Anthropic.
 >
-> The assistant behaves exactly the same either way, and every other part of Solid Groove works without it — if you would rather nothing was sent, you can simply not use the assistant.
+> The assistant behaves exactly the same either way, and every other part of Groove works without it — if you would rather nothing was sent, you can simply not use the assistant.
 
 Wording stays tweakable without reopening this ADR; what may not change is that it remains true and specific about the same four things — what is sent, what the provider may do with it, what we keep and for how long, and what the control does and does not cover.
 
@@ -86,7 +86,7 @@ That draft told the user "Your music itself is not kept: no audio, no notes, and
 
 ### 8. The opt-out's scope limit renders on the control, in both places it appears
 
-The line stating that the control governs Solid Groove's copy only travels with the control itself — in the first-run dialog and in the durable settings surface, which is where most users will meet it on day three rather than day one. A true statement that only appears where a skimming user will not read it is doing the work of a misleading one.
+The line stating that the control governs Groove's copy only travels with the control itself — in the first-run dialog and in the durable settings surface, which is where most users will meet it on day three rather than day one. A true statement that only appears where a skimming user will not read it is doing the work of a misleading one.
 
 ## Consequences
 

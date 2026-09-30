@@ -43,7 +43,7 @@ describe("LoopPanel (#447)", () => {
     expect(readout("Length")).toBe("2 bars");
     expect(readout("Playing at")).toBe(`${sourceTempo * 1.5} BPM`);
     expect(readout("Ratio")).toBe("1.5×");
-    expect(panel.getByRole("heading", { name: "Loop" })).toBeInTheDocument();
+    expect(panel.getByRole("heading", { name: "Source" })).toBeInTheDocument();
     expect(panel.getByRole("heading", { name: "Stretch" })).toBeInTheDocument();
   });
 
@@ -97,5 +97,46 @@ describe("LoopPanel (#447)", () => {
       <LoopPanel trackName="Break" clip={clip} asset={null} songTempo={sourceTempo} />
     ));
     expect(screen.getAllByText("Loop audio is unavailable").length).toBeGreaterThan(0);
+  });
+
+  it("chooses the loop through the same sample slot as the sampler", () => {
+    const { clip, asset, sourceTempo } = loopFixture();
+    const onBrowse = vi.fn();
+    render(() => (
+      <LoopPanel
+        trackName="Break"
+        clip={clip}
+        asset={asset}
+        songTempo={sourceTempo}
+        onBrowse={onBrowse}
+      />
+    ));
+    const slot = screen.getByRole("button", { name: "Loop for Break" });
+    expect(slot).toHaveTextContent(asset?.name ?? "");
+    slot.click();
+    expect(onBrowse).toHaveBeenCalledOnce();
+  });
+
+  it("offers the slot on a loop track with no loop yet", () => {
+    render(() => (
+      <LoopPanel
+        trackName="Break"
+        clip={null}
+        asset={null}
+        songTempo={120}
+        onBrowse={() => {}}
+      />
+    ));
+    expect(screen.getByRole("button", { name: "Loop for Break" })).toHaveTextContent(
+      "No loop loaded",
+    );
+  });
+
+  it("shows no slot where nothing can open the library", () => {
+    const { clip, asset, sourceTempo } = loopFixture();
+    render(() => (
+      <LoopPanel trackName="Break" clip={clip} asset={asset} songTempo={sourceTempo} />
+    ));
+    expect(screen.queryByRole("button", { name: "Loop for Break" })).toBeNull();
   });
 });

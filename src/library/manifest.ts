@@ -176,6 +176,26 @@ export type PackIndex = z.infer<typeof packIndexSchema>;
 export const LIBRARY_ASSET_TYPES = ["one-shot", "loop", "preset"] as const;
 export type LibraryAssetType = (typeof LIBRARY_ASSET_TYPES)[number];
 
+/** How many bins a waveform preview carries. Mirrors the pack generator. */
+export const WAVEFORM_PEAK_COUNT = 48;
+
+/**
+ * A waveform preview: {@link WAVEFORM_PEAK_COUNT} integers from 0 to 255, bin
+ * `i` being the loudest absolute amplitude over the `i`-th slice of the audio,
+ * normalised so the loudest bin is 255.
+ *
+ * A malformed array is *ignored* (`null`), never an error. `peaks` is a
+ * decoration on a row; failing the schema would drop the whole pack over a
+ * picture, which is the wrong trade. `.catch(null)` turns any invalid value
+ * into "no preview", the same as a manifest from before the field existed.
+ */
+const peaksSchema = z
+  .array(z.number().int().min(0).max(255))
+  .length(WAVEFORM_PEAK_COUNT)
+  .nullish()
+  .catch(null)
+  .transform((value) => value ?? null);
+
 const manifestAssetSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -215,6 +235,7 @@ const manifestAssetSchema = z.object({
       bars: z.number().nullish(),
     })
     .nullish(),
+  peaks: peaksSchema,
 });
 
 export const packManifestSchema = z.object({
@@ -266,6 +287,12 @@ export interface LibraryAsset {
   readonly bpm: number | null;
   /** How many bars a loop declares it spans, or `null` for anything else. */
   readonly bars: number | null;
+  /**
+   * The waveform preview: {@link WAVEFORM_PEAK_COUNT} integers 0-255, or `null`
+   * when the manifest carries none (a preset, an older manifest, or a malformed
+   * array).
+   */
+  readonly peaks: readonly number[] | null;
 }
 
 /** A pack as the index lists it, before its manifest is fetched. */
@@ -365,6 +392,7 @@ export function packAssets(manifest: PackManifest): LibraryAsset[] {
       channelCount: asset.audio?.channels ?? null,
       bpm: asset.audio?.bpm ?? null,
       bars: asset.audio?.bars ?? null,
+      peaks: asset.peaks ?? null,
     };
   });
 }
