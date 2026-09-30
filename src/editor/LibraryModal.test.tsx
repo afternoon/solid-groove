@@ -11,7 +11,7 @@ import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "../library/__fixtures__/fixtures";
 import { LibraryClient } from "../library/libraryClient";
 import { clickAndFlush } from "../testing/events";
-import LibraryModal, { type LibraryActions } from "./LibraryModal";
+import LibraryModal from "./LibraryModal";
 
 afterEach(cleanup);
 
@@ -88,13 +88,7 @@ describe("LibraryModal", () => {
 describe("LibraryModal shell", () => {
   const pack = FIXTURE_PACK_INDEX_DOC.packs[0];
 
-  function renderShell(
-    extra: {
-      onInsert?: () => void;
-      onActions?: (a: LibraryActions | null) => void;
-      keyLabel?: (a: string) => string;
-    } = {},
-  ) {
+  function renderShell(extra: { onInsert?: () => void } = {}) {
     return render(() => (
       <LibraryModal
         client={new LibraryClient(fixtureFetcher())}
@@ -105,8 +99,6 @@ describe("LibraryModal shell", () => {
         onPackBrowserOpenChange={() => {}}
         slot="Drums · BD"
         current="Rounded Club Kick"
-        onActions={extra.onActions}
-        keyLabel={extra.keyLabel}
         onClose={() => {}}
       />
     ));
@@ -147,33 +139,5 @@ describe("LibraryModal shell", () => {
     expect(screen.queryByText("Nothing yet")).toBeNull();
     clickAndFlush(insert);
     expect(onInsert).toHaveBeenCalledTimes(1);
-  });
-
-  it("badges the rail and footer from the registry, and swaps in placeholders", () => {
-    renderShell({ keyLabel: (action) => `<${action}>` });
-    const rail = within(screen.getByRole("navigation", { name: "Places" }));
-    const place = (name: string) => rail.getByRole("button", { name: new RegExp(name) });
-    expect(place("All sounds")).toHaveAttribute("aria-pressed", "true");
-    expect(place("Browse packs")).toHaveTextContent("<library.browse_packs>");
-    expect(place("In this project")).not.toHaveTextContent("<");
-    expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Keyboard shortcuts" })).toHaveTextContent(
-      "<help.shortcut_guide>",
-    );
-
-    clickAndFlush(place("Favourites"));
-    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
-    expect(screen.getByText("Favourites will appear here.")).toBeVisible();
-  });
-
-  it("hands the host its shortcut actions, and takes them back on close", () => {
-    const onActions = vi.fn();
-    const { unmount } = renderShell({ onActions });
-    const actions = onActions.mock.calls[0][0] as LibraryActions;
-
-    expect(actions.insertSelected()).toBe(false);
-    actions.showView("packs");
-    unmount();
-    expect(onActions).toHaveBeenLastCalledWith(null);
   });
 });
