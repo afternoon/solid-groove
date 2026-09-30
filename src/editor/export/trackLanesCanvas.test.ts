@@ -5,6 +5,7 @@ import {
   type LaneBatches,
   type LaneDrawRow,
   printedFraction,
+  printingSpan,
   resetLanePalette,
   resolveLanePalette,
 } from "./trackLanesCanvas";
@@ -36,6 +37,22 @@ describe("printedFraction", () => {
     const printing = { batchIndex: 0, fraction: 0.5 };
     expect(printedFraction("a", true, { ...none, printing })).toBe(0.5);
     expect(printedFraction("a", true, none)).toBe(0);
+  });
+});
+
+describe("printingSpan", () => {
+  const rows = ["a", "b", "c", "d"].map((id) => ({ id }));
+
+  it("spans the rows of the batch being printed", () => {
+    expect(printingSpan(rows, three)).toEqual({ first: 2, last: 2 });
+    const first: LaneBatches = { ...three, printing: { batchIndex: 0, fraction: 0 } };
+    expect(printingSpan(rows, first)).toEqual({ first: 0, last: 1 });
+  });
+
+  it("spans the whole list for one batch, and is null when idle", () => {
+    const one: LaneBatches = { ...none, printing: { batchIndex: 0, fraction: 0.1 } };
+    expect(printingSpan(rows, one)).toEqual({ first: 0, last: 3 });
+    expect(printingSpan(rows, none)).toBeNull();
   });
 });
 

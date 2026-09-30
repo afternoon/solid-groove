@@ -1,0 +1,14 @@
+/* The Export mini-arrangement (EXP-004): the ruler row over a scrolling body. */
+
+.track-lanes {
+  display: grid;
+  min-width: 0;
+  background: var(--color-background);
+}
+
+.track-lanes-scroll {
+  display: grid;
+  align-content: start;
+  overflow: auto;
+  scrollbar-width: thin;
+}

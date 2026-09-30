@@ -1,0 +1,24 @@
+/* The lane area of the Export mini-arrangement (EXP-004): a canvas of clips
+   and, while exporting, the white playhead. The only hue is a track's own,
+   painted by the canvas. */
+
+.lane-map {
+  position: relative;
+  min-width: 0;
+}
+
+.lane-map canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.lane-playhead {
+  position: absolute;
+  width: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
