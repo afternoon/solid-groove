@@ -301,7 +301,14 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
             )}
           </For>
         </fieldset>
-        <div class="step-lanes" ref={lanesElement}>
+        <div
+          class="step-lanes"
+          ref={lanesElement}
+          onPointerDown={(event) => {
+            // A cell's own press already started; this is the empty ground.
+            if (!(event.target as Element).closest(".step-cell")) pointer.down(event);
+          }}
+        >
           <For each={lanes()}>
             {(lane) => (
               <fieldset

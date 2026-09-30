@@ -217,6 +217,51 @@ describe("StepEditor", () => {
     expect(editorRegion().querySelector(".step-lasso")).toBeNull();
   });
 
+  it("starts a lasso on the empty ground under the last row (#643)", () => {
+    const { history, selectedIds, clip } = renderEditor(
+      createDrumMachineFixtureProject(),
+    );
+    const ground = editorRegion().querySelector(".step-lanes");
+    if (!ground) throw new Error("expected the lanes");
+    const rows = screen.getAllByRole("group", { name: /^Lane / }).length;
+    const before = clip();
+
+    // From the ground below the last row, up and across step 5 in every row.
+    firePointer(ground, "pointerdown", centre(rows + 1, 5));
+    firePointer(editorRegion(), "pointermove", centre(0, 5));
+    expect(editorRegion().querySelector(".step-lasso")).not.toBeNull();
+    firePointer(editorRegion(), "pointerup", centre(0, 5));
+
+    const content = clip().content;
+    if (content.kind !== "notes") throw new Error("expected a note clip");
+    const onStep5 = content.events
+      .filter((event) => event.startTicks === 4 * 48)
+      .map((event) => event.id);
+    expect(onStep5.length).toBeGreaterThan(0);
+    expect([...selectedIds()].sort()).toEqual([...onStep5].sort());
+    expect(clip()).toBe(before);
+    expect(history.entries).toHaveLength(0);
+  });
+
+  it("clears the selection on a click on the empty ground, editing nothing", () => {
+    const { history, selectedIds, setSelectedIds, clip } = renderEditor(
+      createDrumMachineFixtureProject(),
+    );
+    const content = clip().content;
+    if (content.kind !== "notes") throw new Error("expected a note clip");
+    setSelectedIds([content.events[0].id]);
+    flush();
+    const ground = editorRegion().querySelector(".step-lanes");
+    if (!ground) throw new Error("expected the lanes");
+    const rows = screen.getAllByRole("group", { name: /^Lane / }).length;
+
+    firePointer(ground, "pointerdown", centre(rows + 1, 4));
+    firePointer(editorRegion(), "pointerup", centre(rows + 1, 4));
+
+    expect(selectedIds()).toEqual([]);
+    expect(history.entries).toHaveLength(0);
+  });
+
   it("adds a Shift-lasso to the selection, as the piano roll does", () => {
     const { selectedIds, setSelectedIds, clip } = renderEditor(
       createDrumMachineFixtureProject(),
