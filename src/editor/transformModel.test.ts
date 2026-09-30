@@ -53,6 +53,22 @@ describe("resolveTransformScope", () => {
     expect(scope.count).toBe(1);
   });
 
+  it("falls back to the active row, not the clip, when the editor gives one (#643)", () => {
+    const row = { name: "CH", eventIds: [ids()[1], ids()[3]] };
+    const scope = resolveTransformScope(clip, [], row);
+    expect(scope.eventIds).toEqual([ids()[1], ids()[3]]);
+    expect(scope.count).toBe(2);
+    expect(scope.isWholeClip).toBe(false);
+    expect(scope.rowName).toBe("CH");
+  });
+
+  it("keeps a selection across rows over the row fallback (#643)", () => {
+    const row = { name: "CH", eventIds: [ids()[1]] };
+    const scope = resolveTransformScope(clip, [ids()[0], ids()[2]], row);
+    expect(scope.eventIds).toEqual([ids()[0], ids()[2]]);
+    expect(scope.rowName).toBeUndefined();
+  });
+
   it("falls back to the whole clip when every selected id is stale", () => {
     const scope = resolveTransformScope(clip, ["evt_gone" as EventId]);
     expect(scope.eventIds).toBeNull();

@@ -13,10 +13,11 @@ import KeyPanel from "./pianoRoll/KeyPanel";
 import PianoRoll from "./pianoRoll/PianoRoll";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import StepEditor from "./StepEditor";
-import { lanesFor, selectedLane } from "./stepEditorModel";
+import { lanesFor, noteEventsOf, selectedLane, triggersMatch } from "./stepEditorModel";
 import type { Hit } from "./stepGenerators";
 import TransformPanel from "./TransformPanel";
 import { toggleTrackFlag } from "./trackSurface";
+import type { TransformFallback } from "./transformModel";
 
 export interface TrackClipEditorProps {
   /** The edited track's clip, or null when it has none yet (#228). */
@@ -68,6 +69,15 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
     props.onSelectPad?.(id);
   }
   const row = createMemo(() => selectedLane(lanesFor(props.instrument), padId()));
+  // With nothing selected, a transform acts on the active row only (#643).
+  const rowScope = (clip: Clip): TransformFallback | null => {
+    const target = row();
+    if (!target) return null;
+    const eventIds = noteEventsOf(clip)
+      .filter((event) => triggersMatch(event.trigger, target.trigger))
+      .map((event) => event.id);
+    return { name: target.name, eventIds };
+  };
   // What the hovered or focused generator would write, drawn in the grid.
   const [generated, setGenerated] = createSignal<readonly Hit[] | null>(null);
   const preview = (clip: Clip) => {
@@ -123,6 +133,7 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
                     clip={clip()}
                     project={props.project}
                     selectedIds={props.selectedNoteIds()}
+                    fallback={rowScope(clip())}
                     dispatch={props.dispatch}
                     editor="step"
                   />

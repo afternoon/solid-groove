@@ -2,7 +2,7 @@ import { For, type JSX } from "@solidjs/web";
 import { createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf } from "../analytics/buckets";
-import type { RawCommandInput, TransactionResult } from "../commands";
+import { noteEventsOf, type RawCommandInput, type TransactionResult } from "../commands";
 import type { Clip, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId } from "../domain/ids";
@@ -18,6 +18,7 @@ import {
   resolveTransformScope,
   TRANSFORM_LABELS,
   TRANSFORM_OPERATIONS,
+  type TransformFallback,
   type TransformKind,
   type TransformOptions,
   transformedEventCount,
@@ -29,6 +30,9 @@ import {
   focusValueField,
 } from "./valueFieldFocus";
 
+/** The transformations that act on the whole clip, whatever is selected. */
+const CLIP_WIDE: ReadonlySet<TransformKind> = new Set(["duplicate", "halve", "clear"]);
+
 /** Mints event IDs for the copies `notes.duplicate` creates (see StepEditor). */
 const factoryContext = createFactoryContext();
 
@@ -37,6 +41,8 @@ export interface TransformPanelProps {
   readonly project: Project;
   /** The editor's current note selection; empty means "the whole clip". */
   readonly selectedIds: readonly EventId[];
+  /** What an empty selection means instead, when not the whole clip (#643). */
+  readonly fallback?: TransformFallback | null;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -65,8 +71,13 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
   const [options, setOptions] = createSignal<TransformOptions>(DEFAULT_TRANSFORM_OPTIONS);
   const [error, setError] = createSignal<string | null>(null);
 
-  const scope = createMemo(() => resolveTransformScope(props.clip, props.selectedIds));
+  const scope = createMemo(() =>
+    resolveTransformScope(props.clip, props.selectedIds, props.fallback),
+  );
   const enabled = createMemo(() => canTransform(scope()));
+  // Double, Halve and Clear always act on the whole clip, so an empty row
+  // must not switch them off.
+  const clipHasNotes = () => (noteEventsOf(props.clip) ?? []).length > 0;
   const chromatic = () => props.project.song.key.scale === "chromatic";
 
   // A refusal describes the clip as it was when the user clicked, so once the
@@ -80,9 +91,10 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
   );
 
   function scopeLabel(): string {
-    const { count, isWholeClip } = scope();
-    if (count === 0) return "No notes";
+    const { count, isWholeClip, rowName } = scope();
+    if (count === 0) return rowName ? `No notes in ${rowName}` : "No notes";
     const noun = count === 1 ? "note" : "notes";
+    if (rowName) return `All ${count} ${noun} in ${rowName}`;
     return isWholeClip ? `All ${count} ${noun}` : `${count} selected ${noun}`;
   }
 
@@ -96,7 +108,8 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
 
   function applyTransform(kind: TransformKind): void {
     const current = scope();
-    if (!canTransform(current)) return;
+    const clipWide = CLIP_WIDE.has(kind);
+    if (clipWide ? !clipHasNotes() : !canTransform(current)) return;
     // Reaching for a transformation is the feature being used, accepted or not.
     analytics().logFeatureFirstUse(
       props.editor === "step" ? "step_editor" : "piano_roll",
@@ -138,7 +151,10 @@ export default function TransformPanel(props: TransformPanelProps): JSX.Element 
         type="button"
         class={["transform-button", { "transform-wide": button.wide === true }]}
         onClick={() => applyTransform(button.kind)}
-        disabled={!enabled() || button.disabled === true}
+        disabled={
+          !(CLIP_WIDE.has(button.kind) ? clipHasNotes() : enabled()) ||
+          button.disabled === true
+        }
       >
         {TRANSFORM_LABELS[button.kind]}
       </button>
