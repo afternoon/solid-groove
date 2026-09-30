@@ -1,6 +1,6 @@
 ---
 name: solid-groove-bug-fixer
-description: Fixes one Solid Groove bug, tracked as a GitHub issue — reproduces it with a failing test first, then fixes the root cause. Use for bug issues, not for feature tasks.
+description: Fixes one Groove bug, tracked as a GitHub issue — reproduces it with a failing test first, then fixes the root cause. Use for bug issues, not for feature tasks.
 model: opus
 ---
 

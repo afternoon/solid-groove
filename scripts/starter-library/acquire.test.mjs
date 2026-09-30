@@ -105,6 +105,32 @@ describe("source registry", () => {
     expect(licenseRejectionReason(licenseId)).toMatch(expected);
   });
 
+  it("accepts royalty-free only when the licence explicitly grants redistribution", () => {
+    expect(licenseRejectionReason("royalty-free-redistributable")).toBeNull();
+    expect(licenseRejectionReason("royalty-free")).toMatch(
+      /explicitly grants redistribution/,
+    );
+  });
+
+  it("admits private-alpha content only in a not-for-profit private alpha", () => {
+    expect(licenseRejectionReason("private-alpha")).toBeNull();
+    expect(
+      licenseRejectionReason("private-alpha", {
+        stage: "private-alpha",
+        forProfit: false,
+      }),
+    ).toBeNull();
+    expect(
+      licenseRejectionReason("private-alpha", { stage: "public-beta", forProfit: false }),
+    ).toMatch(/not-for-profit private alpha/);
+    expect(
+      licenseRejectionReason("private-alpha", {
+        stage: "private-alpha",
+        forProfit: true,
+      }),
+    ).toMatch(/CNT-003/);
+  });
+
   it("rejects an unrecognized licence rather than assuming it is fine", () => {
     expect(licenseRejectionReason("MIT-but-for-audio")).toMatch(
       /not an approved licence/,

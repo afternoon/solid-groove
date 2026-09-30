@@ -7,10 +7,9 @@ import { type DeviceCore, type DeviceCoreFactory, setOrRamp } from "./types";
  *
  * `Tone.Reverb` generates its impulse response from `decay` and `preDelay`, and
  * regenerating it is asynchronous — so `decay` and `size` are the two controls
- * that cannot be a plain `AudioParam` ramp. Assigning either setter regenerates
- * the impulse *on the same node* (which is why nothing here calls `generate()`
- * explicitly — that would be a second, redundant rebuild), and the guard below
- * assigns only when the value actually changed, so an unrelated edit (wet,
+ * that cannot be a plain `AudioParam` ramp. A change regenerates the impulse
+ * *on the same node*, once for both values and in order (see `regenerate`),
+ * and the guard below regenerates only when a value actually changed, so an unrelated edit (wet,
  * filter, bypass) never pays for a regeneration and never interrupts a ringing
  * tail.
  *
@@ -26,6 +25,17 @@ export const createReverbCore: DeviceCoreFactory = (): DeviceCore => {
   let lastDecay = Number.NaN;
   let lastSize = Number.NaN;
   let lastPreDelay = Number.NaN;
+  // Tone starts a generation per setter, and a quick generation can land its
+  // impulse *before* a slower one started earlier, which then overwrites it
+  // with a stale one. So each regeneration waits for the last to land, and
+  // sets both values before starting exactly one.
+  let impulse: Promise<void> = reverb.ready;
+  const regenerate = (decay: number, preDelay: number) => {
+    impulse = impulse.then(async () => {
+      Object.assign(reverb, { _decay: decay, _preDelay: preDelay });
+      await reverb.generate();
+    });
+  };
 
   return {
     input: reverb,
@@ -38,14 +48,16 @@ export const createReverbCore: DeviceCoreFactory = (): DeviceCore => {
         lastPreDelay = values.predelay;
         // Size stretches the tail between half and double the stated decay,
         // so the two controls compose instead of one overriding the other.
-        reverb.decay = Math.max(0.001, values.decay * (0.5 + values.size));
         // A larger room's first reflection arrives later; the stated
         // pre-delay is the floor, size adds up to 50 ms of distance on top.
-        reverb.preDelay = values.predelay + values.size * 0.05;
+        regenerate(
+          Math.max(0.001, values.decay * (0.5 + values.size)),
+          values.predelay + values.size * 0.05,
+        );
       }
       setOrRamp(damping.frequency, values.filter, initial);
     },
-    ready: () => reverb.ready,
+    ready: () => impulse,
     dispose() {
       reverb.dispose();
       damping.dispose();

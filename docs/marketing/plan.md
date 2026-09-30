@@ -1,4 +1,4 @@
-# Solid Groove — From Self-Validation to the First 100 Users
+# Groove — From Self-Validation to the First 100 Users
 
 | Field | Value |
 | --- | --- |
@@ -14,7 +14,7 @@
 
 ## 1. The four stages
 
-Solid Groove is in **Alpha Milestone 0** of four (tracked in [GitHub issues](https://github.com/afternoon/solid-groove/issues)). The fundamental hypothesis is yours to test first:
+Groove is in **Alpha Milestone 0** of four (tracked in [GitHub issues](https://github.com/afternoon/solid-groove/issues)). The fundamental hypothesis is yours to test first:
 
 > **A DAW with an AI assistant can help me become a better producer.**
 
@@ -75,7 +75,7 @@ This is the real hypothesis. Bar below.
 
 ### The bar for 0b: three tracks and one transferred technique
 
-> **Three tracks**, each started from a short loop and finished to an exported file in Solid Groove. **And** for at least two of them, you can name a specific technique the assistant taught you that **you then applied yourself, unprompted, on a later track.**
+> **Three tracks**, each started from a short loop and finished to an exported file in Groove. **And** for at least two of them, you can name a specific technique the assistant taught you that **you then applied yourself, unprompted, on a later track.**
 
 The second clause is the whole test. Anything can help you produce a track — that only proves the tool is useful. **A technique you later reached for on your own is the only evidence that you got better,** which is what the hypothesis actually claims. Without that clause you are measuring convenience and calling it learning.
 
@@ -99,7 +99,7 @@ This is the single highest-value artefact of Stage 0, for three reasons:
 
 ### Two cheap guards against your own bias
 
-**Keep a counterfactual visible.** Finish one track in your usual DAW during the same period. You cannot judge "better" without a comparison, and you may well find Solid Groove is better at some phases and worse at others — that's a more useful result than a verdict either way, and it tells you what to build next.
+**Keep a counterfactual visible.** Finish one track in your usual DAW during the same period. You cannot judge "better" without a comparison, and you may well find Groove is better at some phases and worse at others — that's a more useful result than a verdict either way, and it tells you what to build next.
 
 **Get blind ears on the output.** Post the finished tracks to a feedback thread in one of the communities in §5 — **as a producer, not as a founder.** Say nothing about how they were made or that you built the tool. You are testing whether the output stands up to strangers who have no reason to be kind. This is the one community activity worth doing in Stage 0, and note that it is not marketing: you are spending no credibility and making no claim. It also gets you familiar with the etiquette of those spaces long before you need anything from them.
 
@@ -167,7 +167,7 @@ Your audience has a folder with 200 unfinished eight-bar loops in it, and they f
 Message hierarchy, in order:
 
 1. You start loops and never finish them. (Pain — they nod.)
-2. Solid Groove turns a loop into a finished, exportable track, in the browser. (Promise.)
+2. Groove turns a loop into a finished, exportable track, in the browser. (Promise.)
 3. A producer sits beside you, suggests the next move, and shows you what it changed — so you learn instead of just receiving. (Differentiator, and *this* is where the AI belongs.)
 4. Everything stays editable, and you can undo anything it does. (Objection handling.)
 
@@ -434,7 +434,7 @@ Send 20 to get 2–3. Small channels (2k–20k subs) reply; large ones won't.
 >
 > Your video on [specific, real video] was the clearest explanation of [specific thing] I've seen, which is why I'm writing to you and not someone with a bigger channel.
 >
-> I've built Solid Groove — a browser-based production tool for producers who write loops but struggle to finish tracks. It has an assistant that suggests what to do next and shows you exactly what it changed, so you can edit or undo all of it. It's deliberately not a song generator. I've finished three tracks with it myself.
+> I've built Groove — a browser-based production tool for producers who write loops but struggle to finish tracks. It has an assistant that suggests what to do next and shows you exactly what it changed, so you can edit or undo all of it. It's deliberately not a song generator. I've finished three tracks with it myself.
 >
 > I'd like to pay you £100 for an honest first look, positive or negative. If you hate it, say so on camera — I'd rather have the feedback than a nice review. Early access, I'll answer anything, and I won't ask for approval over the edit.
 >

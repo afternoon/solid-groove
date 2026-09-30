@@ -91,9 +91,9 @@ const TelemetryDisclosure: Component<{
       <summary class="telemetry-disclosure-summary">Privacy</summary>
       <div class="telemetry-disclosure-body">
         <p>
-          Solid Groove records which features are used and reports errors, so we can tell
-          what works and fix what breaks. Two processors receive this: Google Analytics
-          for product events and Sentry for error reports and Session Replay.
+          Groove records which features are used and reports errors, so we can tell what
+          works and fix what breaks. Two processors receive this: Google Analytics for
+          product events and Sentry for error reports and Session Replay.
         </p>
         <p>
           Session Replay records a small sample of sessions — which controls you click and
