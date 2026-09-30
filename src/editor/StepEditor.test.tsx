@@ -13,8 +13,7 @@ import {
 } from "../domain/fixtures";
 import type { EventId, PadId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
-import { fillExtent, moveTo } from "../instrument/panelTesting";
-import { clickAndFlush, fireAndFlush } from "../testing/events";
+import { clickAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import StepEditor from "./StepEditor";
 
@@ -256,64 +255,6 @@ describe("StepEditor", () => {
     expect(transport.events).toHaveLength(0);
   });
 
-  it("selects a painted note and edits its velocity through a note.update command", () => {
-    const { history, clip } = renderEditor(createSliceFixtureProject());
-    stroke("Notes, step 2, off");
-
-    // A velocity slider appears for the freshly-selected note.
-    const velocity = screen.getByRole("slider", { name: "Velocity" });
-    fireEvent.input(velocity, { target: { value: "0.25" } });
-    flush();
-    // The drag settles: `change` is what closes the slider's gesture (#255).
-    fireEvent.change(velocity, { target: { value: "0.25" } });
-    flush();
-
-    const content = clip().content;
-    if (content.kind !== "notes") throw new Error("expected a note clip");
-    const painted = content.events.find((event) => event.startTicks === 48);
-    expect(painted?.velocity).toBeCloseTo(0.25, 2);
-    // The paint stroke and the velocity edit are two separate history entries.
-    expect(history.entries.length).toBeGreaterThanOrEqual(2);
-  });
-
-  // #255: the selected step's velocity was a raw `<input type="range">` with a
-  // native thumb and no fill, and every pointer move dispatched its own
-  // `note.update` — dozens of revisions and undo steps for one drag.
-  it("paints the step velocity as a thumbless fill slider (#255)", () => {
-    renderEditor(createSliceFixtureProject());
-    stroke("Notes, step 2, off");
-
-    const velocity = screen.getByRole("slider", { name: "Velocity" }) as HTMLInputElement;
-    expect(velocity.closest(".fill-slider-track")).not.toBeNull();
-    expect(fillExtent(velocity)).not.toBe("");
-    const readout = velocity
-      .closest(".fill-slider")
-      ?.querySelector<HTMLInputElement>(".fill-slider-entry");
-    expect(readout?.value ?? "").not.toBe("");
-  });
-
-  it("runs one velocity drag as one history entry and one revision (#255)", () => {
-    const { history, clip } = renderEditor(createSliceFixtureProject());
-    stroke("Notes, step 2, off");
-    const afterStroke = history.entries.length;
-    const startRevision = history.project.metadata.revision;
-
-    const velocity = screen.getByRole("slider", { name: "Velocity" }) as HTMLInputElement;
-    moveTo(velocity, "0.4");
-    moveTo(velocity, "0.25");
-    // Mid-drag the value has to follow the pointer, in the project the audio
-    // graph reads…
-    expect(velocityAt(clip(), 48)).toBeCloseTo(0.25, 2);
-    // …but nothing is committed until the drag ends.
-    expect(history.entries).toHaveLength(afterStroke);
-
-    fireAndFlush(() => {
-      fireEvent.change(velocity, { target: { value: "0.25" } });
-    });
-    expect(history.entries).toHaveLength(afterStroke + 1);
-    expect(history.project.metadata.revision).toBe(startRevision + 1);
-  });
-
   it("shift-click selects an existing note without erasing it", () => {
     const { selectedIds, history } = renderEditor(createSliceFixtureProject());
     const target = cell("Notes, step 1, on");
@@ -479,6 +420,7 @@ describe("StepEditor rows (#643)", () => {
   it("has the piano roll's toolbar: Bars, Select all, Delete, zoom and Play", () => {
     const { history, clip, onTogglePlay } = renderRows();
     expect(screen.getByRole("combobox", { name: "Bars" })).toBeInTheDocument();
+    expect(screen.queryByRole("slider", { name: "Velocity" })).toBeNull();
     // The ruler only labels the steps: the grid has no insert marker.
     expect(document.querySelector(".pr-ruler")).toHaveAttribute("aria-hidden", "true");
     expect(document.querySelector(".pr-ruler-marker")).toBeNull();
@@ -505,5 +447,100 @@ describe("StepEditor rows (#643)", () => {
     expect(solo).toHaveAttribute("aria-pressed", "false");
     clickAndFlush(solo);
     expect(onToggleSolo).toHaveBeenCalledOnce();
+  });
+});
+
+describe("StepEditor velocity lane (#643)", () => {
+  const stalks = () => [...document.querySelectorAll(".pr-stalk")] as HTMLElement[];
+
+  /** Drags on the stalk for `step` (1-based) to velocity `to` (0..1). */
+  function dragStalk(step: number, to: number): void {
+    const strip = document.querySelector(".pr-velocity-strip") as HTMLElement;
+    Object.defineProperty(strip, "clientHeight", { value: 100, configurable: true });
+    const fire = (type: string, y: number) => {
+      const init = {
+        bubbles: true,
+        button: 0,
+        clientX: (step - 1) * 40 + 10,
+        clientY: y,
+      };
+      fireEvent(strip, new MouseEvent(type, init));
+      flush();
+    };
+    fire("pointerdown", 50);
+    fire("pointermove", 100 - to * 100);
+    fire("pointerup", 100 - to * 100);
+  }
+
+  function renderLane() {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks[0];
+    const history = new CommandHistory(project);
+    const [clip, setClip] = createSignal<Clip>(project.clips[0]);
+    history.subscribe((snapshot) => setClip(snapshot.project.clips[0]));
+    const [selectedIds, setSelectedIds] = createSignal<readonly EventId[]>([]);
+    const transport = createRecordingTransport();
+    const analytics = new Analytics({
+      transport,
+      consent: new ConsentStore(memoryStorage()),
+      storage: memoryStorage(),
+    });
+    analytics.setAccountType("anonymous");
+    render(() => (
+      <StepEditor
+        clip={clip()}
+        instrument={track.instrument}
+        dispatch={(commands) => history.execute(commands as never)}
+        beginGesture={(options) => history.beginGesture(options)}
+        selectedIds={selectedIds}
+        setSelectedIds={setSelectedIds}
+        analytics={analytics}
+      />
+    ));
+    return { history, clip, transport };
+  }
+
+  it("shows the selected row's notes and no other row's", () => {
+    renderLane();
+    expect(stalks()).toHaveLength(4);
+    clickAndFlush(screen.getByRole("button", { name: "CP" }));
+    expect(stalks()).toHaveLength(2);
+  });
+
+  it("sets a note's velocity from its stalk, as one entry and one revision", () => {
+    const { history, clip, transport } = renderLane();
+    const revision = history.project.metadata.revision;
+    dragStalk(5, 0.3);
+    expect(velocityAt(clip(), 4 * 48)).toBeCloseTo(0.3);
+    expect(history.entries).toHaveLength(1);
+    expect(history.project.metadata.revision).toBe(revision + 1);
+    // One drag, one clip_edited, through the catalog.
+    expect(clipEditedEvents(transport)).toHaveLength(1);
+    expect(clipEditedEvents(transport)[0].params.editor).toBe("step");
+    const firstUse = transport.events.filter(
+      (event) => event.name === "feature_first_use",
+    );
+    expect(firstUse.map((event) => event.params.feature)).toEqual(["velocity_lane"]);
+  });
+
+  it("moves every selected note in the row together, and only that row's", () => {
+    const { clip } = renderLane();
+    clickAndFlush(screen.getByRole("button", { name: "Select all" }));
+    dragStalk(1, 0.3);
+    const content = clip().content;
+    if (content.kind !== "notes") throw new Error("expected a note clip");
+    const [kick] = content.events;
+    const kicks = content.events.filter(
+      (note) =>
+        note.trigger.kind === "pad" &&
+        kick.trigger.kind === "pad" &&
+        note.trigger.padId === kick.trigger.padId,
+    );
+    expect(kicks.map((note) => Math.round(note.velocity * 10))).toEqual([3, 3, 3, 3]);
+    expect(
+      content.events
+        .filter((note) => !kicks.includes(note))
+        .every((note) => note.velocity !== 0.3),
+    ).toBe(true);
   });
 });
