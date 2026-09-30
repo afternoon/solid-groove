@@ -18,7 +18,7 @@ export function renderAuditionPage(manifest) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solid Groove — starter library audition</title>
+<title>Groove — starter library audition</title>
 <style>
 :root {
 	color-scheme: dark;

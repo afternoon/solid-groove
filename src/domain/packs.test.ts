@@ -47,7 +47,7 @@ describe("the Pack entity", () => {
     const pack = createPack(context(), {
       name: "Techno Drums",
       version: "2.0.1",
-      publisher: "Solid Groove",
+      publisher: "Groove",
       kind: "third-party",
       description: "Hard techno percussion.",
     });
@@ -57,7 +57,7 @@ describe("the Pack entity", () => {
       id: pack.id,
       name: "Techno Drums",
       version: "2.0.1",
-      publisher: "Solid Groove",
+      publisher: "Groove",
       kind: "third-party",
       description: "Hard techno percussion.",
       rights: FACTORY_PACK_RIGHTS,

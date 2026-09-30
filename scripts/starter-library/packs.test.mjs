@@ -28,6 +28,7 @@ const EXPECTED_IDS = {
   "ambient-textures": "pak_gUou3hBgXF47EwgR-9gZ1",
   "transitions-fx": "pak_PrUvdIGkCE3uRGYeKOGRg",
   "cc0-community": "pak_5o6qI8YY27cYVyqstlJyG",
+  "alpha-drum-machines": "pak_CtXJaikSASIyJkhxZaczN",
 };
 
 describe("packId", () => {
@@ -63,7 +64,7 @@ describe("PACKS", () => {
     for (const pack of PACKS) {
       expect(pack.name).toBeTruthy();
       expect(pack.version).toMatch(PACK_VERSION);
-      expect(pack.publisher).toBe("Solid Groove");
+      expect(pack.publisher).toBe("Groove");
       expect(["factory", "user", "third-party"]).toContain(pack.kind);
       expect(pack.description).toBeTruthy();
       // Every pack states what it does not contain (section 6.5).

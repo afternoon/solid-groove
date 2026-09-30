@@ -97,7 +97,7 @@ export default function LandingPageContent(props: LandingPageContentProps) {
       <header class="landing-header">
         <a class="landing-brand" href="/">
           <span class="landing-brand-mark" aria-hidden="true" />
-          <span>Solid Groove</span>
+          <span>Groove</span>
         </a>
         <nav class="landing-nav" aria-label="Get started">
           <button
@@ -128,9 +128,9 @@ export default function LandingPageContent(props: LandingPageContentProps) {
             Leave with a track.
           </h1>
           <p class="landing-lede">
-            Solid Groove is a music studio that runs in your browser, being built around
-            an AI producer that proposes real, editable changes — so you turn a promising
-            idea into a finished track and understand how it was made.
+            Groove is a music studio that runs in your browser, being built around an AI
+            producer that proposes real, editable changes — so you turn a promising idea
+            into a finished track and understand how it was made.
           </p>
           <div class="landing-hero-actions">
             <a
@@ -201,7 +201,7 @@ export default function LandingPageContent(props: LandingPageContentProps) {
       </main>
 
       <footer class="landing-footer">
-        <p class="landing-footer-brand">Solid Groove · private alpha</p>
+        <p class="landing-footer-brand">Groove · private alpha</p>
         {/* `DEC-009`/`FND-001c`: the disclosure and opt-out have their designed
 				    home here. `src/app.tsx` renders the floating one on every other
 				    surface, and skips it here so there is exactly one on the page. */}
