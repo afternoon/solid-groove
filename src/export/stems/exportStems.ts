@@ -125,19 +125,33 @@ function planFor(project: Project, trackIds?: readonly TrackId[]): StemRender[] 
   return planStems(project, trackIds && new Set(trackIds));
 }
 
-function estimatePlan(
+/** The frames every stem is sized at: the whole plan's reference mix, the
+ * last stem, sets the song's end whichever of them a ZIP holds. */
+export function planFrames(
   plan: readonly StemRender[],
-  options: EstimateOptions,
-  frames = maxStemFrames(
+  options: Pick<EstimateOptions, "sampleRate" | "maxTailSeconds">,
+): number {
+  return maxStemFrames(
     songEndSeconds(plan[plan.length - 1].projection),
     options.sampleRate,
     options.maxTailSeconds,
-  ),
+  );
+}
+
+/** The archive limit: the working-memory budget, never past a plain ZIP. */
+export function archiveLimitBytes(maxBytes?: number): number {
+  return Math.min(maxBytes ?? MAX_STEM_EXPORT_BYTES, MAX_ZIP_BYTES);
+}
+
+function estimatePlan(
+  plan: readonly StemRender[],
+  options: EstimateOptions,
+  frames = planFrames(plan, options),
 ): StemExportEstimate {
   const wav = wav24ByteLength(RENDER_CHANNELS, frames);
   const paths = plan.map((stem) => stem.path);
   const bytes = stemArchiveBytes(paths, wav);
-  const limitBytes = Math.min(options.maxBytes ?? MAX_STEM_EXPORT_BYTES, MAX_ZIP_BYTES);
+  const limitBytes = archiveLimitBytes(options.maxBytes);
   return { bytes, limitBytes, fits: bytes <= limitBytes };
 }
 
