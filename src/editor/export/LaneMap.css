@@ -21,4 +21,9 @@
   width: 2px;
   background: var(--color-accent);
   pointer-events: none;
+  /* The prototype's glow (white at 60%), from the theme's one translucent white. */
+  box-shadow:
+    0 0 12px var(--color-accent-wash-strong),
+    0 0 12px var(--color-accent-wash-strong),
+    0 0 12px var(--color-accent-wash-strong);
 }

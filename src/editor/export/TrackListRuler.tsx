@@ -23,6 +23,8 @@ export interface TrackListRulerProps {
   /** An export is running: the picked-set buttons are off. */
   readonly disabled?: boolean;
   readonly onPickAction?: (action: PickAction) => void;
+  /** The lane scroller's scrollbar, so the ruler and the lanes share one set of columns. */
+  readonly scrollbarPx?: number;
 }
 
 function PickBar(props: TrackListRulerProps): JSX.Element {
@@ -77,6 +79,7 @@ export default function TrackListRuler(props: TrackListRulerProps): JSX.Element 
       class="track-ruler"
       style={{
         "grid-template-columns": `${NAME_COLUMN_PX}px ${GUTTER_PX}px minmax(0, 1fr)`,
+        "padding-right": `${props.scrollbarPx ?? 0}px`,
       }}
     >
       <div class="track-ruler-cell">
