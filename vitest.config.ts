@@ -183,11 +183,12 @@ export default defineConfig({
         "src/arrangement/**/*.test.{ts,tsx}",
       ]),
       // The boundaries that talk to something outside the app: the
-      // repository, the sample-library manifest, and auth.
+      // repository, the sample-library manifest, auth, and exported files.
       appProject("data", [
         "src/persistence/**/*.test.{ts,tsx}",
         "src/library/**/*.test.{ts,tsx}",
         "src/auth/**/*.test.{ts,tsx}",
+        "src/export/**/*.test.{ts,tsx}",
       ]),
       // The cross-cutting rail, plus the handful of root-level
       // `src/*.test.ts` files (telemetry, release, devBackend, firebaseConfig).
