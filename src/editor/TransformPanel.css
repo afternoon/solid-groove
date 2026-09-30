@@ -7,6 +7,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .transform-head {
@@ -133,6 +134,23 @@
 }
 
 @media (max-width: 900px) {
+  .transform-pair {
+    grid-column: span 12;
+  }
+
+  .transform-grid > .transform-button,
+  .transform-grid > .transform-wide {
+    grid-column: span 6;
+  }
+
+  .transform-row > .transform-button {
+    flex-basis: calc(50% - 1px);
+  }
+}
+
+/* Beside the step grid's Generate panel (#643) the panel is narrow even on a
+   wide screen, so it takes the narrow layout by its own width too. */
+@container (max-width: 480px) {
   .transform-pair {
     grid-column: span 12;
   }

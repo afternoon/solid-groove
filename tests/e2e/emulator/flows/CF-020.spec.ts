@@ -109,7 +109,7 @@ const EUCLID_3_OF_8 = [1, 4, 7, 9, 12, 15];
 test.describe("CF-020", () => {
   // `test.fixme` until #643 lands: the PR that closes it removes this marker
   // in the same diff that makes the flow pass.
-  test.fixme("a producer fills a drum row from the Generate panel", async ({ page }) => {
+  test("a producer fills a drum row from the Generate panel", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-020",
       title: "A producer fills a drum row from the Generate panel",

@@ -163,6 +163,20 @@
   background-image: none;
 }
 
+/* The Generate panel's preview (#643): a step it would add is hatched, and a
+   note it would remove fades. */
+.step-cell.ghost {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-text-secondary) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+.step-cell.fading {
+  opacity: 0.28;
+}
+
 .step-cell.selected {
   box-shadow:
     inset -2px 0 0 var(--color-background),
