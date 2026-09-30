@@ -8,6 +8,7 @@ import {
   useShortcuts,
 } from "../shortcuts";
 import type { EditorViewName } from "./editorViews";
+import type { LibraryActions } from "./LibraryModal";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import type { UseEditorSessionResult } from "./useEditorSession";
 import type { ProjectAudioControls } from "./useProjectAudio";
@@ -26,6 +27,8 @@ export interface UseEditorShortcutsOptions {
   /** Whether the `UI-001` library modal is open, and how to close it. */
   readonly libraryOpen: Accessor<boolean>;
   readonly closeLibrary: () => void;
+  /** The open library modal's actions (`LIB-010`), or null while it is closed. */
+  readonly libraryActions: Accessor<LibraryActions | null>;
   /** The arrangement's placement-editing operations (ARR-002), lifted from
    * `ArrangementView` the same way `pianoRollActions` is lifted from the
    * piano roll. */
@@ -101,6 +104,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     packBrowserOpen,
     libraryOpen,
     closeLibrary,
+    libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
     selectView,
@@ -157,6 +161,14 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // The KEY-01 registry owns every mapping; this component only says which
   // actions exist here and what they do. An action the slice does not
   // implement yet simply has no handler and never fires.
+  const inLibrary = (run: (actions: LibraryActions) => void) => ({
+    run: () => {
+      const actions = libraryActions();
+      if (actions) run(actions);
+    },
+    isEnabled: () => libraryActions() !== null,
+  });
+
   const handlers = (): ShortcutHandlers => ({
     "transport.play_stop": { run: () => void audio.toggle() },
     // Shift+Space resumes from where playback last stopped, exactly as the
@@ -230,6 +242,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     "view.zoom_in": { run: () => arrangementEditingActions()?.zoomIn() },
     "view.zoom_out": { run: () => arrangementEditingActions()?.zoomOut() },
+    // The library modal's own keys, live only in the `library` context.
+    "library.all_sounds": inLibrary((a) => a.showView("sounds")),
+    "library.favourites": inLibrary((a) => a.showView("favourites")),
+    "library.browse_packs": inLibrary((a) => a.showView("packs")),
+    "library.insert": inLibrary((a) => void a.insertSelected()),
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
@@ -374,8 +391,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // While a modal is open it is the only active context, so nothing behind it
   // can fire — including playback and selection (PRD KEY-02). The pack browser
   // is a modal surface like the guide, so it takes the keyboard the same way.
-  const contexts = (): readonly ShortcutContext[] =>
-    guideOpen() || packBrowserOpen() || libraryOpen() ? ["dialog"] : editorContexts();
+  const contexts = (): readonly ShortcutContext[] => {
+    if (guideOpen() || packBrowserOpen()) return ["dialog"];
+    // The library is a modal with keys of its own, live only while it is open.
+    return libraryOpen() ? ["dialog", "library"] : editorContexts();
+  };
 
   const shortcuts = useShortcuts({ handlers, contexts });
   const keyHint = (action: Parameters<typeof shortcutLabel>[0]) =>

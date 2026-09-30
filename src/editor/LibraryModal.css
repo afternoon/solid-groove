@@ -12,3 +12,70 @@
   min-height: 0;
   overflow: hidden;
 }
+
+.library-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex: 1 1 auto;
+}
+
+.library-modal-slot {
+  display: flex;
+  flex-direction: column;
+  max-width: 220px;
+}
+
+.library-modal-slot b {
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.library-modal-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.library-modal-views {
+  display: flex;
+  gap: 2px;
+}
+
+.library-modal-view {
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+}
+
+.library-modal-view[aria-selected="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.library-modal-empty {
+  margin: auto;
+  color: var(--color-foreground-muted);
+}
+
+.library-modal-insert {
+  width: 300px;
+  height: 44px;
+  flex: none;
+  font-weight: 700;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-modal-insert:disabled {
+  background: var(--color-border);
+  color: var(--color-foreground-muted);
+}

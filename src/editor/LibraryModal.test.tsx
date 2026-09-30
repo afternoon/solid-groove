@@ -1,10 +1,17 @@
-import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
-import { fixtureFetcher } from "../library/__fixtures__/fixtures";
+import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "../library/__fixtures__/fixtures";
 import { LibraryClient } from "../library/libraryClient";
 import { clickAndFlush } from "../testing/events";
-import LibraryModal from "./LibraryModal";
+import LibraryModal, { type LibraryActions } from "./LibraryModal";
 
 afterEach(cleanup);
 
@@ -75,5 +82,101 @@ describe("LibraryModal", () => {
     unmount();
 
     expect(engine.disposed()).toBe(true);
+  });
+});
+
+describe("LibraryModal shell", () => {
+  const pack = FIXTURE_PACK_INDEX_DOC.packs[0];
+
+  function renderShell(
+    extra: { onInsert?: () => void; onActions?: (a: LibraryActions | null) => void } = {},
+  ) {
+    return render(() => (
+      <LibraryModal
+        client={new LibraryClient(fixtureFetcher())}
+        previewEngine={fakePreviewEngine()}
+        onInsert={extra.onInsert ?? (() => {})}
+        addedPackIds={[pack.id]}
+        onAddPack={() => {}}
+        onPackBrowserOpenChange={() => {}}
+        slot="Drums · BD"
+        current="Rounded Club Kick"
+        onActions={extra.onActions}
+        onClose={() => {}}
+      />
+    ));
+  }
+
+  async function hearFirstSound() {
+    fireEvent.click(await screen.findByRole("button", { name: new RegExp(pack.name) }));
+    const group = await waitFor(() => {
+      const groups = screen
+        .getAllByRole("button", { expanded: false })
+        .filter((button) => button.classList.contains("library-node-group"));
+      expect(groups.length).toBeGreaterThan(0);
+      return groups[0];
+    });
+    fireEvent.click(group);
+    const audition = await waitFor(
+      () => screen.getAllByRole("button", { name: /^Audition / })[0],
+    );
+    fireEvent.click(audition);
+  }
+
+  it("names the slot and the sound it holds", () => {
+    renderShell();
+    expect(screen.getByText("Drums · BD")).toBeVisible();
+    expect(screen.getByText("Rounded Club Kick")).toBeVisible();
+  });
+
+  it("switches between Sounds, Packs and Favourites", () => {
+    renderShell();
+    const tab = (name: string) => screen.getByRole("tab", { name });
+    expect(tab("Sounds")).toHaveAttribute("aria-selected", "true");
+
+    clickAndFlush(tab("Packs"));
+    expect(tab("Packs")).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+    expect(screen.getByText("Packs will appear here.")).toBeVisible();
+
+    clickAndFlush(tab("Favourites"));
+    expect(screen.getByText("Sounds you like will appear here.")).toBeVisible();
+  });
+
+  it("keeps Insert disabled until a sound is selected, then inserts that sound", async () => {
+    const onInsert = vi.fn();
+    renderShell({ onInsert });
+    expect(screen.getByRole("button", { name: "Insert" })).toBeDisabled();
+
+    await hearFirstSound();
+
+    const insert = await waitFor(() => {
+      const button = document.querySelector<HTMLButtonElement>(".library-modal-insert");
+      expect(button).toBeEnabled();
+      return button as HTMLButtonElement;
+    });
+    expect(insert).toHaveTextContent(/^Insert .+/);
+    clickAndFlush(insert);
+    expect(onInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands the host the actions the library shortcuts run, and takes them back on close", async () => {
+    const onActions = vi.fn();
+    const onInsert = vi.fn();
+    const { unmount } = renderShell({ onInsert, onActions });
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+
+    expect(actions.insertSelected()).toBe(false);
+    expect(onInsert).not.toHaveBeenCalled();
+    actions.showView("favourites");
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Favourites" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+
+    unmount();
+    expect(onActions).toHaveBeenLastCalledWith(null);
   });
 });

@@ -118,6 +118,8 @@ export interface UseLibraryBrowserOptions {
    * arrangement's Loop button opens it restricted to loops.
    */
   readonly assetTypes?: Accessor<readonly LibraryAssetType[] | undefined>;
+  /** Called with a sound the moment it is auditioned: hearing one selects it. */
+  readonly onSelect?: (asset: LibraryAsset) => void;
 }
 
 export function useLibraryBrowser(
@@ -334,6 +336,7 @@ export function useLibraryBrowser(
   }
 
   async function auditionAsset(asset: LibraryAsset): Promise<void> {
+    options.onSelect?.(asset);
     if (!audition) return;
     // Clear any prior error for this asset before a fresh attempt.
     setAssetErrors((prev) => {
