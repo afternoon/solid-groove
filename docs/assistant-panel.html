@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The assistant reference design for #72 (AI-004). Self-contained and playable: open it in a browser. -->
+<title>Groove Assistant Panel</title>
+<style>
+/* Layout: a flow stepper over one full-size editor stage. The assistant floats bottom-right over whichever view is open, like a mail composer, and can be minimised, docked to the right edge, or closed. Dark single look, the product's own ramp. */
+:root{
+  color-scheme:dark;
+  --m00:#000;--m08:#141414;--m12:#1c1c1c;--m16:#292929;--m28:#474747;--m47:#787878;--m65:#a6a6a6;--m85:#d9d9d9;--m96:#f6f6f6;--m100:#fff;
+  /* Track colours: domain data, the one hue (TRACK_COLORS 30-33) */
+  --t-drums:hsl(0 75% 50%);--t-bass:hsl(25 75% 50%);--t-keys:hsl(45 75% 50%);--t-pad:hsl(65 75% 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --panel-w:384px;
+}
+html,body{background:var(--m00);color:var(--m85)}
+body{font:14px/1.5 var(--sans);padding-inline:16px;padding-block:28px 64px;margin:0}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0;text-align:left}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible,textarea:focus-visible,[tabindex]:focus-visible,summary:focus-visible{outline:2px solid var(--m100);outline-offset:2px}
+[hidden]{display:none!important}
+.num{font-variant-numeric:tabular-nums}
+.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--m47);font-weight:500}
+.k{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 3px;font-size:10px;font-weight:600;line-height:1;color:var(--m65);box-shadow:inset 0 0 0 1px var(--m28);flex:none}
+
+/* ===== page shell (as library-browser.html) ===== */
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.page-h{display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.eyebrow{margin:0;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--m65)}
+h1{margin:0;font-size:30px;line-height:1.1;color:var(--m100);text-wrap:balance}
+.lede{margin:0;color:var(--m85)}
+.steps{display:flex;flex-wrap:wrap;gap:1px;background:var(--m16)}
+.step{flex:1 1 104px;padding:10px 12px;background:var(--m08);color:var(--m85);font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:2px}
+.step small{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--m47);font-weight:500}
+.step:hover{background:var(--m16);color:var(--m100)}
+.step[aria-current="step"]{background:var(--m100);color:var(--m00)}
+.step[aria-current="step"] small{color:var(--m28)}
+.note{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;background:var(--m08);padding:14px 16px}
+.note p{margin:0;max-width:84ch}
+.note b{color:var(--m100)}
+.nav2{display:flex;gap:2px}
+.nav2 button{height:32px;padding:0 12px;background:var(--m16);font-size:12px;font-weight:600}
+.nav2 button:hover:not(:disabled){background:var(--m28);color:var(--m100)}
+.stage{overflow-x:auto;background:var(--m00);box-shadow:0 0 0 1px var(--m16)}
+.qs{background:var(--m08);padding:14px 16px 16px}
+.qs h2{margin:0 0 8px;font-size:15px;color:var(--m100)}
+.qs ol{margin:0;padding-left:20px;display:grid;gap:6px;max-width:92ch}
+.qs b{color:var(--m100)}
+
+/* ===== the editor ===== */
+.ed{width:1180px;height:780px;position:relative;overflow:hidden;background:var(--m00);font-size:12px}
+.top{position:absolute;inset:0 0 auto;height:44px;display:flex;align-items:center;gap:18px;padding:0 8px 0 16px;background:var(--m08);border-bottom:1px solid var(--m16);z-index:5}
+.top .brand{color:var(--m100);font-size:15px;font-weight:700}
+.top .proj{color:var(--m96);font-size:13px;font-weight:600}
+.play{width:32px;height:32px;display:grid;place-items:center;background:var(--m16);color:var(--m100)}
+.play:hover{background:var(--m28)}
+.play[aria-pressed="true"]{background:var(--m100);color:var(--m00)}
+.tabs{display:flex;gap:2px;margin-left:8px}
+.tab{height:30px;padding:0 12px;display:flex;align-items:center;color:var(--m65);font-weight:600;font-size:12px}
+.tab:hover{background:var(--m16);color:var(--m100)}
+.tab[aria-current="page"]{background:var(--m100);color:var(--m00)}
+.launch{margin-left:auto;height:32px;display:flex;align-items:center;gap:8px;padding:0 12px;box-shadow:inset 0 0 0 1px var(--m28);color:var(--m96);font-weight:600}
+.launch:hover{box-shadow:inset 0 0 0 1px var(--m85);color:var(--m100)}
+.launch[aria-pressed="true"]{background:var(--m100);color:var(--m00);box-shadow:none}
+.launch[aria-pressed="true"] .k{color:var(--m28);box-shadow:inset 0 0 0 1px var(--m65)}
+.launch svg,.ah svg.sp{width:14px;height:14px}
+.view{position:absolute;left:0;right:0;top:44px;bottom:0;overflow:hidden;transition:right .18s ease}
+.ed.docked .view{right:var(--panel-w)}
+.vt{height:52px;display:flex;align-items:center;gap:22px;padding:0 20px;border-bottom:1px solid var(--m16)}
+.vt h2{margin:0;font-size:18px;color:var(--m100);font-weight:600}
+.ro{display:flex;flex-direction:column;gap:0}
+.ro b{font-size:13px;color:var(--m96);font-weight:500}
+.crumb{display:flex;align-items:center;gap:8px;color:var(--m85);font-weight:600}
+.crumb i{width:4px;height:18px;background:var(--c)}
+.ghost{height:30px;padding:0 12px;box-shadow:inset 0 0 0 1px var(--m28);color:var(--m85);font-weight:600;display:flex;align-items:center}
+.ghost:hover{box-shadow:inset 0 0 0 1px var(--m85);color:var(--m100)}
+
+/* highlights: what the assistant proposes, and what it changed */
+[data-hl]{position:relative}
+[data-hl="preview"]{outline:1px dashed var(--m100);outline-offset:3px}
+[data-hl="changed"]{outline:2px solid var(--m100);outline-offset:3px}
+[data-hl="point"]{outline:2px solid var(--m100);outline-offset:3px;animation:pulse 1.2s ease-in-out 3}
+.hl-tag{position:absolute;left:4px;top:-12px;z-index:3;font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:1px 5px;background:var(--m100);color:var(--m00);white-space:nowrap;pointer-events:none}
+[data-hl="preview"]>.hl-tag{background:var(--m00);color:var(--m100);box-shadow:inset 0 0 0 1px var(--m100)}
+@keyframes pulse{50%{outline-offset:8px;outline-color:var(--m47)}}
+.flash{animation:pulse .6s ease-in-out 2}
+
+/* arrangement */
+.arr{position:absolute;inset:0}
+.ruler{height:26px;display:flex;margin-left:224px;border-bottom:1px solid var(--m16)}
+.ruler span{flex:0 0 60px;padding:5px 6px;color:var(--m47);box-shadow:inset 1px 0 0 var(--m16)}
+.trow{height:84px;display:flex;gap:4px;border-bottom:1px solid var(--m08)}
+.th{width:220px;flex:none;background:var(--m08);display:flex;align-items:center;gap:12px;padding:0 12px 0 0}
+.th.sel{background:var(--m00);box-shadow:inset 0 0 0 1px var(--m16)}
+.th i{width:4px;align-self:stretch;background:var(--c)}
+.th b{font-size:14px;color:var(--m100);flex:1}
+.ms{display:flex;gap:2px}
+.ms span{width:22px;height:20px;display:grid;place-items:center;font-size:10px;font-weight:700;background:var(--m16);color:var(--m65)}
+.lane{position:relative;flex:1;background:repeating-linear-gradient(90deg,var(--m08) 0 1px,transparent 1px 60px)}
+.clip{position:absolute;top:10px;bottom:10px;background:var(--c);color:var(--m00);font-weight:700;font-size:11px;padding:3px 6px;overflow:hidden}
+.clip svg{position:absolute;left:0;right:0;bottom:6px;height:34px;width:100%;opacity:.55}
+.phead{position:absolute;top:26px;bottom:0;width:1px;background:var(--m100);left:224px;pointer-events:none;z-index:2}
+
+/* sequence */
+.seq{padding:18px 20px;max-width:740px;display:flex;flex-direction:column;gap:6px}
+.srow{display:grid;grid-template-columns:128px repeat(16,minmax(0,1fr));gap:2px;align-items:center}
+.srow .nm{font-weight:600;color:var(--m85);padding-right:8px}
+.srow.sel .nm{color:var(--m100)}
+.cell{height:34px;background:var(--m12);position:relative;overflow:visible}
+.cell:nth-child(4n+2):not(:nth-child(2)){margin-left:6px}
+.cell.now{box-shadow:inset 0 0 0 1px var(--m65)}
+.cell i{position:absolute;inset:0;background:var(--c);opacity:var(--v);transform:translateX(var(--sw,0px))}
+.cell.ghost-new i{background:none;outline:1px dashed var(--c);outline-offset:-3px;opacity:1}
+.vlane{margin-top:14px;display:grid;grid-template-columns:128px repeat(16,minmax(0,1fr));gap:2px;align-items:end;height:92px}
+.vlane .nm{align-self:start;display:flex;flex-direction:column;gap:2px;padding-top:12px}
+.vbar{height:100%;position:relative;background:var(--m08)}
+.vbar:nth-child(4n+2):not(:nth-child(2)){margin-left:6px}
+.vbar i{position:absolute;left:3px;right:3px;bottom:0;height:var(--h);background:var(--c)}
+.vbar u{position:absolute;left:3px;right:3px;bottom:0;height:var(--o);box-shadow:inset 0 0 0 1px var(--m47);text-decoration:none}
+.seq-foot{margin-top:18px;display:flex;gap:28px}
+
+/* instrument */
+.rack{padding:16px 20px}
+.unit{max-width:1000px;background:var(--m08)}
+.uh{display:flex;align-items:center;gap:26px;padding:12px 16px;border-bottom:1px solid var(--m16)}
+.uh .bar{width:4px;height:36px;background:var(--c)}
+.uh .nm b{display:block;font-size:18px;color:var(--m100);line-height:1.15}
+.meter{width:120px;height:6px;background:var(--m00);position:relative}
+.meter i{position:absolute;left:0;top:0;bottom:0;width:var(--l,0%);background:#22c55e;transition:width .08s}
+.aud{margin-left:auto;height:34px;padding:0 16px;background:var(--m100);color:var(--m00);font-weight:700;display:flex;align-items:center}
+.pads{display:flex;flex-direction:column}
+.pad{display:grid;grid-template-columns:34px 110px 260px 170px 70px 70px auto;gap:14px;align-items:center;height:44px;padding:0 16px;border-bottom:1px solid var(--m12)}
+.pad.sel{background:var(--m00)}
+.pad .n{color:var(--m47)}
+.pad .pn{font-weight:600;color:var(--m96)}
+.slot{height:30px;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--m16);color:var(--m96);font-weight:600;min-width:0}
+.slot span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot::after{content:"";border-top:5px solid var(--m65);border-left:4px solid transparent;border-right:4px solid transparent}
+.slot svg{width:12px;height:12px;flex:none}
+.fdr{display:flex;align-items:center;gap:8px}
+.fdr .t{flex:1;height:1px;background:var(--m28);position:relative}
+.fdr .t::before{content:"";position:absolute;left:0;top:-.5px;height:2px;width:var(--p);background:var(--m100)}
+.fdr .t::after{content:"";position:absolute;left:var(--p);top:-5px;width:2px;height:11px;background:var(--m100);transform:translateX(-1px)}
+.fdr b{width:44px;text-align:right;color:var(--m85);font-weight:500}
+
+/* mixer */
+.strips{display:flex;gap:2px;overflow-x:auto;padding:16px 20px;height:calc(100% - 52px);box-sizing:border-box}
+.strip{width:106px;flex:none;background:var(--m08);box-shadow:inset 0 3px 0 var(--c);display:flex;flex-direction:column;gap:10px;padding:14px 10px 12px}
+.strip.sel{background:var(--m00);box-shadow:inset 0 3px 0 var(--c),inset 0 0 0 1px var(--m16)}
+.strip.ret{--c:var(--m47)}
+.strip.mst{--c:var(--m100);margin-left:auto}
+.strip b.sn{color:var(--m100);font-size:13px}
+.strip .row{display:flex;flex-direction:column;gap:3px}
+.strip .fdr b{width:34px}
+.vfdr{flex:1;display:flex;gap:8px;justify-content:center;min-height:120px}
+.vfdr .rail{width:1px;background:var(--m28);position:relative}
+.vfdr .rail::after{content:"";position:absolute;left:-9px;width:19px;height:3px;bottom:var(--p);background:var(--m100)}
+.vfdr .vm{width:5px;background:var(--m00);position:relative}
+.vfdr .vm i{position:absolute;left:0;right:0;bottom:0;height:var(--l,0%);background:#22c55e;transition:height .08s}
+
+/* ===== the assistant ===== */
+.asst{position:absolute;z-index:20;background:var(--m08);display:flex;flex-direction:column;box-shadow:0 18px 50px rgb(0 0 0/80%),0 0 0 1px var(--m28)}
+.asst[data-mode="float"]{right:16px;bottom:0;width:var(--panel-w);height:560px}
+.asst[data-mode="min"]{right:16px;bottom:0;width:340px;height:40px}
+.asst[data-mode="dock"]{right:0;top:44px;bottom:0;width:var(--panel-w);box-shadow:-1px 0 0 var(--m16)}
+.ah{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 4px 0 12px;background:var(--m16);color:var(--m100)}
+.ah .ttl{font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px;flex:none}
+.ah .stat{color:var(--m65);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ah .grab{flex:1;align-self:stretch;display:flex;align-items:center;gap:8px;min-width:0}
+.ib{width:30px;height:30px;display:grid;place-items:center;color:var(--m65);flex:none}
+.ib:hover{background:var(--m28);color:var(--m100)}
+.ib svg{width:14px;height:14px}
+.log{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+.hello{display:flex;flex-direction:column;gap:6px;padding:4px 0 6px}
+.hello b{color:var(--m100);font-size:15px}
+.hello p{margin:0;color:var(--m65)}
+.mu{align-self:flex-end;max-width:86%;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.mu p{margin:0;background:var(--m16);color:var(--m96);padding:8px 11px;font-size:13px;white-space:pre-wrap}
+.ma{display:flex;flex-direction:column;gap:4px;max-width:100%}
+.ma .who{display:flex;align-items:center;gap:6px}
+.ma .who svg{width:10px;height:10px;color:var(--m100)}
+.ma p{margin:0;color:var(--m85);font-size:13px}
+.ma p .stopped{color:var(--m47);font-style:italic}
+.caret{display:inline-block;width:7px;height:13px;background:var(--m100);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.think{display:flex;gap:4px;padding:6px 0}
+.think i{width:5px;height:5px;background:var(--m65);animation:dot 1s infinite}
+.think i:nth-child(2){animation-delay:.15s}.think i:nth-child(3){animation-delay:.3s}
+@keyframes dot{50%{opacity:.2}}
+
+.card{background:var(--m00);box-shadow:inset 0 0 0 1px var(--m28);display:flex;flex-direction:column}
+.card-h{display:flex;flex-direction:column;gap:1px;padding:10px 12px;border-bottom:1px solid var(--m16)}
+.card-h b{color:var(--m100);font-size:13px}
+.chg{list-style:none;margin:0;padding:6px 0}
+.chg li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:5px 12px;align-items:baseline}
+.chg li button{color:var(--m96);font-weight:600;text-align:left}
+.chg li button:hover{text-decoration:underline;text-underline-offset:3px}
+.chg .was{color:var(--m47);text-decoration:line-through}
+.chg .now{color:var(--m100);font-weight:600}
+.acts{display:flex;gap:2px;padding:10px 12px;border-top:1px solid var(--m16);flex-wrap:wrap;align-items:center}
+.btn{height:30px;padding:0 12px;background:var(--m16);color:var(--m96);font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px}
+.btn:hover:not(:disabled){background:var(--m28);color:var(--m100)}
+.btn.pri{background:var(--m100);color:var(--m00)}
+.btn.pri:hover:not(:disabled){background:var(--m85);color:var(--m00)}
+.btn[aria-pressed="true"]{background:var(--m100);color:var(--m00)}
+.btn svg{width:11px;height:11px}
+.acts .say{flex:1 1 100%;color:var(--m65);font-size:11px;padding-top:6px}
+.acts .say b{color:var(--m100);font-weight:600}
+details.why{border-top:1px solid var(--m16)}
+details.why summary{list-style:none;cursor:pointer;padding:9px 12px;color:var(--m85);font-weight:600;display:flex;align-items:center;gap:8px}
+details.why summary::-webkit-details-marker{display:none}
+details.why summary::before{content:"";border-left:5px solid var(--m65);border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .12s}
+details.why[open] summary::before{transform:rotate(90deg)}
+details.why summary:hover{color:var(--m100)}
+details.why dl{margin:0;padding:0 12px 12px;display:grid;gap:8px}
+details.why dt{margin:0}
+details.why dd{margin:0;color:var(--m85)}
+details.why dd button{color:var(--m100);text-decoration:underline;text-underline-offset:3px}
+
+.pk-top{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;padding:12px}
+.cov{width:64px;height:64px;background:var(--m00);box-shadow:inset 0 0 0 1px var(--m28);position:relative;overflow:hidden}
+.cov svg{position:absolute;left:0;right:0;top:12%;width:100%;height:54%}
+.cov .s{fill:var(--m28)}
+.cov b{position:absolute;left:6px;bottom:2px;font-size:22px;font-weight:800;color:var(--m100);letter-spacing:-.04em}
+.pk-top h4{margin:0;font-size:14px;color:var(--m100)}
+.pk-top p{margin:2px 0 0;color:var(--m65);font-size:12px}
+.pk-meta{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.status{font-size:10px;padding:2px 6px;box-shadow:inset 0 0 0 1px var(--m47);color:var(--m85);white-space:nowrap}
+.snd{list-style:none;margin:0;padding:0 0 6px}
+.snd li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;padding:3px 12px 3px 8px}
+.snd li:hover{background:var(--m12)}
+.snd .pl{width:28px;height:28px;display:grid;place-items:center;color:var(--m85)}
+.snd .pl:hover{background:var(--m16);color:var(--m100)}
+.snd .pl svg{width:10px;height:10px}
+.snd b{font-weight:600;color:var(--m96);font-size:12px}
+.snd small{color:var(--m47);font-size:11px}
+
+.vid{position:relative;background:var(--m00);aspect-ratio:16/9;overflow:hidden;border-bottom:1px solid var(--m16)}
+.vid svg.poster{position:absolute;inset:0;width:100%;height:100%}
+.vid .big-play{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;background:var(--m100);color:var(--m00);display:grid;place-items:center}
+.vid .big-play svg{width:16px;height:16px}
+.vid .cap{position:absolute;left:10px;right:10px;bottom:30px;text-align:center}
+.vid .cap span{background:rgb(0 0 0/80%);color:var(--m100);padding:2px 6px;font-size:12px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.vctl{position:absolute;left:0;right:0;bottom:0;height:24px;display:flex;align-items:center;gap:8px;padding:0 8px;background:rgb(0 0 0/70%)}
+.vctl .ib{width:20px;height:20px}
+.vctl .ib svg{width:10px;height:10px}
+.vctl .prog{flex:1;height:2px;background:var(--m28);position:relative}
+.vctl .prog i{position:absolute;left:0;top:0;bottom:0;width:var(--p);background:var(--m100)}
+.vctl .prog u{position:absolute;top:-3px;width:1px;height:8px;background:var(--m65)}
+.vctl small{color:var(--m85);font-size:10px}
+.chap{list-style:none;margin:0;padding:6px 0}
+.chap li button{display:grid;grid-template-columns:36px minmax(0,1fr);gap:8px;padding:4px 12px;width:100%;color:var(--m85)}
+.chap li button:hover{background:var(--m12);color:var(--m100)}
+.chap li button[aria-current="true"]{color:var(--m100);font-weight:600}
+.chap li small{color:var(--m47)}
+.vbig{position:absolute;z-index:15;left:24px;top:64px;width:720px;background:var(--m08);box-shadow:0 20px 60px rgb(0 0 0/80%),0 0 0 1px var(--m28)}
+.vbig .vb-h{display:flex;align-items:center;gap:8px;padding:6px 6px 6px 12px}
+.vbig .vb-h b{flex:1;color:var(--m100)}
+.vbig .cap span{font-size:16px}
+
+.sugs{display:flex;gap:4px;padding:0 14px 10px;overflow-x:auto;scrollbar-width:none;flex:none}
+.sugs::-webkit-scrollbar{display:none}
+.chip{height:26px;flex:none;white-space:nowrap;padding:0 10px;background:var(--m16);color:var(--m85);font-size:12px;display:flex;align-items:center}
+.chip:hover{background:var(--m28);color:var(--m100)}
+.comp{flex:none;border-top:1px solid var(--m16);padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.comp textarea{background:var(--m00);border:0;border-radius:0;box-shadow:inset 0 0 0 1px var(--m28);color:var(--m96);font:13px/1.45 var(--sans);padding:8px 10px;resize:none;height:56px;outline:none}
+.comp textarea:focus{box-shadow:inset 0 0 0 1px var(--m85)}
+.comp textarea::placeholder{color:var(--m47)}
+.crow{display:flex;align-items:center;gap:8px}
+.scope{height:26px;display:flex;align-items:center;gap:6px;padding:0 8px;background:var(--m16);color:var(--m96);font-size:11px;font-weight:600}
+.scope:hover{background:var(--m28)}
+.scope .lbl{color:var(--m65)}
+.crow .hint{flex:1;color:var(--m47);font-size:11px;text-align:right}
+.send{width:32px;height:32px;display:grid;place-items:center;background:var(--m100);color:var(--m00);flex:none}
+.send:hover:not(:disabled){background:var(--m85)}
+.send svg{width:14px;height:14px}
+.err{background:var(--m00);box-shadow:inset 0 0 0 1px rgb(255 255 255/30%);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.err b{color:var(--m100)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="page-h">
+    <p class="eyebrow">Groove · AI-004 · assistant mockup</p>
+    <h1>An assistant that floats over the work, and can dock beside it</h1>
+    <p class="lede">Step through the flow, or just use it: type in the composer, preview and apply the proposal, hear the beat with the play button, switch views, and minimise, dock or close the panel. Replies are scripted and sounds are synthesized stand-ins.</p>
+  </header>
+
+  <nav class="steps" id="steps" aria-label="Flow"></nav>
+  <div class="note"><p id="note"></p><div class="nav2"><button type="button" id="prev">Back</button><button type="button" id="next">Next step</button></div></div>
+
+  <div class="stage">
+    <div class="ed" id="ed">
+      <div class="top" id="top"></div>
+      <div class="view" id="view"></div>
+      <section class="asst" id="asst" aria-label="Assistant" hidden></section>
+    </div>
+  </div>
+
+  <section class="qs" aria-labelledby="qs-h">
+    <h2 id="qs-h">Decisions this mockup takes, to check</h2>
+    <ol>
+      <li><b>Three homes, one conversation.</b> Floating (bottom-right, 384px, over the view), minimised (a 40px bar that keeps status), docked (a right column the view reflows around). Closing hides it but keeps the conversation; the top-bar button and <span class="k">⌘</span><span class="k">J</span> bring it back where it was.</li>
+      <li><b>Scope is visible and one click to change.</b> The chip in the composer says what the assistant will read and may change: the selected track, the open view, or the whole song. Each sent message is stamped with its scope.</li>
+      <li><b>Nothing changes until Apply.</b> A proposal lists every control it would change, old to new. Preview plays it in the real view with dashed outlines; Apply commits one transaction and one undo step, then outlines what changed in solid white.</li>
+      <li><b>Explanations are one click deep.</b> "Why this works" names the goal, the technique and the changed controls; each control is a link that points at it in the view. No lesson is mandatory.</li>
+      <li><b>Pack and video cards are proposals too.</b> Trying a sound previews it on the pad; Keep or Put back decide. A video plays in the card, can pop out larger over the view, and "Show me" points at the control it teaches.</li>
+      <li><b>Monochrome, square, shared parts.</b> The panel uses the ramp, the product's buttons and chips, and brightness for state; the only hue is the track colour the proposal touches.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- icons ---------- */
+const I = {
+  spark:`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1l1.8 5.2L15 8l-5.2 1.8L8 15l-1.8-5.2L1 8l5.2-1.8z" fill="currentColor"/></svg>`,
+  min:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 12.5h10"/></svg>`,
+  up:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3.5 10L8 5.5l4.5 4.5"/></svg>`,
+  dock:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11"/><rect x="9.5" y="2.5" width="5" height="11" fill="currentColor"/></svg>`,
+  float:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11"/><rect x="8.5" y="8" width="5" height="4.5" fill="currentColor"/></svg>`,
+  x:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>`,
+  send:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 13.5V3M3.5 7.5L8 3l4.5 4.5"/></svg>`,
+  stop:`<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" fill="currentColor"/></svg>`,
+  play:`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z" fill="currentColor"/></svg>`,
+  pause:`<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor"/></svg>`,
+  expand:`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"/></svg>`,
+  sound:`<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="1" y="6" width="2" height="4"/><rect x="4.5" y="3" width="2" height="10"/><rect x="8" y="1" width="2" height="14"/><rect x="11.5" y="5" width="2" height="6"/></svg>`,
+};
+
+/* ---------- the song ---------- */
+const TRACKS = [
+  {id:"drums", name:"Drums", c:"var(--t-drums)", clips:[[0,8,"Beat A"],[8,8,"Beat B"]]},
+  {id:"bass", name:"Bass", c:"var(--t-bass)", clips:[[4,12,"Roller"]]},
+  {id:"keys", name:"Keys", c:"var(--t-keys)", clips:[[0,16,"Chords"]]},
+  {id:"pad", name:"Pad", c:"var(--t-pad)", clips:[[8,8,"Air"]]},
+];
+const BPM = 124, STEP = 60 / BPM / 4;
+const OPEN = [6, 14];
+const KICK = [0, 8, 10], SNARE = [4, 12];
+const HAT_BASE = Array.from({length:16}, (_, i) => OPEN.includes(i) ? 0 : 88);
+const HAT_NEW = [100,58,84,52,96,64,0,50,100,56,86,60,94,66,0,54];
+const GHOST = 11;
+const VIEWS = [["arr","Arrangement"],["seq","Sequence"],["inst","Instrument"],["mix","Mixer"]];
+const VIEW_NAME = Object.fromEntries(VIEWS);
+
+/* ---------- scripted turns ---------- */
+const TURNS = {
+  groove:{user:"The drums feel stiff. Can you loosen them up?",
+    ai:"Three small changes on Drums, Beat A: a little swing, uneven closed-hat velocities, and one quiet ghost snare as a pickup into the backbeat. Preview them over the loop, then apply or cancel.", card:"proposal"},
+  pack:{user:"Better. Now the kick sounds too clean. Anything dustier?",
+    ai:"Dusty Tape Drums was recorded through cassette: softer attacks, a little hiss, and a low end that sits under a sub bass. It's free, and it's already in your library.", card:"pack"},
+  video:{user:"How do I send the keys to the reverb?",
+    ai:"A send copies some of a track into a return, so one reverb can serve every track. Keys already has Return A (Reverb): turn up its Send A. This short video shows how.", card:"video"},
+};
+const route = t => /stiff|loose|swing|groove|human|drum|beat/i.test(t) ? "groove" : /kick|pack|sound|dust|sample/i.test(t) ? "pack" : /send|reverb|return|video|how/i.test(t) ? "video" : null;
+const FALLBACK = "In this mockup I answer three kinds of request: a change to the drums, a sound to try, or how a control works. Try one of the suggestions below.";
+
+/* ---------- state ---------- */
+let S;
+const fresh = () => ({
+  view:"arr", panel:"closed", lastOpen:"float", scope:"track", draft:"", msgs:[], stream:null,
+  prop:"none", pack:"none", demo:false, vid:{t:0, playing:false, big:false}, point:null, why:false, error:false,
+});
+const eff = () => {
+  const on = S.prop === "preview" || S.prop === "applied";
+  return {swing:on ? 58 : 50, hat:on ? HAT_NEW : HAT_BASE, ghost:on, dusty:S.pack === "preview" || S.pack === "kept" || S.demo};
+};
+const hl = kind => S.prop === "preview" ? "preview" : S.prop === "applied" ? "changed" : S.point === kind ? "point" : null;
+const hlAttr = (kind, label) => { const h = hl(kind) || (S.point === kind ? "point" : null); return h ? ` data-hl="${h}"><span class="hl-tag">${h === "preview" ? "Preview" : h === "changed" ? "Changed" : label}</span` : ""; };
+/* the pad/kick preview is its own, from the pack card */
+const padHl = () => S.pack === "preview" ? "preview" : S.pack === "kept" ? "changed" : S.point === "pad1" ? "point" : null;
+
+/* ---------- top bar ---------- */
+function renderTop() {
+  $("top").innerHTML = `
+    <span class="brand">Groove</span><span class="proj">Night Drive</span>
+    <button type="button" class="play" id="tplay" aria-pressed="${playing}" aria-label="${playing ? "Stop" : "Play"}">${playing ? I.stop : I.play}</button>
+    <span class="num" style="color:var(--m85)">${BPM} BPM</span>
+    <nav class="tabs" aria-label="Views">${VIEWS.map(([id, n]) => `<button type="button" class="tab" data-view="${id}" ${S.view === id ? 'aria-current="page"' : ""}>${n}</button>`).join("")}</nav>
+    <button type="button" class="launch" id="launch" aria-pressed="${S.panel !== "closed"}" aria-keyshortcuts="Meta+J" title="Assistant (⌘J)">${I.spark}Assistant <span class="k">⌘J</span></button>`;
+}
+
+/* ---------- views ---------- */
+function clipSvg(id) {
+  let d = "";
+  if (id === "drums") for (let i = 0; i < 32; i++) d += `<rect x="${i * 3.1}" y="${i % 4 === 0 ? 0 : 12}" width="1.6" height="${i % 4 === 0 ? 20 : 8}"/>`;
+  else for (let i = 0; i < 10; i++) d += `<rect x="${i * 10}" y="${(i * 7) % 16}" width="8" height="3"/>`;
+  return `<svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><g fill="#000">${d}</g></svg>`;
+}
+function viewArr() {
+  return `<div class="arr">
+    <div class="ruler num">${Array.from({length:16}, (_, i) => `<span>${i + 1}</span>`).join("")}</div>
+    ${TRACKS.map(t => `<div class="trow">
+      <div class="th ${t.id === "drums" ? "sel" : ""}" style="--c:${t.c}"><i></i><b>${t.name}</b><span class="ms"><span>M</span><span>S</span></span></div>
+      <div class="lane">${t.clips.map(([s, l, n]) => {
+        const h = t.id === "drums" && n === "Beat A" ? hlAttr("clip", "Here") : "";
+        return `<div class="clip" style="--c:${t.c};left:${s * 60}px;width:${l * 60 - 2}px"${h}>${n}${clipSvg(t.id)}</div>`;
+      }).join("")}</div></div>`).join("")}
+    <div class="phead" id="phead" ${playing ? "" : "hidden"}></div>
+  </div>`;
+}
+function viewSeq() {
+  const e = eff(), sw = ((e.swing - 50) / 50) * 26;
+  const row = (name, hits, vel, sel) => `<div class="srow ${sel ? "sel" : ""}" style="--c:var(--t-drums)"><span class="nm">${name}</span>${
+    Array.from({length:16}, (_, i) => {
+      const on = hits(i), v = on ? vel(i) : 0, ghostNew = name === "Snare" && i === GHOST && e.ghost;
+      const cellHl = ghostNew ? hlAttr("ghost", "Step 12") : "";
+      return `<span class="cell${ghostNew && S.prop === "preview" ? " ghost-new" : ""}" data-step="${i}"${cellHl}>${on || ghostNew ? `<i style="--v:${(ghostNew ? .35 : v / 100).toFixed(2)};--sw:${i % 2 ? sw : 0}px"></i>` : ""}</span>`;
+    }).join("")}</div>`;
+  return `<div class="vt"><h2>Sequence</h2><span class="crumb" style="--c:var(--t-drums)"><i></i>Drums · Beat A</span>
+      <span class="ro"${hlAttr("swing", "Swing")}><span class="lbl">Swing</span><b class="num">${e.swing}%</b></span>
+      <span class="ro"><span class="lbl">Length</span><b>1 bar</b></span><span class="ro"><span class="lbl">Steps</span><b class="num">16</b></span></div>
+    <div class="seq">
+      ${row("Kick", i => KICK.includes(i), () => 100)}
+      ${row("Snare", i => SNARE.includes(i), () => 96)}
+      ${row("Closed hat", i => e.hat[i] > 0, i => e.hat[i], true)}
+      ${row("Open hat", i => OPEN.includes(i), () => 80)}
+      <div class="vlane" style="--c:var(--t-drums)"${hlAttr("vel", "Velocity")}>
+        <span class="nm"><span class="lbl">Velocity</span><b style="color:var(--m96)">Closed hat</b></span>
+        ${Array.from({length:16}, (_, i) => `<span class="vbar"><i style="--h:${e.hat[i]}%"></i>${S.prop === "preview" && HAT_BASE[i] ? `<u style="--o:${HAT_BASE[i]}%"></u>` : ""}</span>`).join("")}
+      </div>
+    </div>`;
+}
+function viewInst() {
+  const pads = [["Kick","Rounded Club Kick"],["Snare","Tight Studio Snare"],["Closed hat","Tight Closed Hat"],["Open hat","Classic Open Hat"],["Clap","Classic House Clap"],["Rim","Dry Rim Click"],["Low tom","Low Tuned Tom"],["Shaker","Close Shaker"]];
+  const ph = padHl();
+  return `<div class="vt"><h2>Instrument</h2><span class="crumb" style="--c:var(--t-drums)"><i></i>Drums</span><span class="ro"><span class="lbl">Kind</span><b>Drum machine</b></span></div>
+  <div class="rack"><div class="unit" style="--c:var(--t-drums)">
+    <div class="uh"><span class="bar"></span><span class="nm"><span class="lbl">Slot 1 · Drum machine</span><b>Drums</b></span>
+      <span class="ro"><span class="lbl">Pads</span><b class="num">8</b></span><span class="ro"><span class="lbl">Choke</span><b>Hats</b></span>
+      <span class="meter"><i class="lvl"></i></span><button type="button" class="aud" data-act="aud">Audition</button></div>
+    <div class="pads">${pads.map(([p, s], i) => {
+      const first = i === 0, name = first && (S.pack === "preview" || S.pack === "kept") ? "Dusty Tape Kick" : s;
+      const h = first && ph ? ` data-hl="${ph}"><span class="hl-tag">${ph === "preview" ? "Preview" : ph === "changed" ? "Changed" : "Pad 1"}</span` : "";
+      return `<div class="pad ${first ? "sel" : ""}"><span class="n num">${i + 1}</span><span class="pn">${p}</span>
+        <button type="button" class="slot" title="Choose a sound"${h}>${I.sound}<span>${name}</span></button>
+        <span class="fdr" style="--p:${[78,72,60,52,64,50,58,44][i]}%"><span class="t"></span><b class="num">${["-2.0","-3.1","-6.0","-8.2","-5.0","-9.0","-7.1","-11"][i]} dB</b></span>
+        <span class="ro"><span class="lbl">Pitch</span><b class="num">0 st</b></span><span class="ro"><span class="lbl">Decay</span><b class="num">${[420,180,40,300,210,60,380,90][i]} ms</b></span>
+        <span class="ms"><span>M</span><span>S</span></span></div>`;
+    }).join("")}</div></div></div>`;
+}
+function viewMix() {
+  const strip = (n, c, cls, sa, sb, pan, vol, pt = "") => `<div class="strip ${cls}" style="--c:${c}">
+    <b class="sn">${n}</b>
+    ${sa === null ? "" : `<div class="row"${pt}><span class="lbl">Send A · Reverb</span><span class="fdr" style="--p:${sa}%"><span class="t"></span><b class="num">${sa ? (-40 + sa * .4).toFixed(0) : "-inf"}</b></span></div>
+    <div class="row"><span class="lbl">Send B · Delay</span><span class="fdr" style="--p:${sb}%"><span class="t"></span><b class="num">${sb ? (-40 + sb * .4).toFixed(0) : "-inf"}</b></span></div>`}
+    <div class="row"><span class="lbl">Pan</span><span class="fdr" style="--p:${pan}%"><span class="t"></span><b class="num">${pan === 50 ? "C" : pan < 50 ? "L" + (50 - pan) : "R" + (pan - 50)}</b></span></div>
+    <div class="vfdr"><span class="rail" style="--p:${vol}%"></span><span class="vm"><i class="lvl"></i></span></div>
+    <span class="lbl num" style="text-align:center">${(-24 + vol * .3).toFixed(1)} dB</span>
+    <span class="ms" style="justify-content:center"><span>M</span><span>S</span></span></div>`;
+  const keysPt = S.point === "sendA" ? ` data-hl="point"><span class="hl-tag">Send A</span` : "";
+  return `<div class="vt"><h2>Mixer</h2><span style="flex:1"></span><button type="button" class="ghost">+ Track</button><button type="button" class="ghost">+ Return</button></div>
+  <div class="strips">
+    ${strip("Drums", "var(--t-drums)", "sel", 12, 0, 50, 72)}
+    ${strip("Bass", "var(--t-bass)", "", 0, 0, 50, 70)}
+    ${strip("Keys", "var(--t-keys)", "", 0, 20, 38, 62, keysPt)}
+    ${strip("Pad", "var(--t-pad)", "", 36, 10, 62, 54)}
+    ${strip("A · Reverb", "", "ret", null, 0, 50, 60)}
+    ${strip("B · Delay", "", "ret", null, 0, 50, 56)}
+    ${strip("Master", "", "mst", null, 0, 50, 80)}
+  </div>`;
+}
+function renderView() {
+  $("ed").classList.toggle("docked", S.panel === "dock");
+  $("view").innerHTML = ({arr:viewArr, seq:viewSeq, inst:viewInst, mix:viewMix})[S.view]() + (S.vid.big ? bigPlayer() : "");
+}
+
+/* ---------- assistant cards ---------- */
+function proposalCard() {
+  const p = S.prop;
+  const rows = [["swing","Swing","50%","58%"],["vel","Closed hat velocity","88 flat","50–100"],["ghost","Snare, step 12","off","on, 35%"]];
+  const say = {pending:"Nothing has changed yet.", preview:`<b>Previewing in Sequence.</b> Play to hear it. Nothing is saved until you apply.`,
+    applied:`<b>Applied</b> as one undo step. Changed controls are outlined.`, cancelled:"Cancelled. Nothing changed.", undone:"Undone. The beat is back as it was."}[p];
+  const btns = p === "applied" ? `<button type="button" class="btn" data-act="undo">Undo <span class="k">⌘Z</span></button>`
+    : p === "cancelled" || p === "undone" ? `<button type="button" class="btn" data-act="preview">Preview again</button>`
+    : `<button type="button" class="btn" data-act="preview" aria-pressed="${p === "preview"}">${p === "preview" ? I.pause + "Previewing" : I.play + "Preview"}</button>
+       <button type="button" class="btn pri" data-act="apply">Apply</button><button type="button" class="btn" data-act="cancel">Cancel</button>`;
+  return `<div class="card" aria-label="Proposal">
+    <div class="card-h"><span class="lbl">Proposal · 3 changes · Drums · Beat A</span><b>Loosen the beat</b></div>
+    <ul class="chg">${rows.map(([k, n, a, b]) => `<li><button type="button" data-point="${k}">${n}</button><span class="num"><span class="was">${a}</span> → <span class="now">${b}</span></span></li>`).join("")}</ul>
+    <div class="acts">${btns}<span class="say" role="status">${say}</span></div>
+    <details class="why" ${S.why ? "open" : ""}><summary>Why this works</summary><dl>
+      <dt class="lbl">Goal</dt><dd>A beat that sounds played, not programmed.</dd>
+      <dt class="lbl">Technique</dt><dd>Swing pushes every second 16th a little late. Uneven hat velocities stop every hit landing at the same weight, and a quiet ghost note leads the ear into the snare.</dd>
+      <dt class="lbl">Changed</dt><dd><button type="button" data-point="swing">Swing</button>, <button type="button" data-point="vel">Closed hat velocity</button>, <button type="button" data-point="ghost">Snare step 12</button>.</dd>
+    </dl></details></div>`;
+}
+function packCard() {
+  const p = S.pack;
+  const say = {none:"", preview:`<b>Pad 1 is previewing Dusty Tape Kick.</b> Play to hear it in the beat.`, kept:"<b>Kept.</b> Pad 1 now plays Dusty Tape Kick.", back:"Put back Rounded Club Kick."}[p];
+  const acts = p === "preview" ? `<button type="button" class="btn pri" data-act="keep">Keep</button><button type="button" class="btn" data-act="putback">Put back</button>`
+    : p === "kept" ? `<button type="button" class="btn" data-act="undo-pack">Undo <span class="k">⌘Z</span></button>`
+    : `<button type="button" class="btn pri" data-act="try">Try on Pad 1</button>`;
+  let w = ""; for (let i = 0; i < 24; i++) { const a = Math.exp(-(i % 8) / 2.2) * 9; w += `<rect class="s" x="${i * 4.2}" y="${10 - a}" width="2.6" height="${a * 2 + .5}"/>`; }
+  return `<div class="card" aria-label="Recommended pack">
+    <div class="card-h"><span class="lbl">Recommended pack</span></div>
+    <div class="pk-top"><div class="cov"><svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">${w}</svg><b>DT</b></div>
+      <div><h4>Dusty Tape Drums</h4><p>Cassette-recorded kicks, snares and hats for lo-fi and house.</p>
+      <div class="pk-meta"><span class="status">In your library</span><span class="lbl">Groove · 1.0.0 · 48 sounds</span></div></div></div>
+    <ul class="snd">${[["Dusty Tape Kick","Kick · soft · warm"],["Worn Cassette Snare","Snare · dusty"],["Hissy Tape Hat","Closed hat · airy"]].map(([n, t], i) =>
+      `<li><button type="button" class="pl" data-hear="${i}" aria-label="Hear ${n}">${I.play}</button><span><b>${n}</b><br><small>${t}</small></span></li>`).join("")}</ul>
+    <div class="acts">${acts}<button type="button" class="btn" data-act="demo" aria-pressed="${S.demo}">${S.demo ? I.pause : I.play}Pack demo</button><button type="button" class="btn">Open in library</button>${say ? `<span class="say" role="status">${say}</span>` : ""}</div></div>`;
+}
+const CHAPTERS = [[0,"What a send is","A send taps a copy of the track"],[24,"Returns hold the effect","The return holds one reverb for the whole song"],[51,"Set the amount","Turn up Send A to set how much reaches it"],[72,"Pre or post fader","Post-fader sends follow the track's volume"]];
+const DUR = 92;
+const chapterAt = t => CHAPTERS.reduce((a, c, i) => t >= c[0] ? i : a, 0);
+function poster(big) {
+  const ch = chapterAt(S.vid.t), on = k => ch === k ? "var(--m100)" : "var(--m28)";
+  const strips = ["Drums","Bass","Keys","Pad"].map((n, i) => `<rect x="${20 + i * 44}" y="30" width="36" height="110" fill="var(--m08)" stroke="${n === "Keys" ? on(0) : "var(--m16)"}"/><text x="${38 + i * 44}" y="52" fill="var(--m85)" font-size="9" text-anchor="middle" font-family="system-ui">${n}</text><rect x="${26 + i * 44}" y="${n === "Keys" && ch >= 2 ? 64 : 80}" width="${n === "Keys" && ch >= 2 ? 24 : 10}" height="3" fill="${n === "Keys" ? on(2) : "var(--m28)"}"/>`).join("");
+  return `<svg class="poster" viewBox="0 0 320 180" aria-hidden="true"><rect width="320" height="180" fill="#000"/>${strips}
+    <path d="M${150} 70 C 190 70, 200 90, 222 90" fill="none" stroke="${ch >= 1 ? "var(--m100)" : "var(--m28)"}" stroke-width="1.5" stroke-dasharray="${ch === 0 ? "3 3" : "0"}"/>
+    <rect x="224" y="60" width="76" height="60" fill="var(--m08)" stroke="${on(1)}"/><text x="262" y="84" fill="var(--m100)" font-size="10" text-anchor="middle" font-family="system-ui" font-weight="700">Return A</text><text x="262" y="100" fill="var(--m65)" font-size="9" text-anchor="middle" font-family="system-ui">Reverb</text>
+    <text x="20" y="18" fill="var(--m65)" font-size="9" font-family="system-ui" letter-spacing="1.2">GROOVE LEARN · SENDS</text>
+    ${ch === 3 ? `<text x="160" y="160" fill="var(--m100)" font-size="10" text-anchor="middle" font-family="system-ui">post ▸ follows the fader</text>` : ""}</svg>`;
+}
+function player(big) {
+  const v = S.vid, mm = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+  return `<div class="vid" data-v="${big ? "big" : "card"}">${poster(big)}
+    ${!v.playing && v.t === 0 ? `<button type="button" class="big-play" data-act="vplay" aria-label="Play video">${I.play}</button>` : ""}
+    ${v.playing || v.t > 0 ? `<div class="cap"><span>${CHAPTERS[chapterAt(v.t)][2]}</span></div>` : ""}
+    <div class="vctl"><button type="button" class="ib" data-act="vplay" aria-label="${v.playing ? "Pause" : "Play"}">${v.playing ? I.pause : I.play}</button>
+      <span class="prog" style="--p:${(v.t / DUR * 100).toFixed(1)}%"><i></i>${CHAPTERS.slice(1).map(c => `<u style="left:${(c[0] / DUR * 100).toFixed(1)}%"></u>`).join("")}</span>
+      <small class="num">${mm(v.t)} / ${mm(DUR)}</small>
+      ${big ? "" : `<button type="button" class="ib" data-act="vbig" aria-label="Pop out larger">${I.expand}</button>`}</div></div>`;
+}
+function bigPlayer() {
+  return `<div class="vbig" role="dialog" aria-label="Video: Sends and returns"><div class="vb-h"><b>Sends and returns, in 90 seconds</b><button type="button" class="ib" data-act="vbig" aria-label="Back into the panel">${I.x}</button></div>${player(true)}</div>`;
+}
+const chapters = () => { const ch = chapterAt(S.vid.t); return CHAPTERS.map((c, i) => `<li><button type="button" data-seek="${c[0]}" aria-current="${i === ch && S.vid.t > 0}"><small class="num">${Math.floor(c[0] / 60)}:${String(c[0] % 60).padStart(2, "0")}</small>${c[1]}</button></li>`).join(""); };
+function videoCard() {
+  return `<div class="card" aria-label="Video">
+    ${S.vid.big ? `<div class="vid" style="display:grid;place-items:center;color:var(--m65)">Playing larger over the view</div>` : player(false)}
+    <div class="card-h" style="border-top:0"><span class="lbl">Video · Groove Learn · 1:32 · captions on</span><b>Sends and returns, in 90 seconds</b></div>
+    <ol class="chap" id="chap">${chapters()}</ol>
+    <div class="acts"><button type="button" class="btn pri" data-act="showme">Show me on the Keys strip</button></div></div>`;
+}
+const CARDS = {proposal:proposalCard, pack:packCard, video:videoCard};
+
+/* ---------- the panel ---------- */
+function status() {
+  if (S.stream) return S.stream.n === 0 ? "Thinking…" : "Writing…";
+  if (S.prop === "preview") return "Previewing a change";
+  if (S.pack === "preview") return "Previewing a sound";
+  if (S.vid.playing) return "Playing video";
+  return S.panel === "min" && S.msgs.length ? "Ready" : "";
+}
+function suggestions() {
+  const by = {arr:["Make the drums less stiff","Add a fill before bar 9","What should come next?"],
+    seq:["Make the drums less stiff","Add a ghost snare","Why does this feel stiff?"],
+    inst:["Find a dustier kick","Make the snare fatter","What does decay do?"],
+    mix:["How do sends work?","Is anything too loud?","Make room for the bass"]};
+  return by[S.view];
+}
+function renderLog() {
+  const m = S.msgs.map(m => m.role === "user"
+    ? `<div class="mu"><span class="lbl">Scope · ${esc(m.scope)}</span><p>${esc(m.text)}</p></div>`
+    : m.role === "ai" ? `<div class="ma"><span class="who lbl">${I.spark}Assistant</span><p>${esc(m.text)}${m.stopped ? ` <span class="stopped">Stopped.</span>` : ""}</p></div>`
+    : m.role === "err" ? `<div class="err" role="alert"><b>The assistant couldn't reply.</b><span>The connection dropped. Your song is unchanged, and editing still works.</span><div style="display:flex;gap:2px"><button type="button" class="btn pri" data-act="retry">Try again</button></div></div>`
+    : CARDS[m.kind]()).join("");
+  const s = S.stream ? `<div class="ma"><span class="who lbl">${I.spark}Assistant</span>${S.stream.n === 0 ? `<div class="think" aria-label="Thinking"><i></i><i></i><i></i></div>` : `<p id="stream">${esc(streamText())}<span class="caret"></span></p>`}</div>` : "";
+  const hello = `<div class="hello"><b>Ask for a change, a sound, or how something works.</b><p>I can see Night Drive: 4 tracks at ${BPM} BPM. I only change the song when you apply a proposal, and every change is one undo step.</p></div>`;
+  return hello + m + s;
+}
+const streamText = () => S.stream.words.slice(0, S.stream.n).join(" ");
+const scopeLabel = () => S.scope === "track" ? "Drums" : S.scope === "view" ? VIEW_NAME[S.view] : "Whole song";
+function renderPanel() {
+  const a = $("asst"), mode = S.panel;
+  a.hidden = mode === "closed";
+  if (mode === "closed") return;
+  a.dataset.mode = mode;
+  const hadFocus = document.activeElement && document.activeElement.id === "draft";
+  const old = $("log"), keep = old && old.scrollHeight - old.scrollTop - old.clientHeight > 40 && S.seen === S.msgs.length ? old.scrollTop : null;
+  S.seen = S.msgs.length;
+  const ctrl = mode === "dock"
+    ? `<button type="button" class="ib" data-act="float" aria-label="Float" title="Float over the view">${I.float}</button>`
+    : `<button type="button" class="ib" data-act="${mode === "min" ? "restore" : "min"}" aria-label="${mode === "min" ? "Restore" : "Minimise"}" title="${mode === "min" ? "Restore" : "Minimise"}">${mode === "min" ? I.up : I.min}</button>
+       <button type="button" class="ib" data-act="dock" aria-label="Dock to the right" title="Dock to the right edge">${I.dock}</button>`;
+  const head = `<header class="ah"><span class="grab" data-act="${mode === "min" ? "restore" : mode === "float" ? "min" : ""}"><span class="ttl">${I.spark.replace("<svg", '<svg class="sp"')}Assistant</span><span class="stat" id="stat">${status()}</span></span>${ctrl}
+    <button type="button" class="ib" data-act="close" aria-label="Close" title="Close (the conversation is kept)">${I.x}</button></header>`;
+  if (mode === "min") { a.innerHTML = head; return; }
+  const busy = !!S.stream;
+  a.innerHTML = head + `<div class="log" id="log" role="log" aria-live="polite" aria-label="Conversation">${renderLog()}</div>
+    ${busy ? "" : `<div class="sugs" aria-label="Suggestions">${suggestions().map((s, i) => `<button type="button" class="chip" data-sug="${i}">${s}</button>`).join("")}</div>`}
+    <div class="comp">
+      <label class="sr" for="draft">Message the assistant</label>
+      <textarea id="draft" placeholder="Ask about ${esc(scopeLabel())}, or anything in the song">${esc(S.draft)}</textarea>
+      <div class="crow"><button type="button" class="scope" data-act="scope" title="What the assistant reads and may change. Click to change."><span class="lbl">Scope</span>${esc(scopeLabel())}</button>
+        <span class="hint">${busy ? "Editing still works while I write" : '<span class="k">⏎</span> send · <span class="k">⇧⏎</span> new line'}</span>
+        ${busy ? `<button type="button" class="send" data-act="stop" aria-label="Stop">${I.stop}</button>` : `<button type="button" class="send" data-act="send" aria-label="Send" ${S.draft.trim() ? "" : "disabled"}>${I.send}</button>`}</div>
+    </div>`;
+  const log = $("log"); log.style.scrollBehavior = "auto"; const last = log.lastElementChild, top = last.offsetTop - log.offsetTop - 14;
+  log.scrollTop = keep ?? (last.offsetHeight > log.clientHeight - 28 ? top : log.scrollHeight); log.style.scrollBehavior = "";
+  if (hadFocus || S.focus) { const d = $("draft"); d.focus({preventScroll:true}); d.setSelectionRange(d.value.length, d.value.length); S.focus = false; }
+}
+function render() { renderTop(); renderView(); renderPanel(); }
+
+/* ---------- sending and streaming ---------- */
+let streamTimer = null;
+function send(text) {
+  text = text.trim(); if (!text || S.stream) return;
+  if (/offline|fail|error/i.test(text)) { S.msgs.push({role:"user", text, scope:scopeLabel()}); S.draft = ""; return startStream("", "err"); }
+  const key = route(text);
+  S.msgs.push({role:"user", text, scope:scopeLabel()});
+  S.draft = "";
+  startStream(key ? TURNS[key].ai : FALLBACK, key ? TURNS[key].card : null);
+}
+function startStream(text, card, speed = 45) {
+  clearInterval(streamTimer);
+  S.stream = {words:text.split(" "), n:0, card};
+  render();
+  let wait = 14;
+  streamTimer = setInterval(() => {
+    if (wait-- > 0) return;
+    const st = S.stream; st.n++;
+    if (st.n === 1 && st.card === "err") { clearInterval(streamTimer); S.stream = null; S.msgs.push({role:"err"}); S.focus = true; render(); return; }
+    if (st.n === 1) { renderPanel(); return; }
+    const p = $("stream"); if (p) p.firstChild.textContent = streamText();
+    const log = $("log"); if (log) log.scrollTop = log.scrollHeight;
+    if (st.n >= st.words.length) finishStream(false);
+  }, speed);
+}
+function finishStream(stopped) {
+  clearInterval(streamTimer);
+  const st = S.stream; if (!st) return;
+  S.stream = null;
+  S.msgs.push({role:"ai", text:stopped ? st.words.slice(0, st.n).join(" ") : st.words.join(" "), stopped});
+  if (!stopped && st.card) { S.msgs.push({role:"card", kind:st.card}); if (st.card === "proposal") S.prop = "pending"; }
+  S.focus = true; render();
+}
+
+/* ---------- audio: synthesized stand-ins ---------- */
+let AC = null, OUT, NOISE, playing = false, nextT = 0, stepI = 0, sched = null, demoLeft = 0;
+const lvl = {v:0};
+function ctx() {
+  if (!AC) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; AC = new C(); OUT = AC.createGain(); OUT.gain.value = .55; OUT.connect(AC.destination);
+    NOISE = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = NOISE.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  if (AC.state === "suspended") AC.resume();
+  return AC;
+}
+const env = (t, peak, dec, dest) => { const g = AC.createGain(); g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + .002); g.gain.exponentialRampToValueAtTime(.0001, t + dec); g.connect(dest); return g; };
+const noise = (t, dur, type, f, dest) => { const s = AC.createBufferSource(); s.buffer = NOISE; const b = AC.createBiquadFilter(); b.type = type; b.frequency.value = f; s.connect(b); b.connect(dest); s.start(t); s.stop(t + dur); };
+function kick(t, v, dusty) {
+  let dest = OUT;
+  if (dusty) { const lp = AC.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700; lp.connect(OUT); dest = lp; noise(t, .25, "bandpass", 3000, env(t, .04 * v, .25, OUT)); }
+  const o = AC.createOscillator(); o.frequency.setValueAtTime(dusty ? 120 : 160, t); o.frequency.exponentialRampToValueAtTime(dusty ? 42 : 48, t + (dusty ? .16 : .1));
+  o.connect(env(t, .95 * v, dusty ? .45 : .32, dest)); o.start(t); o.stop(t + .5);
+}
+const snare = (t, v) => { noise(t, .2, "highpass", 1400, env(t, .45 * v, .17, OUT)); const o = AC.createOscillator(); o.type = "triangle"; o.frequency.value = 190; o.connect(env(t, .3 * v, .08, OUT)); o.start(t); o.stop(t + .1); };
+const hat = (t, v, open) => noise(t, open ? .35 : .06, "highpass", 7500, env(t, .22 * v, open ? .3 : .045, OUT));
+function tick() {
+  const e = eff();
+  while (nextT < AC.currentTime + .12) {
+    const i = stepI % 16, t = nextT + (i % 2 ? ((e.swing - 50) / 50) * STEP : 0);
+    if (KICK.includes(i)) kick(t, 1, e.dusty);
+    if (SNARE.includes(i)) snare(t, .96);
+    if (i === GHOST && e.ghost) snare(t, .3);
+    if (e.hat[i]) hat(t, e.hat[i] / 100, false);
+    if (OPEN.includes(i)) hat(t, .8, true);
+    const delay = Math.max(0, (t - AC.currentTime) * 1000);
+    setTimeout(() => showStep(i, KICK.includes(i) || SNARE.includes(i)), delay);
+    nextT += STEP; stepI++;
+    if (demoLeft && stepI >= demoLeft) { demoLeft = 0; S.demo = false; setTimeout(() => { stop(); render(); }, delay + 200); break; }
+  }
+}
+function showStep(i, loud) {
+  if (!playing) return;
+  document.querySelectorAll(".cell.now").forEach(c => c.classList.remove("now"));
+  document.querySelectorAll(`.srow .cell[data-step="${i}"]`).forEach(c => c.classList.add("now"));
+  const ph = $("phead"); if (ph) { ph.hidden = false; ph.style.left = `${224 + ((stepI % 64) / 64) * 240}px`; }
+  lvl.v = loud ? 78 : Math.max(lvl.v * .6, 30);
+  document.querySelectorAll(".lvl").forEach(l => { l.style.setProperty("--l", lvl.v + "%"); });
+}
+function start(bars) {
+  if (!ctx()) return;
+  if (!playing) { playing = true; nextT = AC.currentTime + .05; stepI = 0; sched = setInterval(tick, 25); }
+  demoLeft = bars ? bars * 16 : 0;
+}
+function stop() { playing = false; clearInterval(sched); demoLeft = 0; document.querySelectorAll(".cell.now").forEach(c => c.classList.remove("now")); document.querySelectorAll(".lvl").forEach(l => l.style.setProperty("--l", "0%")); const ph = $("phead"); if (ph) ph.hidden = true; }
+function hear(i) { if (!ctx()) return; const t = AC.currentTime + .02; [() => kick(t, 1, true), () => { const lp = OUT; snare(t, .9); noise(t, .3, "bandpass", 2500, env(t, .03, .3, lp)); }, () => hat(t, .8, false)][i](); }
+
+/* ---------- video clock ---------- */
+let vTimer = null;
+function renderVideo() {
+  document.querySelectorAll(".vid[data-v]").forEach(v => { v.outerHTML = player(v.dataset.v === "big"); });
+  const c = $("chap"); if (c) c.innerHTML = chapters();
+  const st = $("stat"); if (st) st.textContent = status();
+}
+function vplay(on) {
+  S.vid.playing = on ?? !S.vid.playing; clearInterval(vTimer);
+  if (S.vid.playing) { if (S.vid.t >= DUR) S.vid.t = 0; vTimer = setInterval(() => { S.vid.t = Math.min(DUR, S.vid.t + 1); if (S.vid.t >= DUR) { S.vid.playing = false; clearInterval(vTimer); } renderVideo(); }, 140); }
+}
+
+/* ---------- actions ---------- */
+function point(k) {
+  S.point = k;
+  const view = {swing:"seq", vel:"seq", ghost:"seq", clip:"arr", sendA:"mix", pad1:"inst"}[k];
+  if (view) S.view = view;
+  render();
+  const el = document.querySelector("#view [data-hl]"); if (el && S.prop === "applied") { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+  clearTimeout(point.t); point.t = setTimeout(() => { if (S.point === k) { S.point = null; renderView(); } }, 4000);
+}
+const ACT = {
+  launch() { S.panel = S.panel === "closed" ? S.lastOpen : "closed"; S.focus = S.panel === "float" || S.panel === "dock"; render(); },
+  close() { S.panel = "closed"; S.vid.big = false; render(); $("launch").focus(); },
+  min() { S.panel = "min"; S.lastOpen = "float"; render(); },
+  restore() { S.panel = "float"; S.lastOpen = "float"; S.focus = true; render(); },
+  dock() { S.panel = "dock"; S.lastOpen = "dock"; render(); },
+  float() { S.panel = "float"; S.lastOpen = "float"; render(); },
+  scope() { S.scope = {track:"view", view:"song", song:"track"}[S.scope]; renderPanel(); },
+  send() { send(S.draft); },
+  stop() { finishStream(true); },
+  retry() { S.msgs = S.msgs.filter(m => m.role !== "err"); startStream(TURNS.groove.ai, "proposal"); },
+  preview() { if (S.prop === "preview") { S.prop = "pending"; stop(); } else { S.prop = "preview"; S.view = "seq"; start(); } render(); },
+  apply() { S.prop = "applied"; S.view = "seq"; render(); },
+  cancel() { S.prop = "cancelled"; stop(); render(); },
+  undo() { S.prop = "undone"; render(); },
+  try() { S.pack = "preview"; S.view = "inst"; start(); render(); },
+  keep() { S.pack = "kept"; render(); },
+  putback() { S.pack = "back"; render(); },
+  "undo-pack"() { S.pack = "back"; render(); },
+  demo() { S.demo = !S.demo; if (S.demo) start(2); else stop(); render(); },
+  aud() { if (!ctx()) return; kick(AC.currentTime + .02, 1, eff().dusty); },
+  vplay() { vplay(); renderVideo(); renderPanel(); },
+  vbig() { S.vid.big = !S.vid.big; render(); },
+  showme() { point("sendA"); },
+};
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act],[data-view],[data-sug],[data-point],[data-hear],[data-seek],#tplay,#launch");
+  if (!b || !$("ed").contains(b)) return;
+  if (b.id === "tplay") { playing ? stop() : start(); renderTop(); renderView(); return; }
+  if (b.id === "launch") return ACT.launch();
+  if (b.dataset.view) { S.view = b.dataset.view; S.point = null; render(); return; }
+  if (b.dataset.sug) { S.draft = suggestions()[+b.dataset.sug]; send(S.draft); return; }
+  if (b.dataset.point) return point(b.dataset.point);
+  if (b.dataset.hear) return hear(+b.dataset.hear);
+  if (b.dataset.seek) { S.vid.t = +b.dataset.seek; vplay(true); render(); return; }
+  const a = ACT[b.dataset.act]; if (a) a();
+});
+document.addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.why")) S.why = e.target.open; }, true);
+document.addEventListener("input", e => {
+  if (e.target.id !== "draft") return;
+  S.draft = e.target.value;
+  const s = document.querySelector(".send[data-act=send]"); if (s) s.disabled = !S.draft.trim();
+});
+document.addEventListener("keydown", e => {
+  if (e.target.id === "draft" && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(S.draft); return; }
+  if (e.target.id === "draft" && e.key === "Escape") { e.preventDefault(); S.panel === "float" ? ACT.min() : ACT.close(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); ACT.launch(); }
+});
+
+/* ---------- the stepped flow ---------- */
+const turn = (k, card = true) => { const t = TURNS[k]; const out = [{role:"user", text:t.user, scope:k === "video" ? "Mixer" : "Drums"}, {role:"ai", text:t.ai}]; if (card) out.push({role:"card", kind:t.card}); return out; };
+const STEPS = [
+  {t:"Closed", s:"Start", n:"The assistant starts closed, and nothing about the editor changes for it. The <b>Assistant</b> button in the top bar, or <span class=\"k\">⌘J</span>, opens it.",
+    go() {}},
+  {t:"Open", s:"Float", n:"It opens floating at the bottom-right, like a mail composer, so the view stays in reach. Suggestions follow the open view. The header minimises it, docks it to the right edge, or closes it.",
+    go() { S.panel = "float"; S.focus = true; }},
+  {t:"Compose", s:"Type", n:"The composer shows the <b>scope</b>: what the assistant will read and may change. Click the chip to widen it to the view or the whole song. <span class=\"k\">⏎</span> sends, <span class=\"k\">⇧⏎</span> adds a line, <span class=\"k\">Esc</span> minimises.",
+    go() { S.panel = "float"; S.view = "seq"; S.draft = TURNS.groove.user; S.focus = true; }},
+  {t:"Reply streams", s:"Send", n:"The message is stamped with its scope. The reply streams in word by word; <b>Stop</b> replaces Send, and the editor stays fully usable, including playback, while it writes.",
+    go() { S.panel = "float"; S.view = "seq"; S.msgs = [{role:"user", text:TURNS.groove.user, scope:"Drums"}]; setTimeout(() => startStream(TURNS.groove.ai, "proposal", 70), 0); }},
+  {t:"Preview a change", s:"Proposal", n:"The proposal lists every control it would change, old to new. <b>Preview</b> plays it in the Sequence view with dashed outlines, and the ghost bars show the old velocities. Press play in the top bar to hear it. Nothing is saved yet.",
+    go() { S.panel = "float"; S.view = "seq"; S.msgs = turn("groove"); S.prop = "preview"; }},
+  {t:"Apply", s:"Undo + why", n:"<b>Apply</b> commits one transaction and one undo step, and the changed controls stay outlined in white. <b>Why this works</b> names the goal, the technique and the controls; each control is a link that points at it.",
+    go() { S.panel = "float"; S.view = "seq"; S.msgs = turn("groove"); S.prop = "applied"; S.why = true; }},
+  {t:"Recommend a pack", s:"Instrument", n:"A pack card says why this pack, lets you hear its sounds and its demo, and <b>Try on Pad 1</b> previews the kick in the beat. <b>Keep</b> or <b>Put back</b> decide; nothing is added until then.",
+    go() { S.panel = "float"; S.view = "inst"; S.msgs = [...turn("groove"), ...turn("pack")]; S.prop = "applied"; S.pack = "preview"; }},
+  {t:"Show a video", s:"Mixer", n:"A short video plays in the card with captions and chapters, or pops out larger over the view. <b>Show me on the Keys strip</b> points at the control it teaches.",
+    go() { S.panel = "float"; S.view = "mix"; S.msgs = [...turn("groove"), ...turn("pack"), ...turn("video")]; S.prop = "applied"; S.pack = "kept"; S.vid.t = 30; S.point = "sendA"; }},
+  {t:"Dock", s:"Right edge", n:"Docked, the panel becomes a full-height column at the right edge and the view reflows around it, so nothing is covered. The same button floats it again; the choice is remembered.",
+    go() { S.panel = "dock"; S.lastOpen = "dock"; S.view = "mix"; S.msgs = [...turn("groove"), ...turn("pack"), ...turn("video")]; S.prop = "applied"; S.pack = "kept"; S.vid.t = 30; }},
+  {t:"Minimise", s:"Status bar", n:"Minimised, it shrinks to a bar that still shows status, here a previewed change. Click the bar to bring it back. If the provider fails, the reply becomes an error with <b>Try again</b>, and editing carries on: send a message with \u201coffline\u201d in it to see that.",
+    go() { S.panel = "min"; S.view = "seq"; S.msgs = [...turn("groove"), ...turn("pack"), ...turn("video")]; S.prop = "preview"; S.pack = "kept"; }},
+];
+let step = 0;
+$("steps").innerHTML = STEPS.map((s, i) => `<button type="button" class="step" data-go="${i}"><small>${i + 1} · ${s.s}</small>${s.t}</button>`).join("");
+function go(i) {
+  step = Math.max(0, Math.min(STEPS.length - 1, i));
+  clearInterval(streamTimer); clearInterval(vTimer); stop();
+  S = fresh(); STEPS[step].go(); render();
+  document.querySelectorAll(".step").forEach((b, k) => b.setAttribute("aria-current", k === step ? "step" : "false"));
+  $("note").innerHTML = `<b>${step + 1}. ${STEPS[step].t}.</b> ${STEPS[step].n}`;
+  $("prev").disabled = step === 0; $("next").textContent = step === STEPS.length - 1 ? "Start again" : "Next step";
+}
+$("steps").addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (b) go(+b.dataset.go); });
+$("prev").onclick = () => go(step - 1);
+$("next").onclick = () => go(step === STEPS.length - 1 ? 0 : step + 1);
+go(0);
+})();
+</script>
+</body>
+</html>
