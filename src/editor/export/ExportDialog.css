@@ -96,10 +96,20 @@
 /* ---- The Release layout (EXP-004, docs/export-dialog.html tab B) ---------
    Sizes, spacing and type are the prototype's, read through theme tokens. */
 
+/* The prototype sizes everything border-box, and its fixed heights (the footer's
+   124px, the list's 24px rows) only hold that way. */
+.dialog.export-shell,
+.dialog.export-shell * {
+  box-sizing: border-box;
+}
+
 .dialog.export-shell {
   width: min(1040px, 100%);
+  /* The prototype's 85% black 30/80 shadow, as three of the theme's one 45%. */
   box-shadow:
-    0 16px 48px var(--shade-medium),
+    0 30px 80px var(--shade-medium),
+    0 30px 80px var(--shade-medium),
+    0 30px 80px var(--shade-medium),
     0 0 0 1px var(--color-border);
 }
 

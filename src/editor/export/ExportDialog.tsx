@@ -1,13 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  Match,
-  onCleanup,
-  Show,
-  Switch,
-} from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
@@ -19,11 +11,11 @@ import { useShortcuts } from "../../shortcuts";
 import DownloadsRow, { type DownloadState } from "./DownloadsRow";
 import { downloadCards } from "./downloadCards";
 import { downloadFile } from "./downloadFile";
+import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
 import { estimateStereoBytes, exportFacts } from "./exportFacts";
 import FormatCards, { type ExportFormat } from "./FormatCards";
-import StemsBudgetNote, { STEMS_BLOCKER_ID } from "./StemsBudgetNote";
-import { stemsBlocker } from "./stemSelection";
+import { formatBytes, stemsBlocker } from "./stemSelection";
 import { estimateStemsFile, exportStemsFile, planStemsFiles } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
 import TrackLanes from "./TrackLanes";
@@ -200,6 +192,31 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     const current = phase();
     return current.kind === "failed" ? current : null;
   };
+  const sizeText = () => {
+    if (format() === "stereo") return `${formatBytes(stereoBytes())} \u00b7 1 file`;
+    const batches = plan();
+    const files = batches.reduce((sum, batch) => sum + batch.paths.length, 0);
+    const bytes = batches.reduce((sum, batch) => sum + batch.bytes, 0);
+    return `${formatBytes(bytes)} \u00b7 ${files} ${files === 1 ? "file" : "files"}`;
+  };
+  const printingText = () => {
+    const current = rendering();
+    if (!current) return null;
+    const bars = list.bars();
+    const bar = Math.max(1, Math.ceil(current.progress * bars));
+    return { text: `bar ${bar} of ${bars}`, fraction: current.progress };
+  };
+  /** The note under the footer: why Export is blocked, or that it is done. */
+  const noteText = () => {
+    if (phase().kind === "done") {
+      return `Export complete. Your ${format() === "stems" ? "stems are" : "WAV is"} in your downloads.`;
+    }
+    return (format() === "stems" && blocker()) || "";
+  };
+  const alertText = () => {
+    const current = failed();
+    return current ? failureMessage(current.code, format()) : "";
+  };
 
   return (
     <Dialog label="Export" class="export-shell" flush onClose={close}>
@@ -232,69 +249,41 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         />
       </div>
       <DownloadsRow cards={cards()} />
-      <div class="export-dialog">
-        <Show when={format() === "stems"}>
-          <StemsBudgetNote estimate={estimate()} blocker={blocker()} />
-        </Show>
-        <p class="export-note">
-          <Show
-            when={format() === "stems"}
-            fallback={
-              <>
-                The whole song, from bar 1 to the end of its last clip plus its release
-                tail, as 24-bit stereo at the project's own level.
-              </>
-            }
-          >
-            One 24-bit WAV per track and return, plus a reference mix, all from bar 1 and
-            all the same length, at the project's own level and without master effects.
-          </Show>
-        </p>
-        <Switch>
-          <Match when={rendering()}>
-            {(current) => (
-              <div class="export-progress">
-                <progress
-                  aria-label="Export progress"
-                  max={1}
-                  value={current().progress}
-                />
-                <button type="button" onClick={cancel}>
-                  Cancel
-                </button>
-              </div>
-            )}
-          </Match>
-          <Match when={phase().kind === "done"}>
-            <output class="export-status">
-              Export complete. Your {format() === "stems" ? "stems are" : "WAV is"} in
-              your downloads.
-            </output>
-          </Match>
-          <Match when={failed()}>
-            {(current) => (
-              <p class="export-status export-error" role="alert">
-                {failureMessage(current().code, format())}
-              </p>
-            )}
-          </Match>
-        </Switch>
-        <div class="export-actions">
-          <button
-            type="button"
-            class="export-start"
-            disabled={phase().kind === "rendering"}
-            aria-disabled={blocked() ? "true" : undefined}
-            aria-describedby={blocked() ? STEMS_BLOCKER_ID : undefined}
-            onClick={() => {
-              // Blocked stays focusable, so its reason is read out; it does nothing.
-              if (!blocked()) void start();
-            }}
-          >
-            Export
+      <ExportFooter
+        format={format()}
+        size={sizeText()}
+        zipCount={plan().length}
+        printing={printingText()}
+        note={noteText()}
+        alert={alertText()}
+      >
+        <Show
+          when={rendering()}
+          fallback={
+            <>
+              <button type="button" class="export-secondary" onClick={close}>
+                Close
+              </button>
+              <button
+                type="button"
+                class="export-primary"
+                aria-disabled={blocked() ? "true" : undefined}
+                aria-describedby={blocked() ? EXPORT_NOTE_ID : undefined}
+                onClick={() => {
+                  // Blocked stays focusable, so its reason is read out; it does nothing.
+                  if (!blocked()) void start();
+                }}
+              >
+                Export
+              </button>
+            </>
+          }
+        >
+          <button type="button" class="export-secondary" onClick={cancel}>
+            Cancel
           </button>
-        </div>
-      </div>
+        </Show>
+      </ExportFooter>
     </Dialog>
   );
 }

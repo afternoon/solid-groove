@@ -69,7 +69,8 @@ describe("ExportDialog: Stems (ZIP)", () => {
     expect(radio("Stems (ZIP)")).toBeChecked();
     expect(radio("Stereo WAV")).not.toBeChecked();
     expect(screen.getAllByRole("radio")).toHaveLength(2);
-    expect(screen.getByText(/One 24-bit WAV per track/)).toBeInTheDocument();
+    expect(screen.getByText(/One WAV per track, lined up at bar 1/)).toBeVisible();
+    expect(screen.getByText(/^24-bit \u00b7 \d+(\.\d)? kHz$/)).toBeVisible();
   });
 
   it("renders stems, downloads one ZIP and says it is done", async () => {
@@ -100,7 +101,7 @@ describe("ExportDialog: Stems (ZIP)", () => {
     pending.reject(new StemExportError("aborted", "cancelled"));
     await settle();
     expect(download).not.toHaveBeenCalled();
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
     expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
   });
 
