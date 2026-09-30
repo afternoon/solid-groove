@@ -75,6 +75,8 @@ export interface OfflineSessionOptions {
   scheduler?: Scheduler;
   /** Test seam: the instrument factory `ProjectAudioGraph` would use. */
   createInstrument?: InstrumentNodeFactory;
+  /** Tracks feed only their sends (a return's stem); see `ProjectAudioGraph`. */
+  tracksSendOnly?: boolean;
 }
 
 export interface OfflineSession {
@@ -146,6 +148,7 @@ export function openOfflineSession(
           bufferLoader,
           createInstrument: options.createInstrument,
           createDeviceNode,
+          tracksSendOnly: options.tracksSendOnly,
           now: () => context.immediate(),
           onAssetLoadFailure: (asset, error) => {
             failedAsset ??= { asset, error };

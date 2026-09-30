@@ -59,6 +59,9 @@ export interface OfflineRenderOptions {
   scheduler?: Scheduler;
   /** Test seam: the instrument factory `ProjectAudioGraph` would use. */
   createInstrument?: InstrumentNodeFactory;
+  /** Every track feeds only its sends, so only the returns sound: how a
+   * return's stem is rendered (EXP-003). */
+  tracksSendOnly?: boolean;
 }
 
 export interface OfflineRender {
