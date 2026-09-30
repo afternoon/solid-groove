@@ -1,37 +1,45 @@
-/* The library as a window (UI-001), on the shared dialog chrome.
+/* The library as a centred window (UI-001, LIB-010) on the shared dialog
+   chrome: a header, a rail of places, the main list and a footer. */
 
-   It takes the `jumbo` size, like the sequence editor: the library is a tree
-   you read and search, not a prompt you answer, and the narrow column it used
-   to open as gave it no more room than the panel it replaced. Browsing is the
-   job while it is open, so it gets the page for the few seconds it has it. */
+.library-modal-body,
+.library-modal-head,
+.library-modal-ghost {
+  display: flex;
+  align-items: center;
+}
 
 .library-modal-body {
-  display: flex;
-  flex-direction: column;
   flex: 1 1 auto;
+  align-items: stretch;
   min-height: 0;
   overflow: hidden;
 }
 
 .library-modal-head {
-  display: flex;
-  align-items: center;
-  gap: 28px;
   flex: 1 1 auto;
+  gap: 24px;
+  min-width: 0;
 }
 
-.library-modal-slot {
-  display: flex;
-  flex-direction: column;
-  max-width: 220px;
+.library-modal-bar {
+  width: 4px;
+  align-self: stretch;
+  flex: none;
 }
 
-.library-modal-slot b {
+.library-modal-slot,
+.library-modal-readout b {
   font-weight: 500;
   color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.library-modal-readout {
+  display: flex;
+  flex-direction: column;
+  max-width: 170px;
 }
 
 .library-modal-label {
@@ -41,26 +49,65 @@
   color: var(--color-foreground-muted);
 }
 
-.library-modal-views {
-  display: flex;
-  gap: 2px;
+.library-modal-search {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.library-modal-view {
-  padding: 6px 12px;
+.library-modal-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 200px;
+  flex: none;
+  padding: 10px;
+  border-right: 1px solid var(--color-border);
+}
+
+.library-modal-rail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: transparent;
   color: var(--color-foreground);
-  border: 1px solid var(--color-border);
 }
 
-.library-modal-view[aria-selected="true"] {
+.library-modal-rail-item[aria-pressed="true"] {
   background: var(--color-accent);
   color: var(--color-on-accent);
 }
 
+.library-modal-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.library-modal-key {
+  font: inherit;
+  font-size: 11px;
+  padding: 0 5px;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.library-modal-ghost {
+  gap: 8px;
+}
+
+.library-modal-hint,
+.library-modal-empty {
+  color: var(--color-foreground-muted);
+}
+
+.library-modal-hint {
+  flex: 1 1 auto;
+}
+
 .library-modal-empty {
   margin: auto;
-  color: var(--color-foreground-muted);
 }
 
 .library-modal-insert {

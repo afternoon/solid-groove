@@ -14,7 +14,7 @@ import "./Dialog.css";
  * `panel` is the bounded one, centred and no larger than its contents need.
  * It is for a dialog you answer and dismiss.
  */
-export type DialogSize = "jumbo" | "panel";
+export type DialogSize = "jumbo" | "panel" | "modal";
 
 export interface DialogProps {
   /**

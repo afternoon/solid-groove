@@ -243,7 +243,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.zoom_in": { run: () => arrangementEditingActions()?.zoomIn() },
     "view.zoom_out": { run: () => arrangementEditingActions()?.zoomOut() },
     // The library modal's own keys, live only in the `library` context.
-    "library.all_sounds": inLibrary((a) => a.showView("sounds")),
+    "library.all_sounds": inLibrary((a) => a.showView("all")),
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
     "library.insert": inLibrary((a) => void a.insertSelected()),

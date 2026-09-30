@@ -31,6 +31,19 @@
   padding: 24px;
 }
 
+/* A centred window of its own size (the library): about 1000 x 690, shrinking
+   to the view on a small screen. */
+.dialog-backdrop-modal {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.dialog-modal {
+  width: min(1000px, 100%);
+  height: min(690px, 100%);
+}
+
 /* Click-outside as a real control rather than a handler on a div, so it is one
    accessible affordance instead of a mouse-only one. Out of the tab order: the
    close button is the keyboard path. */

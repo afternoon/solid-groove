@@ -1,4 +1,4 @@
-import { For, type JSX, Match, Switch } from "@solidjs/web";
+import { For, type JSX, Match, Show, Switch } from "@solidjs/web";
 import { createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import Dialog from "../components/Dialog";
@@ -11,15 +11,25 @@ import type {
   LibraryPackSummary,
 } from "../library/manifest";
 import { ariaBool } from "../shared/aria";
+import type { ShortcutActionId } from "../shortcuts";
 import "./LibraryModal.css";
 
-/** The library's three views. Sounds is the working one; the others are filled in later. */
-export type LibraryView = "sounds" | "packs" | "favourites";
+/** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
+export type LibraryView = "packs" | "all" | "favourites" | "project" | "recent";
 
-const VIEWS: readonly { id: LibraryView; label: string }[] = [
-  { id: "sounds", label: "Sounds" },
-  { id: "packs", label: "Packs" },
-  { id: "favourites", label: "Favourites" },
+interface RailItem {
+  readonly id: LibraryView;
+  readonly label: string;
+  /** The registry action whose key badges the item; unset means it has no key. */
+  readonly action?: ShortcutActionId;
+}
+
+const RAIL: readonly RailItem[] = [
+  { id: "packs", label: "Browse packs", action: "library.browse_packs" },
+  { id: "all", label: "All sounds", action: "library.all_sounds" },
+  { id: "favourites", label: "Favourites", action: "library.favourites" },
+  { id: "project", label: "In this project" },
+  { id: "recent", label: "Recently viewed" },
 ];
 
 /**
@@ -46,21 +56,37 @@ export interface LibraryModalProps {
   readonly assetTypes?: readonly LibraryAssetType[];
   readonly heading?: string;
   readonly slot?: string;
+  readonly trackColor?: string;
+  /** The sound the slot holds now. */
   readonly current?: string | null;
+  /** Key badge text for a registry action, from the registry, never hard-coded. */
+  keyLabel?(action: ShortcutActionId): string;
+  onShowKeys?(): void;
   onActions?(actions: LibraryActions | null): void;
   onClose(): void;
 }
 
+function Key(props: { label?: string }): JSX.Element {
+  return (
+    <Show when={props.label}>
+      <kbd class="library-modal-key">{props.label}</kbd>
+    </Show>
+  );
+}
+
 /**
- * The library window (`UI-001`, `LIB-010`): a header naming the slot and what
- * it holds, a Sounds / Packs / Favourites switch, and one large Insert button.
- * Hearing a sound selects it and inserting is a second step, so browsing never
- * edits the project. Packs and Favourites are placeholders until they land.
- * `EditorView` hands it the `dialog` and `library` shortcut contexts.
+ * The library window (`UI-001`, `LIB-010`): a header naming the slot with
+ * **Was** and **Hearing** readouts, a rail of places to look, and a footer with
+ * one large Insert button. Hearing a sound selects it and inserting is a second
+ * step, so browsing never edits the project. Views other than All sounds are
+ * placeholders until they land. `EditorView` hands it the `dialog` and
+ * `library` shortcut contexts.
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
-  const [view, setView] = createSignal<LibraryView>("sounds");
+  const [view, setView] = createSignal<LibraryView>("all");
   const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
+  const keyOf = (action?: ShortcutActionId) =>
+    action ? props.keyLabel?.(action) : undefined;
 
   function insertSelected(): boolean {
     const asset = selected();
@@ -77,38 +103,48 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   return (
     <Dialog
       label="Library"
-      size="jumbo"
+      size="modal"
       flush
       onClose={() => props.onClose()}
       header={
         <div class="library-modal-head">
-          <div class="library-modal-slot">
-            <span class="library-modal-label">{props.slot ?? "Slot"}</span>
-            <b>{props.heading ?? "Library"}</b>
-          </div>
-          <div class="library-modal-slot">
-            <span class="library-modal-label">Now</span>
+          <span
+            class="library-modal-bar"
+            style={{ background: props.trackColor ?? "var(--color-accent)" }}
+          />
+          <b class="library-modal-slot">{props.slot ?? props.heading ?? "Library"}</b>
+          <div class="library-modal-readout">
+            <span class="library-modal-label">Was</span>
             <b>{props.current ?? "Empty"}</b>
           </div>
-          <div class="library-modal-views" role="tablist" aria-label="Library views">
-            <For each={VIEWS}>
-              {(entry) => (
-                <button
-                  type="button"
-                  role="tab"
-                  class="library-modal-view"
-                  aria-selected={ariaBool(view() === entry.id)}
-                  onClick={() => setView(entry.id)}
-                >
-                  {entry.label}
-                </button>
-              )}
-            </For>
+          <div class="library-modal-readout">
+            <span class="library-modal-label">Hearing</span>
+            <b>{selected()?.name ?? "Nothing yet"}</b>
           </div>
+          <input
+            type="search"
+            class="library-modal-search"
+            placeholder="Search sounds, packs and categories"
+            aria-label="Search the library"
+          />
         </div>
       }
       footer={
         <>
+          <span class="library-modal-hint">
+            {selected() ? "Enter inserts it" : "Pick a sound to hear it"}
+          </span>
+          <button
+            type="button"
+            class="library-modal-ghost"
+            aria-label="Keyboard shortcuts"
+            onClick={() => props.onShowKeys?.()}
+          >
+            <Key label={keyOf("help.shortcut_guide")} />
+          </button>
+          <button type="button" class="library-modal-ghost" disabled>
+            Shuffle <Key label={keyOf("library.shuffle")} />
+          </button>
           <button
             type="button"
             class="library-modal-insert"
@@ -122,28 +158,44 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       }
     >
       <div class="library-modal-body">
-        <Switch>
-          <Match when={view() === "sounds"}>
-            <LibraryBrowser
-              client={props.client}
-              previewEngine={props.previewEngine}
-              analytics={props.analytics}
-              onInsert={(asset) => props.onInsert(asset)}
-              onSelect={setSelected}
-              addedPackIds={props.addedPackIds}
-              onAddPack={(pack) => props.onAddPack(pack)}
-              onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}
-              assetTypes={props.assetTypes}
-              heading={props.heading}
-            />
-          </Match>
-          <Match when={view() === "packs"}>
-            <p class="library-modal-empty">Packs will appear here.</p>
-          </Match>
-          <Match when={view() === "favourites"}>
-            <p class="library-modal-empty">Sounds you like will appear here.</p>
-          </Match>
-        </Switch>
+        <nav class="library-modal-rail" aria-label="Places">
+          <For each={RAIL}>
+            {(item) => (
+              <button
+                type="button"
+                class="library-modal-rail-item"
+                aria-pressed={ariaBool(view() === item.id)}
+                onClick={() => setView(item.id)}
+              >
+                {item.label}
+                <Key label={keyOf(item.action)} />
+              </button>
+            )}
+          </For>
+        </nav>
+        <div class="library-modal-main">
+          <Switch>
+            <Match when={view() === "all"}>
+              <LibraryBrowser
+                client={props.client}
+                previewEngine={props.previewEngine}
+                analytics={props.analytics}
+                onInsert={(asset) => props.onInsert(asset)}
+                onSelect={setSelected}
+                addedPackIds={props.addedPackIds}
+                onAddPack={(pack) => props.onAddPack(pack)}
+                onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}
+                assetTypes={props.assetTypes}
+                heading={props.heading}
+              />
+            </Match>
+            <Match when={true}>
+              <p class="library-modal-empty">
+                {RAIL.find((item) => item.id === view())?.label} will appear here.
+              </p>
+            </Match>
+          </Switch>
+        </div>
       </div>
     </Dialog>
   );

@@ -89,7 +89,11 @@ describe("LibraryModal shell", () => {
   const pack = FIXTURE_PACK_INDEX_DOC.packs[0];
 
   function renderShell(
-    extra: { onInsert?: () => void; onActions?: (a: LibraryActions | null) => void } = {},
+    extra: {
+      onInsert?: () => void;
+      onActions?: (a: LibraryActions | null) => void;
+      keyLabel?: (a: string) => string;
+    } = {},
   ) {
     return render(() => (
       <LibraryModal
@@ -102,6 +106,7 @@ describe("LibraryModal shell", () => {
         slot="Drums · BD"
         current="Rounded Club Kick"
         onActions={extra.onActions}
+        keyLabel={extra.keyLabel}
         onClose={() => {}}
       />
     ));
@@ -123,29 +128,12 @@ describe("LibraryModal shell", () => {
     fireEvent.click(audition);
   }
 
-  it("names the slot and the sound it holds", () => {
-    renderShell();
-    expect(screen.getByText("Drums · BD")).toBeVisible();
-    expect(screen.getByText("Rounded Club Kick")).toBeVisible();
-  });
-
-  it("switches between Sounds, Packs and Favourites", () => {
-    renderShell();
-    const tab = (name: string) => screen.getByRole("tab", { name });
-    expect(tab("Sounds")).toHaveAttribute("aria-selected", "true");
-
-    clickAndFlush(tab("Packs"));
-    expect(tab("Packs")).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
-    expect(screen.getByText("Packs will appear here.")).toBeVisible();
-
-    clickAndFlush(tab("Favourites"));
-    expect(screen.getByText("Sounds you like will appear here.")).toBeVisible();
-  });
-
-  it("keeps Insert disabled until a sound is selected, then inserts that sound", async () => {
+  it("names the slot and what it was, then Hearing and Insert follow the selection", async () => {
     const onInsert = vi.fn();
     renderShell({ onInsert });
+    expect(screen.getByText("Drums · BD")).toBeVisible();
+    expect(screen.getByText("Rounded Club Kick")).toBeVisible();
+    expect(screen.getByText("Nothing yet")).toBeVisible();
     expect(screen.getByRole("button", { name: "Insert" })).toBeDisabled();
 
     await hearFirstSound();
@@ -156,26 +144,35 @@ describe("LibraryModal shell", () => {
       return button as HTMLButtonElement;
     });
     expect(insert).toHaveTextContent(/^Insert .+/);
+    expect(screen.queryByText("Nothing yet")).toBeNull();
     clickAndFlush(insert);
     expect(onInsert).toHaveBeenCalledTimes(1);
   });
 
-  it("hands the host the actions the library shortcuts run, and takes them back on close", async () => {
+  it("badges the rail and footer from the registry, and swaps in placeholders", () => {
+    renderShell({ keyLabel: (action) => `<${action}>` });
+    const rail = within(screen.getByRole("navigation", { name: "Places" }));
+    const place = (name: string) => rail.getByRole("button", { name: new RegExp(name) });
+    expect(place("All sounds")).toHaveAttribute("aria-pressed", "true");
+    expect(place("Browse packs")).toHaveTextContent("<library.browse_packs>");
+    expect(place("In this project")).not.toHaveTextContent("<");
+    expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Keyboard shortcuts" })).toHaveTextContent(
+      "<help.shortcut_guide>",
+    );
+
+    clickAndFlush(place("Favourites"));
+    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+    expect(screen.getByText("Favourites will appear here.")).toBeVisible();
+  });
+
+  it("hands the host its shortcut actions, and takes them back on close", () => {
     const onActions = vi.fn();
-    const onInsert = vi.fn();
-    const { unmount } = renderShell({ onInsert, onActions });
+    const { unmount } = renderShell({ onActions });
     const actions = onActions.mock.calls[0][0] as LibraryActions;
 
     expect(actions.insertSelected()).toBe(false);
-    expect(onInsert).not.toHaveBeenCalled();
-    actions.showView("favourites");
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "Favourites" })).toHaveAttribute(
-        "aria-selected",
-        "true",
-      ),
-    );
-
+    actions.showView("packs");
     unmount();
     expect(onActions).toHaveBeenLastCalledWith(null);
   });

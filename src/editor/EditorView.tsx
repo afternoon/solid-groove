@@ -703,6 +703,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   assetTypes={libraryTypes()}
                   heading={libraryLoops() ? "Loops" : "Library"}
                   slot={librarySlot().slot}
+                  trackColor={track()?.color}
+                  keyLabel={keyHint}
+                  onShowKeys={() => setGuideOpen(true)}
                   current={librarySlot().current}
                   onActions={(actions) => setLibraryActions(() => actions)}
                   onClose={() => setLibraryOpen(false)}
