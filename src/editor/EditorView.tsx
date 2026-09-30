@@ -25,6 +25,7 @@ import {
 } from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
 import type { LibraryAssetType } from "../library/manifest";
+import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
 import {
@@ -434,6 +435,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   const sampleName = createMemo(() => model.sampleName(project(), track()));
+
+  /**
+   * The slot the open library auditions through (LIB-010 hot-swap): the pad
+   * it was opened for, else the edited track's sampler. The Loop button's
+   * library fills no slot, so its loops audition standalone, on the bar.
+   */
+  function slotAudition(): SlotAudition | undefined {
+    const pad = padTarget();
+    const trackId = libraryLoops() ? null : model.samplerTrackId(track());
+    const slot = pad ?? (trackId ? { trackId } : null);
+    if (!slot) return undefined;
+    return {
+      preview: (asset) => audio.previewInSlot(slot, asset),
+      clear: () => audio.clearPreview(),
+      isPlaying: () => audio.isPlaying(),
+    };
+  }
   const libraryLoops = () => libraryTypes()?.includes("loop") ?? false;
   const librarySlot = createMemo(() =>
     model.librarySlotHeader(project(), track(), padTarget(), libraryLoops()),
@@ -687,6 +705,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 <LibraryModal
                   client={props.libraryClient}
                   previewEngine={createAuditionEngine()}
+                  slotAudition={slotAudition()}
                   analytics={props.analytics}
                   onInsert={(asset) => {
                     const sample = toLibrarySample(asset);

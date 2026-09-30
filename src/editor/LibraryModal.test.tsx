@@ -89,6 +89,44 @@ describe("LibraryModal", () => {
   });
 });
 
+describe("LibraryModal hot-swap", () => {
+  it("auditions a selected sound in the slot, and puts the slot back when it closes", async () => {
+    const heard: (string | null)[] = [];
+    const slot = {
+      preview: vi.fn((asset: { name: string }) => heard.push(asset.name) > 0),
+      clear: vi.fn(() => heard.push(null)),
+      isPlaying: () => true,
+    };
+    const engine = fakePreviewEngine();
+    const { unmount } = render(() => (
+      <LibraryModal
+        client={new LibraryClient(fixtureFetcher())}
+        previewEngine={engine}
+        slotAudition={slot}
+        onInsert={() => {}}
+        addedPackIds={[]}
+        onClose={() => {}}
+      />
+    ));
+    const [first, second] = await screen.findAllByRole("listitem");
+    const hear = (row: HTMLElement) =>
+      fireEvent.click(row.querySelector(".sound-row-main") as HTMLElement);
+
+    hear(first);
+    await waitFor(() => expect(heard).toHaveLength(1));
+    hear(second);
+    await waitFor(() => expect(slot.preview).toHaveBeenCalledTimes(3));
+
+    // Heard in the beat, not standalone: the transport is running.
+    expect(engine.starts).toHaveLength(0);
+    // The slot is left on the selected sound: the one Insert would put there.
+    const insert = screen.getByRole("button", { name: /^Insert / });
+    expect(insert).toHaveTextContent(`Insert ${heard.at(-1)}`);
+    unmount();
+    expect(heard.at(-1)).toBeNull();
+  });
+});
+
 describe("LibraryModal shell", () => {
   const pack = FIXTURE_PACK_INDEX_DOC.packs[0];
 
