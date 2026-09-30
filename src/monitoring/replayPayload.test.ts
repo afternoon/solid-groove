@@ -429,10 +429,6 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // The arrangement's previewed header row (TRK-02): a fixed test id or
       // nothing, never anything the user authored.
       'previewing(track().id) ? "track-drop-indicator" : undefined',
-      // The Export track list's row flags (#724): booleans for whether a
-      // row is included and whether it has keyboard focus. Never a name.
-      "readOnly() ? !row().muted : row().included",
-      "props.focusId === row().id",
       // The Export ZIP gutter's bracket state (#724): an enum of our own
       // ("current", "done" or none). Never a name.
       "bracket.state",

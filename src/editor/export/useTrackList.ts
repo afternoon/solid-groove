@@ -47,7 +47,8 @@ export function useTrackList(options: UseTrackListOptions) {
     rows: views,
     bars,
     trackIds,
-    focusId: () => state().focus,
+    /** The row the keyboard is on: the first until one is chosen, as a listbox starts. */
+    focusId: () => state().focus ?? rows()[0]?.id ?? null,
     click(index: number, modifiers: ClickModifiers): void {
       const row = rows()[index];
       if (row) setState(clickRow(state(), rows(), row.id, modifiers));
