@@ -1,0 +1,134 @@
+import { cleanup, render, screen } from "@solidjs/testing-library";
+import { flush } from "solid-js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { OfflineRenderError } from "../../audio/offlineRenderer";
+import { createSliceFixtureProject } from "../../domain/fixtures";
+import { stringifyProject } from "../../domain/serialize";
+import { clickAndFlush } from "../../testing/events";
+import ExportDialog, { failureMessage } from "./ExportDialog";
+import type { exportStereoWav, StereoExport, StereoExportOptions } from "./stereoExport";
+
+afterEach(cleanup);
+
+const FILE: StereoExport = {
+  bytes: new Uint8Array([1, 2, 3]),
+  fileName: "Song 2026-09-29.wav",
+  sampleRate: 48_000,
+  frames: 1,
+};
+
+/** An export the test finishes by hand, capturing the options it was given. */
+function pendingExport() {
+  let resolve!: (file: StereoExport) => void;
+  let reject!: (error: unknown) => void;
+  let options: StereoExportOptions | undefined;
+  const exportWav = vi.fn((_project, given?: StereoExportOptions) => {
+    options = given;
+    return new Promise<StereoExport>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+  }) as unknown as typeof exportStereoWav;
+  return {
+    exportWav,
+    options: () => options,
+    resolve: (file: StereoExport) => resolve(file),
+    reject: (error: unknown) => reject(error),
+  };
+}
+
+const settle = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+  flush();
+};
+
+function renderDialog(exportWav: typeof exportStereoWav, onClose = vi.fn()) {
+  const project = createSliceFixtureProject();
+  const download = vi.fn();
+  render(() => (
+    <ExportDialog
+      project={() => project}
+      exportWav={exportWav}
+      download={download}
+      onClose={onClose}
+    />
+  ));
+  return { project, download, onClose };
+}
+
+describe("ExportDialog", () => {
+  it("opens with Stereo WAV chosen and Stems (ZIP) offered but not chosen", () => {
+    renderDialog(pendingExport().exportWav);
+    expect(screen.getByRole("dialog", { name: "Export" })).toBeVisible();
+    expect(screen.getByRole("radio", { name: "Stereo WAV" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Stems (ZIP)" })).not.toBeChecked();
+  });
+
+  it("shows progress with Cancel while rendering, then downloads the file and says it is done", async () => {
+    const pending = pendingExport();
+    const { project, download } = renderDialog(pending.exportWav);
+    const before = stringifyProject(project);
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    pending.options()?.onProgress?.(0.4);
+    flush();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("value", "0.4");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeVisible();
+    expect(download).not.toHaveBeenCalled();
+
+    pending.resolve(FILE);
+    await settle();
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(download).toHaveBeenCalledWith(FILE.bytes, FILE.fileName, "audio/wav");
+    expect(screen.getByRole("status")).toHaveTextContent(/complete/i);
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(stringifyProject(project)).toBe(before);
+  });
+
+  it("cancels the render, downloads nothing, and returns to the choice", async () => {
+    const pending = pendingExport();
+    const { download } = renderDialog(pending.exportWav);
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    clickAndFlush(screen.getByRole("button", { name: "Cancel" }));
+    expect(pending.options()?.signal?.aborted).toBe(true);
+
+    pending.reject(new OfflineRenderError("aborted", "cancelled"));
+    await settle();
+    expect(download).not.toHaveBeenCalled();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
+  });
+
+  it("says what to do when a render fails, and presents no file", async () => {
+    const pending = pendingExport();
+    const { download } = renderDialog(pending.exportWav);
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    pending.reject(new OfflineRenderError("decode_failed", "bad asset"));
+    await settle();
+    expect(download).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(failureMessage("decode_failed"));
+    expect(screen.queryByText(/complete/i)).toBeNull();
+  });
+
+  it("cancels a render in flight when the dialog is closed", () => {
+    const pending = pendingExport();
+    const { onClose } = renderDialog(pending.exportWav);
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    clickAndFlush(screen.getByRole("button", { name: "Close export" }));
+    expect(pending.options()?.signal?.aborted).toBe(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("failureMessage", () => {
+  it("gives each failure an actionable message", () => {
+    expect(failureMessage("not_supported")).toMatch(/browser/);
+    expect(failureMessage("quota_exceeded")).toMatch(/too long/);
+    expect(failureMessage("internal")).toMatch(/Try again/);
+  });
+});
