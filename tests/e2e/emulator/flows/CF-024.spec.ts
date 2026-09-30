@@ -70,105 +70,98 @@ const anyCover = (page: Page) => library(page).getByRole("button", { name: /^Ope
 const IN_PROJECT = /\bin (this )?project\b/i;
 
 test.describe("CF-024", () => {
-  // `test.fixme` until #449 lands: the PR that closes it removes this marker
-  // in the same diff that makes the flow pass.
-  test.fixme(
-    "a producer browses packs and uses a sound from one they did not have",
-    async ({ page }) => {
-      const step = walkthrough(page, {
-        id: "CF-024",
-        title: "A producer browses packs and uses a sound from one they did not have",
-      });
+  test("a producer browses packs and uses a sound from one they did not have", async ({
+    page,
+  }) => {
+    const step = walkthrough(page, {
+      id: "CF-024",
+      title: "A producer browses packs and uses a sound from one they did not have",
+    });
 
-      // 1. Create a new project and go to the instrument view. Open the sample
-      //    slot of the drum machine's "BD" pad.
-      const projectUrl = await newProjectOnInstrumentView(page);
-      const starterKick = ((await sampleSlot(page, "BD").textContent()) ?? "").trim();
+    // 1. Create a new project and go to the instrument view. Open the sample
+    //    slot of the drum machine's "BD" pad.
+    const projectUrl = await newProjectOnInstrumentView(page);
+    const starterKick = ((await sampleSlot(page, "BD").textContent()) ?? "").trim();
 
-      const sounds = await deliveredLibrary(page);
-      const projectPack = sounds.find((sound) => sound.name === starterKick)?.pack;
-      precondition(projectPack, "CF-024", `the starter kick "${starterKick}"`);
-      precondition(
-        projectPack !== NEW_PACK,
-        "CF-024",
-        `${NEW_PACK} not in a new project`,
-      );
-      const fxPacks = [
-        ...new Set(sounds.filter((s) => s.family === "fx").map((s) => s.pack)),
-      ];
-      const impacts = oneShots(sounds, "fx", "impact")
-        .filter((impact) => impact.pack === NEW_PACK)
-        .map((impact) => impact.name);
-      precondition(impacts.length > 0, "CF-024", `impacts in ${NEW_PACK}`);
+    const sounds = await deliveredLibrary(page);
+    const projectPack = sounds.find((sound) => sound.name === starterKick)?.pack;
+    precondition(projectPack, "CF-024", `the starter kick "${starterKick}"`);
+    precondition(projectPack !== NEW_PACK, "CF-024", `${NEW_PACK} not in a new project`);
+    const fxPacks = [
+      ...new Set(sounds.filter((s) => s.family === "fx").map((s) => s.pack)),
+    ];
+    const impacts = oneShots(sounds, "fx", "impact")
+      .filter((impact) => impact.pack === NEW_PACK)
+      .map((impact) => impact.name);
+    precondition(impacts.length > 0, "CF-024", `impacts in ${NEW_PACK}`);
 
-      await openPadSlot(page, "BD");
-      await step('Open the sample slot of the drum machine\'s "BD" pad');
+    await openPadSlot(page, "BD");
+    await step('Open the sample slot of the drum machine\'s "BD" pad');
 
-      // 2. Choose Browse packs. The sound list gives way to pack covers, and
-      //    the packs this project already uses are marked as in the project.
-      await railButton(page, "Browse packs").click();
-      await expect(soundList(page)).toHaveCount(0);
-      await expect(cover(page, projectPack)).toBeVisible();
-      await expect(cover(page, projectPack)).toContainText(IN_PROJECT);
-      await expect(cover(page, NEW_PACK)).not.toContainText(IN_PROJECT);
-      await step("Choose Browse packs: covers, with the project's packs marked");
+    // 2. Choose Browse packs. The sound list gives way to pack covers, and
+    //    the packs this project already uses are marked as in the project.
+    await railButton(page, "Browse packs").click();
+    await expect(soundList(page)).toHaveCount(0);
+    await expect(cover(page, projectPack)).toBeVisible();
+    await expect(cover(page, projectPack)).toContainText(IN_PROJECT);
+    await expect(cover(page, NEW_PACK)).not.toContainText(IN_PROJECT);
+    await step("Choose Browse packs: covers, with the project's packs marked");
 
-      // 3. Narrow the packs to those with FX.
-      await library(page)
-        .getByRole("group", { name: "Packs with" })
-        .getByRole("button", { name: "FX", exact: true })
-        .click();
-      await expect(anyCover(page)).toHaveCount(fxPacks.length);
-      for (const pack of fxPacks) await expect(cover(page, pack)).toBeVisible();
-      await step("Narrow the packs to those with FX");
+    // 3. Narrow the packs to those with FX.
+    await library(page)
+      .getByRole("group", { name: "Packs with" })
+      .getByRole("button", { name: "FX", exact: true })
+      .click();
+    await expect(anyCover(page)).toHaveCount(fxPacks.length);
+    for (const pack of fxPacks) await expect(cover(page, pack)).toBeVisible();
+    await step("Narrow the packs to those with FX");
 
-      // 4. Open Transitions & FX, a pack the project does not use. Its sounds
-      //    replace the covers, under a banner that names the pack and says it
-      //    joins the project when you insert one of its sounds.
-      await cover(page, NEW_PACK).click();
-      await expect(anyCover(page)).toHaveCount(0);
-      await expect(soundList(page)).toBeVisible();
-      await expect(library(page).getByRole("heading", { name: NEW_PACK })).toBeVisible();
-      await expect(
-        library(page).getByText("Joins the project when you insert a sound"),
-      ).toBeVisible();
-      await step("Open Transitions & FX: it joins the project when you insert a sound");
+    // 4. Open Transitions & FX, a pack the project does not use. Its sounds
+    //    replace the covers, under a banner that names the pack and says it
+    //    joins the project when you insert one of its sounds.
+    await cover(page, NEW_PACK).click();
+    await expect(anyCover(page)).toHaveCount(0);
+    await expect(soundList(page)).toBeVisible();
+    await expect(library(page).getByRole("heading", { name: NEW_PACK })).toBeVisible();
+    await expect(
+      library(page).getByText("Joins the project when you insert a sound"),
+    ).toBeVisible();
+    await step("Open Transitions & FX: it joins the project when you insert a sound");
 
-      // 5. Choose the FX family, then the Impact category. Only that pack's
-      //    impacts are listed.
-      await familyTab(page, "FX").click();
-      await categoryChip(page, "Impact").click();
-      await expect
-        .poll(async () => (await listedNames(soundList(page))).sort())
-        .toEqual([...impacts].sort());
-      await step("Choose FX, then Impact: only that pack's impacts are listed");
+    // 5. Choose the FX family, then the Impact category. Only that pack's
+    //    impacts are listed.
+    await familyTab(page, "FX").click();
+    await categoryChip(page, "Impact").click();
+    await expect
+      .poll(async () => (await listedNames(soundList(page))).sort())
+      .toEqual([...impacts].sort());
+    await step("Choose FX, then Impact: only that pack's impacts are listed");
 
-      // 6. Select an impact and press Insert. The library closes, and the "BD"
-      //    pad's slot names that impact.
-      const impact = impacts[0];
-      await audition(soundList(page), impact).click();
-      await expectSelected(page, impact);
-      await insertButton(page, impact).click();
-      await expect(library(page)).toHaveCount(0);
-      await expect(sampleSlot(page, "BD")).toHaveText(impact);
-      await step('Select an impact and press Insert: the "BD" slot names it');
+    // 6. Select an impact and press Insert. The library closes, and the "BD"
+    //    pad's slot names that impact.
+    const impact = impacts[0];
+    await audition(soundList(page), impact).click();
+    await expectSelected(page, impact);
+    await insertButton(page, impact).click();
+    await expect(library(page)).toHaveCount(0);
+    await expect(sampleSlot(page, "BD")).toHaveText(impact);
+    await step('Select an impact and press Insert: the "BD" slot names it');
 
-      // 7. Open the slot again. Transitions & FX is now listed with the
-      //    project's own packs.
-      await sampleSlot(page, "BD").click();
-      await expect(library(page)).toBeVisible();
-      await expect(projectPacks(page)).toContainText(NEW_PACK);
-      await step(
-        "Open the slot again: Transitions & FX is listed with the project's packs",
-      );
+    // 7. Open the slot again. Transitions & FX is now listed with the
+    //    project's own packs.
+    await sampleSlot(page, "BD").click();
+    await expect(library(page)).toBeVisible();
+    await expect(projectPacks(page)).toContainText(NEW_PACK);
+    await step(
+      "Open the slot again: Transitions & FX is listed with the project's packs",
+    );
 
-      // 8. Reload the page. The "BD" pad still holds the impact, and
-      //    Transitions & FX is still listed with the project's packs.
-      await reloadOnInstrumentView(page, projectUrl);
-      await expect(sampleSlot(page, "BD")).toHaveText(impact);
-      await sampleSlot(page, "BD").click();
-      await expect(projectPacks(page)).toContainText(NEW_PACK);
-      await step("Reload: the BD pad holds the impact, and Transitions & FX is listed");
-    },
-  );
+    // 8. Reload the page. The "BD" pad still holds the impact, and
+    //    Transitions & FX is still listed with the project's packs.
+    await reloadOnInstrumentView(page, projectUrl);
+    await expect(sampleSlot(page, "BD")).toHaveText(impact);
+    await sampleSlot(page, "BD").click();
+    await expect(projectPacks(page)).toContainText(NEW_PACK);
+    await step("Reload: the BD pad holds the impact, and Transitions & FX is listed");
+  });
 });

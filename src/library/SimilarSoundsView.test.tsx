@@ -43,7 +43,7 @@ describe("SimilarSoundsView", () => {
     renderView();
     expect(screen.getByRole("button", { name: "Play Ref" })).toBeVisible();
     expect(names()).toEqual(["Near", "Far", "Other"]);
-    expect(within(list()).getAllByRole("listitem")[0]).toHaveTextContent("100%");
+    expect(within(list()).getAllByRole("listitem")[0].textContent).toMatch(/\b100%/);
     for (const label of ["Category", "Genre", "Length"]) {
       expect(chip(label)).toHaveAttribute("aria-pressed", "true");
     }

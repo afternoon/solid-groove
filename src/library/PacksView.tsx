@@ -151,7 +151,8 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
                 >
                   <PackCover name={entry.pack.name} assets={entry.assets}>
                     <Show when={isProject(entry.pack.id)}>
-                      <span class="pack-tag">In project</span>
+                      {/* Spaced so the cover reads as words, not "CEIn project1". */}
+                      <span class="pack-tag">{" In project "}</span>
                     </Show>
                     <Show when={pickKey(index())}>
                       {(label) => <kbd class="pack-key">{label()}</kbd>}

@@ -213,7 +213,7 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
                     <span>
                       {result.asset.packName} · {result.asset.role}
                     </span>
-                  </span>
+                  </span>{" "}
                   <span class="similar-match" title={`${result.percent}% match`}>
                     <span class="similar-meter">
                       <span

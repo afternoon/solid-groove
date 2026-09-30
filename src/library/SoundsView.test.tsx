@@ -328,6 +328,10 @@ describe("SoundsView filters", () => {
     expect(menu).toBeVisible();
     const options = menu.querySelectorAll("input");
     expect(options.length).toBeGreaterThan(1);
+    // Labelled in words ("Electronic pop"), not by the manifest's slug.
+    for (const option of options) {
+      expect(option.closest("label")?.textContent).toMatch(/^[A-Z][a-z]*( [a-z]+)* \d+$/);
+    }
     fireEvent.click(options[options.length - 1]);
 
     await waitFor(() => expect(count()).toBeLessThan(before));

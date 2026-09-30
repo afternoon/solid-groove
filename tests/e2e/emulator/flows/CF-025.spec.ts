@@ -77,9 +77,7 @@ async function matches(page: Page): Promise<string[]> {
 }
 
 test.describe("CF-025", () => {
-  // `test.fixme` until #449 lands: the PR that closes it removes this marker
-  // in the same diff that makes the flow pass.
-  test.fixme("a producer follows similar sounds to a better kick", async ({ page }) => {
+  test("a producer follows similar sounds to a better kick", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-025",
       title: "A producer follows similar sounds to a better kick",

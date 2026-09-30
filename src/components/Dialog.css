@@ -31,12 +31,13 @@
   padding: 24px;
 }
 
-/* A centred window of its own size (the library): about 1000 x 690, shrinking
-   to the view on a small screen. */
+/* A centred window of its own size (the library): about 1000 x 690, never
+   larger than a jumbo window would be (CF-023), so on a shorter screen it
+   keeps the same frame around it. */
 .dialog-backdrop-modal {
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: min(100px, 12vh) min(100px, 12vw);
 }
 
 .dialog-modal {
