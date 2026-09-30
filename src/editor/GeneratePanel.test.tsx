@@ -18,7 +18,7 @@ import { lanesFor } from "./stepEditorModel";
 afterEach(() => cleanup());
 
 /** The drum fixture's clip (BD 1/5/9/13, CP 5/13), generating into CP. */
-function setUp(options: { consent?: boolean } = {}) {
+function setUp(options: { consent?: boolean; random?: () => number } = {}) {
   const project = createDrumMachineFixtureProject();
   const [kick, clap] = lanesFor(project.song.tracks[0].instrument);
   const history = new CommandHistory(project);
@@ -38,6 +38,7 @@ function setUp(options: { consent?: boolean } = {}) {
       onPreview={onPreview}
       analytics={analytics}
       ids={createSeededIdFactory(9)}
+      random={options.random}
     />
   ));
   const on = (lane: typeof kick) =>
@@ -51,6 +52,12 @@ function setUp(options: { consent?: boolean } = {}) {
 
 const panel = () => within(screen.getByRole("region", { name: "Generate" }));
 const press = (name: string) => clickAndFlush(panel().getByRole("button", { name }));
+function setField(name: string, value: string): void {
+  const field = panel().getByRole("spinbutton", { name });
+  fireEvent.input(field, { target: { value } });
+  flush();
+}
+
 describe("GeneratePanel (#643)", () => {
   it("names the row it writes into", () => {
     setUp();
@@ -72,6 +79,62 @@ describe("GeneratePanel (#643)", () => {
     history.undo();
     flush();
     expect(clap()).toEqual([5, 13]);
+  });
+
+  it("writes k of n Euclidean hits, rotated, repeated through the clip", () => {
+    const { history, clap, kick, onPreview } = setUp();
+    setField("Steps", "8");
+    setField("Hits", "3");
+    // Focusing the generator previews it first, and changes nothing.
+    fireEvent.focusIn(panel().getByRole("spinbutton", { name: "Hits" }));
+    flush();
+    const preview = onPreview.mock.lastCall?.[0] as { step: number }[];
+    expect(preview.map((hit) => hit.step)).toEqual([0, 3, 6, 8, 11, 14]);
+    expect(history.entries).toHaveLength(0);
+    press("Write Euclidean");
+    expect(clap()).toEqual([1, 4, 7, 9, 12, 15]);
+    expect(kick()).toEqual([1, 5, 9, 13]);
+    expect(history.entries).toHaveLength(1);
+
+    setField("Rotate", "1");
+    press("Write Euclidean");
+    expect(clap()).toEqual([2, 5, 8, 10, 13, 16]);
+    expect(history.entries).toHaveLength(2);
+  });
+
+  it("keeps Hits within Steps", () => {
+    setUp();
+    setField("Steps", "4");
+    expect(panel().getByRole("spinbutton", { name: "Hits" })).toHaveAttribute("max", "4");
+    setField("Hits", "9");
+    fireEvent.change(panel().getByRole("spinbutton", { name: "Hits" }));
+    flush();
+    expect(panel().getByRole("spinbutton", { name: "Hits" })).toHaveValue(4);
+  });
+
+  it("writes random hits by density over a stable roll, until New roll", () => {
+    let seed = 3;
+    const random = () => {
+      seed = (seed * 16807) % 2147483647;
+      return seed / 2147483647;
+    };
+    const { history, clap } = setUp({ random });
+    const density = panel().getByRole("slider");
+    fireEvent.input(density, { target: { value: "30" } });
+    flush();
+    press("Write random");
+    const sparse = clap();
+    fireEvent.input(density, { target: { value: "70" } });
+    flush();
+    press("Write random");
+    expect(clap()).toEqual(expect.arrayContaining(sparse));
+    expect(clap().length).toBeGreaterThan(sparse.length);
+    expect(history.entries).toHaveLength(2);
+
+    const before = clap();
+    press("New roll");
+    press("Write random");
+    expect(clap()).not.toEqual(before);
   });
 
   it("clears only the selected row, as one undo entry", () => {
@@ -105,13 +168,17 @@ describe("GeneratePanel (#643)", () => {
     const { events } = setUp();
     press("Offbeats");
     press("Backbeat");
+    press("Write Euclidean");
+    press("Write random");
     press("Clear row");
-    expect(events("clip_edited")).toHaveLength(3);
+    expect(events("clip_edited")).toHaveLength(5);
     expect(events("clip_edited").every((event) => event.params.editor === "step")).toBe(
       true,
     );
     expect(events("feature_first_use").map((event) => event.params.feature)).toEqual([
       "step_pattern",
+      "step_euclidean",
+      "step_random",
       "step_clear_row",
     ]);
   });
