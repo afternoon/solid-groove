@@ -126,3 +126,33 @@
   background: var(--color-border);
   color: var(--color-foreground-muted);
 }
+
+.library-modal-sounds {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.library-modal-sounds[hidden] {
+  display: none;
+}
+
+.library-modal-rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 0;
+  min-width: 0;
+  border: 0;
+}
+
+.library-modal-rail-group legend {
+  padding: 0 0 4px;
+}
+
+.library-modal-rail-group small {
+  color: inherit;
+  opacity: 0.7;
+}

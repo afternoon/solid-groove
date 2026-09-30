@@ -45,9 +45,11 @@ export function addedPackIds(
   project: Project | null,
   sessionPackIds: readonly string[],
 ): readonly string[] {
-  const fromProject = (project?.metadata.packDependencies ?? []).map(
-    (dependency) => dependency.packId,
-  );
+  // `In this project` (LIB-010): the derived dependencies plus the shelf.
+  const fromProject = [
+    ...(project?.metadata.packDependencies ?? []),
+    ...(project?.metadata.addedPacks ?? []),
+  ].map((dependency) => dependency.packId);
   return [...new Set([...fromProject, ...sessionPackIds])];
 }
 

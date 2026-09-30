@@ -8,8 +8,13 @@ import {
 } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
-import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "../library/__fixtures__/fixtures";
+import {
+  FIXTURE_PACK_INDEX_DOC,
+  fixtureFetcher,
+  fixturePackManifest,
+} from "../library/__fixtures__/fixtures";
 import { LibraryClient } from "../library/libraryClient";
+import { packAssets, parsePackManifest } from "../library/manifest";
 import { clickAndFlush } from "../testing/events";
 import LibraryModal, { type LibraryActions } from "./LibraryModal";
 
@@ -144,7 +149,7 @@ describe("LibraryModal shell", () => {
     const place = (name: string) => rail.getByRole("button", { name: new RegExp(name) });
     expect(place("All sounds")).toHaveAttribute("aria-pressed", "true");
     expect(place("Browse packs")).toHaveTextContent("<library.browse_packs>");
-    expect(place("In this project")).not.toHaveTextContent("<");
+    expect(screen.getByRole("group", { name: "In this project" })).toBeVisible();
     expect(screen.getByRole("button", { name: /Shuffle/ })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Keyboard shortcuts" })).toHaveTextContent(
       "<help.shortcut_guide>",
@@ -208,5 +213,102 @@ describe("LibraryModal shell", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("searchbox", { name: "Search sounds" }),
     );
+  });
+});
+
+describe("LibraryModal packs", () => {
+  const [drums, bass] = FIXTURE_PACK_INDEX_DOC.packs;
+
+  function renderPacks(addedPackIds: string[] = [drums.id]) {
+    let actions: LibraryActions | null = null;
+    render(() => (
+      <LibraryModal
+        client={new LibraryClient(fixtureFetcher())}
+        previewEngine={fakePreviewEngine()}
+        onInsert={() => {}}
+        addedPackIds={addedPackIds}
+        onAddPack={() => {}}
+        onPackBrowserOpenChange={() => {}}
+        onActions={(next) => {
+          actions = next;
+        }}
+        onClose={() => {}}
+      />
+    ));
+    const rail = within(screen.getByRole("navigation", { name: "Places" }));
+    return {
+      browsePacks: () =>
+        clickAndFlush(rail.getByRole("button", { name: /Browse packs/ })),
+      actions: () => actions as unknown as LibraryActions,
+    };
+  }
+
+  /** The names of the sounds the (scoped) sounds view lists. */
+  const listed = () =>
+    within(screen.getByRole("list", { name: "Sounds" }))
+      .getAllByRole("button", { name: /^Audition / })
+      .map((button) => button.getAttribute("aria-label")?.replace(/^Audition /, ""));
+
+  it("swaps the list for the cover grid under Browse packs", async () => {
+    const { browsePacks } = renderPacks();
+    browsePacks();
+
+    const grid = await screen.findByRole("region", { name: "Packs" });
+    expect(
+      await within(grid).findByRole("button", { name: `Open ${bass.name}` }),
+    ).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+  });
+
+  it("opens a pack with its banner over a scoped list, and Backspace goes back", async () => {
+    const { browsePacks, actions } = renderPacks();
+    browsePacks();
+    clickAndFlush(await screen.findByRole("button", { name: `Open ${drums.name}` }));
+
+    const banner = await screen.findByRole("region", { name: `About ${drums.name}` });
+    expect(banner).toHaveTextContent(drums.publisher);
+    expect(banner).toHaveTextContent(`v${drums.version}`);
+    expect(banner).toHaveTextContent(drums.description);
+    expect(banner).toHaveTextContent("In this project");
+    // The sounds view shows, scoped to this pack alone.
+    expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
+    const inPack = new Set(
+      packAssets(parsePackManifest(fixturePackManifest(drums.slug))).map((a) => a.name),
+    );
+    await waitFor(() => expect(listed().length).toBeGreaterThan(0));
+    expect(listed().every((name) => inPack.has(name ?? ""))).toBe(true);
+
+    actions().back();
+    expect(await screen.findByRole("region", { name: "Packs" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: `About ${drums.name}` })).toBeNull();
+
+    actions().back();
+    expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
+  });
+
+  it("says a pack joins the project on insert when the project lacks it, and opens by digit", async () => {
+    const { browsePacks, actions } = renderPacks([drums.id]);
+    browsePacks();
+    await screen.findByRole("button", { name: `Open ${bass.name}` });
+
+    actions().press("library.pick_2");
+
+    const banner = await screen.findByRole("region", { name: `About ${bass.name}` });
+    expect(banner).toHaveTextContent("Joins the project when you insert a sound");
+  });
+
+  it("lists the project's packs in the rail, and opens one", async () => {
+    const { actions } = renderPacks([bass.id]);
+    const project = within(await screen.findByRole("group", { name: "In this project" }));
+
+    const pack = await project.findByRole("button", { name: new RegExp(bass.name) });
+    expect(project.getAllByRole("button")).toHaveLength(1);
+    clickAndFlush(pack);
+
+    expect(await screen.findByRole("heading", { name: bass.name })).toBeVisible();
+    expect(pack).toHaveAttribute("aria-pressed", "true");
+    actions().back();
+    await waitFor(() => expect(pack).toHaveAttribute("aria-pressed", "false"));
+    expect(screen.queryByRole("heading", { name: bass.name })).toBeNull();
   });
 });

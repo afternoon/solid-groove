@@ -5,6 +5,7 @@ import {
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
+import type { PackId } from "../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { emptySelection, selectOnly } from "../selection";
 import {
@@ -47,6 +48,22 @@ describe("addedPackIds", () => {
       projectPackId,
       "pak_session",
     ]);
+  });
+
+  it("includes the project's shelf, without writing to it", () => {
+    const project = createSliceFixtureProject();
+    const projectPackId = project.metadata.packDependencies[0].packId;
+    const shelved = {
+      ...project.metadata.packDependencies[0],
+      packId: "pak_shelved" as PackId,
+    };
+    const withShelf = {
+      ...project,
+      metadata: { ...project.metadata, addedPacks: [shelved] },
+    };
+
+    expect(addedPackIds(withShelf, [])).toEqual([projectPackId, "pak_shelved"]);
+    expect(withShelf.metadata.addedPacks).toEqual([shelved]);
   });
 
   it("de-duplicates a session addition the project already depends on", () => {
