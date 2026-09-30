@@ -1,0 +1,104 @@
+/* The Generate panel (#643): a head naming the row it writes into, then
+   three columns of quiet grey buttons. Nothing here is coloured. */
+
+.generate-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.generate-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.generate-title,
+.generate-label,
+.generate-note {
+  color: var(--color-foreground-muted);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.generate-target {
+  flex: 1;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.generate-target b {
+  color: var(--color-text);
+}
+
+.generate-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.generate-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.generate-button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.generate-button:hover:not(:disabled) {
+  background: var(--color-background-hover);
+  color: var(--color-text);
+}
+
+.generate-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.generate-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.generate-clear {
+  margin-top: 6px;
+}
+
+/* A preset's bar in miniature, before its name. */
+.generate-glyph {
+  display: inline-flex;
+  gap: 1px;
+  margin-right: 8px;
+  vertical-align: -1px;
+}
+
+.generate-glyph i {
+  width: 3px;
+  height: 9px;
+  background: var(--color-foreground-muted);
+}
+
+.generate-glyph i.on {
+  background: currentColor;
+}
