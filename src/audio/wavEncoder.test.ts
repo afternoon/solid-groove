@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   encodeWav24,
+  pcm24,
   toPcm24,
   WAV_CHUNK_FRAMES,
   WAV_HEADER_BYTES,
   wav24ByteLength,
   wav24Chunks,
+  wav24Header,
 } from "./wavEncoder";
 
 const ascii = (bytes: Uint8Array, at: number, length: number) =>
@@ -121,5 +123,21 @@ describe("toPcm24", () => {
   it("writes silence for a non-finite sample", () => {
     expect(toPcm24(Number.NaN)).toBe(0);
     expect(toPcm24(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+});
+
+describe("wav24Header and pcm24", () => {
+  it("are the two halves of the file encodeWav24 writes, checked alike", () => {
+    const channels = [new Float32Array([0.5, -1, 0]), new Float32Array([0.25, 0, 1])];
+    const whole = encodeWav24(channels, 44_100);
+    expect(wav24Header(2, 3, 44_100)).toEqual(whole.subarray(0, WAV_HEADER_BYTES));
+    expect(pcm24(channels)).toEqual(whole.subarray(WAV_HEADER_BYTES));
+    expect(() => pcm24([new Float32Array(2), new Float32Array(3)])).toThrow(RangeError);
+  });
+
+  it("lets a header declare more frames than the samples, for padding", () => {
+    const view = new DataView(wav24Header(2, 10, 48_000).buffer);
+    expect(view.getUint32(4, true)).toBe(wav24ByteLength(2, 10) - 8);
+    expect(view.getUint32(40, true)).toBe(10 * 6);
   });
 });

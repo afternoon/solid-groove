@@ -30,7 +30,8 @@
  * frames ({@link wav24Chunks}), so a caller can hand each one to a `Blob` and
  * let it go: a ten-minute render never needs its whole WAV in memory beside its
  * float data (EXP-002's memory criterion). {@link encodeWav24} joins the same
- * chunks into one buffer for callers that want the file whole.
+ * chunks into one buffer for callers that want the file whole, and
+ * {@link wav24Header} and {@link pcm24} are its two halves on their own.
  */
 
 export const WAV_HEADER_BYTES = 44;
@@ -57,23 +58,35 @@ export function wav24ByteLength(channelCount: number, frames: number): number {
 /** Frames per chunk {@link wav24Chunks} yields: 768 KiB of stereo data. */
 export const WAV_CHUNK_FRAMES = 131_072;
 
+/** Checks every channel is the same length and returns that frame count. */
+function frameCount(channels: readonly Float32Array[]): number {
+  const frames = channels[0]?.length ?? 0;
+  if (channels.some((channel) => channel.length !== frames)) {
+    throw new RangeError("Every channel must be the same length");
+  }
+  return frames;
+}
+
 /** Checks `channels` can be written as a WAV and returns its frame count. */
 function validate(channels: readonly Float32Array[], sampleRate: number): number {
   if (channels.length < 1) throw new RangeError("A WAV needs at least one channel");
   if (!Number.isInteger(sampleRate) || sampleRate < 1) {
     throw new RangeError(`Invalid sample rate: ${sampleRate}`);
   }
-  const frames = channels[0].length;
-  if (channels.some((channel) => channel.length !== frames)) {
-    throw new RangeError("Every channel must be the same length");
-  }
+  const frames = frameCount(channels);
   if (wav24ByteLength(channels.length, frames) - 8 > MAX_RIFF_BYTES) {
     throw new RangeError("The render is too long for a WAV file");
   }
   return frames;
 }
 
-function header(channelCount: number, frames: number, sampleRate: number): Uint8Array {
+/** The 44-byte header alone, unchecked. A caller writing its own samples may
+ * declare more frames than it has and pad with silence, as stems do (EXP-003). */
+export function wav24Header(
+  channelCount: number,
+  frames: number,
+  sampleRate: number,
+): Uint8Array {
   const bytes = new Uint8Array(WAV_HEADER_BYTES);
   const view = new DataView(bytes.buffer);
   const blockAlign = channelCount * BYTES_PER_SAMPLE;
@@ -118,6 +131,11 @@ function samples(
   return bytes;
 }
 
+/** A WAV's `data` chunk body alone: `channels` interleaved as 24-bit PCM. */
+export function pcm24(channels: readonly Float32Array[]): Uint8Array {
+  return samples(channels, 0, frameCount(channels));
+}
+
 /**
  * Encodes `channels` (one equally long array per channel) as a 24-bit PCM WAV,
  * yielded in order: the header, then the samples in chunks of at most
@@ -132,7 +150,7 @@ export function wav24Chunks(
 ): Iterable<Uint8Array> {
   const frames = validate(channels, sampleRate);
   return (function* () {
-    yield header(channels.length, frames, sampleRate);
+    yield wav24Header(channels.length, frames, sampleRate);
     for (let from = 0; from < frames; from += chunkFrames) {
       yield samples(channels, from, Math.min(frames, from + chunkFrames));
     }
