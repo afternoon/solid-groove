@@ -9,6 +9,7 @@ import {
 import { MAX_TAIL_SECONDS, songEndSeconds } from "../../audio/renderLength";
 import { pcm24, WAV_BITS_PER_SAMPLE, wav24ByteLength } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
+import type { TrackId } from "../../domain/ids";
 import { type Clock, systemClock } from "../../shared/clock";
 import {
   buildStemArchive,
@@ -17,7 +18,7 @@ import {
   type StemArchive,
   stemArchiveBytes,
 } from "./stemArchive";
-import { planStems } from "./stemPlan";
+import { planStems, type StemRender } from "./stemPlan";
 
 /**
  * A stem export, end to end (EXP-003): plan, render each stem offline, encode
@@ -32,7 +33,12 @@ import { planStems } from "./stemPlan";
  *
  * An export over {@link MAX_STEM_EXPORT_BYTES} is refused before anything
  * renders, sizing every stem at {@link maxStemFrames}, an upper bound: an
- * export that starts rendering never fails on size afterwards.
+ * export that starts rendering never fails on size afterwards. The Export
+ * dialog shows the same estimate ({@link estimateStemExport}) and blocks Export
+ * over it, so the producer deselects tracks instead of meeting this refusal.
+ *
+ * Stems carry each track's static fader value: the offline renderer does not
+ * play automation until ARR-004 (#62) lands, and then stems include it.
  */
 
 /**
@@ -40,8 +46,10 @@ import { planStems } from "./stemPlan";
  * encoded stems and the archive over them live in the page's memory until the
  * download is handed off, so this bounds the tab's peak, well under both the
  * 4 GiB a plain ZIP can hold and what a browser tab survives. At 48 kHz,
- * 24-bit stereo it is about 124 minutes of audio across every stem together:
- * provisional, as the PRD reference project (50 tracks, ten minutes) is over it.
+ * 24-bit stereo it is about 124 minutes of audio across every stem together.
+ * The PRD reference project (50 tracks, ten minutes) is over it whole; the
+ * product decision on #66 is that the producer then exports a selection of
+ * its tracks, not that the budget grows.
  */
 export const MAX_STEM_EXPORT_BYTES = 2 * 1024 ** 3;
 
@@ -59,6 +67,8 @@ export type StemRenderer = typeof renderProjectOffline;
 export interface StemExportOptions {
   /** The rate every stem renders at, in Hz. */
   readonly sampleRate: number;
+  /** The tracks to export; every track when absent. */
+  readonly trackIds?: readonly TrackId[];
   readonly signal?: AbortSignal;
   /** Monotonic 0..1 progress across the whole export. */
   readonly onProgress?: (fraction: number) => void;
@@ -90,6 +100,47 @@ export class StemExportError extends Error {
   }
 }
 
+/** What a stem export would weigh, before rendering it. */
+export interface StemExportEstimate {
+  /** An upper bound: every stem the song plus the longest tail it may keep. */
+  readonly bytes: number;
+  readonly limitBytes: number;
+  readonly fits: boolean;
+}
+
+type EstimateOptions = Pick<
+  StemExportOptions,
+  "sampleRate" | "trackIds" | "maxTailSeconds" | "maxBytes"
+>;
+
+/** Estimates a stem export's size against its budget without rendering. */
+export function estimateStemExport(
+  project: Project,
+  options: EstimateOptions,
+): StemExportEstimate {
+  return estimatePlan(planFor(project, options.trackIds), options);
+}
+
+function planFor(project: Project, trackIds?: readonly TrackId[]): StemRender[] {
+  return planStems(project, trackIds && new Set(trackIds));
+}
+
+function estimatePlan(
+  plan: readonly StemRender[],
+  options: EstimateOptions,
+  frames = maxStemFrames(
+    songEndSeconds(plan[plan.length - 1].projection),
+    options.sampleRate,
+    options.maxTailSeconds,
+  ),
+): StemExportEstimate {
+  const wav = wav24ByteLength(RENDER_CHANNELS, frames);
+  const paths = plan.map((stem) => stem.path);
+  const bytes = stemArchiveBytes(paths, wav);
+  const limitBytes = Math.min(options.maxBytes ?? MAX_STEM_EXPORT_BYTES, MAX_ZIP_BYTES);
+  return { bytes, limitBytes, fits: bytes <= limitBytes };
+}
+
 /** Progress reached once every stem has rendered; packaging is the rest. */
 const RENDERED = 0.95;
 
@@ -101,11 +152,15 @@ export async function exportStems(
   const clock = options.clock ?? systemClock;
   const render = options.render ?? renderProjectOffline;
   const started = clock.now();
-  const plan = planStems(project);
+  const plan = planFor(project, options.trackIds);
   const mix = plan[plan.length - 1].projection;
   const songSeconds = songEndSeconds(mix);
+  const selected = options.trackIds && new Set(options.trackIds);
+  const leavesTrackOut =
+    !!selected && project.song.tracks.some((track) => !selected.has(track.id));
 
   analytics?.logFeatureFirstUse("export_stems");
+  if (leavesTrackOut) analytics?.logFeatureFirstUse("export_stems_selection");
   analytics?.log("export_started", {
     export_type: "stems",
     duration_bucket: bucketOf("musical_duration", songSeconds),
@@ -120,15 +175,12 @@ export async function exportStems(
   };
 
   try {
-    const paths = plan.map((stem) => stem.path);
-    const maxBytes = Math.min(options.maxBytes ?? MAX_STEM_EXPORT_BYTES, MAX_ZIP_BYTES);
-    const refuseOverBudget = (frames: number) => {
-      const wav = wav24ByteLength(RENDER_CHANNELS, frames);
-      if (stemArchiveBytes(paths, wav) <= maxBytes) return;
+    const refuseOverBudget = (frames?: number) => {
+      if (estimatePlan(plan, options, frames).fits) return;
       throw new StemExportError("quota_exceeded", "The stems are too large");
     };
-    // No stem renders longer than this bound: refuse before a single render.
-    refuseOverBudget(maxStemFrames(songSeconds, sampleRate, options.maxTailSeconds));
+    // The estimate's bound covers every render: refuse before a single one.
+    refuseOverBudget();
 
     const encoded: EncodedStem[] = [];
     for (const [index, stem] of plan.entries()) {

@@ -74,6 +74,24 @@ describe("stem export analytics", () => {
     expect(transport.named("feature_first_use")).toHaveLength(1);
   });
 
+  it("logs export_stems_selection once, and only when a track is left out", async () => {
+    const { analytics, transport } = recordingAnalytics();
+    const project = createStemFixtureProject();
+    const ids = project.song.tracks.map((track) => track.id);
+    for (const trackIds of [ids, ids.slice(1), ids.slice(1)]) {
+      await exportStems(project, {
+        sampleRate: RATE,
+        trackIds,
+        analytics,
+        render: fakeRenderer().render,
+      });
+    }
+    expect(params(transport, "feature_first_use").map((p) => p.feature)).toEqual([
+      "export_stems",
+      "export_stems_selection",
+    ]);
+  });
+
   it("logs one cancelled failure, and no completion, when cancelled", async () => {
     const { analytics, transport } = recordingAnalytics();
     const controller = new AbortController();

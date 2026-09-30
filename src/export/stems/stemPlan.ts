@@ -31,6 +31,11 @@ import {
  * export is a handoff of the material, and a muted part left silent (or
  * missing) would be lost in the receiving DAW rather than merely muted there.
  *
+ * A **track selection** narrows the export (a product-owner decision on #66,
+ * so a project too big to export whole still exports in parts): only the
+ * selected tracks get stems, every return is fed by the selected tracks' sends
+ * alone, and the reference mix is the selected tracks as they play.
+ *
  * Master processing is excluded from stems, but the master's transparent
  * safety limiter stays, as it does in every render (`MASTER_LIMITER_THRESHOLD_DB`,
  * `DEC-004`): it never touches material under -0.5 dBFS.
@@ -71,25 +76,35 @@ export function safeFileName(name: string): string {
 }
 
 /**
- * Plans a stem export: every track in arrangement order, then every return
- * under `Returns/` in its order, then the reference mix. Paths are numbered
- * (`01`, `02`… wide enough to sort) so two tracks with one name never collide.
+ * Plans a stem export: every selected track in arrangement order (every track
+ * when `trackIds` is absent), then every return under `Returns/` in its order,
+ * then the reference mix. Paths are numbered (`01`, `02`… wide enough to sort)
+ * so two tracks with one name never collide; a track keeps its number whether
+ * or not the tracks before it are selected.
  */
-export function planStems(project: Project): StemRender[] {
-  const mix = buildAudioProjection(project);
-  const tracks = byOrder(project.song.tracks);
+export function planStems(
+  project: Project,
+  trackIds?: ReadonlySet<TrackId>,
+): StemRender[] {
+  const all = byOrder(project.song.tracks);
+  const selected = (id: TrackId) => !trackIds || trackIds.has(id);
+  const mix = onlyTracks(buildAudioProjection(project), selected);
   const returns = byOrder(project.song.returns);
   const label = (index: number, count: number, name: string) =>
     `${String(index + 1).padStart(Math.max(2, String(count).length), "0")} ${safeFileName(name)}.wav`;
   return [
-    ...tracks.map(
-      (track, index): StemRender => ({
-        kind: "track",
-        path: label(index, tracks.length, track.name),
-        sourceId: track.id,
-        projection: isolateTrack(mix, track.id),
-        tracksSendOnly: false,
-      }),
+    ...all.flatMap((track, index): StemRender[] =>
+      !selected(track.id)
+        ? []
+        : [
+            {
+              kind: "track",
+              path: label(index, all.length, track.name),
+              sourceId: track.id,
+              projection: isolateTrack(mix, track.id),
+              tracksSendOnly: false,
+            },
+          ],
     ),
     ...returns.map(
       (bus, index): StemRender => ({
@@ -107,6 +122,37 @@ export function planStems(project: Project): StemRender[] {
       tracksSendOnly: false,
     },
   ];
+}
+
+/** The song as it plays with only the `selected` tracks in it: master
+ * processing, returns and mute/solo kept. The same object when all are. A solo
+ * anywhere in the project still silences every selected track not soloed,
+ * even when the soloed track is left out, as it does in playback. */
+function onlyTracks(
+  mix: AudioSongProjection,
+  selected: (id: TrackId) => boolean,
+): AudioSongProjection {
+  if (mix.tracks.every((track) => selected(track.id))) return mix;
+  const anySolo = mix.tracks.some((track) => track.mixer.soloed);
+  const tracks = mix.tracks
+    .filter((track) => selected(track.id))
+    .map((track) =>
+      anySolo && !track.mixer.soloed
+        ? { ...track, mixer: { ...track.mixer, muted: true } }
+        : track,
+    );
+  const clips = mix.clips.filter((clip) => selected(clip.trackId));
+  return {
+    ...mix,
+    tracks,
+    tracksById: new Map(tracks.map((track) => [track.id, track])),
+    clips,
+    clipsById: new Map(clips.map((clip) => [clip.id, clip])),
+    placements: mix.placements.filter((p) => selected(p.trackId)),
+    automation: mix.automation.filter(
+      ({ target }) => !("trackId" in target) || selected(target.trackId),
+    ),
+  };
 }
 
 /** In `order`, ties broken by id so the plan is deterministic. */
