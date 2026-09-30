@@ -1530,6 +1530,10 @@ describe("EditorView keyboard shortcuts", () => {
   it("deletes a selected arrangement placement from the keyboard (ARR-002)", async () => {
     const project = await renderSlice();
     const placementId = project.song.placements[0].id;
+    // This block opens the sequence editor, which owns Delete while it is up
+    // (#643); close it so the key reaches the arrangement.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     // Select the fixture's one placement (tick 0..TICKS_PER_BAR, row 0) by
     // pointer, the same way a user would, then delete it with the KEY-01
@@ -1847,13 +1851,41 @@ describe("EditorView sequence editor", () => {
     // Select the placement, then open it: deleting it leaves the editor with
     // nothing to be open on, and it must go rather than sit on a clip the
     // project no longer places.
+    // Delete it, bring it back, open it, then redo the delete: Delete itself
+    // belongs to the open note editor (#643), so it cannot remove the clip.
     firePointerAtStarterClip(canvas, "pointerdown");
     firePointerAtStarterClip(canvas, "pointerup");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Delete" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "z", ctrlKey: true }));
     await openSequenceEditor();
 
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "Delete" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "y", ctrlKey: true }));
 
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("keeps Backspace for the note editor's steps, never the clip under it (#643)", async () => {
+    await renderSlice();
+    await screen.findByTestId("arrangement-view-ready");
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    firePointerAtStarterClip(canvas, "pointerdown");
+    firePointerAtStarterClip(canvas, "pointerup");
+    const editor = await openSequenceEditor();
+    const on = () => editor.querySelectorAll(".step-cell.active").length;
+    const notes = on();
+    expect(notes).toBeGreaterThan(0);
+
+    // Nothing selected: Backspace does nothing, and the clip stays open.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Backspace" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(on()).toBe(notes);
+
+    // With the steps selected it deletes them, and only them.
+    clickAndFlush(within(editor).getByRole("button", { name: "Select all" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Backspace" }));
+    expect(on()).toBe(0);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   // The editor owns one pad selection for a drum track, and both the

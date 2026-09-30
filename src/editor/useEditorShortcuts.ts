@@ -141,6 +141,18 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     showPianoRoll() ? pianoRollActions() : null;
   /** Whether the roll on screen has notes selected, for the note moves. */
   const rollHasSelection = (): boolean => roll()?.hasSelection() ?? false;
+
+  /**
+   * Which surface Delete acts on (#643). While the sequence editor is open its
+   * note editor owns the key outright: Delete takes its selected notes or
+   * steps, and with none selected does nothing, rather than reaching past it
+   * to the clip or track it was opened on.
+   */
+  const deleteOwner = (): SelectionOwner | null => {
+    if (!sequenceEditorOpen()) return selectionOwner();
+    if (showPianoRoll()) return rollHasSelection() ? "piano_roll" : null;
+    return selectedNoteIds().length > 0 ? "step_editor" : null;
+  };
   /** A note move: enabled while the roll holds a selection (ARR-010). */
   const noteMove = (run: (actions: PianoRollActions) => void) => ({
     run: () => {
@@ -188,13 +200,15 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // only when nothing inside it is selected.
     "edit.delete": {
       run: () => {
-        const owner = selectionOwner();
+        const owner = deleteOwner();
         if (owner === "piano_roll") pianoRollActions()?.deleteSelection();
         else if (owner === "arrangement") arrangementEditingActions()?.deleteSelection();
         else if (owner === "step_editor") deleteSelection();
-        else deleteSelectedTrack()?.();
+        else if (!sequenceEditorOpen()) deleteSelectedTrack()?.();
       },
-      isEnabled: () => selectionOwner() !== null || deleteSelectedTrack() !== undefined,
+      isEnabled: () =>
+        deleteOwner() !== null ||
+        (!sequenceEditorOpen() && deleteSelectedTrack() !== undefined),
     },
     // The three views (UI-001). No `isEnabled`: a view is always reachable,
     // and asking for the one you are on is a no-op inside `selectView`.
