@@ -8,6 +8,7 @@ import {
   attachAssetVoice,
   createAssetVoice,
   dbToLinear,
+  disposeFinishedVoice,
   pitchToPlaybackRate,
   releaseAssetVoice,
 } from "./assetVoice";
@@ -245,8 +246,10 @@ export function createDrumMachineInstrumentNode(
           : Number.POSITIVE_INFINITY,
       );
       player.onstop = () => {
-        player.dispose();
-        envelope.dispose();
+        disposeFinishedVoice(player, () => {
+          player.dispose();
+          envelope.dispose();
+        });
         if (strip.active === voice) strip.active = null;
       };
       player.start(time, 0);

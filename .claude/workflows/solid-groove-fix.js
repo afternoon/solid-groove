@@ -1,7 +1,7 @@
 export const meta = {
   name: 'solid-groove-fix',
   description:
-    'Fix one Solid Groove bug issue: triage it for ambiguity, reproduce it with a failing test, fix the cause, survive an adversarial review, and open the PR',
+    'Fix one Groove bug issue: triage it for ambiguity, reproduce it with a failing test, fix the cause, survive an adversarial review, and open the PR',
   whenToUse:
     'Run to fix ONE bug issue in afternoon/solid-groove. Pass the issue number: { issue: 123 } (or just 123). The pipeline reads the issue and stops if the bug is ambiguous rather than guessing what "correct" means; then a fixer reproduces it with a test that fails first, fixes the root cause, and an adversarial Opus review runs with up to two fix rounds. If the review still requests changes after those rounds it stops, leaves the branch open and comments the findings on the issue. Otherwise it opens the PR. Use solid-groove-feature for a feature task with core flows, not this.',
   phases: [

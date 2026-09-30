@@ -521,3 +521,114 @@ describe("DrumMachinePanel playing pads (#447)", () => {
     expect(watched).toHaveLength(2);
   });
 });
+
+describe("DrumMachinePanel pad rename (#666)", () => {
+  function firstPad(track: Track): DrumPad {
+    if (track.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    return track.instrument.pads[0];
+  }
+
+  function renderWithHistory() {
+    const { track, audition, transport, dispatch } = renderPanel();
+    dispatch.mockReturnValue({ ok: true } as TransactionResult);
+    return { pad: firstPad(track), track, audition, transport, dispatch };
+  }
+
+  async function openEditor(name: string): Promise<HTMLInputElement> {
+    clickAndFlush(screen.getByRole("button", { name: `Rename ${name}` }));
+    await Promise.resolve();
+    return screen.getByRole("textbox", { name: `Name of ${name}` }) as HTMLInputElement;
+  }
+
+  it("swaps the name for a text input on click and commits Enter as drum.renamePad", async () => {
+    const { pad, track, dispatch, audition } = renderWithHistory();
+    const input = await openEditor(pad.name);
+    expect(input).toHaveFocus();
+    input.value = "  Hi-hat ";
+    fireAndFlush(() => fireEvent.change(input));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "drum.renamePad",
+      payload: { trackId: track.id, padId: pad.id, name: "Hi-hat" },
+    });
+    expect(screen.queryByRole("textbox", { name: /^Name of / })).toBeNull();
+    // Renaming never auditions.
+    expect(audition).not.toHaveBeenCalled();
+  });
+
+  it("commits nothing for an empty or unchanged name, and on Escape", async () => {
+    const { pad, dispatch } = renderWithHistory();
+    for (const value of ["   ", pad.name]) {
+      const input = await openEditor(pad.name);
+      input.value = value;
+      fireAndFlush(() => fireEvent.change(input));
+      expect(screen.queryByRole("textbox", { name: /^Name of / })).toBeNull();
+    }
+    const input = await openEditor(pad.name);
+    input.value = "Nope";
+    fireAndFlush(() => fireEvent.keyDown(input, { key: "Escape" }));
+    expect(screen.queryByRole("textbox", { name: /^Name of / })).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("commits a changed name when focus leaves the input", async () => {
+    const { pad, dispatch } = renderWithHistory();
+    const input = await openEditor(pad.name);
+    input.value = "Ride";
+    fireAndFlush(() => {
+      fireEvent.change(input);
+      fireEvent.blur(input);
+    });
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("auditions from its own play button without renaming or selecting twice", () => {
+    const { pad, audition, dispatch } = renderWithHistory();
+    fireEvent.click(screen.getByRole("button", { name: `Audition ${pad.name}` }));
+    expect(audition).toHaveBeenCalledExactlyOnceWith(pad.id);
+    expect(screen.queryByRole("textbox", { name: /^Name of / })).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("logs drum_pad_rename feature_first_use once, never carrying the name", async () => {
+    const { pad, transport } = renderWithHistory();
+    for (const name of ["Ride", "Crash"]) {
+      const input = await openEditor(pad.name);
+      input.value = name;
+      fireAndFlush(() => fireEvent.change(input));
+    }
+    const events = transport.events.filter(
+      (event) =>
+        event.name === "feature_first_use" && event.params.feature === "drum_pad_rename",
+    );
+    expect(events).toHaveLength(1);
+    expect(JSON.stringify(transport.events)).not.toMatch(/Ride|Crash/);
+  });
+
+  it("changes nothing but the event when analytics is disabled", async () => {
+    const project = createDrumMachineFixtureProject();
+    const track = drumTrackOf(project);
+    const pad = firstPad(track);
+    const transport = createRecordingTransport();
+    const consent = new ConsentStore(memoryStorage());
+    consent.optOut();
+    const analytics = new Analytics({ transport, consent, storage: memoryStorage() });
+    analytics.setAccountType("anonymous");
+    const dispatch = vi.fn().mockReturnValue({ ok: true });
+    render(() => (
+      <DrumMachinePanel
+        track={track}
+        assets={[]}
+        dispatch={dispatch}
+        beginGesture={() => undefined}
+        analytics={analytics}
+      />
+    ));
+    const input = await openEditor(pad.name);
+    input.value = "Ride";
+    fireAndFlush(() => fireEvent.change(input));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(transport.events.filter((e) => e.name === "feature_first_use")).toHaveLength(
+      0,
+    );
+  });
+});

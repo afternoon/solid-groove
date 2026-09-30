@@ -93,6 +93,15 @@ describe("MasterPanel", () => {
     expect(history.entries.length).toBe(entries + 1);
   });
 
+  it("does not reorder the master when a device's well is dragged", async () => {
+    const { add, items, names } = renderPanel();
+    add("Filter");
+    add("Overdrive");
+    const [filter, overdrive] = items();
+    await dragCard(overdrive.querySelector(".drag-surface") as Element, filter);
+    expect(names()).toEqual(["Filter", "Overdrive"]);
+  });
+
   it("writes a master device's parameter through masterDevice, one entry per drag", () => {
     const { history, add, items, master } = renderPanel();
     add("Overdrive");
