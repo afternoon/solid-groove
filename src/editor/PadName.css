@@ -1,0 +1,46 @@
+.pad-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pad-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  margin-left: -6px;
+  background: none;
+  color: var(--color-text);
+  border: none;
+  cursor: text;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pad-rename:hover {
+  background-color: var(--color-background-tertiary);
+}
+
+.pad-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 0;
+  background-color: var(--color-background);
+  border-radius: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-foreground-bright);
+  outline: 1px solid var(--color-accent);
+}
+
+.pad-name-cell .pad-audition {
+  flex: none;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: 0;
+}

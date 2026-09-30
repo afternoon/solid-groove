@@ -1,9 +1,11 @@
 # Design principles
 
-How Solid Groove looks, and why. These principles hold on every surface: the
+How Groove looks, and why. These principles hold on every surface: the
 arrangement, the instrument view, the mixer, the library and the dialogs.
 [`faceplate-system.html`](./faceplate-system.html) is the reference design
-they came from, and it plays. [`src/theme.css`](../src/theme.css) is the only
+they came from, and it plays. The library follows
+[`library-browser.html`](./library-browser.html) (#449), which plays too.
+[`src/theme.css`](../src/theme.css) is the only
 place a colour is written down. Where a rule below is enforced by a test, the
 test is named.
 
@@ -83,7 +85,7 @@ component, and a surface only sizes it; it never restyles it.
 | Header row | `InstrumentHeader` |
 | Track header: swatch and colour picker, bold name, M and S, volume, level | `TrackHeader` |
 | M and S | `MuteSoloToggles` |
-| Sample slot: a filled button naming the sound, with a caret | `SampleSlot` |
+| Sample slot: a filled button with the library's sound icon, naming the sound, with a caret. The one way to choose a sound: the sampler's sample, every drum pad's, and a loop track's loop | `SampleSlot` |
 | Level meter | `LevelMeter` |
 | Dropdown | the one `select` rule in `app.css` |
 | Ghost button: a hairline border | `NewTrackButtons` |

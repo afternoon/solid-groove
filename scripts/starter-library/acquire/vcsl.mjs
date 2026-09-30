@@ -267,15 +267,19 @@ export function selectInstruments(wavPaths) {
   for (const path of wavPaths) {
     const parts = path.split("/");
     if (parts.length < 3) continue;
-    const key = parts.slice(0, 3).join("/");
+    // A "<name> - Legacy" folder is an older recording of the same
+    // instrument, so it joins that instrument's group rather than forming its own.
+    const key = parts
+      .slice(0, 3)
+      .join("/")
+      .replace(/ - Legacy$/, "");
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(path);
   }
 
   const selected = [];
   for (const [key, takes] of groups) {
-    const [family, , instrumentRaw] = key.split("/");
-    const instrument = instrumentRaw.replace(/ - Legacy$/, "");
+    const [family, , instrument] = key.split("/");
     const mapped = mapVcslInstrument(family, instrument);
     if (!mapped) continue;
     // Prefer non-legacy takes; fall back to whatever exists.
@@ -387,7 +391,7 @@ export async function ingestInstrument(selection, { repoDir, commit, index }) {
         ],
         // The rights review is the repository-wide CC0 dedication, confirmed
         // against github.com/sgossner/VCSL, not a per-file human pass.
-        reviewState: "bulk-cc0",
+        reviewState: "metadata-review",
         reviewer: "vcsl-cc0-bulk",
         reviewedAt: null,
       },

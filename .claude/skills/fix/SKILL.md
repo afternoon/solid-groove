@@ -1,6 +1,6 @@
 ---
 name: fix
-description: Fix one Solid Groove bug issue end to end — triage it for ambiguity, run the fix workflow (reproduce with a failing test, fix, adversarial review), then verify the resulting PR before handing it back. Use when asked to fix a specific bug issue, e.g. "/fix #123", "fix issue 123", or "fix the bug in #123".
+description: Fix one Groove bug issue end to end — triage it for ambiguity, run the fix workflow (reproduce with a failing test, fix, adversarial review), then verify the resulting PR before handing it back. Use when asked to fix a specific bug issue, e.g. "/fix #123", "fix issue 123", or "fix the bug in #123".
 ---
 
 # Fix a bug

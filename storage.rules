@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Cloud Storage rules for Solid Groove.
+// Cloud Storage rules for Groove.
 //
 // Deny by default: a path that is not named below is unreachable from any
 // client. Adding a path is a deliberate act, not a side effect of uploading

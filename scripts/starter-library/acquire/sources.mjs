@@ -7,22 +7,41 @@
 // this tag" mode would defeat the point of the section 3 policy, so the fetcher
 // has no such capability.
 //
-// Adding a source is a rights decision, not a coding one. Section 3.2 accepts
-// exactly four routes, and only two of them apply to downloadable content:
-// CC0 1.0 from a credible rights holder with recorded provenance, or a written
-// OEM grant. Everything else — CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL audio,
-// custom attribution terms — is rejected by `APPROVED_LICENSES` below, however
-// permissive it looks.
+// Adding a source is a rights decision, not a coding one. Section 3.2 lists the
+// accepted routes; three apply to downloadable content: CC0 1.0 from a credible
+// rights holder with recorded provenance, a royalty-free licence whose text
+// explicitly permits redistributing the raw samples, or a written OEM grant.
+// Everything else — CC-BY, CC-BY-SA, CC-BY-NC, CC-ND, GPL audio, custom
+// attribution terms, and ordinary "use in your music only" royalty-free terms —
+// is rejected by `APPROVED_LICENSES` below, however permissive it looks.
+
+import { alphaOnlyContentAllowed } from "../../../release.config.mjs";
+
+/**
+ * The rights position of content admitted only for the free, invite-only
+ * alpha: a rights grant that is informal or unconfirmed (docs/sample-library.md
+ * section 3.2). It is approved only while `release.config.mjs` says the
+ * product is a not-for-profit private alpha.
+ */
+export const PRIVATE_ALPHA_LICENSE = "private-alpha";
 
 /**
  * Licence identifiers that may be bundled.
  *
- * `CC0-1.0` is the only third-party licence on the list. `solid-groove-owned`
- * covers the synthesized library. Commissioned and OEM content will add their
- * own identifiers alongside an agreement ID when section 3.2's third and fourth
- * routes are first used.
+ * `CC0-1.0` and `royalty-free-redistributable` are the third-party licences on
+ * the list. The second is a royalty-free licence whose own text grants
+ * redistribution of the raw samples with no attribution requirement; the exact
+ * grant is quoted in each pack's licence evidence, because the identifier alone
+ * proves nothing. `solid-groove-owned` covers the synthesized library.
+ * Commissioned and OEM content will add their own identifiers alongside an
+ * agreement ID when those routes are first used.
  */
-export const APPROVED_LICENSES = ["CC0-1.0", "solid-groove-owned"];
+export const APPROVED_LICENSES = [
+  "CC0-1.0",
+  "royalty-free-redistributable",
+  "solid-groove-owned",
+  ...(alphaOnlyContentAllowed() ? [PRIVATE_ALPHA_LICENSE] : []),
+];
 
 /**
  * Licences that are *specifically* rejected, so a validation failure explains
@@ -31,15 +50,15 @@ export const APPROVED_LICENSES = ["CC0-1.0", "solid-groove-owned"];
  */
 export const REJECTED_LICENSES = {
   "CC-BY-4.0":
-    "requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
+    "requires user-facing attribution Groove cannot carry through stem and Ableton export",
   "CC-BY-3.0":
-    "requires user-facing attribution Solid Groove cannot carry through stem and Ableton export",
+    "requires user-facing attribution Groove cannot carry through stem and Ableton export",
   "CC-BY-SA-4.0": "share-alike would attach to user projects",
   "CC-BY-NC-4.0": "non-commercial conflicts with a paid product",
   "CC-BY-ND-4.0": "no-derivatives conflicts with sampler use and processing",
   "GPL-3.0": "copyleft audio would attach to user projects",
   "royalty-free":
-    "standard royalty-free terms permit use in a composition but prohibit redistributing raw files (section 3.1)",
+    "standard royalty-free terms permit use in a composition but prohibit redistributing raw files (section 3.1); use royalty-free-redistributable only when the licence text explicitly grants redistribution",
 };
 
 /**
@@ -185,6 +204,51 @@ export const SOURCES = [
     maxSelections: 50,
   },
   {
+    id: "karoryfer",
+    name: "Karoryfer Samples",
+    tier: "tier-1",
+    homepage: "https://github.com/sfzinstruments",
+    licenseId: "CC0-1.0",
+    licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+    rightsNote:
+      "Karoryfer releases some instruments under CC0; the repository's own LICENSE is the evidence, per instrument.",
+    reviewNote:
+      "Confirm the instrument repository's LICENSE is CC0 1.0 before ingesting it.",
+    take: ["synth and organ multisamples"],
+    avoid: ["any instrument whose repository is not CC0"],
+    maxSelections: 20,
+  },
+  {
+    id: "open-drums",
+    name: "fluid-music open-drums",
+    tier: "tier-2",
+    homepage: "https://github.com/fluid-music/open-drums",
+    licenseId: PRIVATE_ALPHA_LICENSE,
+    licenseUrl: "https://github.com/fluid-music/open-drums",
+    rightsNote:
+      "Re-hosts the classic machines.hyperreal.org sets (Rob Roy TR-909, Fischer TR-808) with the recordists' original notes, which are informal permissions, not redistribution grants. Private alpha only (DEC-010).",
+    reviewNote:
+      "Quote the recordist's own text in the evidence; never treat the host as the rights holder.",
+    take: ["drum-machine one-shots recorded by the set's author"],
+    avoid: ["anything without the recordist's original note"],
+    maxSelections: 40,
+  },
+  {
+    id: "smpldsnds",
+    name: "smpldsnds drum-machines",
+    tier: "tier-2",
+    homepage: "https://github.com/smpldsnds/drum-machines",
+    licenseId: PRIVATE_ALPHA_LICENSE,
+    licenseUrl: "https://github.com/smpldsnds/drum-machines",
+    rightsNote:
+      "The host's README calls the collection public domain but names no recordists, so the claim is unconfirmed. Private alpha only (DEC-010).",
+    reviewNote:
+      "Lossy Ogg Opus only; prefer a lossless copy of the same recordings where one exists.",
+    take: ["drum-machine one-shots"],
+    avoid: ["kits already available losslessly elsewhere"],
+    maxSelections: 150,
+  },
+  {
     id: "kenney",
     name: "Kenney",
     tier: "tier-2",
@@ -204,8 +268,16 @@ export function findSource(id) {
   return SOURCES.find((source) => source.id === id) ?? null;
 }
 
-/** Why a licence is not bundleable, or null if it is approved. */
-export function licenseRejectionReason(licenseId) {
+/**
+ * Why a licence is not bundleable, or null if it is approved. `release`
+ * overrides `release.config.mjs`, so tests can prove the alpha gate closes.
+ */
+export function licenseRejectionReason(licenseId, release) {
+  if (licenseId === PRIVATE_ALPHA_LICENSE) {
+    return alphaOnlyContentAllowed(release)
+      ? null
+      : "private-alpha content may only ship while release.config.mjs says the product is a not-for-profit private alpha; replace or remove it first (CNT-003)";
+  }
   if (APPROVED_LICENSES.includes(licenseId)) return null;
   return (
     REJECTED_LICENSES[licenseId] ??

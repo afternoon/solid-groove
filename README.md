@@ -1,4 +1,4 @@
-# Solid Groove
+# Groove
 
 So many people want to make music, but learning music production is hard. Let’s make it easier.
 

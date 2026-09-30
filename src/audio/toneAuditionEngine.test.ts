@@ -45,6 +45,7 @@ function loopAsset(overrides: Partial<LibraryAsset> = {}): LibraryAsset {
     channelCount: 1,
     bpm: 120,
     bars: 1,
+    peaks: null,
     licence: "solid-groove-owned",
     ...overrides,
   };
