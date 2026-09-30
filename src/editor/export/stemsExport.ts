@@ -1,6 +1,12 @@
 import { type Analytics, analytics as defaultAnalytics } from "../../analytics/analytics";
 import type { Project } from "../../domain/entities";
-import { exportStems, type StemExportOptions } from "../../export/stems/exportStems";
+import type { TrackId } from "../../domain/ids";
+import {
+  estimateStemExport,
+  exportStems,
+  type StemExportEstimate,
+  type StemExportOptions,
+} from "../../export/stems/exportStems";
 import { type Clock, systemClock } from "../../shared/clock";
 import { localDateStamp, safeFileStem } from "./exportFileName";
 import { projectSampleRate } from "./stereoExport";
@@ -18,6 +24,8 @@ export interface StemsExportFile {
 }
 
 export interface StemsExportRequest {
+  /** The tracks to export; every track when absent. */
+  readonly trackIds?: readonly TrackId[];
   readonly signal?: AbortSignal;
   readonly onProgress?: (fraction: number) => void;
   readonly analytics?: Analytics;
@@ -34,12 +42,24 @@ export function stemsFileName(projectName: string, date: Date): string {
   return `${safeFileStem(projectName)} ${localDateStamp(date)} stems.zip`;
 }
 
+/** What the export of `trackIds` would weigh, before rendering: an upper bound. */
+export function estimateStemsFile(
+  project: Project,
+  trackIds?: readonly TrackId[],
+): StemExportEstimate {
+  return estimateStemExport(project, {
+    sampleRate: projectSampleRate(project),
+    trackIds,
+  });
+}
+
 export async function exportStemsFile(
   project: Project,
   request: StemsExportRequest,
 ): Promise<StemsExportFile> {
   const clock = request.clock ?? systemClock;
   const archive = await (request.exportStems ?? exportStems)(project, {
+    trackIds: request.trackIds,
     sampleRate: projectSampleRate(project),
     signal: request.signal,
     onProgress: request.onProgress,

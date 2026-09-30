@@ -8,6 +8,8 @@ import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
 import { type ShortcutContext, useShortcuts } from "../../shortcuts";
 import { downloadFile } from "./downloadFile";
+import StemTrackPicker, { STEMS_BLOCKER_ID } from "./StemTrackPicker";
+import { createStemSelection } from "./stemSelection";
 import { exportStemsFile } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
 import "./ExportDialog.css";
@@ -36,7 +38,7 @@ const DIALOG_CONTEXTS: readonly ShortcutContext[] = ["dialog"];
 /** What a failed export tells the producer to do about it. */
 export function failureMessage(code: ErrorCode, format: Format = "stereo"): string {
   if (code === "quota_exceeded" && format === "stems") {
-    return "These stems are too large to export as one ZIP: over the 2 GiB export limit.";
+    return "These stems came out over the 2 GiB export limit. Deselect a track and try again.";
   }
   switch (code) {
     case "decode_failed":
@@ -55,8 +57,11 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
  * The Export dialog (EXP-002, CF-021): choose a format, render, download.
  *
  * Stereo WAV renders the song as one file; Stems (ZIP) renders one aligned
- * 24-bit WAV per track and return plus a reference mix (EXP-003). While a
- * render runs the dialog shows its progress beside a Cancel button, and closing the dialog cancels it too, so a
+ * 24-bit WAV per track and return plus a reference mix (EXP-003), for the
+ * tracks the producer selects: all of them unless some are unchecked. Export
+ * is blocked, with the reason, while that selection is over the size budget.
+ * While a render runs the dialog shows its
+ * progress beside a Cancel button, and closing the dialog cancels it too, so a
  * render never outlives the surface that started it. The file is downloaded
  * only once the whole render has succeeded: a cancelled or failed export never
  * reaches the browser's downloads.
@@ -64,6 +69,8 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
 export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [phase, setPhase] = createSignal<Phase>({ kind: "choose" });
   const [format, setFormat] = createSignal<Format>("stereo");
+  const selection = createStemSelection(props.project);
+  const blocked = () => format() === "stems" && selection.blocker() !== null;
   let controller: AbortController | undefined;
 
   const cancel = () => controller?.abort();
@@ -92,7 +99,10 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     try {
       const file =
         format() === "stems"
-          ? await (props.exportStems ?? exportStemsFile)(props.project(), options)
+          ? await (props.exportStems ?? exportStemsFile)(props.project(), {
+              ...options,
+              trackIds: selection.trackIds(),
+            })
           : await (props.exportWav ?? exportStereoWav)(props.project(), options);
       if (current.signal.aborted) return;
       (props.download ?? downloadFile)(file.blob, file.fileName);
@@ -143,6 +153,12 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
             <span>Stems (ZIP)</span>
           </label>
         </fieldset>
+        <Show when={format() === "stems"}>
+          <StemTrackPicker
+            selection={selection}
+            disabled={phase().kind === "rendering"}
+          />
+        </Show>
         <p class="export-note">
           <Show
             when={format() === "stems"}
@@ -190,7 +206,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
           <button
             type="button"
             class="export-start"
-            disabled={phase().kind === "rendering"}
+            disabled={phase().kind === "rendering" || blocked()}
+            aria-describedby={blocked() ? STEMS_BLOCKER_ID : undefined}
             onClick={() => void start()}
           >
             Export
