@@ -48,8 +48,8 @@ export interface StepPointerHost {
 }
 
 interface Press {
-  readonly lane: StepLane;
-  readonly step: number;
+  /** The cell pressed, or null for the empty ground under the last row. */
+  readonly cell: { readonly lane: StepLane; readonly step: number } | null;
   readonly x: number;
   readonly y: number;
   readonly add: boolean;
@@ -62,7 +62,8 @@ interface Press {
  * under 4 px is a click, which toggles the step; one that moves further is a
  * lasso, which selects every note it touches. Shift or Cmd/Ctrl adds to the
  * selection, through the roll's own pointer modifiers. A lasso only selects,
- * so it never touches the project or the history.
+ * so it never touches the project or the history. A press on the empty ground
+ * under the last row starts a lasso too; clicked, it clears the selection.
  *
  * The press is a plain variable, not a signal, so a pointerup sees what its
  * pointerdown just set.
@@ -83,12 +84,13 @@ export function useStepPointer(host: StepPointerHost) {
     );
   }
 
-  function down(event: PointerEvent, lane: StepLane, step: number): void {
+  function down(event: PointerEvent, lane?: StepLane, step?: number): void {
     if ((event.button ?? 0) > 0) return;
     // Keeps a drag from starting a text selection (CLP-02).
     event.preventDefault();
     const { x, y } = point(event);
-    press = { lane, step, x, y, add: adds(event), base: host.selected(), started: false };
+    const cell = lane && step !== undefined ? { lane, step } : null;
+    press = { cell, x, y, add: adds(event), base: host.selected(), started: false };
   }
 
   function move(event: PointerEvent): void {
@@ -110,7 +112,9 @@ export function useStepPointer(host: StepPointerHost) {
     const current = press;
     press = null;
     setLasso(null);
-    if (current && !current.started) host.click(current.lane, current.step, current.add);
+    if (!current || current.started) return;
+    if (current.cell) host.click(current.cell.lane, current.cell.step, current.add);
+    else if (!current.add) host.setSelected([]);
   }
 
   function cancel(): void {
