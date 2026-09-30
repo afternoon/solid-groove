@@ -352,7 +352,7 @@ export async function buildExportSong(
   await expect(railSelect(page, "Piano")).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Sample", exact: true }).click();
   await expect(library(page)).toBeVisible();
-  await library(page).getByRole("button", { name: "Browse packs" }).click();
+  await library(page).getByRole("button", { name: "Browse packs", exact: true }).click();
   await expect(packs(page)).toBeVisible();
   await packs(page)
     .getByRole("navigation", { name: "Packs" })

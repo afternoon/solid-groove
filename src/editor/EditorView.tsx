@@ -42,7 +42,7 @@ import {
   editorViewSpec,
   type ViewChangeSource,
 } from "./editorViews";
-import LibraryModal from "./LibraryModal";
+import LibraryModal, { type LibraryActions } from "./LibraryModal";
 import {
   type LoopActionContext,
   moveLoopByBars,
@@ -223,6 +223,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setLibraryOpen(true);
   }
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
+  // Registered by the open library modal; the `library` shortcuts run them.
+  const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
 
   // The packs this editing session has added on top of the project's own
   // derived dependencies; see `model.addedPackIds` for why they live for the
@@ -390,6 +392,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     // nothing to do underneath the library while you pick a sound.
     libraryOpen,
     closeLibrary: () => setLibraryOpen(false),
+    libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
     // `1`/`2`/`3` reach the same `selectView` the dock does, so the two
@@ -716,8 +719,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   heading={libraryLoops() ? "Loops" : "Library"}
                   slot={librarySlot().slot}
                   trackColor={track()?.color}
+                  keyLabel={keyHint}
                   onShowKeys={() => setGuideOpen(true)}
                   current={librarySlot().current}
+                  onActions={(actions) => setLibraryActions(() => actions)}
                   onClose={() => setLibraryOpen(false)}
                 />
               </Show>

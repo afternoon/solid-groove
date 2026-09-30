@@ -1501,7 +1501,8 @@ describe("EditorView keyboard shortcuts", () => {
     // keyboard the same way (PRD KEY-02). It opens from the library, which
     // since UI-001 is itself a modal opened from a slot.
     await openLibrary();
-    fireEvent.click(await screen.findByRole("button", { name: /Browse packs/ }));
+    const browser = await screen.findByRole("region", { name: "Library" });
+    fireEvent.click(await within(browser).findByRole("button", { name: /Browse packs/ }));
     await screen.findByRole("dialog", { name: /packs/i });
 
     fireEvent.keyDown(window, { key: " " });
