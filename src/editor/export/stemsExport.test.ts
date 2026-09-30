@@ -15,7 +15,7 @@ describe("stemsFileName", () => {
 });
 
 describe("exportStemsFile", () => {
-  it("exports at the project's rate and chosen depth, and names the ZIP", async () => {
+  it("exports at the project's rate and names the ZIP", async () => {
     const project = createSliceFixtureProject();
     const clock = createManualClock(new Date(2026, 0, 2, 12).getTime());
     const analytics = new Analytics();
@@ -26,7 +26,6 @@ describe("exportStemsFile", () => {
     });
     const signal = new AbortController().signal;
     const file = await exportStemsFile(project, {
-      bitDepth: 16,
       signal,
       analytics,
       clock,
@@ -34,7 +33,6 @@ describe("exportStemsFile", () => {
     });
     expect(calls).toEqual([
       expect.objectContaining({
-        bitDepth: 16,
         sampleRate: projectSampleRate(project),
         signal,
         analytics,

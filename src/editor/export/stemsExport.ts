@@ -1,14 +1,13 @@
 import { type Analytics, analytics as defaultAnalytics } from "../../analytics/analytics";
 import type { Project } from "../../domain/entities";
 import { exportStems, type StemExportOptions } from "../../export/stems/exportStems";
-import type { WavBitDepth } from "../../export/wav";
 import { type Clock, systemClock } from "../../shared/clock";
 import { localDateStamp, safeFileStem } from "./exportFileName";
 import { projectSampleRate } from "./stereoExport";
 
 /**
  * The Export dialog's stems action (EXP-003, CF-022): every stem at the
- * project's own sample rate, at the chosen bit depth, as one ZIP named
+ * project's own sample rate, at 24-bit, as one ZIP named
  * `<project name> <YYYY-MM-DD> stems.zip`.
  */
 
@@ -19,7 +18,6 @@ export interface StemsExportFile {
 }
 
 export interface StemsExportRequest {
-  readonly bitDepth: WavBitDepth;
   readonly signal?: AbortSignal;
   readonly onProgress?: (fraction: number) => void;
   readonly analytics?: Analytics;
@@ -42,7 +40,6 @@ export async function exportStemsFile(
 ): Promise<StemsExportFile> {
   const clock = request.clock ?? systemClock;
   const archive = await (request.exportStems ?? exportStems)(project, {
-    bitDepth: request.bitDepth,
     sampleRate: projectSampleRate(project),
     signal: request.signal,
     onProgress: request.onProgress,

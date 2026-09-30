@@ -6,7 +6,6 @@ import { OfflineRenderError } from "../../audio/offlineRenderer";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
-import type { WavBitDepth } from "../../export/wav";
 import { type ShortcutContext, useShortcuts } from "../../shortcuts";
 import { downloadFile } from "./downloadFile";
 import { exportStemsFile } from "./stemsExport";
@@ -56,9 +55,8 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
  * The Export dialog (EXP-002, CF-021): choose a format, render, download.
  *
  * Stereo WAV renders the song as one file; Stems (ZIP) renders one aligned
- * WAV per track and return plus a reference mix (EXP-003), at a bit depth
- * chosen once Stems is, 24-bit unless changed. While a render runs the dialog shows its
- * progress beside a Cancel button, and closing the dialog cancels it too, so a
+ * 24-bit WAV per track and return plus a reference mix (EXP-003). While a
+ * render runs the dialog shows its progress beside a Cancel button, and closing the dialog cancels it too, so a
  * render never outlives the surface that started it. The file is downloaded
  * only once the whole render has succeeded: a cancelled or failed export never
  * reaches the browser's downloads.
@@ -66,7 +64,6 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
 export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [phase, setPhase] = createSignal<Phase>({ kind: "choose" });
   const [format, setFormat] = createSignal<Format>("stereo");
-  const [bitDepth, setBitDepth] = createSignal<WavBitDepth>(24);
   let controller: AbortController | undefined;
 
   const cancel = () => controller?.abort();
@@ -95,10 +92,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     try {
       const file =
         format() === "stems"
-          ? await (props.exportStems ?? exportStemsFile)(props.project(), {
-              ...options,
-              bitDepth: bitDepth(),
-            })
+          ? await (props.exportStems ?? exportStemsFile)(props.project(), options)
           : await (props.exportWav ?? exportStereoWav)(props.project(), options);
       if (current.signal.aborted) return;
       (props.download ?? downloadFile)(file.blob, file.fileName);
@@ -149,23 +143,6 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
             <span>Stems (ZIP)</span>
           </label>
         </fieldset>
-        <Show when={format() === "stems"}>
-          <fieldset class="export-formats" disabled={phase().kind === "rendering"}>
-            <legend class="visually-hidden">Bit depth</legend>
-            {([16, 24] as const).map((depth) => (
-              <label class="export-format">
-                <input
-                  type="radio"
-                  name="export-bit-depth"
-                  value={depth}
-                  checked={bitDepth() === depth}
-                  onChange={() => setBitDepth(depth)}
-                />
-                <span>{depth}-bit</span>
-              </label>
-            ))}
-          </fieldset>
-        </Show>
         <p class="export-note">
           <Show
             when={format() === "stems"}
@@ -176,8 +153,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
               </>
             }
           >
-            One WAV per track and return, plus a reference mix, all from bar 1 and all the
-            same length, at the project's own level and without master effects.
+            One 24-bit WAV per track and return, plus a reference mix, all from bar 1 and
+            all the same length, at the project's own level and without master effects.
           </Show>
         </p>
         <Switch>

@@ -61,24 +61,21 @@ const radio = (name: string) => screen.getByRole("radio", { name });
 const choose = (name: string) => clickAndFlush(radio(name));
 
 describe("ExportDialog: Stems (ZIP)", () => {
-  it("offers a bit depth only once Stems is chosen, with 24-bit chosen", () => {
+  it("offers Stems (ZIP) at 24-bit, with no bit-depth choice", () => {
     renderDialog(pendingStems().exportStems);
-    expect(screen.queryByRole("radio", { name: "24-bit" })).toBeNull();
     choose("Stems (ZIP)");
     expect(radio("Stems (ZIP)")).toBeChecked();
     expect(radio("Stereo WAV")).not.toBeChecked();
-    expect(radio("24-bit")).toBeChecked();
-    expect(radio("16-bit")).not.toBeChecked();
-    choose("Stereo WAV");
-    expect(screen.queryByRole("radio", { name: "16-bit" })).toBeNull();
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
+    expect(screen.getByText(/One 24-bit WAV per track/)).toBeInTheDocument();
   });
 
-  it("renders stems at 24-bit, downloads one ZIP and says it is done", async () => {
+  it("renders stems, downloads one ZIP and says it is done", async () => {
     const pending = pendingStems();
     const { download, exportWav } = renderDialog(pending.exportStems);
     choose("Stems (ZIP)");
     clickAndFlush(screen.getByRole("button", { name: "Export" }));
-    expect(pending.requests.map((r) => r.bitDepth)).toEqual([24]);
+    expect(pending.requests).toHaveLength(1);
     pending.requests[0].onProgress?.(0.3);
     flush();
     expect(screen.getByRole("progressbar")).toHaveAttribute("value", "0.3");
@@ -89,15 +86,6 @@ describe("ExportDialog: Stems (ZIP)", () => {
     expect(download).toHaveBeenCalledTimes(1);
     expect(download).toHaveBeenCalledWith(FILE.blob, FILE.fileName);
     expect(screen.getByRole("status")).toHaveTextContent(/complete.*stems/i);
-  });
-
-  it("renders at 16-bit when chosen", () => {
-    const pending = pendingStems();
-    renderDialog(pending.exportStems);
-    choose("Stems (ZIP)");
-    choose("16-bit");
-    clickAndFlush(screen.getByRole("button", { name: "Export" }));
-    expect(pending.requests.map((r) => r.bitDepth)).toEqual([16]);
   });
 
   it("cancels, downloads nothing, and returns to the choice", async () => {
