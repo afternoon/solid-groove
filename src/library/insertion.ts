@@ -1,8 +1,11 @@
 import { z } from "zod";
 import {
   addAsset,
+  addClip,
   addTrack,
   type RawCommandInput,
+  removeClip,
+  renamePad,
   setPadAsset,
   setSample,
 } from "../commands";
@@ -16,6 +19,7 @@ import {
   createTrack,
 } from "../domain/factories";
 import { type AssetId, type PadId, packIdSchema, type TrackId } from "../domain/ids";
+import { isAutoPadName } from "../domain/padNames";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { assetStorageRef, type LibraryAsset } from "./manifest";
@@ -182,9 +186,25 @@ export function loadPadSampleCommands(
   sample: LibrarySample,
   context: DomainFactoryContext,
 ): readonly RawCommandInput[] {
-  return carryThen(project, sample, context, (assetId) =>
+  const commands = carryThen(project, sample, context, (assetId) =>
     setPadAsset(trackId, padId, assetId),
   );
+  // A pad still called "Pad N" takes the sound's name in the same transaction,
+  // so one undo reverts both. A name a person typed is never overwritten.
+  const pad = drumPadOf(project, trackId, padId);
+  const name = sample.name.trim();
+  return pad && isAutoPadName(pad.name) && name !== ""
+    ? [...commands, renamePad(trackId, padId, name)]
+    : commands;
+}
+
+function drumPadOf(project: Project, trackId: TrackId, padId: PadId) {
+  const instrument = project.song.tracks.find(
+    (track) => track.id === trackId,
+  )?.instrument;
+  return instrument?.kind === "drumMachine"
+    ? instrument.pads.find((pad) => pad.id === padId)
+    : undefined;
 }
 
 /** The asset the project carries for a sound, adding it first when it does not. */
@@ -292,6 +312,73 @@ export function insertLoopCommands(
   // clip and the asset go together, leaving nothing orphaned.
   const create = addTrack(track, { clips: [clip], placements: [placement] });
   return existing ? [create] : [addAsset(asset), create];
+}
+
+/**
+ * The commands that change the loop an existing loop track plays, as one
+ * transaction: carry the asset if the project does not already, then swap the
+ * track's loop clip for one on the new loop.
+ *
+ * `clip.update` cannot change what a clip plays, so the swap is a new clip and
+ * the old one deleted — together, so it is one revision and one undo. The new
+ * clip takes over every placement the old one had, at the same start and
+ * duration, so the arrangement keeps its shape whatever the new loop's length.
+ * A loop track with no loop gets one at bar 1, as a fresh insertion would. The
+ * track keeps its name, which the producer may have chosen.
+ */
+export function replaceLoopCommands(
+  project: Project,
+  trackId: TrackId,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+  options: { readonly songTempo: number },
+): readonly RawCommandInput[] {
+  const track = project.song.tracks.find((candidate) => candidate.id === trackId);
+  if (!track || track.type !== "audio" || sample.kind !== "loop") return [];
+
+  const existing = carriedAsset(project, sample);
+  const asset = existing ?? createLibraryAsset(context, sample);
+  const old =
+    project.clips.find(
+      (clip) => clip.trackId === trackId && clip.content.kind === "audioLoop",
+    ) ?? null;
+  const lengthTicks = loopClipLengthTicks(sample);
+  const clip = createAudioLoopClip(context, {
+    trackId,
+    name: sample.name,
+    color: old?.color,
+    assetId: asset.id,
+    sourceTempo: sample.bpm ?? options.songTempo,
+    lengthTicks,
+  });
+  const oldPlacements = old
+    ? project.song.placements.filter((placement) => placement.clipId === old.id)
+    : [];
+  const placements =
+    oldPlacements.length > 0
+      ? oldPlacements.map((placement) =>
+          createPlacement(context, {
+            clipId: clip.id,
+            trackId,
+            startTicks: placement.startTicks,
+            durationTicks: placement.durationTicks,
+            looped: placement.looped,
+          }),
+        )
+      : [
+          createPlacement(context, {
+            clipId: clip.id,
+            trackId,
+            startTicks: 0,
+            durationTicks: lengthTicks,
+          }),
+        ];
+
+  return [
+    ...(existing ? [] : [addAsset(asset)]),
+    addClip(clip, placements),
+    ...(old ? [removeClip(old.id)] : []),
+  ];
 }
 
 /** `Hat`, then `Hat 2`, `Hat 3`, ... — the rule `createNewTrack` uses. */

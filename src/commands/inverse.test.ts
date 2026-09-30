@@ -42,6 +42,7 @@ import {
   removePad,
   removePlacement,
   removeTrack,
+  renamePad,
   renameProject,
   reorderDevice,
   reorderPad,
@@ -289,6 +290,10 @@ const cases: InverseCase[] = [
     // (also in the project) so the change is real and never dangles.
     build: (fixture) =>
       setPadAsset(fixture.trackBId, fixture.padIds[0], fixture.assetIds.sampler),
+  },
+  {
+    type: "drum.renamePad",
+    build: (fixture) => renamePad(fixture.trackBId, fixture.padIds[0], "Kick"),
   },
   {
     type: "drum.setPadFlag",

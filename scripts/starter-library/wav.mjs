@@ -79,6 +79,38 @@ export function encodeWav(samples, sampleRate = SAMPLE_RATE) {
   return buffer;
 }
 
+/** Bins in the row-sized waveform overview a pack manifest entry carries. */
+export const PEAK_BINS = 48;
+
+/**
+ * The per-asset overview the library draws on every sound row: `PEAK_BINS`
+ * integers 0..255. Bin `i` is the largest absolute sample over the `i`-th
+ * slice of the master audio (all channels), scaled so the loudest bin is 255;
+ * a silent asset is all zeros. Read back from the encoded master rather than
+ * the render, so it describes exactly the bytes that are delivered — rendered
+ * and acquired audio take the same path.
+ */
+export function peaksFromWav(bytes) {
+  const channels = bytes.readUInt16LE(22);
+  const bitDepth = bytes.readUInt16LE(34);
+  if (bitDepth !== BIT_DEPTH) throw new Error(`peaks: expected ${BIT_DEPTH}-bit WAV`);
+  const dataSize = bytes.readUInt32LE(40);
+  const frames = Math.floor(dataSize / (channels * 3));
+  const maxima = new Array(PEAK_BINS).fill(0);
+  for (let bin = 0; bin < PEAK_BINS; bin++) {
+    const start = Math.floor((bin * frames) / PEAK_BINS);
+    const end = Math.floor(((bin + 1) * frames) / PEAK_BINS);
+    for (let frame = start; frame < end; frame++) {
+      for (let channel = 0; channel < channels; channel++) {
+        const at = 44 + (frame * channels + channel) * 3;
+        maxima[bin] = Math.max(maxima[bin], Math.abs(bytes.readIntLE(at, 3)));
+      }
+    }
+  }
+  const loudest = Math.max(...maxima);
+  return maxima.map((value) => (loudest === 0 ? 0 : Math.round((value / loudest) * 255)));
+}
+
 export function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }

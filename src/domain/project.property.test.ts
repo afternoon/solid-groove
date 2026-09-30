@@ -260,7 +260,7 @@ describe("generated projects and their packs", () => {
               id: dependency.packId,
               name: `Generated pack ${index + 1}`,
               version: dependency.version,
-              publisher: "Solid Groove",
+              publisher: "Groove",
               kind: "factory" as const,
               description: "",
               rights: {

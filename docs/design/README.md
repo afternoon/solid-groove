@@ -1,6 +1,6 @@
-# Solid Groove — UI Mocks (design reference)
+# Groove — UI Mocks (design reference)
 
-Reference mocks for the Solid Groove editor. Agents should compare implemented
+Reference mocks for the Groove editor. Agents should compare implemented
 screens against the PNGs in `mocks/` and treat the visual language here as the
 source of truth.
 
@@ -18,7 +18,7 @@ source of truth.
 
 ## Source
 
-- `Solid Groove Mocks.dc.html` — the interactive mock. Open directly in a browser
+- `Groove Mocks.dc.html` — the interactive mock. Open directly in a browser
   (keep `support.js` alongside it). It's a canvas of turns; each option has a
   stable id badge (e.g. `1a`, `7a`).
 
@@ -59,7 +59,7 @@ milestone does not have:
 
 - **The `Product` / `Sounds` / `Learn` / `Pricing` nav and the "2-min tour."**
   Neither the pages nor the tour exist; the PRD stages them explicitly.
-- **The "Why Solid Groove" cards and the genre chips.** They describe the AI
+- **The "Why Groove" cards and the genre chips.** They describe the AI
   producer, the library, and export as shipped features. The implementation
   replaces them with a "Working now / Still being built" pair that names the
   same capabilities honestly, in the two lists at the top of `LandingPage.tsx`.
