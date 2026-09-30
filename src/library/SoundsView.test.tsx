@@ -17,6 +17,8 @@ function renderView(
     assetTypes?: readonly LibraryAssetType[];
     query?: string;
     slot?: ShelfSlot;
+    songBpm?: number;
+    onQueryChange?: (query: string) => void;
   } = {},
 ) {
   const engine = fakePreviewEngine();
@@ -30,6 +32,8 @@ function renderView(
       assetTypes={extra.assetTypes}
       query={extra.query}
       slot={extra.slot}
+      songBpm={extra.songBpm}
+      onQueryChange={extra.onQueryChange}
       keyLabel={(action) => `<${action}>`}
       selected={selected()}
       onSelect={setSelected}
@@ -259,5 +263,76 @@ describe("SoundsView shelf", () => {
     await waitFor(() => expect(selectedTab()?.textContent).not.toBe(before));
     press("library.family_next");
     await waitFor(() => expect(selectedTab()?.textContent).toBe(before));
+  });
+});
+
+const count = () =>
+  Number(document.querySelector(".filter-count")?.textContent?.match(/\d+/)?.[0]);
+const button = (name: string | RegExp) => screen.getByRole("button", { name });
+
+describe("SoundsView filters", () => {
+  it("shows the live count, which follows the shelf", async () => {
+    renderView();
+    const listed = (await rows()).length;
+    expect(count()).toBe(listed);
+    expect(document.querySelector(".filter-count")).toHaveTextContent(`${listed} sounds`);
+  });
+
+  it("filters by genre from a menu that counts them, and the G key opens it", async () => {
+    const { press } = renderView();
+    const before = (await rows()).length;
+    expect(button(/^Any genre/)).toHaveAttribute("aria-expanded", "false");
+
+    press("library.genre_menu");
+    const menu = await screen.findByRole("group", { name: "Genres" });
+    expect(menu).toBeVisible();
+    const options = menu.querySelectorAll("input");
+    expect(options.length).toBeGreaterThan(1);
+    fireEvent.click(options[options.length - 1]);
+
+    await waitFor(() => expect(count()).toBeLessThan(before));
+    expect(screen.queryByRole("button", { name: /^Any genre/ })).toBeNull();
+    press("library.genre_menu");
+    await waitFor(() =>
+      expect(screen.queryByRole("group", { name: "Genres" })).toBeNull(),
+    );
+  });
+
+  it("offers Tempo and Bars under Loops only, and the T key toggles near and any", async () => {
+    const { press } = renderView({ slot: { kind: "loop-track" }, songBpm: 96 });
+    await rows();
+    const all = count();
+
+    expect(screen.getByRole("group", { name: "Bars" })).toBeVisible();
+    fireEvent.click(button(/^Near 96/));
+    await waitFor(() => expect(count()).toBeLessThan(all));
+    press("library.loop_tempo");
+    await waitFor(() => expect(count()).toBe(all));
+    press("library.loop_tempo");
+    await waitFor(() =>
+      expect(button(/^Near 96/)).toHaveAttribute("aria-pressed", "true"),
+    );
+
+    fireEvent.click(button(/^Any tempo/));
+    fireEvent.click(button("2 bars"));
+    await waitFor(() => expect(count()).toBeLessThan(all));
+    fireEvent.click(button("Any bars"));
+    await waitFor(() => expect(count()).toBe(all));
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Drums/ }));
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Bars" })).toBeNull());
+  });
+
+  it("offers to clear the filters when nothing is left, and clears the search too", async () => {
+    const onQueryChange = vi.fn();
+    renderView({ assetTypes: ["loop"], slot: { kind: "loop-track" }, onQueryChange });
+    await rows();
+
+    fireEvent.click(button("8 bars"));
+    fireEvent.click(await screen.findByRole("button", { name: "Clear the filters" }));
+
+    await waitFor(() => expect(count()).toBeGreaterThan(0));
+    expect(onQueryChange).toHaveBeenCalledWith("");
+    expect(button("Any bars")).toHaveAttribute("aria-pressed", "true");
   });
 });

@@ -723,6 +723,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   onShowKeys={() => setGuideOpen(true)}
                   current={librarySlot().current}
                   slotKind={librarySlot().kind}
+                  songBpm={tempo()}
                   currentRef={librarySlot().currentRef}
                   onActions={(actions) => setLibraryActions(() => actions)}
                   onClose={() => setLibraryOpen(false)}

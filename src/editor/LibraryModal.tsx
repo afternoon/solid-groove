@@ -65,6 +65,8 @@ export interface LibraryModalProps {
   readonly slotKind?: "drum-pad" | "sampler" | "loop-track";
   /** The storage ref of the sound a drum pad holds, to open on its role. */
   readonly currentRef?: string | null;
+  /** The song's tempo, for the loop Tempo filter's "near". */
+  readonly songBpm?: number;
   /** The sound the slot holds now. */
   readonly current?: string | null;
   /** Key badge text for a registry action, from the registry, never hard-coded. */
@@ -215,6 +217,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onSelect={setSelected}
                 onSimilar={(asset) => props.onSimilar?.(asset)}
                 query={query()}
+                onQueryChange={setQuery}
+                songBpm={props.songBpm}
                 slot={props.slotKind && { kind: props.slotKind, ref: props.currentRef }}
                 keyLabel={props.keyLabel}
                 onKeys={(handler) => {
