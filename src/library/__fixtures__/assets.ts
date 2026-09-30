@@ -25,6 +25,7 @@ export function libraryAsset(over: Partial<LibraryAsset> = {}): LibraryAsset {
     channelCount: null,
     bpm: null,
     bars: null,
+    peaks: null,
     ...over,
   };
 }

@@ -27,8 +27,18 @@
 
 .loop-panel-banks {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
+}
+
+/* The loop's sample slot, titled like a bank so it lines up with the readouts. */
+.loop-slot-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 0;
+  background: none;
 }
 
 /* A readout stands where a fader will: value on top, name beneath. */
