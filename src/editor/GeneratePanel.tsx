@@ -164,31 +164,35 @@ export default function GeneratePanel(props: GeneratePanelProps): JSX.Element {
       <fieldset class="generate-columns" disabled={!props.row}>
         <div class="generate-column">
           <span class="generate-label">Patterns</span>
-          <For each={PRESETS}>
-            {(preset) => (
-              <button
-                type="button"
-                class="generate-button"
-                onClick={() => write(preset.id)}
-                {...previews(preset.id)}
-              >
-                <span class="generate-glyph" aria-hidden="true">
-                  <For each={Array.from({ length: 16 }, (_, step) => step)}>
-                    {(step) => <i class={{ on: preset.hits(step) }} />}
-                  </For>
-                </span>
-                {preset.label}
-              </button>
-            )}
-          </For>
-          <button
-            type="button"
-            class="generate-button generate-clear"
-            onClick={() => write("clear")}
-            {...previews("clear")}
-          >
-            Clear row
-          </button>
+          {/* Two columns of three, so the panel is three buttons tall. */}
+          <div class="generate-patterns">
+            <For each={PRESETS}>
+              {(preset) => (
+                <button
+                  type="button"
+                  class="generate-button"
+                  onClick={() => write(preset.id)}
+                  {...previews(preset.id)}
+                >
+                  <span class="generate-glyph" aria-hidden="true">
+                    {/* Half a bar: every preset repeats within eight steps. */}
+                    <For each={Array.from({ length: 8 }, (_, step) => step)}>
+                      {(step) => <i class={{ on: preset.hits(step) }} />}
+                    </For>
+                  </span>
+                  {preset.label}
+                </button>
+              )}
+            </For>
+            <button
+              type="button"
+              class="generate-button generate-clear"
+              onClick={() => write("clear")}
+              {...previews("clear")}
+            >
+              Clear row
+            </button>
+          </div>
         </div>
         <div class="generate-column" {...previews("euclidean")}>
           <span class="generate-label">Euclidean</span>

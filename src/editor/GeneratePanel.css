@@ -38,7 +38,8 @@
 
 .generate-columns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Patterns is two buttons wide, so it takes twice the room. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
   margin: 0;
@@ -51,6 +52,13 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+
+/* The five patterns and Clear row, two columns of three (#643). */
+.generate-patterns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .generate-button,
@@ -149,4 +157,9 @@
   min-width: 36px;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
+}
+
+.generate-patterns .generate-button {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
