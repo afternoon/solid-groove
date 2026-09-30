@@ -216,6 +216,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onSimilar={(asset) => props.onSimilar?.(asset)}
                 query={query()}
                 slot={props.slotKind && { kind: props.slotKind, ref: props.currentRef }}
+                keyLabel={props.keyLabel}
                 onKeys={(handler) => {
                   soundsKeys = handler;
                 }}

@@ -140,7 +140,8 @@
   scrollbar-width: none;
 }
 
-.shelf-count {
+.shelf-count,
+.shelf-chip kbd {
   font: inherit;
   font-size: var(--font-size-small);
   color: var(--color-foreground-muted);
@@ -153,6 +154,7 @@
 }
 
 .shelf-family[aria-selected="true"] .shelf-count,
-.shelf-chip[aria-pressed="true"] .shelf-count {
+.shelf-chip[aria-pressed="true"] .shelf-count,
+.shelf-chip[aria-pressed="true"] kbd {
   color: var(--color-on-accent);
 }

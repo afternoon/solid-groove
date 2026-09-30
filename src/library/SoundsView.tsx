@@ -3,6 +3,7 @@ import { HiSolidExclamationTriangle } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
+import type { ShortcutActionId } from "../shortcuts";
 import type { PreviewEngine } from "./audition";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
@@ -29,6 +30,8 @@ export interface SoundsViewProps {
   readonly query?: string;
   /** What the library was opened for: where the shelf opens. */
   readonly slot?: ShelfSlot;
+  /** Key badge text for a registry action, from the registry. */
+  keyLabel?(action: ShortcutActionId): string | undefined;
   /** The sound being heard; the modal owns it so Insert and Hearing follow it. */
   readonly selected: LibraryAsset | null;
   onSelect(asset: LibraryAsset): void;
@@ -87,9 +90,20 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     if (target && target !== from) void browser.audition(target);
   }
 
+  const shelfKeys: Partial<Record<SoundsKeyAction, () => void>> = {
+    "library.pick_all": () => shelf.pick(0),
+    "library.category_next": () => shelf.stepRole(1),
+    "library.category_previous": () => shelf.stepRole(-1),
+    "library.family_next": () => shelf.stepFamily(1),
+    "library.family_previous": () => shelf.stepFamily(-1),
+  };
+
   function press(action: SoundsKeyAction): void {
     const sound = current();
-    if (action === "library.select_next") step(1);
+    const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
+    if (digit) shelf.pick(Number(digit));
+    else if (shelfKeys[action]) shelfKeys[action]?.();
+    else if (action === "library.select_next") step(1);
     else if (action === "library.select_previous") step(-1);
     else if (action === "library.audition" && sound) void browser.audition(sound);
     else if (action === "library.similar" && sound) props.onSimilar(sound);
@@ -126,6 +140,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
             family={shelf.selection().family}
             roles={shelf.roles()}
             role={shelf.selection().role}
+            keyLabel={props.keyLabel}
             onFamily={shelf.setFamily}
             onRole={shelf.setRole}
           />

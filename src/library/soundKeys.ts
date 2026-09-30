@@ -11,6 +11,20 @@ export const SOUNDS_KEY_ACTIONS = [
   "library.select_next",
   "library.audition",
   "library.similar",
+  "library.pick_1",
+  "library.pick_2",
+  "library.pick_3",
+  "library.pick_4",
+  "library.pick_5",
+  "library.pick_6",
+  "library.pick_7",
+  "library.pick_8",
+  "library.pick_9",
+  "library.pick_all",
+  "library.category_previous",
+  "library.category_next",
+  "library.family_previous",
+  "library.family_next",
 ] as const satisfies readonly ShortcutActionId[];
 
 export type SoundsKeyAction = (typeof SOUNDS_KEY_ACTIONS)[number];
