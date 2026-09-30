@@ -7,7 +7,7 @@ import {
   renderProjectOffline,
 } from "../../audio/offlineRenderer";
 import { songEndSeconds } from "../../audio/renderLength";
-import { encodeWav24 } from "../../audio/wavEncoder";
+import { wav24Chunks } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
 import {
   type AudioSongProjection,
@@ -26,6 +26,12 @@ import { exportFileName } from "./exportFileName";
  * is all or nothing — the file exists only once the render and the encode have
  * both succeeded, so a cancelled or failed export never hands back a partial
  * file. Gain is the project's own (DEC-004): no normalization anywhere.
+ *
+ * Memory: a ten-minute song is a few hundred megabytes of float samples. The
+ * WAV is encoded a chunk at a time straight into `Blob` parts, so the whole
+ * file never exists as one buffer beside those floats, and the finished `Blob`
+ * is what the download uses, never a second copy of it. The floats are let go
+ * as soon as the last chunk is written.
  */
 
 /** The rate a project renders at when none of its assets declares one: the
@@ -63,8 +69,8 @@ export interface StereoExportOptions {
 }
 
 export interface StereoExport {
-  /** The whole WAV file. */
-  readonly bytes: Uint8Array;
+  /** The whole WAV file, `audio/wav`. */
+  readonly blob: Blob;
   readonly fileName: string;
   readonly sampleRate: number;
   readonly frames: number;
@@ -72,6 +78,15 @@ export interface StereoExport {
 
 /** Share of the progress bar the render takes; the encode is the rest. */
 const RENDERED = 0.95;
+
+/** Encodes `rendered` as a WAV `Blob`, one bounded chunk at a time. */
+function encodeToBlob(rendered: OfflineRender): Blob {
+  const parts: Blob[] = [];
+  for (const chunk of wav24Chunks(rendered.channels, rendered.sampleRate)) {
+    parts.push(new Blob([chunk as Uint8Array<ArrayBuffer>]));
+  }
+  return new Blob(parts, { type: "audio/wav" });
+}
 
 /** Why an export failed, as a stable analytics code. */
 function failureOf(error: unknown): OfflineRenderError {
@@ -110,13 +125,15 @@ export async function exportStereoWav(
 
   try {
     const sampleRate = projectSampleRate(project);
-    const rendered = await render(projection, {
+    let rendered: OfflineRender | null = await render(projection, {
       sampleRate,
       signal: options.signal,
       onProgress: (fraction) => options.onProgress?.(fraction * RENDERED),
     });
     if (options.signal?.aborted) throw new OfflineRenderError("aborted", "Cancelled");
-    const bytes = encodeWav24(rendered.channels, rendered.sampleRate);
+    const { frames, sampleRate: renderedRate } = rendered;
+    const blob = encodeToBlob(rendered);
+    rendered = null;
     if (options.signal?.aborted) throw new OfflineRenderError("aborted", "Cancelled");
     options.onProgress?.(1);
     analytics.log("export_completed", {
@@ -124,10 +141,10 @@ export async function exportStereoWav(
       elapsed_ms_bucket: bucketOf("elapsed_ms", clock.now() - startedAt),
     });
     return {
-      bytes,
+      blob,
       fileName: exportFileName(project.metadata.name, new Date(clock.now()), "wav"),
-      sampleRate: rendered.sampleRate,
-      frames: rendered.frames,
+      sampleRate: renderedRate,
+      frames,
     };
   } catch (error) {
     const failure = failureOf(error);

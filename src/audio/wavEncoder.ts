@@ -26,9 +26,11 @@
  * normalized, limited or dithered here. Anything over full scale in the render
  * clips at full scale, which is what the project would do on a real output.
  *
- * The file is written into one buffer allocated at its final size, so encoding
- * a render costs the file's bytes and nothing more — no intermediate interleave
- * copy of the float data.
+ * The encoder writes the file in chunks of at most {@link WAV_CHUNK_FRAMES}
+ * frames ({@link wav24Chunks}), so a caller can hand each one to a `Blob` and
+ * let it go: a ten-minute render never needs its whole WAV in memory beside its
+ * float data (EXP-002's memory criterion). {@link encodeWav24} joins the same
+ * chunks into one buffer for callers that want the file whole.
  */
 
 export const WAV_HEADER_BYTES = 44;
@@ -52,17 +54,12 @@ export function wav24ByteLength(channelCount: number, frames: number): number {
   return WAV_HEADER_BYTES + channelCount * frames * BYTES_PER_SAMPLE;
 }
 
-/**
- * Encodes `channels` (one equally long array per channel) as a 24-bit PCM WAV.
- * Throws a `RangeError` for a render too long for a RIFF file to describe
- * rather than writing a header that lies about its length.
- */
-export function encodeWav24(
-  channels: readonly Float32Array[],
-  sampleRate: number,
-): Uint8Array {
-  const channelCount = channels.length;
-  if (channelCount < 1) throw new RangeError("A WAV needs at least one channel");
+/** Frames per chunk {@link wav24Chunks} yields: 768 KiB of stereo data. */
+export const WAV_CHUNK_FRAMES = 131_072;
+
+/** Checks `channels` can be written as a WAV and returns its frame count. */
+function validate(channels: readonly Float32Array[], sampleRate: number): number {
+  if (channels.length < 1) throw new RangeError("A WAV needs at least one channel");
   if (!Number.isInteger(sampleRate) || sampleRate < 1) {
     throw new RangeError(`Invalid sample rate: ${sampleRate}`);
   }
@@ -70,12 +67,14 @@ export function encodeWav24(
   if (channels.some((channel) => channel.length !== frames)) {
     throw new RangeError("Every channel must be the same length");
   }
-  const total = wav24ByteLength(channelCount, frames);
-  if (total - 8 > MAX_RIFF_BYTES) {
+  if (wav24ByteLength(channels.length, frames) - 8 > MAX_RIFF_BYTES) {
     throw new RangeError("The render is too long for a WAV file");
   }
+  return frames;
+}
 
-  const bytes = new Uint8Array(total);
+function header(channelCount: number, frames: number, sampleRate: number): Uint8Array {
+  const bytes = new Uint8Array(WAV_HEADER_BYTES);
   const view = new DataView(bytes.buffer);
   const blockAlign = channelCount * BYTES_PER_SAMPLE;
   const writeAscii = (at: number, text: string) => {
@@ -83,9 +82,8 @@ export function encodeWav24(
       bytes[at + index] = text.charCodeAt(index);
     }
   };
-
   writeAscii(0, "RIFF");
-  view.setUint32(4, total - 8, true);
+  view.setUint32(4, wav24ByteLength(channelCount, frames) - 8, true);
   writeAscii(8, "WAVE");
   writeAscii(12, "fmt ");
   view.setUint32(16, 16, true);
@@ -97,16 +95,62 @@ export function encodeWav24(
   view.setUint16(34, WAV_BITS_PER_SAMPLE, true);
   writeAscii(36, "data");
   view.setUint32(40, frames * blockAlign, true);
+  return bytes;
+}
 
-  let at = WAV_HEADER_BYTES;
-  for (let frame = 0; frame < frames; frame += 1) {
-    for (let channel = 0; channel < channelCount; channel += 1) {
-      const value = toPcm24(channels[channel][frame]);
+/** Frames `from`..`to` of `channels`, interleaved as 24-bit PCM. */
+function samples(
+  channels: readonly Float32Array[],
+  from: number,
+  to: number,
+): Uint8Array {
+  const bytes = new Uint8Array((to - from) * channels.length * BYTES_PER_SAMPLE);
+  let at = 0;
+  for (let frame = from; frame < to; frame += 1) {
+    for (const channel of channels) {
+      const value = toPcm24(channel[frame]);
       bytes[at] = value & 0xff;
       bytes[at + 1] = (value >> 8) & 0xff;
       bytes[at + 2] = (value >> 16) & 0xff;
       at += BYTES_PER_SAMPLE;
     }
+  }
+  return bytes;
+}
+
+/**
+ * Encodes `channels` (one equally long array per channel) as a 24-bit PCM WAV,
+ * yielded in order: the header, then the samples in chunks of at most
+ * `chunkFrames` frames. Throws a `RangeError` straight away — before anything
+ * is yielded — for input a WAV cannot describe, including a render too long
+ * for a RIFF file, rather than writing a header that lies about its length.
+ */
+export function wav24Chunks(
+  channels: readonly Float32Array[],
+  sampleRate: number,
+  chunkFrames: number = WAV_CHUNK_FRAMES,
+): Iterable<Uint8Array> {
+  const frames = validate(channels, sampleRate);
+  return (function* () {
+    yield header(channels.length, frames, sampleRate);
+    for (let from = 0; from < frames; from += chunkFrames) {
+      yield samples(channels, from, Math.min(frames, from + chunkFrames));
+    }
+  })();
+}
+
+/** The whole WAV {@link wav24Chunks} writes, as one buffer. */
+export function encodeWav24(
+  channels: readonly Float32Array[],
+  sampleRate: number,
+): Uint8Array {
+  const bytes = new Uint8Array(
+    wav24ByteLength(channels.length, channels[0]?.length ?? 0),
+  );
+  let at = 0;
+  for (const chunk of wav24Chunks(channels, sampleRate)) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
   }
   return bytes;
 }

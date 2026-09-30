@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../../analytics/analytics";
 import { ConsentStore } from "../../analytics/consent";
 import {
@@ -6,6 +6,7 @@ import {
   createRecordingTransport,
 } from "../../analytics/transport";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
+import { encodeWav24, WAV_CHUNK_FRAMES } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
 import { createSliceFixtureProject } from "../../domain/fixtures";
 import { stringifyProject } from "../../domain/serialize";
@@ -45,11 +46,24 @@ const fakeRender =
     };
   };
 
+/** A Blob's bytes, through `FileReader` because jsdom's Blob has no `arrayBuffer()`. */
+const bytesOf = (blob: Blob) =>
+  new Promise<Uint8Array>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+
 const failingRender =
   (error: unknown): RenderFunction =>
   async () => {
     throw error;
   };
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("exportStereoWav", () => {
   it("renders the song to a 24-bit stereo WAV named for the project and the day", async () => {
@@ -66,7 +80,11 @@ describe("exportStereoWav", () => {
     });
 
     expect(result.fileName).toBe(`${project.metadata.name} 2026-09-29.wav`);
-    const bytes = result.bytes;
+    expect(result.blob.type).toBe("audio/wav");
+    const bytes = await bytesOf(result.blob);
+    // The file is the encoder's, byte for byte, however it was chunked.
+    const { channels } = await fakeRender()(null as never, { sampleRate: 1 });
+    expect(bytes).toEqual(encodeWav24(channels, projectSampleRate(project)));
     const view = new DataView(bytes.buffer);
     expect(view.getUint16(22, true)).toBe(2);
     expect(view.getUint32(24, true)).toBe(projectSampleRate(project));
@@ -75,6 +93,32 @@ describe("exportStereoWav", () => {
     expect(result.frames).toBe(4);
     expect(progress.at(-1)).toBe(1);
     expect(progress).toEqual([...progress].sort((a, b) => a - b));
+  });
+
+  it("never holds a long render's whole WAV in one buffer", async () => {
+    // EXP-002's memory criterion: every byte buffer handed to a Blob is at most
+    // one encoder chunk, and the file is those parts, not a copy of them.
+    const largest: number[] = [];
+    const RealBlob = Blob;
+    vi.stubGlobal(
+      "Blob",
+      class extends RealBlob {
+        constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+          super(parts, options);
+          for (const part of parts ?? []) {
+            if (part instanceof Uint8Array) largest.push(part.byteLength);
+          }
+        }
+      },
+    );
+    const frames = WAV_CHUNK_FRAMES * 2 + 5;
+    const result = await exportStereoWav(createSliceFixtureProject(), {
+      render: fakeRender(frames),
+      ...recordingAnalytics(),
+    });
+    expect(result.blob.size).toBe(44 + frames * 6);
+    expect(largest).toHaveLength(4);
+    expect(Math.max(...largest)).toBe(WAV_CHUNK_FRAMES * 6);
   });
 
   it("never edits the project it exports", async () => {
@@ -226,7 +270,7 @@ describe("exportStereoWav", () => {
       render: fakeRender(),
     });
     expect(without.fileName).toBe(withAnalytics.fileName);
-    expect(without.bytes).toEqual(withAnalytics.bytes);
+    expect(await bytesOf(without.blob)).toEqual(await bytesOf(withAnalytics.blob));
   });
 });
 
