@@ -32,6 +32,16 @@ function renderDialog(project: Project) {
 }
 
 const exportButton = () => screen.getByRole("button", { name: "Export" });
+/** Blocked, Export stays focusable, so its reason is read out, and does nothing. */
+function expectBlocked(requests: StemsExportRequest[]) {
+  const button = exportButton();
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  expect(button).not.toBeDisabled();
+  button.focus();
+  expect(button).toHaveFocus();
+  clickAndFlush(button);
+  expect(requests).toEqual([]);
+}
 const checkbox = (name: string) => screen.getByRole("checkbox", { name });
 const ordered = (project: Project) =>
   [...project.song.tracks].sort((a, b) => a.order - b.order);
@@ -58,9 +68,14 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
 
   it("blocks Export with no track selected", () => {
     const project = createStemFixtureProject();
-    renderDialog(project);
+    const { requests } = renderDialog(project);
+    // The reason's live region is there, empty, before anything blocks Export.
+    const region = document.getElementById("export-stems-blocker");
+    expect(region).toBeEmptyDOMElement();
     for (const track of ordered(project)) clickAndFlush(checkbox(track.name));
-    expect(exportButton()).toBeDisabled();
+    expectBlocked(requests);
+    expect(document.getElementById("export-stems-blocker")).toBe(region);
+    expect(region).toHaveTextContent("Select at least one track to export.");
     expect(screen.getByText("Select at least one track to export.")).toBeVisible();
   });
 
@@ -86,8 +101,11 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
       const { requests } = renderDialog(project);
       const boxes = screen.getAllByRole("checkbox");
       expect(boxes).toHaveLength(50);
-      expect(exportButton()).toBeDisabled();
+      expectBlocked(requests);
       const reason = () => document.getElementById("export-stems-blocker");
+      // One live region, mounted throughout: only what it says changes.
+      const region = reason();
+      expect(region).toHaveAttribute("aria-live", "polite");
       expect(reason()).toHaveTextContent(/over the 2 GiB limit/);
       expect(reason()).toHaveTextContent(/Deselect tracks/);
       expect(exportButton()).toHaveAttribute("aria-describedby", "export-stems-blocker");
@@ -95,8 +113,10 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
       uncheck(boxes.slice(13));
       expect(reason()).toHaveTextContent(/over the 2 GiB limit/);
       uncheck(boxes.slice(12, 13));
-      expect(reason()).toBeNull();
-      expect(exportButton()).toBeEnabled();
+      expect(reason()).toBe(region);
+      expect(region).toBeEmptyDOMElement();
+      expect(exportButton()).not.toHaveAttribute("aria-disabled");
+      expect(exportButton()).not.toHaveAttribute("aria-describedby");
       clickAndFlush(exportButton());
       expect(requests.map((r) => r.trackIds)).toEqual([
         tracks.slice(0, 12).map((track) => track.id),

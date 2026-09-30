@@ -13,7 +13,8 @@ export const STEMS_BLOCKER_ID = "export-stems-blocker";
 /**
  * The stems dialog's track checkboxes, every track checked unless the producer
  * unchecks it, with the package's estimated size and, while the selection
- * cannot be exported, the reason why.
+ * cannot be exported, the reason why. The reason's live region stays mounted
+ * and only its content changes, so a screen reader announces each new reason.
  */
 export default function StemTrackPicker(props: StemTrackPickerProps): JSX.Element {
   const selection = () => props.selection;
@@ -40,13 +41,11 @@ export default function StemTrackPicker(props: StemTrackPickerProps): JSX.Elemen
         Estimated size: about {formatBytes(selection().estimate().bytes)} of{" "}
         {formatBytes(selection().estimate().limitBytes)}.
       </p>
-      <Show when={selection().blocker()}>
-        {(reason) => (
-          <p id={STEMS_BLOCKER_ID} class="export-status export-error" aria-live="polite">
-            {reason()}
-          </p>
-        )}
-      </Show>
+      <div id={STEMS_BLOCKER_ID} aria-live="polite">
+        <Show when={selection().blocker()}>
+          {(reason) => <p class="export-status export-error">{reason()}</p>}
+        </Show>
+      </div>
     </>
   );
 }
