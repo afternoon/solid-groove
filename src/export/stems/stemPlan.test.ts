@@ -99,6 +99,29 @@ describe("planStems", () => {
     expect(mix?.tracksById.get(bass.id)?.mixer.muted).toBe(true);
   });
 
+  it("plans only the selected tracks, with returns and the mix fed by them alone", () => {
+    const only = new Set([bass.id]);
+    const subset = planStems(project, only);
+    expect(subset.map((stem) => stem.path)).toEqual([
+      "02 Sub Bass.wav",
+      "Returns/01 Verb.wav",
+      "Returns/02 Delay.wav",
+      REFERENCE_MIX_PATH,
+    ]);
+    const [, verbStem, , mix] = subset.map((stem) => stem.projection);
+    expect(verbStem.tracks.map((track) => track.id)).toEqual([bass.id]);
+    expect(mix.tracks.map((track) => track.id)).toEqual([bass.id]);
+    expect(mix.placements.every((p) => p.trackId === bass.id)).toBe(true);
+    // The mix of the selection still plays as the song does.
+    expect(mix.master.devices).toHaveLength(1);
+    expect(mix.returns).toHaveLength(2);
+    expect(mix.tracksById.get(bass.id)?.mixer.muted).toBe(true);
+    expect(mix.automation.map((lane) => lane.id)).not.toContain("aut_lead");
+    // Selecting every track is the whole export.
+    const every = planStems(project, new Set([lead.id, bass.id]));
+    expect(every.at(-1)?.projection).toEqual(buildAudioProjection(project));
+  });
+
   it("numbers wide enough that a hundred tracks still sort in order", () => {
     const tracks = Array.from({ length: 100 }, (_, order) => ({
       ...lead,
