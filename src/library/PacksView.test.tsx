@@ -2,21 +2,27 @@ import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Analytics } from "../analytics/analytics";
 import { clickAndFlush } from "../testing/events";
+import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
 import { FIXTURE_PACK_INDEX_DOC } from "./__fixtures__/fixtures";
 import { variedPackFetcher } from "./__fixtures__/variedPackFetcher";
 import { LibraryClient } from "./libraryClient";
-import PacksView, { type PacksViewProps } from "./PacksView";
+import PacksView, { HEAR_STEP_MS, type PacksViewProps } from "./PacksView";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const [first, second] = FIXTURE_PACK_INDEX_DOC.packs;
 
 function renderPacks(overrides: Partial<PacksViewProps> = {}) {
+  const engine = fakePreviewEngine();
   const onOpenPack = vi.fn();
   const logFeatureFirstUse = vi.fn();
   const rendered = render(() => (
     <PacksView
       client={new LibraryClient(variedPackFetcher())}
+      previewEngine={engine}
       analytics={{ logFeatureFirstUse } as unknown as Analytics}
       projectPackIds={[first.id]}
       keyLabel={(action) => `<${action}>`}
@@ -24,8 +30,10 @@ function renderPacks(overrides: Partial<PacksViewProps> = {}) {
       {...overrides}
     />
   ));
-  return { ...rendered, onOpenPack, logFeatureFirstUse };
+  return { ...rendered, engine, onOpenPack, logFeatureFirstUse };
 }
+
+const hearButton = (name: string) => screen.getByRole("button", { name: `Hear ${name}` });
 
 /** Every cover shows its category count once every manifest has loaded. */
 async function loadedCovers(count: number = FIXTURE_PACK_INDEX_DOC.packs.length) {
@@ -97,5 +105,52 @@ describe("PacksView", () => {
     await loadedCovers();
     expect(logFeatureFirstUse).toHaveBeenCalledTimes(1);
     expect(logFeatureFirstUse).toHaveBeenCalledWith("pack_browser");
+  });
+
+  describe("Hear it", () => {
+    async function loadedWithFakeTimers() {
+      const rendered = renderPacks();
+      await loadedCovers();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      return rendered;
+    }
+
+    it("auditions a run of the pack's sounds, then stops", async () => {
+      const { engine } = await loadedWithFakeTimers();
+
+      clickAndFlush(hearButton(first.name));
+      expect(screen.getByRole("button", { name: `Stop ${first.name}` })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await vi.advanceTimersByTimeAsync(HEAR_STEP_MS * 10);
+
+      expect(engine.starts.length).toBeGreaterThan(1);
+      expect(new Set(engine.starts.map((start) => start.asset.packSlug))).toEqual(
+        new Set([first.slug]),
+      );
+      expect(hearButton(first.name)).toBeVisible();
+    });
+
+    it("stops the run when pressed again, and when the view unmounts", async () => {
+      const { engine, unmount } = await loadedWithFakeTimers();
+
+      clickAndFlush(hearButton(first.name));
+      await vi.advanceTimersByTimeAsync(0);
+      clickAndFlush(screen.getByRole("button", { name: `Stop ${first.name}` }));
+      const heard = engine.starts.length;
+      await vi.advanceTimersByTimeAsync(HEAR_STEP_MS * 10);
+      expect(engine.starts).toHaveLength(heard);
+      expect(engine.starts.every((start) => start.stop.mock.calls.length > 0)).toBe(true);
+
+      clickAndFlush(hearButton(first.name));
+      await vi.advanceTimersByTimeAsync(0);
+      unmount();
+      const afterUnmount = engine.starts.length;
+      await vi.advanceTimersByTimeAsync(HEAR_STEP_MS * 10);
+      expect(engine.starts).toHaveLength(afterUnmount);
+      // The engine belongs to the modal, which disposes it, not this view.
+      expect(engine.disposed()).toBe(false);
+    });
   });
 });

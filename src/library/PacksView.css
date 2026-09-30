@@ -88,3 +88,23 @@
   margin: 10px auto 0;
   text-decoration: underline;
 }
+
+.pack-hear {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.pack-hear:disabled {
+  background: var(--color-border);
+  color: var(--color-foreground-muted);
+}
