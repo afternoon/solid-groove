@@ -58,6 +58,18 @@ export interface TransformScope {
   readonly count: number;
   /** True when the scope widened to the clip because nothing was selected. */
   readonly isWholeClip: boolean;
+  /** The row an empty selection fell back to, when the editor has one (#643). */
+  readonly rowName?: string;
+}
+
+/**
+ * What an empty selection means instead of the whole clip. The step grid
+ * passes its active row (#643), so with nothing selected a Vary touches only
+ * the row you are looking at, never every drum at once.
+ */
+export interface TransformFallback {
+  readonly name: string;
+  readonly eventIds: readonly EventId[];
 }
 
 /**
@@ -70,10 +82,20 @@ export interface TransformScope {
 export function resolveTransformScope(
   clip: Clip,
   selectedIds: readonly EventId[],
+  fallback?: TransformFallback | null,
 ): TransformScope {
   const events = noteEventsOf(clip) ?? [];
   const present = new Set(events.map((event) => event.id));
   const live = selectedIds.filter((id) => present.has(id));
+  if (live.length === 0 && fallback) {
+    const row = fallback.eventIds.filter((id) => present.has(id));
+    return {
+      eventIds: row,
+      count: row.length,
+      isWholeClip: false,
+      rowName: fallback.name,
+    };
+  }
   if (live.length === 0) {
     return { eventIds: null, count: events.length, isWholeClip: true };
   }
