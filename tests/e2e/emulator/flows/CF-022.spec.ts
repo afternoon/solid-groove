@@ -32,9 +32,8 @@ const exportDialog = (page: Page): Locator =>
   page.getByRole("dialog", { name: "Export" });
 
 test.describe("CF-022", () => {
-  // `test.fixme` until #66 lands: the PR that closes it removes this marker in
-  // the same diff that makes the flow pass.
-  test.fixme(
+  // biome-ignore format: unparked by removing only test.fixme, so the frozen body keeps its lines
+  test(
     "a producer exports aligned stems for another DAW",
     async ({ page, browserName }) => {
       test.setTimeout(180_000);
