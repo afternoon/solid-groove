@@ -167,16 +167,6 @@ const MASKED_NAMES: readonly {
     renders: "the sound search the user typed",
   },
   {
-    file: "library/LibraryFacets.tsx",
-    anchor: "library-search",
-    renders: "the sound search the user typed",
-  },
-  {
-    file: "library/PackList.tsx",
-    anchor: "pack-browser-search",
-    renders: "the pack search the user typed",
-  },
-  {
     file: "components/ConfirmDialog.tsx",
     anchor: "confirm-dialog-title",
     renders: "a project or track name in a delete confirmation",
