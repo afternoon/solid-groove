@@ -1,4 +1,4 @@
-# Contributing to Solid Groove
+# Contributing to Groove
 
 How to get the app running locally, which backend to run it against, and the
 day-to-day loop of checks before you open a pull request.

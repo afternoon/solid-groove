@@ -21,9 +21,9 @@ import { buildExportSong, reloadAndExpectSongUnchanged } from "../support/export
  *
  * It is `test.fixme` because there is no export at all yet. The PR that closes
  * #66 removes this marker. The export surface it drives is the one CF-021
- * names (an "Export" button, a dialog named "Export", the "Stems (ZIP)" radio),
- * plus the bit depth as **radio buttons "16-bit" and "24-bit"**, which appear
- * once Stems is chosen, with 24-bit checked.
+ * names (an "Export" button, a dialog named "Export", the "Stems (ZIP)" radio).
+ * Stems are always 24-bit, so the dialog offers no "16-bit" or "24-bit" choice
+ * (a product-owner decision on #66, 2026-09-30).
  *
  * Runs against the Firestore/Auth emulator because step 10 is a real reload.
  */
@@ -57,8 +57,8 @@ test.describe("CF-022", () => {
       // 1-7. Build the five-track song, add its devices, play it and stop.
       const song = await buildExportSong(page, step, canAssertPlayback);
 
-      // 8. Press Export in the editor header and choose Stems (ZIP). A bit-depth
-      //    choice appears, 16-bit or 24-bit, with 24-bit chosen.
+      // 8. Press Export in the editor header and choose Stems (ZIP). No bit-depth
+      //    choice appears: stems are always 24-bit.
       await page.getByRole("button", { name: "Export", exact: true }).click();
       const dialog = exportDialog(page);
       await expect(dialog).toBeVisible();
@@ -67,12 +67,12 @@ test.describe("CF-022", () => {
         dialog.getByRole("radio", { name: "Stems (ZIP)", exact: true }),
       ).toBeChecked();
       await expect(
-        dialog.getByRole("radio", { name: "24-bit", exact: true }),
-      ).toBeChecked();
-      await expect(
         dialog.getByRole("radio", { name: "16-bit", exact: true }),
-      ).not.toBeChecked();
-      await step("Choose Stems (ZIP): 24-bit is chosen");
+      ).toHaveCount(0);
+      await expect(
+        dialog.getByRole("radio", { name: "24-bit", exact: true }),
+      ).toHaveCount(0);
+      await step("Choose Stems (ZIP): there is no bit-depth choice");
 
       // 9. Press Export and let it finish. The browser downloads one file named
       //    `<project name> <YYYY-MM-DD> stems.zip`.

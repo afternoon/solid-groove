@@ -13,12 +13,20 @@ import { createTriggerFeed } from "../audio/triggerFeed";
 import { UnderrunMonitor } from "../audio/underrun";
 import type { NoteTrigger, Project } from "../domain/entities";
 import type { AssetId, PadId, TrackId } from "../domain/ids";
+import { toLibrarySample } from "../library/insertion";
+import type { LibraryAsset } from "../library/manifest";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
 import type { AudioAssetProjection } from "../projection/audioProjection";
 import {
   type AudioSongProjection,
   buildAudioProjection,
 } from "../projection/audioProjection";
+import {
+  applyPreviewOverride,
+  type PreviewOverride,
+  type PreviewSlot,
+  previewAssetId,
+} from "../projection/previewOverride";
 import { createTrackLevels, type TrackLevel } from "./trackLevels";
 
 /**
@@ -76,6 +84,15 @@ export interface ProjectAudioControls {
     durationTicks: number,
     velocity: number,
   ): Promise<boolean>;
+  /**
+   * Hot-swap audition (LIB-010): plays `sound` in place of `slot`'s own sample
+   * (a sampler track, or one drum pad) inside the beat. Audio only: no
+   * command, history entry, save or sync. A new sound replaces the previous
+   * one and releases its buffer; repeating a call is a no-op. Returns `false`
+   * (and drops any preview) for a sound a slot cannot play, such as a loop.
+   */
+  previewInSlot(slot: PreviewSlot, sound: LibraryAsset): boolean;
+  clearPreview(): void;
   /**
    * Follows the waveform of one of the project's sounds for drawing it (#447):
    * `onPeaks` gets `buckets` peaks, 0..1, once the engine has decoded the sound
@@ -190,6 +207,38 @@ export function useProjectAudio(
   let ownerId: string | null = null;
   let lastProjection: AudioSongProjection | undefined;
   let frameHandle: number | null = null;
+  let preview: PreviewOverride | null = null;
+
+  function reconcileGraph(): void {
+    if (!graph || !lastProjection) return;
+    graph.reconcile(applyPreviewOverride(lastProjection, preview));
+  }
+
+  function setPreview(next: PreviewOverride | null): void {
+    preview = next;
+    reconcileGraph();
+  }
+  function previewInSlot(slot: PreviewSlot, asset: LibraryAsset): boolean {
+    const sample = asset.type === "loop" ? null : toLibrarySample(asset);
+    if (!sample) {
+      clearPreview();
+      return false;
+    }
+    if (
+      preview &&
+      preview.slot.trackId === slot.trackId &&
+      preview.slot.padId === slot.padId &&
+      previewAssetId(preview.sound) === previewAssetId(sample)
+    ) {
+      return true;
+    }
+    setPreview({ slot, sound: sample });
+    return true;
+  }
+
+  function clearPreview(): void {
+    if (preview) setPreview(null);
+  }
 
   function underrunMonitor(): UnderrunMonitor {
     return new UnderrunMonitor({
@@ -291,6 +340,7 @@ export function useProjectAudio(
     transport = null;
     void graph?.dispose();
     graph = null;
+    preview = null;
   }
 
   // Split effect. `project()` is the effect's only reactive read, so the
@@ -325,7 +375,7 @@ export function useProjectAudio(
         lastProjection = undefined;
       }
       lastProjection = buildAudioProjection(current, lastProjection);
-      graph.reconcile(lastProjection);
+      reconcileGraph();
       attachPeakWatchers();
       // Mirror the song tempo and loop onto the transport without restarting
       // it: a tempo, range, or toggle edit re-times or re-bounds the running
@@ -536,6 +586,8 @@ export function useProjectAudio(
     toggleMetronome,
     auditionPad,
     auditionTrack,
+    previewInSlot,
+    clearPreview,
     watchAssetPeaks,
     watchTriggers,
   };

@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The library reference design for #449 (LIB-010). Self-contained and playable: open it in a browser. -->
+<title>Groove Library Flow</title>
+<style>
+/* Layout: a flow stepper over one full-size editor stage, with the library modal centred on it. Dark single look, the product's own ramp. */
+:root{
+  color-scheme:dark;
+  --m00:#000;--m08:#141414;--m12:#1c1c1c;--m16:#292929;--m28:#474747;--m47:#787878;--m65:#a6a6a6;--m85:#d9d9d9;--m96:#f6f6f6;--m100:#fff;
+  --track:#ef4444; /* the Drums track's own colour: domain data, the one hue */
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+html,body{background:var(--m00);color:var(--m85)}
+body{font:14px/1.5 var(--sans);padding-inline:16px;padding-block:28px 64px}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0;text-align:left}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--m100);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.page-h{display:flex;flex-direction:column;gap:6px;max-width:72ch}
+.eyebrow{margin:0;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--m65)}
+h1{margin:0;font-size:30px;line-height:1.1;color:var(--m100);text-wrap:balance}
+.lede{margin:0;color:var(--m85)}
+.steps{display:flex;flex-wrap:wrap;gap:1px;background:var(--m16)}
+.step{flex:1 1 140px;padding:10px 14px;background:var(--m08);color:var(--m85);font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:2px}
+.step small{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--m47);font-weight:500}
+.step:hover{background:var(--m16);color:var(--m100)}
+.step[aria-current="step"]{background:var(--m100);color:var(--m00)}
+.step[aria-current="step"] small{color:var(--m28)}
+.note{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start;background:var(--m08);padding:14px 16px}
+.note p{margin:0;max-width:78ch;color:var(--m85)}
+.note b{color:var(--m100)}
+.nav2{display:flex;gap:2px}
+.nav2 button{height:32px;padding:0 12px;background:var(--m16);font-size:12px;font-weight:600}
+.nav2 button:hover{background:var(--m28);color:var(--m100)}
+.stage{overflow-x:auto;background:var(--m00);box-shadow:0 0 0 1px var(--m16)}
+
+/* ===== the editor behind ===== */
+.ed{width:1180px;height:780px;position:relative;overflow:hidden;background:var(--m00)}
+.ed-top{height:44px;display:flex;align-items:center;gap:24px;padding:0 20px;background:var(--m08);font-size:13px}
+.ed-top b{color:var(--m100);font-size:15px}
+.ed-row{height:84px;display:flex;gap:4px;border-bottom:1px solid var(--m08)}
+.ed-hd{width:220px;background:var(--m08);display:flex;align-items:center;gap:12px;padding:0 14px;color:var(--m100);font-weight:600}
+.ed-hd i{width:4px;height:34px;display:block}
+.ed-clip{margin:10px 0;opacity:.5}
+.scrim{position:absolute;inset:0;background:rgb(0 0 0/70%)}
+
+/* ===== the library modal ===== */
+.modal{position:absolute;left:90px;top:56px;width:1000px;height:690px;background:var(--m08);box-shadow:0 20px 60px rgb(0 0 0/80%),0 0 0 1px var(--m16);display:flex;flex-direction:column;font-size:12px}
+.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--m47);font-weight:500}
+.num{font-variant-numeric:tabular-nums}
+.hd{display:flex;align-items:center;gap:28px;padding:14px 20px;border-bottom:1px solid var(--m16)}
+.trk{display:flex;align-items:center;gap:12px}
+.trk::before{content:"";width:4px;height:34px;background:var(--track)}
+.trk b{display:block;font-size:18px;color:var(--m100);font-weight:600;line-height:1.15}
+.ro{display:flex;flex-direction:column;gap:1px;min-width:0;max-width:190px}
+.ro b{font-size:14px;font-weight:500;color:var(--m96);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search{margin-left:auto;display:flex;align-items:center;gap:8px;height:32px;width:260px;background:var(--m00);padding:0 10px;box-shadow:inset 0 0 0 1px var(--m16)}
+.search:focus-within{box-shadow:inset 0 0 0 1px var(--m85)}
+.search input{flex:1;min-width:0;background:none;border:0;color:var(--m96);font:13px var(--sans);outline:none}
+.ib{width:32px;height:32px;display:grid;place-items:center;color:var(--m65);flex:none}
+.ib:hover{background:var(--m16);color:var(--m100)}
+.ib svg{width:15px;height:15px}
+.body{flex:1;display:flex;min-height:0}
+
+/* rail */
+.rail{width:220px;flex:none;border-right:1px solid var(--m16);padding:10px 0;display:flex;flex-direction:column;gap:1px;overflow:auto}
+.browse{margin:0 10px 8px;height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;box-shadow:inset 0 0 0 1px var(--m28);font-size:13px;font-weight:600;color:var(--m96)}
+.browse:hover{box-shadow:inset 0 0 0 1px var(--m85);color:var(--m100)}
+.browse.on{background:var(--m100);color:var(--m00);box-shadow:none}
+.browse svg{width:15px;height:15px}
+.rule{display:flex;align-items:center;gap:10px;padding:12px 16px 6px}
+.rule::after{content:"";flex:1;height:1px;background:var(--m28)}
+.pk{display:flex;justify-content:space-between;gap:8px;padding:6px 16px;font-size:13px;color:var(--m85);width:100%}
+.pk span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk:hover{background:var(--m16);color:var(--m100)}
+.pk.on{background:var(--m100);color:var(--m00);font-weight:600}
+.pk small{font-size:11px;color:var(--m47);flex:none}
+.pk.on small{color:var(--m28)}
+
+.main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+
+/* pack banner */
+.banner{display:flex;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--m16);background:var(--m00)}
+.banner .cov{width:56px;height:56px;flex:none}
+.banner h3{margin:0;font-size:16px;color:var(--m100)}
+.banner p{margin:0;color:var(--m65);font-size:12px}
+.status{font-size:11px;padding:3px 7px;box-shadow:inset 0 0 0 1px var(--m47);color:var(--m85);white-space:nowrap}
+.status.in{background:var(--m100);color:var(--m00);box-shadow:none;font-weight:600}
+
+/* shelf: families, then that family's categories */
+.shelf{padding:12px 16px 0;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--m16)}
+.fams{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.fam{flex:1 0 88px;max-width:170px;height:50px;background:var(--m12);display:flex;flex-direction:column;justify-content:center;padding:0 10px;gap:1px}
+.fam b{font-size:13px;color:var(--m96);font-weight:600}
+.fam small{font-size:11px;color:var(--m47)}
+.fam:hover{background:var(--m16)}
+.fam.on{background:var(--m100)}
+.fam.on b{color:var(--m00)}.fam.on small{color:var(--m28)}
+.cats{display:flex;align-items:center;gap:4px;position:relative;padding-bottom:10px}
+.cat-scroll{display:flex;gap:4px;overflow-x:auto;scroll-behavior:smooth;scrollbar-width:none;flex:1;min-width:0;mask-image:linear-gradient(90deg,#000 calc(100% - 40px),transparent)}
+.cat-scroll::-webkit-scrollbar{display:none}
+.chip{height:26px;padding:0 10px;background:var(--m16);color:var(--m65);font-size:12px;white-space:nowrap;flex:none;display:flex;align-items:center;gap:6px}
+.chip small{font-size:10px;color:var(--m47)}
+.chip:hover{background:var(--m28);color:var(--m100)}
+.chip.on{background:var(--m100);color:var(--m00);font-weight:600}
+.chip.on small{color:var(--m28)}
+.arrow{width:26px;height:26px;display:grid;place-items:center;background:var(--m16);color:var(--m85);flex:none}
+.arrow:hover{background:var(--m28)}
+.arrow svg{width:10px;height:10px}
+
+/* filter row */
+.filters{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--m16);flex-wrap:wrap;position:relative}
+.pick{display:flex;align-items:center;gap:8px;height:26px;padding:0 10px;background:var(--m16);font-size:12px;color:var(--m96)}
+.pick::after{content:"";border-top:5px solid var(--m65);border-left:4px solid transparent;border-right:4px solid transparent}
+.pick:hover{background:var(--m28)}
+.pick.set{background:var(--m100);color:var(--m00);font-weight:600}
+.pick.set::after{border-top-color:var(--m28)}
+.seg{display:flex;gap:2px}
+.seg .chip{min-width:28px;justify-content:center}
+.count{margin-left:auto;color:var(--m47);font-size:11px}
+.menu{position:absolute;z-index:6;left:16px;top:40px;background:var(--m00);min-width:230px;padding:4px 0;box-shadow:0 10px 30px rgb(0 0 0/70%),0 0 0 1px var(--m16)}
+.menu label{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:12px;color:var(--m85);cursor:pointer}
+.menu label:hover{background:var(--m16);color:var(--m100)}
+.menu input{accent-color:var(--m100);margin:0}
+.menu small{margin-left:auto;color:var(--m47)}
+.menu hr{border:0;height:1px;background:var(--m16);margin:4px 0}
+.menu .clear{display:block;width:100%;padding:7px 12px;font-size:12px;color:var(--m65)}
+.menu .clear:hover{background:var(--m16);color:var(--m100)}
+.jump{display:flex;gap:6px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--m16);flex-wrap:wrap}
+
+/* sound list */
+.list{list-style:none;margin:0;padding:4px 0;overflow:auto;flex:1;outline:none}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 32px 32px;gap:0;align-items:center;padding-right:10px}
+.row.on .row.on .match{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--m65)}
+.match i{position:relative;flex:1;height:2px;background:var(--m28)}
+.match i::after{content:"";position:absolute;left:0;top:-1px;height:4px;width:var(--p);background:var(--m85)}
+.row.on .match{color:var(--m00)}.row.on .match i{background:var(--m85)}.row.on .match i::after{background:var(--m00)}
+.sim-h{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--m16);min-width:0}
+.back{height:28px;display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--m16);font-size:12px;font-weight:600;color:var(--m96);flex:none}
+.back:hover{background:var(--m28)}
+.back svg{width:10px;height:10px}
+.trail{display:flex;align-items:center;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:none;font-size:12px}
+.trail button{color:var(--m65);white-space:nowrap}
+.trail button:hover{color:var(--m100);text-decoration:underline;text-underline-offset:3px}
+.trail .here{color:var(--m100);font-weight:600}
+.trail .sep{color:var(--m47)}
+.ref{display:grid;grid-template-columns:44px 260px minmax(0,1fr);gap:16px;align-items:center;padding:14px 16px;background:var(--m00);border-bottom:1px solid var(--m16)}
+.ref-play{width:44px;height:44px;background:var(--m100);color:var(--m00);display:grid;place-items:center}
+.ref-play:hover{background:var(--m85)}
+.ref-well{height:44px;position:relative}
+.ref-well svg{position:absolute;inset:0;width:100%;height:100%}
+.ref-well path{fill:var(--track)}
+.ref-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ref-txt b{font-size:18px;color:var(--m100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ref-txt span:last-child{font-size:12px;color:var(--m65)}
+.row:hover{background:var(--m12)}
+.rm{display:grid;grid-template-columns:18px 110px minmax(0,1fr) 130px 64px;gap:14px;align-items:center;height:38px;padding-left:14px}
+.rm svg{display:block}
+.nm{font-size:13px;font-weight:600;color:var(--m96);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.pn{font-size:11px;color:var(--m47);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.tg{font-size:11px;color:var(--m65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.du{font-size:11px;color:var(--m47);text-align:right;white-space:nowrap}
+.wv{fill:var(--m47)}
+.row.on{background:var(--m100)}
+.row.on .nm,.row.on .tg{color:var(--m00)}
+.row.on .pn,.row.on .du{color:var(--m28)}
+.row.on .wv{fill:var(--track)}
+.row.on .ib{color:var(--m00)}
+.row.on .ib:hover{background:var(--m85)}
+.ib.fav{color:var(--m100)}
+.row.on .ib.fav{color:var(--m00)}
+.empty{padding:40px 20px;text-align:center;color:var(--m65)}
+.empty button{margin-top:10px;text-decoration:underline;text-underline-offset:3px;color:var(--m100)}
+
+/* packs view */
+.packs-h{display:flex;align-items:center;gap:6px;padding:12px 16px;border-bottom:1px solid var(--m16);flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:16px;overflow:auto;align-content:start;flex:1}
+.card{display:flex;flex-direction:column;gap:8px;position:relative}
+.cov{background:var(--m00);position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px var(--m16);display:block}
+.card .cov{aspect-ratio:16/10}
+.card:hover .cov{box-shadow:inset 0 0 0 1px var(--m85)}
+.cov svg{position:absolute;left:0;right:0;top:10%;width:100%;height:58%}
+.cov .ini{position:absolute;left:12px;bottom:4px;font-size:54px;font-weight:800;color:var(--m100);letter-spacing:-.04em;line-height:1}
+.banner .cov .ini{font-size:22px;left:6px;bottom:2px}
+.cov .s1{fill:var(--m16)}.cov .s2{fill:var(--m47)}
+.cov .tag{position:absolute;right:8px;top:8px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;background:var(--m100);color:var(--m00);padding:3px 6px;font-weight:700}
+.card-open{display:flex;flex-direction:column;gap:6px}
+.card b{font-size:14px;color:var(--m100)}
+.card .meta{font-size:12px;color:var(--m65)}
+.card .mix{font-size:11px;color:var(--m47)}
+.demo{position:absolute;left:8px;top:8px;height:28px;padding:0 10px;background:var(--m100);color:var(--m00);font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px}
+.demo:hover{background:var(--m85)}
+
+/* footer */
+.ft{display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid var(--m16)}
+.hint{font-size:12px;color:var(--m65);flex:1;min-width:0}
+.hint b{color:var(--m100);font-weight:600}
+.kbd{font-size:10px;padding:1px 5px;box-shadow:inset 0 0 0 1px var(--m47);color:var(--m85)}
+.ghost{height:44px;padding:0 14px;box-shadow:inset 0 0 0 1px var(--m28);color:var(--m85);font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;flex:none}
+.ghost:hover{box-shadow:inset 0 0 0 1px var(--m85);color:var(--m100)}
+.ghost svg{width:16px;height:16px}
+.cta{height:44px;padding:0 20px;background:var(--m100);color:var(--m00);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:10px;width:300px;flex:none}
+.cta span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cta:hover{background:var(--m85)}
+.cta .kbd{color:var(--m28);box-shadow:inset 0 0 0 1px var(--m47)}
+[hidden]{display:none!important}
+.k{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 3px;font-size:10px;font-weight:600;line-height:1;color:var(--m65);box-shadow:inset 0 0 0 1px var(--m28);font-variant-numeric:tabular-nums;flex:none}
+.on .k,.browse.on .k,.chip.on .k{color:var(--m28);box-shadow:inset 0 0 0 1px var(--m65)}
+.card .k{position:absolute;right:8px;bottom:8px;background:var(--m00);color:var(--m85)}
+.keys{position:absolute;inset:60px 90px 70px;z-index:8;background:var(--m00);box-shadow:0 20px 60px rgb(0 0 0/80%),0 0 0 1px var(--m28);padding:18px 22px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.keys h3{margin:0;font-size:16px;color:var(--m100)}
+.keys p{margin:0;color:var(--m65);font-size:12px;max-width:70ch}
+.keys-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.keys-grid dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-content:start;font-size:12px}
+.keys-grid dt{justify-self:start}
+.keys-grid dd{margin:0;color:var(--m85)}
+.keys-grid .lbl{grid-column:1/-1;padding-bottom:2px;border-bottom:1px solid var(--m16)}
+.done{position:absolute;inset:0;background:var(--m08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;z-index:9}
+.done b{font-size:28px;color:var(--m100)}
+.done p{margin:0;color:var(--m65);max-width:52ch}
+.tick{width:44px;height:44px;background:var(--m100);color:var(--m00);display:grid;place-items:center}
+@media (prefers-reduced-motion:reduce){.cat-scroll{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="page-h">
+    <p class="eyebrow">Groove · LIB-010 · library mockup</p>
+    <h1>Find a sound, hear it in the beat, insert it</h1>
+    <p class="lede">Treatment A with B's shelf. Step through the flow below, or just use it: click or arrow through sounds to hear them, open the genre menu, browse packs. Sounds are synthesized stand-ins.</p>
+  </header>
+
+  <nav class="steps" id="steps" aria-label="Flow"></nav>
+  <div class="note"><p id="note"></p><div class="nav2"><button type="button" id="prev">Back</button><button type="button" id="next">Next step</button></div></div>
+
+  <div class="stage">
+    <div class="ed">
+      <div class="ed-top"><b>Groove</b><span>Untitled beat</span><span class="num">124 BPM</span><span>4/4</span></div>
+      <div class="ed-row"><div class="ed-hd"><i style="background:var(--track)"></i>Drums</div><div class="ed-clip" style="width:420px;background:var(--track)"></div><div class="ed-clip" style="width:300px;background:var(--track)"></div></div>
+      <div class="ed-row"><div class="ed-hd"><i style="background:var(--m47)"></i>Lead</div></div>
+      <div class="ed-row"><div class="ed-hd"><i style="background:var(--m47)"></i>Bass</div></div>
+      <div class="scrim"></div>
+
+      <div class="modal" role="dialog" aria-label="Library">
+        <div class="hd">
+          <div class="trk"><div><span class="lbl">Drums · Pad 1</span><b>Kick</b></div></div>
+          <div class="ro"><span class="lbl">Was</span><b>Rounded Club Kick</b></div>
+          <div class="ro"><span class="lbl">Hearing</span><b id="hearing"></b></div>
+          <label class="search">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+            <input type="search" id="q" placeholder="Search sounds, packs and categories" aria-label="Search the library" autocomplete="off">
+          </label>
+          <button type="button" class="ib" aria-label="Close library"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+        </div>
+        <div class="body">
+          <nav class="rail" id="rail" aria-label="Packs"></nav>
+          <div class="main" id="main"></div>
+        </div>
+        <div class="ft">
+          <span class="hint" id="hint"></span>
+          <button type="button" class="ghost" id="keys-btn" aria-label="Keyboard shortcuts" aria-keyshortcuts="?" title="Keyboard shortcuts"><span class="k">?</span></button>
+          <button type="button" class="ghost" id="shuffle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="12" height="12"/><circle cx="5.5" cy="5.5" r=".9" fill="currentColor"/><circle cx="10.5" cy="10.5" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/></svg>Shuffle <span class="k">R</span></button>
+          <button type="button" class="cta" id="insert"><span id="insert-label"></span><span class="kbd">⏎</span></button>
+        </div>
+        <div class="keys" id="keys" role="dialog" aria-label="Library keys" hidden><div style="display:flex;justify-content:space-between;align-items:center"><h3>Library keys</h3><button type="button" class="ib" data-act="keys-close" aria-label="Close key list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l10 10M13 3L3 13"/></svg></button></div><p>These keys work only while the library is open. While it is, the editor's own shortcuts are off, so none of them clash. Typing in search keeps every key for the search; press Esc or ↓ to leave it.</p><div class="keys-grid"><dl><span class="lbl">Sounds</span><dt><span class="k">↑</span> <span class="k">↓</span></dt><dd>Previous / next sound, and hear it</dd><dt><span class="k">Space</span></dt><dd>Hear it again</dd><dt><span class="k">⏎</span></dt><dd>Insert and close</dd><dt><span class="k">L</span></dt><dd>Like: favourite the selected sound</dd><dt><span class="k">S</span></dt><dd>Similar sounds</dd><dt><span class="k">R</span></dt><dd>Shuffle</dd><dt><span class="k">Esc</span></dt><dd>Close, and put back the old sound</dd></dl><dl><span class="lbl">Categories</span><dt><span class="k">1</span> <span class="k">…</span> <span class="k">9</span></dt><dd>Pick that category; in Browse packs, open that pack</dd><dt><span class="k">0</span></dt><dd>All of the family</dd><dt><span class="k">←</span> <span class="k">→</span></dt><dd>Previous / next category</dd><dt><span class="k">[</span> <span class="k">]</span></dt><dd>Previous / next family</dd><dt><span class="k">G</span></dt><dd>Genre menu</dd><dt><span class="k">T</span></dt><dd>Loops: near the song tempo, or any</dd></dl><dl><span class="lbl">Where you are</span><dt><span class="k">A</span></dt><dd>All sounds</dd><dt><span class="k">F</span></dt><dd>Favourites</dd><dt><span class="k">P</span></dt><dd>Browse packs</dd><dt><span class="k">⌫</span></dt><dd>Back: out of similar sounds, a pack, or Browse packs</dd><dt><span class="k">/</span></dt><dd>Search</dd><dt><span class="k">?</span></dt><dd>This list</dd></dl></div></div>
+        <div class="done" id="done" hidden>
+          <div class="tick"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3 3 7-7"/></svg></div>
+          <span class="lbl">The Kick pad now plays</span>
+          <b id="done-name"></b>
+          <p id="done-note"></p>
+          <button type="button" class="ghost" id="again" style="margin-top:8px">Open the library again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+/* ---------- deterministic helpers ---------- */
+const rng = s => { s = s % 2147483647; if (s <= 0) s += 2147483646; return () => (s = s * 16807 % 2147483647, (s - 1) / 2147483646); };
+const hash = str => { let h = 7; for (const c of str) h = (h * 31 + c.charCodeAt(0)) % 1000003; return h + 1; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function wave(seed, env, n = 44) {
+  const r = rng(seed * 97 + 13), dec = 3 + rng(seed)() * 9, top = [], bot = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1); let a;
+    if (env === "hit") a = Math.exp(-t * dec) * (0.55 + 0.45 * r());
+    else if (env === "long") a = Math.min(1, t * 8) * Math.exp(-t * 1.3) * (0.5 + 0.5 * r());
+    else if (env === "rise") a = (0.1 + 0.9 * t * t) * (0.6 + 0.4 * r());
+    else { const b = (t * 8) % 1; a = (0.2 + 0.8 * Math.exp(-b * 6)) * (0.5 + 0.5 * r()); }
+    a = Math.max(0.05, a); const x = (t * 100).toFixed(1);
+    top.push(`${x},${(10 - a * 9.5).toFixed(2)}`); bot.unshift(`${x},${(10 + a * 9.5).toFixed(2)}`);
+  }
+  return `M${top.join(" L")} L${bot.join(" L")}Z`;
+}
+
+/* ---------- the library: families hold categories, packs hold sounds ---------- */
+const FAMILIES = [
+  {id:"drums", label:"Drums", cats:["Kick","Snare","Clap","Rim","Closed hat","Open hat","Ride","Crash","Tom","Conga","Bongo","Shaker","Tambourine","Cowbell","Wood","Metal"]},
+  {id:"bass", label:"Bass", cats:["Sub","Reese","Bass stab","Bass pluck","Long bass"]},
+  {id:"keys", label:"Keys", cats:["Chord","Chord stab","Pluck","E-piano","Organ","Mallet","Bell"]},
+  {id:"loops", label:"Loops", cats:["Full beat","Top loop","Perc loop","Bass loop","Music loop","Texture loop"]},
+  {id:"fx", label:"FX", cats:["Riser","Downlifter","Impact","Sweep","Noise"]},
+  {id:"textures", label:"Textures", cats:["Atmosphere","Drone","Foley"]},
+  {id:"vocals", label:"Vocals", cats:["Vocal chop","Vocal phrase","Shout"]},
+];
+const FAM_OF = {}; FAMILIES.forEach(f => f.cats.forEach(c => FAM_OF[c] = f.id));
+const POOL = {
+  "Kick":["Rounded Club Kick","Tight House Kick","Deep Sub Kick","Soft Rounded Kick","Driven Techno Kick","Industrial Hammer Kick","Short Punch Kick","Long Rumble Kick","Clicky Top Kick","Analog Triangle Kick","Dusty Tape Kick","Trap Boom Kick","Snapping Break Kick","Garage Bump Kick","Weighted Bass Kick","Acoustic Shell Kick","Floor Sub Kick","Layered Snap Kick","Overdriven Fold Kick","Roomy Wide Kick","Minimal Tick Kick","Warm Vinyl Kick"],
+  "Snare":["Tight Studio Snare","Wide Room Snare","Dry Rimmed Snare","Noisy Machine Snare","Deep Body Snare","Crushed Break Snare","Halftime Slab Snare","Soft Brush Snare","Bright Clap Snare","Ghost Tap Snare","Metal Edge Snare","Dusty Sampler Snare","Rolling Fill Snare"],
+  "Clap":["Classic House Clap","Tight Dry Clap","Wide Hall Clap","Hard Club Clap","Low Body Clap","Loose Hand Clap","Single Slap Clap","Layered Stack Clap","Noise Burst Clap"],
+  "Rim":["Dry Rim Click","Wooden Rim Knock","Metallic Rim Ping","Deep Rim Thud","Crushed Rim Snap"],
+  "Closed hat":["Tight Closed Hat","Short Tick Hat","Airy Closed Hat","Dark Closed Hat","Trap Detail Hat","Shuffled Garage Hat","Crushed Closed Hat","Glassy Closed Hat","Pedal Closed Hat","Metallic Tick Hat","Broken Tick Hat"],
+  "Open hat":["Classic Open Hat","Short Open Hat","Long Sizzle Hat","Dark Open Hat","Driven Open Hat","Soft Air Hat","Glass Open Hat"],
+  "Ride":["Tight Ride Cymbal","Washy Ride Cymbal","Bell Ride Cymbal"],
+  "Crash":["Bright Crash Cymbal","Dark Crash Cymbal","Short Splash Cymbal","Trashy Metal Cymbal"],
+  "Tom":["Low Tuned Tom","Mid Tuned Tom","High Tuned Tom","Deep Floor Tom","Driven Industrial Tom","Soft Skin Tom","Snappy Roll Tom","Detuned Wobble Tom"],
+  "Conga":["Open Conga","Slap Conga","Muted Conga"],"Bongo":["Low Bongo","High Bongo"],
+  "Shaker":["Close Shaker","Long Shaker","Bright Cabasa"],"Tambourine":["Hand Tambourine","Shaken Tambourine"],
+  "Cowbell":["Cowbell","Agogo Bell"],"Wood":["Wood Block","Deep Wood Knock","Claves"],"Metal":["Struck Metal Plate","Scrap Metal Hit","Anvil Ping"],
+  "Sub":["Clean Sine Sub C","Clean Sine Sub F","Clean Sine Sub A","Short Sub Blip","Warm Saturated Sub","Long Sine Drop"],
+  "Reese":["Classic Reese Bass","Wide Detuned Reese","Opening Reese Sweep","Crushed Reese Growl","Driven Sub Growl"],
+  "Bass stab":["Acid Bass Stab","Square Bass Stab","Hard Mid Bass Stab","Soft Rubber Bass Stab","Glide Bass A"],
+  "Bass pluck":["Plucked Sub","Round Pluck Bass","Muted Finger Bass","Short Saw Pluck"],
+  "Long bass":["Tuned Long Bass F","Tuned Long Bass C","Distorted Long Bass","Soft Sustained Bass","Warm Held Bass"],
+  "Chord":["Warm Minor Seventh Chord","Bright Major Seventh Chord","Suspended Fourth Chord","Deep Minor Ninth Chord","Neutral Fifth Pad Hit","Organ Major Chord","Organ Minor Chord"],
+  "Chord stab":["Filtered Minor Stab","Dominant Seventh Stab","Rave Chord Stab","Atonal Fifth Stab","Garage Organ Stab"],
+  "Pluck":["Nylon Pluck","Bright Synth Pluck","Dark Muted Pluck","Detuned Noise Pluck","Kalimba Pluck"],
+  "E-piano":["Tine Electric Key","Soft Chorused Key","Bright Bell Key","Detuned Toy Key"],
+  "Organ":["Drawbar Organ Hit","Church Organ Swell","Percussive Organ Click"],
+  "Mallet":["Wooden Marimba Mallet","Metal Vibraphone Mallet","Glass Mallet Ring","Soft Xylo Hit"],
+  "Bell":["Clean Struck Bell","Dark Temple Bell","Clangorous Bell","Tiny Hand Bell"],
+  "Full beat":["Four Four Club Groove","Driving Warehouse Beat","Slow Dusty Break","Rolling Chopped Break","Garage Skip Beat","Halftime Trap Beat","Minimal Tick Groove"],
+  "Top loop":["Shuffled Hat Top","Half Time Ride Top","Sixteenth Hat Run","Open Hat Offbeats"],
+  "Perc loop":["Hand Percussion Layer","Conga Shuffle","Metal Perc Chain","Wood Knock Pattern"],
+  "Bass loop":["Rolling Sub Bassline","Sparse Half Time Bass","Acid Line 303","Reese Roller","Offbeat Pluck Bass"],
+  "Music loop":["Warm Seventh Vamp","Plucked Two Bar Motif","Tape Warble Chords","Rave Stab Riff","Mallet Arpeggio"],
+  "Texture loop":["Slow Breathing Atmosphere","Vinyl Crackle Bed","Night Drive Pad"],
+  "Riser":["White Noise Riser","Pitch Up Riser","Tension Build","Filter Opening Rise","Snare Roll Rise","Reverse Swell"],
+  "Downlifter":["Falling Noise","Pitch Drop","Tape Stop","Sub Drop Down","Filter Close"],
+  "Impact":["Big Room Impact","Low Boom","Metal Slam","Reverb Hit","Distant Thud","Glass Impact"],
+  "Sweep":["Long Filter Sweep","Phaser Sweep","Air Sweep","Short Whoosh"],
+  "Noise":["Pink Noise Bed","Bitcrush Burst","Radio Static","Tape Hiss"],
+  "Atmosphere":["Slow Breathing Air","Night Street Room","Wide Glass Pad","Cold Hall","Warm Dusk Pad","Underwater Hum","Distant Choir Air","Low Cloud"],
+  "Drone":["Deep Drone C","Organ Drone","Beating Fifths","Metal Bowl Drone","Tape Drone","Sub Hum"],
+  "Foley":["Paper Crumple","Coin Drop","Door Knock","Keys Jingle","Lighter Flick","Footstep Gravel","Cup Tap"],
+  "Vocal chop":["Oh Chop","Hey Chop","Breathy Ah","Stuttered Yeah","Pitched Ooh"],
+  "Vocal phrase":["Come On Now","Right Here","Feel It"],
+  "Shout":["Hey Shout","Yeah Shout","Ho Shout"],
+};
+const PACKS = [
+  {id:"core", name:"Core Electronic Drums", pub:"Groove", ver:"1.2.0", inProject:true, desc:"Kicks, snares and hats for house, techno and garage.",
+   mix:{"Kick":10,"Snare":6,"Clap":5,"Rim":3,"Closed hat":6,"Open hat":4,"Ride":2,"Crash":2,"Tom":4,"Shaker":2,"Cowbell":1,"Metal":2}},
+  {id:"tonal", name:"Tonal Elements", pub:"Groove", ver:"1.0.3", inProject:true, desc:"Chords, stabs, plucks and bells, all tuned to C.",
+   mix:{"Chord":7,"Chord stab":5,"Pluck":5,"E-piano":4,"Organ":3,"Mallet":4,"Bell":4}},
+  {id:"machines", name:"Classic Drum Machines", pub:"Groove", ver:"1.0.0", desc:"Drum-machine hits: tight, dry and punchy.",
+   mix:{"Kick":8,"Snare":5,"Clap":4,"Rim":2,"Closed hat":5,"Open hat":3,"Tom":4,"Conga":2,"Cowbell":1,"Crash":1}},
+  {id:"bass", name:"Foundation Bass", pub:"Groove", ver:"1.1.0", desc:"Subs, reese and stabs for the low end.",
+   mix:{"Sub":6,"Reese":5,"Bass stab":5,"Bass pluck":4,"Long bass":5}},
+  {id:"loops", name:"Starter Loops", pub:"Groove", ver:"1.0.0", desc:"Beats, tops, basslines and music loops that follow your tempo.",
+   mix:{"Full beat":7,"Top loop":4,"Perc loop":3,"Bass loop":5,"Music loop":5,"Texture loop":2}},
+  {id:"amb", name:"Ambient Textures", pub:"Groove", ver:"1.0.1", desc:"Air, drones and small sounds for space between the notes.",
+   mix:{"Atmosphere":8,"Drone":6,"Foley":5,"Texture loop":1,"Bell":1}},
+  {id:"fx", name:"Transitions & FX", pub:"Groove", ver:"1.0.0", desc:"Risers, drops and impacts to move between sections.",
+   mix:{"Riser":6,"Downlifter":5,"Impact":6,"Sweep":4,"Noise":4}},
+  {id:"cc0", name:"CC0 Community Content", pub:"Community", ver:"0.9.0", desc:"Public-domain sounds from the community, a bit of everything.",
+   mix:{"Kick":4,"Snare":3,"Clap":2,"Rim":2,"Closed hat":3,"Open hat":2,"Ride":1,"Crash":1,"Tom":3,"Conga":1,"Bongo":2,"Shaker":1,"Tambourine":2,"Cowbell":1,"Wood":3,"Metal":1,"Sub":0,"Bass pluck":0,"Pluck":1,"Mallet":1,"Full beat":2,"Perc loop":1,"Riser":1,"Impact":1,"Atmosphere":1,"Foley":2,"Vocal chop":5,"Vocal phrase":3,"Shout":3}},
+];
+const PACK = Object.fromEntries(PACKS.map(p => [p.id, p]));
+const GENRES = ["House","Techno","UK garage","Hip-hop","Lo-fi","Drum & bass","Ambient","Trap"];
+const CHAR = ["tight","warm","dusty","wide","deep","bright","dark","punchy","soft","gritty","round","airy","clean","driven","short","long"];
+const SOUNDS = []; const used = {};
+PACKS.forEach(p => {
+  let pi = 0;
+  Object.entries(p.mix).forEach(([cat, n]) => {
+    for (let i = 0; i < n; i++) {
+      const pool = POOL[cat]; let name = null;
+      for (let k = 0; k < pool.length; k++) { const c = pool[(k + pi) % pool.length]; if (!used[c]) { name = c; break; } }
+      if (!name) { const pre = ["Worn","Found","Field","Rough","Lo-fi","Room"]; let k = 0; do { name = pre[(i + k) % pre.length] + " " + pool[(i + pi + k) % pool.length]; k++; } while (used[name]); }
+      used[name] = true; pi++;
+      const h = hash(p.id + name), r = rng(h), fam = FAM_OF[cat];
+      const env = fam === "loops" ? "loop" : cat === "Riser" ? "rise" : (fam === "textures" || fam === "keys" && /Chord|Bell|Organ/.test(cat) || cat === "Long bass" || cat === "Crash" || cat === "Ride") ? "long" : "hit";
+      const g1 = GENRES[Math.floor(r() * GENRES.length)], g2 = GENRES[Math.floor(r() * GENRES.length)];
+      const c1 = CHAR[Math.floor(r() * CHAR.length)]; let c2 = CHAR[Math.floor(r() * CHAR.length)]; if (c2 === c1) c2 = CHAR[(CHAR.indexOf(c1) + 5) % CHAR.length];
+      const bpm = fam === "loops" ? [90, 100, 120, 124, 126, 128, 140, 174][Math.floor(r() * 8)] : null;
+      const bars = fam === "loops" ? [1, 2, 2, 4, 4, 8][Math.floor(r() * 6)] : null;
+      const len = env === "long" ? 1 + r() * 4 : env === "rise" ? 2 + r() * 6 : 0.1 + r() * 0.8;
+      SOUNDS.push({id:p.id + ":" + name, name, pack:p.id, cat, fam, seed:h, env,
+        genres:g1 === g2 ? [g1] : [g1, g2], tags:c1 + " · " + c2, bpm, bars,
+        meta: bpm ? `${bpm} BPM · ${bars} bar${bars > 1 ? "s" : ""}` : len.toFixed(2) + " s"});
+    }
+  });
+});
+SOUNDS.forEach(s => s.wave = wave(s.seed, s.env));
+const byId = Object.fromEntries(SOUNDS.map(s => [s.id, s]));
+const find = name => SOUNDS.find(s => s.name === name);
+
+/* ---------- audio: synthesized stand-ins ---------- */
+let AC = null, LIVE = [];
+const ctx = () => { if (!AC) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; AC = new C(); } if (AC.state === "suspended") AC.resume(); return AC; };
+const stopAll = () => { LIVE.forEach(n => { try { n.stop(); } catch (e) {} }); LIVE = []; };
+const noiseBuf = (c, d) => { const b = c.createBuffer(1, Math.floor(c.sampleRate * d), c.sampleRate), x = b.getChannelData(0); for (let i = 0; i < x.length; i++) x[i] = Math.random() * 2 - 1; return b; };
+const env = (c, t, a, peak, dec, dest) => { const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec); g.connect(dest); return g; };
+const osc = (c, type, f, t, d, dest) => { const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.connect(dest); o.start(t); o.stop(t + d + 0.05); LIVE.push(o); return o; };
+const nz = (c, t, d, ft, fq, dest) => { const s = c.createBufferSource(); s.buffer = noiseBuf(c, d + 0.05); const f = c.createBiquadFilter(); f.type = ft; f.frequency.value = fq; s.connect(f); f.connect(dest); s.start(t); s.stop(t + d + 0.05); LIVE.push(s); return f; };
+function hit(c, s, t, out, seedShift = 0) {
+  const r = rng(s.seed * 31 + 7 + seedShift), cat = s.cat;
+  if (cat === "Kick") { const o = osc(c, "sine", 110 + r() * 80, t, 0.8, env(c, t, 0.003, 0.9, 0.18 + r() * 0.5, out)); o.frequency.exponentialRampToValueAtTime(38 + r() * 20, t + 0.12 + r() * 0.1); }
+  else if (cat === "Snare") { nz(c, t, 0.4, "bandpass", 1500 + r() * 2500, env(c, t, 0.002, 0.6, 0.12 + r() * 0.2, out)); osc(c, "triangle", 170 + r() * 60, t, 0.12, env(c, t, 0.002, 0.4, 0.08, out)); }
+  else if (cat === "Clap") { for (let k = 0; k < 3; k++) nz(c, t + k * 0.011, 0.02, "bandpass", 1100 + r() * 600, env(c, t + k * 0.011, 0.001, 0.6, 0.02, out)); nz(c, t + 0.033, 0.4, "bandpass", 1200 + r() * 500, env(c, t + 0.033, 0.002, 0.5, 0.1 + r() * 0.35, out)); }
+  else if (/Closed hat|Shaker|Tambourine/.test(cat)) nz(c, t, 0.3, "highpass", 7000 + r() * 3000, env(c, t, 0.001, 0.3, 0.03 + r() * 0.08, out));
+  else if (/Open hat|Ride|Crash/.test(cat)) nz(c, t, 1.6, "highpass", 6000 + r() * 3000, env(c, t, 0.001, 0.3, 0.3 + r() * 1.1, out));
+  else if (/Tom|Conga|Bongo/.test(cat)) { const o = osc(c, "sine", (cat === "Tom" ? 90 : 220) + r() * 120, t, 0.6, env(c, t, 0.002, 0.7, 0.2 + r() * 0.3, out)); o.frequency.exponentialRampToValueAtTime(60 + r() * 40, t + 0.3); }
+  else if (s.fam === "drums") osc(c, cat === "Wood" ? "sine" : "square", 500 + r() * 900, t, 0.1, env(c, t, 0.001, 0.3, 0.05 + r() * 0.1, out));
+  else if (s.fam === "bass") { const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 300 + r() * 1500; f.connect(out); osc(c, r() < 0.5 ? "sawtooth" : "square", 41.2 * Math.pow(2, Math.floor(r() * 7) / 12), t, 1.4, env(c, t, 0.005, 0.5, cat === "Long bass" ? 1.2 : 0.3 + r() * 0.4, f)); }
+  else if (s.fam === "keys") { const root = 196 * Math.pow(2, Math.floor(r() * 7) / 12), ch = /Chord|Organ/.test(cat) ? [0, 3, 7, 10] : cat === "Bell" ? [0, 7.02, 12, 19.5] : [0, 12]; const g = env(c, t, 0.004, 0.22, /Pluck|Mallet|stab/.test(cat) ? 0.35 : 1.3, out); ch.forEach(st => osc(c, cat === "Bell" || cat === "Mallet" ? "sine" : "triangle", root * Math.pow(2, st / 12), t, 2, g)); }
+  else if (s.fam === "textures") { if (cat === "Foley") nz(c, t, 0.3, "bandpass", 800 + r() * 3000, env(c, t, 0.002, 0.5, 0.1 + r() * 0.2, out)); else { const g = env(c, t, 0.6, 0.15, 2.5, out); [0, 7, 12].forEach(st => osc(c, "sine", 110 * Math.pow(2, (st + Math.floor(r() * 5)) / 12), t, 3.4, g)); } }
+  else if (s.fam === "fx") { if (cat === "Impact") { hit(c, {cat:"Kick", seed:s.seed}, t, out); nz(c, t, 1.5, "lowpass", 1200, env(c, t, 0.002, 0.5, 1.2, out)); } else { const f = nz(c, t, 1.8, "bandpass", cat === "Downlifter" ? 6000 : 300, env(c, t, cat === "Riser" ? 1.6 : 0.01, 0.4, cat === "Riser" ? 0.1 : 1.4, out)); f.frequency.exponentialRampToValueAtTime(cat === "Downlifter" ? 200 : 8000, t + 1.7); } }
+  else if (s.fam === "vocals") { const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 700 + r() * 600; f.Q.value = 6; f.connect(out); osc(c, "sawtooth", 180 + r() * 120, t, 0.5, env(c, t, 0.01, 0.8, cat === "Vocal phrase" ? 0.6 : 0.18, f)); }
+}
+function playLoop(c, s, out) {
+  const t0 = c.currentTime + 0.05, st = 60 / 124 / 4, r = rng(s.seed);
+  const K = {cat:"Kick", seed:s.seed}, H = {cat:"Closed hat", seed:s.seed + 1}, CL = {cat:"Clap", seed:s.seed + 2}, B = {cat:"Sub", fam:"bass", seed:s.seed + 3}, CH = {cat:"Chord", fam:"keys", seed:s.seed + 4}, P = {cat:"Conga", fam:"drums", seed:s.seed + 5};
+  for (let i = 0; i < 32; i++) {
+    const t = t0 + i * st;
+    if (s.cat === "Full beat") { if (i % 4 === 0) hit(c, K, t, out); if (i % 4 === 2 || r() < 0.2) hit(c, H, t, out); if (i % 8 === 4) hit(c, CL, t, out); }
+    else if (s.cat === "Top loop") { if (i % 2 === 0 || r() < 0.3) hit(c, H, t, out, i); }
+    else if (s.cat === "Perc loop") { if (r() < 0.45) hit(c, P, t, out, i); }
+    else if (s.cat === "Bass loop") { if (i % 4 === 0 || r() < 0.25) hit(c, {...B, cat:"Bass stab"}, t, out, i >> 3); }
+    else if (s.cat === "Music loop") { if (i % 8 === 0) hit(c, CH, t, out, i >> 4); }
+    else if (i === 0) hit(c, {cat:"Atmosphere", fam:"textures", seed:s.seed}, t, out);
+  }
+}
+function play(s) {
+  const c = ctx(); if (!c) return; stopAll();
+  const out = c.createGain(); out.gain.value = 0.65; out.connect(c.destination);
+  if (s.fam === "loops") playLoop(c, s, out); else hit(c, s, c.currentTime + 0.02, out);
+}
+function playPack(pid) {
+  const c = ctx(); if (!c) return; stopAll();
+  const out = c.createGain(); out.gain.value = 0.6; out.connect(c.destination);
+  const cats = Object.keys(PACK[pid].mix).filter(k => PACK[pid].mix[k] > 0), t0 = c.currentTime + 0.05;
+  cats.slice(0, 8).forEach((cat, i) => { const s = SOUNDS.find(x => x.pack === pid && x.cat === cat); if (s && s.fam !== "loops") hit(c, s, t0 + i * 0.24, out); });
+}
+
+/* ---------- state ---------- */
+const INITIAL = () => ({view:"sounds", pack:"all", fam:"drums", cat:"Kick", genres:[], tempo:"near", bars:null,
+  sel:find("Tight House Kick").id, favs:new Set([find("Deep Sub Kick").id, find("Classic House Clap").id]),
+  q:"", similar:null, trail:[], match:{cat:true, character:true, genre:true, length:true}, menu:false, packFam:null, inserted:false, keys:false});
+let st = INITIAL();
+const $ = id => document.getElementById(id);
+const qInput = $("q");
+
+const scoped = () => SOUNDS.filter(s => st.pack === "all" ? true : st.pack === "fav" ? st.favs.has(s.id) : s.pack === st.pack);
+const matchQ = s => { const q = st.q.trim().toLowerCase(); return !q || (s.name + " " + s.tags + " " + s.cat + " " + PACK[s.pack].name).toLowerCase().includes(q); };
+const matchG = s => !st.genres.length || s.genres.some(g => st.genres.includes(g));
+const pool = () => scoped().filter(s => matchQ(s) && matchG(s));
+function results() {
+  let list = pool().filter(s => s.fam === st.fam && (!st.cat || s.cat === st.cat));
+  if (st.fam === "loops") { if (st.tempo === "near") list = list.filter(s => Math.abs(s.bpm - 124) <= 10); if (st.bars) list = list.filter(s => s.bars === st.bars); }
+  return list;
+}
+/* similar sounds: a weighted match on what the viewer chooses to match on */
+const MATCH = [["cat","Category",4],["character","Character",3],["genre","Genre",1],["length","Length",2]];
+const lenOf = s => s.bpm ? s.bars : parseFloat(s.meta);
+function similarTo(ref) {
+  const rt = ref.tags.split(" · "), on = MATCH.filter(m => st.match[m[0]]);
+  const max = on.reduce((a, m) => a + m[2], 0) || 1;
+  return SOUNDS.filter(s => s.id !== ref.id && s.fam === ref.fam).map(s => {
+    let k = 0;
+    if (st.match.cat && s.cat === ref.cat) k += 4;
+    if (st.match.character) k += 1.5 * s.tags.split(" · ").filter(t => rt.includes(t)).length;
+    if (st.match.genre && s.genres.some(g => ref.genres.includes(g))) k += 1;
+    if (st.match.length) { const a = lenOf(s), b = lenOf(ref); k += 2 * Math.max(0, 1 - Math.abs(a - b) / Math.max(a, b)); }
+    const jitter = (hash(s.id + ref.id) % 7) / 100;
+    return {s, pct:Math.round(Math.min(0.99, k / max * 0.93 + jitter) * 100)};
+  }).sort((a, b) => b.pct - a.pct).slice(0, 16);
+}
+const catPlural = c => /s$/.test(c) ? c : c + "s";
+/* keep the family and category valid for the current scope */
+function settle() {
+  const p = pool(), fams = FAMILIES.filter(f => p.some(s => s.fam === f.id));
+  if (fams.length && !fams.some(f => f.id === st.fam)) { st.fam = fams[0].id; st.cat = null; }
+  if (st.cat && !p.some(s => s.cat === st.cat)) st.cat = null;
+}
+
+/* ---------- render ---------- */
+const ICON = {
+  play:'<path d="M4 3l9 5-9 5z" fill="currentColor"/>', eq:'<path d="M3 12h2V6H3zM7 12h2V3H7zM11 12h2V8h-2z" fill="currentColor"/>',
+  heart:'<path d="M8 13.5S2 10 2 5.8A3 3 0 0 1 8 4.4a3 3 0 0 1 6 1.4C14 10 8 13.5 8 13.5z"/>',
+  sim:'<circle cx="6" cy="8" r="4"/><circle cx="10" cy="8" r="4"/>',
+  grid:'<rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/>',
+  x:'<path d="M3 3l10 10M13 3L3 13"/>', l:'<path d="M10 2L4 8l6 6"/>', r:'<path d="M6 2l6 6-6 6"/>'
+};
+const svg = (d, extra = "") => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true" ${extra}>${d}</svg>`;
+const initials = n => n.split(/\s+/).filter(w => /[A-Za-z0-9]/.test(w)).slice(0, 2).map(w => w[0]).join("");
+function cover(p) {
+  const h = hash(p.name), cats = Object.keys(p.mix);
+  const stripes = [0, 1, 2].map(i => { const s = SOUNDS.find(x => x.pack === p.id && x.cat === cats[(i * 3) % cats.length]); return `<path class="${i === 1 ? "s2" : "s1"}" transform="translate(0,${i * 20})" d="${wave(h + i, s ? s.env : "hit", 40)}"/>`; }).join("");
+  return `<svg viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden="true">${stripes}</svg><span class="ini">${esc(initials(p.name))}</span>`;
+}
+const packCount = pid => SOUNDS.filter(s => s.pack === pid).length;
+const catCount = pid => Object.values(PACK[pid].mix).filter(n => n > 0).length;
+
+function renderRail() {
+  const pk = (id, label, n, key) => `<button type="button" class="pk${st.view === "sounds" && st.pack === id ? " on" : ""}" data-pack="${id}"${key ? ` aria-keyshortcuts="${key.toUpperCase()}"` : ""}><span>${esc(label)}</span><span style="display:flex;gap:8px;align-items:center"><small class="num">${n}</small>${key ? `<span class="k">${key.toUpperCase()}</span>` : ""}</span></button>`;
+  $("rail").innerHTML =
+    `<button type="button" class="browse${st.view === "packs" ? " on" : ""}" data-act="browse">${svg(ICON.grid)}<span style="flex:1">Browse packs</span><span class="k">P</span></button>` +
+    pk("all", "All sounds", SOUNDS.length, "a") + pk("fav", "Favourites", st.favs.size, "f") +
+    `<div class="rule"><span class="lbl">In this project</span></div>` +
+    PACKS.filter(p => p.inProject).map(p => pk(p.id, p.name, packCount(p.id))).join("") +
+    `<div class="rule"><span class="lbl">Recently viewed</span></div>` +
+    PACKS.filter(p => !p.inProject && (p.id === "machines" || p.id === st.pack || p.viewed)).map(p => pk(p.id, p.name, packCount(p.id))).join("");
+}
+
+function renderSounds() {
+  settle();
+  const p = pool(), rows = results();
+  const fams = FAMILIES.filter(f => p.some(s => s.fam === f.id));
+  const famSounds = p.filter(s => s.fam === st.fam);
+  const fam = FAMILIES.find(f => f.id === st.fam);
+  const cats = fam.cats.map(c => [c, famSounds.filter(s => s.cat === c).length]).filter(x => x[1] > 0);
+  const q = st.q.trim().toLowerCase();
+  const jumps = q.length > 1 ? FAMILIES.flatMap(f => f.cats.filter(c => c.toLowerCase().includes(q) && p.some(s => s.cat === c))) : [];
+  const pack = PACK[st.pack];
+  let h = "";
+  if (pack) h += `<div class="banner"><span class="cov">${cover(pack)}</span><div style="flex:1;min-width:0"><h3>${esc(pack.name)}</h3><p>${esc(pack.pub)} · v${pack.ver} · ${packCount(pack.id)} sounds in ${catCount(pack.id)} categories. ${esc(pack.desc)}</p></div>` +
+    (pack.inProject ? `<span class="status in">In this project</span>` : `<span class="status">Joins the project when you insert a sound</span>`) +
+    `<button type="button" class="ib" data-pack="all" aria-label="Back to all sounds">${svg(ICON.x)}</button></div>`;
+  {
+    h += `<div class="shelf"><div class="fams" role="tablist" aria-label="Families">` +
+      fams.map(f => `<button type="button" role="tab" aria-selected="${f.id === st.fam}" class="fam${f.id === st.fam ? " on" : ""}" data-fam="${f.id}"><b>${f.label}</b><small class="num">${p.filter(s => s.fam === f.id).length} sounds</small></button>`).join("") +
+      `</div><div class="cats"><button type="button" class="arrow" data-scroll="-1" aria-label="Scroll categories left">${svg(ICON.l)}</button><div class="cat-scroll" id="cat-scroll">` +
+      `<button type="button" class="chip${!st.cat ? " on" : ""}" data-cat="" aria-keyshortcuts="0"><span class="k">0</span>All ${fam.label.toLowerCase()} <small class="num">${famSounds.length}</small></button>` +
+      cats.map(([c, n], i) => `<button type="button" class="chip${st.cat === c ? " on" : ""}" data-cat="${esc(c)}" aria-pressed="${st.cat === c}"${i < 9 ? ` aria-keyshortcuts="${i + 1}"` : ""}>${i < 9 ? `<span class="k">${i + 1}</span>` : ""}${esc(c)} <small class="num">${n}</small></button>`).join("") +
+      `</div><button type="button" class="arrow" data-scroll="1" aria-label="Scroll categories right">${svg(ICON.r)}</button></div></div>`;
+    if (jumps.length) h += `<div class="jump"><span class="lbl">Categories</span>${jumps.map(c => `<button type="button" class="chip" data-jump="${esc(c)}">${esc(c)} →</button>`).join("")}</div>`;
+    const gl = st.genres.length ? (st.genres.length === 1 ? st.genres[0] : st.genres.length + " genres") : "Any genre";
+    h += `<div class="filters"><button type="button" class="pick${st.genres.length ? " set" : ""}" data-act="menu" aria-haspopup="true" aria-expanded="${st.menu}">${esc(gl)}</button>`;
+    if (st.fam === "loops") h += `<span class="lbl" style="margin-left:8px">Tempo</span><div class="seg"><button type="button" class="chip${st.tempo === "near" ? " on" : ""}" data-tempo="near">Near 124</button><button type="button" class="chip${st.tempo === "any" ? " on" : ""}" data-tempo="any">Any</button></div>` +
+      `<span class="lbl" style="margin-left:8px">Bars</span><div class="seg">${[null, 1, 2, 4, 8].map(b => `<button type="button" class="chip${st.bars === b ? " on" : ""}" data-bars="${b ?? ""}">${b ?? "Any"}</button>`).join("")}</div>`;
+    h += `<span class="count num">${rows.length} sounds</span>`;
+    if (st.menu) {
+      const base = scoped().filter(s => matchQ(s) && s.fam === st.fam);
+      h += `<div class="menu" role="group" aria-label="Genres">` + GENRES.map(g => `<label><input type="checkbox" data-genre="${esc(g)}"${st.genres.includes(g) ? " checked" : ""}>${esc(g)}<small class="num">${base.filter(s => s.genres.includes(g)).length}</small></label>`).join("") +
+        `<hr><button type="button" class="clear" data-act="nogenre">Any genre</button></div>`;
+    }
+    h += `</div>`;
+  }
+  if (!rows.length) h += `<div class="empty">No sounds match these filters.<br><button type="button" data-act="reset-filters">Clear the filters</button></div>`;
+  else h += `<ul class="list" id="list" tabindex="0" aria-label="Sounds">` + rows.map(s => rowHtml(s)).join("") + `</ul>`;
+  $("main").innerHTML = h;
+  const on = $("main").querySelector(".chip.on[data-cat]"); if (on) on.scrollIntoView({block:"nearest", inline:"nearest"});
+}
+
+/* one sound row; `pct` adds the similarity meter used by the similar browser */
+function rowHtml(s, pct) {
+  const on = s.id === st.sel, fav = st.favs.has(s.id);
+  return `<li class="row${on ? " on" : ""}${pct != null ? " sim" : ""}"><button type="button" class="rm" data-sel="${esc(s.id)}" aria-label="Audition ${esc(s.name)}">` +
+    `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">${on ? ICON.eq : ICON.play}</svg>` +
+    `<svg width="110" height="22" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path class="wv" d="${s.wave}"/></svg>` +
+    `<span style="min-width:0"><span class="nm">${esc(s.name)}</span><span class="pn">${esc(PACK[s.pack].name)} · ${esc(s.cat)}</span></span>` +
+    (pct != null ? `<span class="match" title="${pct}% match"><i style="--p:${pct}%"></i><span class="num">${pct}%</span></span>` : `<span class="tg">${esc(s.tags)}</span>`) +
+    `<span class="du num">${esc(s.meta)}</span></button>` +
+    `<button type="button" class="ib${fav ? " fav" : ""}" data-fav="${esc(s.id)}" aria-pressed="${fav}" aria-label="Favourite ${esc(s.name)}" aria-keyshortcuts="L" title="Favourite (L)">${svg(ICON.heart, fav ? 'fill="currentColor"' : "")}</button>` +
+    `<button type="button" class="ib" data-similar="${esc(s.id)}" aria-label="Sounds like ${esc(s.name)}" title="Similar sounds">${svg(ICON.sim)}</button></li>`;
+}
+
+function renderSimilar() {
+  const ref = byId[st.similar], res = similarTo(ref), back = st.pack === "fav" ? "Favourites" : PACK[st.pack] ? PACK[st.pack].name : st.cat ? catPlural(st.cat) : "All " + FAMILIES.find(f => f.id === st.fam).label.toLowerCase();
+  let h = `<div class="sim-h"><button type="button" class="back" data-act="unsimilar">${svg(ICON.l)}${esc(back)}</button>` +
+    `<nav class="trail" aria-label="Similar sounds trail">` + st.trail.map((id, i) => `${i ? '<span class="sep">›</span>' : ""}<button type="button" class="${id === st.similar ? "here" : ""}" data-hop="${i}">${esc(byId[id].name)}</button>`).join("") + `</nav></div>`;
+  h += `<div class="ref"><button type="button" class="ref-play" data-sel="${esc(ref.id)}" aria-label="Play ${esc(ref.name)}">${svg(ICON.play, 'width="14" height="14"')}</button>` +
+    `<div class="ref-well"><svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="${ref.wave}"/></svg></div>` +
+    `<div class="ref-txt"><span class="lbl">Sounds like</span><b>${esc(ref.name)}</b><span>${esc(PACK[ref.pack].name)} · ${esc(ref.cat)} · ${esc(ref.tags)} · ${esc(ref.meta)}</span></div></div>`;
+  h += `<div class="filters"><span class="lbl">Match on</span>` + MATCH.map(m => `<button type="button" class="chip${st.match[m[0]] ? " on" : ""}" data-match="${m[0]}" aria-pressed="${!!st.match[m[0]]}">${m[1]}</button>`).join("") +
+    `<span class="count">${res.length} closest from every pack · ${svg(ICON.sim, 'width="11" height="11" style="vertical-align:-1px"')} on a result hops to its neighbours</span></div>`;
+  h += `<ul class="list" id="list" tabindex="0" aria-label="Similar sounds">` + res.map(x => rowHtml(x.s, x.pct)).join("") + `</ul>`;
+  $("main").innerHTML = h;
+}
+
+function renderPacks() {
+  const q = st.q.trim().toLowerCase();
+  const list = PACKS.filter(p => (!st.packFam || Object.keys(p.mix).some(c => p.mix[c] > 0 && FAM_OF[c] === st.packFam)) && (!q || (p.name + " " + p.desc + " " + Object.keys(p.mix).join(" ")).toLowerCase().includes(q)));
+  let h = `<div class="packs-h"><span class="lbl" style="margin-right:6px">Packs with</span>` +
+    [null, ...FAMILIES.map(f => f.id)].map(id => `<button type="button" class="chip${st.packFam === id ? " on" : ""}" data-packfam="${id ?? ""}">${id ? FAMILIES.find(f => f.id === id).label : "Anything"}</button>`).join("") +
+    `<span class="count num">${list.length} of ${PACKS.length} packs</span></div><div class="grid">`;
+  h += list.map((p, i) => {
+    const top = Object.entries(p.mix).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]), n = top.length;
+    return `<div class="card"><button type="button" class="card-open" data-pack="${p.id}" aria-label="Open ${esc(p.name)}"><span class="cov">${cover(p)}${p.inProject ? '<span class="tag">In project</span>' : ""}${i < 9 ? `<span class="k">${i + 1}</span>` : ""}</span>` +
+      `<b>${esc(p.name)}</b><span class="meta">${esc(p.pub)} · ${packCount(p.id)} sounds · ${n} categories</span>` +
+      `<span class="mix">${top.slice(0, 3).map(x => esc(x[0])).join(" · ")}${n > 3 ? ` · +${n - 3} more` : ""}</span></button>` +
+      `<button type="button" class="demo" data-demo="${p.id}" aria-label="Hear ${esc(p.name)}">${svg(ICON.play, 'width="10" height="10"')}Hear it</button></div>`;
+  }).join("") + `</div>`;
+  if (!list.length) h += `<div class="empty">No packs match.<br><button type="button" data-act="nopackfilter">Show every pack</button></div>`;
+  $("main").innerHTML = h;
+}
+
+function render() {
+  renderRail();
+  st.view === "packs" ? renderPacks() : st.similar ? renderSimilar() : renderSounds();
+  const s = byId[st.sel];
+  $("hearing").textContent = s.name;
+  $("insert-label").textContent = "Insert " + s.name;
+  $("hint").innerHTML = st.view === "packs"
+    ? `Pick a pack to see its sounds. <b>${esc(s.name)}</b> is still playing in the Kick pad.`
+    : st.similar ? `Every result plays in the <b>Kick pad</b>. Press its similar button to hop on from it; the trail above takes you back.`
+    : `Playing in the <b>Kick pad</b> over your beat. <span class="kbd">↑</span> <span class="kbd">↓</span> for the next, <span class="kbd">Esc</span> puts back Rounded Club Kick.`;
+  $("done").hidden = !st.inserted;
+  $("keys").hidden = !st.keys;
+  if (st.inserted) {
+    const p = PACK[s.pack];
+    $("done-name").textContent = s.name;
+    $("done-note").textContent = p.inProject ? `${p.name} was already in this project.` : `${p.name} is now in this project, so its sounds load for anyone who opens it.`;
+  }
+  if (qInput.value !== st.q) qInput.value = st.q;
+}
+
+/* ---------- actions ---------- */
+function select(id, audition = true) { st.sel = id; if (audition) play(byId[id]); render(); const el = document.querySelector(".row.on"); if (el) el.scrollIntoView({block:"nearest"}); }
+function openPack(pid) {
+  st.view = "sounds"; st.pack = pid; st.similar = null; st.menu = false;
+  if (PACK[pid]) { PACK[pid].viewed = true; const cats = Object.keys(PACK[pid].mix).filter(c => PACK[pid].mix[c] > 0); if (!cats.includes(st.cat)) { st.fam = FAM_OF[cats.includes("Kick") ? "Kick" : cats[0]]; st.cat = cats.includes("Kick") ? "Kick" : null; } }
+  render();
+}
+$("main").addEventListener("click", e => {
+  const b = e.target.closest("button, input"); if (!b) return; const d = b.dataset;
+  if (d.sel) select(d.sel);
+  else if (d.fav) { st.favs.has(d.fav) ? st.favs.delete(d.fav) : st.favs.add(d.fav); render(); }
+  else if (d.similar) { openSimilar(d.similar); $("list")?.scrollTo(0, 0); }
+  else if (d.hop) { st.similar = st.trail[+d.hop]; st.sel = st.similar; play(byId[st.similar]); render(); }
+  else if (d.match) { st.match[d.match] = !st.match[d.match]; render(); }
+  else if (d.fam) { st.fam = d.fam; st.cat = null; st.menu = false; render(); }
+  else if (d.cat !== undefined) { st.cat = d.cat || null; render(); }
+  else if (d.jump) { st.fam = FAM_OF[d.jump]; st.cat = d.jump; st.q = ""; render(); }
+  else if (d.scroll) $("cat-scroll").scrollBy({left:+d.scroll * 240});
+  else if (d.tempo) { st.tempo = d.tempo; render(); }
+  else if (d.bars !== undefined) { st.bars = d.bars ? +d.bars : null; render(); }
+  else if (d.genre) { const g = d.genre; st.genres = st.genres.includes(g) ? st.genres.filter(x => x !== g) : [...st.genres, g]; render(); }
+  else if (d.packfam !== undefined) { st.packFam = d.packfam || null; render(); }
+  else if (d.demo) playPack(d.demo);
+  else if (d.pack) openPack(d.pack);
+  else if (d.act === "menu") { st.menu = !st.menu; render(); }
+  else if (d.act === "nogenre") { st.genres = []; st.menu = false; render(); }
+  else if (d.act === "unsimilar") { st.similar = null; st.trail = []; render(); }
+  else if (d.act === "reset-filters") { st.genres = []; st.bars = null; st.tempo = "any"; st.q = ""; st.cat = null; render(); }
+  else if (d.act === "nopackfilter") { st.packFam = null; st.q = ""; render(); }
+});
+$("rail").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.act === "browse") { st.view = "packs"; st.menu = false; render(); }
+  else if (b.dataset.pack) openPack(b.dataset.pack);
+});
+document.addEventListener("click", e => { if (st.menu && !e.target.closest(".menu, [data-act='menu']")) { st.menu = false; render(); } });
+/* The library's own keys. In the product these are registry entries in a
+   `library` shortcut context, active only while the library is open; the
+   modal's `dialog` context already switches every global binding off. */
+const visibleRows = () => st.similar ? similarTo(byId[st.similar]).map(x => x.s) : results();
+function stepSound(d) { const rows = visibleRows(), i = rows.findIndex(s => s.id === st.sel); const n = rows[Math.max(0, Math.min(rows.length - 1, i + d))]; if (n) select(n.id); }
+function catList() { settle(); const p = pool(), fam = FAMILIES.find(f => f.id === st.fam); return [null, ...fam.cats.filter(c => p.some(s => s.fam === st.fam && s.cat === c))]; }
+function famList() { const p = pool(); return FAMILIES.filter(f => p.some(s => s.fam === f.id)).map(f => f.id); }
+function openSimilar(id) { if (!st.similar) st.trail = []; st.trail = [...st.trail.slice(0, st.trail.indexOf(st.similar) + 1), id]; st.similar = id; st.sel = id; st.menu = false; st.view = "sounds"; play(byId[id]); render(); }
+function back() { if (st.menu) st.menu = false; else if (st.similar) { st.similar = null; st.trail = []; } else if (st.view === "packs") st.view = "sounds"; else if (st.pack !== "all") st.pack = "all"; render(); }
+document.addEventListener("keydown", e => {
+  if (st.inserted || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key, typing = e.target === qInput;
+  if (k === "Escape") { e.preventDefault(); if (st.keys) { st.keys = false; render(); } else if (typing) qInput.blur(); else if (st.menu) { st.menu = false; render(); } else { $("hint").innerHTML = `<b>Esc</b> closes the library and puts back Rounded Club Kick. (The mockup stays open.)`; } return; }
+  if (typing) { if (k === "ArrowDown" || k === "Enter") { e.preventDefault(); qInput.blur(); if (k === "ArrowDown") stepSound(1); } return; }
+  // A focused button or checkbox keeps Enter and Space, so keyboard users can still press it.
+  if ((k === "Enter" || k === " ") && e.target.closest && e.target.closest("button, input, label")) return;
+  const act = {
+    "/": () => qInput.focus(),
+    "?": () => { st.keys = !st.keys; render(); },
+    "ArrowDown": () => st.view === "sounds" && stepSound(1),
+    "ArrowUp": () => st.view === "sounds" && stepSound(-1),
+    "ArrowRight": () => { if (st.view !== "sounds" || st.similar) return; const c = catList(), i = c.indexOf(st.cat); st.cat = c[Math.min(c.length - 1, i + 1)]; render(); },
+    "ArrowLeft": () => { if (st.view !== "sounds" || st.similar) return; const c = catList(), i = c.indexOf(st.cat); st.cat = c[Math.max(0, i - 1)]; render(); },
+    "]": () => { if (st.view !== "sounds" || st.similar) return; const f = famList(), i = f.indexOf(st.fam); st.fam = f[(i + 1) % f.length]; st.cat = null; render(); },
+    "[": () => { if (st.view !== "sounds" || st.similar) return; const f = famList(), i = f.indexOf(st.fam); st.fam = f[(i - 1 + f.length) % f.length]; st.cat = null; render(); },
+    "Enter": () => insert(),
+    " ": () => play(byId[st.sel]),
+    "a": () => openPack("all"),
+    "f": () => openPack("fav"),
+    "p": () => { st.view = "packs"; st.similar = null; st.menu = false; render(); },
+    "l": () => { st.favs.has(st.sel) ? st.favs.delete(st.sel) : st.favs.add(st.sel); render(); },
+    "s": () => openSimilar(st.sel),
+    "r": () => $("shuffle").click(),
+    "g": () => { if (st.view === "sounds" && !st.similar) { st.menu = !st.menu; render(); } },
+    "t": () => { if (st.fam === "loops" && st.view === "sounds") { st.tempo = st.tempo === "near" ? "any" : "near"; render(); } },
+    "Backspace": () => back(),
+  }[k.length === 1 ? k.toLowerCase() === k ? k : k.toLowerCase() : k];
+  if (act) { e.preventDefault(); act(); return; }
+  if (/^[0-9]$/.test(k)) {
+    e.preventDefault(); const n = +k;
+    if (st.view === "packs") { const cards = [...document.querySelectorAll(".card-open")]; if (n > 0 && cards[n - 1]) openPack(cards[n - 1].dataset.pack); }
+    else if (!st.similar) { const c = catList(); if (n < c.length) { st.cat = c[n]; render(); } }
+  }
+});
+qInput.addEventListener("input", () => { st.q = qInput.value; st.similar = null; st.trail = []; render(); });
+$("shuffle").addEventListener("click", () => { const r = st.view === "packs" ? SOUNDS.filter(s => s.fam === "drums") : results(); const pool = st.similar ? similarTo(byId[st.similar]).map(x => x.s) : r.length ? r : SOUNDS; select(pool[Math.floor(Math.random() * pool.length)].id); });
+function insert() { stopAll(); st.inserted = true; render(); markStep(); }
+$("insert").addEventListener("click", insert);
+$("again").addEventListener("click", () => go(0));
+$("keys-btn").addEventListener("click", () => { st.keys = !st.keys; render(); });
+$("keys").addEventListener("click", e => { if (e.target.closest("[data-act='keys-close']")) { st.keys = false; render(); } });
+
+/* ---------- the flow ---------- */
+const STEPS = [
+  {t:"Open from the Kick pad", n:"The pad's sample slot opens the library already on <b>Drums › Kick</b>, across every pack. The selected kick is playing in the pad, so you hear it in your beat. Nothing is added to the project yet.",
+   s:() => ({})},
+  {t:"Filter sounds", n:"Genre is a menu, so it can hold any number of genres without taking a row. Hearts, similar sounds (the two circles) and Shuffle work in any list. The count shows how many sounds are left.",
+   s:() => ({genres:["House"], menu:true})},
+  {t:"Browse packs", n:"<b>Browse packs</b> swaps the list for pack covers. Filter by what a pack holds, and press <b>Hear it</b> for a quick run through its sounds. Each cover names its biggest categories and how many more it has.",
+   s:() => ({view:"packs"})},
+  {t:"Choose a pack", n:"Opening a pack scopes the same list to it. The banner says whether it is in the project. It joins the project only when you insert one of its sounds, so there is no separate add step.",
+   s:() => ({pack:"machines", fam:"drums", cat:"Kick"})},
+  {t:"A pack with 27 categories", n:"CC0 Community Content has 27 categories. Families split them into rows of 16 at most: Drums is the widest and scrolls with its arrows, and categories with nothing in scope never show. Try typing <b>hat</b> in the search: matching categories appear as jumps.",
+   s:() => ({pack:"cc0", fam:"drums", cat:null})},
+  {t:"Loops: tempo and bars", n:"When the family is <b>Loops</b>, the filter row adds Tempo and Bars. <b>Near 124</b> keeps loops within 10 BPM of the song, the ones that stretch without sounding odd. Every loop previews at 124.",
+   s:() => ({fam:"loops", cat:null})},
+  {t:"Similar sounds", n:"Every row has a similar button, the two circles beside the heart. It opens the closest sounds from every pack, each with a match meter. <b>Match on</b> chooses what counts as close. Press it on a result to hop on; the trail at the top goes back, and the back button returns to the list you came from.",
+   s:() => { const a = find("Tight House Kick").id, b = find("Short Punch Kick").id; return {similar:b, sel:b, trail:[a, b]}; }},
+  {t:"Keyboard", n:"The library has its own keys, scoped to it: while it is open the editor's shortcuts are off, so single letters and digits are free. <b>F</b> Favourites, <b>A</b> all sounds, <b>P</b> packs; <b>1</b>–<b>9</b> pick a category (or open a pack), <b>0</b> is all of the family, <b>[</b> <b>]</b> change family; <b>↑</b> <b>↓</b> audition, <b>L</b> likes, <b>⏎</b> inserts. The badges show them, and <b>?</b> lists them all. Try them on the library below.",
+   s:() => ({keys:true})},
+  {t:"Insert", n:"Insert keeps the sound in the pad and closes the library. If its pack was not in the project, it is now. Escape instead would have put back Rounded Club Kick.",
+   s:() => ({sel:find("Hard Club Clap") ? SOUNDS.find(x => x.pack === "machines" && x.cat === "Kick").id : undefined, inserted:true})},
+];
+let step = 0;
+function markStep() { document.querySelectorAll(".step").forEach((b, i) => b.setAttribute("aria-current", i === step ? "step" : "false")); }
+function go(i) {
+  step = Math.max(0, Math.min(STEPS.length - 1, i));
+  const favs = st.favs; st = INITIAL(); st.favs = favs;
+  const over = STEPS[step].s(); Object.keys(over).forEach(k => over[k] !== undefined && (st[k] = over[k]));
+  if (PACK[st.pack]) PACK[st.pack].viewed = true;
+  $("note").innerHTML = `<b>${step + 1}. ${STEPS[step].t}.</b> ${STEPS[step].n}`;
+  $("prev").disabled = step === 0; $("next").textContent = step === STEPS.length - 1 ? "Start again" : "Next step";
+  stopAll(); render(); markStep();
+}
+$("steps").innerHTML = STEPS.map((s, i) => `<button type="button" class="step" data-step="${i}"><small>Step ${i + 1}</small>${esc(s.t)}</button>`).join("");
+$("steps").addEventListener("click", e => { const b = e.target.closest("[data-step]"); if (b) go(+b.dataset.step); });
+$("prev").addEventListener("click", () => go(step - 1));
+$("next").addEventListener("click", () => go(step === STEPS.length - 1 ? 0 : step + 1));
+go(0);
+})();
+</script>
+</body>
+</html>
