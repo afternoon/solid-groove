@@ -113,19 +113,8 @@ describe("LibraryModal shell", () => {
   }
 
   async function hearFirstSound() {
-    fireEvent.click(await screen.findByRole("button", { name: new RegExp(pack.name) }));
-    const group = await waitFor(() => {
-      const groups = screen
-        .getAllByRole("button", { expanded: false })
-        .filter((button) => button.classList.contains("library-node-group"));
-      expect(groups.length).toBeGreaterThan(0);
-      return groups[0];
-    });
-    fireEvent.click(group);
-    const audition = await waitFor(
-      () => screen.getAllByRole("button", { name: /^Audition / })[0],
-    );
-    fireEvent.click(audition);
+    const [row] = await screen.findAllByRole("listitem");
+    fireEvent.click(row.querySelector(".sound-row-main") as HTMLElement);
   }
 
   it("names the slot and what it was, then Hearing and Insert follow the selection", async () => {
@@ -175,5 +164,16 @@ describe("LibraryModal shell", () => {
     actions.showView("packs");
     unmount();
     expect(onActions).toHaveBeenLastCalledWith(null);
+  });
+
+  it("narrows the sounds as you type in the header search", async () => {
+    renderShell();
+    const all = (await screen.findAllByRole("listitem")).length;
+
+    fireEvent.input(screen.getByRole("searchbox", { name: "Search sounds" }), {
+      target: { value: "kick" },
+    });
+
+    await waitFor(() => expect(screen.getAllByRole("listitem").length).toBeLessThan(all));
   });
 });

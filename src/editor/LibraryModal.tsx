@@ -3,13 +3,14 @@ import { createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import Dialog from "../components/Dialog";
 import type { PreviewEngine } from "../library/audition";
-import LibraryBrowser from "../library/LibraryBrowser";
 import type { LibraryClient } from "../library/libraryClient";
 import type {
   LibraryAsset,
   LibraryAssetType,
   LibraryPackSummary,
 } from "../library/manifest";
+import SoundsView from "../library/SoundsView";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
 import "./LibraryModal.css";
@@ -62,6 +63,8 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onShowKeys?(): void;
+  /** Opens similar sounds for a row (part 12 wires this). */
+  onSimilar?(asset: LibraryAsset): void;
   onActions?(actions: LibraryActions | null): void;
   onClose(): void;
 }
@@ -84,6 +87,7 @@ function Key(props: { label?: string }): JSX.Element {
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
+  const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
   const keyOf = (action?: ShortcutActionId) =>
     action ? props.keyLabel?.(action) : undefined;
@@ -123,9 +127,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           </div>
           <input
             type="search"
-            class="library-modal-search"
+            class={["library-modal-search", MASK_CONTENT]}
             placeholder="Search sounds, packs and categories"
-            aria-label="Search the library"
+            aria-label="Search sounds"
+            value={query()}
+            onInput={(event) => setQuery(event.currentTarget.value)}
           />
         </div>
       }
@@ -176,17 +182,17 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
         <div class="library-modal-main">
           <Switch>
             <Match when={view() === "all"}>
-              <LibraryBrowser
+              <SoundsView
                 client={props.client}
                 previewEngine={props.previewEngine}
                 analytics={props.analytics}
-                onInsert={(asset) => props.onInsert(asset)}
-                onSelect={setSelected}
-                addedPackIds={props.addedPackIds}
-                onAddPack={(pack) => props.onAddPack(pack)}
-                onPackBrowserOpenChange={(open) => props.onPackBrowserOpenChange(open)}
                 assetTypes={props.assetTypes}
                 heading={props.heading}
+                trackColor={props.trackColor}
+                selected={selected()}
+                onSelect={setSelected}
+                onSimilar={(asset) => props.onSimilar?.(asset)}
+                query={query()}
               />
             </Match>
             <Match when={true}>

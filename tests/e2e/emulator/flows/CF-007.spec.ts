@@ -125,7 +125,6 @@ test.describe("CF-007", () => {
     await addFromLibrary(page).click();
     await expect(library(page)).toBeVisible();
     await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-    await library(page).getByRole("button", { expanded: false }).first().click();
     // A loop states the tempo it was recorded at; a one-shot has none, and a
     // one-shot inserted here would load a sampler instead of making a track.
     // Which loop does not matter to this flow — CF-005 is where the tempo
@@ -137,6 +136,10 @@ test.describe("CF-007", () => {
       .first()
       .getByRole("button", { name: /^Audition / })
       .getAttribute("aria-label");
+    // Select-then-insert: hearing the loop is what makes it the one to insert.
+    await library(page)
+      .getByRole("button", { name: loopName ?? "", exact: true })
+      .click();
     await library(page)
       .getByRole("button", {
         name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,

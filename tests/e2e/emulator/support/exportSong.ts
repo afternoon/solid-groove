@@ -99,7 +99,8 @@ const viewLink = (page: Page, name: "Arrangement" | "Instrument" | "Mixer"): Loc
   page.getByRole("navigation", { name: "Views" }).getByRole("link", { name });
 
 const library = (page: Page): Locator => page.getByRole("dialog", { name: "Library" });
-const packs = (page: Page): Locator => page.getByRole("dialog", { name: "Packs" });
+const librarySearch = (page: Page): Locator =>
+  library(page).getByRole("searchbox", { name: "Search sounds" });
 
 const railSelect = (page: Page, track: string): Locator =>
   page
@@ -234,18 +235,19 @@ async function writeNotes(page: Page, editor: Locator, notes: readonly string[])
 
 // --- The library (CF-005) -------------------------------------------------
 
-/** The first loop in the open pack stating a tempo other than the song's. */
+/** The first listed loop stating a tempo other than the song's. */
 async function loopAtAnotherTempo(page: Page, songTempo: number): Promise<string> {
-  const auditions = library(page).getByRole("button", { name: /^Audition / });
-  const count = await auditions.count();
-  for (let index = 0; index < count; index += 1) {
-    const audition = auditions.nth(index);
-    const sourceTempo = Number(
-      (await audition.locator("..").textContent())?.match(/(\d+)\s*BPM/)?.[1] ??
-        Number.NaN,
-    );
-    if (!Number.isFinite(sourceTempo) || sourceTempo === songTempo) continue;
-    return ((await audition.getAttribute("aria-label")) ?? "").replace(/^Audition /, "");
+  const rows = library(page).getByRole("list", { name: "Sounds", exact: true });
+  await expect(rows.getByRole("listitem").first()).toBeVisible();
+  const listed = await rows.getByRole("listitem").evaluateAll((items) =>
+    items.map((item) => ({
+      name: item.querySelector(".sound-row-name")?.textContent ?? "",
+      text: item.textContent ?? "",
+    })),
+  );
+  for (const { name, text } of listed) {
+    const sourceTempo = Number(text.match(/(\d+)\s*BPM/)?.[1] ?? Number.NaN);
+    if (Number.isFinite(sourceTempo) && sourceTempo !== songTempo) return name;
   }
   throw new Error(`No loop in the library states a tempo other than ${songTempo} BPM.`);
 }
@@ -313,9 +315,11 @@ export async function buildExportSong(
   //    from the project's. It lands on a new track as a clip starting at bar 1.
   await page.getByRole("button", { name: "Add loop from library" }).click();
   await expect(library(page)).toBeVisible();
-  await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-  await library(page).getByRole("button", { expanded: false }).first().click();
+  await librarySearch(page).fill("loop");
   const loopTrack = await loopAtAnotherTempo(page, tempo);
+  await library(page)
+    .getByRole("button", { name: `Audition ${loopTrack}`, exact: true })
+    .click();
   await library(page)
     .getByRole("button", { name: `Insert ${loopTrack}` })
     .click();
@@ -341,9 +345,7 @@ export async function buildExportSong(
   //    G3 at once) and a single A♯3 on step 9, so the sample plays at four
   //    pitches and three at a time.
   //
-  // A new project's library shows only the packs it already uses, and the
-  // tonal sounds are in a pack it does not, so the sound is found across the
-  // whole library from "Browse packs" (LIB-02's "All sounds").
+  // The library searches every pack from any slot, so the sound is found by name.
   await page.getByRole("button", { name: "Add sampler track" }).click();
   await expect(trackList(page)).toHaveText(["BD", "Drums", "Bass", loopTrack, "Sampler"]);
   await renameTrack(page, "Sampler", "Piano");
@@ -352,17 +354,13 @@ export async function buildExportSong(
   await expect(railSelect(page, "Piano")).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Sample", exact: true }).click();
   await expect(library(page)).toBeVisible();
-  await library(page).getByRole("button", { name: "Browse packs", exact: true }).click();
-  await expect(packs(page)).toBeVisible();
-  await packs(page)
-    .getByRole("navigation", { name: "Packs" })
-    .getByRole("button", { name: /^All sounds/ })
+  await librarySearch(page).fill(PIANO_SOUND);
+  await library(page)
+    .getByRole("button", { name: `Audition ${PIANO_SOUND}`, exact: true })
     .click();
-  await packs(page).getByRole("searchbox", { name: "Search sounds" }).fill(PIANO_SOUND);
-  await packs(page)
+  await library(page)
     .getByRole("button", { name: `Insert ${PIANO_SOUND}`, exact: true })
     .click();
-  await expect(packs(page)).toHaveCount(0);
   await expect(library(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sample", exact: true })).toContainText(
     PIANO_SOUND,
