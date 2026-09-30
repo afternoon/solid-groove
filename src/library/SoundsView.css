@@ -158,3 +158,69 @@
 .shelf-chip[aria-pressed="true"] kbd {
   color: var(--color-on-accent);
 }
+
+/* The filter row: genre menu, loop tempo and bars, and the live count. */
+.filter-row {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-genre {
+  position: relative;
+}
+
+.filter-group {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--color-foreground);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.filter-button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.filter-menu {
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  background: var(--color-background-secondary);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+}
+
+.filter-count {
+  margin-left: auto;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}

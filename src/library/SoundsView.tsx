@@ -5,16 +5,19 @@ import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
 import type { ShortcutActionId } from "../shortcuts";
 import type { PreviewEngine } from "./audition";
+import FilterRow from "./FilterRow";
+import { filterSounds, genreCounts } from "./filters";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
 import Shelf from "./Shelf";
 import SoundRow from "./SoundRow";
-import { matchesLibraryQuery } from "./search";
+import { shelfFamilyOf } from "./shelf";
 import type { SoundsKeyAction } from "./soundKeys";
 import { nextIn, previousIn } from "./stepping";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import { type ShelfSlot, useShelf } from "./useShelf";
+import { useSoundFilters } from "./useSoundFilters";
 import "./SoundsView.css";
 
 export interface SoundsViewProps {
@@ -28,6 +31,10 @@ export interface SoundsViewProps {
   readonly trackColor?: string;
   /** The header search's text, matched against name, role, family and pack. */
   readonly query?: string;
+  /** The song's tempo, which Tempo under Loops measures "near" from. */
+  readonly songBpm?: number;
+  /** Clears the header search, which the empty state's *Clear the filters* does. */
+  onQueryChange?(query: string): void;
   /** What the library was opened for: where the shelf opens. */
   readonly slot?: ShelfSlot;
   /** Key badge text for a registry action, from the registry. */
@@ -64,22 +71,37 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   }
   onSettled(() => void load());
 
-  const matching = createMemo(() => {
-    const needle = (props.query ?? "").trim().toLowerCase();
-    return browser
+  const filters = useSoundFilters(() => props.songBpm ?? 120);
+  const [genreMenuOpen, setGenreMenuOpen] = createSignal(false);
+  const typed = createMemo(() =>
+    browser
       .assets()
-      .filter(
-        (asset) =>
-          (!props.assetTypes || props.assetTypes.includes(asset.type)) &&
-          matchesLibraryQuery(asset, needle),
-      );
-  });
+      .filter((asset) => !props.assetTypes || props.assetTypes.includes(asset.type)),
+  );
+  const matching = createMemo(() =>
+    filterSounds(typed(), filters.read(props.query ?? "")),
+  );
   const shelf = useShelf(
     matching,
     () => browser.assets(),
     () => props.slot,
   );
   const sounds = shelf.inView;
+  const family = () => shelf.selection().family;
+  // The genre menu counts what the other filters leave, in the family in view.
+  const genres = createMemo(() =>
+    genreCounts(
+      filterSounds(typed(), { ...filters.read(props.query ?? ""), genres: [] }).filter(
+        (asset) => shelfFamilyOf(asset) === family(),
+      ),
+    ),
+  );
+  const narrowed = () => filters.active() || (props.query ?? "").trim() !== "";
+
+  function clearFilters(): void {
+    filters.clear();
+    props.onQueryChange?.("");
+  }
   const selectedId = () => props.selected?.id ?? null;
   const current = () => sounds().find((sound) => sound.id === selectedId()) ?? null;
 
@@ -103,6 +125,9 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
     if (digit) shelf.pick(Number(digit));
     else if (shelfKeys[action]) shelfKeys[action]?.();
+    else if (action === "library.genre_menu") setGenreMenuOpen((open) => !open);
+    else if (action === "library.loop_tempo" && family() === "loops")
+      filters.toggleTempo();
     else if (action === "library.select_next") step(1);
     else if (action === "library.select_previous") step(-1);
     else if (action === "library.audition" && sound) void browser.audition(sound);
@@ -135,18 +160,44 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
         }
       >
         <Show when={ready()} fallback={<TapeLoader label="Loading library" />}>
-          <Shelf
-            families={shelf.families()}
-            family={shelf.selection().family}
-            roles={shelf.roles()}
-            role={shelf.selection().role}
+          <Show when={shelf.families().length > 0}>
+            <Shelf
+              families={shelf.families()}
+              family={family()}
+              roles={shelf.roles()}
+              role={shelf.selection().role}
+              keyLabel={props.keyLabel}
+              onFamily={shelf.setFamily}
+              onRole={shelf.setRole}
+            />
+          </Show>
+          <FilterRow
+            genres={genres()}
+            selectedGenres={filters.genres()}
+            menuOpen={genreMenuOpen()}
+            loops={family() === "loops"}
+            tempo={filters.tempo()}
+            songBpm={props.songBpm ?? 120}
+            bars={filters.bars()}
+            count={sounds().length}
             keyLabel={props.keyLabel}
-            onFamily={shelf.setFamily}
-            onRole={shelf.setRole}
+            onMenuOpen={setGenreMenuOpen}
+            onGenre={filters.toggleGenre}
+            onTempo={filters.setTempo}
+            onBars={filters.setBars}
           />
           <Show
             when={sounds().length > 0}
-            fallback={<p class="sounds-empty">No sounds to show.</p>}
+            fallback={
+              <div class="sounds-empty">
+                <p>No sounds to show.</p>
+                <Show when={narrowed()}>
+                  <button type="button" onClick={() => clearFilters()}>
+                    Clear the filters
+                  </button>
+                </Show>
+              </div>
+            }
           >
             <ul class="sounds-list" aria-label="Sounds" ref={list}>
               <For each={sounds()}>

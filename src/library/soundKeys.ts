@@ -25,6 +25,8 @@ export const SOUNDS_KEY_ACTIONS = [
   "library.category_next",
   "library.family_previous",
   "library.family_next",
+  "library.genre_menu",
+  "library.loop_tempo",
 ] as const satisfies readonly ShortcutActionId[];
 
 export type SoundsKeyAction = (typeof SOUNDS_KEY_ACTIONS)[number];
