@@ -222,7 +222,10 @@ describe("waveform peaks", () => {
   });
 
   it("is null when absent, as in a manifest from before the field", () => {
-    const raw = fixturePackManifest("core-electronic-drums");
+    const raw = structuredClone(fixturePackManifest("core-electronic-drums")) as {
+      assets: Record<string, unknown>[];
+    };
+    raw.assets = raw.assets.map(({ peaks: _, ...asset }) => asset);
     for (const asset of packAssets(parsePackManifest(raw))) {
       expect(asset.peaks).toBeNull();
     }
