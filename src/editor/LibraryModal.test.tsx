@@ -161,6 +161,7 @@ describe("LibraryModal shell", () => {
     const actions = onActions.mock.calls[0][0] as LibraryActions;
 
     expect(actions.insertSelected()).toBe(false);
+    actions.press("library.select_next");
     actions.showView("packs");
     unmount();
     expect(onActions).toHaveBeenLastCalledWith(null);
@@ -175,5 +176,20 @@ describe("LibraryModal shell", () => {
     });
 
     await waitFor(() => expect(screen.getAllByRole("listitem").length).toBeLessThan(all));
+  });
+
+  it("forwards a library key to the sounds view, and Down leaves the search field", async () => {
+    const onActions = vi.fn();
+    renderShell({ onActions });
+    await screen.findAllByRole("listitem");
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+    const search = screen.getByRole("searchbox", { name: "Search sounds" });
+    search.focus();
+
+    actions.press("library.select_next");
+
+    await waitFor(() => expect(screen.queryByText("Nothing yet")).toBeNull());
+    expect(document.activeElement).not.toBe(search);
+    expect(actions.insertSelected()).toBe(true);
   });
 });

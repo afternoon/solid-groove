@@ -1,6 +1,7 @@
 import type { Accessor } from "solid-js";
 import type { PlacementEditingActions } from "../arrangement/ArrangementView";
 import type { EventId } from "../domain/ids";
+import { SOUNDS_KEY_ACTIONS } from "../library/soundKeys";
 import {
   type ShortcutContext,
   type ShortcutHandlers,
@@ -247,6 +248,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
     "library.insert": inLibrary((a) => void a.insertSelected()),
+    ...Object.fromEntries(
+      SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
+    ),
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
