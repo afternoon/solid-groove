@@ -20,12 +20,13 @@
      most, with this much rack showing between one and the next. */
   --rack-unit-width: 1000px;
   --rack-gap: 12px;
+  /* The UI's one font stack. `?font=<Google Font>` overrides it at runtime
+     (`src/shared/fontOverride.ts`). */
+  --font-family: system-ui, sans-serif;
 }
 
 :root {
-  font:
-    var(--font-size-base) system-ui,
-    sans-serif;
+  font: var(--font-size-base) var(--font-family);
   line-height: 1.5;
   font-weight: 400;
 

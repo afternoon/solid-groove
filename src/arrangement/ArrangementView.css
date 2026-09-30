@@ -14,7 +14,7 @@
   min-height: 0;
   background: var(--color-background);
   color: var(--color-text);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-family);
   overflow: hidden;
 }
 
