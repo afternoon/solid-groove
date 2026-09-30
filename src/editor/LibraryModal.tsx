@@ -217,7 +217,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       <button
         type="button"
         class="library-modal-rail-item"
-        aria-pressed={ariaBool(view() === railProps.item.id)}
+        aria-current={view() === railProps.item.id ? "true" : undefined}
         onClick={() => showView(railProps.item.id)}
       >
         {railProps.item.label}
@@ -239,14 +239,14 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             style={{ background: props.trackColor ?? "var(--color-accent)" }}
           />
           <b class="library-modal-slot">{props.slot ?? props.heading ?? "Library"}</b>
-          <div class="library-modal-readout">
-            <span class="library-modal-label">Was</span>
+          <fieldset class="library-modal-readout">
+            <legend class="library-modal-label">Was</legend>
             <b>{props.current ?? "Empty"}</b>
-          </div>
-          <div class="library-modal-readout">
-            <span class="library-modal-label">Hearing</span>
+          </fieldset>
+          <fieldset class="library-modal-readout">
+            <legend class="library-modal-label">Hearing</legend>
             <b>{selected()?.name ?? "Nothing yet"}</b>
-          </div>
+          </fieldset>
           <input
             type="search"
             class={["library-modal-search", MASK_CONTENT]}

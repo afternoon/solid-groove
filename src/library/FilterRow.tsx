@@ -3,6 +3,7 @@ import { HiSolidChevronDown } from "solid-icons/hi";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
 import { type GenreCount, LOOP_BARS_CHOICES, type TempoFilter } from "./filters";
+import { roleLabel as genreLabel } from "./shelf";
 import "./SoundsView.css";
 
 /**
@@ -30,7 +31,8 @@ export default function FilterRow(props: {
   const label = () => {
     const [first, ...rest] = props.selectedGenres;
     if (first === undefined) return "Any genre";
-    return rest.length > 0 ? `${first} +${rest.length}` : first;
+    const name = genreLabel(first);
+    return rest.length > 0 ? `${name} +${rest.length}` : name;
   };
   return (
     <div class="filter-row">
@@ -57,7 +59,7 @@ export default function FilterRow(props: {
                     checked={props.selectedGenres.includes(entry.genre)}
                     onChange={() => props.onGenre(entry.genre)}
                   />
-                  {entry.genre} <span class="shelf-count">{entry.count}</span>
+                  {genreLabel(entry.genre)} <span class="shelf-count">{entry.count}</span>
                 </label>
               )}
             </For>

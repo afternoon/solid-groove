@@ -53,7 +53,8 @@ describe("PacksView", () => {
     expect(open).toHaveTextContent(/\+\d+ more/);
     expect(open).toHaveTextContent("CE");
     expect(open).toHaveTextContent("<library.pick_1>");
-    expect(open).toHaveTextContent("In project");
+    // Spaced from the initials and key badge, so it reads as words.
+    expect(open.textContent).toMatch(/\bIn project\b/);
     expect(screen.getByRole("button", { name: `Open ${second.name}` })).toHaveTextContent(
       "<library.pick_2>",
     );

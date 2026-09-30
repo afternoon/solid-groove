@@ -161,7 +161,12 @@ describe("LibraryModal shell", () => {
     const onInsert = vi.fn();
     renderShell({ onInsert });
     expect(screen.getByText("Drums · BD")).toBeVisible();
-    expect(screen.getByText("Rounded Club Kick")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Was" })).toHaveTextContent(
+      "Rounded Club Kick",
+    );
+    expect(screen.getByRole("group", { name: "Hearing" })).toHaveTextContent(
+      "Nothing yet",
+    );
     expect(screen.getByText("Nothing yet")).toBeVisible();
     expect(screen.getByRole("button", { name: "Insert" })).toBeDisabled();
 
@@ -182,7 +187,7 @@ describe("LibraryModal shell", () => {
     renderShell({ keyLabel: (action) => `<${action}>` });
     const rail = within(screen.getByRole("navigation", { name: "Places" }));
     const place = (name: string) => rail.getByRole("button", { name: new RegExp(name) });
-    expect(place("All sounds")).toHaveAttribute("aria-pressed", "true");
+    expect(place("All sounds")).toHaveAttribute("aria-current", "true");
     expect(place("Browse packs")).toHaveTextContent("<library.browse_packs>");
     expect(screen.getByRole("group", { name: "In this project" })).toBeVisible();
     expect(screen.getByRole("button", { name: /Shuffle/ })).toBeEnabled();

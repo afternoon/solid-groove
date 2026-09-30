@@ -36,10 +36,19 @@
   text-overflow: ellipsis;
 }
 
+/* A fieldset, so each readout is a group named by its label. */
 .library-modal-readout {
   display: flex;
   flex-direction: column;
   max-width: 170px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.library-modal-readout legend {
+  padding: 0;
 }
 
 .library-modal-label {
@@ -72,6 +81,7 @@
   color: var(--color-foreground);
 }
 
+.library-modal-rail-item[aria-current="true"],
 .library-modal-rail-item[aria-pressed="true"] {
   background: var(--color-accent);
   color: var(--color-on-accent);
