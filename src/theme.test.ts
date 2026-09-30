@@ -205,6 +205,7 @@ describe("the theme is the only place a colour is written down", () => {
       "--track-row-height",
       "--track-column-width",
       "--track-ruler-height",
+      "--waveform-fill",
     ]);
     const declared = new Set(
       Object.values(stylesheets).flatMap((source) =>

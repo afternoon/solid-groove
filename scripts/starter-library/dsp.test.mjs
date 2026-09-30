@@ -18,6 +18,8 @@ import {
   analyze,
   BIT_DEPTH,
   encodeWav,
+  PEAK_BINS,
+  peaksFromWav,
   sha256,
   storageKeyFor,
   waveformPeaks,
@@ -128,6 +130,27 @@ describe("wav encoding", () => {
     for (const length of [7, 100, 4801, 480000]) {
       expect(waveformPeaks(new Float32Array(length), 64)).toHaveLength(128);
     }
+  });
+
+  it("reduces a master to 48 max-abs bins, loudest normalised to 255", () => {
+    const samples = new Float32Array(48 * 100).fill(0.1);
+    samples.set(new Float32Array(100).fill(-0.5), 100 * 3); // bin 3, negative
+    samples.set(new Float32Array(100).fill(0.25), 100 * 47); // last bin
+    const peaks = peaksFromWav(encodeWav(samples));
+    expect(peaks).toHaveLength(PEAK_BINS);
+    expect(peaks[3]).toBe(255);
+    expect(peaks[47]).toBe(128);
+    expect(peaks[0]).toBe(51);
+  });
+
+  it("reads all channels, and a silent asset is all zeros", () => {
+    const left = new Float32Array(480);
+    const right = new Float32Array(480);
+    right[0] = 1;
+    expect(peaksFromWav(encodeWav([left, right]))[0]).toBe(255);
+    expect(peaksFromWav(encodeWav(new Float32Array(480))).every((v) => v === 0)).toBe(
+      true,
+    );
   });
 
   it("derives the storage key from the content hash", () => {

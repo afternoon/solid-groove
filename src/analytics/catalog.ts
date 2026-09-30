@@ -274,6 +274,9 @@ export const FEATURE_KEYS = [
   "step_random",
   "step_clear_row",
   "drum_pad_rename",
+  "library_similar",
+  "library_shuffle",
+  "library_pack_preview",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -394,6 +397,34 @@ export const SHORTCUT_ACTION_IDS = [
   "note.lengthen",
   "value.nudge_up",
   "value.nudge_down",
+  "library.select_previous",
+  "library.select_next",
+  "library.audition",
+  "library.insert",
+  "library.like",
+  "library.similar",
+  "library.shuffle",
+  "library.pick_1",
+  "library.pick_2",
+  "library.pick_3",
+  "library.pick_4",
+  "library.pick_5",
+  "library.pick_6",
+  "library.pick_7",
+  "library.pick_8",
+  "library.pick_9",
+  "library.pick_all",
+  "library.category_previous",
+  "library.category_next",
+  "library.family_previous",
+  "library.family_next",
+  "library.genre_menu",
+  "library.loop_tempo",
+  "library.all_sounds",
+  "library.favourites",
+  "library.browse_packs",
+  "library.back",
+  "library.search",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -673,6 +704,14 @@ export const ANALYTICS_EVENTS = {
       pack_id: slugParam(RESERVED_PACK_IDS),
       pack_kind: enumParam(PACK_KINDS),
     },
+  },
+
+  library_favourite_changed: {
+    phase: 1,
+    owners: ["LIB-010"],
+    // One heart press or `L`: added or removed. The sound is deliberately not
+    // named, and neither is its pack: what a producer keeps is theirs.
+    params: { favourited: boolParam() },
   },
 
   clip_edited: {

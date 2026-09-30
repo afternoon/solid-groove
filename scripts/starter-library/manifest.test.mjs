@@ -264,6 +264,13 @@ describe("validatePackManifest", () => {
     expect(errors).toEqual([]);
   });
 
+  it("accepts 48 valid peaks, and a manifest without any", () => {
+    const withPeaks = validPackManifest();
+    withPeaks.assets[0].peaks = Array.from({ length: 48 }, (_, i) => i * 5);
+    expect(validatePackManifest(withPeaks).errors).toEqual([]);
+    expect("peaks" in validPackManifest().assets[0]).toBe(false);
+  });
+
   it("accepts every real registered pack's own coverage claim", () => {
     // Proves packs.mjs's hand-authored coverage.genres/roles are not just
     // plausible-looking — every pack built here actually delivers what it
@@ -399,6 +406,27 @@ describe("validatePackManifest", () => {
       "a truncated waveform",
       (m) => m.assets[0].waveform.peaks.pop(),
       /waveform peaks do not match/,
+    ],
+    [
+      "peaks that are too short",
+      (m) => {
+        m.assets[0].peaks = new Array(47).fill(1);
+      },
+      /peaks must be exactly 48 integers/,
+    ],
+    [
+      "peaks out of range",
+      (m) => {
+        m.assets[0].peaks = new Array(48).fill(256);
+      },
+      /peaks must be exactly 48 integers/,
+    ],
+    [
+      "fractional peaks",
+      (m) => {
+        m.assets[0].peaks = new Array(48).fill(0.5);
+      },
+      /peaks must be exactly 48 integers/,
     ],
     [
       "a missing generation recipe",

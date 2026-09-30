@@ -13,6 +13,7 @@ import {
   attachAssetVoice,
   clampUnit,
   createAssetVoice,
+  disposeFinishedVoice,
   pitchToPlaybackRate,
   releaseAssetVoice,
 } from "./assetVoice";
@@ -92,12 +93,13 @@ function playSampledVoice(
   envelope.triggerAttackRelease(holdSeconds, time, velocity);
   player.start(time, offset, windowSeconds);
   player.onstop = () => {
-    player.dispose();
-    gain.dispose();
+    disposeFinishedVoice(player, () => {
+      player.dispose();
+      gain.dispose();
+    });
     // The envelope's release runs past the player's stop, so let it ring out
     // before disposal rather than cutting the tail.
-    const releaseMs = (settings.release + 0.05) * 1000;
-    setTimeout(() => envelope.dispose(), releaseMs);
+    disposeFinishedVoice(player, () => envelope.dispose(), settings.release + 0.05);
   };
 }
 
