@@ -1,0 +1,143 @@
+.similar-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.similar-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border-strong);
+  min-width: 0;
+}
+
+.similar-back {
+  height: 28px;
+  padding: 0 10px;
+  flex: none;
+  font-weight: 600;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+}
+
+.similar-label {
+  color: var(--color-foreground-muted);
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.similar-filters {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+.similar-chip {
+  height: 26px;
+  padding: 0 10px;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+}
+
+.similar-chip[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.similar-count {
+  margin-left: auto;
+  color: var(--color-foreground-muted);
+}
+
+.similar-empty {
+  margin: auto;
+  color: var(--color-foreground-muted);
+}
+
+.similar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.similar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 0 0;
+}
+
+.similar-row:hover {
+  background: var(--color-background-highlight);
+}
+
+.similar-row-selected {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.similar-pick {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 150px 60px;
+  gap: 12px;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 16px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+}
+
+.similar-wave {
+  height: 22px;
+}
+
+.similar-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.similar-name b,
+.similar-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.similar-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.similar-meter {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  background: var(--color-border-strong);
+}
+
+.similar-meter-fill {
+  position: absolute;
+  left: 0;
+  top: -1px;
+  height: 4px;
+  background: currentColor;
+}
+
+.similar-length {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
