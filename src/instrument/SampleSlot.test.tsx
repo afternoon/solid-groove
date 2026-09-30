@@ -23,4 +23,19 @@ describe("SampleSlot (#447)", () => {
       "No sample loaded",
     );
   });
+
+  it("carries the library's sound icon, and says what an empty slot holds", () => {
+    render(() => (
+      <SampleSlot
+        label="Loop for Break"
+        name={null}
+        placeholder="No loop loaded"
+        onBrowse={() => {}}
+      />
+    ));
+    const slot = screen.getByRole("button", { name: "Loop for Break" });
+    expect(slot).toHaveTextContent("No loop loaded");
+    expect(slot).toHaveAttribute("aria-haspopup", "dialog");
+    expect(slot.querySelector(".sample-slot-icon svg")).not.toBeNull();
+  });
 });

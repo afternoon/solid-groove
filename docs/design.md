@@ -85,7 +85,7 @@ component, and a surface only sizes it; it never restyles it.
 | Header row | `InstrumentHeader` |
 | Track header: swatch and colour picker, bold name, M and S, volume, level | `TrackHeader` |
 | M and S | `MuteSoloToggles` |
-| Sample slot: a filled button naming the sound, with a caret | `SampleSlot` |
+| Sample slot: a filled button with the library's sound icon, naming the sound, with a caret. The one way to choose a sound: the sampler's sample, every drum pad's, and a loop track's loop | `SampleSlot` |
 | Level meter | `LevelMeter` |
 | Dropdown | the one `select` rule in `app.css` |
 | Ghost button: a hairline border | `NewTrackButtons` |
