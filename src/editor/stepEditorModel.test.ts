@@ -12,6 +12,7 @@ import {
   eventCountBucket,
   isBarStart,
   isBeatStart,
+  isShadedBeat,
   lanesFor,
   MAX_BARS,
   noteAt,
@@ -25,6 +26,14 @@ import {
 } from "./stepEditorModel";
 
 describe("stepEditorModel", () => {
+  it("shades beats in alternating groups of four (#643)", () => {
+    const shaded = Array.from({ length: 16 }, (_, step) => isShadedBeat(step));
+    expect(shaded.slice(0, 4)).toEqual([true, true, true, true]);
+    expect(shaded.slice(4, 8)).toEqual([false, false, false, false]);
+    expect(isShadedBeat(8)).toBe(true);
+    expect(isShadedBeat(12)).toBe(false);
+  });
+
   it("selects the row a key names, else the first row (#643)", () => {
     const drum = createDrumMachineFixtureProject().song.tracks[0];
     const lanes = lanesFor(drum.instrument);

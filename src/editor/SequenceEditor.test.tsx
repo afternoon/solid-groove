@@ -1,5 +1,6 @@
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setTrackFlag } from "../commands";
 import type { Clip, Project, Track } from "../domain/entities";
 import {
   createDrumMachineInstrument,
@@ -134,6 +135,24 @@ describe("SequenceEditor", () => {
     clickAndFlush(rows.getByRole("button", { name: "BD" }));
     expect(onSelectPad).toHaveBeenCalledExactlyOnceWith(pad?.id);
     expect(auditionPad).toHaveBeenCalledExactlyOnceWith(pad?.id);
+  });
+
+  it("plays the song from the step grid's Play (#643)", () => {
+    const onTogglePlay = vi.fn();
+    renderEditorFor(createStepGridProject(), starterClip, () => {}, { onTogglePlay });
+    clickAndFlush(screen.getByRole("button", { name: "Play" }));
+    expect(onTogglePlay).toHaveBeenCalledOnce();
+  });
+
+  it("solos the clip's track from the step grid's Solo (#657)", () => {
+    const dispatch = vi.fn();
+    const { track } = renderEditorFor(createStepGridProject(), starterClip, () => {}, {
+      dispatch,
+    });
+    clickAndFlush(screen.getByRole("button", { name: "Solo" }));
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith(
+      setTrackFlag(track.id, "soloed", true),
+    );
   });
 
   it("gives a sampler note clip the piano roll, not the step editor (#496)", () => {

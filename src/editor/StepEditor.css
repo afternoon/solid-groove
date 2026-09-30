@@ -1,19 +1,21 @@
+/* The step grid (#643), drawn with the piano roll's parts: its toolbar, ruler
+   and velocity lane, and cells with the same 2px gaps, beats shaded in
+   alternating groups of four, bar lines and white notes. The editor sets
+   `--pr-step` from zoom and `--step-count` from the clip. */
+
 .step-editor {
+  --pr-step: 40px;
+  --pr-gutter: 76px;
+  --pr-ruler: 22px;
+  --pr-row: 30px;
+
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  font-size: var(--font-size-small);
   /* A paint or erase drag must never start a text selection (CLP-02). */
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-}
-
-.step-editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  min-height: 30px;
 }
 
 .step-editor-length {
@@ -32,37 +34,64 @@
   color: var(--color-text-secondary);
 }
 
-/* The row names down the left, the lanes of steps beside them (#643). */
+/* Row names and ruler corner in the first column, steps in the second; the
+   velocity lane spans both. Everything scrolls sideways together, and the
+   names stay put against the left edge. */
 .step-editor-grid {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: var(--pr-gutter) max-content;
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
+  background: var(--color-background);
+}
+
+.step-editor-grid > .pr-velocity {
+  grid-column: 1 / -1;
+  width: max-content;
+  min-width: 100%;
+}
+
+.step-corner,
+.step-rows,
+.step-editor-grid .pr-velocity-corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--color-background-secondary);
+}
+
+.step-editor-grid .pr-ruler {
+  background: var(--color-background-secondary);
 }
 
 .step-rows,
 .step-lanes {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-/* A row's name is its button: grey at rest, and black when it is the
-   selected row, as the selected track is (#447). */
+.step-rows {
+  background: var(--color-background);
+}
+
+/* A row's name is its button, with the grid's 2px black foot: grey at rest,
+   and black when it is the selected row, as the selected track is (#447). */
 .step-row-name {
-  height: 30px;
-  padding: 0 8px;
+  height: var(--pr-row);
+  padding: 0 10px 0 12px;
   overflow: hidden;
   border: 0;
   border-radius: 0;
   background: var(--color-background-tertiary);
+  box-shadow: inset 0 -2px 0 var(--color-background);
   color: var(--color-text-secondary);
   font: inherit;
-  font-size: var(--font-size-small);
+  font-size: 11px;
   font-weight: 600;
   text-align: left;
   text-overflow: ellipsis;
@@ -90,68 +119,73 @@
 
 .step-lane {
   display: grid;
-  grid-template-columns: repeat(var(--step-count, 16), minmax(20px, 1fr));
-  gap: 2px;
-  height: 30px;
-  min-width: 0;
-  /* Reset the fieldset default chrome; the lane groups its step buttons only
-     for assistive tech, not visually. */
+  grid-template-columns: repeat(var(--step-count, 16), var(--pr-step));
+  height: var(--pr-row);
   margin: 0;
   padding: 0;
   border: none;
 }
 
-/* The selected row sinks to black behind its steps too. */
-.step-lane[aria-current="true"] {
-  background: var(--color-background);
-}
-
+/* Each cell draws its own 2px black right edge and foot, so the gaps are the
+   grid's lines, as in the piano roll's rows. */
+/* Sized here, not stretched: a fieldset's grid does not stretch its items. */
 .step-cell {
-  min-width: 20px;
-  background-color: var(--color-background-tertiary);
-  border: 1px solid transparent;
-  border-radius: 0;
-  padding: 0;
-  cursor: pointer;
   position: relative;
-  transition: background-color 0.02s ease-out;
+  height: var(--pr-row);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--color-background-tertiary);
+  box-shadow:
+    inset -2px 0 0 var(--color-background),
+    inset 0 -2px 0 var(--color-background);
+  cursor: cell;
 }
 
-/* Beat and bar divisions are visually distinct (CLP-02): a beat starts a
-   lighter left edge, a bar a heavier, brighter one. */
-.step-cell.beat-start {
-  border-left-color: var(--color-background-hover);
+/* Beats shade in alternating groups of four. */
+.step-cell.shade {
+  background-image: linear-gradient(var(--tint-subtle), var(--tint-subtle));
 }
 
-.step-cell.bar-start {
-  border-left: 2px solid var(--color-foreground);
+/* A bar begins on a brighter line. */
+.step-cell.bar-start::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  background: var(--color-foreground-muted);
 }
 
 .step-cell:hover {
   background-color: var(--color-background-hover);
 }
 
-/* An active step is filled with the accent; its opacity tracks velocity so a
-   softer hit reads as dimmer without another control. */
+/* The selected row sinks toward black behind its steps too (#447). */
+.step-lane[aria-current="true"] .step-cell:not(.active) {
+  background-color: var(--color-background-secondary);
+}
+
+/* Every note is white; velocity reads in the lane, not here. */
 .step-cell.active {
   background-color: var(--color-accent);
-  opacity: calc(0.35 + 0.65 * var(--velocity, 1));
+  background-image: none;
 }
 
 .step-cell.selected {
-  outline: 2px solid var(--color-foreground-bright);
-  outline-offset: -2px;
-  opacity: 1;
+  box-shadow:
+    inset -2px 0 0 var(--color-background),
+    inset 0 -2px 0 var(--color-background),
+    inset 0 0 0 4px var(--color-on-accent);
 }
 
 /* The current playback step (CLP-02): a bright ring over whichever cell the
    playhead is passing, on or off. */
 .step-cell.playing {
-  box-shadow: inset 0 0 0 2px var(--color-foreground-bright);
+  outline: 2px solid var(--color-foreground-bright);
+  outline-offset: -2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .step-cell {
-    transition: none;
-  }
+.step-cell:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }

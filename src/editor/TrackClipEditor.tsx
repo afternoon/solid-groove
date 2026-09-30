@@ -12,6 +12,7 @@ import PianoRoll from "./pianoRoll/PianoRoll";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import StepEditor from "./StepEditor";
 import TransformPanel from "./TransformPanel";
+import { toggleTrackFlag } from "./trackSurface";
 
 export interface TrackClipEditorProps {
   /** The edited track's clip, or null when it has none yet (#228). */
@@ -47,6 +48,8 @@ export interface TrackClipEditorProps {
  * by side beneath it.
  */
 export default function TrackClipEditor(props: TrackClipEditorProps) {
+  const trackOf = (clip: Clip) =>
+    props.project.song.tracks.find((track) => track.id === clip.trackId);
   // The piano roll owns its own selection (the step editor's is lifted into
   // `EditorView`), and mirrors it out here for the Transform panel.
   const [rollSelection, setRollSelection] = createSignal<readonly EventId[]>([]);
@@ -72,6 +75,13 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
                   dispatch={props.dispatch}
                   beginGesture={props.beginGesture}
                   playbackStep={props.editorPlaybackStep}
+                  playing={props.playing}
+                  onTogglePlay={() => props.onTogglePlay?.()}
+                  soloed={trackOf(clip())?.mixer.soloed ?? false}
+                  onToggleSolo={() => {
+                    const track = trackOf(clip());
+                    if (track) toggleTrackFlag(props.dispatch, track, "soloed");
+                  }}
                   selectedIds={props.selectedNoteIds}
                   setSelectedIds={props.setSelectedNoteIds}
                   selectedPadId={props.selectedPadId}

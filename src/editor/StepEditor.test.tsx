@@ -396,6 +396,8 @@ describe("StepEditor rows (#643)", () => {
     const [selectedPad, setSelectedPad] = createSignal<PadId | null>(initial);
     const onSelectPad = vi.fn((padId: PadId) => setSelectedPad(padId));
     const auditionPad = vi.fn();
+    const onTogglePlay = vi.fn();
+    const onToggleSolo = vi.fn();
     render(() => (
       <StepEditor
         clip={clip()}
@@ -405,9 +407,21 @@ describe("StepEditor rows (#643)", () => {
         selectedPadId={selectedPad()}
         onSelectPad={onSelectPad}
         auditionPad={auditionPad}
+        onTogglePlay={onTogglePlay}
+        onToggleSolo={onToggleSolo}
       />
     ));
-    return { kick, clap, setSelectedPad, onSelectPad, auditionPad };
+    return {
+      history,
+      clip,
+      kick,
+      clap,
+      setSelectedPad,
+      onSelectPad,
+      auditionPad,
+      onTogglePlay,
+      onToggleSolo,
+    };
   }
 
   const rows = () => within(screen.getByRole("group", { name: "Rows" }));
@@ -443,12 +457,53 @@ describe("StepEditor rows (#643)", () => {
     expect(rowButton("CP")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("never moves the row when a cell is painted", () => {
-    const { onSelectPad, auditionPad } = renderRows();
+  it("never moves the row when a cell is painted, though it plays the pad", () => {
+    const { clap, onSelectPad, auditionPad } = renderRows();
     stroke("CP, step 2, off");
     expect(cell("CP, step 2, on")).toBeInTheDocument();
     expect(rowButton("BD")).toHaveAttribute("aria-pressed", "true");
     expect(onSelectPad).not.toHaveBeenCalled();
+    expect(auditionPad).toHaveBeenCalledExactlyOnceWith(clap.id);
+  });
+
+  it("plays nothing while Preview sound is off", () => {
+    const { auditionPad } = renderRows();
+    const toggle = screen.getByRole("button", { name: "Preview sound" });
+    clickAndFlush(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    clickAndFlush(rowButton("CP"));
+    stroke("CP, step 2, off");
     expect(auditionPad).not.toHaveBeenCalled();
+  });
+
+  it("has the piano roll's toolbar: Bars, Select all, Delete, zoom and Play", () => {
+    const { history, clip, onTogglePlay } = renderRows();
+    expect(screen.getByRole("combobox", { name: "Bars" })).toBeInTheDocument();
+    // The ruler only labels the steps: the grid has no insert marker.
+    expect(document.querySelector(".pr-ruler")).toHaveAttribute("aria-hidden", "true");
+    expect(document.querySelector(".pr-ruler-marker")).toBeNull();
+
+    clickAndFlush(screen.getByRole("button", { name: "Select all" }));
+    expect(screen.getByText("6 selected")).toBeInTheDocument();
+    clickAndFlush(screen.getByRole("button", { name: "Delete" }));
+    const content = clip().content;
+    expect(content.kind === "notes" ? content.events : null).toEqual([]);
+    expect(history.entries).toHaveLength(1);
+
+    const grid = document.querySelector(".step-editor-grid") as HTMLElement;
+    expect(grid.style.getPropertyValue("--pr-step")).toBe("40px");
+    clickAndFlush(screen.getByRole("button", { name: "Zoom in" }));
+    expect(grid.style.getPropertyValue("--pr-step")).toBe("50px");
+
+    clickAndFlush(screen.getByRole("button", { name: "Play" }));
+    expect(onTogglePlay).toHaveBeenCalledOnce();
+  });
+
+  it("has the piano roll's Solo, which toggles the clip's track (#657)", () => {
+    const { onToggleSolo } = renderRows();
+    const solo = screen.getByRole("button", { name: "Solo" });
+    expect(solo).toHaveAttribute("aria-pressed", "false");
+    clickAndFlush(solo);
+    expect(onToggleSolo).toHaveBeenCalledOnce();
   });
 });
