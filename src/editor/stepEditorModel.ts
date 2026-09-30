@@ -115,6 +115,17 @@ export function lanesFor(instrument: Instrument | null): readonly StepLane[] {
   ];
 }
 
+/**
+ * The selected row: the lane keyed `key` (a pad id on a drum machine), or the
+ * first lane when there is no such lane any more, or null with no lanes.
+ */
+export function selectedLane(
+  lanes: readonly StepLane[],
+  key: string | null,
+): StepLane | null {
+  return lanes.find((lane) => lane.key === key) ?? lanes[0] ?? null;
+}
+
 /** The clip's note events, or an empty list for non-note content. */
 export function noteEventsOf(clip: Clip): readonly NoteEvent[] {
   return clip.content.kind === "notes" ? clip.content.events : [];

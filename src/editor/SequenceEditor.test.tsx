@@ -118,6 +118,24 @@ describe("SequenceEditor", () => {
     expect(within(dialog).queryByRole("region", { name: /Piano roll/ })).toBeNull();
   });
 
+  it("hands a picked row to the host as the selected pad, and plays it (#643)", () => {
+    const project = createStepGridProject();
+    const onSelectPad = vi.fn();
+    const auditionPad = vi.fn();
+    const { track } = renderEditorFor(project, starterClip, () => {}, {
+      selectedPadId: null,
+      onSelectPad,
+      auditionPad,
+    });
+    const pad =
+      track.instrument?.kind === "drumMachine" ? track.instrument.pads[0] : null;
+
+    const rows = within(screen.getByRole("group", { name: "Rows" }));
+    clickAndFlush(rows.getByRole("button", { name: "BD" }));
+    expect(onSelectPad).toHaveBeenCalledExactlyOnceWith(pad?.id);
+    expect(auditionPad).toHaveBeenCalledExactlyOnceWith(pad?.id);
+  });
+
   it("gives a sampler note clip the piano roll, not the step editor (#496)", () => {
     renderEditorFor(createSliceFixtureProject(), starterClip);
 

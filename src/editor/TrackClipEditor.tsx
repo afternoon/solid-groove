@@ -6,7 +6,7 @@ import type {
   TransactionResult,
 } from "../commands";
 import type { Clip, Instrument, Project } from "../domain/entities";
-import type { EventId } from "../domain/ids";
+import type { EventId, PadId } from "../domain/ids";
 import KeyPanel from "./pianoRoll/KeyPanel";
 import PianoRoll from "./pianoRoll/PianoRoll";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
@@ -34,6 +34,10 @@ export interface TrackClipEditorProps {
   onTogglePlay?(): void;
   /** Plays one pitch on the track's instrument, for the roll's preview. */
   audition?(pitch: number, velocity: number): void;
+  /** The step grid's selected row, shared with the drum machine (#643). */
+  readonly selectedPadId?: PadId | null;
+  onSelectPad?(padId: PadId): void;
+  auditionPad?(padId: PadId): void;
 }
 
 /**
@@ -70,6 +74,9 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
                   playbackStep={props.editorPlaybackStep}
                   selectedIds={props.selectedNoteIds}
                   setSelectedIds={props.setSelectedNoteIds}
+                  selectedPadId={props.selectedPadId}
+                  onSelectPad={(padId) => props.onSelectPad?.(padId)}
+                  auditionPad={(padId) => props.auditionPad?.(padId)}
                 />
                 <TransformPanel
                   clip={clip()}

@@ -1898,6 +1898,42 @@ describe("EditorView sequence editor", () => {
 
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
+
+  // The editor owns one pad selection for a drum track, and both the
+  // instrument view's drum machine and the grid's row picker read and write it
+  // (#643): neither side keeps its own.
+  it("shares the selected pad between the drum machine and the grid's rows (#643)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    const rowButton = (editor: HTMLElement, name: string) =>
+      within(within(editor).getByRole("group", { name: "Rows" })).getByRole("button", {
+        name,
+      });
+
+    await goToView("Instrument");
+    clickAndFlush(await screen.findByRole("button", { name: "Audition CP" }));
+    expect(screen.getByRole("region", { name: "CP pad" })).toBeInTheDocument();
+
+    await goToView("Arrangement");
+    let editor = await openSequenceEditor();
+    expect(rowButton(editor, "CP")).toHaveAttribute("aria-pressed", "true");
+    expect(rowButton(editor, "BD")).toHaveAttribute("aria-pressed", "false");
+
+    // And back: a row picked in the grid is the pad the instrument view shows.
+    clickAndFlush(rowButton(editor, "BD"));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await goToView("Instrument");
+    expect(await screen.findByRole("region", { name: "BD pad" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "CP pad" })).not.toBeInTheDocument();
+
+    await goToView("Arrangement");
+    editor = await openSequenceEditor();
+    expect(rowButton(editor, "BD")).toHaveAttribute("aria-pressed", "true");
+  });
 });
 
 /** The three views and the dock that names them (`UI-001`, CF-008). */
