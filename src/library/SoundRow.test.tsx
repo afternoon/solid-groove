@@ -1,0 +1,89 @@
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fixtureFetcher } from "./__fixtures__/fixtures";
+import { LibraryClient } from "./libraryClient";
+import type { LibraryAsset } from "./manifest";
+import SoundRow, { lengthLabel } from "./SoundRow";
+
+afterEach(() => cleanup());
+
+async function fixtureAssets(): Promise<LibraryAsset[]> {
+  const client = new LibraryClient(fixtureFetcher());
+  const packs = await client.loadIndex();
+  const loaded = await Promise.all(packs.map((pack) => client.loadPack(pack)));
+  return loaded.flatMap((result) => (result.ok ? [...result.assets] : []));
+}
+
+function renderRow(
+  asset: LibraryAsset,
+  extra: Partial<Parameters<typeof SoundRow>[0]> = {},
+) {
+  const onSelect = vi.fn();
+  const onSimilar = vi.fn();
+  render(() => (
+    <ul>
+      <SoundRow
+        asset={asset}
+        selected={false}
+        playing={false}
+        error={null}
+        onSelect={onSelect}
+        onSimilar={onSimilar}
+        {...extra}
+      />
+    </ul>
+  ));
+  return { onSelect, onSimilar };
+}
+
+describe("SoundRow", () => {
+  it("names the sound, and says its pack, role and length", async () => {
+    const asset = (await fixtureAssets()).find(
+      (a) => a.type === "one-shot",
+    ) as LibraryAsset;
+    renderRow(asset);
+
+    expect(screen.getByRole("button", { name: `Audition ${asset.name}` })).toBeVisible();
+    expect(screen.getByRole("listitem")).toHaveTextContent(asset.packName);
+    expect(screen.getByRole("listitem")).toHaveTextContent(lengthLabel(asset));
+    expect(
+      screen.getByRole("listitem").querySelector("svg.mini-waveform"),
+    ).not.toBeNull();
+  });
+
+  it("selects on click, opens similar sounds from its icon, and has an inert heart", async () => {
+    const [asset] = await fixtureAssets();
+    const { onSelect, onSimilar } = renderRow(asset);
+
+    fireEvent.click(screen.getByRole("button", { name: `Audition ${asset.name}` }));
+    fireEvent.click(screen.getByRole("button", { name: `Sounds like ${asset.name}` }));
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSimilar).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("button", { name: `Favourite ${asset.name}` }),
+    ).toBeDisabled();
+  });
+
+  it("marks the selected row, draws its waveform in the track colour, and reports errors", async () => {
+    const [asset] = await fixtureAssets();
+    renderRow(asset, { selected: true, color: "#123456", error: "network" });
+
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveClass("sound-row-selected");
+    expect(row.style.getPropertyValue("--waveform-fill")).toBe("#123456");
+    expect(
+      screen.getByRole("button", { name: `Audition ${asset.name}` }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(row).toHaveTextContent(/connection|load/i);
+  });
+
+  it("labels a loop by tempo and bars", () => {
+    const loop = { type: "loop", bpm: 120, bars: 4 } as LibraryAsset;
+    expect(lengthLabel(loop)).toBe("120 BPM · 4 bars");
+    expect(lengthLabel({ ...loop, bars: 1 })).toBe("120 BPM · 1 bar");
+    expect(lengthLabel({ type: "one-shot", durationSeconds: 0.5 } as LibraryAsset)).toBe(
+      "0.50 s",
+    );
+  });
+});
