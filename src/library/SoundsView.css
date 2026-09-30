@@ -17,7 +17,8 @@
 }
 
 .sounds-empty,
-.sounds-error {
+.sounds-error,
+.sounds-notice {
   margin: auto;
   color: var(--color-foreground-muted);
 }

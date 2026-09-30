@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-li
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
-import { fixtureFetcher } from "./__fixtures__/fixtures";
+import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "./__fixtures__/fixtures";
 import { FetchClassifiedError, LibraryClient } from "./libraryClient";
 import { assetStorageRef, type LibraryAsset, type LibraryAssetType } from "./manifest";
 import SoundsView from "./SoundsView";
@@ -376,5 +376,41 @@ describe("SoundsView search jumps and shuffle", () => {
     press("library.shuffle");
 
     expect(engine.starts).toHaveLength(0);
+  });
+});
+
+describe("SoundsView failures", () => {
+  it("names an unavailable pack while the others keep listing, and retries it", async () => {
+    let failing = true;
+    const client = new LibraryClient(async (path) => {
+      if (failing && path.includes(`/${FIXTURE_PACK_INDEX_DOC.packs[0].slug}/`)) {
+        throw new FetchClassifiedError("network", "offline");
+      }
+      return fixtureFetcher()(path);
+    });
+    renderView({ client });
+
+    expect(await screen.findByText(/unavailable/)).toBeVisible();
+    failing = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect((await rows()).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.queryByText(/unavailable/)).toBeNull());
+  });
+
+  it("shows a per-row error when a preview fails, without blocking the others", async () => {
+    const { engine } = renderView();
+    const [first, second] = await rows();
+    engine.failNextWith("network");
+
+    fireEvent.click(first.querySelector(".sound-row-main") as HTMLElement);
+    await waitFor(() =>
+      expect(first.querySelector(".sound-row-meta")).toHaveTextContent(
+        /connection|load/i,
+      ),
+    );
+
+    fireEvent.click(second.querySelector(".sound-row-main") as HTMLElement);
+    await waitFor(() => expect(engine.starts).toHaveLength(1));
   });
 });

@@ -6,7 +6,8 @@ import {
   waitFor,
   within,
 } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { Show } from "@solidjs/web";
+import { createSignal, onSettled } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -14,8 +15,11 @@ import { createRecordingTransport } from "../analytics/transport";
 import { memoryStorage } from "../testing/storage";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
 import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "./__fixtures__/fixtures";
-import LibraryBrowser from "./LibraryBrowser";
+import type { PreviewEngine } from "./audition";
 import { FetchClassifiedError, LibraryClient } from "./libraryClient";
+import type { LibraryAsset, LibraryPackSummary } from "./manifest";
+import PackBrowser from "./PackBrowser";
+import { useLibraryBrowser } from "./useLibraryBrowser";
 
 afterEach(() => cleanup());
 
@@ -35,7 +39,56 @@ function analytics() {
 }
 
 /**
- * Render the panel and open the pack browser from it — the way a user reaches
+ * What hosts the pack browser here: one button that opens it over a
+ * `useLibraryBrowser` controller, as the library did before the modal replaced
+ * it. Closing stops any preview, exactly as the host always did.
+ */
+function PackBrowserHost(props: {
+  client: LibraryClient;
+  previewEngine: PreviewEngine;
+  analytics?: Analytics;
+  addedPackIds: readonly string[];
+  onAddPack: (pack: LibraryPackSummary) => void;
+  onInsert?: (asset: LibraryAsset) => void;
+}) {
+  const browser = useLibraryBrowser({
+    client: props.client,
+    previewEngine: props.previewEngine,
+    analytics: props.analytics,
+    addedPackIds: () => props.addedPackIds,
+    onAddPack: (pack) => props.onAddPack(pack),
+  });
+  const [open, setOpen] = createSignal(false);
+  onSettled(() => void browser.open());
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          browser.stopAudition();
+          setOpen(true);
+        }}
+      >
+        Browse packs
+      </button>
+      <Show when={open()}>
+        <PackBrowser
+          browser={browser}
+          analytics={props.analytics}
+          addedPackIds={props.addedPackIds}
+          onInsert={props.onInsert}
+          onClose={() => {
+            browser.stopAudition();
+            setOpen(false);
+          }}
+        />
+      </Show>
+    </>
+  );
+}
+
+/**
+ * Render the host and open the pack browser from it — the way a user reaches
  * the modal — so the test exercises the real entrypoint rather than mounting
  * the dialog with a hand-made controller.
  */
@@ -57,7 +110,7 @@ async function openPackBrowser(
     overrides.addedPackIds ?? [FIRST_PACK.id],
   );
   render(() => (
-    <LibraryBrowser
+    <PackBrowserHost
       client={overrides.client ?? new LibraryClient(fixtureFetcher())}
       previewEngine={previewEngine}
       analytics={overrides.analytics}
