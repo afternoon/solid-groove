@@ -265,6 +265,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     ...Object.fromEntries(
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
     ),
+    "library.back": inLibrary((a) => a.back()),
     // Escape closes the innermost surface: the guide, then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip

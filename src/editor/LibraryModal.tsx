@@ -1,14 +1,16 @@
-import { For, type JSX, Match, Show, Switch } from "@solidjs/web";
-import { createSignal, onSettled } from "solid-js";
+import { For, type JSX, Show } from "@solidjs/web";
+import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import Dialog from "../components/Dialog";
 import type { PreviewEngine } from "../library/audition";
-import type { LibraryClient } from "../library/libraryClient";
+import { LibraryClient } from "../library/libraryClient";
 import type {
   LibraryAsset,
   LibraryAssetType,
   LibraryPackSummary,
 } from "../library/manifest";
+import PackBanner from "../library/PackBanner";
+import PacksView from "../library/PacksView";
 import SoundsView from "../library/SoundsView";
 import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -17,7 +19,7 @@ import type { ShortcutActionId } from "../shortcuts";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
-export type LibraryView = "packs" | "all" | "favourites" | "project" | "recent";
+export type LibraryView = "packs" | "all" | "favourites" | "recent";
 
 interface RailItem {
   readonly id: LibraryView;
@@ -26,13 +28,14 @@ interface RailItem {
   readonly action?: ShortcutActionId;
 }
 
-const RAIL: readonly RailItem[] = [
+const PLACES: readonly RailItem[] = [
   { id: "packs", label: "Browse packs", action: "library.browse_packs" },
   { id: "all", label: "All sounds", action: "library.all_sounds" },
   { id: "favourites", label: "Favourites", action: "library.favourites" },
-  { id: "project", label: "In this project" },
-  { id: "recent", label: "Recently viewed" },
 ];
+
+/** Recently viewed sits below the project's packs, so it is not in `PLACES`. */
+const RECENT: RailItem = { id: "recent", label: "Recently viewed" };
 
 /**
  * What the `library` shortcut context drives. The host (`EditorView`) holds
@@ -44,6 +47,10 @@ export interface LibraryActions {
   insertSelected(): boolean;
   /** Runs a `library.*` key on the visible view, which knows what it means. */
   press(action: ShortcutActionId): void;
+  /** `1`-`9`: open that pack over the grid of packs, else pick that category. */
+  pick(n: number): void;
+  /** Back out of an opened pack, then out of Browse packs. */
+  back(): void;
 }
 
 export interface LibraryModalProps {
@@ -98,6 +105,35 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
+  // The pack whose sounds the sounds view is scoped to (`null`: no scope). The
+  // sounds view reads this; Browse packs and In this project set it.
+  const [packScope, setPackScope] = createSignal<string | null>(null);
+  let openNthPack: ((n: number) => void) | null = null;
+  const client = props.client ?? new LibraryClient();
+  const showsPacks = createMemo(() => view() === "packs" && packScope() === null);
+  const showsSounds = createMemo(() => view() === "all" || packScope() !== null);
+  // The rail's *In this project*: the project's pack dependencies and shelf.
+  const [indexed, setIndexed] = createSignal<readonly LibraryPackSummary[]>([]);
+  const projectPacks = createMemo(() =>
+    indexed().filter((pack) => props.addedPackIds.includes(pack.id)),
+  );
+
+  function showView(next: LibraryView): void {
+    setPackScope(null);
+    setView(next);
+  }
+
+  /** Back: out of an opened pack, then out of the grid of packs. */
+  function back(): void {
+    if (packScope() !== null) setPackScope(null);
+    else if (view() === "packs") setView("all");
+  }
+
+  /** A digit opens a pack over the grid, and picks a category over sounds. */
+  function pick(n: number): void {
+    if (showsPacks()) openNthPack?.(n);
+    else if (showsSounds()) soundsKeys?.(`library.pick_${n}` as SoundsKeyAction);
+  }
   const keyOf = (action?: ShortcutActionId) =>
     action ? props.keyLabel?.(action) : undefined;
 
@@ -117,7 +153,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     ) {
       active.blur();
     }
-    if (view() === "all") soundsKeys?.(action as SoundsKeyAction);
+    const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
+    if (digit) pick(Number(digit));
+    else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
   function insertSelected(): boolean {
@@ -128,9 +166,24 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   onSettled(() => {
-    props.onActions?.({ showView: setView, insertSelected, press });
+    void client.loadIndex().then(setIndexed, () => {});
+    props.onActions?.({ showView, insertSelected, press, pick, back });
     return () => props.onActions?.(null);
   });
+
+  function RailButton(railProps: { item: RailItem }): JSX.Element {
+    return (
+      <button
+        type="button"
+        class="library-modal-rail-item"
+        aria-pressed={ariaBool(view() === railProps.item.id)}
+        onClick={() => showView(railProps.item.id)}
+      >
+        {railProps.item.label}
+        <Key label={keyOf(railProps.item.action)} />
+      </button>
+    );
+  }
 
   return (
     <Dialog
@@ -179,7 +232,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           <button
             type="button"
             class="library-modal-ghost"
-            disabled={view() !== "all"}
+            disabled={!showsSounds()}
             onClick={() => press("library.shuffle")}
           >
             Shuffle <Key label={keyOf("library.shuffle")} />
@@ -198,49 +251,77 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     >
       <div class="library-modal-body">
         <nav class="library-modal-rail" aria-label="Places">
-          <For each={RAIL}>
-            {(item) => (
-              <button
-                type="button"
-                class="library-modal-rail-item"
-                aria-pressed={ariaBool(view() === item.id)}
-                onClick={() => setView(item.id)}
-              >
-                {item.label}
-                <Key label={keyOf(item.action)} />
-              </button>
-            )}
-          </For>
+          <For each={PLACES}>{(item) => <RailButton item={item} />}</For>
+          <fieldset class="library-modal-rail-group">
+            <legend class="library-modal-label">In this project</legend>
+            <For each={projectPacks()}>
+              {(pack) => (
+                <button
+                  type="button"
+                  class="library-modal-rail-item"
+                  aria-pressed={ariaBool(packScope() === pack.slug)}
+                  onClick={() => setPackScope(pack.slug)}
+                >
+                  {pack.name}
+                  <small>{pack.assetCount}</small>
+                </button>
+              )}
+            </For>
+          </fieldset>
+          <RailButton item={RECENT} />
         </nav>
         <div class="library-modal-main">
-          <Switch>
-            <Match when={view() === "all"}>
-              <SoundsView
-                client={props.client}
-                previewEngine={props.previewEngine}
-                analytics={props.analytics}
-                assetTypes={props.assetTypes}
-                heading={props.heading}
-                trackColor={props.trackColor}
-                selected={selected()}
-                onSelect={setSelected}
-                onSimilar={(asset) => props.onSimilar?.(asset)}
-                query={query()}
-                onQueryChange={setQuery}
-                songBpm={props.songBpm}
-                slot={props.slotKind && { kind: props.slotKind, ref: props.currentRef }}
-                keyLabel={props.keyLabel}
-                onKeys={(handler) => {
-                  soundsKeys = handler;
-                }}
+          <Show when={packScope()}>
+            {(slug) => (
+              <PackBanner
+                client={client}
+                slug={slug()}
+                projectPackIds={props.addedPackIds}
               />
-            </Match>
-            <Match when={true}>
-              <p class="library-modal-empty">
-                {RAIL.find((item) => item.id === view())?.label} will appear here.
-              </p>
-            </Match>
-          </Switch>
+            )}
+          </Show>
+          <Show when={showsPacks()}>
+            <PacksView
+              client={client}
+              previewEngine={props.previewEngine}
+              analytics={props.analytics}
+              projectPackIds={props.addedPackIds}
+              keyLabel={props.keyLabel}
+              onOpenPack={setPackScope}
+              onRegisterOpenNth={(open) => {
+                openNthPack = open;
+              }}
+            />
+          </Show>
+          {/* Stays mounted while another place shows, so leaving and coming back
+              keeps its audition engine, which it disposes with the window. */}
+          <div class="library-modal-sounds" hidden={!showsSounds()}>
+            <SoundsView
+              client={client}
+              previewEngine={props.previewEngine}
+              analytics={props.analytics}
+              assetTypes={props.assetTypes}
+              heading={props.heading}
+              trackColor={props.trackColor}
+              selected={selected()}
+              onSelect={setSelected}
+              onSimilar={(asset) => props.onSimilar?.(asset)}
+              query={query()}
+              onQueryChange={setQuery}
+              packSlug={packScope()}
+              songBpm={props.songBpm}
+              slot={props.slotKind && { kind: props.slotKind, ref: props.currentRef }}
+              keyLabel={props.keyLabel}
+              onKeys={(handler) => {
+                soundsKeys = handler;
+              }}
+            />
+          </div>
+          <Show when={view() === "favourites" || view() === "recent"}>
+            <p class="library-modal-empty">
+              {(view() === "recent" ? RECENT : PLACES[2]).label} will appear here.
+            </p>
+          </Show>
         </div>
       </div>
     </Dialog>
