@@ -1084,3 +1084,76 @@ reloads, one click away from any slot.
 browser, and a guest's favourites carrying over when they register. Both are
 #691's and are asserted in the emulator rules and repository suites.
 Unfavouriting, which is component-layer.
+
+### CF-027 — A producer asks the assistant for a change, tries it, and keeps it
+
+**Issue:** #72 · **Suite:** `tests/e2e/emulator/flows/CF-027.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects. The assistant is answered by the
+suite's scripted provider (#69). Asked to loosen the beat, it replies with a
+proposal of two changes: swing up to 58%, and the BD track 3 dB quieter. Once
+the assistant disclosure exists (#95), this account has already seen it.
+
+1. Create a new project. It opens on the arrangement.
+2. Press the Assistant button in the header. The assistant opens floating over
+   the bottom-right corner of the editor, ready to type into. It says its scope
+   is the selected track, BD.
+3. Type "Loosen the beat" and press Enter. Your message appears in the
+   conversation, marked with its scope, and the assistant's reply follows it.
+4. The reply ends with a proposal that lists both changes, each from its
+   current value to the new one. Nothing in the song has changed yet: swing
+   reads what it did before.
+5. Press Preview. The editor goes to the mixer, where the change can be seen.
+   BD's volume fader sits at the proposed level, and swing reads 58%.
+6. Press Cancel. The editor goes back to the arrangement. Swing reads what it
+   did before, and BD's volume is where it was. There is nothing to undo.
+7. Press Preview again, then Apply. The proposal says it was applied. Swing
+   reads 58%, and BD's volume is at the proposed level.
+8. Undo once. Both changes are gone. Redo once. Both are back.
+9. Reload the page. Swing still reads 58%, and BD's volume is still at the
+   proposed level.
+
+**Outcome:** a producer asked for a change in words, tried it before anything
+was saved, walked away from it without a trace, then kept it as one step they
+can undo, and it is still there when they come back.
+
+**Out of scope:** what the assistant says, and whether a real model proposes
+anything useful, which `AI-005` evaluates. Stopping a reply, a provider failure,
+a proposal that goes out of date under an edit, and "Why this works", which are
+tested at the component and emulator layers. The outlines that mark previewed
+and changed controls, which are component-layer. That a preview is audible. No
+headless browser records audio. Pack and video recommendations, which are other
+issues.
+
+### CF-028 — The assistant stays where a producer puts it
+
+**Issue:** #72 · **Suite:** `tests/e2e/emulator/flows/CF-028.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects, in a browser that has never
+opened the assistant.
+
+1. Create a new project. It opens on the arrangement.
+2. Press Ctrl+K (⌘K on a Mac). The assistant opens floating over the
+   bottom-right corner of the editor.
+3. Drag its top edge up. It grows taller and stays at the bottom of the window.
+4. Press Minimise. It shrinks to a bar at the bottom-right that still names the
+   assistant. Click the bar. It floats again, at the height you set.
+5. Press Dock. It becomes a column down the right edge, and the arrangement
+   narrows so that nothing is under it.
+6. Drag its left edge to the left. The column widens, and the arrangement
+   narrows with it.
+7. Press Close. The column goes, and the arrangement fills the window again.
+   Press Ctrl+K. The assistant comes back docked, at the width you set.
+8. Reload the page. The assistant is docked at the same width, as you left it.
+   Press Float. It floats at the height you set in step 3.
+
+**Outcome:** a producer arranged the assistant to suit the way they work, and
+it stays that way across a reload on this device.
+
+**Out of scope:** the panel following the producer to another browser or
+device, which it deliberately does not. Resizing from the keyboard, the
+double-click that resets a size, and the smallest and largest sizes, which are
+component-layer. That Ctrl+K does not clash with another shortcut, which the
+shortcut registry's own tests assert. The conversation itself (CF-027).
