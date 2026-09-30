@@ -90,8 +90,9 @@ test.describe("CF-022", () => {
 
       // Outcome: the ZIP holds five WAVs, one per track, named with its position
       // and track name so they sort in track order, each with sound in it, plus
-      // `Reference mix.wav` and `manifest.json`. Every WAV is stereo, 24-bit
-      // PCM, at the same sample rate, and exactly the same length.
+      // `Reference mix.wav`, and nothing else (no manifest: a product-owner
+      // decision on #66). Every WAV is stereo, 24-bit PCM, at the same sample
+      // rate, and exactly the same length.
       //
       // `Returns/` is out of scope (no UI adds a return yet), so the listing is
       // exact: anything else in the archive is a finding.
@@ -103,9 +104,7 @@ test.describe("CF-022", () => {
         `04 ${song.loopTrack}.wav`,
         "05 Piano.wav",
       ];
-      expect([...entries.keys()].sort()).toEqual(
-        [...stems, "Reference mix.wav", "manifest.json"].sort(),
-      );
+      expect([...entries.keys()].sort()).toEqual([...stems, "Reference mix.wav"].sort());
       // Sorting the stems by name puts them in track order.
       expect([...stems].sort()).toEqual(stems);
 
@@ -129,10 +128,6 @@ test.describe("CF-022", () => {
           reference.dataBytes,
         );
       }
-      // The manifest's fields are out of scope; that it is a JSON document is not.
-      const manifest = entries.get("manifest.json") as Uint8Array;
-      expect(() => JSON.parse(new TextDecoder().decode(manifest))).not.toThrow();
-
       // 10. Close the dialog and reload the page.
       await dialog
         .getByRole("button", { name: /^Close\b/ })

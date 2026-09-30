@@ -948,13 +948,13 @@ project dashboard
 
 **Outcome:** the ZIP holds five WAVs, one per track, named with its position and track
 name (`01 BD.wav`, `02 Drums.wav`, `03 Bass.wav`, `04 <loop track>.wav`, `05 Piano.wav`)
-so they sort in track order, each with sound in it, plus `Reference mix.wav` and `manifest.json`. Every
+so they sort in track order, each with sound in it, plus `Reference mix.wav`, and nothing else. Every
 WAV is stereo, 24-bit PCM, at the same sample rate, and exactly the same length. After
 the reload the project is unchanged, devices included.
 
 **Out of scope:** mute/solo (every track is exported whatever its
 mute/solo state), return-bus stems (these go in a `Returns/` folder, but no UI adds a
-return yet), the manifest's fields, sample-by-sample alignment, master processing
+return yet), sample-by-sample alignment, master processing
 being excluded, cancelling, the maximum reference fixture, worker/memory limits,
 failure paths and analytics — all tested at the unit and component layers.
 Stereo export (CF-021).
