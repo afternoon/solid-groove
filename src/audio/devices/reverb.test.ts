@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createDevice, defaultDeviceParameters } from "../../domain/devices";
 import type { Device } from "../../domain/entities";
 import type { DeviceId } from "../../domain/ids";
@@ -107,43 +107,53 @@ describe("reverb (FX-01)", () => {
     expect(await brightness(400)).toBeLessThan((await brightness(18_000)) / 4);
   });
 
-  it("regenerates its impulse only when decay, size, or pre-delay changed", () => {
+  it("regenerates its impulse once per change, only when decay, size, or pre-delay changed", async () => {
     const core = reverb.createReverbCore(device(), context);
-    // `Tone.Reverb`'s `decay` and `preDelay` setters each rebuild the impulse
-    // themselves, so counting assignments to them counts regenerations —
-    // and proves nothing here calls `generate()` a second, redundant time.
-    const node = core.input as unknown as { decay: number; preDelay: number };
-    let rebuilds = 0;
-    for (const key of ["decay", "preDelay"] as const) {
-      let stored = node[key];
-      Object.defineProperty(node, key, {
-        get: () => stored,
-        set: (v: number) => {
-          rebuilds++;
-          stored = v;
-        },
-        configurable: true,
-      });
-    }
+    const node = core.input as unknown as import("tone").Reverb;
+    const generate = vi.spyOn(node, "generate");
+    const rebuilds = async () => {
+      await core.ready?.();
+      return generate.mock.calls.length;
+    };
 
     const values = { ...defaultDeviceParameters("reverb") };
-    // The first apply writes both, so one regeneration's worth of settings.
+    // The first apply sets both values, then regenerates once.
     core.apply(values, context, true);
-    expect(rebuilds).toBe(2);
+    expect(await rebuilds()).toBe(1);
 
     core.apply(values, context, false);
-    expect(rebuilds).toBe(2); // identical values: nothing to rebuild
+    expect(await rebuilds()).toBe(1); // identical values: nothing to rebuild
 
     core.apply({ ...values, filter: 1_000 }, context, false);
     // A filter-only edit is a ramp on the damping node. Regenerating here
     // would restart a ringing tail from a fresh impulse for no reason.
-    expect(rebuilds).toBe(2);
+    expect(await rebuilds()).toBe(1);
 
     core.apply({ ...values, decay: 6 }, context, false);
-    expect(rebuilds).toBe(4);
+    expect(await rebuilds()).toBe(2);
     core.apply({ ...values, decay: 6, size: 0.9 }, context, false);
-    expect(rebuilds).toBe(6);
+    expect(await rebuilds()).toBe(3);
 
+    core.dispose();
+  });
+
+  it("ends on the impulse for the latest values, never a slower stale one", async () => {
+    // Tone starts a generation per setter, and the constructor's long default
+    // impulse used to land *after* the short one asked for, replacing it.
+    const core = reverb.createReverbCore(device(), context);
+    const values = {
+      ...defaultDeviceParameters("reverb"),
+      decay: 1,
+      size: 0,
+      predelay: 0,
+    };
+    core.apply(values, context, true);
+    await core.ready?.();
+    // Every generation Tone could still have in flight has had time to land.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const convolver = (core.input as unknown as { _convolver: { buffer: AudioBuffer } })
+      ._convolver;
+    expect(convolver.buffer.duration).toBeCloseTo(0.5, 2);
     core.dispose();
   });
 

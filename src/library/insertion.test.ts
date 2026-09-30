@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CommandHistory, executeTransaction } from "../commands";
+import { CommandHistory, executeTransaction, removeClip } from "../commands";
 import { createFactoryContext } from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
@@ -15,6 +15,7 @@ import {
   loadPadSampleCommands,
   loadSampleCommands,
   loopClipLengthTicks,
+  replaceLoopCommands,
   toLibrarySample,
 } from "./insertion";
 import { LIBRARY_ROOT, packAssets, parsePackManifest } from "./manifest";
@@ -468,5 +469,153 @@ describe("loadPadSampleCommands (#447)", () => {
     expect(
       loadPadSampleCommands(result.project, track.id, first.id, sample, context("b")),
     ).toHaveLength(1);
+  });
+
+  it('names a pad still called "Pad N" after the sound, undone with the load', async () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find((t) => t.instrument?.kind === "drumMachine");
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const pad = track.instrument.pads[0];
+    const sample = toLibrarySample((await libraryAssets())[1]);
+    if (!sample) throw new Error("expected an insertable sample");
+    const padOf = (p: typeof project) => {
+      const drum = p.song.tracks.find((t) => t.id === track.id)?.instrument;
+      return drum?.kind === "drumMachine" ? drum.pads[0] : undefined;
+    };
+
+    const auto = structuredClone(project);
+    const autoTrack = auto.song.tracks.find((t) => t.id === track.id);
+    if (autoTrack?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    autoTrack.instrument.pads[0].name = "Pad 7";
+    const named = executeTransaction(
+      auto,
+      loadPadSampleCommands(auto, track.id, pad.id, sample, context()),
+    );
+    if (!named.ok) throw new Error(named.issues[0].message);
+    expect(padOf(named.project)?.name).toBe(sample.name);
+    expect(named.project.metadata.revision).toBe(auto.metadata.revision + 1);
+
+    const typed = structuredClone(auto);
+    const typedTrack = typed.song.tracks.find((t) => t.id === track.id);
+    if (typedTrack?.instrument?.kind !== "drumMachine")
+      throw new Error("no drum machine");
+    typedTrack.instrument.pads[0].name = "My Kick";
+    const kept = executeTransaction(
+      typed,
+      loadPadSampleCommands(typed, track.id, pad.id, sample, context()),
+    );
+    if (!kept.ok) throw new Error(kept.issues[0].message);
+    expect(padOf(kept.project)?.name).toBe("My Kick");
+  });
+});
+
+describe("replaceLoopCommands", () => {
+  /** A tempo-labelled loop from the delivered library, as insertion builds one. */
+  async function loopSample() {
+    const base = toLibrarySample((await libraryAssets())[0]);
+    if (!base) throw new Error("expected an insertable asset");
+    return { ...base, kind: "loop" as const, bpm: 140, bars: 4, durationSeconds: 6.857 };
+  }
+
+  /** The drum-machine fixture's loop track and the loop clip it plays. */
+  function loopTrack() {
+    const project = createDrumMachineFixtureProject();
+    const clip = project.clips.find((c) => c.content.kind === "audioLoop");
+    if (!clip) throw new Error("fixture has no audio loop");
+    return { project, clip, trackId: clip.trackId };
+  }
+
+  it("swaps the track's loop in one transaction, keeping its placements", async () => {
+    const { project, clip, trackId } = loopTrack();
+    const sample = await loopSample();
+    const placementsBefore = project.song.placements.filter((p) => p.clipId === clip.id);
+    const tracksBefore = project.song.tracks;
+
+    const result = executeTransaction(
+      project,
+      replaceLoopCommands(project, trackId, sample, context(), { songTempo: 120 }),
+    );
+    expect(result.ok, result.ok ? "" : result.issues[0].message).toBe(true);
+    if (!result.ok) return;
+
+    // One revision, the same tracks, and the track still plays exactly one loop.
+    expect(result.project.metadata.revision).toBe(project.metadata.revision + 1);
+    expect(result.project.song.tracks.map((t) => t.id)).toEqual(
+      tracksBefore.map((t) => t.id),
+    );
+    const loops = result.project.clips.filter(
+      (c) => c.trackId === trackId && c.content.kind === "audioLoop",
+    );
+    expect(loops).toHaveLength(1);
+    const [next] = loops;
+    expect(next.id).not.toBe(clip.id);
+    expect(next.name).toBe(sample.name);
+    expect(next.lengthTicks).toBe(4 * TICKS_PER_BAR);
+    const content = next.content;
+    if (content.kind !== "audioLoop") throw new Error("expected a loop clip");
+    expect(content.sourceTempo).toBe(140);
+    const asset = result.project.song.assets.find((a) => a.id === content.assetId);
+    expect(asset?.storageRef).toBe(sample.storageRef);
+
+    // Every placement moved to the new clip, where the old one sat.
+    const placementsAfter = result.project.song.placements.filter(
+      (p) => p.clipId === next.id,
+    );
+    expect(placementsAfter.map((p) => [p.startTicks, p.durationTicks])).toEqual(
+      placementsBefore.map((p) => [p.startTicks, p.durationTicks]),
+    );
+    expect(result.project.song.placements.some((p) => p.clipId === clip.id)).toBe(false);
+  });
+
+  it("undoes as one step, back to the original loop", async () => {
+    const { project, clip, trackId } = loopTrack();
+    const history = new CommandHistory(project);
+    history.execute(
+      replaceLoopCommands(project, trackId, await loopSample(), context(), {
+        songTempo: 120,
+      }),
+    );
+    history.undo();
+    expect(history.project.clips.some((c) => c.id === clip.id)).toBe(true);
+    expect(history.project.song.placements).toEqual(project.song.placements);
+  });
+
+  it("gives a loop track with no loop one at bar 1", async () => {
+    const { project: withLoop, clip, trackId } = loopTrack();
+    const emptied = executeTransaction(withLoop, [removeClip(clip.id)]);
+    if (!emptied.ok) throw new Error("could not empty the loop track");
+    const project = emptied.project;
+
+    const result = executeTransaction(
+      project,
+      replaceLoopCommands(project, trackId, await loopSample(), context(), {
+        songTempo: 120,
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const placements = result.project.song.placements.filter(
+      (p) => p.trackId === trackId,
+    );
+    expect(placements.map((p) => [p.startTicks, p.durationTicks])).toEqual([
+      [0, 4 * TICKS_PER_BAR],
+    ]);
+  });
+
+  it("does nothing for a track that is not a loop track, or a sound that is not a loop", async () => {
+    const { project, trackId } = loopTrack();
+    const sample = await loopSample();
+    const instrumentTrack = project.song.tracks.find((t) => t.type !== "audio");
+    if (!instrumentTrack) throw new Error("fixture has no instrument track");
+    expect(
+      replaceLoopCommands(project, instrumentTrack.id, sample, context(), {
+        songTempo: 120,
+      }),
+    ).toEqual([]);
+    expect(
+      replaceLoopCommands(project, trackId, { ...sample, kind: "sample" }, context(), {
+        songTempo: 120,
+      }),
+    ).toEqual([]);
   });
 });

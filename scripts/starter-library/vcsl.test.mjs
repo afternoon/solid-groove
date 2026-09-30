@@ -95,6 +95,15 @@ describe("selecting one representative sample per instrument", () => {
     expect(marimba.wavPath).toMatch(/Marimba_mp_C5\.wav$/);
     expect(selections.some((s) => /Recorder/.test(s.wavPath))).toBe(false);
   });
+
+  it("folds a '<name> - Legacy' folder into its instrument, preferring new takes", () => {
+    const selections = selectInstruments([
+      "Idiophones/Struck Idiophones/Bell Tree/Individual/BellTree_Hit_G5.wav",
+      "Idiophones/Struck Idiophones/Bell Tree - Legacy/bell_tree_scrape2.wav",
+    ]);
+    expect(selections).toHaveLength(1);
+    expect(selections[0].wavPath).toMatch(/BellTree_Hit_G5\.wav$/);
+  });
 });
 
 describe("acquired asset IDs", () => {
@@ -159,7 +168,7 @@ describe("acquireVcsl end to end (offline, against a fixture repo)", () => {
       expect(asset.id).toMatch(/^sg-one-shot-.+-6\d{3}$/);
       expect(asset.license.id).toBe("CC0-1.0");
       expect(asset.provenance.sourceId).toBe("vcsl");
-      expect(asset.provenance.reviewState).toBe("bulk-cc0");
+      expect(asset.provenance.reviewState).toBe("metadata-review");
       expect(asset.tags.sourceTypes).toEqual(["recorded"]);
     }
   });

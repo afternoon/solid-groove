@@ -15,7 +15,7 @@
 export const SITE_ORIGIN = "https://groove.ben2.com";
 
 /** The product's name, as it appears in a tab title and a link preview. */
-export const SITE_NAME = "Solid Groove";
+export const SITE_NAME = "Groove";
 
 /**
  * The landing page's `<title>`.
@@ -23,7 +23,7 @@ export const SITE_NAME = "Solid Groove";
  * Also set as the route's title once the client mounts (see `LandingPage`), so
  * a crawler that executes JavaScript and one that does not read the same thing.
  */
-export const SITE_TITLE = "Solid Groove — a music studio in your browser";
+export const SITE_TITLE = "Groove — a music studio in your browser";
 
 /**
  * The `<meta name="description">` and the link-preview description.
