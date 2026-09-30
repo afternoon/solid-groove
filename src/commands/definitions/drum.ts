@@ -131,6 +131,44 @@ export const drumSetPadAssetCommand = defineCommand<DrumSetPadAssetPayload>({
   },
 });
 
+// --- drum.renamePad --------------------------------------------------------
+
+export const drumRenamePadPayloadSchema = z.strictObject({
+  trackId: trackIdSchema,
+  padId: padIdSchema,
+  // Trimmed first, then held to the domain's own display-name rule (1-120
+  // characters), so a blank name is rejected. Duplicate names are allowed.
+  name: z.string().trim().pipe(drumPadSchema.shape.name),
+});
+export type DrumRenamePadPayload = z.infer<typeof drumRenamePadPayloadSchema>;
+
+export const drumRenamePadCommand = defineCommand<DrumRenamePadPayload>({
+  type: "drum.renamePad",
+  version: 1,
+  schema: drumRenamePadPayloadSchema,
+  summarize: (payload, project) =>
+    `Rename a pad of track ${trackLabel(project, payload.trackId)}`,
+  apply(project, payload) {
+    const track = findTrack(project, payload.trackId);
+    if (track?.instrument?.kind !== "drumMachine") {
+      return rejected(`Track ${payload.trackId} is not a drum machine`);
+    }
+    const pad = findPad(track.instrument.pads, payload.padId);
+    if (!pad) {
+      return rejected(`Pad ${payload.padId} does not exist`);
+    }
+    return applied(
+      replacePad(project, track, track.instrument, { ...pad, name: payload.name }),
+    );
+  },
+  invert(payload, before) {
+    const track = findTrack(before, payload.trackId);
+    if (track?.instrument?.kind !== "drumMachine") return [];
+    const pad = findPad(track.instrument.pads, payload.padId);
+    return pad ? [renamePad(payload.trackId, payload.padId, pad.name)] : [];
+  },
+});
+
 // --- drum.setPadFlag -------------------------------------------------------
 
 export const padFlagSchema = z.enum(["muted", "soloed"]);
@@ -535,6 +573,14 @@ export const drumReorderPadCommand = defineCommand<DrumReorderPadPayload>({
 
 // --- Typed builders --------------------------------------------------------
 
+export function renamePad(
+  trackId: z.infer<typeof trackIdSchema>,
+  padId: PadId,
+  name: string,
+): CommandInput<DrumRenamePadPayload> {
+  return { type: drumRenamePadCommand.type, payload: { trackId, padId, name } };
+}
+
 export function setPadAsset(
   trackId: z.infer<typeof trackIdSchema>,
   padId: PadId,
@@ -619,6 +665,7 @@ export function reorderPad(
 /** Registered, payload-erased commands from this module. */
 export const drumCommands: readonly RegisteredCommand[] = [
   eraseCommand(drumSetPadAssetCommand),
+  eraseCommand(drumRenamePadCommand),
   eraseCommand(drumSetPadFlagCommand),
   eraseCommand(drumSetPadChokeCommand),
   eraseCommand(drumSetPadParameterCommand),

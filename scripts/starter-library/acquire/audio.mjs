@@ -12,7 +12,9 @@
 // resamples to the context rate for free.
 
 import { OfflineAudioContext } from "node-web-audio-api";
+import { OggOpusDecoder } from "ogg-opus-decoder";
 import { applyFades, peak, removeDcOffset, SAMPLE_RATE } from "../dsp.mjs";
+import { encodeWav } from "../wav.mjs";
 
 /** Formats a browser can decode, which is the only bar that matters here. */
 export const SUPPORTED_AUDIO = [
@@ -39,7 +41,8 @@ export function isSupportedAudio(filename) {
  * than what we converted it to — section 10 asks for the conversion to be
  * recorded honestly, not hidden.
  */
-export async function decodeToSamples(bytes) {
+export async function decodeToSamples(input) {
+  const bytes = isOgg(input) ? await oggOpusToWav(input) : input;
   const context = new OfflineAudioContext(2, SAMPLE_RATE, SAMPLE_RATE);
   // Allocate through the ambient `ArrayBuffer` rather than reslicing the
   // Buffer's own. `decodeAudioData` type-checks its argument against
@@ -63,6 +66,38 @@ export async function decodeToSamples(bytes) {
     channels.push(Float32Array.from(buffer.getChannelData(channel)));
   }
   return { channels, sampleRate: buffer.sampleRate, frames: buffer.length };
+}
+
+/** An Ogg container starts with the capture pattern "OggS". */
+function isOgg(bytes) {
+  return (
+    bytes.length > 4 &&
+    bytes[0] === 0x4f &&
+    bytes[1] === 0x67 &&
+    bytes[2] === 0x67 &&
+    bytes[3] === 0x53
+  );
+}
+
+/**
+ * `node-web-audio-api` cannot decode Ogg Opus, and some sources ship only
+ * that. Decode it in WebAssembly and hand the rest of the chain a WAV, so
+ * resampling and preparation stay on the one path.
+ */
+async function oggOpusToWav(bytes) {
+  const decoder = new OggOpusDecoder();
+  await decoder.ready;
+  try {
+    const { channelData, sampleRate, errors } = await decoder.decodeFile(
+      new Uint8Array(bytes),
+    );
+    if (!channelData.length || !channelData[0].length) {
+      throw new Error(`could not decode Ogg Opus: ${errors?.[0]?.message ?? "no audio"}`);
+    }
+    return encodeWav(channelData, sampleRate);
+  } finally {
+    decoder.free();
+  }
 }
 
 /**

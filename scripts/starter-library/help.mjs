@@ -43,7 +43,7 @@ export function helpText() {
 
   return [
     "",
-    bold("  Solid Groove sound library"),
+    bold("  Groove sound library"),
     dim("  docs/sample-library.md section 15 · PRD LIB-00"),
     "",
     bold("  Right now"),
