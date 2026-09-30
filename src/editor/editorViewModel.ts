@@ -199,6 +199,10 @@ export function sampleName(project: Project | null, track: Track | null): string
 export interface LibrarySlotHeader {
   readonly slot: string;
   readonly current: string | null;
+  /** What the slot is, so the library opens on its family. */
+  readonly kind: "drum-pad" | "sampler" | "loop-track";
+  /** A drum pad's sound, as a storage ref: the library reads its role off it. */
+  readonly currentRef?: string | null;
 }
 
 export function librarySlotHeader(
@@ -207,14 +211,19 @@ export function librarySlotHeader(
   pad: { readonly padId: string } | null,
   loops: boolean,
 ): LibrarySlotHeader {
-  if (loops) return { slot: "Loops", current: null };
+  if (loops) return { slot: "Loops", current: null, kind: "loop-track" };
   const instrument = editedInstrument(track);
   if (pad && instrument?.kind === "drumMachine") {
     const found = instrument.pads.find((entry) => entry.id === pad.padId);
     const asset = project?.song.assets.find((entry) => entry.id === found?.assetId);
-    return { slot: `Drums · ${found?.name ?? "Pad"}`, current: asset?.name ?? null };
+    return {
+      slot: `Drums · ${found?.name ?? "Pad"}`,
+      current: asset?.name ?? null,
+      kind: "drum-pad",
+      currentRef: asset?.storageRef ?? null,
+    };
   }
-  return { slot: "Sampler", current: sampleName(project, track) };
+  return { slot: "Sampler", current: sampleName(project, track), kind: "sampler" };
 }
 
 /**

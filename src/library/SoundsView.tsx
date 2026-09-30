@@ -7,11 +7,13 @@ import type { PreviewEngine } from "./audition";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
+import Shelf from "./Shelf";
 import SoundRow from "./SoundRow";
 import { matchesLibraryQuery } from "./search";
 import type { SoundsKeyAction } from "./soundKeys";
 import { nextIn, previousIn } from "./stepping";
 import { useLibraryBrowser } from "./useLibraryBrowser";
+import { type ShelfSlot, useShelf } from "./useShelf";
 import "./SoundsView.css";
 
 export interface SoundsViewProps {
@@ -25,6 +27,8 @@ export interface SoundsViewProps {
   readonly trackColor?: string;
   /** The header search's text, matched against name, role, family and pack. */
   readonly query?: string;
+  /** What the library was opened for: where the shelf opens. */
+  readonly slot?: ShelfSlot;
   /** The sound being heard; the modal owns it so Insert and Hearing follow it. */
   readonly selected: LibraryAsset | null;
   onSelect(asset: LibraryAsset): void;
@@ -57,7 +61,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   }
   onSettled(() => void load());
 
-  const sounds = createMemo(() => {
+  const matching = createMemo(() => {
     const needle = (props.query ?? "").trim().toLowerCase();
     return browser
       .assets()
@@ -67,6 +71,12 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
           matchesLibraryQuery(asset, needle),
       );
   });
+  const shelf = useShelf(
+    matching,
+    () => browser.assets(),
+    () => props.slot,
+  );
+  const sounds = shelf.inView;
   const selectedId = () => props.selected?.id ?? null;
   const current = () => sounds().find((sound) => sound.id === selectedId()) ?? null;
 
@@ -111,6 +121,14 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
         }
       >
         <Show when={ready()} fallback={<TapeLoader label="Loading library" />}>
+          <Shelf
+            families={shelf.families()}
+            family={shelf.selection().family}
+            roles={shelf.roles()}
+            role={shelf.selection().role}
+            onFamily={shelf.setFamily}
+            onRole={shelf.setRole}
+          />
           <Show
             when={sounds().length > 0}
             fallback={<p class="sounds-empty">No sounds to show.</p>}

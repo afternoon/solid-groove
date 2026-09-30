@@ -1780,6 +1780,10 @@ function sampler(): HTMLElement {
 
 /** Select a sound (auditioning it), then commit it with the modal's Insert (LIB-010). */
 async function insertSound(name: string): Promise<void> {
+  // The shelf opens on the slot's family, so find the sound by name first.
+  fireEvent.input(await screen.findByRole("searchbox", { name: "Search sounds" }), {
+    target: { value: name },
+  });
   fireEvent.click(await screen.findByRole("button", { name: `Audition ${name}` }));
   clickAndFlush(await screen.findByRole("button", { name: `Insert ${name}` }));
 }

@@ -263,6 +263,7 @@ describe("librarySlotHeader", () => {
     expect(librarySlotHeader(sliced, editedTrack(sliced, null), null, false)).toEqual({
       slot: "Sampler",
       current: "909 Bass Drum",
+      kind: "sampler",
     });
     const drums = createDrumMachineFixtureProject();
     const track = editedTrack(drums, null);
@@ -272,7 +273,15 @@ describe("librarySlotHeader", () => {
     expect(librarySlotHeader(drums, track, { padId: pad.id }, false).slot).toBe(
       `Drums \u00b7 ${pad.name}`,
     );
-    expect(librarySlotHeader(null, null, null, true).slot).toBe("Loops");
+    // A pad hands over its sound's storage ref, so the shelf can open on its role.
+    expect(librarySlotHeader(drums, track, { padId: pad.id }, false)).toMatchObject({
+      kind: "drum-pad",
+      currentRef: expect.stringContaining("/"),
+    });
+    expect(librarySlotHeader(null, null, null, true)).toMatchObject({
+      slot: "Loops",
+      kind: "loop-track",
+    });
   });
 });
 
