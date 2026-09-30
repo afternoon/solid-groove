@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Implement one Solid Groove GitHub issue end to end with the core-flow-first pipeline — verify the prework is done, run the feature workflow, then verify the resulting PR stack is correctly stacked, formatted, and carries a rendering walkthrough. Use when asked to implement a specific issue, e.g. "/implement-feature #123", "implement issue 123", or "build #123".
+description: Implement one Groove GitHub issue end to end with the core-flow-first pipeline — verify the prework is done, run the feature workflow, then verify the resulting PR stack is correctly stacked, formatted, and carries a rendering walkthrough. Use when asked to implement a specific issue, e.g. "/implement-feature #123", "implement issue 123", or "build #123".
 ---
 
 # Implement a feature

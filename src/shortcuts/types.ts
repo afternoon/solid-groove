@@ -33,6 +33,7 @@ export const SHORTCUT_CONTEXTS = [
   "selection",
   "sequence_editor",
   "dialog",
+  "library",
   "gesture",
   "loop_brace",
   "value_field",
@@ -55,6 +56,14 @@ export const FOCUS_CONTEXTS: readonly ShortcutContext[] = ["loop_brace", "value_
  * selecting tracks (`track.move_left`, `track.select_previous`) underneath.
  */
 export const OVERLAY_CONTEXTS: readonly ShortcutContext[] = ["piano_roll"];
+
+/**
+ * Contexts a modal may keep alive beside `dialog`. `dialog` alone suppresses
+ * every other context; a modal that owns keys of its own (the library, `LIB-010`)
+ * activates `dialog` *and* one of these, so its keys fire inside it and nowhere
+ * else, while every other modal keeps the plain `dialog` behaviour.
+ */
+export const MODAL_OWNED_CONTEXTS: readonly ShortcutContext[] = ["library"];
 
 /** The context that suppresses every other one while it is active. */
 export const MODAL_CONTEXT: ShortcutContext = "dialog";
@@ -99,7 +108,7 @@ export const SHORTCUT_GROUP_LABELS: Record<ShortcutGroup, string> = {
  * baseline.
  *
  * `differs` always carries the Live combination it deviates from *and* why, so
- * "browser conflicts and Solid Groove deviations are documented rather than
+ * "browser conflicts and Groove deviations are documented rather than
  * handled inconsistently" is a property of the data, not of a wiki page that
  * can drift. `solid_groove` claims no Live baseline at all rather than
  * inventing one.
@@ -114,7 +123,7 @@ export type AbletonParity =
   | { readonly kind: "solid_groove"; readonly reason: string };
 
 /**
- * A browser combination Solid Groove deliberately takes over.
+ * A browser combination Groove deliberately takes over.
  *
  * Distinct from `RESERVED_CHORDS` in `registry.ts`: those the browser or OS
  * keeps for itself and the registry may never claim. These are ones a page can

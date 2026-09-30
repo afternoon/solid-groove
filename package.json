@@ -22,6 +22,7 @@
     "jsdom": "^25.0.1",
     "nanoid": "^6.0.0",
     "node-web-audio-api": "^2.1.0",
+    "ogg-opus-decoder": "^1.7.5",
     "since-time-ago": "^1.1.1",
     "solid-icons": "1.2.0",
     "solid-js": "2.0.0-rc.3",

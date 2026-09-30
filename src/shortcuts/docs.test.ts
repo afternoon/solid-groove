@@ -7,7 +7,7 @@ import { SHORTCUT_GROUP_LABELS } from "./types";
 
 /**
  * `docs/shortcuts.md` is the human copy of the registry — the PRD `KEY-01`
- * requirement that "browser conflicts and Solid Groove deviations from Ableton
+ * requirement that "browser conflicts and Groove deviations from Ableton
  * are documented rather than handled inconsistently". Prose drifts silently;
  * this is what stops it.
  */
@@ -28,7 +28,7 @@ function rowFor(actionId: string): string {
 describe("docs/shortcuts.md", () => {
   it("documents every registered action, and no unregistered one", () => {
     const documented = mappingTable
-      .map((line) => /^\| `([a-z_]+\.[a-z_]+)` \|/.exec(line)?.[1])
+      .map((line) => /^\| `([a-z_]+\.[a-z0-9_]+)` \|/.exec(line)?.[1])
       .filter((id): id is string => id !== undefined);
     expect(documented.sort()).toEqual(SHORTCUTS.map((shortcut) => shortcut.id).sort());
   });
