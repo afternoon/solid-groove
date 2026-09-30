@@ -16,6 +16,19 @@
   overflow: auto;
 }
 
+/* The step grid grows into the height the dialog has left, too (#643); the
+   body still scrolls when a big kit needs more than that. */
+.sequence-editor-body:not(.with-roll) {
+  display: flex;
+  flex-direction: column;
+}
+
+.track-clip-editor:not(.with-roll) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
 /* The piano roll takes every pixel the dialog has (ARR-010): the roll itself
    scrolls, so the body does not, and the Key and Transform panels sit side by
    side under it. */
