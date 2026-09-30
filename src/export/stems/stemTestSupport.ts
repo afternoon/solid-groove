@@ -1,12 +1,8 @@
 import type { StemExportError, StemRenderer } from "./exportStems";
 
-/**
- * Stem-export test helpers (tests only).
- *
- * `fakeRenderer` stands in for the offline renderer, whose real audio the
- * audio project's own suites own: it hands back `frames(call)` frames of a
- * constant, reports progress in two steps, and records every call.
- */
+/** Stem-export test helpers (tests only). `fakeRenderer` stands in for the
+ * offline renderer: it hands back `frames(call)` frames of a constant, reports
+ * progress in two steps, and records every call. */
 export function fakeRenderer(
   frames: (call: number) => number = (call) => 100 + call * 10,
 ) {

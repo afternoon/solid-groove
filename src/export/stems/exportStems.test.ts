@@ -1,8 +1,10 @@
 import { unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
+import { songEndSeconds } from "../../audio/renderLength";
 import { createReferenceProject } from "../../domain/fixtures";
-import { exportStems } from "./exportStems";
+import { buildAudioProjection } from "../../projection/audioProjection";
+import { exportStems, StemExportError } from "./exportStems";
 import { createStemFixtureProject } from "./stemFixture";
 import { concat, exportFailure, fakeRenderer } from "./stemTestSupport";
 
@@ -12,7 +14,6 @@ describe("exportStems", () => {
   it("renders every planned stem once, at one rate, and pads them to one length", async () => {
     const { render, calls } = fakeRenderer();
     const archive = await exportStems(createStemFixtureProject(), {
-      bitDepth: 16,
       sampleRate: RATE,
       render,
     });
@@ -35,14 +36,13 @@ describe("exportStems", () => {
     ]);
     expect(archive.frames).toBe(140);
     for (const [path, bytes] of Object.entries(entries)) {
-      if (path.endsWith(".wav")) expect(bytes.byteLength, path).toBe(44 + 140 * 4);
+      if (path.endsWith(".wav")) expect(bytes.byteLength, path).toBe(44 + 140 * 6);
     }
   });
 
   it("reports monotonic progress that ends at 1", async () => {
     const progress: number[] = [];
     await exportStems(createStemFixtureProject(), {
-      bitDepth: 24,
       sampleRate: RATE,
       render: fakeRenderer().render,
       onProgress: (fraction) => progress.push(fraction),
@@ -57,7 +57,6 @@ describe("exportStems", () => {
     const { render, calls } = fakeRenderer();
     const error = await exportFailure(
       exportStems(createStemFixtureProject(), {
-        bitDepth: 24,
         sampleRate: RATE,
         signal: controller.signal,
         render: async (...args) => {
@@ -75,7 +74,6 @@ describe("exportStems", () => {
   it("fails recoverably with the renderer's own code when a stem cannot render", async () => {
     const error = await exportFailure(
       exportStems(createStemFixtureProject(), {
-        bitDepth: 24,
         sampleRate: RATE,
         render: async () => {
           throw new OfflineRenderError(
@@ -89,7 +87,6 @@ describe("exportStems", () => {
     expect(error.cancelled).toBe(false);
     // Nothing is held: a retry starts from scratch and succeeds.
     const retry = await exportStems(createStemFixtureProject(), {
-      bitDepth: 24,
       sampleRate: RATE,
       render: fakeRenderer().render,
     });
@@ -99,7 +96,6 @@ describe("exportStems", () => {
   it("reports anything else that goes wrong as an internal failure", async () => {
     const error = await exportFailure(
       exportStems(createStemFixtureProject(), {
-        bitDepth: 24,
         sampleRate: RATE,
         render: async () => {
           throw new Error("bug");
@@ -109,38 +105,46 @@ describe("exportStems", () => {
     expect(error.code).toBe("internal");
   });
 
-  it("refuses an archive over the size limit once the renders show it", async () => {
-    const at = (bitDepth: 16 | 24, maxBytes: number) =>
-      exportFailure(
-        exportStems(createStemFixtureProject(), {
-          bitDepth,
-          sampleRate: 8,
-          maxBytes,
-          render: fakeRenderer(() => 20_000).render,
-        }),
-      );
-    expect((await at(24, 550_000)).smallerBitDepthFits).toBe(true);
-    expect((await at(24, 300_000)).smallerBitDepthFits).toBe(false);
-    expect((await at(16, 300_000)).smallerBitDepthFits).toBe(false);
-    expect((await at(16, 300_000)).code).toBe("quota_exceeded");
+  it("still refuses a render longer than its bound once the renders show it", async () => {
+    const error = await exportFailure(
+      exportStems(createStemFixtureProject(), {
+        sampleRate: 8,
+        maxBytes: 300_000,
+        render: fakeRenderer(() => 20_000).render,
+      }),
+    );
+    expect(error.code).toBe("quota_exceeded");
+  });
+
+  it("never fails on size once it starts rendering, even at the longest tail", async () => {
+    const project = createStemFixtureProject();
+    // Every stem rings out for the whole tail allowance: the most a render returns.
+    const longest = Math.ceil((songEndSeconds(buildAudioProjection(project)) + 1) * 8);
+    const refused = new Set<boolean>();
+    for (let maxBytes = 66_000; maxBytes <= 69_000; maxBytes += 20) {
+      const { render, calls } = fakeRenderer(() => longest);
+      const options = { sampleRate: 8, maxTailSeconds: 1, maxBytes, render };
+      const result = await exportStems(project, options).catch((e: StemExportError) => e);
+      refused.add(result instanceof StemExportError);
+      // Either refused before a single render, or exported whole.
+      if (result instanceof StemExportError) expect(calls, `${maxBytes}`).toEqual([]);
+      else expect(result.byteLength).toBeLessThanOrEqual(maxBytes);
+    }
+    expect(refused).toEqual(new Set([true, false]));
   });
 });
 
 describe("exportStems with the PRD reference project (50 tracks, ten minutes)", () => {
   const project = createReferenceProject();
 
-  it.each([16, 24] as const)(
-    "refuses %i-bit stems at 48 kHz, over the budget, before rendering",
-    async (bitDepth) => {
-      const { render, calls } = fakeRenderer();
-      const error = await exportFailure(
-        exportStems(project, { bitDepth, sampleRate: 48_000, render }),
-      );
-      expect(error.code).toBe("quota_exceeded");
-      expect(error.smallerBitDepthFits).toBe(false);
-      expect(calls).toEqual([]);
-    },
-  );
+  it("refuses stems at 48 kHz, over the budget, before rendering", async () => {
+    const { render, calls } = fakeRenderer();
+    const error = await exportFailure(
+      exportStems(project, { sampleRate: 48_000, render }),
+    );
+    expect(error.code).toBe("quota_exceeded");
+    expect(calls).toEqual([]);
+  });
 
   it("plans 51 files and cancels cleanly mid-export (plumbing, at a toy rate)", async () => {
     const controller = new AbortController();
@@ -148,7 +152,6 @@ describe("exportStems with the PRD reference project (50 tracks, ten minutes)", 
     const { render, calls } = fakeRenderer(() => 16);
     const error = await exportFailure(
       exportStems(project, {
-        bitDepth: 16,
         sampleRate: 8,
         signal: controller.signal,
         onProgress: (fraction) => {
@@ -166,7 +169,6 @@ describe("exportStems with the PRD reference project (50 tracks, ten minutes)", 
 
   it("packages all 51 aligned files (plumbing, at a toy rate)", async () => {
     const archive = await exportStems(project, {
-      bitDepth: 16,
       sampleRate: 8,
       render: fakeRenderer((call) => 4_000 + call).render,
     });
@@ -177,6 +179,6 @@ describe("exportStems with the PRD reference project (50 tracks, ten minutes)", 
         .filter(([path]) => path.endsWith(".wav"))
         .map(([, bytes]) => bytes.byteLength),
     );
-    expect([...lengths]).toEqual([44 + 4_050 * 4]);
+    expect([...lengths]).toEqual([44 + 4_050 * 6]);
   });
 });

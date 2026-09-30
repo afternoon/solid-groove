@@ -4,9 +4,9 @@ import {
   RENDER_CHANNELS,
   renderProjectOffline,
 } from "../../audio/offlineRenderer";
-import { songEndSeconds } from "../../audio/renderLength";
+import { MAX_TAIL_SECONDS, songEndSeconds } from "../../audio/renderLength";
 import type { Project } from "../../domain/entities";
-import { encodePcm, WAV_HEADER_BYTES, type WavBitDepth } from "../wav";
+import { encodePcm, WAV_HEADER_BYTES } from "../wav";
 import {
   buildStemArchive,
   type EncodedStem,
@@ -27,8 +27,9 @@ import { planStems } from "./stemPlan";
  * time; the encoded PCM of every stem is held until packaging, because the
  * longest stem is only known once the last has rendered.
  *
- * An export over {@link MAX_STEM_EXPORT_BYTES} is refused, before anything
- * renders when the song's length alone already says so.
+ * An export over {@link MAX_STEM_EXPORT_BYTES} is refused before anything
+ * renders, sizing every stem at {@link maxStemFrames}, an upper bound: an
+ * export that starts rendering never fails on size afterwards.
  */
 
 /**
@@ -36,16 +37,23 @@ import { planStems } from "./stemPlan";
  * encoded stems and the archive over them live in the page's memory until the
  * download is handed off, so this bounds the tab's peak, well under both the
  * 4 GiB a plain ZIP can hold and what a browser tab survives. At 48 kHz,
- * 24-bit stereo it is about 124 minutes of audio across every stem together.
- * Provisional, pending a product decision on #66: the PRD reference project
- * (50 tracks, ten minutes) is over it at both bit depths.
+ * 24-bit stereo it is about 124 minutes of audio across every stem together:
+ * provisional, as the PRD reference project (50 tracks, ten minutes) is over it.
  */
 export const MAX_STEM_EXPORT_BYTES = 2 * 1024 ** 3;
+
+/** Every stem's bit depth, as the stereo export's: there is no choice. */
+export const STEM_BIT_DEPTH = 24;
+
+/** The most frames a stem's render can return: the song, the longest tail the
+ * renderer keeps, and one frame for rounding in the renderer's own length. */
+export function maxStemFrames(seconds: number, rate: number, tail = MAX_TAIL_SECONDS) {
+  return Math.ceil((seconds + tail) * rate) + 1;
+}
 
 export type StemRenderer = typeof renderProjectOffline;
 
 export interface StemExportOptions {
-  readonly bitDepth: WavBitDepth;
   /** The rate every stem renders at, in Hz. */
   readonly sampleRate: number;
   readonly signal?: AbortSignal;
@@ -62,16 +70,13 @@ export interface StemExportOptions {
 
 /** Why a stem export did not finish. `code` is a stable analytics code. */
 export class StemExportError extends Error {
-  /** A `quota_exceeded` refusal at 24-bit that 16-bit would have cleared. */
-  readonly smallerBitDepthFits: boolean;
   constructor(
     readonly code: ErrorCode,
     message: string,
-    options?: ErrorOptions & { smallerBitDepthFits?: boolean },
+    options?: ErrorOptions,
   ) {
     super(message, options);
     this.name = "StemExportError";
-    this.smallerBitDepthFits = options?.smallerBitDepthFits ?? false;
   }
 
   get cancelled(): boolean {
@@ -89,7 +94,7 @@ export async function exportStems(
   project: Project,
   options: StemExportOptions,
 ): Promise<StemArchive> {
-  const { bitDepth, sampleRate, signal } = options;
+  const { sampleRate, signal } = options;
   const render = options.render ?? renderProjectOffline;
   const plan = planStems(project);
   const mix = plan[plan.length - 1].projection;
@@ -105,17 +110,13 @@ export async function exportStems(
   try {
     const paths = plan.map((stem) => stem.path);
     const maxBytes = Math.min(options.maxBytes ?? MAX_STEM_EXPORT_BYTES, MAX_ZIP_BYTES);
-    const over = (depth: WavBitDepth, frames: number) => {
-      const wav = WAV_HEADER_BYTES + frames * RENDER_CHANNELS * (depth / 8);
-      return stemArchiveBytes(paths, wav, MANIFEST_ALLOWANCE_BYTES) > maxBytes;
-    };
     const refuseOverBudget = (frames: number) => {
-      if (!over(bitDepth, frames)) return;
-      const hint = { smallerBitDepthFits: bitDepth === 24 && !over(16, frames) };
-      throw new StemExportError("quota_exceeded", "The stems are too large", hint);
+      const wav = WAV_HEADER_BYTES + frames * RENDER_CHANNELS * (STEM_BIT_DEPTH / 8);
+      if (stemArchiveBytes(paths, wav, MANIFEST_ALLOWANCE_BYTES) <= maxBytes) return;
+      throw new StemExportError("quota_exceeded", "The stems are too large");
     };
-    // Every stem is at least the song long: refuse before a single render.
-    refuseOverBudget(Math.ceil(songSeconds * sampleRate));
+    // No stem renders longer than this bound: refuse before a single render.
+    refuseOverBudget(maxStemFrames(songSeconds, sampleRate, options.maxTailSeconds));
 
     const encoded: EncodedStem[] = [];
     for (const [index, stem] of plan.entries()) {
@@ -133,16 +134,17 @@ export async function exportStems(
         path: stem.path,
         name: stem.name,
         sourceId: stem.sourceId,
-        pcm: encodePcm(rendered.channels, bitDepth),
+        pcm: encodePcm(rendered.channels, STEM_BIT_DEPTH),
         frames: rendered.frames,
       });
     }
     if (signal?.aborted) throw new StemExportError("aborted", "The export was cancelled");
+    // A safety net only: the bound above already covers every render.
     refuseOverBudget(Math.max(0, ...encoded.map((stem) => stem.frames)));
 
     const archive = buildStemArchive(encoded, {
       sampleRate,
-      bitDepth,
+      bitDepth: STEM_BIT_DEPTH,
       channels: RENDER_CHANNELS,
       tempo: mix.tempo,
       timeSignature: mix.timeSignature,
