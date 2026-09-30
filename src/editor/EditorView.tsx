@@ -722,6 +722,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   keyLabel={keyHint}
                   onShowKeys={() => setGuideOpen(true)}
                   current={librarySlot().current}
+                  slotKind={librarySlot().kind}
+                  currentRef={librarySlot().currentRef}
                   onActions={(actions) => setLibraryActions(() => actions)}
                   onClose={() => setLibraryOpen(false)}
                 />

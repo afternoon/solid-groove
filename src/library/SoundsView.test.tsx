@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
 import { fixtureFetcher } from "./__fixtures__/fixtures";
 import { FetchClassifiedError, LibraryClient } from "./libraryClient";
-import type { LibraryAsset, LibraryAssetType } from "./manifest";
+import { assetStorageRef, type LibraryAsset, type LibraryAssetType } from "./manifest";
 import SoundsView from "./SoundsView";
 import type { SoundsKeyAction } from "./soundKeys";
+import type { ShelfSlot } from "./useShelf";
 
 afterEach(() => cleanup());
 
@@ -15,6 +16,7 @@ function renderView(
     client?: LibraryClient;
     assetTypes?: readonly LibraryAssetType[];
     query?: string;
+    slot?: ShelfSlot;
   } = {},
 ) {
   const engine = fakePreviewEngine();
@@ -27,6 +29,7 @@ function renderView(
       previewEngine={engine}
       assetTypes={extra.assetTypes}
       query={extra.query}
+      slot={extra.slot}
       selected={selected()}
       onSelect={setSelected}
       onSimilar={onSimilar}
@@ -149,5 +152,75 @@ describe("SoundsView", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
 
     expect((await rows()).length).toBeGreaterThan(0);
+  });
+});
+
+async function libraryAssets(): Promise<LibraryAsset[]> {
+  const client = new LibraryClient(fixtureFetcher());
+  const loaded = await Promise.all(
+    (await client.loadIndex()).map((pack) => client.loadPack(pack)),
+  );
+  return loaded.flatMap((result) => (result.ok ? [...result.assets] : []));
+}
+
+const tabs = () => screen.getAllByRole("tab");
+const selectedTab = () =>
+  tabs().find((tab) => tab.getAttribute("aria-selected") === "true");
+const chips = () => document.querySelectorAll<HTMLElement>(".shelf-chip");
+const pressedChip = () =>
+  [...chips()].find((chip) => chip.getAttribute("aria-pressed") === "true");
+
+describe("SoundsView shelf", () => {
+  it("opens where the slot says: a drum pad on its sound's role, the sampler on Tonal, a loop track on Loops", async () => {
+    const assets = await libraryAssets();
+    const held = assets.find((a) => a.type === "one-shot" && a.family === "drums");
+    if (!held?.storageKey) throw new Error("fixture library has no drum one-shot");
+    const ref = assetStorageRef(held.storageKey);
+
+    cleanup();
+    renderView({ slot: { kind: "drum-pad", ref } });
+    await rows();
+    expect(selectedTab()).toHaveTextContent(/^Drums/);
+    expect(pressedChip()).toHaveTextContent(/^Kick/);
+
+    cleanup();
+    renderView({ slot: { kind: "drum-pad", ref: null } });
+    await rows();
+    expect(selectedTab()).toHaveTextContent(/^Drums/);
+    expect(pressedChip()).toHaveTextContent(/^All Drums/);
+
+    cleanup();
+    renderView({ slot: { kind: "sampler" } });
+    await rows();
+    expect(selectedTab()).toHaveTextContent(/^Tonal/);
+
+    cleanup();
+    renderView({ slot: { kind: "loop-track" } });
+    await rows();
+    expect(selectedTab()).toHaveTextContent(/^Loops/);
+  });
+
+  it("shows only families and categories that have sounds, with counts", async () => {
+    renderView({ assetTypes: ["loop"] });
+    await rows();
+
+    expect(tabs().map((tab) => tab.textContent)).toEqual([
+      expect.stringMatching(/^Loops \d+$/),
+    ]);
+    for (const chip of chips()) expect(chip.textContent).toMatch(/\d/);
+  });
+
+  it("switches the list with a family tile and a category chip", async () => {
+    renderView();
+    await rows();
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Bass/ }));
+    await waitFor(() => expect(selectedTab()).toHaveTextContent(/^Bass/));
+    const bass = names();
+    expect(bass.length).toBeGreaterThan(0);
+
+    fireEvent.click(chips()[1]);
+    await waitFor(() => expect(chips()[1]).toHaveAttribute("aria-pressed", "true"));
+    expect(names().length).toBeLessThanOrEqual(bass.length);
   });
 });

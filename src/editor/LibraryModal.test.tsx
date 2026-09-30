@@ -169,13 +169,13 @@ describe("LibraryModal shell", () => {
 
   it("narrows the sounds as you type in the header search", async () => {
     renderShell();
-    const all = (await screen.findAllByRole("listitem")).length;
+    await screen.findAllByRole("listitem");
 
     fireEvent.input(screen.getByRole("searchbox", { name: "Search sounds" }), {
-      target: { value: "kick" },
+      target: { value: "zzzz-no-such-sound" },
     });
 
-    await waitFor(() => expect(screen.getAllByRole("listitem").length).toBeLessThan(all));
+    expect(await screen.findByText("No sounds to show.")).toBeVisible();
   });
 
   it("forwards a library key to the sounds view, and Down leaves the search field", async () => {

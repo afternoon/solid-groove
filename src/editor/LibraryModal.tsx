@@ -61,6 +61,10 @@ export interface LibraryModalProps {
   readonly heading?: string;
   readonly slot?: string;
   readonly trackColor?: string;
+  /** What the library opens for, so the shelf can open on the slot's family. */
+  readonly slotKind?: "drum-pad" | "sampler" | "loop-track";
+  /** The storage ref of the sound a drum pad holds, to open on its role. */
+  readonly currentRef?: string | null;
   /** The sound the slot holds now. */
   readonly current?: string | null;
   /** Key badge text for a registry action, from the registry, never hard-coded. */
@@ -211,6 +215,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onSelect={setSelected}
                 onSimilar={(asset) => props.onSimilar?.(asset)}
                 query={query()}
+                slot={props.slotKind && { kind: props.slotKind, ref: props.currentRef }}
                 onKeys={(handler) => {
                   soundsKeys = handler;
                 }}
