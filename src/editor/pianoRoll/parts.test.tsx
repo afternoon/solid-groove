@@ -67,6 +67,16 @@ describe("ruler", () => {
     expect(steps[4]).toHaveTextContent("");
     expect(steps[16]).toHaveTextContent("2");
   });
+
+  it("only labels its steps when it has no marker, as the step grid's (#643)", () => {
+    render(() => <Ruler steps={16} stepWidth={40} />);
+    const ruler = document.querySelector(".pr-ruler");
+    expect(ruler).toHaveAttribute("aria-hidden", "true");
+    expect(ruler?.querySelector(".pr-ruler-marker")).toBeNull();
+    const steps = ruler?.querySelectorAll("button") ?? [];
+    expect(steps).toHaveLength(16);
+    expect([...steps].every((step) => (step as HTMLButtonElement).disabled)).toBe(true);
+  });
 });
 
 describe("note layer", () => {

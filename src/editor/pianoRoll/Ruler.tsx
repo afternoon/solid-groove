@@ -1,4 +1,4 @@
-import { For, type JSX } from "@solidjs/web";
+import { For, type JSX, Show } from "@solidjs/web";
 import "./grid.css";
 
 export interface RulerProps {
@@ -6,9 +6,12 @@ export interface RulerProps {
   readonly steps: number;
   /** A step's width in pixels at the current zoom. */
   readonly stepWidth: number;
-  /** The insert marker's step: where a paste lands. */
-  readonly marker: number;
-  onSetMarker(step: number): void;
+  /**
+   * The insert marker's step: where a paste lands. A ruler with no marker
+   * (the step grid's, #643) only labels the steps.
+   */
+  readonly marker?: number;
+  onSetMarker?(step: number): void;
 }
 
 /** A bar's first step reads its bar number; a beat's reads "bar.beat". */
@@ -32,6 +35,7 @@ export default function Ruler(props: RulerProps): JSX.Element {
     <fieldset
       class="pr-ruler"
       aria-label="Ruler"
+      aria-hidden={props.onSetMarker ? undefined : "true"}
       style={{ width: `${props.steps * props.stepWidth}px` }}
     >
       <For each={indices()}>
@@ -42,17 +46,20 @@ export default function Ruler(props: RulerProps): JSX.Element {
             style={{ left: `${step * props.stepWidth}px`, width: `${props.stepWidth}px` }}
             aria-label={`Step ${step + 1}`}
             aria-current={props.marker === step ? "true" : undefined}
-            onClick={() => props.onSetMarker(step)}
+            disabled={!props.onSetMarker}
+            onClick={() => props.onSetMarker?.(step)}
           >
             {stepLabel(step, props.stepWidth)}
           </button>
         )}
       </For>
-      <span
-        class="pr-ruler-marker"
-        style={{ left: `${props.marker * props.stepWidth}px` }}
-        aria-hidden="true"
-      />
+      <Show when={props.marker !== undefined}>
+        <span
+          class="pr-ruler-marker"
+          style={{ left: `${(props.marker ?? 0) * props.stepWidth}px` }}
+          aria-hidden="true"
+        />
+      </Show>
     </fieldset>
   );
 }

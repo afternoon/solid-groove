@@ -63,4 +63,10 @@ describe("toolbar", () => {
     fireEvent.click(solo);
     expect(props.onToggleSolo).toHaveBeenCalledOnce();
   });
+
+  it("puts an editor's leading control first, as the step grid's Bars (#643)", () => {
+    renderToolbar({ leading: <button type="button">Bars</button> });
+    const toolbar = document.querySelector(".pr-toolbar");
+    expect(toolbar?.firstElementChild).toHaveTextContent("Bars");
+  });
 });
