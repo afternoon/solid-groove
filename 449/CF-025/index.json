@@ -3,35 +3,35 @@
   "title": "A producer follows similar sounds to a better kick",
   "steps": [
     {
-      "file": "01-open-the-bd-pad-s-sample-slot-the-library-shows-kicks.png",
+      "file": "01.png",
       "caption": "Open the \"BD\" pad's sample slot: the library shows kicks"
     },
     {
-      "file": "02-press-similar-sounds-on-a-kick-its-closest-matches.png",
+      "file": "02.png",
       "caption": "Press similar sounds on a kick: its closest matches"
     },
     {
-      "file": "03-turn-off-matching-on-genre-the-matches-update.png",
+      "file": "03.png",
       "caption": "Turn off matching on genre: the matches update"
     },
     {
-      "file": "04-press-similar-sounds-on-a-match-a-trail-shows-both-kicks-in-.png",
+      "file": "04.png",
       "caption": "Press similar sounds on a match: a trail shows both kicks, in order"
     },
     {
-      "file": "05-choose-the-first-kick-in-the-trail-its-matches-come-back.png",
+      "file": "05.png",
       "caption": "Choose the first kick in the trail: its matches come back"
     },
     {
-      "file": "06-go-back-the-list-of-kicks-you-started-from-returns.png",
+      "file": "06.png",
       "caption": "Go back: the list of kicks you started from returns"
     },
     {
-      "file": "07-select-a-match-and-press-insert-the-slot-names-it.png",
+      "file": "07.png",
       "caption": "Select a match and press Insert: the slot names it"
     },
     {
-      "file": "08-reload-the-pad-still-holds-it.png",
+      "file": "08.png",
       "caption": "Reload: the pad still holds it"
     }
   ]
