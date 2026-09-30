@@ -62,6 +62,13 @@ export interface EditorInstrumentProps {
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
   readonly watchPeaks?: WatchPeaks;
   onSelectTrack(trackId: TrackId): void;
+  /**
+   * The drum pad selected on the shown track, when the host owns it (#643):
+   * the step grid's selected row is the same selection, so it outlives a
+   * switch of view. Held here when omitted.
+   */
+  readonly selectedPadId?: PadId | null;
+  onSelectPad?(trackId: TrackId, padId: PadId): void;
   /** Adds a track of the chosen kind, from the rail's add buttons (#495). */
   onAddTrack?(spec: NewTrackKindSpec): void;
   /** Opens the library on loops, for the rail's Loop button. */
@@ -103,8 +110,15 @@ function trackLoop(
  */
 export default function EditorInstrument(props: EditorInstrumentProps): JSX.Element {
   // The drum pad the pad editor shows, lifted here so the header can name it
-  // and audition it (#447). A pad the track lacks reads as its first.
-  const [selectedPad, setSelectedPad] = createSignal<PadId | null>(null);
+  // and audition it (#447), and to the host when it shares it with the step
+  // grid (#643). A pad the track lacks reads as its first.
+  const [ownPad, setOwnPad] = createSignal<PadId | null>(null);
+  const selectedPad = () =>
+    props.selectedPadId !== undefined ? props.selectedPadId : ownPad();
+  const setSelectedPad = (trackId: TrackId, padId: PadId) => {
+    setOwnPad(padId);
+    props.onSelectPad?.(trackId, padId);
+  };
 
   /** The header's Audition: the selected pad on a drum machine, else the instrument. */
   function audition(track: Track) {
@@ -231,7 +245,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                               beginGesture={props.beginGesture}
                               audition={(padId) => props.auditionPad(drum().id, padId)}
                               selectedPadId={selectedPad()}
-                              onSelectPad={setSelectedPad}
+                              onSelectPad={(padId) => setSelectedPad(drum().id, padId)}
                               onBrowseSample={(padId) =>
                                 props.onBrowsePad?.(drum().id, padId)
                               }

@@ -8,7 +8,7 @@ import type {
 } from "../commands";
 import Dialog from "../components/Dialog";
 import type { Clip, Project, Track } from "../domain/entities";
-import type { EventId } from "../domain/ids";
+import type { EventId, PadId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { LoopClipEntry } from "./editorViewModel";
 import LoopInfo from "./LoopInfo";
@@ -35,6 +35,14 @@ export interface SequenceEditorProps {
   onTogglePlay?(): void;
   /** Plays one pitch on the opened track, for the roll's preview. */
   audition?(pitch: number, velocity: number): void;
+  /**
+   * The opened drum track's selected pad, shared with the instrument view
+   * (#643): the step grid's selected row reads and sets it.
+   */
+  readonly selectedPadId?: PadId | null;
+  onSelectPad?(padId: PadId): void;
+  /** Plays one pad on the opened track, as a row is picked. */
+  auditionPad?(padId: PadId): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;

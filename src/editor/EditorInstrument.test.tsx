@@ -7,7 +7,7 @@ import {
   createDrumMachineFixtureProject,
   createReferenceProject,
 } from "../domain/fixtures";
-import type { TrackId } from "../domain/ids";
+import type { PadId, TrackId } from "../domain/ids";
 import { clickAndFlush } from "../testing/events";
 import EditorInstrument from "./EditorInstrument";
 
@@ -187,6 +187,50 @@ describe("the Instrument view's header (#447)", () => {
     expect(header.getByText(second.name)).toBeInTheDocument();
     clickAndFlush(header.getByRole("button", { name: "Audition pad" }));
     expect(auditionPad).toHaveBeenCalledExactlyOnceWith(track.id, second.id);
+  });
+});
+
+describe("the Instrument view's pad selection (#643)", () => {
+  it("shows and reports the pad the host owns, so the step grid shares it", () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find(
+      (candidate) => candidate.instrument?.kind === "drumMachine",
+    );
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [first, second] = track.instrument.pads;
+    const [selected, setSelected] = createSignal<PadId | null>(second.id);
+    const onSelectPad = vi.fn();
+    render(() => (
+      <EditorInstrument
+        project={project}
+        track={track}
+        drumTrack={track}
+        sampleAssets={project.song.assets}
+        instrument={track.instrument}
+        instrumentTrackId={track.id}
+        sampleName={null}
+        loadSample={() => {}}
+        audition={() => {}}
+        auditionPad={() => {}}
+        onBrowse={() => {}}
+        onSelectTrack={() => {}}
+        selectedPadId={selected()}
+        onSelectPad={onSelectPad}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+
+    // Chosen elsewhere (the step grid's row), shown here.
+    expect(screen.getByRole("region", { name: `${second.name} pad` })).toBeVisible();
+    setSelected(first.id);
+    flush();
+    expect(screen.getByRole("region", { name: `${first.name} pad` })).toBeVisible();
+
+    // Chosen here, reported to the host for the step grid.
+    const rows = document.querySelectorAll(".drum-pad:not(.drum-pad-head)");
+    clickAndFlush(rows[1].querySelector(".pad-index") as HTMLElement);
+    expect(onSelectPad).toHaveBeenCalledExactlyOnceWith(track.id, second.id);
   });
 });
 
