@@ -1,0 +1,99 @@
+/* The Sounds view (LIB-010): compact rows in the library modal's main area. */
+
+.sounds-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sounds-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.sounds-empty,
+.sounds-error {
+  margin: auto;
+  color: var(--color-foreground-muted);
+}
+
+.sound-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sound-row-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.sound-row-play {
+  display: inline-flex;
+  flex: none;
+  width: 16px;
+}
+
+.sound-row-wave {
+  flex: none;
+  width: 96px;
+  height: 22px;
+}
+
+.sound-row-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sound-row-name,
+.sound-row-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-row-meta,
+.sound-row-length {
+  font-size: var(--font-size-small);
+  color: var(--color-foreground-muted);
+}
+
+.sound-row-length {
+  flex: none;
+}
+
+.sound-row-icon {
+  flex: none;
+  background: transparent;
+  color: var(--color-foreground);
+}
+
+.sound-row-icon:disabled {
+  color: var(--color-foreground-muted);
+}
+
+/* The selected row is a white fill: everything on it reads dark. */
+.sound-row-selected {
+  background: var(--color-accent);
+}
+
+.sound-row-selected .sound-row-main,
+.sound-row-selected .sound-row-meta,
+.sound-row-selected .sound-row-length,
+.sound-row-selected .sound-row-icon {
+  color: var(--color-on-accent);
+}
