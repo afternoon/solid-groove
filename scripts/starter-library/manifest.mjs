@@ -25,7 +25,14 @@ import { partitionByIntake } from "./intake.mjs";
 import { analyzeSeam, renderLoop, verifyGrid } from "./loops.mjs";
 import { PACKS, packForFamily, packRef } from "./packs.mjs";
 import { renderVoice } from "./voices.mjs";
-import { analyze, encodeWav, sha256, storageKeyFor, waveformPeaks } from "./wav.mjs";
+import {
+  analyze,
+  encodeWav,
+  peaksFromWav,
+  sha256,
+  storageKeyFor,
+  waveformPeaks,
+} from "./wav.mjs";
 
 export const SCHEMA_VERSION = 1;
 
@@ -47,13 +54,13 @@ export const GENERATOR = {
  * Every asset is synthesized by this repository's own code from first
  * principles — no third-party sample, preset, recording, or model is involved —
  * so it satisfies docs/sample-library.md section 3.2's second route: content
- * Solid Groove created entirely from sources it owns. Raw redistribution is
+ * Groove created entirely from sources it owns. Raw redistribution is
  * therefore unrestricted, and there is no attribution, share-alike, or export
  * obligation to carry into stems or an Ableton package.
  */
 const LICENSE = {
   id: "solid-groove-owned",
-  creator: "Solid Groove",
+  creator: "Groove",
   sourceUrl: null,
   retrievedAt: RELEASED_AT,
   evidencePath: "docs/licenses/starter-library-v1.md",
@@ -474,7 +481,16 @@ export function buildAllPacks(
   // Section 11 state 3: quarantined material is isolated from production
   // manifests. Withheld assets are reported, not delivered, and never fail the
   // build — the rest of the library still ships.
-  const { delivered: built, withheld } = partitionByIntake(produced);
+  const { delivered, withheld } = partitionByIntake(produced);
+  // Every audio-bearing entry gets its 48-bin overview from the master bytes it
+  // ships; a preset has no audio, so it has no `peaks` at all.
+  const built = delivered.map(({ asset, bytes }) => ({
+    asset:
+      asset.files.master.format === "wav"
+        ? { ...asset, peaks: peaksFromWav(bytes) }
+        : asset,
+    bytes,
+  }));
 
   const files = new Map();
   for (const { asset, bytes } of built) {

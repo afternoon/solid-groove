@@ -609,6 +609,49 @@ describe("EditorView", () => {
     expect(changed[0].params.instrument_type).toBe("drum_machine");
   });
 
+  it("replaces a loop track's loop from its loop slot, without adding a track", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const [, breakTrack] = project.song.tracks;
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    const transport = createRecordingTransport();
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      analytics: recordingAnalytics(transport),
+    });
+
+    await goToView("Mixer");
+    clickAndFlush(mixerSelect(breakTrack.name));
+    await goToView("Instrument");
+    clickAndFlush(
+      await screen.findByRole("button", { name: `Loop for ${breakTrack.name}` }),
+    );
+    const library = await screen.findByRole("dialog", { name: "Library" });
+    expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
+    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
+    const packs = await screen.findByRole("dialog");
+    fireEvent.click(
+      await within(packs).findByRole("button", { name: /Core Electronic Drums/ }),
+    );
+    const loopName = loopAssetName("core-electronic-drums");
+    fireEvent.click(
+      await within(packs).findByRole("button", { name: `Insert ${loopName}` }),
+    );
+
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).toBeNull(),
+    );
+    // The same track now plays the new loop, and no track was added.
+    expect(
+      screen.getByRole("button", { name: `Loop for ${breakTrack.name}` }).textContent,
+    ).toBe(loopName);
+    expect(transport.named("track_added")).toHaveLength(0);
+    await goToView("Mixer");
+    expect(mixerSelect(breakTrack.name)).toBeInTheDocument();
+  });
+
   it("shows a track's instrument panel even before it has a clip (#228)", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     // A track added from the mixer arrives with an instrument and no clip.

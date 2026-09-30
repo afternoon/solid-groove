@@ -174,6 +174,9 @@ describe("conflict rules", () => {
       for (const first of SHORTCUT_CONTEXTS) {
         for (const second of SHORTCUT_CONTEXTS) {
           if (first === second) continue;
+          // `library` is only ever active beside `dialog` (see the live sets
+          // below), so a pair that pairs it with anything else is not a screen.
+          if (first === "library" || second === "library") continue;
           expect(
             ambiguousIn([first, second], platform),
             `ambiguous in ${first}+${second} on ${platform}`,
@@ -196,6 +199,7 @@ describe("conflict rules", () => {
       ["editor", "value_field", "sequence_editor"],
       ["editor", "automation_lane", "timeline", "selection"],
       ["dialog"],
+      ["dialog", "library"],
       ["editor", "gesture"],
     ];
     for (const platform of PLATFORMS) {
@@ -221,6 +225,24 @@ describe("context resolution", () => {
     expect(inDialog.map((shortcut) => shortcut.id)).toEqual(["view.close_surface"]);
   });
 
+  it("keeps library beside dialog, and only there", () => {
+    expect(resolveContexts(["dialog", "library", "editor"])).toEqual([
+      "dialog",
+      "library",
+    ]);
+    // Without the library open, a plain dialog is unchanged.
+    expect(resolveContexts(["dialog", "editor"])).toEqual(["dialog"]);
+    const inLibrary = shortcutsInContext(["dialog", "library", "editor"]).map(
+      (s) => s.id,
+    );
+    expect(inLibrary).toContain("library.insert");
+    expect(inLibrary).toContain("view.close_surface");
+    expect(inLibrary).toContain("help.shortcut_guide");
+    expect(inLibrary).not.toContain("transport.play_stop");
+    const inEditor = shortcutsInContext(["editor"]).map((s) => s.id);
+    expect(inEditor.some((id) => id.startsWith("library."))).toBe(false);
+  });
+
   it("has at least one shortcut registered in every declared context", () => {
     for (const context of SHORTCUT_CONTEXTS) {
       const registered = SHORTCUTS.filter((shortcut) =>
@@ -243,6 +265,7 @@ describe("context resolution", () => {
         selection: { key: "x", mod: true, id: "edit.cut" },
         sequence_editor: { key: "1", id: "view.show_arrangement" },
         dialog: { key: "escape", id: "view.close_surface" },
+        library: { key: "s", id: "library.similar" },
         gesture: { key: "escape", id: "view.close_surface" },
         loop_brace: { key: "arrowleft", id: "arrangement.loop_move_earlier" },
         value_field: { key: "arrowup", id: "value.nudge_up" },
@@ -291,6 +314,7 @@ describe("guide sections", () => {
       "clips_notes",
       "automation",
       "mixer_devices",
+      "browser",
       "navigation",
     ]);
     expect(sections.every((section) => section.shortcuts.length > 0)).toBe(true);

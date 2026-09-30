@@ -240,6 +240,19 @@ describe("DeviceChainPanel", () => {
     ]);
   });
 
+  it("does not start a drag from a device's well", async () => {
+    const { panel, items } = renderPanel();
+    addFromPanel(panel, "Filter");
+    addFromPanel(panel, "Overdrive");
+    const [filter, overdrive] = items();
+    await dragCard(overdrive.querySelector(".drag-surface") as Element, filter);
+    expect(items().map((item) => within(item).getByRole("heading").textContent)).toEqual([
+      "Filter",
+      "Overdrive",
+    ]);
+    expect(overdrive).not.toHaveClass("dragging");
+  });
+
   it("moves the device whose name has focus with Alt+Up and Alt+Down", () => {
     const { history, panel, items } = renderPanel();
     addFromPanel(panel, "Overdrive");

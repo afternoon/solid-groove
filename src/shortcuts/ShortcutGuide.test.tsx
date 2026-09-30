@@ -76,6 +76,7 @@ describe("generated content", () => {
       "Clips and Notes",
       "Automation",
       "Mixer and Devices",
+      "Browser",
       "Navigation",
     ]);
   });
@@ -90,17 +91,17 @@ describe("generated content", () => {
     expect(rowFor("edit.undo").textContent).toContain("Ctrl+Z");
   });
 
-  it("shows the Ableton equivalent, or why Solid Groove differs", () => {
+  it("shows the Ableton equivalent, or why Groove differs", () => {
     renderGuide();
 
     expect(rowFor("transport.play_stop").textContent).toContain(
       "Same as Ableton Live (Space)",
     );
     expect(rowFor("clip.quantize").textContent).toContain("Live uses Cmd/Ctrl+U");
-    expect(rowFor("help.shortcut_guide").textContent).toContain("Solid Groove addition");
+    expect(rowFor("help.shortcut_guide").textContent).toContain("Groove addition");
   });
 
-  it("notes a browser combination Solid Groove takes over", () => {
+  it("notes a browser combination Groove takes over", () => {
     renderGuide();
 
     expect(rowFor("edit.duplicate").textContent).toMatch(/Browser conflict/i);
