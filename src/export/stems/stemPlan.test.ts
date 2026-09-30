@@ -122,6 +122,29 @@ describe("planStems", () => {
     expect(every.at(-1)?.projection).toEqual(buildAudioProjection(project));
   });
 
+  it("keeps a left-out solo silencing the rest of the selection's mix", () => {
+    const leadSoloed = (soloed: boolean) => ({
+      ...project,
+      song: {
+        ...project.song,
+        tracks: project.song.tracks.map((track) => ({
+          ...track,
+          mixer: { ...track.mixer, muted: false, soloed: track.id === lead.id && soloed },
+        })),
+      },
+    });
+    const mixer = (plan: ReturnType<typeof planStems>, at: number) =>
+      plan.at(at)?.projection.tracksById.get(bass.id)?.mixer;
+    // Nothing muted; Lead soloed and left out. Bass stays as silent as in playback,
+    const soloed = planStems(leadSoloed(true), new Set([bass.id]));
+    expect(mixer(soloed, -1)?.muted).toBe(true);
+    // while its own stem still sounds.
+    expect(mixer(soloed, 0)).toMatchObject({ muted: false, soloed: false });
+    // With no solo anywhere, the selection's mix plays it.
+    const noSolo = planStems(leadSoloed(false), new Set([bass.id]));
+    expect(mixer(noSolo, -1)?.muted).toBe(false);
+  });
+
   it("numbers wide enough that a hundred tracks still sort in order", () => {
     const tracks = Array.from({ length: 100 }, (_, order) => ({
       ...lead,

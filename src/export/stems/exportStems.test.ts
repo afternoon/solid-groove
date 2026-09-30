@@ -158,6 +158,25 @@ describe("exportStems", () => {
     }
     expect(refused).toEqual(new Set([true, false]));
   });
+
+  it("exports any selection the estimate says fits, even at the longest tail", async () => {
+    const project = createStemFixtureProject();
+    const trackIds = [project.song.tracks[0].id];
+    const longest = Math.ceil((songEndSeconds(buildAudioProjection(project)) + 1) * 8);
+    const fits = new Set<boolean>();
+    for (let maxBytes = 1_000; maxBytes <= 4_000; maxBytes += 20) {
+      const options = { sampleRate: 8, maxTailSeconds: 1, trackIds, maxBytes };
+      const estimate = estimateStemExport(project, options);
+      const render = fakeRenderer(() => longest).render;
+      const outcome = await exportStems(project, { ...options, render }).then(
+        () => "exported",
+        (error: StemExportError) => error.code,
+      );
+      fits.add(estimate.fits);
+      expect(outcome, `${maxBytes}`).toBe(estimate.fits ? "exported" : "quota_exceeded");
+    }
+    expect(fits).toEqual(new Set([true, false]));
+  });
 });
 
 describe("exportStems with the PRD reference project (50 tracks, ten minutes)", () => {

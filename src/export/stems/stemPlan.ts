@@ -125,13 +125,22 @@ export function planStems(
 }
 
 /** The song as it plays with only the `selected` tracks in it: master
- * processing, returns and mute/solo kept. The same object when all are. */
+ * processing, returns and mute/solo kept. The same object when all are. A solo
+ * anywhere in the project still silences every selected track not soloed,
+ * even when the soloed track is left out, as it does in playback. */
 function onlyTracks(
   mix: AudioSongProjection,
   selected: (id: TrackId) => boolean,
 ): AudioSongProjection {
   if (mix.tracks.every((track) => selected(track.id))) return mix;
-  const tracks = mix.tracks.filter((track) => selected(track.id));
+  const anySolo = mix.tracks.some((track) => track.mixer.soloed);
+  const tracks = mix.tracks
+    .filter((track) => selected(track.id))
+    .map((track) =>
+      anySolo && !track.mixer.soloed
+        ? { ...track, mixer: { ...track.mixer, muted: true } }
+        : track,
+    );
   const clips = mix.clips.filter((clip) => selected(clip.trackId));
   return {
     ...mix,
