@@ -23,6 +23,62 @@
   color: var(--color-text);
 }
 
+.similar-trail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.similar-trail button {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.similar-trail button[aria-current="location"] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.similar-ref {
+  display: grid;
+  grid-template-columns: 44px 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--color-background);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+
+.similar-ref-play {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.similar-ref-wave {
+  height: 44px;
+}
+
+.similar-ref-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--color-text-secondary);
+}
+
+.similar-ref-text b {
+  color: var(--color-text);
+  font-size: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .similar-label {
   color: var(--color-foreground-muted);
   text-transform: uppercase;
@@ -140,4 +196,13 @@
 .similar-length {
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.similar-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: inherit;
+  background: transparent;
 }

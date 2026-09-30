@@ -2,6 +2,7 @@ import { For, type JSX, Show } from "@solidjs/web";
 import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import Dialog from "../components/Dialog";
+import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
 import { LibraryClient } from "../library/libraryClient";
 import type {
@@ -11,6 +12,7 @@ import type {
 } from "../library/manifest";
 import PackBanner from "../library/PackBanner";
 import PacksView from "../library/PacksView";
+import SimilarSoundsView from "../library/SimilarSoundsView";
 import SoundsView from "../library/SoundsView";
 import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -49,8 +51,13 @@ export interface LibraryActions {
   press(action: ShortcutActionId): void;
   /** `1`-`9`: open that pack over the grid of packs, else pick that category. */
   pick(n: number): void;
-  /** Back out of an opened pack, then out of Browse packs. */
-  back(): void;
+  /** Open similar sounds for the selected sound; false when none is selected. */
+  similar(): boolean;
+  /**
+   * Back out of the innermost sub-view: similar sounds, then an opened pack,
+   * then Browse packs. False when there was none to leave.
+   */
+  back(): boolean;
 }
 
 export interface LibraryModalProps {
@@ -77,8 +84,6 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onShowKeys?(): void;
-  /** Opens similar sounds for a row (part 12 wires this). */
-  onSimilar?(asset: LibraryAsset): void;
   onActions?(actions: LibraryActions | null): void;
   onClose(): void;
 }
@@ -108,8 +113,15 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [packScope, setPackScope] = createSignal<string | null>(null);
   let openNthPack: ((n: number) => void) | null = null;
   const client = props.client ?? new LibraryClient();
-  const showsPacks = createMemo(() => view() === "packs" && packScope() === null);
-  const showsSounds = createMemo(() => view() === "all" || packScope() !== null);
+  // Similar sounds swaps in over whichever place opened it.
+  const [similarOf, setSimilarOf] = createSignal<LibraryAsset | null>(null);
+  const [everyAsset, setEveryAsset] = createSignal<readonly LibraryAsset[]>([]);
+  const showsPacks = createMemo(
+    () => similarOf() === null && view() === "packs" && packScope() === null,
+  );
+  const showsSounds = createMemo(
+    () => similarOf() === null && (view() === "all" || packScope() !== null),
+  );
   // The rail's *In this project*: the project's pack dependencies and shelf.
   const [indexed, setIndexed] = createSignal<readonly LibraryPackSummary[]>([]);
   const projectPacks = createMemo(() =>
@@ -117,14 +129,31 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   );
 
   function showView(next: LibraryView): void {
+    setSimilarOf(null);
     setPackScope(null);
     setView(next);
   }
 
-  /** Back: out of an opened pack, then out of the grid of packs. */
-  function back(): void {
-    if (packScope() !== null) setPackScope(null);
+  /** Swap the main area to the similar-sounds view for `asset`. */
+  function openSimilar(asset: LibraryAsset): void {
+    setSimilarOf(asset);
+    void loadEveryAsset(client).then(setEveryAsset, () => setEveryAsset([]));
+  }
+
+  function similar(): boolean {
+    const asset = selected();
+    if (!asset || similarOf()) return false;
+    openSimilar(asset);
+    return true;
+  }
+
+  /** Back: out of similar sounds, then an opened pack, then the grid of packs. */
+  function back(): boolean {
+    if (similarOf() !== null) setSimilarOf(null);
+    else if (packScope() !== null) setPackScope(null);
     else if (view() === "packs") setView("all");
+    else return false;
+    return true;
   }
 
   /** A digit opens a pack over the grid, and picks a category over sounds. */
@@ -165,7 +194,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   onSettled(() => {
     void client.loadIndex().then(setIndexed, () => {});
-    props.onActions?.({ showView, insertSelected, press, pick, back });
+    props.onActions?.({ showView, insertSelected, press, pick, similar, back });
     return () => props.onActions?.(null);
   });
 
@@ -269,7 +298,19 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           <RailButton item={RECENT} />
         </nav>
         <div class="library-modal-main">
-          <Show when={packScope()}>
+          <Show when={similarOf()}>
+            {(reference) => (
+              <SimilarSoundsView
+                reference={reference()}
+                library={everyAsset()}
+                previewEngine={props.previewEngine}
+                trackColor={props.trackColor}
+                onSelect={setSelected}
+                onBack={back}
+              />
+            )}
+          </Show>
+          <Show when={similarOf() === null && packScope()}>
             {(slug) => (
               <PackBanner
                 client={client}
@@ -303,7 +344,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               trackColor={props.trackColor}
               selected={selected()}
               onSelect={setSelected}
-              onSimilar={(asset) => props.onSimilar?.(asset)}
+              onSimilar={openSimilar}
               query={query()}
               onQueryChange={setQuery}
               packSlug={packScope()}
@@ -315,7 +356,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               }}
             />
           </div>
-          <Show when={view() === "favourites" || view() === "recent"}>
+          <Show
+            when={
+              similarOf() === null && (view() === "favourites" || view() === "recent")
+            }
+          >
             <p class="library-modal-empty">
               {(view() === "recent" ? RECENT : PLACES[2]).label} will appear here.
             </p>
