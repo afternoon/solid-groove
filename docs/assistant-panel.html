@@ -618,7 +618,7 @@ function renderPanel() {
     ${busy ? "" : `<div class="sugs" aria-label="Suggestions">${suggestions().map((s, i) => `<button type="button" class="chip" data-sug="${i}">${s}</button>`).join("")}</div>`}
     <div class="comp">
       <label class="sr" for="draft">Message the assistant</label>
-      <textarea id="draft" placeholder="Ask about ${esc(scopeLabel())}, or anything in the song">${esc(S.draft)}</textarea>
+      <textarea id="draft" placeholder="Ask for a change, a sound, or how something works">${esc(S.draft)}</textarea>
       <div class="crow"><button type="button" class="scope" data-act="scope" title="What the assistant reads and may change: your selection, the selected track, or the whole song. Click to change."><span class="lbl">Scope</span>${esc(scopeLabel())}</button>
         <span class="hint">${busy ? "Editing still works while I write" : '<span class="k">⏎</span> send · <span class="k">⇧⏎</span> new line'}</span>
         ${busy ? `<button type="button" class="send" data-act="stop" aria-label="Stop">${I.stop}</button>` : `<button type="button" class="send" data-act="send" aria-label="Send" ${S.draft.trim() ? "" : "disabled"}>${I.send}</button>`}</div>
