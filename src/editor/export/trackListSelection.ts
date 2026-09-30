@@ -34,13 +34,23 @@ export interface ClickModifiers {
 
 export type PickAction = "on" | "off" | "only" | "clear";
 
-export interface KeyInput extends ClickModifiers {
-  readonly key: string;
-}
+/**
+ * What a key does to the list. The keys themselves live in the shortcut
+ * registry (`src/shortcuts`), the one place a keystroke is read; the dialog's
+ * handlers turn each matched action into one of these.
+ */
+export type ListCommand =
+  | "focus_next"
+  | "focus_prev"
+  | "extend_next"
+  | "extend_prev"
+  | "flip"
+  | "pick_all"
+  | "clear_picks";
 
-export interface KeyResult {
+export interface ListResult {
   readonly state: TrackListState;
-  /** The key was ours: the caller prevents the default and stops it there. */
+  /** The command applied: the caller stops the key there. */
   readonly handled: boolean;
 }
 
@@ -182,35 +192,37 @@ function moveFocus(
 }
 
 /**
- * One key on the list. `handled` is false for a key that is not ours, and for
- * Escape with nothing picked, so the dialog closes only when there was nothing
- * to clear.
+ * One list command. `handled` is false on an empty list, and for
+ * `clear_picks` with nothing picked, so Escape closes the dialog only when
+ * there was nothing to clear.
  */
-export function handleKey(
+export function runListCommand(
   state: TrackListState,
   rows: readonly TrackListRow[],
-  input: KeyInput,
-): KeyResult {
+  command: ListCommand,
+): ListResult {
   const ignored = { state, handled: false };
   if (rows.length === 0) return ignored;
-  const { key } = input;
-  if (key === "ArrowDown" || key === "ArrowUp") {
-    const delta = key === "ArrowDown" ? 1 : -1;
-    return {
-      state: moveFocus(state, rows, delta, input.shift === true),
-      handled: true,
-    };
+  switch (command) {
+    case "focus_next":
+    case "focus_prev":
+    case "extend_next":
+    case "extend_prev": {
+      const delta = command.endsWith("next") ? 1 : -1;
+      const extend = command.startsWith("extend");
+      return { state: moveFocus(state, rows, delta, extend), handled: true };
+    }
+    case "flip": {
+      const target = state.focus ?? (rows[0] as TrackListRow).id;
+      return { state: clickRow(state, rows, target), handled: true };
+    }
+    case "pick_all":
+      return {
+        state: { ...state, picked: new Set(rows.map((row) => row.id)) },
+        handled: true,
+      };
+    case "clear_picks":
+      if (state.picked.size === 0) return ignored;
+      return { state: applyPickAction(state, rows, "clear"), handled: true };
   }
-  if (key === " " || key === "Enter") {
-    const target = state.focus ?? (rows[0] as TrackListRow).id;
-    return { state: clickRow(state, rows, target), handled: true };
-  }
-  if (input.meta && key.toLowerCase() === "a") {
-    const picked = new Set(rows.map((row) => row.id));
-    return { state: { ...state, picked }, handled: true };
-  }
-  if (key === "Escape" && state.picked.size > 0) {
-    return { state: applyPickAction(state, rows, "clear"), handled: true };
-  }
-  return ignored;
 }

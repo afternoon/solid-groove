@@ -3,9 +3,10 @@ import {
   applyPickAction,
   clickRow,
   EMPTY_TRACK_LIST,
-  handleKey,
   includedIds,
   isIncluded,
+  type ListCommand,
+  runListCommand,
   type TrackListRow,
   type TrackListState,
 } from "./trackListSelection";
@@ -125,58 +126,51 @@ describe("applyPickAction", () => {
   });
 });
 
-describe("handleKey", () => {
-  const key = (
-    s: TrackListState,
-    k: string,
-    m: { shift?: boolean; meta?: boolean } = {},
-  ) => handleKey(s, rows, { key: k, ...m });
+describe("runListCommand", () => {
+  const run = (s: TrackListState, c: ListCommand) => runListCommand(s, rows, c);
 
   it("moves focus and clamps at both ends", () => {
     let s = mk({ focus: "a" });
-    s = key(s, "ArrowUp").state;
+    s = run(s, "focus_prev").state;
     expect(s.focus).toBe("a");
-    s = key(s, "ArrowDown").state;
+    s = run(s, "focus_next").state;
     expect(s.focus).toBe("b");
-    expect(key(mk({ focus: "e" }), "ArrowDown").state.focus).toBe("e");
-    expect(key(EMPTY_TRACK_LIST, "ArrowDown").state.focus).toBe("b");
+    expect(run(mk({ focus: "e" }), "focus_next").state.focus).toBe("e");
+    expect(run(EMPTY_TRACK_LIST, "focus_next").state.focus).toBe("b");
   });
 
-  it("shift+arrow picks a run from the anchor", () => {
+  it("extending picks a run from the anchor", () => {
     let s = mk({ focus: "b" });
-    s = key(s, "ArrowDown", { shift: true }).state;
-    s = key(s, "ArrowDown", { shift: true }).state;
+    s = run(s, "extend_next").state;
+    s = run(s, "extend_next").state;
     expect(ids(s.picked)).toEqual(["b", "c", "d"]);
-    s = key(s, "ArrowUp", { shift: true }).state;
+    s = run(s, "extend_prev").state;
     expect(ids(s.picked)).toEqual(["b", "c"]);
     expect(s.anchor).toBe("b");
   });
 
-  it("space and enter click the focused row, or all picked rows", () => {
-    expect(left(key(mk({ focus: "c" }), " ").state)).toEqual(["c"]);
-    expect(left(key(mk({ focus: "c" }), "Enter").state)).toEqual(["c"]);
-    const s = key(mk({ focus: "b", picked: new Set(["b", "d"]) }), " ").state;
+  it("flip clicks the focused row, or all picked rows", () => {
+    expect(left(run(mk({ focus: "c" }), "flip").state)).toEqual(["c"]);
+    const s = run(mk({ focus: "b", picked: new Set(["b", "d"]) }), "flip").state;
     expect(left(s)).toEqual(["b", "d"]);
   });
 
-  it("meta+A picks all", () => {
-    const r = key(EMPTY_TRACK_LIST, "a", { meta: true });
+  it("pick_all picks every row", () => {
+    const r = run(EMPTY_TRACK_LIST, "pick_all");
     expect(r.handled).toBe(true);
     expect(r.state.picked.size).toBe(5);
-    expect(key(EMPTY_TRACK_LIST, "a").handled).toBe(false);
   });
 
-  it("Escape is consumed only when something was picked", () => {
-    const r = key(mk({ picked: new Set(["a"]) }), "Escape");
+  it("clear_picks is consumed only when something was picked", () => {
+    const r = run(mk({ picked: new Set(["a"]) }), "clear_picks");
     expect(r.handled).toBe(true);
     expect(r.state.picked.size).toBe(0);
-    const again = key(r.state, "Escape");
+    const again = run(r.state, "clear_picks");
     expect(again.handled).toBe(false);
     expect(again.state).toBe(r.state);
   });
 
-  it("ignores other keys and an empty list", () => {
-    expect(key(EMPTY_TRACK_LIST, "x").handled).toBe(false);
-    expect(handleKey(EMPTY_TRACK_LIST, [], { key: "ArrowDown" }).handled).toBe(false);
+  it("does nothing on an empty list", () => {
+    expect(runListCommand(EMPTY_TRACK_LIST, [], "focus_next").handled).toBe(false);
   });
 });
