@@ -119,7 +119,8 @@ h1{margin:0;font-size:30px;line-height:1.1;color:var(--m100);text-wrap:balance}
 .srow{display:grid;grid-template-columns:128px repeat(16,minmax(0,1fr));gap:2px;align-items:center}
 .srow .nm{font-weight:600;color:var(--m85);padding-right:8px}
 .srow.sel .nm{color:var(--m100)}
-.cell{height:34px;background:var(--m12);position:relative;overflow:visible}
+.cell{height:34px;background:var(--m12);position:relative;overflow:visible;cursor:pointer}
+.cell.flash{outline:2px solid var(--m100);outline-offset:1px}
 .cell:nth-child(4n+2):not(:nth-child(2)){margin-left:6px}
 .cell.now{box-shadow:inset 0 0 0 1px var(--m65)}
 .cell i{position:absolute;inset:0;background:var(--c);opacity:var(--v);transform:translateX(var(--sw,0px))}
@@ -316,9 +317,10 @@ details.why dd button{color:var(--m100);text-decoration:underline;text-underline
   <section class="qs" aria-labelledby="qs-h">
     <h2 id="qs-h">Decisions this mockup takes, to check</h2>
     <ol>
-      <li><b>Three homes, one conversation.</b> Floating (bottom-right, 384px wide, over the view), minimised (a 40px bar that keeps status), docked (a right column the view reflows around). Drag the top edge to set the floating height (260–720px) and the left edge to set the docked width (300–640px); arrow keys work on a focused edge, and a double-click resets it. Each size is remembered. Closing hides it but keeps the conversation; the top-bar button and <span class="k">⌘</span><span class="k">J</span> bring it back where it was.</li>
-      <li><b>Scope is visible and one click to change.</b> The chip in the composer says what the assistant will read and may change: the selected track, the open view, or the whole song. Each sent message is stamped with its scope.</li>
-      <li><b>Nothing changes until Apply.</b> A proposal lists every control it would change, old to new. Preview plays it in the real view with dashed outlines; Apply commits one transaction and one undo step, then outlines what changed in solid white.</li>
+      <li><b>Three homes, one conversation.</b> Floating (bottom-right, 384px wide, over the view), minimised (a 40px bar that keeps status), docked (a right column the view reflows around). Drag the top edge to set the floating height (260–720px) and the left edge to set the docked width (300–640px); arrow keys work on a focused edge, and a double-click resets it. The mode and both sizes are remembered on this device, not synced and not saved in the project. Closing hides it but keeps the conversation; the top-bar button and <span class="k">⌘</span><span class="k">J</span> bring it back where it was.</li>
+      <li><b>Scope is visible and one click to change.</b> The chip in the composer says what the assistant will read and may change: your selection when there is one, else the selected track, or the whole song. Each sent message is stamped with its scope.</li>
+      <li><b>Nothing changes until Apply.</b> A proposal lists every control it would change, old to new. Preview opens the view that shows the change and plays it there with dashed outlines; Cancel goes back to where you were. Apply commits one transaction and one undo step, then outlines what changed in solid white.</li>
+      <li><b>A proposal can go out of date.</b> If the song changes under it (your edit, or a change from another tab), the card says so, Apply is off, and Refresh asks for a new one.</li>
       <li><b>Explanations are one click deep.</b> "Why this works" names the goal, the technique and the changed controls; each control is a link that points at it in the view. No lesson is mandatory.</li>
       <li><b>Pack and video cards are proposals too.</b> Trying a sound previews it on the pad; Keep or Put back decide. A video plays in the card, can pop out larger over the view, and "Show me" points at the control it teaches.</li>
       <li><b>Monochrome, square, shared parts.</b> The panel uses the ramp, the product's buttons and chips, and brightness for state; the only hue is the track colour the proposal touches.</li>
@@ -376,9 +378,13 @@ const route = t => /stiff|loose|swing|groove|human|drum|beat/i.test(t) ? "groove
 const FALLBACK = "In this mockup I answer three kinds of request: a change to the drums, a sound to try, or how a control works. Try one of the suggestions below.";
 
 /* ---------- state ---------- */
+/* Remembered per device: the panel's mode and both sizes. Never synced, never in the project. */
+const STORE = "groove.assistant.panel";
+const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } })();
+const save = () => { try { localStorage.setItem(STORE, JSON.stringify({mode:S.panel === "min" ? "float" : S.panel, last:S.lastOpen, h:SIZE.h, w:SIZE.w})); } catch (e) {} };
 let S;
 const fresh = () => ({
-  view:"arr", panel:"closed", lastOpen:"float", scope:"track", draft:"", msgs:[], stream:null,
+  view:"arr", panel:"closed", lastOpen:saved.last === "dock" ? "dock" : "float", scope:"sel", back:null, draft:"", msgs:[], stream:null,
   prop:"none", pack:"none", demo:false, vid:{t:0, playing:false, big:false}, point:null, why:false, error:false,
 });
 const eff = () => {
@@ -397,7 +403,7 @@ function renderTop() {
     <button type="button" class="play" id="tplay" aria-pressed="${playing}" aria-label="${playing ? "Stop" : "Play"}">${playing ? I.stop : I.play}</button>
     <span class="num" style="color:var(--m85)">${BPM} BPM</span>
     <nav class="tabs" aria-label="Views">${VIEWS.map(([id, n]) => `<button type="button" class="tab" data-view="${id}" ${S.view === id ? 'aria-current="page"' : ""}>${n}</button>`).join("")}</nav>
-    <button type="button" class="launch" id="launch" aria-pressed="${S.panel !== "closed"}" aria-keyshortcuts="Meta+J" title="Assistant (⌘J)">${I.spark}Assistant <span class="k">⌘J</span></button>`;
+    <button type="button" class="launch" id="launch" aria-pressed="${S.panel !== "closed"}" aria-keyshortcuts="Meta+K Control+K" title="Assistant (⌘K)">${I.spark}Assistant <span class="k">⌘K</span></button>`;
 }
 
 /* ---------- views ---------- */
@@ -489,10 +495,12 @@ function renderView() {
 function proposalCard() {
   const p = S.prop;
   const rows = [["swing","Swing","50%","58%"],["vel","Closed hat velocity","88 flat","50–100"],["ghost","Snare, step 12","off","on, 35%"]];
-  const say = {pending:"Nothing has changed yet.", preview:`<b>Previewing in Sequence.</b> Play to hear it. Nothing is saved until you apply.`,
+  const say = {pending:"Nothing has changed yet.", preview:`<b>Previewing in Sequence.</b> Play to hear it. Nothing is saved until you apply.${S.back ? ` Cancel takes you back to ${VIEW_NAME[S.back]}.` : ""}`,
+    stale:`<b>Out of date.</b> Beat A changed after this was written, so it can't be applied as it is.`,
     applied:`<b>Applied</b> as one undo step. Changed controls are outlined.`, cancelled:"Cancelled. Nothing changed.", undone:"Undone. The beat is back as it was."}[p];
   const btns = p === "applied" ? `<button type="button" class="btn" data-act="undo">Undo <span class="k">⌘Z</span></button>`
     : p === "cancelled" || p === "undone" ? `<button type="button" class="btn" data-act="preview">Preview again</button>`
+    : p === "stale" ? `<button type="button" class="btn pri" data-act="refresh">Refresh</button><button type="button" class="btn" disabled>Apply</button><button type="button" class="btn" data-act="cancel">Dismiss</button>`
     : `<button type="button" class="btn" data-act="preview" aria-pressed="${p === "preview"}">${p === "preview" ? I.pause + "Previewing" : I.play + "Preview"}</button>
        <button type="button" class="btn pri" data-act="apply">Apply</button><button type="button" class="btn" data-act="cancel">Cancel</button>`;
   return `<div class="card" aria-label="Proposal">
@@ -554,12 +562,14 @@ function videoCard() {
     <ol class="chap" id="chap">${chapters()}</ol>
     <div class="acts"><button type="button" class="btn pri" data-act="showme">Show me on the Keys strip</button></div></div>`;
 }
-const CARDS = {proposal:proposalCard, pack:packCard, video:videoCard};
+const oldCard = () => `<div class="card" style="opacity:.6"><div class="card-h" style="border:0"><span class="lbl">Earlier proposal · out of date</span><b>Loosen the beat</b></div></div>`;
+const CARDS = {proposal:proposalCard, pack:packCard, video:videoCard, old:oldCard};
 
 /* ---------- the panel ---------- */
 function status() {
   if (S.stream) return S.stream.n === 0 ? "Thinking…" : "Writing…";
   if (S.prop === "preview") return "Previewing a change";
+  if (S.prop === "stale") return "A proposal is out of date";
   if (S.pack === "preview") return "Previewing a sound";
   if (S.vid.playing) return "Playing video";
   return S.panel === "min" && S.msgs.length ? "Ready" : "";
@@ -582,7 +592,10 @@ function renderLog() {
   return hello + m + s;
 }
 const streamText = () => S.stream.words.slice(0, S.stream.n).join(" ");
-const scopeLabel = () => S.scope === "track" ? "Drums" : S.scope === "view" ? VIEW_NAME[S.view] : "Whole song";
+/* Scope follows the editor's selection when there is one (here: the open clip), else the selected track; it widens to the song. */
+const hasSel = () => S.view === "seq";
+const effScope = () => S.scope === "sel" && !hasSel() ? "track" : S.scope;
+const scopeLabel = () => ({sel:"Selection: Beat A", track:"Drums", song:"Whole song"})[effScope()];
 function renderPanel() {
   const a = $("asst"), mode = S.panel;
   a.hidden = mode === "closed";
@@ -606,7 +619,7 @@ function renderPanel() {
     <div class="comp">
       <label class="sr" for="draft">Message the assistant</label>
       <textarea id="draft" placeholder="Ask about ${esc(scopeLabel())}, or anything in the song">${esc(S.draft)}</textarea>
-      <div class="crow"><button type="button" class="scope" data-act="scope" title="What the assistant reads and may change. Click to change."><span class="lbl">Scope</span>${esc(scopeLabel())}</button>
+      <div class="crow"><button type="button" class="scope" data-act="scope" title="What the assistant reads and may change: your selection, the selected track, or the whole song. Click to change."><span class="lbl">Scope</span>${esc(scopeLabel())}</button>
         <span class="hint">${busy ? "Editing still works while I write" : '<span class="k">⏎</span> send · <span class="k">⇧⏎</span> new line'}</span>
         ${busy ? `<button type="button" class="send" data-act="stop" aria-label="Stop">${I.stop}</button>` : `<button type="button" class="send" data-act="send" aria-label="Send" ${S.draft.trim() ? "" : "disabled"}>${I.send}</button>`}</div>
     </div>`;
@@ -617,23 +630,24 @@ function renderPanel() {
 function render() { renderTop(); renderView(); renderPanel(); applySize(); }
 
 /* ---------- resizing: floating height, docked width ---------- */
-const SIZE = {h:560, w:384}, H_RANGE = [260, 720], W_RANGE = [300, 640];
+const H_RANGE = [260, 720], W_RANGE = [300, 640];
+const SIZE = {h:+saved.h || 560, w:+saved.w || 384};
 const clamp = (v, [lo, hi]) => Math.round(Math.max(lo, Math.min(hi, v)));
 function applySize() {
   const ed = $("ed"); ed.style.setProperty("--panel-h", SIZE.h + "px"); ed.style.setProperty("--panel-w", SIZE.w + "px");
   const g = $("grip"); if (g) g.setAttribute("aria-valuenow", S.panel === "dock" ? SIZE.w : SIZE.h);
 }
-function resizeBy(dh, dw) { SIZE.h = clamp(SIZE.h + dh, H_RANGE); SIZE.w = clamp(SIZE.w + dw, W_RANGE); applySize(); }
+function resizeBy(dh, dw) { SIZE.h = clamp(SIZE.h + dh, H_RANGE); SIZE.w = clamp(SIZE.w + dw, W_RANGE); applySize(); save(); }
 document.addEventListener("pointerdown", e => {
   const g = e.target.closest("#grip"); if (!g || e.button !== 0) return;
   e.preventDefault(); g.setPointerCapture(e.pointerId);
   const dock = S.panel === "dock", y0 = e.clientY, x0 = e.clientX, h0 = SIZE.h, w0 = SIZE.w, ed = $("ed");
   ed.classList.add("resizing");
   const move = ev => { if (dock) SIZE.w = clamp(w0 + x0 - ev.clientX, W_RANGE); else SIZE.h = clamp(h0 + y0 - ev.clientY, H_RANGE); applySize(); };
-  const up = () => { ed.classList.remove("resizing"); g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up); };
+  const up = () => { ed.classList.remove("resizing"); save(); g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up); };
   g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
 });
-document.addEventListener("dblclick", e => { if (e.target.closest("#grip")) { S.panel === "dock" ? SIZE.w = 384 : SIZE.h = 560; applySize(); } });
+document.addEventListener("dblclick", e => { if (e.target.closest("#grip")) { S.panel === "dock" ? SIZE.w = 384 : SIZE.h = 560; applySize(); save(); } });
 
 /* ---------- sending and streaming ---------- */
 let streamTimer = null;
@@ -741,19 +755,28 @@ function point(k) {
   clearTimeout(point.t); point.t = setTimeout(() => { if (S.point === k) { S.point = null; renderView(); } }, 4000);
 }
 const ACT = {
-  launch() { S.panel = S.panel === "closed" ? S.lastOpen : "closed"; S.focus = S.panel === "float" || S.panel === "dock"; render(); },
-  close() { S.panel = "closed"; S.vid.big = false; render(); $("launch").focus(); },
-  min() { S.panel = "min"; S.lastOpen = "float"; render(); },
-  restore() { S.panel = "float"; S.lastOpen = "float"; S.focus = true; render(); },
-  dock() { S.panel = "dock"; S.lastOpen = "dock"; render(); },
-  float() { S.panel = "float"; S.lastOpen = "float"; render(); },
-  scope() { S.scope = {track:"view", view:"song", song:"track"}[S.scope]; renderPanel(); },
+  launch() { S.panel = S.panel === "closed" ? S.lastOpen : "closed"; S.focus = S.panel === "float" || S.panel === "dock"; render(); save(); },
+  close() { S.panel = "closed"; S.vid.big = false; render(); save(); $("launch").focus(); },
+  min() { S.panel = "min"; S.lastOpen = "float"; render(); save(); },
+  restore() { S.panel = "float"; S.lastOpen = "float"; S.focus = true; render(); save(); },
+  dock() { S.panel = "dock"; S.lastOpen = "dock"; render(); save(); },
+  float() { S.panel = "float"; S.lastOpen = "float"; render(); save(); },
+  scope() { const next = {sel:"track", track:"song", song:hasSel() ? "sel" : "track"}; S.scope = next[effScope()]; renderPanel(); },
   send() { send(S.draft); },
   stop() { finishStream(true); },
   retry() { S.msgs = S.msgs.filter(m => m.role !== "err"); startStream(TURNS.groove.ai, "proposal"); },
-  preview() { if (S.prop === "preview") { S.prop = "pending"; stop(); } else { S.prop = "preview"; S.view = "seq"; start(); } render(); },
-  apply() { S.prop = "applied"; S.view = "seq"; render(); },
-  cancel() { S.prop = "cancelled"; stop(); render(); },
+  preview() {
+    if (S.prop === "preview") { S.prop = "pending"; stop(); }
+    else { if (S.view !== "seq") S.back = S.view; S.prop = "preview"; S.view = "seq"; start(); }
+    render();
+  },
+  apply() { S.prop = "applied"; S.view = "seq"; S.back = null; render(); },
+  cancel() { S.prop = "cancelled"; stop(); if (S.back) { S.view = S.back; S.back = null; } render(); },
+  refresh() {
+    S.msgs.forEach(m => { if (m.kind === "proposal") m.kind = "old"; });
+    S.prop = "none"; S.why = false;
+    startStream("Updated for your edit. The same three changes still fit around the step you changed.", "proposal");
+  },
   undo() { S.prop = "undone"; render(); },
   try() { S.pack = "preview"; S.view = "inst"; start(); render(); },
   keep() { S.pack = "kept"; render(); },
@@ -766,6 +789,15 @@ const ACT = {
   showme() { point("sendA"); },
 };
 document.addEventListener("click", e => {
+  /* editing the beat under an open proposal makes it stale */
+  const cell = e.target.closest(".srow .cell");
+  if (cell && (S.prop === "pending" || S.prop === "preview")) {
+    const row = [...document.querySelectorAll(".srow")].indexOf(cell.parentNode), at = cell.dataset.step;
+    S.prop = "stale"; stop(); render();
+    const again = document.querySelectorAll(".srow")[row]?.querySelector(`.cell[data-step="${at}"]`);
+    if (again) again.classList.add("flash");
+    return;
+  }
   const b = e.target.closest("[data-act],[data-view],[data-sug],[data-point],[data-hear],[data-seek],#tplay,#launch");
   if (!b || !$("ed").contains(b)) return;
   if (b.id === "tplay") { playing ? stop() : start(); renderTop(); renderView(); return; }
@@ -792,22 +824,24 @@ document.addEventListener("keydown", e => {
   }
   if (e.target.id === "draft" && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(S.draft); return; }
   if (e.target.id === "draft" && e.key === "Escape") { e.preventDefault(); S.panel === "float" ? ACT.min() : ACT.close(); return; }
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") { e.preventDefault(); ACT.launch(); }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); ACT.launch(); }
 });
 
 /* ---------- the stepped flow ---------- */
-const turn = (k, card = true) => { const t = TURNS[k]; const out = [{role:"user", text:t.user, scope:k === "video" ? "Mixer" : "Drums"}, {role:"ai", text:t.ai}]; if (card) out.push({role:"card", kind:t.card}); return out; };
+const turn = (k, card = true) => { const t = TURNS[k]; const out = [{role:"user", text:t.user, scope:{groove:"Selection: Beat A", pack:"Drums", video:"Whole song"}[k]}, {role:"ai", text:t.ai}]; if (card) out.push({role:"card", kind:t.card}); return out; };
 const STEPS = [
-  {t:"Closed", s:"Start", n:"The assistant starts closed, and nothing about the editor changes for it. The <b>Assistant</b> button in the top bar, or <span class=\"k\">⌘J</span>, opens it.",
+  {t:"Closed", s:"Start", n:"The assistant starts closed, and nothing about the editor changes for it. The <b>Assistant</b> button in the top bar, or <span class=\"k\">⌘K</span>, opens it.",
     go() {}},
   {t:"Open", s:"Float", n:"It opens floating at the bottom-right, like a mail composer, so the view stays in reach. Suggestions follow the open view. The header minimises it, docks it to the right edge, or closes it. Drag its top edge to make it taller or shorter.",
     go() { S.panel = "float"; S.focus = true; }},
-  {t:"Compose", s:"Type", n:"The composer shows the <b>scope</b>: what the assistant will read and may change. Click the chip to widen it to the view or the whole song. <span class=\"k\">⏎</span> sends, <span class=\"k\">⇧⏎</span> adds a line, <span class=\"k\">Esc</span> minimises.",
+  {t:"Compose", s:"Type", n:"The composer shows the <b>scope</b>: what the assistant will read and may change. It follows your selection (here the open clip, Beat A), falls back to the selected track, and one click widens it to the whole song. <span class=\"k\">⏎</span> sends, <span class=\"k\">⇧⏎</span> adds a line, <span class=\"k\">Esc</span> minimises.",
     go() { S.panel = "float"; S.view = "seq"; S.draft = TURNS.groove.user; S.focus = true; }},
   {t:"Reply streams", s:"Send", n:"The message is stamped with its scope. The reply streams in word by word; <b>Stop</b> replaces Send, and the editor stays fully usable, including playback, while it writes.",
-    go() { S.panel = "float"; S.view = "seq"; S.msgs = [{role:"user", text:TURNS.groove.user, scope:"Drums"}]; setTimeout(() => startStream(TURNS.groove.ai, "proposal", 70), 0); }},
-  {t:"Preview a change", s:"Proposal", n:"The proposal lists every control it would change, old to new. <b>Preview</b> plays it in the Sequence view with dashed outlines, and the ghost bars show the old velocities. Press play in the top bar to hear it. Nothing is saved yet.",
-    go() { S.panel = "float"; S.view = "seq"; S.msgs = turn("groove"); S.prop = "preview"; }},
+    go() { S.panel = "float"; S.view = "seq"; S.msgs = [{role:"user", text:TURNS.groove.user, scope:"Selection: Beat A"}]; setTimeout(() => startStream(TURNS.groove.ai, "proposal", 70), 0); }},
+  {t:"Preview a change", s:"Proposal", n:"The proposal lists every control it would change, old to new. <b>Preview</b> opens the view that shows the change (here from the arrangement to Sequence) with dashed outlines, and the ghost bars show the old velocities. Press play in the top bar to hear it. Nothing is saved yet, and <b>Cancel</b> takes you back to the arrangement.",
+    go() { S.panel = "float"; S.view = "seq"; S.back = "arr"; S.msgs = turn("groove"); S.prop = "preview"; }},
+  {t:"Out of date", s:"Stale", n:"Edit the beat while a proposal is open and it goes <b>out of date</b>: Apply is off, and <b>Refresh</b> asks for a new proposal that fits your edit. Try it: in the previous step, click any step in the grid.",
+    go() { S.panel = "float"; S.view = "seq"; S.msgs = turn("groove"); S.prop = "stale"; }},
   {t:"Apply", s:"Undo + why", n:"<b>Apply</b> commits one transaction and one undo step, and the changed controls stay outlined in white. <b>Why this works</b> names the goal, the technique and the controls; each control is a link that points at it.",
     go() { S.panel = "float"; S.view = "seq"; S.msgs = turn("groove"); S.prop = "applied"; S.why = true; }},
   {t:"Recommend a pack", s:"Instrument", n:"A pack card says why this pack, lets you hear its sounds and its demo, and <b>Try on Pad 1</b> previews the kick in the beat. <b>Keep</b> or <b>Put back</b> decide; nothing is added until then.",
