@@ -940,8 +940,8 @@ project dashboard
 6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
    to the master's effects.
 7. There are now five tracks, each with a clip in bar 1. Play the song, then stop.
-8. Press Export in the editor header and choose Stems (ZIP). A bit-depth choice appears,
-   16-bit or 24-bit, with 24-bit chosen.
+8. Press Export in the editor header and choose Stems (ZIP). No bit-depth choice
+   appears: stems are always 24-bit.
 9. Press Export and let it finish. The browser downloads one file named
    `<project name> <YYYY-MM-DD> stems.zip`.
 10. Close the dialog and reload the page.
@@ -952,7 +952,7 @@ so they sort in track order, each with sound in it, plus `Reference mix.wav` and
 WAV is stereo, 24-bit PCM, at the same sample rate, and exactly the same length. After
 the reload the project is unchanged, devices included.
 
-**Out of scope:** the 16-bit choice, mute/solo (every track is exported whatever its
+**Out of scope:** mute/solo (every track is exported whatever its
 mute/solo state), return-bus stems (these go in a `Returns/` folder, but no UI adds a
 return yet), the manifest's fields, sample-by-sample alignment, master processing
 being excluded, cancelling, the maximum reference fixture, worker/memory limits,
