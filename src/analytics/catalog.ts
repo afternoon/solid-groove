@@ -259,6 +259,7 @@ export const FEATURE_KEYS = [
   "assistant",
   "export_stereo",
   "export_stems",
+  "export_stems_selection",
   "playhead_seek",
   "track_color",
   "track_delete",
