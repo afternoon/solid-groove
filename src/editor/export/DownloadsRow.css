@@ -1,0 +1,78 @@
+/* The Downloads row (EXP-004, docs/export-dialog.html `.b-tray`, `.b-zip`):
+   a fixed-height strip of one card per file. */
+
+.downloads {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 60px;
+  padding: 10px 24px 0;
+  overflow-x: auto;
+}
+
+.downloads > .export-label {
+  margin-right: 12px;
+}
+
+.download {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  flex: 1 1 0;
+  gap: 0 10px;
+  min-width: 150px;
+  padding: 7px 10px 9px;
+  background: var(--color-background);
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+}
+
+.download b {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-detail {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.download-state {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  align-self: center;
+  color: var(--color-foreground-muted);
+}
+
+.download.now .download-state {
+  color: var(--color-foreground-bright);
+}
+
+.download.done .download-state {
+  padding: 1px 6px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+
+.download.bad {
+  outline: 1px solid var(--color-danger-edge);
+  background: var(--color-danger-wash);
+}
+
+.download.bad .download-state {
+  color: var(--color-foreground-bright);
+  font-weight: 600;
+}
+
+.download i {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-accent);
+}

@@ -1,5 +1,8 @@
+import { RENDER_CHANNELS } from "../../audio/offlineRenderer";
 import { songEndSeconds } from "../../audio/renderLength";
+import { wav24ByteLength } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
+import { maxStemFrames } from "../../export/stems/exportStems";
 import { buildAudioProjection } from "../../projection/audioProjection";
 import { projectSampleRate } from "./stereoExport";
 
@@ -42,4 +45,16 @@ export function exportFacts(project: Project): ExportFacts {
     tracks: song.tracks.length,
     quality: formatQuality(projectSampleRate(project)),
   };
+}
+
+/**
+ * What the stereo WAV would weigh, before rendering: an upper bound, the song
+ * plus the longest release tail it may keep, as a stem export's estimate is.
+ */
+export function estimateStereoBytes(project: Project): number {
+  const seconds = songEndSeconds(buildAudioProjection(project));
+  return wav24ByteLength(
+    RENDER_CHANNELS,
+    maxStemFrames(seconds, projectSampleRate(project)),
+  );
 }
