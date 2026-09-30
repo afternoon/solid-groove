@@ -14,6 +14,7 @@ import PackBanner from "../library/PackBanner";
 import PacksView from "../library/PacksView";
 import SimilarSoundsView from "../library/SimilarSoundsView";
 import SoundsView from "../library/SoundsView";
+import { type SlotAudition, slotPreviewEngine } from "../library/slotAudition";
 import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
@@ -64,6 +65,11 @@ export interface LibraryModalProps {
   readonly client?: LibraryClient;
   /** Built once per open by the host: a disposed engine stays disposed. */
   readonly previewEngine: PreviewEngine;
+  /**
+   * The slot's hot-swap (LIB-010): when given, every audition is heard in the
+   * slot, in the beat, and closing the window puts the slot's own sound back.
+   */
+  readonly slotAudition?: SlotAudition;
   readonly analytics?: Analytics;
   /** Insert the chosen sound. The host closes this on the way through. */
   onInsert(asset: LibraryAsset): void;
@@ -108,6 +114,10 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
   const [query, setQuery] = createSignal("");
   const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
+  // Every view auditions through this one engine, so each is heard in the slot.
+  const previewEngine = props.slotAudition
+    ? slotPreviewEngine(props.previewEngine, props.slotAudition, selected)
+    : props.previewEngine;
   // The pack whose sounds the sounds view is scoped to (`null`: no scope). The
   // sounds view reads this; Browse packs and In this project set it.
   const [packScope, setPackScope] = createSignal<string | null>(null);
@@ -195,7 +205,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   onSettled(() => {
     void client.loadIndex().then(setIndexed, () => {});
     props.onActions?.({ showView, insertSelected, press, pick, similar, back });
-    return () => props.onActions?.(null);
+    return () => {
+      props.onActions?.(null);
+      // Escape, close and Insert all end here: the slot plays its own sound.
+      props.slotAudition?.clear();
+    };
   });
 
   function RailButton(railProps: { item: RailItem }): JSX.Element {
@@ -303,7 +317,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               <SimilarSoundsView
                 reference={reference()}
                 library={everyAsset()}
-                previewEngine={props.previewEngine}
+                previewEngine={previewEngine}
                 trackColor={props.trackColor}
                 onSelect={setSelected}
                 onBack={back}
@@ -322,7 +336,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           <Show when={showsPacks()}>
             <PacksView
               client={client}
-              previewEngine={props.previewEngine}
+              previewEngine={previewEngine}
               analytics={props.analytics}
               projectPackIds={props.addedPackIds}
               keyLabel={props.keyLabel}
@@ -337,7 +351,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           <div class="library-modal-sounds" hidden={!showsSounds()}>
             <SoundsView
               client={client}
-              previewEngine={props.previewEngine}
+              previewEngine={previewEngine}
               analytics={props.analytics}
               assetTypes={props.assetTypes}
               heading={props.heading}

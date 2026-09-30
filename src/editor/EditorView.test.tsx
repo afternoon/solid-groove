@@ -647,6 +647,54 @@ describe("EditorView", () => {
     expect(mixerSelect(breakTrack.name)).toBeInTheDocument();
   });
 
+  it("hears a library sound in the pad's slot without a command, and closing puts it back (LIB-010)", async () => {
+    const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+    const reconcile = vi.spyOn(ProjectAudioGraph.prototype, "reconcile");
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const [drums] = project.song.tracks;
+    if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const pad = drums.instrument.pads[1];
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      createAuditionEngine: fakePreviewEngine,
+    });
+    /** The asset the pad plays in the graph's latest projection. */
+    const heardOnPad = () => {
+      const projection = reconcile.mock.lastCall?.[0];
+      const instrument = projection?.tracksById.get(drums.id)?.instrument;
+      if (instrument?.kind !== "drumMachine") return undefined;
+      return instrument.pads.find((entry) => entry.id === pad.id)?.assetId;
+    };
+
+    await goToView("Instrument");
+    await vi.waitFor(() => expect(heardOnPad()).toBe(pad.assetId));
+    clickAndFlush(await screen.findByRole("button", { name: `Audition ${pad.name}` }));
+    clickAndFlush(screen.getByRole("button", { name: `Sample for ${pad.name}` }));
+    await screen.findByRole("dialog", { name: "Library" });
+    const name = oneShotAssetName("core-electronic-drums");
+    fireEvent.input(await screen.findByRole("searchbox", { name: "Search sounds" }), {
+      target: { value: name },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: `Audition ${name}` }));
+
+    await vi.waitFor(() => expect(heardOnPad()).toMatch(/^ast_preview/));
+    clickAndFlush(screen.getByRole("button", { name: "Close library" }));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+    );
+    expect(heardOnPad()).toBe(pad.assetId);
+    // Audio only: no history entry, no revision, nothing saved.
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+    expect(
+      Number(document.querySelector(".save-status")?.getAttribute("data-revision")),
+    ).toBe(project.metadata.revision);
+    const stored = await repository.loadProject(project.metadata.id);
+    expect(stored.ok && stored.value.metadata.revision).toBe(project.metadata.revision);
+  });
+
   it("shows a track's instrument panel even before it has a clip (#228)", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     // A track added from the mixer arrives with an instrument and no clip.
