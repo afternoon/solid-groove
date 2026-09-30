@@ -1,4 +1,4 @@
-import { For, type JSX } from "@solidjs/web";
+import { For, type JSX, Show } from "@solidjs/web";
 import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
@@ -30,9 +30,11 @@ import {
   stepStartTicks,
   triggersMatch,
 } from "./stepEditorModel";
+import { useStepPointer } from "./stepPointer";
 import { createStroke } from "./stepStroke";
 import "./StepEditor.css";
 import { ariaBool } from "../shared/aria";
+import { detectPlatform } from "../shortcuts/keys";
 
 /**
  * Mints note-event IDs for notes the editor paints. A module singleton, not
@@ -87,10 +89,9 @@ export interface StepEditorProps {
  * `StepGrid`.
  *
  * Every project mutation goes through the shared command layer (PRD section
- * 9.6): a paint or erase drag is one `CommandHistory` gesture — every step
- * applies immediately so audio stays live, but the whole stroke lands as a
- * single history entry and revision (CLP-02 "undo groups a single drag
- * gesture"). Velocity and clip-length edits are single committed commands.
+ * 9.6): a click toggles one step as one `CommandHistory` entry. A drag is a
+ * lasso, as in the piano roll (#643), and only selects. Velocity and
+ * clip-length edits are single committed commands.
  */
 export default function StepEditor(props: StepEditorProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
@@ -196,34 +197,27 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
 
   // --- Pointer handling ---------------------------------------------------
   //
-  // Painting captures the pointer on the cell it starts on, so the drag keeps
-  // delivering `pointerenter`/`pointermove` even as it leaves that element, and
-  // `preventDefault` on pointerdown keeps a drag from starting a text selection
-  // (CLP-02 "without triggering accidental text selection").
-
-  function onCellPointerDown(event: PointerEvent, lane: StepLane, step: number): void {
-    // Only the primary button paints; a middle/right press is left alone. A
-    // synthetic event with no `button` (jsdom) counts as primary.
-    if (event.button > 0) return;
-    // Shift-click selects an existing note instead of erasing it.
-    const existing = noteForCell(lane, step);
-    if (event.shiftKey && existing) {
-      event.preventDefault();
-      toggleSelected(existing.id);
-      return;
-    }
-    event.preventDefault();
-    // No `batch` wrapper any more: Solid 2 batches every write to the end of
-    // the microtask, so the step's project write and the selection write it
-    // triggers still land together — over a wider span than the old explicit
-    // batch, which only covered this one call.
-    stroke.begin(lane, step);
-  }
-
-  function onCellPointerEnter(lane: StepLane, step: number): void {
-    if (!stroke.active) return;
-    stroke.paint(lane, step);
-  }
+  // The piano roll's rule (#643): a click toggles a step, a drag lassos notes.
+  // Shift-click on a note selects it instead of erasing it.
+  let lanesElement: HTMLDivElement | undefined;
+  const pointer = useStepPointer({
+    lanes: () => lanesElement,
+    laneList: lanes,
+    notes: () => noteEventsOf(props.clip),
+    stepWidth: width,
+    selected: selectedIds,
+    setSelected: (ids) => setSelectedIds(ids),
+    click(lane, step, add) {
+      const existing = noteForCell(lane, step);
+      if (add && existing) {
+        toggleSelected(existing.id);
+        return;
+      }
+      stroke.begin(lane, step);
+      stroke.end();
+    },
+    platform: detectPlatform(),
+  });
 
   function resizeToBars(nextBars: number): void {
     const clamped = Math.min(MAX_BARS, Math.max(MIN_BARS, Math.round(nextBars)));
@@ -247,10 +241,10 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     <section
       class="step-editor"
       aria-label="Step editor"
-      // Ending or cancelling a stroke anywhere the pointer is released keeps a
-      // drag that leaves the grid from committing a half-open gesture.
-      onPointerUp={() => stroke.end()}
-      onPointerLeave={() => stroke.end()}
+      onPointerMove={(event) => pointer.move(event)}
+      onPointerUp={() => pointer.up()}
+      onPointerCancel={() => pointer.cancel()}
+      onPointerLeave={() => pointer.leave()}
     >
       <Toolbar
         leading={
@@ -307,7 +301,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
             )}
           </For>
         </fieldset>
-        <div class="step-lanes">
+        <div class="step-lanes" ref={lanesElement}>
           <For each={lanes()}>
             {(lane) => (
               <fieldset
@@ -349,8 +343,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
                         aria-label={`${lane.name}, step ${step + 1}${
                           active() ? ", on" : ", off"
                         }`}
-                        onPointerDown={(event) => onCellPointerDown(event, lane, step)}
-                        onPointerEnter={() => onCellPointerEnter(lane, step)}
+                        onPointerDown={(event) => pointer.down(event, lane, step)}
                       />
                     );
                   }}
@@ -358,6 +351,19 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
               </fieldset>
             )}
           </For>
+          <Show when={pointer.lasso()}>
+            {(rect) => (
+              <div
+                class="step-lasso"
+                style={{
+                  left: `${rect().left}px`,
+                  top: `${rect().top}px`,
+                  width: `${rect().right - rect().left}px`,
+                  height: `${rect().bottom - rect().top}px`,
+                }}
+              />
+            )}
+          </Show>
         </div>
         <VelocityLane
           clipId={props.clip.id}
