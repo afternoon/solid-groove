@@ -1,5 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { createMemo, createSignal, onCleanup } from "solid-js";
+import { createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { PlayIcon, StopIcon } from "../components/icons";
 import { ariaBool } from "../shared/aria";
 import { AuditionController, type PreviewEngine } from "./audition";
 import MiniWaveform from "./MiniWaveform";
@@ -17,6 +18,22 @@ const CRITERIA: readonly { key: keyof MatchOn; label: string }[] = [
 function lengthLabel(asset: LibraryAsset): string {
   if (asset.type === "loop") return asset.bars === null ? "" : `${asset.bars} bars`;
   return asset.durationSeconds === null ? "" : `${asset.durationSeconds.toFixed(2)}s`;
+}
+
+function SimilarIcon(): JSX.Element {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="6" cy="8" r="4" />
+      <circle cx="10" cy="8" r="4" />
+    </svg>
+  );
 }
 
 export interface SimilarSoundsViewProps {
@@ -37,27 +54,47 @@ export interface SimilarSoundsViewProps {
 }
 
 /**
- * The similar-sounds view (`LIB-010`): "Match on" chips, and
+ * The similar-sounds view (`LIB-010`): a reference card, "Match on" chips, and
  * the closest sounds from every pack in the reference's family, each with a
- * percentage. The view owns only its chips and audition; scoring is
+ * percentage. The similar icon on a result hops on from it and the trail lets
+ * you jump back. The view owns only its trail, chips and audition; scoring is
  * `similarSounds` and selection belongs to the host.
  */
 export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.Element {
+  const [trail, setTrail] = createSignal<readonly LibraryAsset[]>([
+    untrack(() => props.reference),
+  ]);
   const [matchOn, setMatchOn] = createSignal<MatchOn>(ALL_MATCH_ON);
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  const [playingId, setPlayingId] = createSignal<string | null>(null);
 
-  const reference = () => props.reference;
+  const reference = () => trail()[trail().length - 1];
   const results = createMemo(() => similarSounds(reference(), props.library, matchOn()));
 
   const audition = props.previewEngine
-    ? new AuditionController(props.previewEngine)
+    ? new AuditionController(props.previewEngine, { onActiveChange: setPlayingId })
     : null;
   onCleanup(() => audition?.stop());
+
+  function toggleAudition(asset: LibraryAsset): void {
+    if (playingId() === asset.id) audition?.stop();
+    else void audition?.play(asset);
+  }
 
   function select(asset: LibraryAsset): void {
     setSelectedId(asset.id);
     props.onSelect(asset);
     void audition?.play(asset);
+  }
+
+  function hop(asset: LibraryAsset): void {
+    audition?.stop();
+    setTrail([...trail(), asset]);
+  }
+
+  function jumpTo(index: number): void {
+    audition?.stop();
+    setTrail(trail().slice(0, index + 1));
   }
 
   return (
@@ -66,6 +103,56 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
         <button type="button" class="similar-back" onClick={() => props.onBack()}>
           {props.backLabel ? `Back to ${props.backLabel}` : "Back"}
         </button>
+        <nav class="similar-trail" aria-label="Similar sounds trail">
+          <For each={trail()}>
+            {(asset, i) => (
+              <>
+                <Show when={i() > 0}>
+                  <span class="similar-sep" aria-hidden="true">
+                    ›
+                  </span>
+                </Show>
+                <button
+                  type="button"
+                  aria-current={i() === trail().length - 1 ? "location" : undefined}
+                  onClick={() => jumpTo(i())}
+                >
+                  {asset.name}
+                </button>
+              </>
+            )}
+          </For>
+        </nav>
+      </div>
+      <div class="similar-ref">
+        <button
+          type="button"
+          class="similar-ref-play"
+          aria-label={`Play ${reference().name}`}
+          aria-pressed={ariaBool(playingId() === reference().id)}
+          onClick={() => toggleAudition(reference())}
+        >
+          <Show when={playingId() === reference().id} fallback={<PlayIcon size={16} />}>
+            <StopIcon size={16} />
+          </Show>
+        </button>
+        <div class="similar-ref-wave" style={{ "--waveform-fill": props.trackColor }}>
+          <MiniWaveform peaks={reference().peaks} />
+        </div>
+        <div class="similar-ref-text">
+          <span class="similar-label">Sounds like</span>
+          <b>{reference().name}</b>
+          <span>
+            {[
+              reference().packName,
+              reference().role,
+              ...reference().characters,
+              lengthLabel(reference()),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </div>
       </div>
       <fieldset class="similar-filters" aria-label="Match on">
         <span class="similar-label">Match on</span>
@@ -137,6 +224,14 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
                     <span>{result.percent}%</span>
                   </span>
                   <span class="similar-length">{lengthLabel(result.asset)}</span>
+                </button>
+                <button
+                  type="button"
+                  class="similar-icon"
+                  aria-label={`Sounds like ${result.asset.name}`}
+                  onClick={() => hop(result.asset)}
+                >
+                  <SimilarIcon />
                 </button>
               </li>
             )}

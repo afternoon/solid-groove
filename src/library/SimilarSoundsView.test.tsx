@@ -41,6 +41,7 @@ const chip = (name: string) =>
 describe("SimilarSoundsView", () => {
   it("names the reference and lists the family's closest sounds with a percentage", () => {
     renderView();
+    expect(screen.getByRole("button", { name: "Play Ref" })).toBeVisible();
     expect(names()).toEqual(["Near", "Far", "Other"]);
     expect(within(list()).getAllByRole("listitem")[0]).toHaveTextContent("100%");
     for (const label of ["Category", "Genre", "Length"]) {
@@ -76,9 +77,36 @@ describe("SimilarSoundsView", () => {
     );
   });
 
+  it("hops on from a result, keeps a trail, and jumps back along it", () => {
+    renderView();
+    clickAndFlush(screen.getByRole("button", { name: "Sounds like Near" }));
+    const trail = screen.getByRole("navigation", { name: "Similar sounds trail" });
+    expect(
+      within(trail)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Ref", "Near"]);
+    expect(screen.getByRole("button", { name: "Play Near" })).toBeVisible();
+    expect(names()).toContain("Ref");
+    expect(names()).not.toContain("Near");
+
+    clickAndFlush(within(trail).getByRole("button", { name: "Ref" }));
+    expect(screen.getByRole("button", { name: "Play Ref" })).toBeVisible();
+    expect(within(trail).getAllByRole("button")).toHaveLength(1);
+  });
+
   it("goes back to the list it came from", () => {
     const { onBack } = renderView();
     clickAndFlush(screen.getByRole("button", { name: "Back to Kicks" }));
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays the reference and stops when it unmounts", async () => {
+    const { engine } = renderView();
+    clickAndFlush(screen.getByRole("button", { name: "Play Ref" }));
+    await Promise.resolve();
+    expect(engine.starts).toHaveLength(1);
+    cleanup();
+    expect(engine.starts[0].stop).toHaveBeenCalled();
   });
 });

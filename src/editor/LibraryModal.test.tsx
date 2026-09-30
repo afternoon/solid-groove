@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import {
@@ -170,6 +171,49 @@ describe("LibraryModal shell", () => {
     expect(onActions).toHaveBeenLastCalledWith(null);
   });
 
+  it("opens similar sounds for the selected sound, and backs out of it", async () => {
+    const onActions = vi.fn();
+    renderShell({ onActions });
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+    expect(actions.similar()).toBe(false);
+    expect(actions.back()).toBe(false);
+
+    await hearFirstSound();
+    expect(actions.similar()).toBe(true);
+    flush();
+    await screen.findByRole("navigation", { name: "Similar sounds trail" });
+    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+
+    expect(actions.back()).toBe(true);
+    flush();
+    expect(screen.queryByRole("navigation", { name: "Similar sounds trail" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Library" })).toBeVisible();
+  });
+
+  it("opens similar sounds from a row's icon and from the S key", async () => {
+    const onActions = vi.fn();
+    renderShell({ onActions });
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+    const trail = () =>
+      screen.queryByRole("navigation", { name: "Similar sounds trail" });
+
+    clickAndFlush((await screen.findAllByRole("button", { name: /^Sounds like / }))[0]);
+    expect(
+      await screen.findByRole("navigation", { name: "Similar sounds trail" }),
+    ).toBeVisible();
+    expect(actions.back()).toBe(true);
+    flush();
+    expect(trail()).toBeNull();
+
+    await hearFirstSound();
+    await waitFor(() => expect(screen.queryByText("Nothing yet")).toBeNull());
+    actions.press("library.similar");
+    flush();
+    expect(
+      await screen.findByRole("navigation", { name: "Similar sounds trail" }),
+    ).toBeVisible();
+  });
+
   it("narrows the sounds as you type in the header search", async () => {
     renderShell();
     await screen.findAllByRole("listitem");
@@ -289,6 +333,24 @@ describe("LibraryModal packs", () => {
 
     const banner = await screen.findByRole("region", { name: `About ${bass.name}` });
     expect(banner).toHaveTextContent("Joins the project when you insert a sound");
+  });
+
+  it("backs out of similar sounds, then the pack, then Browse packs", async () => {
+    const { browsePacks, actions } = renderPacks();
+    browsePacks();
+    clickAndFlush(await screen.findByRole("button", { name: `Open ${drums.name}` }));
+    clickAndFlush((await screen.findAllByRole("button", { name: /^Sounds like / }))[0]);
+    await screen.findByRole("navigation", { name: "Similar sounds trail" });
+
+    expect(actions().back()).toBe(true);
+    expect(
+      await screen.findByRole("region", { name: `About ${drums.name}` }),
+    ).toBeVisible();
+    expect(actions().back()).toBe(true);
+    expect(await screen.findByRole("region", { name: "Packs" })).toBeVisible();
+    expect(actions().back()).toBe(true);
+    expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
+    expect(actions().back()).toBe(false);
   });
 
   it("lists the project's packs in the rail, and opens one", async () => {
