@@ -2,9 +2,19 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-li
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
-import { FIXTURE_PACK_INDEX_DOC, fixtureFetcher } from "./__fixtures__/fixtures";
+import {
+  FIXTURE_PACK_INDEX_DOC,
+  fixtureFetcher,
+  fixturePackManifest,
+} from "./__fixtures__/fixtures";
 import { FetchClassifiedError, LibraryClient } from "./libraryClient";
-import { assetStorageRef, type LibraryAsset, type LibraryAssetType } from "./manifest";
+import {
+  assetStorageRef,
+  type LibraryAsset,
+  type LibraryAssetType,
+  packAssets,
+  parsePackManifest,
+} from "./manifest";
 import SoundsView from "./SoundsView";
 import type { SoundsKeyAction } from "./soundKeys";
 import type { ShelfSlot } from "./useShelf";
@@ -16,6 +26,7 @@ function renderView(
     client?: LibraryClient;
     assetTypes?: readonly LibraryAssetType[];
     query?: string;
+    packSlug?: string | null;
     slot?: ShelfSlot;
     songBpm?: number;
     onQueryChange?: (query: string) => void;
@@ -31,6 +42,7 @@ function renderView(
       previewEngine={engine}
       assetTypes={extra.assetTypes}
       query={extra.query}
+      packSlug={extra.packSlug}
       slot={extra.slot}
       songBpm={extra.songBpm}
       onQueryChange={extra.onQueryChange}
@@ -56,6 +68,34 @@ const names = () =>
   screen
     .getAllByRole("listitem")
     .map((row) => row.querySelector(".sound-row-name")?.textContent);
+
+/** Every sound name in one committed fixture pack. */
+const packNames = (slug: string) =>
+  new Set(packAssets(parsePackManifest(fixturePackManifest(slug))).map((a) => a.name));
+
+describe("SoundsView pack scope (LIB-010)", () => {
+  it("lists only the opened pack's sounds", async () => {
+    const [first, second] = FIXTURE_PACK_INDEX_DOC.packs;
+    renderView({ packSlug: second.slug });
+
+    await rows();
+    const inPack = packNames(second.slug);
+    expect(names().every((name) => inPack.has(name ?? ""))).toBe(true);
+    const onlyInFirst = [...packNames(first.slug)].filter((name) => !inPack.has(name));
+    expect(names().some((name) => onlyInFirst.includes(name ?? ""))).toBe(false);
+  });
+
+  it("selects and auditions from the scoped list like any other", async () => {
+    const [, second] = FIXTURE_PACK_INDEX_DOC.packs;
+    const { engine, selected } = renderView({ packSlug: second.slug });
+    const [row] = await rows();
+
+    fireEvent.click(row.querySelector(".sound-row-main") as HTMLElement);
+
+    await waitFor(() => expect(engine.starts).toHaveLength(1));
+    expect(selected()?.packSlug).toBe(second.slug);
+  });
+});
 
 describe("SoundsView", () => {
   it("lists every pack's sounds as compact rows", async () => {
