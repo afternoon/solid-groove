@@ -609,7 +609,7 @@ describe("StepEditor velocity lane (#643)", () => {
         analytics={analytics}
       />
     ));
-    return { history, clip, transport };
+    return { history, clip, transport, setSelectedIds };
   }
 
   it("shows the selected row's notes and no other row's", () => {
@@ -635,24 +635,26 @@ describe("StepEditor velocity lane (#643)", () => {
     expect(firstUse.map((event) => event.params.feature)).toEqual(["velocity_lane"]);
   });
 
-  it("moves every selected note in the row together, and only that row's", () => {
+  it("shows the selected notes from every row, and the row's again when cleared", () => {
+    const { setSelectedIds } = renderLane();
+    const all = document.querySelectorAll(".step-cell.active").length;
+    clickAndFlush(screen.getByRole("button", { name: "Select all" }));
+    expect(stalks()).toHaveLength(all);
+    expect(all).toBeGreaterThan(4);
+    setSelectedIds([]);
+    flush();
+    expect(stalks()).toHaveLength(4);
+  });
+
+  it("moves every selected note together, whatever its row", () => {
     const { clip } = renderLane();
     clickAndFlush(screen.getByRole("button", { name: "Select all" }));
     dragStalk(1, 0.3);
     const content = clip().content;
     if (content.kind !== "notes") throw new Error("expected a note clip");
-    const [kick] = content.events;
-    const kicks = content.events.filter(
-      (note) =>
-        note.trigger.kind === "pad" &&
-        kick.trigger.kind === "pad" &&
-        note.trigger.padId === kick.trigger.padId,
+    expect(content.events.length).toBeGreaterThan(4);
+    expect(content.events.every((note) => Math.round(note.velocity * 10) === 3)).toBe(
+      true,
     );
-    expect(kicks.map((note) => Math.round(note.velocity * 10))).toEqual([3, 3, 3, 3]);
-    expect(
-      content.events
-        .filter((note) => !kicks.includes(note))
-        .every((note) => note.velocity !== 0.3),
-    ).toBe(true);
   });
 });

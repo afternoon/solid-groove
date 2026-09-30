@@ -127,13 +127,6 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     if (preview() && lane.trigger.kind === "pad") props.auditionPad?.(lane.trigger.padId);
   }
   // The velocity lane shows the selected row's notes and nothing else (#643).
-  const rowNotes = createMemo(() => {
-    const trigger = row()?.trigger;
-    if (!trigger) return [];
-    return noteEventsOf(props.clip).filter((note) =>
-      triggersMatch(note.trigger, trigger),
-    );
-  });
 
   // Selection is UI-only state (PRD 9.2) — it points at notes by their stable
   // event id and never mutates the project. Controlled by the parent when it
@@ -162,6 +155,17 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     );
 
   const selectedSet = createMemo<ReadonlySet<EventId>>(() => new Set(selectedIds()));
+
+  // The velocity lane shows what a Vary would change (#643): the selected
+  // notes, from every row, or the selected row's when nothing is selected.
+  const velocityNotes = createMemo(() => {
+    const notes = noteEventsOf(props.clip);
+    const selected = selectedSet();
+    if (selected.size > 0) return notes.filter((note) => selected.has(note.id));
+    const trigger = row()?.trigger;
+    if (!trigger) return [];
+    return notes.filter((note) => triggersMatch(note.trigger, trigger));
+  });
 
   function noteForCell(lane: StepLane, step: number): NoteEvent | undefined {
     return noteAt(props.clip, lane, step);
@@ -374,7 +378,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
         </div>
         <VelocityLane
           clipId={props.clip.id}
-          notes={rowNotes()}
+          notes={velocityNotes()}
           selected={selectedSet()}
           steps={stepCount(props.clip)}
           zoom={zoom()}
