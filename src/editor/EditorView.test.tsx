@@ -527,25 +527,11 @@ describe("EditorView", () => {
     });
     const tracksBefore = project.song.tracks.length;
 
-    // The project's own pack is a fixture pack with no delivered manifest, so
-    // reach a real sound the way a user does with an empty shelf: open the
-    // library from the slot, then the pack browser.
     await openLibrary();
-    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      await within(dialog).findByRole("button", {
-        name: /Core Electronic Drums/,
-      }),
-    );
     // A one-shot specifically: the same Insert control takes a loop to a new
     // track instead (#281), which is what this test must tell apart.
-    const oneShotName = oneShotAssetName("core-electronic-drums");
-    const insert = await within(dialog).findByRole("button", {
-      name: `Insert ${oneShotName}`,
-    });
-    const name = (insert.getAttribute("aria-label") ?? "").replace("Insert ", "");
-    fireEvent.click(insert);
+    const name = oneShotAssetName("core-electronic-drums");
+    await insertSound(name);
 
     // Inserting is what the library was opened for, so it closes on insert
     // and the slot behind it names the sound that landed.
@@ -583,15 +569,8 @@ describe("EditorView", () => {
     clickAndFlush(await screen.findByRole("button", { name: `Audition ${second.name}` }));
     clickAndFlush(screen.getByRole("button", { name: `Sample for ${second.name}` }));
     await screen.findByRole("dialog", { name: "Library" });
-    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      await within(dialog).findByRole("button", { name: /Core Electronic Drums/ }),
-    );
     const oneShotName = oneShotAssetName("core-electronic-drums");
-    fireEvent.click(
-      await within(dialog).findByRole("button", { name: `Insert ${oneShotName}` }),
-    );
+    await insertSound(oneShotName);
 
     await vi.waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
@@ -630,15 +609,8 @@ describe("EditorView", () => {
     );
     const library = await screen.findByRole("dialog", { name: "Library" });
     expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
-    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
-    const packs = await screen.findByRole("dialog");
-    fireEvent.click(
-      await within(packs).findByRole("button", { name: /Core Electronic Drums/ }),
-    );
     const loopName = loopAssetName("core-electronic-drums");
-    fireEvent.click(
-      await within(packs).findByRole("button", { name: `Insert ${loopName}` }),
-    );
+    await insertSound(loopName);
 
     await vi.waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Library" })).toBeNull(),
@@ -1126,15 +1098,8 @@ describe("EditorView new-track unit", () => {
       }),
     );
     await screen.findByRole("dialog", { name: "Library" });
-    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
-    const packs = await screen.findByRole("dialog");
-    fireEvent.click(
-      await within(packs).findByRole("button", { name: /Core Electronic Drums/ }),
-    );
     const loopName = loopAssetName("core-electronic-drums");
-    fireEvent.click(
-      await within(packs).findByRole("button", { name: `Insert ${loopName}` }),
-    );
+    await insertSound(loopName);
 
     await vi.waitFor(() => expect(rows()).toHaveLength(before + 1));
     await vi.waitFor(() =>
@@ -1191,25 +1156,10 @@ describe("EditorView new-track unit", () => {
     clickAndFlush(screen.getByRole("button", { name: "Add loop from library" }));
     const library = await screen.findByRole("dialog", { name: "Library" });
 
-    // The fixture project's own pack has no delivered manifest, so a real loop
-    // is reached the way a user does with an empty shelf: through the pack
-    // browser. Filtered to loops, so whatever it offers is one.
+    // The loop specifically: a one-shot takes the sampler path instead.
     expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
-    fireEvent.click(await screen.findByRole("button", { name: "Browse packs" }));
-    const packs = await screen.findByRole("dialog");
-    fireEvent.click(
-      await within(packs).findByRole("button", { name: /Core Electronic Drums/ }),
-    );
-
-    // The loop specifically, not whatever the pack lists first — the pack
-    // browser offers that pack's one-shots too, and a one-shot takes the
-    // sampler path instead. Its name comes from the committed manifest, so
-    // this keeps pointing at a loop as the fixture library changes.
     const loopName = loopAssetName("core-electronic-drums");
-    const insert = await within(packs).findByRole("button", {
-      name: `Insert ${loopName}`,
-    });
-    fireEvent.click(insert);
+    await insertSound(loopName);
 
     // A track appears, named for the loop, and the window closes behind it.
     await vi.waitFor(() => expect(trackRows()).toHaveLength(before + 1));
@@ -1493,25 +1443,16 @@ describe("EditorView keyboard shortcuts", () => {
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
   });
 
-  it("does not toggle playback while the pack browser is open, and Escape closes it", async () => {
+  it("does not toggle playback while the library is open, and Escape closes it", async () => {
     // The library opens from the sampler's sample slot.
     await renderSlice(createSliceFixtureProject());
 
-    // The pack browser is a modal surface like the guide, so it takes the
-    // keyboard the same way (PRD KEY-02). It opens from the library, which
-    // since UI-001 is itself a modal opened from a slot.
+    // A modal surface takes the keyboard like the guide (PRD KEY-02).
     await openLibrary();
-    const browser = await screen.findByRole("region", { name: "Library" });
-    fireEvent.click(await within(browser).findByRole("button", { name: /Browse packs/ }));
-    await screen.findByRole("dialog", { name: /packs/i });
 
     fireEvent.keyDown(window, { key: " " });
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
 
-    fireEvent.keyDown(window, { key: "Escape" });
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: /packs/i })).not.toBeInTheDocument(),
-    );
     fireEvent.keyDown(window, { key: "Escape" });
     await vi.waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
@@ -1816,6 +1757,12 @@ describe("EditorView keyboard shortcuts", () => {
  */
 function sampler(): HTMLElement {
   return screen.getByRole("region", { name: "Sampler" });
+}
+
+/** Select a sound (auditioning it), then commit it with the modal's Insert (LIB-010). */
+async function insertSound(name: string): Promise<void> {
+  fireEvent.click(await screen.findByRole("button", { name: `Audition ${name}` }));
+  clickAndFlush(await screen.findByRole("button", { name: `Insert ${name}` }));
 }
 
 async function openLibrary(): Promise<HTMLElement> {

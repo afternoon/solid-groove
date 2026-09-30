@@ -148,14 +148,15 @@ test.describe("CF-005", () => {
     // 3. Find a drum loop that was recorded at a different tempo from the
     //    project's, and insert it.
     //
-    // The browser's top level is the packs this project has — a new project
-    // has the starter kick's pack, and the drum loops live in it — so finding
-    // a loop means opening that pack node and searching within it.
+    // The library lists the sounds of every pack as rows, so finding a loop
+    // means searching for it and picking its row.
     await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-    await library(page).getByRole("button", { expanded: false }).first().click();
     const loop = await loopAtAnotherTempo(page, projectTempo);
     await expect(loop.row).toBeVisible();
     await step("Find a loop in the library recorded at another tempo");
+
+    // Select-then-insert: hearing the loop is what makes it the one to insert.
+    await loop.row.getByRole("button", { name: /^Audition / }).click();
 
     await library(page)
       .getByRole("button", { name: `Insert ${loop.name}` })

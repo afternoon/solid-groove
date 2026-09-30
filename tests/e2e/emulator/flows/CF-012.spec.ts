@@ -111,7 +111,6 @@ test.describe("CF-012", () => {
     await addFromLibrary(page).click();
     await expect(library(page)).toBeVisible();
     await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
-    await library(page).getByRole("button", { expanded: false }).first().click();
     // A loop states its tempo; a one-shot does not, and would load a sampler
     // instead of making a track. Which loop does not matter here.
     const loopName = await library(page)
@@ -121,6 +120,10 @@ test.describe("CF-012", () => {
       .first()
       .getByRole("button", { name: /^Audition / })
       .getAttribute("aria-label");
+    // Select-then-insert: hearing the loop is what makes it the one to insert.
+    await library(page)
+      .getByRole("button", { name: loopName ?? "", exact: true })
+      .click();
     await library(page)
       .getByRole("button", {
         name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
