@@ -10,6 +10,7 @@ import type {
   LibraryPackSummary,
 } from "../library/manifest";
 import SoundsView from "../library/SoundsView";
+import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
@@ -41,6 +42,8 @@ const RAIL: readonly RailItem[] = [
 export interface LibraryActions {
   showView(view: LibraryView): void;
   insertSelected(): boolean;
+  /** Runs a `library.*` key on the visible view, which knows what it means. */
+  press(action: ShortcutActionId): void;
 }
 
 export interface LibraryModalProps {
@@ -92,6 +95,21 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const keyOf = (action?: ShortcutActionId) =>
     action ? props.keyLabel?.(action) : undefined;
 
+  let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
+
+  function press(action: ShortcutActionId): void {
+    // Down is how a producer leaves the search field for the list.
+    const active = document.activeElement;
+    if (
+      action === "library.select_next" &&
+      active instanceof HTMLInputElement &&
+      active.type === "search"
+    ) {
+      active.blur();
+    }
+    if (view() === "all") soundsKeys?.(action as SoundsKeyAction);
+  }
+
   function insertSelected(): boolean {
     const asset = selected();
     if (!asset) return false;
@@ -100,7 +118,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   onSettled(() => {
-    props.onActions?.({ showView: setView, insertSelected });
+    props.onActions?.({ showView: setView, insertSelected, press });
     return () => props.onActions?.(null);
   });
 
@@ -193,6 +211,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onSelect={setSelected}
                 onSimilar={(asset) => props.onSimilar?.(asset)}
                 query={query()}
+                onKeys={(handler) => {
+                  soundsKeys = handler;
+                }}
               />
             </Match>
             <Match when={true}>

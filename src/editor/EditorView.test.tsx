@@ -551,6 +551,29 @@ describe("EditorView", () => {
     ).toHaveLength(tracksBefore);
   });
 
+  it("walks the library with the arrow keys and inserts with Enter", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    const engine = fakePreviewEngine();
+    renderEditor(project.metadata.id, {
+      createAuditionEngine: () => engine,
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    const library = await openLibrary();
+    await within(library).findByRole("list", { name: "Sounds" });
+
+    // `library.select_next` is a registry key, live only in the library context.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "ArrowDown" }));
+    await vi.waitFor(() => expect(engine.starts).toHaveLength(1));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Enter" }));
+
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+    );
+  });
+
   it("loads a library one-shot onto the drum pad whose slot opened it (#447)", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createDrumMachineFixtureProject();

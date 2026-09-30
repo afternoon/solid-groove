@@ -1,6 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidExclamationTriangle } from "solid-icons/hi";
-import { createMemo, createSignal, onSettled } from "solid-js";
+import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
 import type { PreviewEngine } from "./audition";
@@ -9,6 +9,8 @@ import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
 import SoundRow from "./SoundRow";
 import { matchesLibraryQuery } from "./search";
+import type { SoundsKeyAction } from "./soundKeys";
+import { nextIn, previousIn } from "./stepping";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import "./SoundsView.css";
 
@@ -27,13 +29,16 @@ export interface SoundsViewProps {
   readonly selected: LibraryAsset | null;
   onSelect(asset: LibraryAsset): void;
   onSimilar(asset: LibraryAsset): void;
+  /** Hands the modal this view's key handler, and takes it back when unmounted. */
+  onKeys(handler: ((action: SoundsKeyAction) => void) | null): void;
 }
 
 /**
  * The library's Sounds view (LIB-010): every sound in the library as compact
- * rows. Selecting a row auditions it at once;
+ * rows. Selecting a row, by click or by the arrow keys, auditions it at once;
  * inserting is the modal's Insert. The load, audition and analytics logic is
- * `useLibraryBrowser`'s; this is the view.
+ * `useLibraryBrowser`'s; this is the view, and its keys arrive through the
+ * shortcut registry rather than a listener of its own.
  */
 export default function SoundsView(props: SoundsViewProps): JSX.Element {
   const browser = useLibraryBrowser({
@@ -43,6 +48,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     onSelect: (asset) => props.onSelect(asset),
   });
   const [ready, setReady] = createSignal(false);
+  let list: HTMLUListElement | undefined;
 
   async function load(): Promise<void> {
     await browser.open();
@@ -62,6 +68,32 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
       );
   });
   const selectedId = () => props.selected?.id ?? null;
+  const current = () => sounds().find((sound) => sound.id === selectedId()) ?? null;
+
+  /** Select the neighbouring sound, which auditions it; the ends hold. */
+  function step(direction: 1 | -1): void {
+    const from = current();
+    const target = (direction === 1 ? nextIn : previousIn)(sounds(), from);
+    if (target && target !== from) void browser.audition(target);
+  }
+
+  function press(action: SoundsKeyAction): void {
+    const sound = current();
+    if (action === "library.select_next") step(1);
+    else if (action === "library.select_previous") step(-1);
+    else if (action === "library.audition" && sound) void browser.audition(sound);
+    else if (action === "library.similar" && sound) props.onSimilar(sound);
+  }
+
+  onSettled(() => {
+    props.onKeys(press);
+    return () => props.onKeys(null);
+  });
+
+  // Keep the heard row on screen as the arrow keys walk the list.
+  createEffect(selectedId, () => {
+    list?.querySelector(".sound-row-selected")?.scrollIntoView?.({ block: "nearest" });
+  });
 
   return (
     <section class="sounds-view" aria-label="Library">
@@ -83,7 +115,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
             when={sounds().length > 0}
             fallback={<p class="sounds-empty">No sounds to show.</p>}
           >
-            <ul class="sounds-list" aria-label="Sounds">
+            <ul class="sounds-list" aria-label="Sounds" ref={list}>
               <For each={sounds()}>
                 {(asset) => (
                   <SoundRow
