@@ -61,6 +61,7 @@ td.pad-index {
 }
 
 .pad-audition {
+  /* The small play button beside a pad's name (PadName.css sizes it). */
   display: flex;
   align-items: center;
   padding: 4px 6px;
@@ -193,7 +194,7 @@ td.pad-sample {
 
 /* A pad that has just fired (#447): its name lights white, as a hardware pad
    does, for as long as the hit is fresh. */
-.drum-pad.hit .pad-audition {
+.drum-pad.hit .pad-rename {
   background-color: var(--color-foreground-bright);
   color: var(--color-on-accent);
 }
