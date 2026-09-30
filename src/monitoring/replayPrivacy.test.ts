@@ -162,8 +162,8 @@ const MASKED_NAMES: readonly {
     renders: "track names in the arrangement's accessible mirror",
   },
   {
-    file: "library/LibraryBrowser.tsx",
-    anchor: "library-search",
+    file: "editor/LibraryModal.tsx",
+    anchor: "library-modal-search",
     renders: "the sound search the user typed",
   },
   {

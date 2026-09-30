@@ -157,6 +157,12 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     list?.querySelector(".sound-row-selected")?.scrollIntoView?.({ block: "nearest" });
   });
 
+  // A pack that would not load is named as missing; the others still list.
+  const failedPacks = () =>
+    browser
+      .packs()
+      .filter((pack) => browser.packErrors().some((e) => e.packSlug === pack.slug));
+
   return (
     <section class="sounds-view" aria-label="Library">
       <h2 class="visually-hidden">{props.heading ?? "Library"}</h2>
@@ -173,6 +179,20 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
         }
       >
         <Show when={ready()} fallback={<TapeLoader label="Loading library" />}>
+          <Show when={failedPacks().length > 0}>
+            <div class="sounds-notice" role="alert">
+              {failedPacks().length === 1 ? "A pack is" : "Some packs are"} unavailable.
+              The others still work.{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  failedPacks().forEach((pack) => void browser.retryPack(pack))
+                }
+              >
+                Retry
+              </button>
+            </div>
+          </Show>
           <Show when={shelf.families().length > 0}>
             <Shelf
               families={shelf.families()}

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fixtureFetcher } from "./__fixtures__/fixtures";
+import { readLibrarySampleDrag } from "./assetDrag";
 import { LibraryClient } from "./libraryClient";
 import type { LibraryAsset } from "./manifest";
 import SoundRow, { lengthLabel } from "./SoundRow";
@@ -85,5 +86,32 @@ describe("SoundRow", () => {
     expect(lengthLabel({ type: "one-shot", durationSeconds: 0.5 } as LibraryAsset)).toBe(
       "0.50 s",
     );
+  });
+});
+
+describe("SoundRow drag", () => {
+  it("puts the sound on the drag when the row is dragged (#225)", async () => {
+    const asset = (await fixtureAssets()).find(
+      (a) => a.type === "one-shot",
+    ) as LibraryAsset;
+    renderRow(asset);
+    const row = screen.getByRole("listitem");
+    expect(row.getAttribute("draggable")).toBe("true");
+
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      get types() {
+        return [...data.keys()];
+      },
+      getData: (format: string) => data.get(format) ?? "",
+      setData: (format: string, value: string) => {
+        data.set(format, value);
+      },
+    };
+    fireEvent.dragStart(row, { dataTransfer });
+
+    const sample = readLibrarySampleDrag(dataTransfer);
+    expect(sample?.name).toBe(asset.name);
+    expect(sample?.packId).toMatch(/^pak_/);
   });
 });
