@@ -30,6 +30,7 @@ function renderView(
       assetTypes={extra.assetTypes}
       query={extra.query}
       slot={extra.slot}
+      keyLabel={(action) => `<${action}>`}
       selected={selected()}
       onSelect={setSelected}
       onSimilar={onSimilar}
@@ -222,5 +223,41 @@ describe("SoundsView shelf", () => {
     fireEvent.click(chips()[1]);
     await waitFor(() => expect(chips()[1]).toHaveAttribute("aria-pressed", "true"));
     expect(names().length).toBeLessThanOrEqual(bass.length);
+  });
+
+  it("badges the first nine categories and All with their registry keys", async () => {
+    renderView();
+    await rows();
+
+    const [all, first] = [...chips()];
+    expect(all.querySelector("kbd")?.textContent).toBe("<library.pick_all>");
+    expect(first.querySelector("kbd")?.textContent).toBe("<library.pick_1>");
+  });
+
+  it("picks categories and families from the keys", async () => {
+    const { press } = renderView({ slot: { kind: "loop-track" } });
+    await rows();
+
+    press("library.pick_2");
+    await waitFor(() => expect(chips()[2]).toHaveAttribute("aria-pressed", "true"));
+    press("library.category_next");
+    await waitFor(() => expect(chips()[3]).toHaveAttribute("aria-pressed", "true"));
+    press("library.category_previous");
+    await waitFor(() => expect(chips()[2]).toHaveAttribute("aria-pressed", "true"));
+    press("library.pick_all");
+    await waitFor(() => expect(chips()[0]).toHaveAttribute("aria-pressed", "true"));
+    // A digit past the last category does nothing.
+    press("library.pick_9");
+    press("library.category_previous");
+    expect(chips()[0]).toHaveAttribute("aria-pressed", "true");
+
+    // Loops is the last family: Next holds, Previous steps back and Next returns.
+    const before = selectedTab()?.textContent;
+    press("library.family_next");
+    expect(selectedTab()?.textContent).toBe(before);
+    press("library.family_previous");
+    await waitFor(() => expect(selectedTab()?.textContent).not.toBe(before));
+    press("library.family_next");
+    await waitFor(() => expect(selectedTab()?.textContent).toBe(before));
   });
 });
