@@ -106,10 +106,6 @@
   outline-offset: 1px;
 }
 
-.generate-clear {
-  margin-top: 6px;
-}
-
 /* A preset's bar in miniature, before its name. */
 .generate-glyph {
   display: inline-flex;
