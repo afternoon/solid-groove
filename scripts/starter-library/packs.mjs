@@ -139,7 +139,7 @@ export const PACKS = [
     slug: "core-electronic-drums",
     family: "drums",
     name: "Core Electronic Drums",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:
@@ -152,7 +152,7 @@ export const PACKS = [
     slug: "foundation-bass",
     family: "bass",
     name: "Foundation Bass",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:
@@ -180,7 +180,7 @@ export const PACKS = [
     slug: "tonal-elements",
     family: "tonal",
     name: "Tonal Elements",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:
@@ -208,7 +208,7 @@ export const PACKS = [
     slug: "ambient-textures",
     family: "texture",
     name: "Ambient Textures",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:
@@ -225,7 +225,7 @@ export const PACKS = [
     slug: "transitions-fx",
     family: "fx",
     name: "Transitions & FX",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:
@@ -252,7 +252,7 @@ export const PACKS = [
     slug: "cc0-community",
     family: null,
     name: "CC0 Community Content",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:
@@ -265,7 +265,7 @@ export const PACKS = [
     slug: "alpha-drum-machines",
     family: null,
     name: "Classic Drum Machines",
-    version: "1.0.0",
+    version: "1.1.0",
     publisher: "Groove",
     kind: "factory",
     description:

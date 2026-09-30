@@ -25,7 +25,14 @@ import { partitionByIntake } from "./intake.mjs";
 import { analyzeSeam, renderLoop, verifyGrid } from "./loops.mjs";
 import { PACKS, packForFamily, packRef } from "./packs.mjs";
 import { renderVoice } from "./voices.mjs";
-import { analyze, encodeWav, sha256, storageKeyFor, waveformPeaks } from "./wav.mjs";
+import {
+  analyze,
+  encodeWav,
+  peaksFromWav,
+  sha256,
+  storageKeyFor,
+  waveformPeaks,
+} from "./wav.mjs";
 
 export const SCHEMA_VERSION = 1;
 
@@ -474,7 +481,16 @@ export function buildAllPacks(
   // Section 11 state 3: quarantined material is isolated from production
   // manifests. Withheld assets are reported, not delivered, and never fail the
   // build — the rest of the library still ships.
-  const { delivered: built, withheld } = partitionByIntake(produced);
+  const { delivered, withheld } = partitionByIntake(produced);
+  // Every audio-bearing entry gets its 48-bin overview from the master bytes it
+  // ships; a preset has no audio, so it has no `peaks` at all.
+  const built = delivered.map(({ asset, bytes }) => ({
+    asset:
+      asset.files.master.format === "wav"
+        ? { ...asset, peaks: peaksFromWav(bytes) }
+        : asset,
+    bytes,
+  }));
 
   const files = new Map();
   for (const { asset, bytes } of built) {
