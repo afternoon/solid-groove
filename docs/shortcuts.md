@@ -63,7 +63,7 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
 | `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
-| `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor | Groove addition — `?` is the web convention |
+| `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor, library | Groove addition — `?` is the web convention |
 | `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
 | `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
 | `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Groove addition — Live reorders tracks by dragging only |
@@ -80,9 +80,44 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `note.lengthen` | Lengthen notes | `Shift+Right` | `Shift+Right` | Clips and Notes | piano_roll | Follows Live (`Shift+Right`) |
 | `value.nudge_up` | Nudge value up | `Up` | `Up` | Global Editing | value_field | Follows Live (`Up`) |
 | `value.nudge_down` | Nudge value down | `Down` | `Down` | Global Editing | value_field | Follows Live (`Down`) |
+| `library.pick_1` | Pick 1 | `1` | `1` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_2` | Pick 2 | `2` | `2` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_3` | Pick 3 | `3` | `3` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_4` | Pick 4 | `4` | `4` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_5` | Pick 5 | `5` | `5` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_6` | Pick 6 | `6` | `6` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_7` | Pick 7 | `7` | `7` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_8` | Pick 8 | `8` | `8` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_9` | Pick 9 | `9` | `9` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.select_previous` | Previous sound | `Up` | `Up` | Browser | library | Follows Live (`Up`) |
+| `library.select_next` | Next sound | `Down` | `Down` | Browser | library | Follows Live (`Down`) |
+| `library.audition` | Audition again | `Space` | `Space` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.insert` | Insert sound | `Enter` | `Enter` | Browser | library | Follows Live (`Enter`) |
+| `library.like` | Like sound | `L` | `L` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.similar` | Similar sounds | `S` | `S` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.shuffle` | Shuffle | `R` | `R` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.pick_all` | All of the family | `0` | `0` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.category_previous` | Previous category | `Left` | `Left` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.category_next` | Next category | `Right` | `Right` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.family_previous` | Previous family | `[` | `[` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.family_next` | Next family | `]` | `]` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.genre_menu` | Genre menu | `G` | `G` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.loop_tempo` | Loop tempo | `T` | `T` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.all_sounds` | All sounds | `A` | `A` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.favourites` | Favourites | `F` | `F` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.browse_packs` | Browse packs | `P` | `P` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.back` | Back | `Backspace` | `Backspace` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.search` | Search | `/` | `/` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 
-`Browser` is a declared guide group with no mappings yet. The task that builds
-that surface adds entries to the existing group rather than inventing a section.
+The `library.*` entries are the `Browser` group: the keys of the library modal
+(`LIB-010`), live only while it is open. The `library` context is active
+*beside* `dialog`, never instead of it: `dialog` still suppresses every other
+context, so no editor binding fires underneath, and `library` is the one
+context a modal may keep alive with it. Every other modal is `dialog` alone.
+`Escape` is `view.close_surface` and `?` is `help.shortcut_guide`; the library
+reuses both. Typing in the search field keeps every key except `Escape` and
+`Down`, which leaves the field. `Enter` and `Space` leave the browser default
+alone, so a focused button or checkbox still presses.
 The two `device.*` moves act on the device whose header has focus: they are the
 keyboard way to reorder a chain, which the pointer does by dragging.
 

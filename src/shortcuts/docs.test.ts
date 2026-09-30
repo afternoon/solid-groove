@@ -28,7 +28,7 @@ function rowFor(actionId: string): string {
 describe("docs/shortcuts.md", () => {
   it("documents every registered action, and no unregistered one", () => {
     const documented = mappingTable
-      .map((line) => /^\| `([a-z_]+\.[a-z_]+)` \|/.exec(line)?.[1])
+      .map((line) => /^\| `([a-z_]+\.[a-z0-9_]+)` \|/.exec(line)?.[1])
       .filter((id): id is string => id !== undefined);
     expect(documented.sort()).toEqual(SHORTCUTS.map((shortcut) => shortcut.id).sort());
   });
