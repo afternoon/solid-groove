@@ -3,6 +3,7 @@ import type { Asset, Clip } from "../domain/entities";
 import type { AssetId } from "../domain/ids";
 import { BEATS_PER_BAR, ticksToBars } from "../domain/time";
 import ControlGroup from "../instrument/ControlGroup";
+import SampleSlot from "../instrument/SampleSlot";
 import { createPeaks, peakBars, type WatchPeaks } from "../instrument/SampleWell";
 import Well from "../instrument/Well";
 import { loopStretchRatio } from "./LoopInfo";
@@ -20,6 +21,8 @@ export interface LoopPanelProps {
   readonly watchPeaks?: WatchPeaks;
   /** The instrument header row, the panel's first row (#447). */
   readonly header?: JSX.Element;
+  /** Opens the library on loops, to choose the loop this track plays. */
+  onBrowse?(): void;
 }
 
 const WIDTH = 960;
@@ -49,8 +52,10 @@ function Readout(props: { label: string; value: string }): JSX.Element {
  * The faceplate for a loop track (#447): an audio track carries no instrument,
  * so instead of the instrument picker it shows the loop it plays, drawn in a
  * well over its bar and beat grid, and the facts that decide how it sounds.
- * Nothing here is editable yet; the "Loop" and "Stretch" banks are where loop
- * points and time-stretch controls will sit when the domain grows them.
+ * The "Loop" group's sample slot chooses the loop, the same slot the sampler
+ * and the drum pads choose their sounds with; the "Source" and "Stretch" banks
+ * are readouts, where loop points and time-stretch controls will sit when the
+ * domain grows them.
  */
 export default function LoopPanel(props: LoopPanelProps): JSX.Element {
   const loop = () =>
@@ -67,12 +72,37 @@ export default function LoopPanel(props: LoopPanelProps): JSX.Element {
     }));
   };
 
+  // The slot is the way into the library (UI-001), as it is on the sampler: it
+  // names the loop, and opening it is how the loop changes.
+  const slotGroup = () => (
+    <Show when={props.onBrowse}>
+      {(browse) => (
+        <div class="instrument-panel-group loop-slot-group">
+          <div class="control-group-head">
+            <h3 class="control-group-title">Loop</h3>
+          </div>
+          <SampleSlot
+            label={`Loop for ${props.trackName}`}
+            name={props.asset?.name ?? null}
+            placeholder="No loop loaded"
+            onBrowse={browse()}
+          />
+        </div>
+      )}
+    </Show>
+  );
+
   return (
     <section class="instrument-panel loop-panel" aria-label={`${props.trackName} loop`}>
       {props.header}
       <Show
         when={loop()}
-        fallback={<p class="loop-panel-empty">This audio track has no loop on it yet.</p>}
+        fallback={
+          <>
+            {slotGroup()}
+            <p class="loop-panel-empty">This audio track has no loop on it yet.</p>
+          </>
+        }
       >
         {(content) => (
           <>
@@ -116,7 +146,8 @@ export default function LoopPanel(props: LoopPanelProps): JSX.Element {
               </Show>
             </Well>
             <div class="loop-panel-banks">
-              <ControlGroup title="Loop">
+              {slotGroup()}
+              <ControlGroup title="Source">
                 <Readout label="Source tempo" value={`${content().sourceTempo} BPM`} />
                 <Readout label="Length" value={plural(bars(), "bar")} />
                 <Readout
