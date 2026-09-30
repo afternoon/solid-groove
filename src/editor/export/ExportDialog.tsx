@@ -206,9 +206,13 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
           <button
             type="button"
             class="export-start"
-            disabled={phase().kind === "rendering" || blocked()}
+            disabled={phase().kind === "rendering"}
+            aria-disabled={blocked() ? "true" : undefined}
             aria-describedby={blocked() ? STEMS_BLOCKER_ID : undefined}
-            onClick={() => void start()}
+            onClick={() => {
+              // Blocked stays focusable, so its reason is read out; it does nothing.
+              if (!blocked()) void start();
+            }}
           >
             Export
           </button>
