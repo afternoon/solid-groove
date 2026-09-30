@@ -34,8 +34,6 @@ function renderModal(
       previewEngine={engine}
       onInsert={overrides.onInsert ?? (() => {})}
       addedPackIds={[]}
-      onAddPack={() => {}}
-      onPackBrowserOpenChange={() => {}}
       onClose={overrides.onClose ?? (() => {})}
     />
   ));
@@ -106,8 +104,6 @@ describe("LibraryModal shell", () => {
         previewEngine={fakePreviewEngine()}
         onInsert={extra.onInsert ?? (() => {})}
         addedPackIds={[pack.id]}
-        onAddPack={() => {}}
-        onPackBrowserOpenChange={() => {}}
         slot="Drums · BD"
         current="Rounded Club Kick"
         onActions={extra.onActions}
@@ -227,8 +223,6 @@ describe("LibraryModal packs", () => {
         previewEngine={fakePreviewEngine()}
         onInsert={() => {}}
         addedPackIds={addedPackIds}
-        onAddPack={() => {}}
-        onPackBrowserOpenChange={() => {}}
         onActions={(next) => {
           actions = next;
         }}

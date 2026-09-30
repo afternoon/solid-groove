@@ -1387,11 +1387,14 @@ describe("EditorView track selection keys (#533)", () => {
 });
 
 describe("EditorView keyboard shortcuts", () => {
-  async function renderSlice(project: Project = createStepGridProject()) {
+  async function renderSlice(
+    project: Project = createStepGridProject(),
+    options: Parameters<typeof renderEditor>[1] = {},
+  ) {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const created = await repository.createProject(project);
     if (!created.ok) throw new Error("fixture project failed to create");
-    renderEditor(project.metadata.id);
+    renderEditor(project.metadata.id, options);
     await openSequenceEditor();
     return project;
   }
@@ -1466,15 +1469,27 @@ describe("EditorView keyboard shortcuts", () => {
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
   });
 
-  it("does not toggle playback while the library is open, and Escape closes it", async () => {
-    // The library opens from the sampler's sample slot.
-    await renderSlice(createSliceFixtureProject());
+  it("keeps editor keys off while the library is open, gives it its own, and Escape closes it", async () => {
+    await renderSlice(createSliceFixtureProject(), {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
 
     // A modal surface takes the keyboard like the guide (PRD KEY-02).
     await openLibrary();
 
     fireEvent.keyDown(window, { key: " " });
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
+
+    // `P` browses packs, `1` opens the first, and Backspace steps back out.
+    fireEvent.keyDown(window, { key: "p" });
+    await screen.findByRole("button", { name: "Open Core Electronic Drums" });
+    fireEvent.keyDown(window, { key: "1" });
+    await screen.findByRole("heading", { name: "Core Electronic Drums" });
+    fireEvent.keyDown(window, { key: "Backspace" });
+    await screen.findByRole("region", { name: "Packs" });
+    fireEvent.keyDown(window, { key: "Backspace" });
+    await screen.findByRole("region", { name: "Library" });
 
     fireEvent.keyDown(window, { key: "Escape" });
     await vi.waitFor(() =>

@@ -216,15 +216,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setLoopTarget(loopTrackId);
     setLibraryOpen(true);
   }
-  const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
 
-  // The packs this editing session has added on top of the project's own
-  // derived dependencies; see `model.addedPackIds` for why they live for the
-  // session only.
-  const [sessionPackIds, setSessionPackIds] = createSignal<readonly string[]>([]);
-  const addedPackIds = createMemo(() => model.addedPackIds(project(), sessionPackIds()));
+  // The project's packs: its derived dependencies and its shelf. Nothing in the
+  // library window adds a pack for the session any more; inserting does.
+  const addedPackIds = createMemo(() => model.addedPackIds(project(), []));
 
   // A fresh audition engine per panel mount, built off the shared runtime the
   // first time each opening browses. `LibraryBrowser`'s `useLibraryBrowser`
@@ -374,7 +371,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     deleteSelection,
     guideOpen,
     setGuideOpen,
-    packBrowserOpen,
     // A true modal takes the keyboard, unlike the sequence editor: there is
     // nothing to do underneath the library while you pick a sound.
     libraryOpen,
@@ -694,12 +690,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     if (loaded) setLibraryOpen(false);
                   }}
                   addedPackIds={addedPackIds()}
-                  onAddPack={(pack) =>
-                    setSessionPackIds((previous) =>
-                      previous.includes(pack.id) ? previous : [...previous, pack.id],
-                    )
-                  }
-                  onPackBrowserOpenChange={setPackBrowserOpen}
                   assetTypes={libraryTypes()}
                   heading={libraryLoops() ? "Loops" : "Library"}
                   slot={librarySlot().slot}

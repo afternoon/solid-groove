@@ -24,7 +24,6 @@ export interface UseEditorShortcutsOptions {
   readonly deleteSelection: () => void;
   readonly guideOpen: Accessor<boolean>;
   readonly setGuideOpen: (open: boolean) => void;
-  readonly packBrowserOpen: Accessor<boolean>;
   /** Whether the `UI-001` library modal is open, and how to close it. */
   readonly libraryOpen: Accessor<boolean>;
   readonly closeLibrary: () => void;
@@ -102,7 +101,6 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     deleteSelection,
     guideOpen,
     setGuideOpen,
-    packBrowserOpen,
     libraryOpen,
     closeLibrary,
     libraryActions,
@@ -394,10 +392,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   };
 
   // While a modal is open it is the only active context, so nothing behind it
-  // can fire — including playback and selection (PRD KEY-02). The pack browser
-  // is a modal surface like the guide, so it takes the keyboard the same way.
+  // can fire — including playback and selection (PRD KEY-02).
   const contexts = (): readonly ShortcutContext[] => {
-    if (guideOpen() || packBrowserOpen()) return ["dialog"];
+    if (guideOpen()) return ["dialog"];
     // The library is a modal with keys of its own, live only while it is open.
     return libraryOpen() ? ["dialog", "library"] : editorContexts();
   };
