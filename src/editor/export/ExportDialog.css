@@ -35,6 +35,31 @@
   color: var(--color-foreground-muted);
 }
 
+.export-tracks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.export-tracks legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.export-format input[type="checkbox"] {
+  accent-color: var(--color-accent);
+}
+
+.export-size {
+  margin: 0;
+  color: var(--color-foreground-muted);
+}
+
 .export-note {
   margin: 0;
   color: var(--color-foreground);

@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { Analytics } from "../../analytics/analytics";
 import { createSliceFixtureProject } from "../../domain/fixtures";
-import type { StemExportOptions } from "../../export/stems/exportStems";
+import {
+  estimateStemExport,
+  type StemExportOptions,
+} from "../../export/stems/exportStems";
 import { createManualClock } from "../../shared/clock";
-import { exportStemsFile, stemsFileName } from "./stemsExport";
+import { estimateStemsFile, exportStemsFile, stemsFileName } from "./stemsExport";
 import { projectSampleRate } from "./stereoExport";
 
 describe("stemsFileName", () => {
@@ -25,7 +28,9 @@ describe("exportStemsFile", () => {
       return { parts: [new Uint8Array([7])], byteLength: 1, frames: 0 };
     });
     const signal = new AbortController().signal;
+    const trackIds = project.song.tracks.map((track) => track.id);
     const file = await exportStemsFile(project, {
+      trackIds,
       signal,
       analytics,
       clock,
@@ -33,6 +38,7 @@ describe("exportStemsFile", () => {
     });
     expect(calls).toEqual([
       expect.objectContaining({
+        trackIds,
         sampleRate: projectSampleRate(project),
         signal,
         analytics,
@@ -41,5 +47,15 @@ describe("exportStemsFile", () => {
     expect(file.blob.type).toBe("application/zip");
     expect(file.blob.size).toBe(1);
     expect(file.fileName).toBe(`${project.metadata.name} 2026-01-02 stems.zip`);
+  });
+});
+
+describe("estimateStemsFile", () => {
+  it("estimates at the project's own rate", () => {
+    const project = createSliceFixtureProject();
+    const estimate = estimateStemsFile(project);
+    expect(estimate.fits).toBe(true);
+    const sampleRate = projectSampleRate(project);
+    expect(estimate).toEqual(estimateStemExport(project, { sampleRate }));
   });
 });
