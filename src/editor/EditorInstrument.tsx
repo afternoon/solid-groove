@@ -50,6 +50,8 @@ export interface EditorInstrumentProps {
   readonly onBrowse: () => void;
   /** Opens the library on one drum pad's sample slot (#447). */
   readonly onBrowsePad?: (trackId: TrackId, padId: PadId) => void;
+  /** Opens the library on loops, for a loop track's loop slot. */
+  readonly onBrowseLoop?: (trackId: TrackId) => void;
   /** A track's live level, reactively, for the header's meter (#447). */
   trackLevel?(trackId: TrackId): TrackLevel | null;
   /** Follows one track's instrument triggers as they are heard (#447). */
@@ -263,6 +265,11 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
                     songTempo={props.project.song.tempo}
                     watchPeaks={props.watchPeaks}
                     header={unitHeader}
+                    onBrowse={
+                      props.onBrowseLoop
+                        ? () => props.onBrowseLoop?.(currentTrack().id)
+                        : undefined
+                    }
                   />
                 </Show>
                 <DeviceChainPanel
