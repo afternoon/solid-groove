@@ -18,10 +18,10 @@ beside it.
 
 - Write `border-radius: 0`, or nothing at all. Never a small radius "to soften"
   a control.
-- There are two exceptions, both because the shape is the meaning: the view
-  dock's pill, and the round drag handles on a well.
-- Enforced by `src/theme.test.ts`: a non-zero radius outside the two
-  exceptions fails.
+- There is one exception, because the shape is the meaning: the round drag
+  handles on a well.
+- Enforced by `src/theme.test.ts`: a non-zero radius outside that exception
+  fails.
 
 ## 2. A monochrome palette, with colour kept for meaning
 

@@ -5,7 +5,7 @@
 .view-dock {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: 32px;
   transform: translateX(-50%);
   z-index: 60;
 }
@@ -14,20 +14,18 @@
   display: flex;
   gap: 4px;
   margin: 0;
-  padding: 4px;
+  padding: 0;
   list-style: none;
-  border-radius: 50px;
   background: var(--color-background-secondary);
-  border: 1px solid var(--tint-medium);
   box-shadow: 0 10px 32px var(--shade-medium);
 }
 
 /* The body size, in the words' own case. Shouting three short nouns in
    capitals bought emphasis the dock does not need — it is the only floating
    thing on the page — and cost legibility at a glance, which is the one job a
-   tab bar has. Capsules inside a capsule: the pill around the current view is
-   the same shape as the dock holding it, so the highlight reads as part of the
-   control rather than a box drawn on top of it. */
+   tab bar has. Square and flush like every other panel: the current view's
+   fill runs to the dock's edge, so the highlight reads as part of the control
+   rather than a box drawn on top of it. */
 .view-dock-link {
   display: flex;
   flex-direction: column;
@@ -35,7 +33,6 @@
   gap: 4px;
   min-width: 104px;
   padding: 10px;
-  border-radius: 50px;
   color: var(--color-foreground);
   font-size: var(--font-size-base);
   letter-spacing: 0.01em;
