@@ -1,0 +1,34 @@
+{
+  "id": "CF-023",
+  "title": "A producer finds a kick by ear and puts it on a pad",
+  "steps": [
+    {
+      "file": "01-press-the-bd-pad-s-sample-slot-the-library-opens-on-kicks.png",
+      "caption": "Press the BD pad's sample slot: the library opens on kicks"
+    },
+    {
+      "file": "02-choose-a-genre-the-list-narrows-to-its-kicks-and-counts-them.png",
+      "caption": "Choose a genre: the list narrows to its kicks, and counts them"
+    },
+    {
+      "file": "03-click-a-kick-it-is-selected-and-it-is-the-one-you-are-hearin.png",
+      "caption": "Click a kick: it is selected, and it is the one you are hearing"
+    },
+    {
+      "file": "04-press-the-down-arrow-the-next-kick-is-the-one-you-are-hearin.png",
+      "caption": "Press the down arrow: the next kick is the one you are hearing"
+    },
+    {
+      "file": "05-press-escape-the-slot-still-names-the-sound-it-had-before.png",
+      "caption": "Press Escape: the slot still names the sound it had before"
+    },
+    {
+      "file": "06-select-a-different-kick-and-press-insert-the-slot-names-it.png",
+      "caption": "Select a different kick and press Insert: the slot names it"
+    },
+    {
+      "file": "07-reload-the-bd-pad-still-holds-the-kick-you-inserted.png",
+      "caption": "Reload: the BD pad still holds the kick you inserted"
+    }
+  ]
+}
