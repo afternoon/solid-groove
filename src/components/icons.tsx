@@ -33,6 +33,18 @@ export function PlayIcon(props: IconProps) {
   );
 }
 
+/** A sound from the library: a waveform's bars, for the sample slot (#447). */
+export function SampleIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <rect x="2" y="9" width="3" height="6" />
+      <rect x="7" y="4" width="3" height="16" />
+      <rect x="12" y="7" width="3" height="10" />
+      <rect x="17" y="10" width="3" height="4" />
+    </Icon>
+  );
+}
+
 export function StopIcon(props: IconProps) {
   return (
     <Icon size={props.size}>

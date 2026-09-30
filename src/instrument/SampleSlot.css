@@ -3,7 +3,6 @@
 .sample-slot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   width: 100%;
   min-width: 0;
@@ -29,7 +28,20 @@
   border-right: 4px solid transparent;
 }
 
+/* The library's sound icon: says what the slot holds and where it opens. */
+.sample-slot-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-foreground-muted);
+}
+
+.sample-slot:hover .sample-slot-icon {
+  color: var(--color-text);
+}
+
 .sample-slot-name {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
