@@ -95,6 +95,24 @@ function renderHeader(
 }
 
 describe("EditorHeader", () => {
+  it("opens the Export dialog from the header and closes it again", () => {
+    renderHeader(fakeSession().session, fakeAudio().audio);
+    expect(screen.queryByRole("dialog", { name: "Export" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    flush();
+    expect(screen.getByRole("dialog", { name: "Export" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close export" }));
+    flush();
+    expect(screen.queryByRole("dialog", { name: "Export" })).toBeNull();
+  });
+
+  it("offers no export before a project has loaded", () => {
+    renderHeader(fakeSession({ project: null }).session, fakeAudio().audio);
+    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+  });
+
   it("renames the project in place: click, type, Enter commits once", async () => {
     const onRename = vi.fn();
     renderHeader(

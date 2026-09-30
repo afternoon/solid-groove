@@ -98,6 +98,16 @@ const CC0 = {
 };
 
 /**
+ * Content admitted for the not-for-profit private alpha only (DEC-010). Its
+ * licence is approved only while release.config.mjs says so (CNT-003).
+ */
+const PRIVATE_ALPHA = {
+  licence: "private-alpha",
+  rawRedistribution: true,
+  attributionRequired: false,
+};
+
+/**
  * `docs/sample-library.md` section 9's `coverage` block: what a pack claims to
  * serve, checked by `validate.mjs`'s `validatePackManifest` against what its
  * assets actually deliver. One-shots carry no tempo (section 15.2), so
@@ -129,8 +139,8 @@ export const PACKS = [
     slug: "core-electronic-drums",
     family: "drums",
     name: "Core Electronic Drums",
-    version: "1.0.0",
-    publisher: "Solid Groove",
+    version: "1.1.0",
+    publisher: "Groove",
     kind: "factory",
     description:
       "The role-complete, lightly processed drum foundation the other synthesized packs build on: kicks, snares, claps, rims, closed and open hats, cymbals, toms, and percussion across every featured genre. Contains no bass, tonal, texture, or FX material.",
@@ -142,8 +152,8 @@ export const PACKS = [
     slug: "foundation-bass",
     family: "bass",
     name: "Foundation Bass",
-    version: "1.0.0",
-    publisher: "Solid Groove",
+    version: "1.1.0",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Sub, sustained, reese, and stab bass one-shots for dubstep, drum & bass, techno, and beyond. Contains no drums, tonal, texture, or FX material.",
@@ -170,8 +180,8 @@ export const PACKS = [
     slug: "tonal-elements",
     family: "tonal",
     name: "Tonal Elements",
-    version: "1.0.0",
-    publisher: "Solid Groove",
+    version: "1.1.0",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Chords, stabs, plucks, keys, mallets, and bells for melodic and harmonic material. Contains no drums, bass, texture, or FX material.",
@@ -198,8 +208,8 @@ export const PACKS = [
     slug: "ambient-textures",
     family: "texture",
     name: "Ambient Textures",
-    version: "1.0.0",
-    publisher: "Solid Groove",
+    version: "1.1.0",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Noise, ambience, drones, mechanical, and organic textures for atmosphere and sound design. Contains no drums, bass, tonal, or FX material.",
@@ -215,8 +225,8 @@ export const PACKS = [
     slug: "transitions-fx",
     family: "fx",
     name: "Transitions & FX",
-    version: "1.0.0",
-    publisher: "Solid Groove",
+    version: "1.1.0",
+    publisher: "Groove",
     kind: "factory",
     description:
       "Impacts, risers, downers, sweeps, reverses, and glitches for transitions and drops. Contains no drums, bass, tonal, or texture material.",
@@ -242,12 +252,25 @@ export const PACKS = [
     slug: "cc0-community",
     family: null,
     name: "CC0 Community Content",
-    version: "1.0.0",
-    publisher: "Solid Groove",
+    version: "1.1.0",
+    publisher: "Groove",
     kind: "factory",
     description:
-      "Reserved destination for acquired CC0 content (`library:acquire`, `library:vcsl`). Not yet published — nothing is pinned in sources.lock.json. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
+      "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, FreePats banks (synth drum hits, world percussion, synth basses, leads, pads, strings, brass, bells, and FX), and Karoryfer Caveman Cosmonaut organ-synth tones. Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
     rights: CC0,
+    coverage: null,
+  },
+  {
+    id: "pak_CtXJaikSASIyJkhxZaczN",
+    slug: "alpha-drum-machines",
+    family: null,
+    name: "Classic Drum Machines",
+    version: "1.1.0",
+    publisher: "Groove",
+    kind: "factory",
+    description:
+      "Hits recorded from classic drum machines: TR-909, TR-808, LinnDrum LM-2, CR-8000, Drumtraks, RZ-1, MR-10, MFB-512 and more. Private-alpha content whose rights grants are informal or unconfirmed; it cannot ship once Groove leaves the not-for-profit alpha (CNT-003). Contains no loops, vocals, or presets.",
+    rights: PRIVATE_ALPHA,
     coverage: null,
   },
 ];

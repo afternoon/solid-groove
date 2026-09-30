@@ -1,8 +1,8 @@
-# Solid Groove - Development Guide
+# Groove - Development Guide
 
 ## Project Overview
 
-Solid Groove is a browser-based music production tool designed to make music creation accessible and intuitive. It features real-time collaboration, AI assistance, pattern-based sequencing, and a library of sounds and instruments.
+Groove is a browser-based music production tool designed to make music creation accessible and intuitive. It features real-time collaboration, AI assistance, pattern-based sequencing, and a library of sounds and instruments.
 
 ## Tech Stack
 
@@ -56,6 +56,10 @@ src/
 │   ├── Transport.ts         # Play/pause/stop/seek, playhead, tempo mirror, bar loop, metronome
 │   ├── underrun.ts          # Sampled late-dispatch counter behind `audio_underrun`
 │   ├── audioLoopPlayer.ts   # Pitch-preserving time-stretch for a tempo-labelled loop event
+│   ├── offlineRenderer.ts   # `renderProjectOffline`: the shared, cancellable offline renderer behind export (EXP-001)
+│   ├── offlineSession.ts    # One render's `OfflineContext` with the live `ProjectAudioGraph` built on it; coded `OfflineRenderError`
+│   ├── offlineClock.ts      # Runs Tone's offline clock in chunks, the offline context installed only while each chunk runs
+│   ├── renderLength.ts      # Where a render ends: the last clip, plus a tail trimmed to the last audible sample
 │   └── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
@@ -157,6 +161,7 @@ tests/                  # Every suite that is not a src/ unit or component test
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 public/robots.txt       # Allows `/`, disallows the app's own routes (ADR 0008)
 site.config.mjs         # The public origin, titles, and description. One place to change the domain
+release.config.mjs      # Release stage and for-profit flag. Leaving the private alpha is one deliberate edit here; the library build then rejects alpha-only packs
 ```
 
 ## Task tracking and landing work
@@ -481,6 +486,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 ### The palette (`src/theme.css`)
 - **Read [`docs/design.md`](./docs/design.md) before changing how anything looks**: square corners, a monochrome palette with colour kept for meaning, clearly organised sections, and one shared set of parts.
 - The faceplate design the instrument, device and mixer surfaces follow (#447) is [`docs/faceplate-system.html`](./docs/faceplate-system.html), a self-contained page that plays. It is the reference for layout, parts and states; `src/theme.css` stays the authority for colour.
+- The library modal (#449) follows [`docs/library-browser.html`](./docs/library-browser.html), a playable walkthrough of finding, filtering, similar sounds, browsing packs, the library-only keys and inserting. Its data and synthesized sounds are stand-ins; its layout, parts and flow are the reference.
 - `src/theme.css` is the only place a colour is written down. It holds custom properties and nothing else, so a static page (`docs/architecture.html`) can link it without dragging the app's base styles along. `src/app.css` `@import`s it, and Vite inlines that at build time.
 - **The interface is literally monochrome: every token is a neutral grey with R, G and B equal.** No tinted greys, no coloured accent, no coloured status. Black and white are the anchors; the ramp between them (`--mono-00` … `--mono-100`) is nine steps, each with exactly one job, and mid-greys are what it spends least.
 - **State is brightness, not hue.** Selected, focused, active and playing are the brightest thing in their neighbourhood — usually a white fill with `--color-on-accent` (black) on it. `--color-accent-dim` and `--color-accent-deep` are the steps below for a fill under the pointer and for material that is present but not chosen.
