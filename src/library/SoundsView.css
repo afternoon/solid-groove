@@ -224,3 +224,12 @@
   font-size: var(--font-size-small);
   color: var(--color-foreground-muted);
 }
+
+/* Roles a search names, offered as jumps ("Closed hat ->"). */
+.role-jumps {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 0;
+}

@@ -104,6 +104,10 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
 
   function press(action: ShortcutActionId): void {
+    if (action === "library.search") {
+      document.querySelector<HTMLInputElement>(".library-modal-search")?.focus();
+      return;
+    }
     // Down is how a producer leaves the search field for the list.
     const active = document.activeElement;
     if (
@@ -172,7 +176,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           >
             <Key label={keyOf("help.shortcut_guide")} />
           </button>
-          <button type="button" class="library-modal-ghost" disabled>
+          <button
+            type="button"
+            class="library-modal-ghost"
+            disabled={view() !== "all"}
+            onClick={() => press("library.shuffle")}
+          >
             Shuffle <Key label={keyOf("library.shuffle")} />
           </button>
           <button

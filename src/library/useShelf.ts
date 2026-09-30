@@ -60,6 +60,10 @@ export function useShelf(
   const setRole = (role: string | null) =>
     setPicked({ family: selection().family, role });
 
+  /** Jump straight to a family and category, as a search's role jump does. */
+  const select = (family: ShelfSelection["family"], role: string | null) =>
+    setPicked({ family, role });
+
   /** `0` is all of the family, `1`-`9` the nth category; a missing one does nothing. */
   function pick(digit: number): void {
     const role = roleForDigit(roles(), digit);
@@ -85,6 +89,7 @@ export function useShelf(
     inView,
     setFamily,
     setRole,
+    select,
     pick,
     stepRole,
     stepFamily,

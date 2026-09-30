@@ -6,7 +6,7 @@ import TapeLoader from "../components/TapeLoader";
 import type { ShortcutActionId } from "../shortcuts";
 import type { PreviewEngine } from "./audition";
 import FilterRow from "./FilterRow";
-import { filterSounds, genreCounts } from "./filters";
+import { filterSounds, genreCounts, roleJumps } from "./filters";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
@@ -96,6 +96,11 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
       ),
     ),
   );
+  // Roles the search names ("Closed hat"), from the sounds before the text filter.
+  const jumps = createMemo(() => {
+    const query = props.query ?? "";
+    return roleJumps(filterSounds(typed(), filters.read("")), query);
+  });
   const narrowed = () => filters.active() || (props.query ?? "").trim() !== "";
 
   function clearFilters(): void {
@@ -120,11 +125,19 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     "library.family_previous": () => shelf.stepFamily(-1),
   };
 
+  /** Select and audition a random sound from the list in view. */
+  function shuffle(): void {
+    const pool = sounds();
+    if (pool.length > 0)
+      void browser.audition(pool[Math.floor(Math.random() * pool.length)]);
+  }
+
   function press(action: SoundsKeyAction): void {
     const sound = current();
     const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
     if (digit) shelf.pick(Number(digit));
     else if (shelfKeys[action]) shelfKeys[action]?.();
+    else if (action === "library.shuffle") shuffle();
     else if (action === "library.genre_menu") setGenreMenuOpen((open) => !open);
     else if (action === "library.loop_tempo" && family() === "loops")
       filters.toggleTempo();
@@ -170,6 +183,24 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
               onFamily={shelf.setFamily}
               onRole={shelf.setRole}
             />
+          </Show>
+          <Show when={jumps().length > 0}>
+            <div class="role-jumps">
+              <For each={jumps()}>
+                {(jump) => (
+                  <button
+                    type="button"
+                    class="filter-button"
+                    onClick={() => {
+                      shelf.select(jump.family, jump.role);
+                      props.onQueryChange?.("");
+                    }}
+                  >
+                    {jump.label} →
+                  </button>
+                )}
+              </For>
+            </div>
           </Show>
           <FilterRow
             genres={genres()}

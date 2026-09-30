@@ -336,3 +336,45 @@ describe("SoundsView filters", () => {
     expect(button("Any bars")).toHaveAttribute("aria-pressed", "true");
   });
 });
+
+describe("SoundsView search jumps and shuffle", () => {
+  it("offers a role the search names as a jump, which opens it and clears the search", async () => {
+    const onQueryChange = vi.fn();
+    renderView({ query: "kick", onQueryChange });
+    await rows();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Kick \u2192" }));
+
+    expect(onQueryChange).toHaveBeenCalledWith("");
+    expect(selectedTab()).toHaveTextContent(/^Drums/);
+    await waitFor(() => expect(pressedChip()).toHaveTextContent(/^Kick/));
+  });
+
+  it("offers no jump without a query", async () => {
+    renderView();
+    await rows();
+
+    expect(document.querySelector(".role-jumps")).toBeNull();
+  });
+
+  it("shuffles to a random sound from the list in view, and audition it", async () => {
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.99);
+    const { engine, press } = renderView();
+    await rows();
+
+    press("library.shuffle");
+
+    await waitFor(() => expect(engine.starts).toHaveLength(1));
+    expect(engine.starts[0].asset.name).toBe(names().at(-1));
+    random.mockRestore();
+  });
+
+  it("shuffles nothing from an empty list", async () => {
+    const { engine, press } = renderView({ query: "zzzz-no-such-sound" });
+    await screen.findByText("No sounds to show.");
+
+    press("library.shuffle");
+
+    expect(engine.starts).toHaveLength(0);
+  });
+});
