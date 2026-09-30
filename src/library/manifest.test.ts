@@ -93,7 +93,7 @@ describe("delivery origin (issue #226)", () => {
             slug: "core-electronic-drums",
             name: "Core Electronic Drums",
             version: "1.0.0",
-            publisher: "Solid Groove",
+            publisher: "Groove",
             kind: "factory",
             description: "",
             assetCount: 1,
@@ -203,5 +203,41 @@ describe("parsing a pack manifest", () => {
     const preset = assets.find((asset) => asset.type === "preset");
     expect(preset).toBeDefined();
     expect(preset?.durationSeconds).toBeNull();
+  });
+});
+
+describe("waveform peaks", () => {
+  const peaks = Array.from({ length: 48 }, (_, i) => (i * 5) % 256);
+
+  function withPeaks(value: unknown) {
+    const raw = structuredClone(fixturePackManifest("core-electronic-drums")) as {
+      assets: Record<string, unknown>[];
+    };
+    raw.assets[0] = { ...raw.assets[0], peaks: value };
+    return packAssets(parsePackManifest(raw))[0];
+  }
+
+  it("exposes a well-formed array", () => {
+    expect(withPeaks(peaks)?.peaks).toEqual(peaks);
+  });
+
+  it("is null when absent, as in a manifest from before the field", () => {
+    const raw = structuredClone(fixturePackManifest("core-electronic-drums")) as {
+      assets: Record<string, unknown>[];
+    };
+    raw.assets = raw.assets.map(({ peaks: _, ...asset }) => asset);
+    for (const asset of packAssets(parsePackManifest(raw))) {
+      expect(asset.peaks).toBeNull();
+    }
+  });
+
+  it("ignores a malformed array rather than failing the pack", () => {
+    expect(withPeaks(peaks.slice(0, 47))?.peaks).toBeNull();
+    expect(withPeaks([...peaks, 1])?.peaks).toBeNull();
+    expect(withPeaks(peaks.map((p, i) => (i === 3 ? 256 : p)))?.peaks).toBeNull();
+    expect(withPeaks(peaks.map((p, i) => (i === 3 ? -1 : p)))?.peaks).toBeNull();
+    expect(withPeaks(peaks.map((p, i) => (i === 3 ? 1.5 : p)))?.peaks).toBeNull();
+    expect(withPeaks("loud")?.peaks).toBeNull();
+    expect(withPeaks(null)?.peaks).toBeNull();
   });
 });

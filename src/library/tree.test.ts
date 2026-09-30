@@ -21,6 +21,7 @@ function asset(overrides: Partial<LibraryAsset> & { id: string }): LibraryAsset 
     channelCount: 1,
     bpm: null,
     bars: null,
+    peaks: null,
     licence: "solid-groove-owned",
     ...overrides,
   };

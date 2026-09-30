@@ -70,11 +70,12 @@ export interface DeviceChainProps {
 const defaultIds = createIdFactory();
 
 /**
- * Where a press does not start a drag: the card's own controls. The name is a
- * button only for the keyboard, so it stays part of the handle.
+ * Where a press does not start a drag: the card's own controls, its well's
+ * drag surface included (it is `aria-hidden`, so it carries no role). The name
+ * is a button only for the keyboard, so it stays part of the handle.
  */
 const NOT_A_HANDLE =
-  "button:not(.device-card-grip), input, select, textarea, label, [role='slider'], [role='radio']";
+  "button:not(.device-card-grip), input, select, textarea, label, [role='slider'], [role='radio'], .drag-surface";
 
 /**
  * One device chain (PRD FX-01): a track's inserts (#241, `DeviceChainPanel`)

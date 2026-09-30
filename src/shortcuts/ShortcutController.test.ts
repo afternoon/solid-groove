@@ -233,6 +233,39 @@ describe("contexts", () => {
     expect(press(keyEvent("Escape")).ran).toBe(true);
   });
 
+  it("fires library keys only while the library is open beside its dialog", () => {
+    const like = vi.fn();
+    const play = vi.fn();
+    const handlers = {
+      "library.like": { run: like },
+      "transport.play_stop": { run: play },
+    };
+    const inLibrary = setup({ handlers, contexts: ["dialog", "library"] });
+    expect(inLibrary.press(keyEvent("l")).ran).toBe(true);
+    expect(like).toHaveBeenCalledTimes(1);
+    expect(inLibrary.press(keyEvent(" ")).ran).toBe(false);
+    expect(play).not.toHaveBeenCalled();
+
+    // Any other modal is plain `dialog`: the same key does nothing there.
+    const inOtherDialog = setup({ handlers, contexts: ["dialog"] });
+    expect(inOtherDialog.press(keyEvent("l")).rejected).toBe("no_match");
+    expect(like).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a library letter for the search field, but lets Down leave it", () => {
+    const like = vi.fn();
+    const next = vi.fn();
+    const { press } = setup({
+      handlers: { "library.like": { run: like }, "library.select_next": { run: next } },
+      contexts: ["dialog", "library"],
+      isTextEntry: () => true,
+    });
+    expect(press(keyEvent("l")).rejected).toBe("text_entry");
+    expect(press(keyEvent("ArrowDown")).ran).toBe(true);
+    expect(like).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
   it("reports whether an action is enabled, for tooltips and the guide", () => {
     const { controller } = setup({
       handlers: {

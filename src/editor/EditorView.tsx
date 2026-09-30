@@ -20,6 +20,7 @@ import {
   insertLoopCommands,
   loadPadSampleCommands,
   loadSampleCommands,
+  replaceLoopCommands,
   toLibrarySample,
 } from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
@@ -207,12 +208,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     padId: PadId;
   } | null>(null);
 
+  // The loop track whose loop slot opened the library, or null. Inserting then
+  // replaces that track's loop rather than adding a new loop track.
+  const [loopTarget, setLoopTarget] = createSignal<TrackId | null>(null);
+
   function openLibrary(
     types?: readonly LibraryAssetType[],
     pad: { trackId: TrackId; padId: PadId } | null = null,
+    loopTrackId: TrackId | null = null,
   ): void {
     setLibraryTypes(() => types);
     setPadTarget(pad);
+    setLoopTarget(loopTrackId);
     setLibraryOpen(true);
   }
   const [packBrowserOpen, setPackBrowserOpen] = createSignal(false);
@@ -481,6 +488,29 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   /**
+   * Changes the loop a loop track plays, from the loop slot that opened the
+   * library: one transaction, so one revision and one undo. It is the same
+   * use of an audio loop the Loop button's insertion is, so it logs the same
+   * first use.
+   */
+  function replaceLoop(sample: LibrarySample, trackId: TrackId): boolean {
+    const currentProject = project();
+    if (!currentProject || sample.kind !== "loop") return false;
+    const commands = replaceLoopCommands(
+      currentProject,
+      trackId,
+      sample,
+      createFactoryContext(),
+      { songTempo: currentProject.song.tempo },
+    );
+    if (commands.length === 0) return false;
+    const result = session.dispatch(commands);
+    if (!result?.ok) return false;
+    (props.analytics ?? defaultAnalytics).logFeatureFirstUse("audio_loop");
+    return true;
+  }
+
+  /**
    * Loads a library one-shot onto the drum pad whose slot opened the library
    * (#447), as one transaction: the asset if the project lacks it, then the
    * pad. Only the library's Insert reaches this; a drop still lands on the
@@ -614,6 +644,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       onBrowsePad={(trackId, padId) =>
                         openLibrary(["one-shot"], { trackId, padId })
                       }
+                      onBrowseLoop={(trackId) => openLibrary(["loop"], null, trackId)}
                       watchPeaks={audio.watchAssetPeaks}
                       watchTriggers={audio.watchTriggers}
                       trackLevel={audio.trackLevel}
@@ -660,9 +691,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     // regardless is what made a refused insert look like a
                     // successful one that lost the sound.
                     const pad = padTarget();
+                    const loopTrackId = loopTarget();
                     const loaded =
                       sample &&
-                      (pad ? loadPadSample(sample, pad) : loadLibrarySample(sample));
+                      (pad
+                        ? loadPadSample(sample, pad)
+                        : loopTrackId
+                          ? replaceLoop(sample, loopTrackId)
+                          : loadLibrarySample(sample));
                     if (loaded) setLibraryOpen(false);
                   }}
                   addedPackIds={addedPackIds()}
