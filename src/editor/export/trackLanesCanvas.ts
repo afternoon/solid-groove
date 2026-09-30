@@ -10,6 +10,9 @@ import { COLOR_TOKENS } from "../../arrangement/canvasRenderer";
  */
 
 export const ROW_HEIGHT_PX = 24;
+/** The mini-arrangement's columns: names, the batch gutter, then the lanes. */
+export const NAME_COLUMN_PX = 260;
+export const GUTTER_PX = 26;
 
 const TOKEN_NAMES = ["ruler", "loopBraceOff", "text"] as const;
 type PaletteName = (typeof TOKEN_NAMES)[number];
