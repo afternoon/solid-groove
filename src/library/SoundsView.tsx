@@ -31,6 +31,11 @@ export interface SoundsViewProps {
   readonly trackColor?: string;
   /** The header search's text, matched against name, role, family and pack. */
   readonly query?: string;
+  /**
+   * Scope the list to one pack (LIB-010): an opened pack shows only its own
+   * sounds, under the same shelf and filters. `null` or unset is every pack.
+   */
+  readonly packSlug?: string | null;
   /** The song's tempo, which Tempo under Loops measures "near" from. */
   readonly songBpm?: number;
   /** Clears the header search, which the empty state's *Clear the filters* does. */
@@ -76,7 +81,8 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   const typed = createMemo(() =>
     browser
       .assets()
-      .filter((asset) => !props.assetTypes || props.assetTypes.includes(asset.type)),
+      .filter((asset) => !props.assetTypes || props.assetTypes.includes(asset.type))
+      .filter((asset) => !props.packSlug || asset.packSlug === props.packSlug),
   );
   const matching = createMemo(() =>
     filterSounds(typed(), filters.read(props.query ?? "")),

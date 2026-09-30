@@ -1,0 +1,35 @@
+/* The banner above an opened pack's own sounds (LIB-010). */
+
+/* The banner above a pack's own sounds. */
+.pack-banner {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pack-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pack-banner-text p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.pack-banner-status {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.pack-banner-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text);
+}
