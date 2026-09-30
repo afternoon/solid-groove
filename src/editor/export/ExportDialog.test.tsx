@@ -4,11 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
 import { createSliceFixtureProject } from "../../domain/fixtures";
 import { stringifyProject } from "../../domain/serialize";
+import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush } from "../../testing/events";
 import ExportDialog, { failureMessage } from "./ExportDialog";
 import type { exportStereoWav, StereoExport, StereoExportOptions } from "./stereoExport";
 
 afterEach(cleanup);
+stubCanvasContext();
 
 const FILE: StereoExport = {
   blob: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" }),

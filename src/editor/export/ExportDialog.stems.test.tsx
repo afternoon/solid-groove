@@ -3,6 +3,7 @@ import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSliceFixtureProject } from "../../domain/fixtures";
 import { StemExportError } from "../../export/stems/exportStems";
+import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush } from "../../testing/events";
 import ExportDialog, { failureMessage } from "./ExportDialog";
 import type { exportStemsFile, StemsExportFile, StemsExportRequest } from "./stemsExport";
@@ -10,6 +11,7 @@ import type { exportStemsFile, StemsExportFile, StemsExportRequest } from "./ste
 /** The Stems (ZIP) half of the Export dialog (EXP-003, CF-022). */
 
 afterEach(cleanup);
+stubCanvasContext();
 
 const FILE: StemsExportFile = {
   blob: new Blob([new Uint8Array([1, 2, 3])], { type: "application/zip" }),
