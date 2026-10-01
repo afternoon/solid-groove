@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { createEffect } from "solid-js";
+import { createEffect, createSignal, onSettled } from "solid-js";
 import BatchGutter from "./BatchGutter";
 import LaneMap from "./LaneMap";
 import "./TrackLanes.css";
@@ -50,6 +50,17 @@ const reducedMotion = () =>
 
 export default function TrackLanes(props: TrackLanesProps): JSX.Element {
   let scroller!: HTMLDivElement;
+  // The scroller's scrollbar takes room from its columns but not from the
+  // ruler above it, so the ruler is padded by the same amount to stay aligned.
+  const [scrollbarPx, setScrollbarPx] = createSignal(0);
+  onSettled(() => {
+    const measure = () => setScrollbarPx(scroller.offsetWidth - scroller.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  });
 
   createEffect(
     () => props.scrollToRowId ?? null,
@@ -72,6 +83,7 @@ export default function TrackLanes(props: TrackLanesProps): JSX.Element {
         bars={props.bars}
         readOnly={props.readOnly}
         disabled={props.disabled}
+        scrollbarPx={scrollbarPx()}
         onPickAction={props.onPickAction}
       />
       <div
@@ -79,6 +91,7 @@ export default function TrackLanes(props: TrackLanesProps): JSX.Element {
         ref={scroller}
         style={{
           "grid-template-columns": `${NAME_COLUMN_PX}px ${GUTTER_PX}px minmax(0, 1fr)`,
+          height: props.heightPx ? `${props.heightPx}px` : undefined,
         }}
       >
         <TrackNameList

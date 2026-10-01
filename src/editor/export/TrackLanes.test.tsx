@@ -124,4 +124,19 @@ describe("TrackLanes", () => {
     renderLanes();
     expect(fillRect).toHaveBeenCalled();
   });
+  it("takes the height it is given, for a list that scrolls inside it", () => {
+    const { container } = renderLanes({ heightPx: 250 });
+    expect(
+      container.querySelector<HTMLElement>(".track-lanes-scroll")?.style.height,
+    ).toBe("250px");
+  });
+
+  it("pads the ruler by the scrollbar the lanes carry, so the two stay aligned", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(900);
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(889);
+    const { container } = renderLanes();
+    expect(container.querySelector<HTMLElement>(".track-ruler")?.style.paddingRight).toBe(
+      "11px",
+    );
+  });
 });
