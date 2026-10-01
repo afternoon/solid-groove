@@ -15,6 +15,7 @@ import {
   drawContentLayer,
   drawInteractionLayer,
   RULER_HEIGHT_PX,
+  resetArrangementPalette,
 } from "./canvasRenderer";
 import type { Viewport } from "./geometry";
 import { visibleRowRange, visibleTickRange } from "./geometry";
@@ -148,6 +149,20 @@ describe("drawBackgroundLayer", () => {
     // The ruler background is a fillRect at (0,0,width,RULER_HEIGHT_PX).
     expect(RULER_HEIGHT_PX).toBeGreaterThan(0);
     expect(env.ctx.fillRectCalls).toBeGreaterThan(0);
+  });
+
+  it("labels the ruler in the document's font, not a hard-coded one", () => {
+    const root = document.documentElement;
+    root.style.fontFamily = '"Inter Variable", sans-serif';
+    resetArrangementPalette();
+    try {
+      const env = envFor(baseViewport());
+      drawBackgroundLayer(env);
+      expect(env.ctx.font).toBe('10px "Inter Variable", sans-serif');
+    } finally {
+      root.style.fontFamily = "";
+      resetArrangementPalette();
+    }
   });
 });
 
