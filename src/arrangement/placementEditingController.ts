@@ -204,6 +204,17 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     setSelection(null);
   }
 
+  /**
+   * Select all (#835): every clip on every track, across the whole song — not
+   * the visible range, not the selected track. A song with no clips leaves the
+   * selection empty rather than keeping a point.
+   */
+  function selectAll(): void {
+    const current = project();
+    if (!current) return;
+    setSelection(clipsSelection(current.song.placements.map((p) => p.id)));
+  }
+
   /** A click in empty space: the point at the start of the bar clicked in. */
   function placePoint(position: ArrangementPosition): void {
     setSelection(barStartPoint(position));
@@ -686,6 +697,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     extendTo,
     setSelection,
     clearSelection,
+    selectAll,
     placePoint,
     beginBand,
     updateBand,
