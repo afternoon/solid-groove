@@ -1,0 +1,34 @@
+{
+  "id": "CF-029",
+  "title": "A producer selects every clip in the arrangement with Cmd+A",
+  "steps": [
+    {
+      "file": "01-bd-has-clips-in-bars-1-to-3-sampler-in-bars-1-and-2.png",
+      "caption": "BD has clips in bars 1 to 3, Sampler in bars 1 and 2"
+    },
+    {
+      "file": "02-click-the-bd-clip-in-bar-1-it-alone-is-selected.png",
+      "caption": "Click the BD clip in bar 1: it alone is selected"
+    },
+    {
+      "file": "03-press-cmd-a-all-five-clips-are-selected.png",
+      "caption": "Press Cmd+A: all five clips are selected"
+    },
+    {
+      "file": "04-press-escape-nothing-is-selected.png",
+      "caption": "Press Escape: nothing is selected"
+    },
+    {
+      "file": "05-press-cmd-a-with-nothing-selected-all-five-again.png",
+      "caption": "Press Cmd+A with nothing selected: all five again"
+    },
+    {
+      "file": "06-press-delete-every-clip-is-gone-both-tracks-remain.png",
+      "caption": "Press Delete: every clip is gone, both tracks remain"
+    },
+    {
+      "file": "07-reopened-exactly-as-the-delete-left-it.png",
+      "caption": "Reopened exactly as the delete left it"
+    }
+  ]
+}

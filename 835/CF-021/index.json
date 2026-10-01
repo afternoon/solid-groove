@@ -1,0 +1,46 @@
+{
+  "id": "CF-021",
+  "title": "A producer exports their song as a stereo WAV",
+  "steps": [
+    {
+      "file": "01-add-a-drum-machine-track-named-drums-hats-on-the-offbeats-cl.png",
+      "caption": "Add a drum-machine track named Drums: hats on the offbeats, clap on 2 and 4"
+    },
+    {
+      "file": "02-add-a-synth-track-named-bass-and-write-a-bassline.png",
+      "caption": "Add a synth track named Bass and write a bassline"
+    },
+    {
+      "file": "03-add-a-drum-loop-from-the-library-at-bar-1.png",
+      "caption": "Add a drum loop from the library at bar 1"
+    },
+    {
+      "file": "04-add-a-sampler-track-named-piano-load-tine-electric-key-write.png",
+      "caption": "Add a sampler track named Piano, load Tine Electric Key, write a chord"
+    },
+    {
+      "file": "05-add-a-reverb-to-the-piano-track.png",
+      "caption": "Add a reverb to the Piano track"
+    },
+    {
+      "file": "06-add-a-saturator-then-a-compressor-to-the-master.png",
+      "caption": "Add a saturator, then a compressor, to the master"
+    },
+    {
+      "file": "07-five-tracks-each-with-a-clip-in-bar-1-play-then-stop.png",
+      "caption": "Five tracks, each with a clip in bar 1 — play, then stop"
+    },
+    {
+      "file": "08-press-export-stereo-wav-is-chosen.png",
+      "caption": "Press Export: Stereo WAV is chosen"
+    },
+    {
+      "file": "09-press-export-the-wav-downloads-and-the-dialog-says-it-is-don.png",
+      "caption": "Press Export: the WAV downloads and the dialog says it is done"
+    },
+    {
+      "file": "10-reload-the-project-is-unchanged.png",
+      "caption": "Reload: the project is unchanged"
+    }
+  ]
+}
