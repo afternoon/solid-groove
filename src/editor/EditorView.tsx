@@ -733,7 +733,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   slot={librarySlot().slot}
                   trackColor={track()?.color}
                   keyLabel={keyHint}
-                  onShowKeys={() => setGuideOpen(true)}
                   current={librarySlot().current}
                   slotKind={librarySlot().kind}
                   songBpm={tempo()}
