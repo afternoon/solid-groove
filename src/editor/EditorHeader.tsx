@@ -1,9 +1,10 @@
 import { Portal } from "@solidjs/web";
-import { HiSolidQuestionMarkCircle, HiSolidSquares2x2 } from "solid-icons/hi";
+import { HiSolidSquares2x2 } from "solid-icons/hi";
 import { type Accessor, createEffect, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import {
+  HelpIcon,
   LoopIcon,
   MetronomeIcon,
   PlayIcon,
@@ -264,7 +265,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           title={`Keyboard shortcuts (${props.keyHint("help.shortcut_guide")})`}
           onClick={() => props.onOpenGuide()}
         >
-          <HiSolidQuestionMarkCircle size={16} />
+          <HelpIcon size={18} />
         </button>
       </div>
     </header>

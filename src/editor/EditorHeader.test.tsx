@@ -252,10 +252,13 @@ describe("EditorHeader", () => {
 
     expect(iconSize(screen.getByRole("link", { name: "Projects" }))).toBe("16");
     expect(iconSize(screen.getByRole("button", { name: "Start playback" }))).toBe("18");
-    expect(iconSize(screen.getByRole("button", { name: "Keyboard shortcuts" }))).toBe(
-      "16",
-    );
-    for (const name of ["Undo", "Redo", "Enable loop", "Enable metronome"]) {
+    for (const name of [
+      "Undo",
+      "Redo",
+      "Enable loop",
+      "Enable metronome",
+      "Keyboard shortcuts",
+    ]) {
       expect(iconSize(screen.getByRole("button", { name }))).toBe("18");
     }
   });

@@ -101,3 +101,13 @@ export function MetronomeIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Help: a question mark bent from straight strokes, without a circle. */
+export function HelpIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <path d="M7 9V4h10v7h-5v4.5" fill="none" stroke-width="2.5" />
+      <rect x="10.75" y="18.5" width="2.5" height="2.5" />
+    </Icon>
+  );
+}
