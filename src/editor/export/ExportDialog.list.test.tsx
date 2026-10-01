@@ -57,6 +57,11 @@ describe("ExportDialog: the track list", () => {
     expect(left()).toHaveLength(0);
   });
 
+  it("starts the keyboard on the first row, as a listbox does", () => {
+    renderDialog();
+    expect(listbox()).toHaveAttribute("aria-activedescendant", options()[0].id);
+  });
+
   it("flips a row on a click, and a run of rows on a shift-click", () => {
     const { requests } = renderDialog();
     stems();

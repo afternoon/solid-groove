@@ -64,11 +64,16 @@ export default function TrackNameList(props: TrackNameListProps): JSX.Element {
           // biome-ignore lint/a11y/useKeyWithClickEvents: keys reach the list through the shortcut registry's context, not a listener here
           // biome-ignore lint/a11y/useFocusableInteractive: the listbox holds focus and names the active row with aria-activedescendant
           <div
-            class="track-name"
+            class={[
+              "track-name",
+              {
+                on: readOnly() ? !row().muted : row().included,
+                off: readOnly() ? row().muted : !row().included,
+                focused: props.focusId === row().id,
+              },
+            ]}
             role="option"
             id={domId(row().id)}
-            data-on={readOnly() ? !row().muted : row().included}
-            data-focused={props.focusId === row().id}
             aria-selected={row().picked ? "true" : "false"}
             aria-disabled={locked() ? "true" : undefined}
             aria-label={rowLabel(row(), readOnly())}

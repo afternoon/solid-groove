@@ -50,7 +50,9 @@ function PickBar(props: TrackListRulerProps): JSX.Element {
         aria-label="Clear picked tracks"
         onClick={() => props.onPickAction?.("clear")}
       >
-        ×
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M2 2l8 8M10 2l-8 8" />
+        </svg>
       </button>
     </>
   );

@@ -40,6 +40,21 @@ describe("TrackNameList", () => {
     expect(screen.getAllByText("ON")).toHaveLength(2);
   });
 
+  it("carries each row's state as classes the stylesheet reads: on, off and focused", () => {
+    renderList({ focusId: "c" });
+    const state = (name: string) =>
+      screen.getByRole("option", { name }).className.split(" ");
+    expect(state("Kick, included")).toContain("on");
+    expect(state("Bass, left out")).toContain("off");
+    expect(state("Lead, included")).toContain("focused");
+    expect(state("Kick, included")).not.toContain("focused");
+    // Read-only, a muted track is the one that is off.
+    cleanup();
+    renderList({ readOnly: true });
+    expect(state("Bass, muted, not in the mix")).toContain("off");
+    expect(state("Kick, in the mix")).toContain("on");
+  });
+
   it("marks picked rows aria-selected and colours each bar from the track", () => {
     renderList();
     expect(screen.getByRole("option", { name: "Lead, included" })).toHaveAttribute(
