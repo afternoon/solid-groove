@@ -1,0 +1,14 @@
+/* The finished screen's sleeve (EXP-004, docs/export-dialog.html `.b-sleeve`). */
+
+.export-sleeve {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-background);
+}
+
+.export-sleeve canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
