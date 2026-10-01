@@ -28,6 +28,9 @@ export interface StemBatch {
   readonly hasMix: boolean;
   /** The tracks whose stems it holds, in track order. */
   readonly trackIds: readonly TrackId[];
+  /** Every track and return whose stem it holds, in packing order: the rows a
+   * track list marks as this ZIP's. */
+  readonly rowIds: readonly string[];
   /** An upper bound on the archive, as the single export's estimate. */
   readonly bytes: number;
   /** False only for a lone stem that is over the budget by itself. */
@@ -71,6 +74,7 @@ export function planStemBatches(
       trackIds: stems.flatMap((stem) =>
         stem.kind === "track" ? [stem.sourceId as TrackId] : [],
       ),
+      rowIds: stems.flatMap((stem) => (stem.sourceId ? [stem.sourceId] : [])),
       bytes,
       fits: bytes <= limit,
     };

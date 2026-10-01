@@ -8,8 +8,8 @@ import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
 import { systemClock } from "../../shared/clock";
 import { useShortcuts } from "../../shortcuts";
-import DownloadsRow, { type DownloadState } from "./DownloadsRow";
-import { downloadCards } from "./downloadCards";
+import DownloadsRow from "./DownloadsRow";
+import { type DownloadProgress, downloadCards } from "./downloadCards";
 import { downloadFile } from "./downloadFile";
 import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
@@ -85,11 +85,15 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     const current = phase();
     return current.kind === "rendering" ? current : null;
   };
-  const cardState = (): DownloadState => {
-    const current = phase().kind;
-    if (current === "rendering") return "now";
-    if (current === "done") return "done";
-    return current === "failed" ? "bad" : "waiting";
+  /** The one file the dialog makes so far: where it has got, for its card. */
+  const cardProgress = (): DownloadProgress => {
+    const current = phase();
+    return {
+      done: current.kind === "done" ? 1 : 0,
+      printing:
+        current.kind === "rendering" ? { index: 0, fraction: current.progress } : null,
+      failed: current.kind === "failed" ? 0 : null,
+    };
   };
   const stamp = new Date(systemClock.now());
   const plan = createMemo(() => planStemsFiles(props.project(), list.trackIds()));
@@ -105,8 +109,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       date: stamp,
       batches: plan(),
       stereoBytes: stereoBytes(),
-      state: cardState(),
-      fraction: rendering()?.progress ?? 0,
+      progress: cardProgress(),
     }),
   );
   /** Every row the export includes, so the playhead prints returns as well as tracks. */

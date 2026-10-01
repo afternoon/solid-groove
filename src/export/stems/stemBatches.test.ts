@@ -39,6 +39,10 @@ describe("planStemBatches", () => {
       ...plan.filter((stem) => stem.kind === "return").map((stem) => stem.path),
     ]);
     expect(batches.flatMap((batch) => batch.trackIds)).toEqual(trackIds);
+    // The returns ride in the last ZIPs, after every track.
+    const rows = batches.flatMap((batch) => batch.rowIds);
+    expect(rows.slice(0, trackIds.length)).toEqual(trackIds);
+    expect(rows.length).toBe(trackIds.length + project.song.returns.length);
   });
 
   it("keeps each track's whole-song number when only some are selected", () => {

@@ -105,33 +105,51 @@ describe("downloadCards", () => {
     date: new Date(2026, 8, 30),
     batches: [],
     stereoBytes: 300 * 1024 ** 2,
-    fraction: 0.5,
   };
+  const idle = { done: 0, printing: null, failed: null };
+  const zipPlan = (index: number) => ({
+    index,
+    paths: ["a.wav", "b.wav"],
+    hasMix: index === 0,
+    trackIds: [],
+    rowIds: [],
+    bytes: 10 * 1024 ** 2,
+    fits: true,
+  });
+  const zips = (
+    progress: typeof idle | Parameters<typeof downloadCards>[0]["progress"],
+  ) =>
+    downloadCards({
+      ...base,
+      format: "stems",
+      batches: [zipPlan(0), zipPlan(1), zipPlan(2)],
+      progress,
+    }).map((zip) => [zip.state, zip.fraction]);
 
-  it("fills a finished file's line and leaves the other ZIPs waiting", () => {
-    expect(downloadCards({ ...base, state: "done" })[0]).toMatchObject({
+  it("fills a finished file's line", () => {
+    expect(downloadCards({ ...base, progress: { ...idle, done: 1 } })[0]).toMatchObject({
       name: "Song 2026-09-30.wav",
       detail: "1 file · 300 MiB",
       state: "done",
       fraction: 1,
     });
-    const zipPlan = (index: number) => ({
-      index,
-      paths: ["a.wav", "b.wav"],
-      hasMix: index === 0,
-      trackIds: [],
-      bytes: 10 * 1024 ** 2,
-      fits: true,
-    });
-    const zips = downloadCards({
-      ...base,
-      format: "stems",
-      batches: [zipPlan(0), zipPlan(1)],
-      state: "now",
-    });
-    expect(zips.map((zip) => [zip.name, zip.state, zip.fraction])).toEqual([
-      ["ZIP 1 of 2", "now", 0.5],
-      ["ZIP 2 of 2", "waiting", 0],
+  });
+
+  it("walks the ZIPs in order: downloaded, printing, then waiting", () => {
+    expect(
+      zips({ done: 1, printing: { index: 1, fraction: 0.5 }, failed: null }),
+    ).toEqual([
+      ["done", 1],
+      ["now", 0.5],
+      ["waiting", 0],
+    ]);
+  });
+
+  it("marks the ZIP that failed and leaves the finished ones downloaded", () => {
+    expect(zips({ done: 1, printing: null, failed: 1 })).toEqual([
+      ["done", 1],
+      ["bad", 0],
+      ["waiting", 0],
     ]);
   });
 });
