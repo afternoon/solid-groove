@@ -37,7 +37,10 @@
 }
 
 .download-detail {
+  min-width: 0;
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -46,6 +49,7 @@
   grid-column: 2;
   align-self: center;
   color: var(--color-foreground-muted);
+  white-space: nowrap;
 }
 
 .download.now .download-state {
