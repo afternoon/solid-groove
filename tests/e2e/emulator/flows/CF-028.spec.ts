@@ -15,14 +15,14 @@ import {
  * `CF-028`: the assistant stays where a producer puts it.
  *
  * Read the flow in `docs/core-flows.md`. The numbered comments are its steps,
- * in its words. This is an acceptance contract for #72 (AI-004), and it is
+ * in its words. This is an acceptance contract for #849 (AI-004a), and it is
  * frozen once it lands: a later PR that changes an assertion here has to say
  * so in its body and justify it.
  *
  * It is `test.fixme` because the assistant does not exist yet. The PR that
- * closes #72 removes this marker.
+ * closes #849 removes this marker.
  *
- * **Locators.** Every assistant locator is assumed from #72 and its reference
+ * **Locators.** Every assistant locator is assumed from #849 and its reference
  * design, and listed in `../support/assistant.ts`. "Click the bar" in step 4
  * is a click on the minimised panel's title, clear of its buttons.
  *
@@ -42,7 +42,7 @@ import {
 const DRAG = 120;
 
 test.describe("CF-028", () => {
-  // `test.fixme` until #72 lands: the PR that closes it removes this marker in
+  // `test.fixme` until #849 lands: the PR that closes it removes this marker in
   // the same diff that makes the flow pass.
   test.fixme("the assistant stays where a producer puts it", async ({ page }) => {
     const step = walkthrough(page, {

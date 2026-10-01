@@ -1129,7 +1129,7 @@ issues.
 
 ### CF-028 — The assistant stays where a producer puts it
 
-**Issue:** #72 · **Suite:** `tests/e2e/emulator/flows/CF-028.spec.ts` · **Entrypoint:** the
+**Issue:** #849 · **Suite:** `tests/e2e/emulator/flows/CF-028.spec.ts` · **Entrypoint:** the
 project dashboard
 
 **Preconditions:** signed in with no projects, in a browser that has never
