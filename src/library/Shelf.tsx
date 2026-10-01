@@ -111,7 +111,7 @@ export default function Shelf(props: {
       </div>
       <div class="shelf-roles">
         {arrow(-1)}
-        <div class="shelf-chips" data-overflow={ariaBool(overflows())} ref={chips}>
+        <div class={["shelf-chips", { "shelf-chips-overflow": overflows() }]} ref={chips}>
           <button
             type="button"
             class="shelf-chip"

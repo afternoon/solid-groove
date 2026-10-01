@@ -68,9 +68,8 @@ describe("Shelf (LIB-010)", () => {
     renderShelf();
 
     expect(screen.queryByRole("button", { name: /^Scroll categories/ })).toBeNull();
-    expect(document.querySelector(".shelf-chips")).toHaveAttribute(
-      "data-overflow",
-      "false",
+    expect(document.querySelector(".shelf-chips")).not.toHaveClass(
+      "shelf-chips-overflow",
     );
   });
 
@@ -80,9 +79,6 @@ describe("Shelf (LIB-010)", () => {
 
     expect(screen.getByRole("button", { name: "Scroll categories left" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Scroll categories right" })).toBeVisible();
-    expect(document.querySelector(".shelf-chips")).toHaveAttribute(
-      "data-overflow",
-      "true",
-    );
+    expect(document.querySelector(".shelf-chips")).toHaveClass("shelf-chips-overflow");
   });
 });
