@@ -19,8 +19,9 @@ import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
+import LibraryHint, { type LibraryPlace } from "./LibraryHint";
 import LibraryKeys from "./LibraryKeys";
-import { ClearIcon, SearchIcon } from "./libraryIcons";
+import { ClearIcon, DiceIcon, GridIcon, SearchIcon } from "./libraryIcons";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
@@ -33,8 +34,14 @@ interface RailItem {
   readonly action?: ShortcutActionId;
 }
 
+/** Browse packs stands apart from the places below it, as its own button. */
+const BROWSE: RailItem = {
+  id: "packs",
+  label: "Browse packs",
+  action: "library.browse_packs",
+};
+
 const PLACES: readonly RailItem[] = [
-  { id: "packs", label: "Browse packs", action: "library.browse_packs" },
   { id: "all", label: "All sounds", action: "library.all_sounds" },
   { id: "favourites", label: "Favourites", action: "library.favourites" },
 ];
@@ -101,12 +108,21 @@ export interface LibraryModalProps {
   onClose(): void;
 }
 
-function Key(props: { label?: string }): JSX.Element {
+/** A boxed key badge. `hidden` when its control already names its key. */
+function Key(props: { label?: string; hidden?: boolean }): JSX.Element {
   return (
     <Show when={props.label}>
-      <kbd class="library-modal-key">{props.label}</kbd>
+      <kbd class="library-modal-key" aria-hidden={props.hidden ? "true" : undefined}>
+        {props.label}
+      </kbd>
     </Show>
   );
+}
+
+/** Where a slot's auditions are heard, for the footer's hint. */
+function slotPlace(kind: LibraryModalProps["slotKind"], slot?: string): string {
+  if (kind === "drum-pad") return `the ${slot ?? "drum"} pad`;
+  return kind === "loop-track" ? "the loop track" : "the sampler";
 }
 
 /**
@@ -142,6 +158,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   );
   // The rail's *In this project*: the project's pack dependencies and shelf.
   const [indexed, setIndexed] = createSignal<readonly LibraryPackSummary[]>([]);
+  const [indexFailed, setIndexFailed] = createSignal(false);
   const projectPacks = createMemo(() =>
     indexed().filter((pack) => props.addedPackIds.includes(pack.id)),
   );
@@ -231,7 +248,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   onSettled(() => {
-    void client.loadIndex().then(setIndexed, () => {});
+    void client.loadIndex().then(setIndexed, () => setIndexFailed(true));
     props.onActions?.({
       showView,
       insertSelected,
@@ -249,15 +266,23 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     };
   });
 
-  function RailButton(railProps: { item: RailItem }): JSX.Element {
+  // An opened pack is where you are, so the place that opened it is not.
+  const isCurrent = (id: LibraryView) => view() === id && packScope() === null;
+  const place = (): LibraryPlace =>
+    similarOf() ? "similar" : showsPacks() ? "packs" : showsSounds() ? "sounds" : "other";
+
+  function RailButton(railProps: { item: RailItem; browse?: boolean }): JSX.Element {
     return (
       <button
         type="button"
-        class="library-modal-rail-item"
-        aria-current={view() === railProps.item.id ? "true" : undefined}
+        class={railProps.browse ? "library-modal-browse" : "library-modal-rail-item"}
+        aria-current={isCurrent(railProps.item.id) ? "true" : undefined}
         onClick={() => showView(railProps.item.id)}
       >
-        {railProps.item.label}
+        <Show when={railProps.browse}>
+          <GridIcon />
+        </Show>
+        <span>{railProps.item.label}</span>
         <Key label={keyOf(railProps.item.action)} />
       </button>
     );
@@ -314,9 +339,13 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       }
       footer={
         <>
-          <span class="library-modal-hint">
-            {selected() ? "Enter inserts it" : "Pick a sound to hear it"}
-          </span>
+          <LibraryHint
+            place={place()}
+            where={props.slotAudition && slotPlace(props.slotKind, props.slot)}
+            current={props.current}
+            selected={selected()?.name}
+            keyLabel={props.keyLabel}
+          />
           <button
             type="button"
             class="library-modal-ghost"
@@ -332,6 +361,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             disabled={!showsSounds()}
             onClick={() => press("library.shuffle")}
           >
+            <DiceIcon />
             Shuffle <Key label={keyOf("library.shuffle")} />
           </button>
           <button
@@ -341,7 +371,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             aria-keyshortcuts="Enter"
             onClick={() => insertSelected()}
           >
-            {selected() ? `Insert ${selected()?.name}` : "Insert"}
+            <span>{selected() ? `Insert ${selected()?.name}` : "Insert"}</span>
+            <Key label={keyOf("library.insert")} hidden />
           </button>
         </>
       }
@@ -351,9 +382,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       </Show>
       <div class="library-modal-body">
         <nav class="library-modal-rail" aria-label="Places">
+          <RailButton item={BROWSE} browse />
           <For each={PLACES}>{(item) => <RailButton item={item} />}</For>
           <fieldset class="library-modal-rail-group">
-            <legend class="library-modal-label">In this project</legend>
+            <legend class="library-modal-label library-modal-rule">
+              In this project
+            </legend>
             <For each={projectPacks()}>
               {(pack) => (
                 <button
@@ -362,11 +396,14 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                   aria-pressed={ariaBool(packScope() === pack.slug)}
                   onClick={() => setPackScope(pack.slug)}
                 >
-                  {pack.name}
+                  <span>{pack.name}</span>
                   <small>{pack.assetCount}</small>
                 </button>
               )}
             </For>
+            <Show when={indexFailed()}>
+              <p class="library-modal-rail-note">Packs couldn't load.</p>
+            </Show>
           </fieldset>
           <RailButton item={RECENT} />
         </nav>
@@ -435,7 +472,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             }
           >
             <p class="library-modal-empty">
-              {(view() === "recent" ? RECENT : PLACES[2]).label} will appear here.
+              {(view() === "recent" ? RECENT : PLACES[1]).label} will appear here.
             </p>
           </Show>
         </div>
