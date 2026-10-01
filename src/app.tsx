@@ -9,6 +9,7 @@ import FloatingTelemetryDisclosure from "./components/FloatingTelemetryDisclosur
 import ReleaseBadge from "./components/ReleaseBadge";
 import TapeLoader from "./components/TapeLoader";
 import { Router } from "./router";
+import { syncFontOverride } from "./shared/fontOverride";
 import { syncInternalTraffic } from "./shared/internalTraffic";
 import { initTelemetry, surfaceForPath, type Telemetry } from "./telemetry";
 import "./app.css";
@@ -75,6 +76,8 @@ export default function App() {
   // honours.
   onSettled(() => {
     syncInternalTraffic();
+    // A hidden design tool: `?font=<Google Font>` restyles the whole UI.
+    syncFontOverride();
 
     // PRD `OPS-02`/`OPS-03`: install the global error handlers and the
     // analytics transport. Monitoring itself is scheduled by `setSurface`,
