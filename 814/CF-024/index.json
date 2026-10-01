@@ -3,35 +3,35 @@
   "title": "A producer browses packs and uses a sound from one they did not have",
   "steps": [
     {
-      "file": "01-open-the-sample-slot-of-the-drum-machine-s-bd-pad.png",
+      "file": "01.png",
       "caption": "Open the sample slot of the drum machine's \"BD\" pad"
     },
     {
-      "file": "02-choose-browse-packs-covers-with-the-project-s-packs-marked.png",
+      "file": "02.png",
       "caption": "Choose Browse packs: covers, with the project's packs marked"
     },
     {
-      "file": "03-narrow-the-packs-to-those-with-fx.png",
+      "file": "03.png",
       "caption": "Narrow the packs to those with FX"
     },
     {
-      "file": "04-open-transitions-fx-it-joins-the-project-when-you-insert-a-s.png",
+      "file": "04.png",
       "caption": "Open Transitions & FX: it joins the project when you insert a sound"
     },
     {
-      "file": "05-choose-fx-then-impact-only-that-pack-s-impacts-are-listed.png",
+      "file": "05.png",
       "caption": "Choose FX, then Impact: only that pack's impacts are listed"
     },
     {
-      "file": "06-select-an-impact-and-press-insert-the-bd-slot-names-it.png",
+      "file": "06.png",
       "caption": "Select an impact and press Insert: the \"BD\" slot names it"
     },
     {
-      "file": "07-open-the-slot-again-transitions-fx-is-listed-with-the-projec.png",
+      "file": "07.png",
       "caption": "Open the slot again: Transitions & FX is listed with the project's packs"
     },
     {
-      "file": "08-reload-the-bd-pad-holds-the-impact-and-transitions-fx-is-lis.png",
+      "file": "08.png",
       "caption": "Reload: the BD pad holds the impact, and Transitions & FX is listed"
     }
   ]
