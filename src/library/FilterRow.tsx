@@ -50,8 +50,7 @@ export default function FilterRow(props: {
       <div class="filter-genre">
         <button
           type="button"
-          class="filter-pick"
-          data-set={ariaBool(props.selectedGenres.length > 0)}
+          class={["filter-pick", { "filter-pick-set": props.selectedGenres.length > 0 }]}
           aria-haspopup="true"
           aria-expanded={ariaBool(props.menuOpen)}
           aria-keyshortcuts={genreKey()}
