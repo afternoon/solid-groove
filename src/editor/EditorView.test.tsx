@@ -1551,6 +1551,34 @@ describe("EditorView keyboard shortcuts", () => {
     ).toBeInTheDocument();
   });
 
+  // #813: `?` (and the footer's ? button) in the library opens its own keys,
+  // not the editor's guide, and Escape closes that sheet before the library.
+  it("lists the library's own keys from ?, and Escape steps out of them first", async () => {
+    await renderSlice(createSliceFixtureProject(), {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    const library = await openLibrary();
+
+    fireEvent.keyDown(window, { key: "?", shiftKey: true });
+    const keys = await within(library).findByRole("dialog", { name: "Library keys" });
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+    for (const group of ["Sounds", "Categories", "Where you are"]) {
+      expect(within(keys).getByRole("heading", { name: group })).toBeVisible();
+    }
+    expect(within(keys).getByText("Similar sounds")).toBeVisible();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Library keys" })).toBeNull(),
+    );
+    expect(screen.getByRole("dialog", { name: "Library" })).toBeInTheDocument();
+
+    clickAndFlush(within(library).getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(within(library).getByRole("dialog", { name: "Library keys" })).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
+  });
+
   it("shows each action's mapping in its tooltip, from the registry", async () => {
     await renderSlice();
 
