@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { createSignal, Match, onCleanup, Show, Switch } from "solid-js";
+import { createMemo, createSignal, Match, onCleanup, Show, Switch } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
@@ -8,6 +8,8 @@ import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
 import { type ShortcutContext, useShortcuts } from "../../shortcuts";
 import { downloadFile } from "./downloadFile";
+import ExportTitleRow from "./ExportTitleRow";
+import { exportFacts } from "./exportFacts";
 import StemTrackPicker, { STEMS_BLOCKER_ID } from "./StemTrackPicker";
 import { createStemSelection } from "./stemSelection";
 import { exportStemsFile } from "./stemsExport";
@@ -70,6 +72,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [phase, setPhase] = createSignal<Phase>({ kind: "choose" });
   const [format, setFormat] = createSignal<Format>("stereo");
   const selection = createStemSelection(props.project);
+  const facts = createMemo(() => exportFacts(props.project()));
   const blocked = () => format() === "stems" && selection.blocker() !== null;
   let controller: AbortController | undefined;
 
@@ -128,7 +131,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   };
 
   return (
-    <Dialog label="Export" header={<h2 class="export-title">Export</h2>} onClose={close}>
+    <Dialog label="Export" class="export-shell" flush onClose={close}>
+      <ExportTitleRow facts={facts()} />
       <div class="export-dialog">
         <fieldset class="export-formats" disabled={phase().kind === "rendering"}>
           <legend class="visually-hidden">Format</legend>
