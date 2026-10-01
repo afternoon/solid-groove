@@ -1,5 +1,5 @@
 import { type JSX, Show } from "@solidjs/web";
-import { HiOutlineHeart, HiOutlineSparkles } from "solid-icons/hi";
+import { HiOutlineHeart } from "solid-icons/hi";
 import { PlayIcon, StopIcon } from "../components/icons";
 import { ariaBool } from "../shared/aria";
 import { writeLibrarySampleDrag } from "./assetDrag";
@@ -18,11 +18,30 @@ export function lengthLabel(asset: LibraryAsset): string {
   return asset.durationSeconds === null ? "" : `${asset.durationSeconds.toFixed(2)} s`;
 }
 
+/** The similar-sounds mark: two overlapping circles, as the reference draws it. */
+function SimilarIcon(): JSX.Element {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.6"
+      aria-hidden="true"
+    >
+      <circle cx="6" cy="8" r="4" />
+      <circle cx="10" cy="8" r="4" />
+    </svg>
+  );
+}
+
 /**
- * One compact sound row (LIB-010): play state, waveform, name, `pack · role`,
- * character tags and length. Clicking selects and auditions it. The heart is
- * inert until favourites land, and the sparkle button opens similar sounds.
- * The row is also a drag handle onto an instrument (#225), never the only way in.
+ * One compact sound row (LIB-010): play state, waveform, name over
+ * `pack · role`, character tags in their own column, and length. Clicking
+ * selects and auditions it. The heart is inert until favourites land, and the
+ * two circles open similar sounds. The row is also a drag handle onto an
+ * instrument (#225), never the only way in.
  */
 export default function SoundRow(props: {
   asset: LibraryAsset;
@@ -36,7 +55,13 @@ export default function SoundRow(props: {
 }): JSX.Element {
   return (
     <li
-      class={["sound-row", { "sound-row-selected": props.selected }]}
+      class={[
+        "sound-row",
+        {
+          "sound-row-selected": props.selected,
+          "sound-row-loop": props.asset.type === "loop",
+        },
+      ]}
       style={props.selected && props.color ? { "--waveform-fill": props.color } : {}}
       draggable="true"
       onDragStart={(event) => {
@@ -64,15 +89,14 @@ export default function SoundRow(props: {
           <b class="sound-row-name">{props.asset.name}</b>
           <span class="sound-row-meta">
             {props.asset.packName} · {roleLabel(props.asset.role)}
-            <Show when={props.asset.characters.length > 0}>
-              {" · "}
-              {props.asset.characters.slice(0, 2).join(", ")}
-            </Show>
             <Show when={props.error}>
               {" · "}
               {LOAD_REASON_LABELS[props.error ?? ""] ?? "Could not load."}
             </Show>
           </span>
+        </span>
+        <span class="sound-row-tags">
+          {props.asset.characters.slice(0, 2).join(" · ")}
         </span>
         <span class="sound-row-length">{lengthLabel(props.asset)}</span>
       </button>
@@ -82,7 +106,7 @@ export default function SoundRow(props: {
         aria-label={`Favourite ${props.asset.name}`}
         disabled
       >
-        <HiOutlineHeart size={16} />
+        <HiOutlineHeart size={15} />
       </button>
       <button
         type="button"
@@ -90,7 +114,7 @@ export default function SoundRow(props: {
         aria-label={`Sounds like ${props.asset.name}`}
         onClick={() => props.onSimilar()}
       >
-        <HiOutlineSparkles size={16} />
+        <SimilarIcon />
       </button>
     </li>
   );

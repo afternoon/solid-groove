@@ -52,6 +52,36 @@ describe("SoundRow", () => {
     ).not.toBeNull();
   });
 
+  it("puts the character tags in their own column, joined with a dot", async () => {
+    const asset = (await fixtureAssets()).find(
+      (a) => a.characters.length >= 2,
+    ) as LibraryAsset;
+    renderRow(asset);
+
+    const row = screen.getByRole("listitem");
+    expect(row.querySelector(".sound-row-tags")).toHaveTextContent(
+      `${asset.characters[0]} · ${asset.characters[1]}`,
+    );
+    expect(row.querySelector(".sound-row-meta")).not.toHaveTextContent(
+      asset.characters[0],
+    );
+  });
+
+  it("marks a loop row, whose length column is the wider one", () => {
+    const loop = { type: "loop", bpm: 124, bars: 4 } as LibraryAsset;
+    renderRow({
+      ...loop,
+      name: "Groove",
+      packName: "Pack",
+      role: "full-loop",
+      characters: [],
+      peaks: null,
+    } as LibraryAsset);
+
+    expect(screen.getByRole("listitem")).toHaveClass("sound-row-loop");
+    expect(screen.getByRole("listitem")).toHaveTextContent("124 BPM · 4 bars");
+  });
+
   it("selects on click, opens similar sounds from its icon, and has an inert heart", async () => {
     const [asset] = await fixtureAssets();
     const { onSelect, onSimilar } = renderRow(asset);
