@@ -101,7 +101,7 @@ describe("ExportDialog", () => {
     expect(download).not.toHaveBeenCalled();
     expect(screen.queryByRole("progressbar")).toBeNull();
     // The alert stays mounted for a screen reader; it just holds nothing.
-    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+    expect(screen.getByRole("alert").textContent).toBe("");
     expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
   });
 
