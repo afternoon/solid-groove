@@ -80,6 +80,20 @@ export function printedFraction(
   return 0;
 }
 
+/** The first and last row index of the batch being printed, for the playhead. */
+export function printingSpan(
+  rows: readonly { readonly id: string }[],
+  state: LaneBatches,
+): { first: number; last: number } | null {
+  const { batches, printing } = state;
+  if (!printing || rows.length === 0) return null;
+  const ids = batches[printing.batchIndex];
+  if (batches.length < 2 || !ids) return { first: 0, last: rows.length - 1 };
+  const indices = rows.flatMap((row, i) => (ids.includes(row.id) ? [i] : []));
+  if (indices.length === 0) return null;
+  return { first: Math.min(...indices), last: Math.max(...indices) };
+}
+
 export interface DrawLanesInput {
   readonly width: number;
   readonly rows: readonly LaneDrawRow[];
