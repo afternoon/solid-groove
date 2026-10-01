@@ -395,19 +395,19 @@ describe("SoundsView filters", () => {
   it("offers Tempo and Bars under Loops only, and the T key toggles near and any", async () => {
     const { press } = renderView({ slot: { kind: "loop-track" }, songBpm: 96 });
     await rows();
-    const all = count();
 
+    // #823: loops open near the song tempo, the ones that stretch well.
     expect(screen.getByRole("group", { name: "Bars" })).toBeVisible();
-    fireEvent.click(button(/^Near 96/));
-    await waitFor(() => expect(count()).toBeLessThan(all));
+    expect(button(/^Near 96/)).toHaveAttribute("aria-pressed", "true");
+    const near = count();
+    fireEvent.click(button(/^Any tempo/));
+    await waitFor(() => expect(count()).toBeGreaterThan(near));
+    const all = count();
+    press("library.loop_tempo");
+    await waitFor(() => expect(count()).toBe(near));
     press("library.loop_tempo");
     await waitFor(() => expect(count()).toBe(all));
-    press("library.loop_tempo");
-    await waitFor(() =>
-      expect(button(/^Near 96/)).toHaveAttribute("aria-pressed", "true"),
-    );
-
-    fireEvent.click(button(/^Any tempo/));
+    expect(button(/^Any tempo/)).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(button("2 bars"));
     await waitFor(() => expect(count()).toBeLessThan(all));
     fireEvent.click(button("Any bars"));

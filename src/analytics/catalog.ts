@@ -125,6 +125,10 @@ function countParam(max: number): CountParam<false> {
   return { kind: "count", max, optional: false };
 }
 
+function optionalCountParam(max: number): CountParam<true> {
+  return { kind: "count", max, optional: true };
+}
+
 function slugParam<const R extends string>(reserved: readonly R[]): SlugParam<false> {
   return { kind: "slug", reserved, optional: false };
 }
@@ -426,6 +430,12 @@ export const SHORTCUT_ACTION_IDS = [
   "library.browse_packs",
   "library.back",
   "library.search",
+  "export.focus_previous",
+  "export.focus_next",
+  "export.extend_previous",
+  "export.extend_next",
+  "export.toggle_focused",
+  "export.pick_all",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
@@ -826,11 +836,13 @@ export const ANALYTICS_EVENTS = {
 
   export_started: {
     phase: 2,
-    owners: ["EXP-002", "EXP-003"],
+    owners: ["EXP-002", "EXP-003", "EXP-004"],
     params: {
       export_type: enumParam(["stereo", "stems"]),
       duration_bucket: bucketParam("musical_duration"),
       track_count_bucket: bucketParam("track_count"),
+      // Stems only (EXP-004): how many ZIPs the export is split into.
+      zip_count: optionalCountParam(32),
     },
   },
 
@@ -840,6 +852,7 @@ export const ANALYTICS_EVENTS = {
     params: {
       export_type: enumParam(["stereo", "stems"]),
       elapsed_ms_bucket: bucketParam("elapsed_ms"),
+      zip_count: optionalCountParam(32),
     },
   },
 

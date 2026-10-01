@@ -19,6 +19,7 @@ import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
+import LibraryKeys from "./LibraryKeys";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
@@ -59,6 +60,10 @@ export interface LibraryActions {
    * then Browse packs. False when there was none to leave.
    */
   back(): boolean;
+  /** `?`: open or close the sheet of the library's own keys. */
+  toggleKeys(): void;
+  /** Close that sheet; false when it was not open, so Escape closes the window. */
+  closeKeys(): boolean;
 }
 
 export interface LibraryModalProps {
@@ -89,7 +94,6 @@ export interface LibraryModalProps {
   readonly current?: string | null;
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
-  onShowKeys?(): void;
   onActions?(actions: LibraryActions | null): void;
   onClose(): void;
 }
@@ -113,6 +117,7 @@ function Key(props: { label?: string }): JSX.Element {
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
   const [query, setQuery] = createSignal("");
+  const [keysOpen, setKeysOpen] = createSignal(false);
   const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
   // Every view auditions through this one engine, so each is heard in the slot.
   const previewEngine = props.slotAudition
@@ -195,6 +200,16 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
+  function toggleKeys(): void {
+    setKeysOpen((open) => !open);
+  }
+
+  function closeKeys(): boolean {
+    if (!keysOpen()) return false;
+    setKeysOpen(false);
+    return true;
+  }
+
   function insertSelected(): boolean {
     const asset = selected();
     if (!asset) return false;
@@ -204,7 +219,16 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   onSettled(() => {
     void client.loadIndex().then(setIndexed, () => {});
-    props.onActions?.({ showView, insertSelected, press, pick, similar, back });
+    props.onActions?.({
+      showView,
+      insertSelected,
+      press,
+      pick,
+      similar,
+      back,
+      toggleKeys,
+      closeKeys,
+    });
     return () => {
       props.onActions?.(null);
       // Escape, close and Insert all end here: the slot plays its own sound.
@@ -266,7 +290,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             type="button"
             class="library-modal-ghost"
             aria-label="Keyboard shortcuts"
-            onClick={() => props.onShowKeys?.()}
+            aria-expanded={ariaBool(keysOpen())}
+            onClick={toggleKeys}
           >
             <Key label={keyOf("help.shortcut_guide")} />
           </button>
@@ -290,6 +315,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
         </>
       }
     >
+      <Show when={keysOpen()}>
+        <LibraryKeys onClose={() => setKeysOpen(false)} />
+      </Show>
       <div class="library-modal-body">
         <nav class="library-modal-rail" aria-label="Places">
           <For each={PLACES}>{(item) => <RailButton item={item} />}</For>
