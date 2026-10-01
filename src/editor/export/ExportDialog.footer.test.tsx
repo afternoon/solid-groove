@@ -96,7 +96,7 @@ describe("ExportDialog: the message slot", () => {
   it("keeps its alert mounted and empty, and fills it with a failure", async () => {
     const view = renderDialog();
     const alert = screen.getByRole("alert");
-    expect(alert).toBeEmptyDOMElement();
+    expect(alert.textContent).toBe("");
     clickAndFlush(screen.getByRole("button", { name: "Export" }));
     await view.fail();
     expect(screen.getByRole("alert")).toBe(alert);

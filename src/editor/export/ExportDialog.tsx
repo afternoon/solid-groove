@@ -14,7 +14,7 @@ import { downloadFile } from "./downloadFile";
 import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
 import { estimateStereoBytes, exportFacts } from "./exportFacts";
-import { stemsNote } from "./exportNotes";
+import { stemsNote, stoppedNote, zipFailure } from "./exportNotes";
 import FormatCards, { type ExportFormat } from "./FormatCards";
 import { formatBytes } from "./stemSelection";
 import { exportStemsBatch, planStemsFiles } from "./stemsExport";
@@ -100,6 +100,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   /** The ZIPs already downloaded, in order, and where Export picks up again. */
   const [got, setGot] = createSignal(0);
   const [resumeFrom, setResumeFrom] = createSignal(0);
+  /** What Cancel said, until the next export or edit. */
+  const [stopped, setStopped] = createSignal("");
   const [scrollTo, setScrollTo] = createSignal<string | null>(null);
   const batchRows = createMemo(() =>
     format() === "stems" ? plan().map((batch) => batch.rowIds) : [],
@@ -156,6 +158,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const startOver = () => {
     setGot(0);
     setResumeFrom(0);
+    setStopped("");
     if (phase().kind === "failed") setPhase({ kind: "choose" });
   };
   createEffect(
@@ -188,6 +191,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       setGot(0);
       startedAt = systemClock.now();
     }
+    setStopped("");
     let index = resumeFrom();
     try {
       for (; index < count; index++) {
@@ -226,6 +230,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         error instanceof OfflineRenderError || error instanceof StemExportError;
       const code = coded ? error.code : "internal";
       setResumeFrom(got());
+      if (code === "aborted" && got() > 0) setStopped(stoppedNote(got(), count));
       setPhase(
         code === "aborted" ? { kind: "choose" } : { kind: "failed", code, batch: index },
       );
@@ -266,16 +271,26 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     if (phase().kind === "done") {
       return `Export complete. Your ${format() === "stems" ? "stems are" : "WAV is"} in your downloads.`;
     }
-    if (format() !== "stems") return "";
+    if (stopped()) return stopped();
+    if (failed() || format() !== "stems") return "";
     return stemsNote({
       tracks: list.trackIds().length,
       zips: plan().length,
       bytes: stemsBytes(),
     });
   };
+  /** A failure of one ZIP of several names it; any other keeps the one-file wording. */
   const alertText = () => {
     const current = failed();
-    return current ? failureMessage(current.code, format()) : "";
+    if (!current) return { lead: "", text: "" };
+    const reason = failureMessage(current.code, format());
+    if (format() !== "stems" || fileCount() < 2) return { lead: "", text: reason };
+    return zipFailure({
+      zip: current.batch + 1,
+      done: got(),
+      code: current.code,
+      reason,
+    });
   };
 
   return (
@@ -318,7 +333,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         zipCount={plan().length}
         printing={printingText()}
         note={noteText()}
-        alert={alertText()}
+        alert={alertText().text}
+        alertLead={alertText().lead}
       >
         <Show
           when={rendering()}

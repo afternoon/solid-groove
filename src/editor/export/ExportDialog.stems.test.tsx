@@ -78,7 +78,7 @@ describe("ExportDialog: Stems (ZIP)", () => {
     expect(fake.calls[0].request.signal?.aborted).toBe(true);
     await fake.calls[0].reject(new StemExportError("aborted", "cancelled"));
     expect(download).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+    expect(screen.getByRole("alert").textContent).toBe("");
     expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
   });
 

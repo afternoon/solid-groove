@@ -66,7 +66,7 @@ describe("ExportFooter", () => {
   it("keeps its alert mounted, empty until a failure, with the note beside it", () => {
     const view = renderFooter();
     const alert = screen.getByRole("alert");
-    expect(alert).toBeEmptyDOMElement();
+    expect(alert.textContent).toBe("");
     expect(alert).not.toHaveClass("shown");
     const note = document.getElementById(EXPORT_NOTE_ID) as HTMLElement;
     expect(note).toHaveAttribute("aria-live", "polite");

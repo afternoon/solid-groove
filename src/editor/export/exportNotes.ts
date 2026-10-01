@@ -1,3 +1,4 @@
+import type { ErrorCode } from "../../analytics/errorCodes";
 import { formatBytes } from "./stemSelection";
 
 /**
@@ -27,4 +28,42 @@ export function stemsNote({ tracks, zips, bytes }: StemsNoteInput): string {
     );
   }
   return `Stems over ${LIMIT_TEXT} come as several ZIPs in track order. These fit in one.`;
+}
+
+/** `ZIP 1 is` or `ZIPs 1–2 are`: the first `done` ZIPs, told as downloaded. */
+export function zipsAre(done: number): string {
+  return done > 1 ? `ZIPs 1–${done} are` : "ZIP 1 is";
+}
+
+/** What Cancel leaves behind when some ZIPs had already been downloaded. */
+export function stoppedNote(done: number, count: number): string {
+  const which = done > 1 ? `ZIPs 1–${done}` : "ZIP 1";
+  return `Stopped. ${which} of ${count} ${done > 1 ? "are" : "is"} in your downloads. Resume to print the rest.`;
+}
+
+export interface ZipFailureInput {
+  /** The ZIP that failed, 1-based. */
+  readonly zip: number;
+  /** How many ZIPs were downloaded before it. */
+  readonly done: number;
+  readonly code: ErrorCode;
+  /** What went wrong, for a failure with no wording of its own here. */
+  readonly reason: string;
+}
+
+/** A failed ZIP in the framed alert: the bold lead, then what to do about it. */
+export function zipFailure({ zip, done, code, reason }: ZipFailureInput): {
+  readonly lead: string;
+  readonly text: string;
+} {
+  const lead = `ZIP ${zip} failed:`;
+  const kept = done > 0 ? ` ${zipsAre(done)} already in your downloads.` : "";
+  if (code === "decode_failed" || code === "asset_missing") {
+    const next = done > 0 ? "resume." : "try again.";
+    return {
+      lead,
+      text: `a sound could not be loaded. Check your connection, then ${next}${kept}`,
+    };
+  }
+  return { lead, text: `${reason}${kept}` };
 }

@@ -18,6 +18,8 @@ export interface ExportFooterProps {
   readonly note: string;
   /** The message slot's failure, in the framed error style. */
   readonly alert: string;
+  /** Bold words that open the failure, `ZIP 2 failed:`. */
+  readonly alertLead?: string;
   /** The actions, right-aligned in a box of fixed width. */
   readonly children: JSX.Element;
 }
@@ -84,6 +86,9 @@ export default function ExportFooter(props: ExportFooterProps): JSX.Element {
       <div class="export-actions">{props.children}</div>
       <div class="export-message">
         <div class={["export-alert", { shown: props.alert !== "" }]} role="alert">
+          <Show when={props.alertLead}>
+            <b>{props.alertLead}</b>{" "}
+          </Show>
           {props.alert}
         </div>
         <output class="export-note" id={EXPORT_NOTE_ID} aria-live="polite">
