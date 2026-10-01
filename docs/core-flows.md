@@ -1158,3 +1158,40 @@ device, which it deliberately does not. Resizing from the keyboard, the
 double-click that resets a size, and the smallest and largest sizes, which are
 component-layer. That Ctrl+K does not clash with another shortcut, which the
 shortcut registry's own tests assert. The conversation itself (CF-027).
+
+### CF-029 — A producer selects every clip in the arrangement with Cmd+A
+
+**Issue:** #835 · **Suite:** `tests/e2e/emulator/flows/CF-029.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project, duplicate the "BD" clip twice, add a sampler track, and
+   duplicate its clip once, so "BD" has clips in bars 1, 2 and 3 and "Sampler"
+   has clips in bars 1 and 2.
+2. Click the "BD" clip in bar 1. It alone is selected, and the arrangement
+   announces "Selected clip on BD, bar 1".
+3. Press Cmd+A (Ctrl+A on Windows and Linux). Every clip on both tracks is
+   selected, and the arrangement announces "5 clips selected". No text on the
+   page is highlighted.
+4. Press Escape. Nothing is selected, and the arrangement announces "No
+   selection".
+5. Press Cmd+A again. Every clip is selected again, the arrangement announces
+   "5 clips selected", and no text on the page is highlighted.
+6. Press Delete. All five clips are gone. Both tracks are still there, empty.
+7. Reload the page.
+8. The project reopens exactly as step 6 left it: "BD" and "Sampler" are there,
+   with no clips.
+
+**Outcome:** with the arrangement in use, Cmd+A selected every clip in the song,
+on every track, whether or not something was selected first, and never the
+page's text. Escape cleared the selection. What Cmd+A selected is one selection
+that acts like any other: Delete removed exactly those clips, and the change was
+still there after a reload.
+
+**Out of scope:** clips outside the visible part of the arrangement, and a song
+with no clips, which are tested at the component layer. Cmd+A in the piano roll
+(CF-019) and in a text field, which the shortcut registry's own tests cover.
+Cut, copy, paste, duplicate and drag on a selection made this way, which act on
+the same selection as CF-010 and are tested at the component layer. Undo. What
+the outlines look like, as in CF-009.
