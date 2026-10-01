@@ -24,6 +24,8 @@ export interface UseEditorShortcutsOptions {
   readonly deleteSelection: () => void;
   readonly guideOpen: Accessor<boolean>;
   readonly setGuideOpen: (open: boolean) => void;
+  /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
+  readonly exportOpen: Accessor<boolean>;
   /** Whether the `UI-001` library modal is open, and how to close it. */
   readonly libraryOpen: Accessor<boolean>;
   readonly closeLibrary: () => void;
@@ -101,6 +103,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     deleteSelection,
     guideOpen,
     setGuideOpen,
+    exportOpen,
     libraryOpen,
     closeLibrary,
     libraryActions,
@@ -226,7 +229,14 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_arrangement": { run: () => selectView("arrangement") },
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
-    "help.shortcut_guide": { run: () => setGuideOpen(true) },
+    // In the library, `?` lists the library's own keys rather than the guide (#813).
+    "help.shortcut_guide": {
+      run: () => {
+        const actions = libraryActions();
+        if (libraryOpen() && actions) actions.toggleKeys();
+        else setGuideOpen(true);
+      },
+    },
     // Up/Down walk the selected track in the arrangement and instrument views.
     // Plain arrows only: Alt+Up/Down stay `device.move_*` (exact-modifier
     // matching), and a fader or list that has focus keeps its own arrows.
@@ -264,7 +274,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
     ),
     "library.back": inLibrary((a) => a.back()),
-    // Escape closes the innermost surface: the guide, then the library, then
+    // Escape closes the innermost surface: the guide, then the library's keys
+    // sheet (#813), then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
     // drag in flight is innermost of all: Escape cancels it (ARR-011). The
@@ -274,11 +285,14 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       run: () => {
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
-        else if (libraryOpen()) closeLibrary();
-        else closeSequenceEditor();
+        else if (libraryOpen()) {
+          if (!libraryActions()?.closeKeys()) closeLibrary();
+        } else closeSequenceEditor();
       },
+      // The Export dialog closes itself on Escape, and nothing beneath it should.
       isEnabled: () =>
-        arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen(),
+        !exportOpen() &&
+        (arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen()),
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.
@@ -408,7 +422,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // While a modal is open it is the only active context, so nothing behind it
   // can fire — including playback and selection (PRD KEY-02).
   const contexts = (): readonly ShortcutContext[] => {
-    if (guideOpen()) return ["dialog"];
+    if (guideOpen() || exportOpen()) return ["dialog"];
     // The library is a modal with keys of its own, live only while it is open.
     return libraryOpen() ? ["dialog", "library"] : editorContexts();
   };

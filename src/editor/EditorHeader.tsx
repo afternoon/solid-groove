@@ -1,9 +1,10 @@
 import { Portal } from "@solidjs/web";
-import { HiSolidQuestionMarkCircle, HiSolidSquares2x2 } from "solid-icons/hi";
-import { type Accessor, createSignal, Show } from "solid-js";
+import { HiSolidSquares2x2 } from "solid-icons/hi";
+import { type Accessor, createEffect, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import {
+  HelpIcon,
   LoopIcon,
   MetronomeIcon,
   PlayIcon,
@@ -64,16 +65,20 @@ export interface EditorHeaderProps {
   readonly onSwingInput: (value: number) => void;
   readonly onSwingCommit: (value: number) => void;
   readonly onOpenGuide: () => void;
+  /** Told whether the Export dialog is open, so the editor's keys can stand down. */
+  readonly onExportOpenChange?: (open: boolean) => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
   /** Injected in tests; defaults to the app-wide instance. */
   readonly analytics?: Analytics;
 }
 
 /**
- * The editor's top bar, in three sections (#340): the back link and project
- * name on the left; undo/redo, transport, tempo, metronome, and the editable
- * playhead in the centre; save state and the shortcut-guide toggle on the
- * right (share joins them later). Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
+ * The editor's top bar, in three zones with one job each (#340, UI-003 #819):
+ * the project (projects link, name) on the left; playing it ([play | loop],
+ * the editable playhead, [tempo | swing | metronome]) in the centre; the
+ * document ([undo | redo], save state, export, help) on the right. Every
+ * control but the name and save state sits in one equal-height cell, and a
+ * `header-cell-group` joins cells into one strip. Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
  * merge-clash surface, then handed the audio and session modules whole
  * (`REFACTOR-006`) rather than one prop per field. Props are read as
  * `props.audio.isPlaying()`, never destructured, so Solid keeps tracking them.
@@ -83,6 +88,10 @@ export default function EditorHeader(props: EditorHeaderProps) {
   const analytics = () => props.analytics ?? defaultAnalytics;
   const [renaming, setRenaming] = createSignal(false);
   const [exporting, setExporting] = createSignal(false);
+  createEffect(exporting, (open) => {
+    props.onExportOpenChange?.(open);
+    return () => props.onExportOpenChange?.(false);
+  });
   function seek(ticks: number): void {
     analytics().logFeatureFirstUse("playhead_seek");
     props.audio.seekTicks(ticks);
@@ -102,7 +111,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           aria-label="Projects"
           title="Projects"
         >
-          <HiSolidSquares2x2 size={24} />
+          <HiSolidSquares2x2 size={16} />
         </a>
         {/* The project's name, chosen by the user (ADR 0002 decision 2). A click
             turns it into an input. */}
@@ -129,92 +138,100 @@ export default function EditorHeader(props: EditorHeaderProps) {
         </h1>
       </div>
       <div class="editor-header-center transport-controls">
-        <button
-          type="button"
-          class="undo-button"
-          disabled={!history().canUndo}
-          aria-label={history().undoSummary ? `Undo ${history().undoSummary}` : "Undo"}
-          title={`${history().undoSummary ?? "Undo"} (${props.keyHint("edit.undo")})`}
-          onClick={() => props.session.undo()}
-        >
-          <UndoIcon size={18} />
-        </button>
-        <button
-          type="button"
-          class="redo-button"
-          disabled={!history().canRedo}
-          aria-label={history().redoSummary ? `Redo ${history().redoSummary}` : "Redo"}
-          title={`${history().redoSummary ?? "Redo"} (${props.keyHint("edit.redo")})`}
-          onClick={() => props.session.redo()}
-        >
-          <RedoIcon size={18} />
-        </button>
-        <button
-          type="button"
-          class="transport-toggle"
-          onClick={() => void props.audio.toggle()}
-          aria-pressed={ariaBool(props.audio.isPlaying())}
-          aria-label={props.audio.isPlaying() ? "Stop playback" : "Start playback"}
-          title={`${props.audio.isPlaying() ? "Stop" : "Play"} (${props.keyHint(
-            "transport.play_stop",
-          )})`}
-        >
-          <Show when={props.audio.isPlaying()} fallback={<PlayIcon size={28} />}>
-            {/* A filled square outweighs a triangle at one size, so Stop
-                is drawn smaller to read as the same size as Play. */}
-            <StopIcon size={24} />
-          </Show>
-        </button>
-        <button
-          type="button"
-          class="loop-toggle"
-          onClick={() => props.onToggleLoop()}
-          aria-pressed={ariaBool(props.audio.loopEnabled())}
-          aria-label={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
-          title={`${props.audio.loopEnabled() ? "Disable loop" : "Enable loop"} (${props.keyHint(
-            "transport.toggle_loop",
-          )})`}
-        >
-          <LoopIcon size={18} />
-        </button>
-        <div class="tempo-control">
-          {/* The label is the input's only accessible name — no
-					    aria-label to override it — and it carries the unit the
-					    field no longer prints. */}
-          <label class="visually-hidden" for="tempo-input">
-            Tempo (BPM)
-          </label>
-          <input
-            id="tempo-input"
-            type="number"
-            class="tempo-input"
-            min={MIN_TEMPO_BPM}
-            max={MAX_TEMPO_BPM}
-            step={1}
-            value={props.tempo()}
-            onChange={(event) => props.onTempoChange(event.currentTarget.valueAsNumber)}
-          />
+        <div class="header-cell-group">
+          <button
+            type="button"
+            class="transport-toggle"
+            onClick={() => void props.audio.toggle()}
+            aria-pressed={ariaBool(props.audio.isPlaying())}
+            aria-label={props.audio.isPlaying() ? "Stop playback" : "Start playback"}
+            title={`${props.audio.isPlaying() ? "Stop" : "Play"} (${props.keyHint(
+              "transport.play_stop",
+            )})`}
+          >
+            <Show when={props.audio.isPlaying()} fallback={<PlayIcon size={18} />}>
+              {/* A filled square outweighs a triangle at one size, so Stop
+                  is drawn smaller to read as the same size as Play. */}
+              <StopIcon size={14} />
+            </Show>
+          </button>
+          <button
+            type="button"
+            class="loop-toggle"
+            onClick={() => props.onToggleLoop()}
+            aria-pressed={ariaBool(props.audio.loopEnabled())}
+            aria-label={props.audio.loopEnabled() ? "Disable loop" : "Enable loop"}
+            title={`${props.audio.loopEnabled() ? "Disable loop" : "Enable loop"} (${props.keyHint(
+              "transport.toggle_loop",
+            )})`}
+          >
+            <LoopIcon size={18} />
+          </button>
         </div>
-        <SwingButton
-          swing={props.swing}
-          onInput={props.onSwingInput}
-          onCommit={props.onSwingCommit}
-        />
-        <button
-          type="button"
-          class="metronome-toggle"
-          onClick={() => props.audio.toggleMetronome()}
-          aria-pressed={ariaBool(props.audio.metronomeEnabled())}
-          aria-label={
-            props.audio.metronomeEnabled() ? "Disable metronome" : "Enable metronome"
-          }
-          title={`Metronome (${props.keyHint("transport.metronome")})`}
-        >
-          <MetronomeIcon size={18} />
-        </button>
         <PlayheadInput positionTicks={props.audio.positionTicks} onSeek={seek} />
+        <div class="header-cell-group">
+          <div class="tempo-control">
+            {/* The label is the input's only accessible name — no
+                aria-label to override it. The printed unit is decoration. */}
+            <label class="visually-hidden" for="tempo-input">
+              Tempo (BPM)
+            </label>
+            <input
+              id="tempo-input"
+              type="number"
+              class="tempo-input"
+              min={MIN_TEMPO_BPM}
+              max={MAX_TEMPO_BPM}
+              step={1}
+              value={props.tempo()}
+              onChange={(event) => props.onTempoChange(event.currentTarget.valueAsNumber)}
+            />
+            <span class="tempo-unit" aria-hidden="true">
+              BPM
+            </span>
+          </div>
+          <SwingButton
+            swing={props.swing}
+            onInput={props.onSwingInput}
+            onCommit={props.onSwingCommit}
+          />
+          <button
+            type="button"
+            class="metronome-toggle"
+            onClick={() => props.audio.toggleMetronome()}
+            aria-pressed={ariaBool(props.audio.metronomeEnabled())}
+            aria-label={
+              props.audio.metronomeEnabled() ? "Disable metronome" : "Enable metronome"
+            }
+            title={`Metronome (${props.keyHint("transport.metronome")})`}
+          >
+            <MetronomeIcon size={18} />
+          </button>
+        </div>
       </div>
       <div class="editor-header-end">
+        <div class="header-cell-group">
+          <button
+            type="button"
+            class="undo-button"
+            disabled={!history().canUndo}
+            aria-label={history().undoSummary ? `Undo ${history().undoSummary}` : "Undo"}
+            title={`${history().undoSummary ?? "Undo"} (${props.keyHint("edit.undo")})`}
+            onClick={() => props.session.undo()}
+          >
+            <UndoIcon size={18} />
+          </button>
+          <button
+            type="button"
+            class="redo-button"
+            disabled={!history().canRedo}
+            aria-label={history().redoSummary ? `Redo ${history().redoSummary}` : "Redo"}
+            title={`${history().redoSummary ?? "Redo"} (${props.keyHint("edit.redo")})`}
+            onClick={() => props.session.redo()}
+          >
+            <RedoIcon size={18} />
+          </button>
+        </div>
         <SaveStatus
           saveStatus={() => history().saveStatus}
           onRetry={() => void props.session.retry()}
@@ -248,7 +265,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
           title={`Keyboard shortcuts (${props.keyHint("help.shortcut_guide")})`}
           onClick={() => props.onOpenGuide()}
         >
-          <HiSolidQuestionMarkCircle size={24} />
+          <HelpIcon size={18} />
         </button>
       </div>
     </header>

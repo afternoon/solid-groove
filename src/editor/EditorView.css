@@ -80,18 +80,6 @@
   justify-content: flex-end;
 }
 
-.editor-header .back-to-projects {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-secondary);
-  text-decoration: none;
-}
-
-.editor-header .back-to-projects:hover {
-  color: var(--color-text-primary);
-}
-
 .editor-header .project-name {
   font-size: var(--font-size-title);
   margin: 0;
@@ -108,6 +96,22 @@
   overflow: hidden;
   white-space: nowrap;
   cursor: text;
+}
+
+/* The name is never boxed (#819): it keeps the bare look, and an underline
+ * is its rename cue. */
+.editor-header .project-name-button,
+.editor-header .project-name-button:not(:disabled):hover {
+  height: auto;
+  padding: 0;
+  background: none;
+  color: inherit;
+}
+
+.editor-header .project-name-button:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--color-foreground-muted);
+  text-underline-offset: 4px;
 }
 
 .editor-header .project-name-input {
@@ -128,16 +132,44 @@
   gap: 8px;
 }
 
-.editor-header button {
+/*
+ * The cell (UI-003, #819): every control but the name and the save state
+ * sits in one equal-height rectangle, after Ableton's control bar. A button
+ * is a raised cell; a value you type is a recessed field. State is
+ * brightness: a pressed toggle, playing, and the primary action are white.
+ */
+.editor-header {
+  --header-cell: 26px;
+}
+
+/* Cells joined into one strip, a hairline apart. */
+.editor-header .header-cell-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.editor-header button,
+.editor-header .back-to-projects {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  height: auto;
-  background: none;
+  box-sizing: border-box;
+  min-width: var(--header-cell);
+  height: var(--header-cell);
+  padding: 0 4px;
+  background: var(--color-background-highlight);
   border: none;
-  color: inherit;
+  border-radius: 0;
+  color: var(--color-text-secondary);
+  text-decoration: none;
   cursor: pointer;
+}
+
+.editor-header button:not(:disabled):hover,
+.editor-header .back-to-projects:hover {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-bright);
 }
 
 .editor-header button:disabled {
@@ -145,101 +177,123 @@
   cursor: default;
 }
 
-.editor-header button:not(:disabled):hover {
-  opacity: 0.75;
+.editor-header button:focus-visible,
+.editor-header .back-to-projects:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
-/* The play well: recessed while idle, a white fill while playing (state is
- * brightness). A fixed box, so swapping Play for the smaller Stop glyph
- * never resizes it. */
+/* Play is the one cell wider than square, a fixed width so swapping Play
+ * for the smaller Stop glyph never moves the bar. */
 .editor-header .transport-toggle {
-  width: 36px;
-  height: 36px;
-  background: var(--color-background-well);
-  border-radius: 0;
-  color: var(--color-text-primary);
+  width: 48px;
 }
 
-.editor-header .transport-toggle[aria-pressed="true"] {
+.editor-header .transport-toggle[aria-pressed="true"],
+.editor-header .loop-toggle[aria-pressed="true"],
+.editor-header .metronome-toggle[aria-pressed="true"],
+.editor-header .swing-toggle[aria-expanded="true"] {
   background: var(--color-accent);
   color: var(--color-on-accent);
-  opacity: 1;
 }
 
-.editor-header .loop-toggle[aria-pressed="true"],
-.editor-header .metronome-toggle[aria-pressed="true"] {
-  color: var(--color-accent);
-  opacity: 1;
+.editor-header .transport-toggle[aria-pressed="true"]:hover,
+.editor-header .loop-toggle[aria-pressed="true"]:hover,
+.editor-header .metronome-toggle[aria-pressed="true"]:hover,
+.editor-header .swing-toggle[aria-expanded="true"]:hover {
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
 }
 
-/* Swing reads "on" above 50% like the toggles above, and pressed while its
- * panel is open (brightness, not hue). */
-.editor-header .swing-toggle.is-on {
-  color: var(--color-accent);
-  opacity: 1;
-}
-
-.editor-header .swing-toggle[aria-expanded="true"] {
-  background: var(--color-background-well);
-  color: var(--color-accent);
-  opacity: 1;
-}
-
-.editor-header .tempo-control {
-  display: inline-flex;
-  font-size: var(--font-size-small);
-}
-
-.editor-header .tempo-input,
-.editor-header .playhead-segment {
-  width: 3.5em;
-  font: inherit;
-  color: var(--color-text-primary);
-  background: var(--color-background-highlight);
-  border: 1px solid transparent;
-  border-radius: 0;
-  padding: 2px 4px;
-  text-align: right;
-}
-
-.editor-header .tempo-input:focus,
-.editor-header .playhead-segment:focus {
-  border-color: var(--color-accent);
-  outline: none;
-}
-
-/* One field of two segments: bar and beat, joined by a drawn dot. */
-.editor-header .playhead-position {
-  display: inline-flex;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-  align-items: center;
+/* Swing shows its value beside the glyph, and reads "on" above 50%. */
+.editor-header .swing-toggle {
+  gap: 4px;
+  padding: 0 6px;
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
 }
 
+.editor-header .swing-toggle.is-on {
+  color: var(--color-text-primary);
+}
+
+/* The primary action: the one white cell at rest. */
+.editor-header .export-button {
+  padding: 0 12px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+.editor-header .export-button:not(:disabled):hover {
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
+}
+
+/* A field: black, with a 1px inset that brightens under the pointer. */
+.editor-header .tempo-control,
+.editor-header .playhead-position {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--header-cell);
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  min-width: 0;
+  background: var(--color-background);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-header .tempo-control:hover,
+.editor-header .playhead-position:hover {
+  box-shadow: inset 0 0 0 1px var(--color-foreground);
+}
+
+.editor-header .tempo-control:focus-within,
+.editor-header .playhead-position:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.editor-header .tempo-input,
 .editor-header .playhead-segment {
-  width: 3em;
+  width: 3ch;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text-primary);
+  background: none;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  text-align: right;
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-.editor-header .playhead-beat {
-  width: 2em;
-  text-align: left;
-}
-
+.editor-header .tempo-input::-webkit-inner-spin-button,
+.editor-header .tempo-input::-webkit-outer-spin-button,
 .editor-header .playhead-segment::-webkit-inner-spin-button,
 .editor-header .playhead-segment::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
+.editor-header .tempo-unit {
+  margin-left: 4px;
+  color: var(--color-foreground-muted);
+}
+
+.editor-header .playhead-beat {
+  width: 1ch;
+  text-align: left;
+}
+
 .editor-header .playhead-separator::before {
   content: ".";
-  padding: 0 1px;
   color: var(--color-text-secondary);
 }
 
@@ -249,15 +303,34 @@
   gap: 8px;
 }
 
+/* Unboxed, with a square dot: grey when saved, white while saving. */
 .editor-header .save-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
   min-width: 80px;
-  text-align: right;
+}
+
+.editor-header .save-status:not(:empty)::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: var(--color-foreground-muted);
+}
+
+.editor-header .save-status:is([data-state="saving"], [data-state="pending"])::before {
+  background: var(--color-foreground-bright);
 }
 
 .editor-header .save-status[data-state="failed"] {
   color: var(--color-danger);
+}
+
+.editor-header .save-status[data-state="failed"]::before {
+  background: var(--color-danger);
 }
 
 .editor-header .save-recovery {
@@ -273,13 +346,7 @@
   color: inherit;
   background: none;
   border: 1px solid currentColor;
-  border-radius: 0;
-  padding: 2px 8px;
-  cursor: pointer;
-}
-
-.editor-header .save-retry-button:hover {
-  opacity: 0.75;
+  padding: 0 8px;
 }
 
 /*

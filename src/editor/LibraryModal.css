@@ -166,3 +166,80 @@
   color: inherit;
   opacity: 0.7;
 }
+
+/* The library's own keys (#813): a sheet over the window's body, leaving the
+   header and footer showing, as the reference places it. */
+.library-keys {
+  position: absolute;
+  inset: 60px 90px 70px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 22px;
+  overflow: auto;
+  background: var(--color-background);
+  box-shadow:
+    0 20px 60px var(--shade-medium),
+    0 0 0 1px var(--color-border-strong);
+  font-size: 12px;
+}
+
+.library-keys-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.library-keys h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--color-text);
+}
+
+.library-keys p {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--color-foreground);
+}
+
+.library-keys-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-foreground);
+  font-size: 18px;
+}
+
+.library-keys-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.library-keys-grid h3 {
+  margin: 0 0 6px;
+  padding-bottom: 2px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.library-keys-grid dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  align-content: start;
+  margin: 0;
+}
+
+.library-keys-grid dt {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.library-keys-grid dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+}

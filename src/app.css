@@ -2,6 +2,9 @@
    file is the application's base layer on top of it — typography, the document
    shell, and the element defaults every surface inherits. */
 @import "./theme.css";
+/* Inter, self-hosted: the font ships with the app rather than from a third
+   party, so it costs no extra processor (PRD "Security and privacy"). */
+@import "@fontsource-variable/inter";
 
 * {
   --font-size-tiny: 10px;
@@ -20,9 +23,9 @@
      most, with this much rack showing between one and the next. */
   --rack-unit-width: 1000px;
   --rack-gap: 12px;
-  /* The UI's one font stack. `?font=<Google Font>` overrides it at runtime
-     (`src/shared/fontOverride.ts`). */
-  --font-family: system-ui, sans-serif;
+  /* The UI's one font stack. The arrangement canvas reads it back off the
+     document (`src/arrangement/canvasRenderer.ts`). */
+  --font-family: "Inter Variable", system-ui, sans-serif;
 }
 
 :root {
@@ -55,6 +58,15 @@ h2 {
   font-size: var(--font-size-lg);
   font-weight: 700;
   margin-bottom: 14px;
+}
+
+/* Form controls do not inherit the font family on their own: without this they
+   fall back to the browser's default face, and `?font=` never reaches them. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 button {
