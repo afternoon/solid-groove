@@ -10,6 +10,7 @@ import { type ShortcutContext, useShortcuts } from "../../shortcuts";
 import { downloadFile } from "./downloadFile";
 import ExportTitleRow from "./ExportTitleRow";
 import { exportFacts } from "./exportFacts";
+import FormatCards, { type ExportFormat } from "./FormatCards";
 import StemTrackPicker, { STEMS_BLOCKER_ID } from "./StemTrackPicker";
 import { createStemSelection } from "./stemSelection";
 import { exportStemsFile } from "./stemsExport";
@@ -33,7 +34,7 @@ type Phase =
   | { readonly kind: "done" }
   | { readonly kind: "failed"; readonly code: ErrorCode };
 
-type Format = "stereo" | "stems";
+type Format = ExportFormat;
 
 const DIALOG_CONTEXTS: readonly ShortcutContext[] = ["dialog"];
 
@@ -133,30 +134,12 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   return (
     <Dialog label="Export" class="export-shell" flush onClose={close}>
       <ExportTitleRow facts={facts()} />
+      <FormatCards
+        value={format()}
+        disabled={phase().kind === "rendering"}
+        onChange={setFormat}
+      />
       <div class="export-dialog">
-        <fieldset class="export-formats" disabled={phase().kind === "rendering"}>
-          <legend class="visually-hidden">Format</legend>
-          <label class="export-format">
-            <input
-              type="radio"
-              name="export-format"
-              value="stereo"
-              checked={format() === "stereo"}
-              onChange={() => setFormat("stereo")}
-            />
-            <span>Stereo WAV</span>
-          </label>
-          <label class="export-format">
-            <input
-              type="radio"
-              name="export-format"
-              value="stems"
-              checked={format() === "stems"}
-              onChange={() => setFormat("stems")}
-            />
-            <span>Stems (ZIP)</span>
-          </label>
-        </fieldset>
         <Show when={format() === "stems"}>
           <StemTrackPicker
             selection={selection}
