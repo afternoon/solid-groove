@@ -24,6 +24,8 @@ export interface UseEditorShortcutsOptions {
   readonly deleteSelection: () => void;
   readonly guideOpen: Accessor<boolean>;
   readonly setGuideOpen: (open: boolean) => void;
+  /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
+  readonly exportOpen: Accessor<boolean>;
   /** Whether the `UI-001` library modal is open, and how to close it. */
   readonly libraryOpen: Accessor<boolean>;
   readonly closeLibrary: () => void;
@@ -101,6 +103,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     deleteSelection,
     guideOpen,
     setGuideOpen,
+    exportOpen,
     libraryOpen,
     closeLibrary,
     libraryActions,
@@ -277,8 +280,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         else if (libraryOpen()) closeLibrary();
         else closeSequenceEditor();
       },
+      // The Export dialog closes itself on Escape, and nothing beneath it should.
       isEnabled: () =>
-        arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen(),
+        !exportOpen() &&
+        (arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen()),
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.
@@ -408,7 +413,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // While a modal is open it is the only active context, so nothing behind it
   // can fire — including playback and selection (PRD KEY-02).
   const contexts = (): readonly ShortcutContext[] => {
-    if (guideOpen()) return ["dialog"];
+    if (guideOpen() || exportOpen()) return ["dialog"];
     // The library is a modal with keys of its own, live only while it is open.
     return libraryOpen() ? ["dialog", "library"] : editorContexts();
   };
