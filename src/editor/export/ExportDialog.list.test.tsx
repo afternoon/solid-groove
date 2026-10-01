@@ -7,7 +7,7 @@ import { clickAndFlush, fireAndFlush } from "../../testing/events";
 import ExportDialog from "./ExportDialog";
 import type { exportStemsFile, StemsExportRequest } from "./stemsExport";
 
-/** The track list mounted in the dialog, and the selection made on it (EXP-004). */
+/** The track list mounted in the dialog: selection, keys and Escape (EXP-004). */
 
 afterEach(cleanup);
 stubCanvasContext();
@@ -39,6 +39,9 @@ function renderDialog() {
 
 const click = (element: Element, init: MouseEventInit = {}) =>
   fireAndFlush(() => fireEvent.click(element, init));
+const press = (key: string, init: KeyboardEventInit = {}) =>
+  fireAndFlush(() => fireEvent.keyDown(window, { key, ...init }));
+const focusList = () => fireAndFlush(() => listbox().focus());
 const stems = () => clickAndFlush(screen.getByRole("radio", { name: "Stems (ZIP)" }));
 const options = () => screen.getAllByRole("option");
 const left = () =>
@@ -102,5 +105,69 @@ describe("ExportDialog: the track list", () => {
     expect(picked()).toHaveLength(1);
     clickAndFlush(screen.getByRole("radio", { name: "Stereo WAV" }));
     expect(picked()).toHaveLength(0);
+  });
+
+  it("clears the picks on Escape before it closes", () => {
+    const { onClose } = renderDialog();
+    stems();
+    click(options()[2], { ctrlKey: true });
+    expect(picked()).toHaveLength(1);
+    press("Escape");
+    expect(picked()).toHaveLength(0);
+    expect(onClose).not.toHaveBeenCalled();
+    press("Escape");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes on Escape in stereo, where the list holds nothing to clear", () => {
+    const { onClose } = renderDialog();
+    stems();
+    click(options()[2], { ctrlKey: true });
+    clickAndFlush(screen.getByRole("radio", { name: "Stereo WAV" }));
+    press("Escape");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ExportDialog: the track list's keys", () => {
+  it("move, flip and pick while the list has focus", () => {
+    renderDialog();
+    stems();
+    focusList();
+    const active = () => listbox().getAttribute("aria-activedescendant");
+    press("ArrowDown");
+    const first = active();
+    expect(first).toBe(options()[1].id);
+    press("ArrowDown");
+    expect(active()).toBe(options()[2].id);
+    press("ArrowUp");
+    expect(active()).toBe(first);
+
+    press(" ");
+    expect(left()).toEqual([options()[1]]);
+    press("Enter");
+    expect(left()).toHaveLength(0);
+
+    press("ArrowDown", { shiftKey: true });
+    press("ArrowDown", { shiftKey: true });
+    expect(picked()).toHaveLength(3);
+    press("a", { ctrlKey: true });
+    expect(picked().length).toBe(options().length);
+  });
+
+  it("do nothing until the list has focus, nor in stereo", () => {
+    renderDialog();
+    stems();
+    press(" ");
+    press("ArrowDown");
+    expect(left()).toHaveLength(0);
+    expect(listbox()).toHaveAttribute("aria-activedescendant", options()[0].id);
+
+    clickAndFlush(screen.getByRole("radio", { name: "Stereo WAV" }));
+    focusList();
+    press("ArrowDown");
+    press(" ");
+    expect(listbox()).toHaveAttribute("aria-activedescendant", options()[0].id);
+    expect(left()).toHaveLength(0);
   });
 });

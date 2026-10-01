@@ -1,12 +1,20 @@
 import type { JSX } from "@solidjs/web";
-import { createMemo, createSignal, Match, onCleanup, Show, Switch } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  Match,
+  onCleanup,
+  Show,
+  Switch,
+} from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
-import { type ShortcutContext, useShortcuts } from "../../shortcuts";
+import { useShortcuts } from "../../shortcuts";
 import { downloadFile } from "./downloadFile";
 import ExportTitleRow from "./ExportTitleRow";
 import { exportFacts } from "./exportFacts";
@@ -37,8 +45,6 @@ type Phase =
   | { readonly kind: "failed"; readonly code: ErrorCode };
 
 type Format = ExportFormat;
-
-const DIALOG_CONTEXTS: readonly ShortcutContext[] = ["dialog"];
 
 /** What a failed export tells the producer to do about it. */
 export function failureMessage(code: ErrorCode, format: Format = "stereo"): string {
@@ -77,10 +83,25 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const facts = createMemo(() => exportFacts(props.project()));
   const list = useTrackList({
     project: props.project,
+    editable: () => format() === "stems" && phase().kind !== "rendering",
   });
   const estimate = createMemo(() => estimateStemsFile(props.project(), list.trackIds()));
   const blocker = createMemo(() => stemsBlocker(list.trackIds().length, estimate()));
   const blocked = () => format() === "stems" && blocker() !== null;
+  let root!: HTMLDivElement;
+  /** Keys reach the list only while it has focus, so a click hands it focus. */
+  const focusList = () =>
+    queueMicrotask(() => root.querySelector<HTMLElement>('[role="listbox"]')?.focus());
+  // The row the keys are on stays in view as they move it.
+  createEffect(
+    () => list.focusId(),
+    () => {
+      const active = root
+        .querySelector('[role="listbox"]')
+        ?.getAttribute("aria-activedescendant");
+      if (active) document.getElementById(active)?.scrollIntoView?.({ block: "nearest" });
+    },
+  );
   let controller: AbortController | undefined;
 
   const cancel = () => controller?.abort();
@@ -90,9 +111,17 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   };
   onCleanup(cancel);
 
+  // Escape clears the list's picks first, and closes only when there were none.
   useShortcuts({
-    handlers: () => ({ "view.close_surface": { run: close } }),
-    contexts: () => DIALOG_CONTEXTS,
+    handlers: () => ({
+      ...list.handlers(),
+      "view.close_surface": {
+        run: () => {
+          if (!list.run("clear_picks")) close();
+        },
+      },
+    }),
+    contexts: list.contexts,
   });
 
   async function start(): Promise<void> {
@@ -148,16 +177,22 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
           setFormat(next);
         }}
       />
-      <TrackLanes
-        rows={list.rows()}
-        bars={list.bars()}
-        focusId={list.focusId()}
-        readOnly={format() === "stereo"}
-        disabled={phase().kind === "rendering"}
-        heightPx={250}
-        onRowClick={list.click}
-        onPickAction={list.pick}
-      />
+      <div ref={root}>
+        <TrackLanes
+          rows={list.rows()}
+          bars={list.bars()}
+          focusId={list.focusId()}
+          readOnly={format() === "stereo"}
+          disabled={phase().kind === "rendering"}
+          heightPx={250}
+          onRowClick={(index, modifiers) => {
+            list.click(index, modifiers);
+            focusList();
+          }}
+          onPickAction={list.pick}
+          onFocusChange={list.setFocused}
+        />
+      </div>
       <div class="export-dialog">
         <Show when={format() === "stems"}>
           <StemsBudgetNote estimate={estimate()} blocker={blocker()} />
