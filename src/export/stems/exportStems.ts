@@ -82,6 +82,19 @@ export interface StemExportOptions {
   readonly maxBytes?: number;
   /** Test seam: the offline renderer. */
   readonly render?: StemRenderer;
+  /** Build only the stems at these archive paths (one ZIP of a batched
+   * export, EXP-004). The reference mix still reflects the whole `trackIds`
+   * selection, and every stem is still sized and aligned to it. */
+  readonly stems?: readonly string[];
+  /** Marks this call as ZIP `index` of `count` in one user export, so the
+   * event trio fires once for the whole export: started and first use on ZIP
+   * 0, completed after the last ZIP, failed by whichever ZIP fails.
+   * `startedAt` is the export's start on the clock, for elapsed time. */
+  readonly batch?: {
+    readonly index: number;
+    readonly count: number;
+    readonly startedAt?: number;
+  };
 }
 
 /** Why a stem export did not finish. `code` is a stable analytics code. */
@@ -166,20 +179,31 @@ export async function exportStems(
   const clock = options.clock ?? systemClock;
   const render = options.render ?? renderProjectOffline;
   const started = clock.now();
-  const plan = planFor(project, options.trackIds);
-  const mix = plan[plan.length - 1].projection;
+  const fullPlan = planFor(project, options.trackIds);
+  const mix = fullPlan[fullPlan.length - 1].projection;
   const songSeconds = songEndSeconds(mix);
+  const only = options.stems && new Set(options.stems);
+  const plan = only ? fullPlan.filter((stem) => only.has(stem.path)) : fullPlan;
+  const planSize = planFrames(fullPlan, options);
+  const batch = options.batch;
+  const isFirst = !batch || batch.index === 0;
+  const isLast = !batch || batch.index === batch.count - 1;
+  const zipCount = batch ? { zip_count: batch.count } : {};
+  const exportStartedAt = batch?.startedAt ?? started;
   const selected = options.trackIds && new Set(options.trackIds);
   const leavesTrackOut =
     !!selected && project.song.tracks.some((track) => !selected.has(track.id));
 
-  analytics?.logFeatureFirstUse("export_stems");
-  if (leavesTrackOut) analytics?.logFeatureFirstUse("export_stems_selection");
-  analytics?.log("export_started", {
-    export_type: "stems",
-    duration_bucket: bucketOf("musical_duration", songSeconds),
-    track_count_bucket: bucketOf("track_count", project.song.tracks.length),
-  });
+  if (isFirst) {
+    analytics?.logFeatureFirstUse("export_stems");
+    if (leavesTrackOut) analytics?.logFeatureFirstUse("export_stems_selection");
+    analytics?.log("export_started", {
+      export_type: "stems",
+      duration_bucket: bucketOf("musical_duration", songSeconds),
+      track_count_bucket: bucketOf("track_count", project.song.tracks.length),
+      ...zipCount,
+    });
+  }
 
   let progress = 0;
   const report = (fraction: number) => {
@@ -190,7 +214,7 @@ export async function exportStems(
 
   try {
     const refuseOverBudget = (frames?: number) => {
-      if (estimatePlan(plan, options, frames).fits) return;
+      if (estimatePlan(plan, options, frames ?? planSize).fits) return;
       throw new StemExportError("quota_exceeded", "The stems are too large");
     };
     // The estimate's bound covers every render: refuse before a single one.
@@ -223,10 +247,13 @@ export async function exportStems(
       channels: RENDER_CHANNELS,
     });
     report(1);
-    analytics?.log("export_completed", {
-      export_type: "stems",
-      elapsed_ms_bucket: bucketOf("elapsed_ms", clock.now() - started),
-    });
+    if (isLast) {
+      analytics?.log("export_completed", {
+        export_type: "stems",
+        elapsed_ms_bucket: bucketOf("elapsed_ms", clock.now() - exportStartedAt),
+        ...zipCount,
+      });
+    }
     return archive;
   } catch (error) {
     const failure = asStemExportError(error, signal);
