@@ -143,7 +143,8 @@ describe("LibraryModal shell", () => {
         previewEngine={fakePreviewEngine()}
         onInsert={extra.onInsert ?? (() => {})}
         addedPackIds={[pack.id]}
-        slot="Drums · BD"
+        eyebrow="Drums · Pad 1"
+        slot="BD"
         current="Rounded Club Kick"
         onActions={extra.onActions}
         keyLabel={extra.keyLabel}
@@ -160,7 +161,11 @@ describe("LibraryModal shell", () => {
   it("names the slot and what it was, then Hearing and Insert follow the selection", async () => {
     const onInsert = vi.fn();
     renderShell({ onInsert });
-    expect(screen.getByText("Drums · BD")).toBeVisible();
+    // The eyebrow says where the slot sits; the pad's own name is the title.
+    const slot = screen.getByText("BD");
+    expect(slot.tagName).toBe("B");
+    expect(slot.previousElementSibling).toHaveTextContent("Drums · Pad 1");
+    expect(slot.previousElementSibling).toHaveClass("library-modal-label");
     expect(screen.getByRole("group", { name: "Was" })).toHaveTextContent(
       "Rounded Club Kick",
     );
@@ -266,6 +271,22 @@ describe("LibraryModal shell", () => {
     });
 
     expect(await screen.findByText("No sounds to show.")).toBeVisible();
+  });
+
+  it("clears the search from its own control, shown only while there is a query", async () => {
+    renderShell();
+    await screen.findAllByRole("listitem");
+    const search = screen.getByRole("searchbox", { name: "Search sounds" });
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+
+    fireEvent.input(search, { target: { value: "zzzz-no-such-sound" } });
+    flush();
+    clickAndFlush(screen.getByRole("button", { name: "Clear search" }));
+
+    expect(search).toHaveValue("");
+    expect(document.activeElement).toBe(search);
+    expect(screen.queryByRole("button", { name: "Clear search" })).toBeNull();
+    expect((await screen.findAllByRole("listitem")).length).toBeGreaterThan(0);
   });
 
   it("forwards a library key to the sounds view, and Down leaves the search field", async () => {

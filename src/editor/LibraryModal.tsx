@@ -20,6 +20,7 @@ import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
 import LibraryKeys from "./LibraryKeys";
+import { ClearIcon, SearchIcon } from "./libraryIcons";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
@@ -82,6 +83,8 @@ export interface LibraryModalProps {
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
   readonly heading?: string;
+  /** The small label over the slot's name: its track, and a pad's position. */
+  readonly eyebrow?: string;
   readonly slot?: string;
   readonly trackColor?: string;
   /** What the library opens for, so the shelf can open on the slot's family. */
@@ -181,9 +184,14 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
 
+  // Looked up rather than held by `ref`: the dialog reads its header prop more
+  // than once, so a ref can end up naming a copy that never mounted.
+  const focusSearch = () =>
+    document.querySelector<HTMLInputElement>(".library-modal-search")?.focus();
+
   function press(action: ShortcutActionId): void {
     if (action === "library.search") {
-      document.querySelector<HTMLInputElement>(".library-modal-search")?.focus();
+      focusSearch();
       return;
     }
     // Down is how a producer leaves the search field for the list.
@@ -208,6 +216,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     if (!keysOpen()) return false;
     setKeysOpen(false);
     return true;
+  }
+
+  function clearSearch(): void {
+    setQuery("");
+    focusSearch();
   }
 
   function insertSelected(): boolean {
@@ -262,7 +275,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             class="library-modal-bar"
             style={{ background: props.trackColor ?? "var(--color-accent)" }}
           />
-          <b class="library-modal-slot">{props.slot ?? props.heading ?? "Library"}</b>
+          <div class={["library-modal-slot", MASK_CONTENT]}>
+            <Show when={props.eyebrow}>
+              <span class="library-modal-label">{props.eyebrow}</span>
+            </Show>
+            <b>{props.slot ?? props.heading ?? "Library"}</b>
+          </div>
           <fieldset class="library-modal-readout">
             <legend class="library-modal-label">Was</legend>
             <b>{props.current ?? "Empty"}</b>
@@ -271,14 +289,27 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             <legend class="library-modal-label">Hearing</legend>
             <b>{selected()?.name ?? "Nothing yet"}</b>
           </fieldset>
-          <input
-            type="search"
-            class={["library-modal-search", MASK_CONTENT]}
-            placeholder="Search sounds, packs and categories"
-            aria-label="Search sounds"
-            value={query()}
-            onInput={(event) => setQuery(event.currentTarget.value)}
-          />
+          <label class="library-modal-find">
+            <SearchIcon />
+            <input
+              type="search"
+              class={["library-modal-search", MASK_CONTENT]}
+              placeholder="Search sounds, packs and categories"
+              aria-label="Search sounds"
+              value={query()}
+              onInput={(event) => setQuery(event.currentTarget.value)}
+            />
+            <Show when={query()}>
+              <button
+                type="button"
+                class="library-modal-clear"
+                aria-label="Clear search"
+                onClick={clearSearch}
+              >
+                <ClearIcon />
+              </button>
+            </Show>
+          </label>
         </div>
       }
       footer={

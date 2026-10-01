@@ -1,6 +1,25 @@
 /* The library as a centred window (UI-001, LIB-010) on the shared dialog
    chrome: a header, a rail of places, the main list and a footer. */
 
+/* The window reads at the reference's 12px, and app.css's global button and
+   input metrics stop at its edge. `:where` keeps this at element weight, so
+   every library control's own class still sets its padding and size. */
+.dialog-modal {
+  font-size: 12px;
+}
+
+:where(.dialog-modal) :is(button, input) {
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.dialog-modal > .dialog-header {
+  min-height: 68px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
 .library-modal-body,
 .library-modal-head,
 .library-modal-ghost {
@@ -17,30 +36,50 @@
 
 .library-modal-head {
   flex: 1 1 auto;
-  gap: 24px;
+  gap: 28px;
   min-width: 0;
 }
 
+/* The bar and the slot read as one block, so they sit closer than the rest. */
 .library-modal-bar {
   width: 4px;
-  align-self: stretch;
+  height: 34px;
+  margin-right: -16px;
   flex: none;
 }
 
-.library-modal-slot,
+.library-modal-slot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.library-modal-slot b {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--color-foreground-bright);
+}
+
+.library-modal-slot > *,
 .library-modal-readout b {
-  font-weight: 500;
-  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.library-modal-readout b {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
 }
 
 /* A fieldset, so each readout is a group named by its label. */
 .library-modal-readout {
   display: flex;
   flex-direction: column;
-  max-width: 170px;
+  max-width: 190px;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -53,14 +92,65 @@
 
 .library-modal-label {
   font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-foreground-muted);
 }
 
-.library-modal-search {
+/* Search is a black well with a hairline edge that brightens while you type. */
+.library-modal-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 260px;
+  height: 32px;
+  flex: none;
+  margin-left: auto;
+  padding: 0 4px 0 10px;
+  background: var(--color-background);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-foreground);
+}
+
+.library-modal-find:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-accent-dim);
+}
+
+.library-modal-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.library-modal-search,
+.library-modal-search:hover {
   flex: 1 1 auto;
   min-width: 0;
+  background: none;
+  color: var(--color-text);
+  font-size: 13px;
+  outline: none;
+}
+
+/* The browser's own clear cross is blue; the window draws a monochrome one. */
+.library-modal-search::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.library-modal-clear {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  background: transparent;
+  color: var(--color-foreground);
+}
+
+.library-modal-clear:hover {
+  background: var(--color-background-highlight);
+  color: var(--color-accent);
 }
 
 .library-modal-rail {
@@ -77,6 +167,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 6px 10px;
   background: transparent;
   color: var(--color-foreground);
 }
@@ -105,6 +196,8 @@
 
 .library-modal-ghost {
   gap: 8px;
+  height: 44px;
+  padding: 0 14px;
 }
 
 .library-modal-hint,
@@ -124,7 +217,10 @@
   width: 300px;
   height: 44px;
   flex: none;
+  padding: 0 20px;
+  font-size: 14px;
   font-weight: 700;
+  text-align: center;
   background: var(--color-accent);
   color: var(--color-on-accent);
   overflow: hidden;
