@@ -133,7 +133,7 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
         fallback={
           <p class="packs-empty">
             No packs match.
-            <button type="button" onClick={() => setFamily(null)}>
+            <button type="button" class="packs-reset" onClick={() => setFamily(null)}>
               Show every pack
             </button>
           </p>
