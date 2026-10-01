@@ -226,13 +226,13 @@ describe("SoundsView shelf", () => {
     renderView({ slot: { kind: "drum-pad", ref } });
     await rows();
     expect(selectedTab()).toHaveTextContent(/^Drums/);
-    expect(pressedChip()).toHaveTextContent(/^Kick/);
+    expect(pressedChip()).toHaveAccessibleName(/^Kick/);
 
     cleanup();
     renderView({ slot: { kind: "drum-pad", ref: null } });
     await rows();
     expect(selectedTab()).toHaveTextContent(/^Drums/);
-    expect(pressedChip()).toHaveTextContent(/^All Drums/);
+    expect(pressedChip()).toHaveAccessibleName(/^All drums \d+$/);
 
     cleanup();
     renderView({ slot: { kind: "sampler" } });
@@ -391,7 +391,7 @@ describe("SoundsView search jumps and shuffle", () => {
 
     expect(onQueryChange).toHaveBeenCalledWith("");
     expect(selectedTab()).toHaveTextContent(/^Drums/);
-    await waitFor(() => expect(pressedChip()).toHaveTextContent(/^Kick/));
+    await waitFor(() => expect(pressedChip()).toHaveAccessibleName(/^Kick/));
   });
 
   it("offers no jump without a query", async () => {
