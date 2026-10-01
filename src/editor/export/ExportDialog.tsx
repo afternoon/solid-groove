@@ -9,14 +9,14 @@ import { StemExportError } from "../../export/stems/exportStems";
 import { systemClock } from "../../shared/clock";
 import { useShortcuts } from "../../shortcuts";
 import DownloadsRow from "./DownloadsRow";
-import { type DownloadProgress, downloadCards } from "./downloadCards";
+import { downloadCards } from "./downloadCards";
 import { downloadFile } from "./downloadFile";
 import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
 import { estimateStereoBytes, exportFacts } from "./exportFacts";
 import FormatCards, { type ExportFormat } from "./FormatCards";
 import { formatBytes, stemsBlocker } from "./stemSelection";
-import { estimateStemsFile, exportStemsFile, planStemsFiles } from "./stemsExport";
+import { estimateStemsFile, exportStemsBatch, planStemsFiles } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
 import TrackLanes from "./TrackLanes";
 import { useTrackList } from "./useTrackList";
@@ -28,16 +28,21 @@ export interface ExportDialogProps {
   readonly analytics?: Analytics;
   /** Test seams: the export itself, and how its file reaches the browser. */
   readonly exportWav?: typeof exportStereoWav;
-  readonly exportStems?: typeof exportStemsFile;
+  readonly exportStemsBatch?: typeof exportStemsBatch;
   readonly download?: typeof downloadFile;
   onClose(): void;
 }
 
 type Phase =
   | { readonly kind: "choose" }
-  | { readonly kind: "rendering"; readonly progress: number }
+  | {
+      readonly kind: "rendering";
+      /** The ZIP being printed (0 for a stereo WAV) and how far along it is. */
+      readonly batch: number;
+      readonly fraction: number;
+    }
   | { readonly kind: "done" }
-  | { readonly kind: "failed"; readonly code: ErrorCode };
+  | { readonly kind: "failed"; readonly code: ErrorCode; readonly batch: number };
 
 type Format = ExportFormat;
 
@@ -64,13 +69,14 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
  *
  * Stereo WAV renders the song as one file; Stems (ZIP) renders one aligned
  * 24-bit WAV per track and return plus a reference mix (EXP-003), for the
- * tracks the producer selects: all of them unless some are unchecked. Export
- * is blocked, with the reason, while that selection is over the size budget.
- * While a render runs the dialog shows its
- * progress beside a Cancel button, and closing the dialog cancels it too, so a
- * render never outlives the surface that started it. The file is downloaded
- * only once the whole render has succeeded: a cancelled or failed export never
- * reaches the browser's downloads.
+ * tracks the producer selects. Stems never block on size (EXP-004): a
+ * selection over the budget is split, in track order, into ZIPs that each fit,
+ * and each ZIP is rendered, downloaded and released before the next starts.
+ * While a render runs the dialog shows its progress beside a Cancel button,
+ * and closing the dialog cancels it too, so a render never outlives the
+ * surface that started it. A file is downloaded only once it has rendered
+ * whole: a cancelled or failed ZIP never reaches the browser's downloads, and
+ * the ZIPs before it stay there.
  */
 export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [phase, setPhase] = createSignal<Phase>({ kind: "choose" });
@@ -85,40 +91,41 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     const current = phase();
     return current.kind === "rendering" ? current : null;
   };
-  /** The one file the dialog makes so far: where it has got, for its card. */
-  const cardProgress = (): DownloadProgress => {
-    const current = phase();
-    return {
-      done: current.kind === "done" ? 1 : 0,
-      printing:
-        current.kind === "rendering" ? { index: 0, fraction: current.progress } : null,
-      failed: current.kind === "failed" ? 0 : null,
-    };
-  };
   const stamp = new Date(systemClock.now());
   const plan = createMemo(() => planStemsFiles(props.project(), list.trackIds()));
   const stereoBytes = createMemo(() => estimateStereoBytes(props.project()));
+  /** How many files this export makes: the ZIPs, or the one WAV. */
+  const fileCount = () => (format() === "stems" ? plan().length : 1);
+  /** The ZIPs already downloaded, in order, and where Export picks up again. */
+  const [got, setGot] = createSignal(0);
+  const [resumeFrom, setResumeFrom] = createSignal(0);
+  const [scrollTo, setScrollTo] = createSignal<string | null>(null);
+  const batchRows = createMemo(() =>
+    format() === "stems" ? plan().map((batch) => batch.rowIds) : [],
+  );
   const printing = () => {
     const current = rendering();
-    return current ? { batchIndex: 0, fraction: current.progress } : null;
+    return current && { batchIndex: current.batch, fraction: current.fraction };
   };
-  const cards = createMemo(() =>
-    downloadCards({
+  const failedBatch = () => {
+    const current = phase();
+    return current.kind === "failed" ? current.batch : null;
+  };
+  const cards = createMemo(() => {
+    const now = printing();
+    return downloadCards({
       format: format(),
       projectName: props.project().metadata.name,
       date: stamp,
       batches: plan(),
       stereoBytes: stereoBytes(),
-      progress: cardProgress(),
-    }),
-  );
-  /** Every row the export includes, so the playhead prints returns as well as tracks. */
-  const printedRows = createMemo(() =>
-    list
-      .rows()
-      .filter((row) => row.included)
-      .map((row) => row.id),
-  );
+      progress: {
+        done: got(),
+        printing: now && { index: now.batchIndex, fraction: now.fraction },
+        failed: failedBatch(),
+      },
+    });
+  });
   const estimate = createMemo(() => estimateStemsFile(props.project(), list.trackIds()));
   const blocker = createMemo(() => stemsBlocker(list.trackIds().length, estimate()));
   const blocked = () => format() === "stems" && blocker() !== null;
@@ -137,6 +144,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     },
   );
   let controller: AbortController | undefined;
+  let startedAt = 0;
 
   const cancel = () => controller?.abort();
   const close = () => {
@@ -144,6 +152,19 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     props.onClose();
   };
   onCleanup(cancel);
+
+  /** Changing the format or the selection starts the export over. */
+  const startOver = () => {
+    setGot(0);
+    setResumeFrom(0);
+    if (phase().kind === "failed") setPhase({ kind: "choose" });
+  };
+  createEffect(
+    () => list.trackIds().join(","),
+    () => {
+      if (phase().kind !== "rendering") startOver();
+    },
+  );
 
   // Escape clears the list's picks first, and closes only when there were none.
   useShortcuts({
@@ -161,31 +182,54 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   async function start(): Promise<void> {
     const current = new AbortController();
     controller = current;
-    setPhase({ kind: "rendering", progress: 0 });
-    const options: StereoExportOptions = {
-      signal: current.signal,
-      analytics: props.analytics,
-      onProgress: (progress) => {
-        if (!current.signal.aborted) setPhase({ kind: "rendering", progress });
-      },
-    };
+    const stems = format() === "stems";
+    const batches = plan();
+    const count = stems ? batches.length : 1;
+    if (resumeFrom() === 0) {
+      setGot(0);
+      startedAt = systemClock.now();
+    }
+    let index = resumeFrom();
     try {
-      const file =
-        format() === "stems"
-          ? await (props.exportStems ?? exportStemsFile)(props.project(), {
+      for (; index < count; index++) {
+        setPhase({ kind: "rendering", batch: index, fraction: 0 });
+        if (stems) setScrollTo(batches[index].rowIds[0] ?? null);
+        const options: StereoExportOptions = {
+          signal: current.signal,
+          analytics: props.analytics,
+          onProgress: (fraction) => {
+            if (!current.signal.aborted) {
+              setPhase({ kind: "rendering", batch: index, fraction });
+            }
+          },
+        };
+        const file = stems
+          ? await (props.exportStemsBatch ?? exportStemsBatch)(props.project(), {
               ...options,
+              batch: batches[index],
+              count,
+              startedAt,
+              date: stamp,
               trackIds: list.trackIds(),
             })
           : await (props.exportWav ?? exportStereoWav)(props.project(), options);
-      if (current.signal.aborted) return;
-      (props.download ?? downloadFile)(file.blob, file.fileName);
+        // A ZIP that finished after Cancel is not downloaded; the next ZIP's
+        // call sees the aborted signal and ends the export as cancelled.
+        if (current.signal.aborted) continue;
+        (props.download ?? downloadFile)(file.blob, file.fileName);
+        setGot(index + 1);
+      }
+      if (current.signal.aborted) throw new StemExportError("aborted", "cancelled");
       setPhase({ kind: "done" });
     } catch (error) {
       if (controller !== current) return;
       const coded =
         error instanceof OfflineRenderError || error instanceof StemExportError;
       const code = coded ? error.code : "internal";
-      setPhase(code === "aborted" ? { kind: "choose" } : { kind: "failed", code });
+      setResumeFrom(got());
+      setPhase(
+        code === "aborted" ? { kind: "choose" } : { kind: "failed", code, batch: index },
+      );
     } finally {
       if (controller === current) controller = undefined;
     }
@@ -196,21 +240,31 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     return current.kind === "failed" ? current : null;
   };
   const sizeText = () => {
-    if (format() === "stereo") return `${formatBytes(stereoBytes())} \u00b7 1 file`;
+    if (format() === "stereo") return `${formatBytes(stereoBytes())} · 1 file`;
     const batches = plan();
     const files = batches.reduce((sum, batch) => sum + batch.paths.length, 0);
     const bytes = batches.reduce((sum, batch) => sum + batch.bytes, 0);
-    return `${formatBytes(bytes)} \u00b7 ${files} ${files === 1 ? "file" : "files"}`;
+    return `${formatBytes(bytes)} · ${files} ${files === 1 ? "file" : "files"}`;
   };
+  /** What is printing, `ZIP 2 of 3 · bar 79 of 160`, and how far along the whole is. */
   const printingText = () => {
     const current = rendering();
     if (!current) return null;
+    const count = fileCount();
     const bars = list.bars();
-    const bar = Math.max(1, Math.ceil(current.progress * bars));
-    return { text: `bar ${bar} of ${bars}`, fraction: current.progress };
+    const bar = Math.max(1, Math.ceil(current.fraction * bars));
+    const zip =
+      format() === "stems" && count > 1 ? `ZIP ${current.batch + 1} of ${count} · ` : "";
+    return {
+      text: `${zip}bar ${bar} of ${bars}`,
+      fraction: (current.batch + current.fraction) / count,
+    };
   };
   /** The note under the footer: why Export is blocked, or that it is done. */
   const noteText = () => {
+    if (rendering()) {
+      return got() > 0 ? `${got()} of ${fileCount()} in your downloads.` : "";
+    }
     if (phase().kind === "done") {
       return `Export complete. Your ${format() === "stems" ? "stems are" : "WAV is"} in your downloads.`;
     }
@@ -230,6 +284,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         onChange={(next) => {
           list.pick("clear");
           setFormat(next);
+          startOver();
         }}
       />
       <div ref={root}>
@@ -240,9 +295,11 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
           readOnly={format() === "stereo"}
           disabled={phase().kind === "rendering"}
           heightPx={250}
-          batches={format() === "stems" ? [printedRows()] : []}
-          doneBatches={phase().kind === "done" ? [0] : []}
+          batches={batchRows()}
+          doneBatches={Array.from({ length: got() }, (_, i) => i)}
+          idle={phase().kind === "choose"}
           printing={printing()}
+          scrollToRowId={scrollTo()}
           onRowClick={(index, modifiers) => {
             list.click(index, modifiers);
             focusList();
@@ -277,7 +334,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
                   if (!blocked()) void start();
                 }}
               >
-                Export
+                {resumeFrom() > 0 ? `Resume from ZIP ${resumeFrom() + 1}` : "Export"}
               </button>
             </>
           }
