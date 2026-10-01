@@ -39,7 +39,7 @@ export default function DownloadsRow(props: {
   readonly cards: readonly DownloadCard[];
 }): JSX.Element {
   return (
-    <div class="downloads" role="group" aria-label="Downloads">
+    <section class="downloads" aria-label="Downloads">
       <span class="export-label">Downloads</span>
       <For each={props.cards} keyed={(card) => card.name}>
         {(card) => (
@@ -51,6 +51,6 @@ export default function DownloadsRow(props: {
           </div>
         )}
       </For>
-    </div>
+    </section>
   );
 }

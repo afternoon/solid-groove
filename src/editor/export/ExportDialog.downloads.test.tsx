@@ -53,7 +53,7 @@ function renderDialog(project: Project = createSliceFixtureProject()) {
   };
 }
 
-const row = () => screen.getByRole("group", { name: "Downloads" });
+const row = () => screen.getByRole("region", { name: "Downloads" });
 const cards = () => [...row().querySelectorAll<HTMLElement>(".download")];
 
 describe("ExportDialog: the Downloads row", () => {
@@ -115,7 +115,7 @@ describe("downloadCards", () => {
       state: "done",
       fraction: 1,
     });
-    const batch = (index: number) => ({
+    const zipBatch = (index: number) => ({
       index,
       paths: ["a.wav", "b.wav"],
       hasMix: index === 0,
@@ -126,7 +126,7 @@ describe("downloadCards", () => {
     const zips = downloadCards({
       ...base,
       format: "stems",
-      batches: [batch(0), batch(1)],
+      batches: [zipBatch(0), zipBatch(1)],
       state: "now",
     });
     expect(zips.map((zip) => [zip.name, zip.state, zip.fraction])).toEqual([
