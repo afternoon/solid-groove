@@ -202,40 +202,58 @@ describe("EditorHeader", () => {
     expect(session.redo).toHaveBeenCalledOnce();
   });
 
-  it("groups the controls into start, centre, and end sections", () => {
+  it("groups the controls into the project, playing, and document zones (#819)", () => {
     const { container } = renderHeader(fakeSession().session, fakeAudio().audio);
-    const start = container.querySelector(".editor-header-start");
-    const center = container.querySelector(".editor-header-center");
-    const end = container.querySelector(".editor-header-end");
+    const zone = (name: string) =>
+      Array.from(
+        container.querySelectorAll<HTMLElement>(
+          `.editor-header-${name} :is(a, button, input, fieldset)`,
+        ),
+      )
+        .filter((el) => !el.closest(".playhead-position") || el.tagName === "FIELDSET")
+        .map((el) => el.getAttribute("aria-label") || el.id || null);
 
-    expect(start).toContainElement(screen.getByRole("link", { name: "Projects" }));
-    expect(start).toContainElement(screen.getByRole("heading", { name: "Untitled" }));
-    for (const name of [
-      "Undo",
-      "Redo",
+    expect(zone("start")).toEqual(["Projects", null]);
+    expect(
+      container.querySelector(".editor-header-start .project-name-button"),
+    ).toHaveTextContent("Untitled");
+    expect(zone("center")).toEqual([
       "Start playback",
       "Enable loop",
+      "Playhead",
+      "tempo-input",
+      "Swing",
       "Enable metronome",
-    ]) {
-      expect(center).toContainElement(screen.getByRole("button", { name }));
-    }
-    expect(center).toContainElement(
-      screen.getByRole("spinbutton", { name: "Tempo (BPM)" }),
-    );
-    expect(center).toContainElement(screen.getByRole("group", { name: "Playhead" }));
-    expect(end).toContainElement(
-      screen.getByRole("button", { name: "Keyboard shortcuts" }),
-    );
+    ]);
+    expect(zone("end")).toEqual(["Undo", "Redo", null, "Keyboard shortcuts"]);
+    expect(
+      container.querySelector(".editor-header-end .export-button"),
+    ).toHaveTextContent("Export");
   });
 
-  it("sizes the primary icons up and leaves the secondary controls alone", () => {
+  it("joins play with loop, the song settings, and undo with redo", () => {
+    const { container } = renderHeader(fakeSession().session, fakeAudio().audio);
+    const groups = Array.from(container.querySelectorAll(".header-cell-group"));
+    const names = groups.map((group) =>
+      Array.from(group.querySelectorAll("button, input")).map(
+        (el) => el.getAttribute("aria-label") ?? el.id,
+      ),
+    );
+    expect(names).toEqual([
+      ["Start playback", "Enable loop"],
+      ["tempo-input", "Swing", "Enable metronome"],
+      ["Undo", "Redo"],
+    ]);
+  });
+
+  it("sizes every icon to fit its 26px cell", () => {
     renderHeader(fakeSession().session, fakeAudio().audio);
     const iconSize = (el: HTMLElement) => el.querySelector("svg")?.getAttribute("width");
 
-    expect(iconSize(screen.getByRole("link", { name: "Projects" }))).toBe("24");
-    expect(iconSize(screen.getByRole("button", { name: "Start playback" }))).toBe("28");
+    expect(iconSize(screen.getByRole("link", { name: "Projects" }))).toBe("16");
+    expect(iconSize(screen.getByRole("button", { name: "Start playback" }))).toBe("18");
     expect(iconSize(screen.getByRole("button", { name: "Keyboard shortcuts" }))).toBe(
-      "24",
+      "16",
     );
     for (const name of ["Undo", "Redo", "Enable loop", "Enable metronome"]) {
       expect(iconSize(screen.getByRole("button", { name }))).toBe("18");
@@ -247,13 +265,13 @@ describe("EditorHeader", () => {
     renderHeader(fakeSession().session, audio);
     fireEvent.click(screen.getByRole("button", { name: "Start playback" }));
     const stop = await screen.findByRole("button", { name: "Stop playback" });
-    expect(stop.querySelector("svg")?.getAttribute("width")).toBe("24");
+    expect(stop.querySelector("svg")?.getAttribute("width")).toBe("14");
   });
 
   describe("swing button (#500)", () => {
     const button = () => screen.getByRole("button", { name: "Swing" });
 
-    it("is an icon-only popup button that reports its expanded state", () => {
+    it("is a popup button showing its value, reporting its expanded state", () => {
       renderHeader(
         fakeSession().session,
         fakeAudio().audio,
@@ -265,8 +283,8 @@ describe("EditorHeader", () => {
       expect(button()).toHaveAttribute("aria-haspopup", "dialog");
       expect(button()).toHaveAttribute("aria-expanded", "false");
       expect(button()).toHaveAttribute("title", "Swing 62%");
-      expect(button().querySelector("svg")?.getAttribute("width")).toBe("18");
-      expect(button()).toHaveTextContent("");
+      expect(button().querySelector("svg")?.getAttribute("width")).toBe("16");
+      expect(button()).toHaveTextContent("62%");
       expect(screen.queryByRole("slider", { name: "Swing" })).toBeNull();
     });
 
@@ -314,11 +332,12 @@ describe("EditorHeader", () => {
     });
   });
 
-  it("drops the time signature and the printed BPM suffix", () => {
+  it("drops the time signature and prints BPM as decoration only (#819)", () => {
     const { container } = renderHeader(fakeSession().session, fakeAudio().audio);
     expect(container.querySelector(".time-signature")).toBeNull();
     expect(screen.queryByText("4/4", { exact: false })).toBeNull();
-    expect(screen.queryByText("BPM")).toBeNull();
+    expect(screen.getByText("BPM")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("spinbutton", { name: "Tempo (BPM)" })).toBeInTheDocument();
   });
 
   it("seeks to a bar and beat typed into the playhead", () => {
