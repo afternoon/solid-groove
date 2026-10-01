@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Project } from "../../domain/entities";
 import { createReferenceProject } from "../../domain/fixtures";
 import { TICKS_PER_BAR } from "../../domain/time";
-import { deriveTrackLaneRows, rulerBars, songLengthBars } from "./trackLanes";
+import { deriveTrackLaneRows, rulerBars, rulerStep, songLengthBars } from "./trackLanes";
 
 function projectWithReturn(): Project {
   const project = createReferenceProject({
@@ -74,5 +74,26 @@ describe("songLengthBars and rulerBars", () => {
     expect(rulerBars(40)).toEqual([1, 17, 33]);
     expect(rulerBars(16)).toEqual([1, 17]);
     expect(rulerBars(8)).toEqual([1]);
+  });
+});
+
+describe("rulerStep", () => {
+  it("stays at 16 bars while the labels have room, and before the lanes are measured", () => {
+    expect(rulerStep(64, 0)).toBe(16);
+    expect(rulerStep(64, 800)).toBe(16);
+  });
+
+  it("doubles until labels are at least 56px apart", () => {
+    // 296 bars over 740px: 16 bars is 40px, 32 bars is 80px.
+    expect(rulerStep(296, 740)).toBe(32);
+    expect(rulerStep(296, 300)).toBe(64);
+    expect(rulerStep(1000, 300)).toBe(256);
+    for (const [bars, width] of [
+      [296, 740],
+      [296, 300],
+      [1000, 300],
+    ]) {
+      expect((rulerStep(bars, width) / bars) * width).toBeGreaterThanOrEqual(56);
+    }
   });
 });

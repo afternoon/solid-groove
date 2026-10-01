@@ -78,3 +78,18 @@ export function songLengthBars(rows: readonly TrackLaneRow[]): number {
 export function rulerBars(bars: number, every = 16): number[] {
   return Array.from({ length: Math.floor(bars / every) + 1 }, (_, k) => k * every + 1);
 }
+
+/** The least room, in pixels, between two ruler labels. */
+export const MIN_LABEL_GAP_PX = 56;
+
+/**
+ * Bars between ruler labels: 16, 32, 64, 128, ... the first step that keeps
+ * labels at least `MIN_LABEL_GAP_PX` apart over a lane area `widthPx` wide.
+ * Before the lanes are measured (width 0) it stays at 16.
+ */
+export function rulerStep(bars: number, widthPx: number): number {
+  let step = 16;
+  if (widthPx <= 0) return step;
+  while ((step / Math.max(1, bars)) * widthPx < MIN_LABEL_GAP_PX) step *= 2;
+  return step;
+}

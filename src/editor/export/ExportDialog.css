@@ -50,16 +50,18 @@
   display: flex;
   align-items: flex-end;
   gap: 32px;
-  /* The right edge keeps clear of the shell's close: 24px, the close's 18px
-     inside the padding, and the row's own 32px gap. */
-  padding: 20px 74px 14px 24px;
+  /* The right edge keeps clear of the shell's close: 24px, plus the close's
+     18px inside the padding. */
+  padding: 20px 42px 14px 24px;
 }
 
-.export-head-fill {
-  flex: 1;
+/* The readouts keep their natural width; the name takes all that is left. */
+.export-head > .export-readout {
+  flex: none;
 }
 
 .export-title {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: 4px;

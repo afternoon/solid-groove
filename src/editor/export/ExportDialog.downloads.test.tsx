@@ -115,7 +115,7 @@ describe("downloadCards", () => {
       state: "done",
       fraction: 1,
     });
-    const zipBatch = (index: number) => ({
+    const zipPlan = (index: number) => ({
       index,
       paths: ["a.wav", "b.wav"],
       hasMix: index === 0,
@@ -126,7 +126,7 @@ describe("downloadCards", () => {
     const zips = downloadCards({
       ...base,
       format: "stems",
-      batches: [zipBatch(0), zipBatch(1)],
+      batches: [zipPlan(0), zipPlan(1)],
       state: "now",
     });
     expect(zips.map((zip) => [zip.name, zip.state, zip.fraction])).toEqual([

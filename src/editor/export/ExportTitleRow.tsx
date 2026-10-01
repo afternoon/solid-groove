@@ -20,7 +20,6 @@ export default function ExportTitleRow(props: {
       <ExportReadout label="Tempo">{props.facts.tempo}</ExportReadout>
       <ExportReadout label="Tracks">{props.facts.tracks}</ExportReadout>
       <ExportReadout label="Quality">{props.facts.quality}</ExportReadout>
-      <span class="export-head-fill" />
     </div>
   );
 }
