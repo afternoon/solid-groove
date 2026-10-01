@@ -36,7 +36,7 @@ import {
   licenseRejectionReason,
   SOURCES,
 } from "./acquire/sources.mjs";
-import { packBySlug, RESERVED_CC0_PACK_SLUG } from "./packs.mjs";
+import { CC0_PACK_SLUGS, packBySlug } from "./packs.mjs";
 import { validatePackManifest } from "./validate.mjs";
 import { encodeWav } from "./wav.mjs";
 
@@ -153,7 +153,7 @@ describe("lockfile validation", () => {
     asset: {
       family: "drums",
       role: "percussion",
-      pack: RESERVED_CC0_PACK_SLUG,
+      pack: CC0_PACK_SLUGS.percussion,
       name: "Scraped Metal Hit",
       genres: ["techno"],
       characters: ["metallic"],
@@ -525,7 +525,7 @@ describe("end-to-end ingest", () => {
       asset: {
         family: "drums",
         role: "percussion",
-        pack: RESERVED_CC0_PACK_SLUG,
+        pack: CC0_PACK_SLUGS.percussion,
         name: "Recorded Metal Hit",
         genres: ["techno", "dubstep", "drum-and-bass"],
         characters: ["metallic", "organic"],
@@ -576,13 +576,13 @@ describe("end-to-end ingest", () => {
 
   it("qualifies the asset with its lockfile-declared destination pack", async () => {
     const { asset } = await ingestFixture();
-    const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+    const pack = packBySlug(CC0_PACK_SLUGS.percussion);
     expect(asset.pack).toEqual({ id: pack.id, version: pack.version });
   });
 
   it("produces an asset the shared manifest validator accepts", async () => {
     const { asset } = await ingestFixture();
-    const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+    const pack = packBySlug(CC0_PACK_SLUGS.percussion);
     // Validate the single acquired asset against the per-asset rules by
     // embedding it in an otherwise-valid pack manifest shape.
     const { errors } = validatePackManifest(
@@ -618,7 +618,7 @@ describe("end-to-end ingest", () => {
     // it. The fixture ingest above passes because its evidence capture is
     // stubbed present; here the same asset is checked against an empty disk.
     const { asset } = await ingestFixture();
-    const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+    const pack = packBySlug(CC0_PACK_SLUGS.percussion);
     const { errors } = validatePackManifest(
       {
         schemaVersion: 1,
