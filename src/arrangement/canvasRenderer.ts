@@ -121,10 +121,25 @@ export const COLOR_TOKENS = {
 type ColorName = keyof typeof COLOR_TOKENS;
 
 let resolved: Record<ColorName, string> | null = null;
+let resolvedFont: string | null = null;
+
+/** The canvas's fallback when no stylesheet is applied, as for the colours. */
+const FALLBACK_FONT_FAMILY = "system-ui, sans-serif";
 
 /** Drop the cached palette so the next draw re-reads the theme. Tests only. */
 export function resetArrangementPalette(): void {
   resolved = null;
+  resolvedFont = null;
+}
+
+/** The UI's font stack (`--font-family` in `src/app.css`), read once. */
+function fontFamily(): string {
+  resolvedFont ??=
+    (typeof window === "undefined"
+      ? ""
+      : window.getComputedStyle(document.documentElement).fontFamily) ||
+    FALLBACK_FONT_FAMILY;
+  return resolvedFont;
 }
 
 function resolvePalette(): Record<ColorName, string> {
@@ -262,14 +277,14 @@ function drawRulerLabels(
     ctx.fillRect(Math.max(0, left), 0, Math.max(1, right - left), 4);
     ctx.globalAlpha = 1;
     ctx.fillStyle = sectionColor;
-    ctx.font = "11px system-ui, sans-serif";
+    ctx.font = `11px ${fontFamily()}`;
     ctx.textBaseline = "middle";
     ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX / 2);
   }
 
   // Bar numbers every 4 bars, so labels do not crowd at small zoom.
   ctx.fillStyle = barColor;
-  ctx.font = "10px system-ui, sans-serif";
+  ctx.font = `10px ${fontFamily()}`;
   ctx.textBaseline = "middle";
   for (let bar = firstBar; bar <= lastBar; bar += 1) {
     if (bar % 4 !== 0) continue;

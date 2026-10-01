@@ -12,7 +12,7 @@
  */
 
 /** Public origin, no trailing slash. Canonical and `og:url` are built from it. */
-export const SITE_ORIGIN = "https://groove.ben2.com";
+export const SITE_ORIGIN = "https://trygroove.app";
 
 /** The product's name, as it appears in a tab title and a link preview. */
 export const SITE_NAME = "Groove";

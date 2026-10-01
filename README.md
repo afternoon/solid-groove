@@ -13,6 +13,8 @@ The music production tool of the future:
 
 Let's build it!
 
+Try it at **[trygroove.app](https://trygroove.app)**.
+
 ## Documentation
 
 | Document | What it covers |
@@ -37,7 +39,7 @@ bun run dev:mock
 
 ## Deployment
 
-The private alpha has exactly one hosted environment — the **production** Firebase project — deployed to Firebase Hosting from CI on every merge to `main`, never from a developer machine. `bun run deploy` is the one documented command (it builds, scans the build for secrets, then ships Hosting, Firestore rules/indexes, and Storage rules together so a failing rules step fails the whole deploy); `.github/workflows/ci.yml`'s `deploy` job runs it automatically and follows it with a post-deploy smoke test against the real hosted URL. See [`docs/testing.md`](./docs/testing.md#deploy) for the full pipeline, the CI secrets/variables it needs, rollback, and how to get a local build talking to the right project.
+The private alpha has exactly one hosted environment — the **production** Firebase project — deployed to Firebase Hosting at [trygroove.app](https://trygroove.app) from CI on every merge to `main`, never from a developer machine. `bun run deploy` is the one documented command (it builds, scans the build for secrets, then ships Hosting, Firestore rules/indexes, and Storage rules together so a failing rules step fails the whole deploy); `.github/workflows/ci.yml`'s `deploy` job runs it automatically and follows it with a post-deploy smoke test against the real hosted URL. See [`docs/testing.md`](./docs/testing.md#deploy) for the full pipeline, the CI secrets/variables it needs, rollback, and how to get a local build talking to the right project.
 
 A pull request labelled `deploy-preview` is also published to its own Firebase Hosting **preview channel** (`.github/workflows/preview.yml`) — an expiring URL inside the same production project, so it runs against the live Firestore, Auth, and Storage. It is opt-in per PR, it never deploys security rules, and it reports no analytics or errors; see [`docs/testing.md`](./docs/testing.md#per-pr-preview-deploys) for what that shares with production and what it does not.
 
