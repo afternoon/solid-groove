@@ -55,13 +55,20 @@
   padding: 20px 42px 14px 24px;
 }
 
-/* The readouts keep their natural width; the name takes all that is left. */
+/* The readouts keep their natural width and follow the name by the row's 32px
+   gap. The name is as wide as it needs and gives way only when the readouts
+   would otherwise be pushed out: the filler's own gap is cancelled, so the
+   name has every pixel the readouts do not use. */
 .export-head > .export-readout {
   flex: none;
 }
 
+.export-head-fill {
+  flex: 1;
+  margin-left: -32px;
+}
+
 .export-title {
-  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
