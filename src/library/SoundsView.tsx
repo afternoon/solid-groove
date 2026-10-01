@@ -12,7 +12,7 @@ import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
 import Shelf from "./Shelf";
 import SoundRow from "./SoundRow";
-import { shelfFamilyOf } from "./shelf";
+import { familyLabel, shelfFamilyOf } from "./shelf";
 import type { SoundsKeyAction } from "./soundKeys";
 import { nextIn, previousIn } from "./stepping";
 import { useLibraryBrowser } from "./useLibraryBrowser";
@@ -93,6 +93,11 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     () => props.slot,
   );
   const sounds = shelf.inView;
+  // Filters that leave nothing keep the shelf, at zero, so the window stays put.
+  const shelfFamilies = () =>
+    shelf.families().length > 0
+      ? shelf.families()
+      : [{ key: family(), label: familyLabel(family()), count: 0 }];
   const family = () => shelf.selection().family;
   // The genre menu counts what the other filters leave, in the family in view.
   const genres = createMemo(() =>
@@ -178,7 +183,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
           <div class="sounds-error" role="alert">
             <HiSolidExclamationTriangle size={16} />{" "}
             {LOAD_REASON_LABELS[browser.indexError() ?? "network"]}{" "}
-            <button type="button" onClick={() => void load()}>
+            <button type="button" class="sounds-retry" onClick={() => void load()}>
               Retry
             </button>
           </div>
@@ -191,6 +196,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
               The others still work.{" "}
               <button
                 type="button"
+                class="sounds-retry"
                 onClick={() =>
                   failedPacks().forEach((pack) => void browser.retryPack(pack))
                 }
@@ -199,9 +205,9 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
               </button>
             </div>
           </Show>
-          <Show when={shelf.families().length > 0}>
+          <Show when={typed().length > 0}>
             <Shelf
-              families={shelf.families()}
+              families={shelfFamilies()}
               family={family()}
               roles={shelf.roles()}
               role={shelf.selection().role}
@@ -252,7 +258,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
             when={sounds().length > 0}
             fallback={
               <div class="sounds-empty">
-                <p>No sounds to show.</p>
+                <p>No sounds match these filters.</p>
                 <Show when={narrowed()}>
                   <button type="button" onClick={() => clearFilters()}>
                     Clear the filters

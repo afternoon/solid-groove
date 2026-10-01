@@ -186,10 +186,16 @@ describe("SoundsView", () => {
     for (const item of items) expect(item.textContent?.toLowerCase()).toContain("kick");
   });
 
-  it("says when nothing matches", async () => {
+  it("says when nothing matches, and keeps the shelf at zero", async () => {
     renderView({ query: "zzzz-no-such-sound" });
 
-    expect(await screen.findByText("No sounds to show.")).toBeVisible();
+    expect(await screen.findByText("No sounds match these filters.")).toBeVisible();
+    expect(screen.getByRole("tab", { name: /^Drums/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "All drums 0" })).toBeVisible();
+    expect(screen.queryByRole("list", { name: "Sounds" })).toBeNull();
   });
 
   it("says why the library is missing, and retries", async () => {
@@ -201,7 +207,9 @@ describe("SoundsView", () => {
     });
     renderView({ client });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    expect(retry).toHaveClass("sounds-retry");
+    fireEvent.click(retry);
 
     expect((await rows()).length).toBeGreaterThan(0);
   });
@@ -458,7 +466,7 @@ describe("SoundsView search jumps and shuffle", () => {
 
   it("shuffles nothing from an empty list", async () => {
     const { engine, press } = renderView({ query: "zzzz-no-such-sound" });
-    await screen.findByText("No sounds to show.");
+    await screen.findByText("No sounds match these filters.");
 
     press("library.shuffle");
 

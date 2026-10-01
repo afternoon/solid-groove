@@ -270,7 +270,7 @@ describe("LibraryModal shell", () => {
       target: { value: "zzzz-no-such-sound" },
     });
 
-    expect(await screen.findByText("No sounds to show.")).toBeVisible();
+    expect(await screen.findByText("No sounds match these filters.")).toBeVisible();
   });
 
   it("clears the search from its own control, shown only while there is a query", async () => {
