@@ -1,0 +1,139 @@
+/* The Export finished screen (EXP-004, docs/export-dialog.html `.b-done`). */
+
+.export-done {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  background: var(--color-background);
+}
+
+.export-out {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 40px;
+  min-width: 0;
+}
+
+.export-out > .export-label {
+  color: var(--color-foreground);
+}
+
+.export-out h3 {
+  margin: 0;
+  font-size: 52px;
+  line-height: 0.98;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-foreground-bright);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.export-out p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--color-text-secondary);
+}
+
+.export-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+
+.export-stats .export-value {
+  font-size: 20px;
+}
+
+.export-zips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.export-zips li {
+  display: flex;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--color-background-secondary);
+}
+
+.export-zips li span {
+  color: var(--color-foreground-bright);
+}
+
+.export-zips em {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--color-foreground-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.export-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export-next {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-foreground);
+}
+
+.export-next b {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+@keyframes export-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.export-out > * {
+  animation: export-rise 0.5s both;
+}
+
+.export-out > :nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.export-out > :nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.export-out > :nth-child(4) {
+  animation-delay: 0.24s;
+}
+
+.export-out > :nth-child(5) {
+  animation-delay: 0.32s;
+}
+
+.export-out > :nth-child(6) {
+  animation-delay: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .export-out > * {
+    animation: none;
+  }
+}

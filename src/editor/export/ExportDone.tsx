@@ -1,5 +1,6 @@
 import type { JSX } from "@solidjs/web";
 import { For, onSettled, Show } from "solid-js";
+import "./ExportDone.css";
 import ExportReadout from "./ExportReadout";
 import type { FinishedExport } from "./finishedExport";
 import Sleeve from "./Sleeve";
