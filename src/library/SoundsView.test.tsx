@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
@@ -211,7 +218,7 @@ async function libraryAssets(): Promise<LibraryAsset[]> {
 const tabs = () => screen.getAllByRole("tab");
 const selectedTab = () =>
   tabs().find((tab) => tab.getAttribute("aria-selected") === "true");
-const chips = () => document.querySelectorAll<HTMLElement>(".shelf-chip");
+const chips = () => document.querySelectorAll<HTMLElement>(".shelf-chips .shelf-chip");
 const pressedChip = () =>
   [...chips()].find((chip) => chip.getAttribute("aria-pressed") === "true");
 
@@ -309,6 +316,7 @@ describe("SoundsView shelf", () => {
 const count = () =>
   Number(document.querySelector(".filter-count")?.textContent?.match(/\d+/)?.[0]);
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
+const picker = () => document.querySelector(".filter-pick") as HTMLElement;
 
 describe("SoundsView filters", () => {
   it("shows the live count, which follows the shelf", async () => {
@@ -335,11 +343,45 @@ describe("SoundsView filters", () => {
     fireEvent.click(options[options.length - 1]);
 
     await waitFor(() => expect(count()).toBeLessThan(before));
-    expect(screen.queryByRole("button", { name: /^Any genre/ })).toBeNull();
+    // The picker names the genre now, and turns white to say a filter is set.
+    expect(picker()).not.toHaveAccessibleName(/^Any genre/);
+    expect(picker()).toHaveClass("filter-pick-set");
     press("library.genre_menu");
     await waitFor(() =>
       expect(screen.queryByRole("group", { name: "Genres" })).toBeNull(),
     );
+  });
+
+  it("clears every genre from the menu's Any genre row, and closes it", async () => {
+    renderView();
+    const before = (await rows()).length;
+    fireEvent.click(picker());
+    const menu = await screen.findByRole("group", { name: "Genres" });
+    const options = menu.querySelectorAll("input");
+    fireEvent.click(options[0]);
+    fireEvent.click(options[options.length - 1]);
+    await waitFor(() => expect(picker()).toHaveClass("filter-pick-set"));
+
+    fireEvent.click(within(menu).getByRole("button", { name: "Any genre" }));
+
+    await waitFor(() => expect(count()).toBe(before));
+    expect(picker()).toHaveAccessibleName(/^Any genre/);
+    expect(picker()).not.toHaveClass("filter-pick-set");
+    expect(screen.queryByRole("group", { name: "Genres" })).toBeNull();
+  });
+
+  it("labels the Tempo and Bars groups, with short segments named in full", async () => {
+    renderView({ slot: { kind: "loop-track" }, songBpm: 96 });
+    await rows();
+
+    const tempo = screen.getByRole("group", { name: "Tempo" });
+    expect(tempo.querySelector("legend")).toHaveTextContent("Tempo");
+    expect(within(tempo).getByRole("button", { name: "Any tempo" })).toHaveTextContent(
+      /^Any$/,
+    );
+    const bars = screen.getByRole("group", { name: "Bars" });
+    expect(within(bars).getByRole("button", { name: "4 bars" })).toHaveTextContent(/^4$/);
+    expect(within(bars).getByRole("button", { name: "1 bar" })).toHaveTextContent(/^1$/);
   });
 
   it("offers Tempo and Bars under Loops only, and the T key toggles near and any", async () => {
@@ -387,6 +429,7 @@ describe("SoundsView search jumps and shuffle", () => {
     renderView({ query: "kick", onQueryChange });
     await rows();
 
+    expect(document.querySelector(".role-jumps")).toHaveTextContent(/^Categories/);
     fireEvent.click(await screen.findByRole("button", { name: "Kick \u2192" }));
 
     expect(onQueryChange).toHaveBeenCalledWith("");
