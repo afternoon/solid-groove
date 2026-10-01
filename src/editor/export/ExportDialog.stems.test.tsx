@@ -66,7 +66,8 @@ describe("ExportDialog: Stems (ZIP)", () => {
     expect(exportWav).not.toHaveBeenCalled();
     expect(download).toHaveBeenCalledTimes(1);
     expect(download).toHaveBeenCalledWith(FILE.blob, FILE.fileName);
-    expect(screen.getByRole("status")).toHaveTextContent(/complete.*stems/i);
+    expect(screen.getByRole("status")).toHaveTextContent("Export complete");
+    expect(screen.getByText(/stems\.zip is in your downloads/)).toBeVisible();
   });
 
   it("cancels, downloads nothing, and returns to the choice", async () => {

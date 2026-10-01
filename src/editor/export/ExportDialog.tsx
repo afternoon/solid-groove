@@ -11,11 +11,13 @@ import { useShortcuts } from "../../shortcuts";
 import DownloadsRow from "./DownloadsRow";
 import { downloadCards } from "./downloadCards";
 import { downloadFile } from "./downloadFile";
+import ExportDone from "./ExportDone";
 import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
 import { estimateStereoBytes, exportFacts } from "./exportFacts";
 import { stemsNote, stoppedNote, zipFailure } from "./exportNotes";
 import FormatCards, { type ExportFormat } from "./FormatCards";
+import { finishedExport } from "./finishedExport";
 import { formatBytes } from "./stemSelection";
 import { exportStemsBatch, planStemsFiles } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
@@ -102,6 +104,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [resumeFrom, setResumeFrom] = createSignal(0);
   /** What Cancel said, until the next export or edit. */
   const [stopped, setStopped] = createSignal("");
+  const [doneHeight, setDoneHeight] = createSignal(0);
   const [scrollTo, setScrollTo] = createSignal<string | null>(null);
   const batchRows = createMemo(() =>
     format() === "stems" ? plan().map((batch) => batch.rowIds) : [],
@@ -223,6 +226,9 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         setGot(index + 1);
       }
       if (current.signal.aborted) throw new StemExportError("aborted", "cancelled");
+      // The finished screen takes the dialog's place, at the dialog's size.
+      setDoneHeight(root.closest(".dialog")?.getBoundingClientRect().height ?? 0);
+      list.setFocused(false);
       setPhase({ kind: "done" });
     } catch (error) {
       if (controller !== current) return;
@@ -243,6 +249,24 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     const current = phase();
     return current.kind === "failed" ? current : null;
   };
+  /** The other format of the same song, from the finished screen. */
+  const exportOther = () => {
+    list.pick("clear");
+    setFormat(format() === "stereo" ? "stems" : "stereo");
+    startOver();
+    setPhase({ kind: "choose" });
+  };
+  const finished = createMemo(() =>
+    finishedExport({
+      format: format(),
+      facts: facts(),
+      date: stamp,
+      rows: list.rows(),
+      batches: plan(),
+      stereoBytes: stereoBytes(),
+      bars: list.bars(),
+    }),
+  );
   const stemsBytes = () => plan().reduce((sum, batch) => sum + batch.bytes, 0);
   const sizeText = () => {
     if (format() === "stereo") return `${formatBytes(stereoBytes())} · 1 file`;
@@ -268,9 +292,6 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     if (rendering()) {
       return got() > 0 ? `${got()} of ${fileCount()} in your downloads.` : "";
     }
-    if (phase().kind === "done") {
-      return `Export complete. Your ${format() === "stems" ? "stems are" : "WAV is"} in your downloads.`;
-    }
     if (stopped()) return stopped();
     if (failed() || format() !== "stems") return "";
     return stemsNote({
@@ -295,74 +316,86 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
 
   return (
     <Dialog label="Export" class="export-shell" flush onClose={close}>
-      <ExportTitleRow facts={facts()} />
-      <FormatCards
-        value={format()}
-        disabled={phase().kind === "rendering"}
-        onChange={(next) => {
-          list.pick("clear");
-          setFormat(next);
-          startOver();
-        }}
-      />
-      <div ref={root}>
-        <TrackLanes
-          rows={list.rows()}
-          bars={list.bars()}
-          focusId={list.focusId()}
-          readOnly={format() === "stereo"}
-          disabled={phase().kind === "rendering"}
-          heightPx={250}
-          batches={batchRows()}
-          doneBatches={Array.from({ length: got() }, (_, i) => i)}
-          idle={phase().kind === "choose"}
-          printing={printing()}
-          scrollToRowId={scrollTo()}
-          onRowClick={(index, modifiers) => {
-            list.click(index, modifiers);
-            focusList();
-          }}
-          onPickAction={list.pick}
-          onFocusChange={list.setFocused}
-        />
-      </div>
-      <DownloadsRow cards={cards()} />
-      <ExportFooter
-        format={format()}
-        size={sizeText()}
-        zipCount={plan().length}
-        printing={printingText()}
-        note={noteText()}
-        alert={alertText().text}
-        alertLead={alertText().lead}
+      <Show
+        when={phase().kind !== "done"}
+        fallback={
+          <ExportDone
+            finished={finished()}
+            heightPx={doneHeight()}
+            onBack={close}
+            onAgain={exportOther}
+          />
+        }
       >
-        <Show
-          when={rendering()}
-          fallback={
-            <>
-              <button type="button" class="export-secondary" onClick={close}>
-                Close
-              </button>
-              <button
-                type="button"
-                class="export-primary"
-                aria-disabled={noTracks() ? "true" : undefined}
-                aria-describedby={noTracks() ? EXPORT_NOTE_ID : undefined}
-                onClick={() => {
-                  // Off stays focusable, so its reason is read out; it does nothing.
-                  if (!noTracks()) void start();
-                }}
-              >
-                {resumeFrom() > 0 ? `Resume from ZIP ${resumeFrom() + 1}` : "Export"}
-              </button>
-            </>
-          }
+        <ExportTitleRow facts={facts()} />
+        <FormatCards
+          value={format()}
+          disabled={phase().kind === "rendering"}
+          onChange={(next) => {
+            list.pick("clear");
+            setFormat(next);
+            startOver();
+          }}
+        />
+        <div ref={root}>
+          <TrackLanes
+            rows={list.rows()}
+            bars={list.bars()}
+            focusId={list.focusId()}
+            readOnly={format() === "stereo"}
+            disabled={phase().kind === "rendering"}
+            heightPx={250}
+            batches={batchRows()}
+            doneBatches={Array.from({ length: got() }, (_, i) => i)}
+            idle={phase().kind === "choose"}
+            printing={printing()}
+            scrollToRowId={scrollTo()}
+            onRowClick={(index, modifiers) => {
+              list.click(index, modifiers);
+              focusList();
+            }}
+            onPickAction={list.pick}
+            onFocusChange={list.setFocused}
+          />
+        </div>
+        <DownloadsRow cards={cards()} />
+        <ExportFooter
+          format={format()}
+          size={sizeText()}
+          zipCount={plan().length}
+          printing={printingText()}
+          note={noteText()}
+          alert={alertText().text}
+          alertLead={alertText().lead}
         >
-          <button type="button" class="export-secondary" onClick={cancel}>
-            Cancel
-          </button>
-        </Show>
-      </ExportFooter>
+          <Show
+            when={rendering()}
+            fallback={
+              <>
+                <button type="button" class="export-secondary" onClick={close}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  class="export-primary"
+                  aria-disabled={noTracks() ? "true" : undefined}
+                  aria-describedby={noTracks() ? EXPORT_NOTE_ID : undefined}
+                  onClick={() => {
+                    // Off stays focusable, so its reason is read out; it does nothing.
+                    if (!noTracks()) void start();
+                  }}
+                >
+                  {resumeFrom() > 0 ? `Resume from ZIP ${resumeFrom() + 1}` : "Export"}
+                </button>
+              </>
+            }
+          >
+            <button type="button" class="export-secondary" onClick={cancel}>
+              Cancel
+            </button>
+          </Show>
+        </ExportFooter>
+      </Show>
     </Dialog>
   );
 }
