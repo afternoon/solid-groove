@@ -857,10 +857,9 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     "Audition again",
     "Plays the selected sound again.",
     "Space",
-    {
-      // A focused button or checkbox still presses on Space and Enter.
-      preventDefault: false,
-    },
+    // No `preventDefault: false`: the press must not also reach the focused
+    // button, which is the Close button when the library opens (#860). A
+    // focused control keeps Space through the handler's `isEnabled` instead.
   ),
   libraryKey(
     "library.insert",
@@ -868,7 +867,8 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     "Puts the selected sound in the slot and closes the library.",
     "Enter",
     {
-      preventDefault: false,
+      // Insert closes the library and focus goes back to the slot that opened
+      // it; a default left to run then presses that slot and reopens it (#860).
       ableton: { kind: "follows", abletonKeys: "Enter" },
     },
   ),
