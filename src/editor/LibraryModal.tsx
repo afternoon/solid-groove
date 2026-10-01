@@ -330,6 +330,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 client={client}
                 slug={slug()}
                 projectPackIds={props.addedPackIds}
+                onClose={() => setPackScope(null)}
               />
             )}
           </Show>

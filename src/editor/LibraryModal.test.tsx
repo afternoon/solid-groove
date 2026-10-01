@@ -396,6 +396,19 @@ describe("LibraryModal packs", () => {
     expect(actions().back()).toBe(false);
   });
 
+  it("leaves an opened pack from its banner's close button", async () => {
+    const { browsePacks } = renderPacks();
+    browsePacks();
+    clickAndFlush(await screen.findByRole("button", { name: `Open ${drums.name}` }));
+    const banner = await screen.findByRole("region", { name: `About ${drums.name}` });
+
+    clickAndFlush(within(banner).getByRole("button", { name: "Back to all sounds" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: `About ${drums.name}` })).toBeNull(),
+    );
+  });
+
   it("lists the project's packs in the rail, and opens one", async () => {
     const { actions } = renderPacks([bass.id]);
     const project = within(await screen.findByRole("group", { name: "In this project" }));
