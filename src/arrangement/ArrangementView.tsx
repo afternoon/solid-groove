@@ -492,6 +492,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
     }
     bumpState();
 
+    // The labels are drawn text, so a first paint before Inter has loaded
+    // uses the fallback face. Repaint once the document's fonts are in.
+    void document.fonts?.ready.then(() =>
+      shell?.markDirty("background", "content", "interaction"),
+    );
+
     // The teardown for the registration above. In Solid 2 the value an
     // `onSettled` callback returns *is* its cleanup, which is what pairs it
     // with the setup here instead of a detached `onCleanup`.
