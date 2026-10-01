@@ -102,12 +102,17 @@ export function MetronomeIcon(props: IconProps) {
   );
 }
 
-/** Help: a question mark bent from straight strokes, without a circle. */
+/** Help: a bold grotesk question mark, square-ended, without a circle. */
 export function HelpIcon(props: IconProps) {
   return (
     <Icon size={props.size}>
-      <path d="M7 9V4h10v7h-5v4.5" fill="none" stroke-width="2.5" />
-      <rect x="10.75" y="18.5" width="2.5" height="2.5" />
+      <path
+        d="M8 9V8a4 4 0 0 1 8 0c0 2.2-4 2.8-4 5.5v1.5"
+        fill="none"
+        stroke-width="2.6"
+        stroke-linecap="butt"
+      />
+      <rect x="10.7" y="18" width="2.6" height="2.6" />
     </Icon>
   );
 }
