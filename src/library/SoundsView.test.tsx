@@ -41,6 +41,7 @@ function renderView(
 ) {
   const engine = fakePreviewEngine();
   const onSimilar = vi.fn();
+  const onListLabel = vi.fn();
   let press: ((action: SoundsKeyAction) => void) | null = null;
   const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
   render(() => (
@@ -57,6 +58,7 @@ function renderView(
       selected={selected()}
       onSelect={setSelected}
       onSimilar={onSimilar}
+      onListLabel={onListLabel}
       onKeys={(handler) => {
         press = handler;
       }}
@@ -65,6 +67,7 @@ function renderView(
   return {
     engine,
     onSimilar,
+    onListLabel,
     selected,
     press: (action: SoundsKeyAction) => press?.(action),
   };
@@ -258,6 +261,26 @@ describe("SoundsView shelf", () => {
     renderView({ slot: { kind: "loop-track" } });
     await rows();
     expect(selectedTab()).toHaveTextContent(/^Loops/);
+  });
+
+  it("names the list in view for the way back to it: a role's plural, All <family>, or the pack", async () => {
+    const assets = await libraryAssets();
+    const held = assets.find((a) => a.type === "one-shot" && a.role === "kick");
+    if (!held?.storageKey) throw new Error("fixture library has no kick");
+
+    cleanup();
+    const kicks = renderView({
+      slot: { kind: "drum-pad", ref: assetStorageRef(held.storageKey) },
+    });
+    await waitFor(() => expect(kicks.onListLabel).toHaveBeenLastCalledWith("Kicks"));
+
+    cleanup();
+    const all = renderView({ slot: { kind: "drum-pad", ref: null } });
+    await waitFor(() => expect(all.onListLabel).toHaveBeenLastCalledWith("All drums"));
+
+    cleanup();
+    const pack = renderView({ packSlug: held.packSlug });
+    await waitFor(() => expect(pack.onListLabel).toHaveBeenLastCalledWith(held.packName));
   });
 
   it("shows only families and categories that have sounds, with counts", async () => {

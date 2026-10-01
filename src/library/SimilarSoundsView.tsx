@@ -5,6 +5,8 @@ import { ariaBool } from "../shared/aria";
 import { AuditionController, type PreviewEngine } from "./audition";
 import MiniWaveform from "./MiniWaveform";
 import type { LibraryAsset } from "./manifest";
+import SoundRow, { lengthLabel, SimilarIcon } from "./SoundRow";
+import { roleLabel } from "./shelf";
 import { ALL_MATCH_ON, type MatchOn, similarSounds } from "./similarity";
 import "./SimilarSoundsView.css";
 
@@ -14,24 +16,19 @@ const CRITERIA: readonly { key: keyof MatchOn; label: string }[] = [
   { key: "length", label: "Length" },
 ];
 
-/** Length as a row shows it: bars for a loop, seconds otherwise. */
-function lengthLabel(asset: LibraryAsset): string {
-  if (asset.type === "loop") return asset.bars === null ? "" : `${asset.bars} bars`;
-  return asset.durationSeconds === null ? "" : `${asset.durationSeconds.toFixed(2)}s`;
-}
-
-function SimilarIcon(): JSX.Element {
+/** The back button's chevron, pointing where it goes. */
+function ChevronLeft(): JSX.Element {
   return (
     <svg
-      width="16"
-      height="16"
+      width="10"
+      height="10"
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
+      stroke-width="1.6"
       aria-hidden="true"
     >
-      <circle cx="6" cy="8" r="4" />
-      <circle cx="10" cy="8" r="4" />
+      <path d="M10 2L4 8l6 6" />
     </svg>
   );
 }
@@ -45,7 +42,7 @@ export interface SimilarSoundsViewProps {
   onSelect(asset: LibraryAsset): void;
   /** Back to the list the view was opened from. */
   onBack(): void;
-  /** What the list is called, for the back button ("Kicks"). */
+  /** What the list is called, for the back button ("Kicks", "All drums", a pack). */
   readonly backLabel?: string;
   /** Auditions results and the reference. Without one the view is silent. */
   readonly previewEngine?: PreviewEngine;
@@ -55,10 +52,10 @@ export interface SimilarSoundsViewProps {
 
 /**
  * The similar-sounds view (`LIB-010`): a reference card, "Match on" chips, and
- * the closest sounds from every pack in the reference's family, each with a
- * percentage. The similar icon on a result hops on from it and the trail lets
- * you jump back. The view owns only its trail, chips and audition; scoring is
- * `similarSounds` and selection belongs to the host.
+ * the closest sounds from every pack in the reference's family, each a sound
+ * row with a match meter. The similar icon on a result hops on from it and the
+ * trail lets you jump back. The view owns only its trail, chips and audition;
+ * scoring is `similarSounds` and selection belongs to the host.
  */
 export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.Element {
   const [trail, setTrail] = createSignal<readonly LibraryAsset[]>([
@@ -100,8 +97,14 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
   return (
     <section class="similar-view" aria-label="Similar sounds view">
       <div class="similar-head">
-        <button type="button" class="similar-back" onClick={() => props.onBack()}>
-          {props.backLabel ? `Back to ${props.backLabel}` : "Back"}
+        <button
+          type="button"
+          class="similar-back"
+          aria-label={props.backLabel ? `Back to ${props.backLabel}` : "Back"}
+          onClick={() => props.onBack()}
+        >
+          <ChevronLeft />
+          {props.backLabel ?? "Back"}
         </button>
         <nav class="similar-trail" aria-label="Similar sounds trail">
           <For each={trail()}>
@@ -132,8 +135,8 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
           aria-pressed={ariaBool(playingId() === reference().id)}
           onClick={() => toggleAudition(reference())}
         >
-          <Show when={playingId() === reference().id} fallback={<PlayIcon size={16} />}>
-            <StopIcon size={16} />
+          <Show when={playingId() === reference().id} fallback={<PlayIcon size={14} />}>
+            <StopIcon size={14} />
           </Show>
         </button>
         <div class="similar-ref-wave" style={{ "--waveform-fill": props.trackColor }}>
@@ -145,7 +148,7 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
           <span>
             {[
               reference().packName,
-              reference().role,
+              roleLabel(reference().role),
               ...reference().characters,
               lengthLabel(reference()),
             ]
@@ -173,7 +176,10 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
             </button>
           )}
         </For>
-        <span class="similar-count">{results().length} closest from every pack</span>
+        <span class="similar-count">
+          {results().length} closest from every pack · <SimilarIcon size={11} /> on a
+          result hops to its neighbours
+        </span>
       </fieldset>
       <Show
         when={results().length > 0}
@@ -186,54 +192,16 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
         <ul class="similar-list" aria-label="Similar sounds">
           <For each={results()}>
             {(result) => (
-              <li
-                class={[
-                  "similar-row",
-                  { "similar-row-selected": selectedId() === result.asset.id },
-                ]}
-                style={{
-                  "--waveform-fill":
-                    selectedId() === result.asset.id
-                      ? (props.trackColor ?? "currentColor")
-                      : undefined,
-                }}
-              >
-                <button
-                  type="button"
-                  class="similar-pick"
-                  aria-label={`Audition ${result.asset.name}`}
-                  aria-pressed={ariaBool(selectedId() === result.asset.id)}
-                  onClick={() => select(result.asset)}
-                >
-                  <span class="similar-wave">
-                    <MiniWaveform peaks={result.asset.peaks} />
-                  </span>
-                  <span class="similar-name">
-                    <b>{result.asset.name}</b>
-                    <span>
-                      {result.asset.packName} · {result.asset.role}
-                    </span>
-                  </span>{" "}
-                  <span class="similar-match" title={`${result.percent}% match`}>
-                    <span class="similar-meter">
-                      <span
-                        class="similar-meter-fill"
-                        style={{ width: `${result.percent}%` }}
-                      />
-                    </span>
-                    <span>{result.percent}%</span>
-                  </span>
-                  <span class="similar-length">{lengthLabel(result.asset)}</span>
-                </button>
-                <button
-                  type="button"
-                  class="similar-icon"
-                  aria-label={`Sounds like ${result.asset.name}`}
-                  onClick={() => hop(result.asset)}
-                >
-                  <SimilarIcon />
-                </button>
-              </li>
+              <SoundRow
+                asset={result.asset}
+                selected={selectedId() === result.asset.id}
+                playing={playingId() === result.asset.id}
+                error={null}
+                color={props.trackColor}
+                match={result.percent}
+                onSelect={() => select(result.asset)}
+                onSimilar={() => hop(result.asset)}
+              />
             )}
           </For>
         </ul>
