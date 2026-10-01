@@ -102,12 +102,12 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     };
     const trackRows = () => screen.getAllByRole("option").slice(0, 50);
 
-    it("shows the estimated size, which shrinks as tracks are left out", () => {
+    it("shows the size, which shrinks as tracks are left out", () => {
       renderDialog(project);
-      const size = () => screen.getByText(/^Estimated size/).textContent;
-      expect(size()).toBe("Estimated size: about 7.8 GiB of 2 GiB.");
+      const size = () => screen.getByText("Size").nextElementSibling?.textContent;
+      expect(size()).toBe("7.8 GiB \u00b7 51 files");
       turnOff(trackRows().slice(0, 1));
-      expect(size()).toBe("Estimated size: about 7.7 GiB of 2 GiB.");
+      expect(size()).toBe("7.7 GiB \u00b7 50 files");
     });
 
     it("blocks Export over the budget, names the limit, and exports once under it", () => {
