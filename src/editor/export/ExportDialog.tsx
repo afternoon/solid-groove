@@ -1,17 +1,28 @@
 import type { JSX } from "@solidjs/web";
-import { createSignal, Match, onCleanup, Show, Switch } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
-import { type ShortcutContext, useShortcuts } from "../../shortcuts";
+import { systemClock } from "../../shared/clock";
+import { useShortcuts } from "../../shortcuts";
+import DownloadsRow from "./DownloadsRow";
+import { downloadCards } from "./downloadCards";
 import { downloadFile } from "./downloadFile";
-import StemTrackPicker, { STEMS_BLOCKER_ID } from "./StemTrackPicker";
-import { createStemSelection } from "./stemSelection";
-import { exportStemsFile } from "./stemsExport";
+import ExportDone from "./ExportDone";
+import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
+import ExportTitleRow from "./ExportTitleRow";
+import { estimateStereoBytes, exportFacts } from "./exportFacts";
+import { stemsNote, stoppedNote, zipFailure } from "./exportNotes";
+import FormatCards, { type ExportFormat } from "./FormatCards";
+import { finishedExport } from "./finishedExport";
+import { formatBytes } from "./stemSelection";
+import { exportStemsBatch, planStemsFiles } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
+import TrackLanes from "./TrackLanes";
+import { useTrackList } from "./useTrackList";
 import "./ExportDialog.css";
 
 export interface ExportDialogProps {
@@ -20,20 +31,23 @@ export interface ExportDialogProps {
   readonly analytics?: Analytics;
   /** Test seams: the export itself, and how its file reaches the browser. */
   readonly exportWav?: typeof exportStereoWav;
-  readonly exportStems?: typeof exportStemsFile;
+  readonly exportStemsBatch?: typeof exportStemsBatch;
   readonly download?: typeof downloadFile;
   onClose(): void;
 }
 
 type Phase =
   | { readonly kind: "choose" }
-  | { readonly kind: "rendering"; readonly progress: number }
+  | {
+      readonly kind: "rendering";
+      /** The ZIP being printed (0 for a stereo WAV) and how far along it is. */
+      readonly batch: number;
+      readonly fraction: number;
+    }
   | { readonly kind: "done" }
-  | { readonly kind: "failed"; readonly code: ErrorCode };
+  | { readonly kind: "failed"; readonly code: ErrorCode; readonly batch: number };
 
-type Format = "stereo" | "stems";
-
-const DIALOG_CONTEXTS: readonly ShortcutContext[] = ["dialog"];
+type Format = ExportFormat;
 
 /** What a failed export tells the producer to do about it. */
 export function failureMessage(code: ErrorCode, format: Format = "stereo"): string {
@@ -58,20 +72,83 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
  *
  * Stereo WAV renders the song as one file; Stems (ZIP) renders one aligned
  * 24-bit WAV per track and return plus a reference mix (EXP-003), for the
- * tracks the producer selects: all of them unless some are unchecked. Export
- * is blocked, with the reason, while that selection is over the size budget.
- * While a render runs the dialog shows its
- * progress beside a Cancel button, and closing the dialog cancels it too, so a
- * render never outlives the surface that started it. The file is downloaded
- * only once the whole render has succeeded: a cancelled or failed export never
- * reaches the browser's downloads.
+ * tracks the producer selects. Stems never block on size (EXP-004): a
+ * selection over the budget is split, in track order, into ZIPs that each fit,
+ * and each ZIP is rendered, downloaded and released before the next starts.
+ * While a render runs the dialog shows its progress beside a Cancel button,
+ * and closing the dialog cancels it too, so a render never outlives the
+ * surface that started it. A file is downloaded only once it has rendered
+ * whole: a cancelled or failed ZIP never reaches the browser's downloads, and
+ * the ZIPs before it stay there.
  */
 export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [phase, setPhase] = createSignal<Phase>({ kind: "choose" });
   const [format, setFormat] = createSignal<Format>("stereo");
-  const selection = createStemSelection(props.project);
-  const blocked = () => format() === "stems" && selection.blocker() !== null;
+  const facts = createMemo(() => exportFacts(props.project()));
+  const list = useTrackList({
+    project: props.project,
+    editable: () => format() === "stems" && phase().kind !== "rendering",
+    stereo: () => format() === "stereo",
+  });
+  const rendering = () => {
+    const current = phase();
+    return current.kind === "rendering" ? current : null;
+  };
+  const stamp = new Date(systemClock.now());
+  const plan = createMemo(() => planStemsFiles(props.project(), list.trackIds()));
+  const stereoBytes = createMemo(() => estimateStereoBytes(props.project()));
+  /** How many files this export makes: the ZIPs, or the one WAV. */
+  const fileCount = () => (format() === "stems" ? plan().length : 1);
+  /** The ZIPs already downloaded, in order, and where Export picks up again. */
+  const [got, setGot] = createSignal(0);
+  const [resumeFrom, setResumeFrom] = createSignal(0);
+  /** What Cancel said, until the next export or edit. */
+  const [stopped, setStopped] = createSignal("");
+  const [doneHeight, setDoneHeight] = createSignal(0);
+  const [scrollTo, setScrollTo] = createSignal<string | null>(null);
+  const batchRows = createMemo(() =>
+    format() === "stems" ? plan().map((batch) => batch.rowIds) : [],
+  );
+  const printing = () => {
+    const current = rendering();
+    return current && { batchIndex: current.batch, fraction: current.fraction };
+  };
+  const failedBatch = () => {
+    const current = phase();
+    return current.kind === "failed" ? current.batch : null;
+  };
+  const cards = createMemo(() => {
+    const now = printing();
+    return downloadCards({
+      format: format(),
+      projectName: props.project().metadata.name,
+      date: stamp,
+      batches: plan(),
+      stereoBytes: stereoBytes(),
+      progress: {
+        done: got(),
+        printing: now && { index: now.batchIndex, fraction: now.fraction },
+        failed: failedBatch(),
+      },
+    });
+  });
+  const noTracks = () => format() === "stems" && list.trackIds().length === 0;
+  let root!: HTMLDivElement;
+  /** Keys reach the list only while it has focus, so a click hands it focus. */
+  const focusList = () =>
+    queueMicrotask(() => root.querySelector<HTMLElement>('[role="listbox"]')?.focus());
+  // The row the keys are on stays in view as they move it.
+  createEffect(
+    () => list.focusId(),
+    () => {
+      const active = root
+        .querySelector('[role="listbox"]')
+        ?.getAttribute("aria-activedescendant");
+      if (active) document.getElementById(active)?.scrollIntoView?.({ block: "nearest" });
+    },
+  );
   let controller: AbortController | undefined;
+  let startedAt = 0;
 
   const cancel = () => controller?.abort();
   const close = () => {
@@ -80,144 +157,245 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   };
   onCleanup(cancel);
 
+  /** Changing the format or the selection starts the export over. */
+  const startOver = () => {
+    setGot(0);
+    setResumeFrom(0);
+    setStopped("");
+    if (phase().kind === "failed") setPhase({ kind: "choose" });
+  };
+  createEffect(
+    () => list.trackIds().join(","),
+    () => {
+      if (phase().kind !== "rendering") startOver();
+    },
+  );
+
+  // Escape clears the list's picks first, and closes only when there were none.
   useShortcuts({
-    handlers: () => ({ "view.close_surface": { run: close } }),
-    contexts: () => DIALOG_CONTEXTS,
+    handlers: () => ({
+      ...list.handlers(),
+      "view.close_surface": {
+        run: () => {
+          if (!list.run("clear_picks")) close();
+        },
+      },
+    }),
+    contexts: list.contexts,
   });
 
   async function start(): Promise<void> {
     const current = new AbortController();
     controller = current;
-    setPhase({ kind: "rendering", progress: 0 });
-    const options: StereoExportOptions = {
-      signal: current.signal,
-      analytics: props.analytics,
-      onProgress: (progress) => {
-        if (!current.signal.aborted) setPhase({ kind: "rendering", progress });
-      },
-    };
+    const stems = format() === "stems";
+    const batches = plan();
+    const count = stems ? batches.length : 1;
+    if (resumeFrom() === 0) {
+      setGot(0);
+      startedAt = systemClock.now();
+    }
+    setStopped("");
+    let index = resumeFrom();
     try {
-      const file =
-        format() === "stems"
-          ? await (props.exportStems ?? exportStemsFile)(props.project(), {
+      for (; index < count; index++) {
+        setPhase({ kind: "rendering", batch: index, fraction: 0 });
+        if (stems) setScrollTo(batches[index].rowIds[0] ?? null);
+        const options: StereoExportOptions = {
+          signal: current.signal,
+          analytics: props.analytics,
+          onProgress: (fraction) => {
+            if (!current.signal.aborted) {
+              setPhase({ kind: "rendering", batch: index, fraction });
+            }
+          },
+        };
+        const file = stems
+          ? await (props.exportStemsBatch ?? exportStemsBatch)(props.project(), {
               ...options,
-              trackIds: selection.trackIds(),
+              batch: batches[index],
+              count,
+              startedAt,
+              date: stamp,
+              trackIds: list.trackIds(),
             })
           : await (props.exportWav ?? exportStereoWav)(props.project(), options);
-      if (current.signal.aborted) return;
-      (props.download ?? downloadFile)(file.blob, file.fileName);
+        // A ZIP that finished after Cancel is not downloaded; the next ZIP's
+        // call sees the aborted signal and ends the export as cancelled.
+        if (current.signal.aborted) continue;
+        (props.download ?? downloadFile)(file.blob, file.fileName);
+        setGot(index + 1);
+      }
+      if (current.signal.aborted) throw new StemExportError("aborted", "cancelled");
+      // The finished screen takes the dialog's place, at the dialog's size.
+      setDoneHeight(root.closest(".dialog")?.getBoundingClientRect().height ?? 0);
+      list.setFocused(false);
       setPhase({ kind: "done" });
     } catch (error) {
       if (controller !== current) return;
       const coded =
         error instanceof OfflineRenderError || error instanceof StemExportError;
       const code = coded ? error.code : "internal";
-      setPhase(code === "aborted" ? { kind: "choose" } : { kind: "failed", code });
+      setResumeFrom(got());
+      if (code === "aborted" && got() > 0) setStopped(stoppedNote(got(), count));
+      setPhase(
+        code === "aborted" ? { kind: "choose" } : { kind: "failed", code, batch: index },
+      );
     } finally {
       if (controller === current) controller = undefined;
     }
   }
 
-  const rendering = () => {
-    const current = phase();
-    return current.kind === "rendering" ? current : null;
-  };
   const failed = () => {
     const current = phase();
     return current.kind === "failed" ? current : null;
   };
+  /** The other format of the same song, from the finished screen. */
+  const exportOther = () => {
+    list.pick("clear");
+    setFormat(format() === "stereo" ? "stems" : "stereo");
+    startOver();
+    setPhase({ kind: "choose" });
+  };
+  const finished = createMemo(() =>
+    finishedExport({
+      format: format(),
+      facts: facts(),
+      date: stamp,
+      rows: list.rows(),
+      batches: plan(),
+      stereoBytes: stereoBytes(),
+      bars: list.bars(),
+    }),
+  );
+  const stemsBytes = () => plan().reduce((sum, batch) => sum + batch.bytes, 0);
+  const sizeText = () => {
+    if (format() === "stereo") return `${formatBytes(stereoBytes())} · 1 file`;
+    const files = plan().reduce((sum, batch) => sum + batch.paths.length, 0);
+    return `${formatBytes(stemsBytes())} · ${files} ${files === 1 ? "file" : "files"}`;
+  };
+  /** What is printing, `ZIP 2 of 3 · bar 79 of 160`, and how far along the whole is. */
+  const printingText = () => {
+    const current = rendering();
+    if (!current) return null;
+    const count = fileCount();
+    const bars = list.bars();
+    const bar = Math.max(1, Math.ceil(current.fraction * bars));
+    const zip =
+      format() === "stems" && count > 1 ? `ZIP ${current.batch + 1} of ${count} · ` : "";
+    return {
+      text: `${zip}bar ${bar} of ${bars}`,
+      fraction: (current.batch + current.fraction) / count,
+    };
+  };
+  /** The note under the footer: why Export is off, how the stems split, or that it is done. */
+  const noteText = () => {
+    if (rendering()) {
+      return got() > 0 ? `${got()} of ${fileCount()} in your downloads.` : "";
+    }
+    if (stopped()) return stopped();
+    if (failed() || format() !== "stems") return "";
+    return stemsNote({
+      tracks: list.trackIds().length,
+      zips: plan().length,
+      bytes: stemsBytes(),
+    });
+  };
+  /** A failure of one ZIP of several names it; any other keeps the one-file wording. */
+  const alertText = () => {
+    const current = failed();
+    if (!current) return { lead: "", text: "" };
+    const reason = failureMessage(current.code, format());
+    if (format() !== "stems" || fileCount() < 2) return { lead: "", text: reason };
+    return zipFailure({
+      zip: current.batch + 1,
+      done: got(),
+      code: current.code,
+      reason,
+    });
+  };
 
   return (
-    <Dialog label="Export" header={<h2 class="export-title">Export</h2>} onClose={close}>
-      <div class="export-dialog">
-        <fieldset class="export-formats" disabled={phase().kind === "rendering"}>
-          <legend class="visually-hidden">Format</legend>
-          <label class="export-format">
-            <input
-              type="radio"
-              name="export-format"
-              value="stereo"
-              checked={format() === "stereo"}
-              onChange={() => setFormat("stereo")}
-            />
-            <span>Stereo WAV</span>
-          </label>
-          <label class="export-format">
-            <input
-              type="radio"
-              name="export-format"
-              value="stems"
-              checked={format() === "stems"}
-              onChange={() => setFormat("stems")}
-            />
-            <span>Stems (ZIP)</span>
-          </label>
-        </fieldset>
-        <Show when={format() === "stems"}>
-          <StemTrackPicker
-            selection={selection}
-            disabled={phase().kind === "rendering"}
+    <Dialog label="Export" class="export-shell" flush onClose={close}>
+      <Show
+        when={phase().kind !== "done"}
+        fallback={
+          <ExportDone
+            finished={finished()}
+            heightPx={doneHeight()}
+            onBack={close}
+            onAgain={exportOther}
           />
-        </Show>
-        <p class="export-note">
+        }
+      >
+        <ExportTitleRow facts={facts()} />
+        <FormatCards
+          value={format()}
+          disabled={phase().kind === "rendering"}
+          onChange={(next) => {
+            list.pick("clear");
+            setFormat(next);
+            startOver();
+          }}
+        />
+        <div ref={root}>
+          <TrackLanes
+            rows={list.rows()}
+            bars={list.bars()}
+            focusId={list.focusId()}
+            readOnly={format() === "stereo"}
+            disabled={phase().kind === "rendering"}
+            heightPx={250}
+            batches={batchRows()}
+            doneBatches={Array.from({ length: got() }, (_, i) => i)}
+            idle={phase().kind === "choose"}
+            printing={printing()}
+            scrollToRowId={scrollTo()}
+            onRowClick={(index, modifiers) => {
+              list.click(index, modifiers);
+              focusList();
+            }}
+            onPickAction={list.pick}
+            onFocusChange={list.setFocused}
+          />
+        </div>
+        <DownloadsRow cards={cards()} />
+        <ExportFooter
+          format={format()}
+          size={sizeText()}
+          zipCount={plan().length}
+          printing={printingText()}
+          note={noteText()}
+          alert={alertText().text}
+          alertLead={alertText().lead}
+        >
           <Show
-            when={format() === "stems"}
+            when={rendering()}
             fallback={
               <>
-                The whole song, from bar 1 to the end of its last clip plus its release
-                tail, as 24-bit stereo at the project's own level.
+                <button type="button" class="export-secondary" onClick={close}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  class="export-primary"
+                  aria-disabled={noTracks() ? "true" : undefined}
+                  aria-describedby={noTracks() ? EXPORT_NOTE_ID : undefined}
+                  onClick={() => {
+                    // Off stays focusable, so its reason is read out; it does nothing.
+                    if (!noTracks()) void start();
+                  }}
+                >
+                  {resumeFrom() > 0 ? `Resume from ZIP ${resumeFrom() + 1}` : "Export"}
+                </button>
               </>
             }
           >
-            One 24-bit WAV per track and return, plus a reference mix, all from bar 1 and
-            all the same length, at the project's own level and without master effects.
+            <button type="button" class="export-secondary" onClick={cancel}>
+              Cancel
+            </button>
           </Show>
-        </p>
-        <Switch>
-          <Match when={rendering()}>
-            {(current) => (
-              <div class="export-progress">
-                <progress
-                  aria-label="Export progress"
-                  max={1}
-                  value={current().progress}
-                />
-                <button type="button" onClick={cancel}>
-                  Cancel
-                </button>
-              </div>
-            )}
-          </Match>
-          <Match when={phase().kind === "done"}>
-            <output class="export-status">
-              Export complete. Your {format() === "stems" ? "stems are" : "WAV is"} in
-              your downloads.
-            </output>
-          </Match>
-          <Match when={failed()}>
-            {(current) => (
-              <p class="export-status export-error" role="alert">
-                {failureMessage(current().code, format())}
-              </p>
-            )}
-          </Match>
-        </Switch>
-        <div class="export-actions">
-          <button
-            type="button"
-            class="export-start"
-            disabled={phase().kind === "rendering"}
-            aria-disabled={blocked() ? "true" : undefined}
-            aria-describedby={blocked() ? STEMS_BLOCKER_ID : undefined}
-            onClick={() => {
-              // Blocked stays focusable, so its reason is read out; it does nothing.
-              if (!blocked()) void start();
-            }}
-          >
-            Export
-          </button>
-        </div>
-      </div>
+        </ExportFooter>
+      </Show>
     </Dialog>
   );
 }
