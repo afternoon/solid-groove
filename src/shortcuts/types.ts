@@ -37,6 +37,7 @@ export const SHORTCUT_CONTEXTS = [
   "gesture",
   "loop_brace",
   "value_field",
+  "export_tracks",
 ] as const;
 export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
 
@@ -62,8 +63,13 @@ export const OVERLAY_CONTEXTS: readonly ShortcutContext[] = ["piano_roll"];
  * every other context; a modal that owns keys of its own (the library, `LIB-010`)
  * activates `dialog` *and* one of these, so its keys fire inside it and nowhere
  * else, while every other modal keeps the plain `dialog` behaviour.
+ * `export_tracks` is the Export dialog's track list (`EXP-004`), live only while
+ * that list has keyboard focus.
  */
-export const MODAL_OWNED_CONTEXTS: readonly ShortcutContext[] = ["library"];
+export const MODAL_OWNED_CONTEXTS: readonly ShortcutContext[] = [
+  "library",
+  "export_tracks",
+];
 
 /** The context that suppresses every other one while it is active. */
 export const MODAL_CONTEXT: ShortcutContext = "dialog";

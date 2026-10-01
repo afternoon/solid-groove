@@ -1,0 +1,142 @@
+/* The Export footer (EXP-004, docs/export-dialog.html `.b-ft`). Fixed sizes
+   throughout: nothing in it reflows whatever it says. */
+
+.export-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  align-content: flex-start;
+  gap: 12px 24px;
+  height: 124px;
+  padding: 14px 24px 18px;
+}
+
+.export-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  justify-content: flex-end;
+  min-width: 0;
+  height: 42px;
+  overflow: hidden;
+}
+
+.export-slot.loose {
+  gap: 8px;
+}
+
+.export-level {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.export-footer-fill {
+  flex: 1;
+}
+
+.export-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 268px;
+}
+
+.export-primary,
+.export-secondary {
+  height: 32px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.export-primary {
+  padding: 0 18px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.export-primary:hover {
+  background: var(--color-accent-dim);
+}
+
+.export-primary[aria-disabled="true"] {
+  background: var(--color-background-tertiary);
+  color: var(--color-foreground-muted);
+  cursor: not-allowed;
+}
+
+.export-secondary {
+  border: 1px solid var(--color-border-strong);
+  background: none;
+  color: var(--color-text-secondary);
+}
+
+.export-secondary:hover {
+  border-color: var(--color-text-secondary);
+  background: none;
+  color: var(--color-foreground-bright);
+}
+
+.export-message {
+  order: 10;
+  display: flex;
+  flex-basis: 100%;
+  align-items: flex-start;
+  height: 40px;
+  overflow: hidden;
+}
+
+.export-alert {
+  width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--color-danger-edge);
+  background: var(--color-danger-wash);
+  color: var(--color-foreground-bright);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mounted throughout so a screen reader announces each failure; framed only
+   while it holds one. */
+.export-alert:not(.shown) {
+  width: 0;
+  padding: 0;
+  border-width: 0;
+}
+
+.export-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-foreground);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-slot progress {
+  display: block;
+  margin-bottom: 6px;
+  width: 100%;
+  height: 4px;
+  border: 0;
+  appearance: none;
+  background: var(--color-background-tertiary);
+  accent-color: var(--color-accent);
+}
+
+.export-slot progress::-webkit-progress-bar {
+  background: var(--color-background-tertiary);
+}
+
+.export-slot progress::-webkit-progress-value {
+  background: var(--color-accent);
+}
+
+.export-slot progress::-moz-progress-bar {
+  background: var(--color-accent);
+}
