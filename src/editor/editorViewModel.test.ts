@@ -291,7 +291,7 @@ describe("librarySlotHeader", () => {
     const pad = instrument.pads[0];
     // The pad's own name is the title; the eyebrow says where it sits.
     expect(librarySlotHeader(drums, track, { padId: pad.id }, false)).toMatchObject({
-      eyebrow: `${track?.name} \u00b7 Pad 1`,
+      eyebrow: "Drums \u00b7 Pad 1",
       slot: pad.name,
     });
     // A pad hands over its sound's storage ref, so the shelf can open on its role.

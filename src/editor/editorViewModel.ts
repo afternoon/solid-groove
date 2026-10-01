@@ -224,7 +224,8 @@ export function librarySlotHeader(
     const found = instrument.pads[index];
     const asset = project?.song.assets.find((entry) => entry.id === found?.assetId);
     return {
-      eyebrow: `${track?.name ?? "Drums"} · Pad ${index + 1}`,
+      // The instrument and the pad's place in it; the pad's own name is the title.
+      eyebrow: `Drums · Pad ${index + 1}`,
       slot: found?.name ?? "Pad",
       current: asset?.name ?? null,
       kind: "drum-pad",
