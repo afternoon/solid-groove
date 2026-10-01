@@ -25,6 +25,11 @@ export interface DialogProps {
   readonly label: string;
   readonly size?: DialogSize;
   /**
+   * An extra class on the dialog itself, for the one surface that needs its own
+   * width (the Export dialog). The chrome stays this file's.
+   */
+  readonly class?: string;
+  /**
    * Rendered in the header bar beside the close button. Omit it and there is
    * no header bar at all, for a dialog whose contents carry their own.
    */
@@ -99,7 +104,7 @@ export default function Dialog(props: DialogProps): JSX.Element {
         onClick={() => props.onClose()}
       />
       <section
-        class={`dialog dialog-${props.size ?? "panel"}`}
+        class={["dialog", `dialog-${props.size ?? "panel"}`, props.class]}
         role="dialog"
         aria-modal="true"
         aria-label={props.label}

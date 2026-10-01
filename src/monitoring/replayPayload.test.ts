@@ -429,6 +429,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // The arrangement's previewed header row (TRK-02): a fixed test id or
       // nothing, never anything the user authored.
       'previewing(track().id) ? "track-drop-indicator" : undefined',
+      // The Export ZIP gutter's bracket state (#724): an enum of our own
+      // ("current", "done" or none). Never a name.
+      "bracket.state",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

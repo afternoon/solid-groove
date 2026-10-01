@@ -1,6 +1,6 @@
 import { Portal } from "@solidjs/web";
 import { HiSolidQuestionMarkCircle, HiSolidSquares2x2 } from "solid-icons/hi";
-import { type Accessor, createSignal, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import {
@@ -64,6 +64,8 @@ export interface EditorHeaderProps {
   readonly onSwingInput: (value: number) => void;
   readonly onSwingCommit: (value: number) => void;
   readonly onOpenGuide: () => void;
+  /** Told whether the Export dialog is open, so the editor's keys can stand down. */
+  readonly onExportOpenChange?: (open: boolean) => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
   /** Injected in tests; defaults to the app-wide instance. */
   readonly analytics?: Analytics;
@@ -83,6 +85,10 @@ export default function EditorHeader(props: EditorHeaderProps) {
   const analytics = () => props.analytics ?? defaultAnalytics;
   const [renaming, setRenaming] = createSignal(false);
   const [exporting, setExporting] = createSignal(false);
+  createEffect(exporting, (open) => {
+    props.onExportOpenChange?.(open);
+    return () => props.onExportOpenChange?.(false);
+  });
   function seek(ticks: number): void {
     analytics().logFeatureFirstUse("playhead_seek");
     props.audio.seekTicks(ticks);
