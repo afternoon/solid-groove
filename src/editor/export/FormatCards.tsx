@@ -35,8 +35,9 @@ export interface FormatCardsProps {
 
 /**
  * The format switch of the Release design (EXP-004): two full-width cards side
- * by side, the chosen one white. Each card is a label over a real radio, hidden
- * but focusable, so the pair keeps native arrow-key movement and its names.
+ * by side, the chosen one white. Each card is a label over a real radio that
+ * covers it unseen, so a click lands on the radio itself, and the pair keeps
+ * native arrow-key movement and its names.
  */
 export default function FormatCards(props: FormatCardsProps): JSX.Element {
   return (
@@ -47,7 +48,7 @@ export default function FormatCards(props: FormatCardsProps): JSX.Element {
           <label class={["export-card", { checked: props.value === card.format }]}>
             <input
               type="radio"
-              class="visually-hidden"
+              class="export-card-radio"
               name="export-format"
               value={card.format}
               aria-label={card.name}
