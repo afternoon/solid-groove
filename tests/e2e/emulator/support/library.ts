@@ -118,8 +118,10 @@ export async function reloadOnInstrumentView(
 
 // --- The library modal (assumed; see the header) ------------------------------
 
+// Exact: the library's own keys sheet ("Library keys", #813) is a dialog
+// inside it, and a substring match would find both while it is open.
 export const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library" });
+  page.getByRole("dialog", { name: "Library", exact: true });
 
 export const readout = (page: Page, name: "Was" | "Hearing"): Locator =>
   library(page).getByRole("group", { name });

@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- The Export dialog reference design for #724 (EXP-004). Self-contained and playable: open it in a browser.
+     Tab B, "Release", is the chosen design. Tabs A and C are the alternatives it was chosen over. -->
+<title>Export Dialog Studies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one page, three stages. Each stage is a faux editor with a prototype
+   on top of it. Single dark look, as the product is: the faceplate ramp below
+   mirrors src/theme.css, and track colours are the only hue. */
+:root{
+  color-scheme:dark;
+  --mono-00:#000;--mono-08:#141414;--mono-16:#292929;--mono-28:#474747;--mono-47:#787878;
+  --mono-65:#a6a6a6;--mono-85:#d9d9d9;--mono-96:#f6f6f6;--mono-100:#fff;
+  --danger-wash:rgb(255 255 255/10%);--danger-edge:rgb(255 255 255/30%);
+  --scrim:rgb(0 0 0/70%);--tint-soft:rgb(255 255 255/8%);
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{background:var(--mono-00);color:var(--mono-96)}
+body{font:14px/1.5 var(--sans);padding-inline:16px;padding-block:32px 72px}
+button{font:inherit;color:inherit;cursor:pointer;border-radius:0}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--mono-100);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.page-head{display:flex;flex-direction:column;gap:10px;max-width:74ch}
+.eyebrow{margin:0;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mono-65)}
+h1{margin:0;font-size:32px;line-height:1.1;font-weight:700;text-wrap:balance}
+.lede{margin:0;color:var(--mono-85)}
+.nav{display:flex;gap:1px;background:var(--mono-16);position:sticky;top:env(safe-area-inset-top,0px);z-index:40;flex-wrap:wrap}
+.nav button{flex:1 1 200px;padding:10px 14px;background:var(--mono-08);border:0;color:var(--mono-85);font-weight:600;font-size:13px;text-align:left;display:flex;flex-direction:column;gap:1px}
+.nav button small{font-weight:400;color:var(--mono-47);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.nav button:hover{background:var(--mono-16)}
+.nav button[aria-selected="true"]{background:var(--mono-100);color:var(--mono-00)}
+.nav button[aria-selected="true"] small{color:var(--mono-28)}
+.brief{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:24px;align-items:start}
+.brief h2{margin:0 0 6px;font-size:22px}
+.brief p{margin:0 0 8px;color:var(--mono-85);max-width:68ch}
+.brief ul{margin:0;padding-left:18px;color:var(--mono-85)}
+.brief li{margin-bottom:4px}
+.tag{display:inline-block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--mono-28);padding:1px 6px;color:var(--mono-65);margin-left:6px;vertical-align:2px}
+.scen{background:var(--mono-08);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.scen .lbl{margin-bottom:-4px}
+.seg{display:flex;gap:2px}
+.seg button{flex:1;height:28px;border:0;background:var(--mono-16);color:var(--mono-65);font-size:12px}
+.seg button:hover{background:var(--mono-28)}
+.seg button[aria-pressed="true"]{background:var(--mono-100);color:var(--mono-00)}
+.ghost{height:28px;border:1px solid var(--mono-28);background:none;color:var(--mono-85);font-size:12px;padding:0 12px}
+.ghost:hover{border-color:var(--mono-85);color:var(--mono-100)}
+@media (max-width:760px){.brief{grid-template-columns:1fr}h1{font-size:26px}}
+
+/* ---------- shared faceplate parts ---------- */
+.lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--mono-47);font-weight:500}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ro{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ro b{font-size:14px;font-weight:500;color:var(--mono-96)}
+.grp-h{display:flex;align-items:center;gap:10px}
+.grp-h::after{content:"";flex:1;height:1px;background:var(--mono-28)}
+.grp-h .aside{order:2;display:flex;gap:6px;align-items:center}
+.grp-h::after{order:1}
+.primary{height:32px;padding:0 18px;border:0;background:var(--mono-100);color:var(--mono-00);font-weight:600;font-size:12px}
+.primary:hover{background:var(--mono-85)}
+.primary[aria-disabled="true"]{background:var(--mono-16);color:var(--mono-47);cursor:not-allowed}
+.secondary{height:32px;padding:0 14px;border:1px solid var(--mono-28);background:none;color:var(--mono-85);font-size:12px;font-weight:600}
+.secondary:hover{border-color:var(--mono-85);color:var(--mono-100)}
+.ib{width:28px;height:28px;border:0;background:none;display:grid;place-items:center;color:var(--mono-65);padding:0}
+.ib:hover{background:var(--mono-16);color:var(--mono-100)}
+.ib svg{width:12px;height:12px}.ib path{stroke:currentColor;stroke-width:1.6;fill:none}
+.mini{height:22px;border:0;background:var(--mono-16);color:var(--mono-85);font-size:11px;padding:0 8px}
+.mini:hover{background:var(--mono-28);color:var(--mono-100)}
+.alert{border:1px solid var(--danger-edge);background:var(--danger-wash);padding:8px 10px;color:var(--mono-100);font-size:12px}
+.alert:empty{display:none}
+.alert b{font-weight:700}
+.budget{position:relative;height:4px;background:var(--mono-16);width:100%}
+.budget i{position:absolute;left:0;top:0;bottom:0;background:var(--mono-85);width:calc(min(var(--b,0),1)*100%)}
+.budget.over i{background:var(--mono-100)}
+.budget.over::after{content:"";position:absolute;right:0;top:-3px;bottom:-3px;width:1px;background:var(--mono-100)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- faux editor behind every prototype ---------- */
+.stage{position:relative;background:var(--mono-00);border:1px solid var(--mono-16);overflow:hidden;min-height:780px}
+.stage-scroll{overflow-x:auto}
+.stage-inner{min-width:900px;position:relative;min-height:780px}
+.ed-top{display:flex;align-items:center;gap:24px;height:48px;padding:0 14px;background:var(--mono-08)}
+.ed-top .pname{font-weight:600;color:var(--mono-100)}
+.ed-top .sp{flex:1}
+.ed-top .tb{height:28px;border:0;background:var(--mono-16);color:var(--mono-85);font-size:12px;padding:0 12px}
+.ed-top .tb.play{width:32px;padding:0;display:grid;place-items:center}
+.ed-top .tb.play::before{content:"";border-left:8px solid currentColor;border-top:5px solid transparent;border-bottom:5px solid transparent}
+.ed-top .tb.exp{background:var(--mono-100);color:var(--mono-00);font-weight:600}
+.ed-body{display:grid;grid-template-columns:220px 1fr;height:732px}
+.ed-rail{display:flex;flex-direction:column;gap:1px;background:var(--mono-16);overflow:hidden}
+.ed-rail div{height:36px;background:var(--mono-08);display:flex;align-items:center;gap:8px;padding-right:8px;font-size:12px;color:var(--mono-85);flex:none}
+.ed-rail div::before{content:"";width:4px;align-self:stretch;background:var(--c)}
+.ed-arr{position:relative;overflow:hidden;background:var(--mono-00)}
+.ed-arr canvas{position:absolute;inset:0;width:100%;height:100%;opacity:.9}
+.scrimmed::after{content:"";position:absolute;inset:0;background:var(--scrim);z-index:5}
+.modal-host{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px}
+
+/* ================= A · Console ================= */
+.a-dlg{width:840px;max-width:100%;background:var(--mono-08);display:flex;flex-direction:column;box-shadow:0 20px 60px rgb(0 0 0/80%),0 0 0 1px var(--mono-16);max-height:100%}
+.a-hd{display:flex;align-items:center;gap:28px;padding:16px 16px 16px 20px;border-bottom:1px solid var(--mono-16)}
+.a-hd h2{margin:0;font-size:18px;color:var(--mono-100);font-weight:600}
+.a-hd .sp{flex:1}
+.a-bd{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px 20px;padding:20px;min-height:0;flex:1}
+.a-left{grid-column:span 4;display:flex;flex-direction:column;gap:14px;min-width:0}
+.a-right{grid-column:span 8;display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
+.sw{display:flex;flex-direction:column;gap:2px}
+.opt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:9px 12px;border:0;background:var(--mono-16);color:var(--mono-65);text-align:left}
+.opt b{font-size:13px;font-weight:600;color:var(--mono-85)}
+.opt span{font-size:11px}
+.opt:hover{background:var(--mono-28)}
+.opt[aria-checked="true"]{background:var(--mono-100);color:var(--mono-28)}
+.opt[aria-checked="true"] b{color:var(--mono-00)}
+.opt:disabled{cursor:default;opacity:.6}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:12px;margin:0}
+.kv dt{color:var(--mono-47)}.kv dd{margin:0;color:var(--mono-96);min-width:0;overflow-wrap:anywhere}
+.files{margin:0;padding:0;list-style:none;font-size:11px;color:var(--mono-65);max-height:132px;overflow:auto;background:var(--mono-00);padding:8px 10px;font-variant-numeric:tabular-nums}
+.files li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.files li.dir{color:var(--mono-47)}
+.files li.off{display:none}
+.a-tools{display:flex;gap:6px;align-items:center}
+.a-filter{height:24px;background:var(--mono-00);border:1px solid var(--mono-16);color:var(--mono-96);font:12px var(--sans);padding:0 8px;width:150px;border-radius:0}
+.a-filter:focus{outline:1px solid var(--mono-100);outline-offset:0}
+.a-list{background:var(--mono-00);overflow:auto;height:352px;display:flex;flex-direction:column}
+.a-sub{padding:8px 12px 4px;position:sticky;top:0;background:var(--mono-00);z-index:1}
+.a-row{display:grid;grid-template-columns:40px 4px 26px minmax(0,1fr) 92px 64px;gap:0 10px;align-items:center;min-height:34px;padding-right:12px;border-top:1px solid var(--mono-08);cursor:pointer;position:relative;flex:none}
+.a-row:hover{background:var(--tint-soft)}
+.a-tg{width:30px;height:22px;margin-left:10px;border:0;background:var(--mono-16);color:var(--mono-65);font-size:10px;font-weight:600;letter-spacing:.06em}
+.a-tg[aria-pressed="true"]{background:var(--mono-100);color:var(--mono-00)}
+.a-sw{height:22px;background:var(--c)}
+.a-ix{font-size:11px;color:var(--mono-47)}
+.a-nm{font-size:13px;font-weight:600;color:var(--mono-96);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.a-nm em{font-style:normal;font-weight:400;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mono-47);margin-left:8px}
+.a-kind{font-size:11px;color:var(--mono-65)}
+.a-sz{font-size:11px;color:var(--mono-85);text-align:right}
+.a-row[data-on="false"] .a-sw,.a-row[data-on="false"] .a-nm,.a-row[data-on="false"] .a-kind,.a-row[data-on="false"] .a-sz,.a-row[data-on="false"] .a-ix{opacity:.35}
+.a-row .pg{position:absolute;left:0;bottom:0;height:2px;background:var(--c);width:calc(var(--p,0)*100%)}
+.a-row[data-state="done"] .a-sz::before{content:"✓ ";color:var(--mono-100)}
+.a-list.locked .a-row{cursor:default}
+.a-stereo-note{font-size:12px;color:var(--mono-65);padding:10px 12px;background:var(--mono-00)}
+.a-ft{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px 20px;align-items:end;padding:14px 20px 20px;border-top:1px solid var(--mono-16)}
+.a-ft .meter{grid-column:span 6;display:flex;flex-direction:column;gap:8px}
+.a-ft .meter .row{display:flex;gap:28px}
+.a-ft .acts{grid-column:span 6;display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.a-ft .msg{grid-column:1/-1}
+progress{appearance:none;-webkit-appearance:none;width:100%;height:4px;border:0;background:var(--mono-16);display:block}
+progress::-webkit-progress-bar{background:var(--mono-16)}
+progress::-webkit-progress-value{background:var(--mono-100)}
+progress::-moz-progress-bar{background:var(--mono-100)}
+.done-line{font-size:13px;color:var(--mono-100)}
+.done-line span{color:var(--mono-65)}
+
+/* ================= B · Release ================= */
+.b-dlg{width:1040px;max-width:100%;background:var(--mono-08);display:flex;flex-direction:column;box-shadow:0 30px 80px rgb(0 0 0/85%),0 0 0 1px var(--mono-16);max-height:100%;position:relative;overflow:hidden}
+.b-hd{display:flex;align-items:flex-end;gap:32px;padding:20px 24px 14px}
+.b-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+.b-title .lbl{color:var(--mono-65)}
+.b-title h2{margin:0;font-size:40px;line-height:1.15;padding-bottom:.04em;font-weight:700;color:var(--mono-100);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-hd .sp{flex:1}
+.b-hd .ib{align-self:flex-start;margin-top:-12px;margin-right:-10px}
+.b-body{display:grid;grid-template-columns:260px minmax(0,1fr);background:var(--mono-00);position:relative}
+.b-lanes{height:250px;overflow:auto;display:grid;grid-template-columns:260px 26px minmax(0,1fr);grid-column:1/-1;position:relative;scrollbar-width:thin}
+.b-names{display:flex;flex-direction:column}
+.b-name{height:24px;flex:none;display:grid;grid-template-columns:4px minmax(0,1fr) 30px;align-items:center;gap:10px;padding-right:10px;background:var(--mono-08);color:var(--mono-85);font-size:12px;border-bottom:1px solid var(--mono-00);cursor:pointer;user-select:none;-webkit-user-select:none;position:relative}
+.b-name:focus-visible{outline:2px solid var(--mono-100);outline-offset:-2px}
+.b-name::before{content:"";height:100%;background:var(--c)}
+.b-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.b-name i{font-style:normal;font-size:9px;letter-spacing:.08em;height:16px;display:grid;place-items:center;background:var(--mono-16);color:var(--mono-65)}
+.b-name[data-on="true"] i{background:var(--mono-100);color:var(--mono-00)}
+.b-name[data-on="false"]{color:var(--mono-47)}
+.b-name[data-on="false"]::before{opacity:.3}
+.b-name:hover{background:var(--mono-16)}
+.b-name[aria-selected="true"]{background:var(--mono-28);color:var(--mono-100)}
+.b-name[aria-selected="true"][data-on="false"]{color:var(--mono-85)}
+.b-name[aria-selected="true"]::after{content:"";position:absolute;right:0;top:0;bottom:0;width:2px;background:var(--mono-100)}
+.b-name.fixed,.b-name[aria-disabled="true"]{cursor:default}
+.b-map canvas{cursor:pointer}
+.b-gut{position:relative;background:var(--mono-08);border-left:1px solid var(--mono-00)}
+.b-brk{position:absolute;left:6px;right:6px;border:1px solid var(--mono-47);border-right:0;display:grid;place-items:center}
+.b-brk span{font-size:10px;font-weight:600;color:var(--mono-65);background:var(--mono-08);padding:2px 0;font-variant-numeric:tabular-nums}
+.b-brk.now{border-color:var(--mono-100)}.b-brk.now span{color:var(--mono-100)}
+.b-brk.done{border-color:var(--mono-65)}.b-brk.done span{color:var(--mono-00);background:var(--mono-65);padding:2px 3px}
+.b-sel{display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;min-width:0}
+.b-sel .lbl{margin-right:auto;white-space:nowrap}
+.b-sel .mini{height:20px;padding:0 6px;font-size:10px}
+.b-hint{font-size:10px;color:var(--mono-47);white-space:nowrap;cursor:help}
+kbd{font:600 10px var(--sans);color:var(--mono-85);background:var(--mono-16);padding:0 4px;margin-left:4px}
+.b-tray{display:flex;align-items:center;gap:2px;padding:10px 24px 0;overflow-x:auto}
+.b-tray>.lbl{margin-right:12px}
+.b-zip{position:relative;flex:1 1 0;min-width:150px;background:var(--mono-00);padding:7px 10px 9px;display:grid;grid-template-columns:1fr auto;gap:0 10px;font-size:11px;color:var(--mono-65)}
+.b-zip b{font-size:12px;color:var(--mono-96)}
+.b-zip .st{grid-row:1/3;grid-column:2;align-self:center;color:var(--mono-47)}
+.b-zip.now .st{color:var(--mono-100)}
+.b-zip.done .st{color:var(--mono-00);background:var(--mono-100);padding:1px 6px;font-weight:600}
+.b-zip.bad{outline:1px solid var(--danger-edge);background:var(--danger-wash)}.b-zip.bad .st{color:var(--mono-100);font-weight:600}
+.b-zip i{position:absolute;left:0;bottom:0;height:2px;background:var(--mono-100);width:calc(var(--p,0)*100%)}
+.b-pack{display:flex;flex-direction:column;gap:8px;width:210px}
+.b-pack .seg button{height:26px}
+.b-msg{flex-basis:100%;order:10;height:40px;display:flex;align-items:flex-start;overflow:hidden}
+.b-msg .alert{padding:4px 10px;width:100%}
+.b-ft .ro,.b-ft .bud{height:42px;justify-content:flex-end;overflow:hidden}.b-ft .ro{width:230px}.b-ft .bud{width:240px}.b-ft .bud progress{margin-bottom:6px}
+.b-ft{height:124px;align-content:flex-start}
+#b-acts{min-width:268px;justify-content:flex-end}
+.b-tray{min-height:60px}
+.b-zip b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.b-msg .alert .mini{margin-left:6px;background:var(--mono-100);color:var(--mono-00);font-weight:600}
+.b-note{font-size:12px;color:var(--mono-65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}.b-note:empty{display:none}
+.b-zips{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mono-85)}
+.b-zips li{display:flex;gap:10px;background:var(--mono-08);padding:6px 10px}
+.b-zips li span{color:var(--mono-100)}.b-zips em{font-style:normal;margin-left:auto;color:var(--mono-47)}
+.b-map{position:relative;min-width:0}
+.b-map canvas{position:absolute;left:0;top:0;width:100%}
+.b-head{position:absolute;top:0;bottom:0;width:2px;background:var(--mono-100);left:calc(var(--h,0)*100%);pointer-events:none;box-shadow:0 0 12px rgb(255 255 255/60%)}
+.b-ruler{grid-column:1/-1;display:grid;grid-template-columns:260px 26px minmax(0,1fr);height:28px;background:var(--mono-08);font-size:10px;color:var(--mono-47)}
+.b-ruler div{position:relative}
+#b-ruler span{position:absolute;top:7px;transform:translateX(2px)}
+.b-choose{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:0}
+.b-card{display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:12px 24px;border:0;background:var(--mono-16);text-align:left;color:var(--mono-65);position:relative}
+.b-card b{font-size:16px;color:var(--mono-96)}
+.b-card span{font-size:12px}
+.b-card:hover{background:var(--mono-28)}
+.b-card[aria-checked="true"]{background:var(--mono-100);color:var(--mono-28)}
+.b-card[aria-checked="true"] b{color:var(--mono-00)}
+.b-card:disabled{cursor:default}
+.b-ft{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 24px;padding:14px 24px 18px}
+.primary,.secondary{white-space:nowrap}
+.b-ft .sp{flex:1}
+.b-ft .bud{width:220px;display:flex;flex-direction:column;gap:8px}
+
+/* celebration */
+.b-done{position:absolute;inset:0;background:var(--mono-00);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);z-index:3}
+.b-sleeve{position:relative;overflow:hidden;background:var(--mono-00)}
+.b-sleeve canvas{position:absolute;inset:0;width:100%;height:100%}
+.b-out{display:flex;flex-direction:column;justify-content:center;gap:18px;padding:40px}
+.b-out .lbl{color:var(--mono-65)}
+.b-out h3{margin:0;font-size:52px;line-height:.98;font-weight:800;color:var(--mono-100);letter-spacing:-.02em;text-wrap:balance}
+.b-out p{margin:0;color:var(--mono-85);max-width:40ch}
+.b-stats{display:flex;gap:28px;flex-wrap:wrap}
+.b-stats .ro b{font-size:20px}
+.b-out .acts{display:flex;gap:8px;flex-wrap:wrap}
+.b-next{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--mono-16);padding-top:14px;font-size:12px;color:var(--mono-65)}
+.b-next b{color:var(--mono-96);font-weight:600}
+@keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+.b-out>*{animation:rise .5s both}
+.b-out>*:nth-child(2){animation-delay:.08s}.b-out>*:nth-child(3){animation-delay:.16s}.b-out>*:nth-child(4){animation-delay:.24s}.b-out>*:nth-child(5){animation-delay:.32s}.b-out>*:nth-child(6){animation-delay:.4s}
+@media (prefers-reduced-motion:reduce){.b-out>*{animation:none}}
+
+/* ================= C · Print matrix ================= */
+.c-host{position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;max-height:100%}
+.c-unit{background:var(--mono-08);box-shadow:0 -20px 50px rgb(0 0 0/80%),0 -1px 0 var(--mono-28);display:flex;flex-direction:column;max-height:620px}
+.c-hd{display:flex;align-items:center;gap:32px;padding:14px 20px;min-height:64px}
+.c-trk{display:flex;align-items:center;gap:12px}
+.c-trk::before{content:"";width:4px;height:34px;background:var(--mono-100)}
+.c-trk div{display:flex;flex-direction:column}
+.c-trk b{font-size:18px;font-weight:600;color:var(--mono-100);line-height:1.15}
+.c-hd .sp{flex:1}
+.c-mtx{overflow:auto;height:360px;background:var(--mono-00);margin:0 20px;position:relative}
+.c-grid{display:grid;grid-template-columns:240px var(--cols) minmax(0,1fr);min-width:max-content}
+.c-cell,.c-hcell,.c-rn{height:30px;display:flex;align-items:center;border-bottom:1px solid var(--mono-08)}
+.c-hcell{position:sticky;top:0;z-index:2;background:var(--mono-08);height:56px;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 6px;border-bottom:1px solid var(--mono-16)}
+.c-hcell b{font-size:12px;color:var(--mono-96);white-space:nowrap}
+.c-hcell .lbl{font-size:9px}
+.c-hcell.corner{align-items:flex-start;left:0;z-index:3;padding-left:12px}
+.c-hcell.add{align-items:flex-start;padding-left:12px}
+.c-rn{position:sticky;left:0;z-index:1;background:var(--mono-08);gap:10px;padding-right:10px;font-size:12px;color:var(--mono-85)}
+.c-rn::before{content:"";width:4px;align-self:stretch;background:var(--c)}
+.c-rn span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-rn .m{width:14px;height:14px;display:grid;place-items:center;font-size:9px;background:var(--mono-16);color:var(--mono-65)}
+.c-rn .lv{width:34px;height:4px;background:var(--mono-16);position:relative;overflow:hidden}
+.c-rn .lv i{position:absolute;inset:0;background:var(--c);transform-origin:left;transform:scaleX(var(--m,0))}
+.c-cell{justify-content:center;width:84px}
+.c-pad{width:44px;height:20px;border:0;background:var(--mono-16);padding:0;position:relative}
+.c-pad:hover{background:var(--mono-28)}
+.c-pad[aria-pressed="true"]{background:var(--mono-100)}
+.c-pad[aria-pressed="true"]:hover{background:var(--mono-85)}
+.c-pad.lit{box-shadow:0 0 0 2px var(--c)}
+.c-sub{grid-column:1/-1;height:26px;display:flex;align-items:flex-end;padding:0 12px 4px;position:sticky;left:0}
+.c-fill{border-bottom:1px solid var(--mono-08)}
+.c-files{display:flex;gap:2px;padding:12px 20px 0;overflow-x:auto;scrollbar-width:thin}
+.c-file{flex:none;min-width:128px;background:var(--mono-00);padding:8px 10px;display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--mono-65);position:relative}
+.c-file b{font-size:12px;color:var(--mono-96);white-space:nowrap}
+.c-file .strip{display:flex;height:4px;gap:1px}
+.c-file .strip i{flex:1;background:var(--c)}
+.c-file .pg{position:absolute;left:0;bottom:0;height:2px;background:var(--mono-100);width:calc(var(--p,0)*100%)}
+.c-ft{display:flex;align-items:center;gap:20px;padding:12px 20px 16px}
+.c-ft .sp{flex:1}
+.c-ft .bud{width:220px;display:flex;flex-direction:column;gap:6px}
+.c-ft .alert{flex:1;max-width:520px}
+.c-grp-name{height:20px;width:74px;background:transparent;border:0;border-bottom:1px solid var(--mono-28);color:var(--mono-96);font:600 12px var(--sans);text-align:center;border-radius:0}
+.c-grp-name:focus{outline:none;border-bottom-color:var(--mono-100)}
+.c-x{position:absolute;right:2px;top:2px;width:16px;height:16px}
+.c-hcell{position:sticky}
+.c-hcell .c-x{position:absolute}
+
+/* ---- C, Teenage Engineering pass: a device, not a form ---- */
+.te{font-family:var(--mono)}
+.te .lbl,.te .tl{font-family:var(--mono);text-transform:lowercase;letter-spacing:.02em;font-size:10px;color:var(--mono-47)}
+.te-body{display:grid;grid-template-columns:300px minmax(0,1fr);gap:12px;padding:0 20px;min-height:0}
+.te-screen{background:var(--mono-00);display:flex;flex-direction:column;gap:8px;padding:12px;font:12px/1.35 var(--mono);color:var(--mono-96);height:300px;position:relative;
+  background-image:radial-gradient(var(--mono-08) 1px,transparent 1.2px);background-size:4px 4px}
+.te-screen .big{font-size:34px;line-height:1;font-weight:500;letter-spacing:-.02em}
+.te-screen .row{display:flex;justify-content:space-between;gap:8px}
+.te-reels{height:78px;position:relative}
+.te-reels canvas{position:absolute;inset:0;width:100%;height:100%}
+.te-seg{display:flex;gap:2px}
+.te-seg i{flex:1;height:10px;background:var(--mono-16)}
+.te-seg i.on{background:var(--mono-85)}
+.te-seg.over i.on{background:var(--mono-100)}
+.te-seg i.x{background:repeating-linear-gradient(45deg,var(--mono-100) 0 2px,transparent 2px 4px)}
+.te-screen .msg{margin-top:auto;font-size:11px;color:var(--mono-100);border-top:1px solid var(--mono-28);padding-top:6px}
+.te-screen .msg:empty{display:none}
+.te .c-ft{padding-block:10px 14px}
+.te .c-mtx{margin:0;height:300px}
+.te .c-hd{min-height:52px;padding-block:10px}
+.te .c-unit{max-height:none}
+.te .c-hcell b{font-family:var(--mono);font-weight:500;text-transform:lowercase}
+.te .c-rn{font-family:var(--mono);font-size:12px}
+.te .c-pad{width:40px;height:22px;background:var(--mono-16);box-shadow:inset 0 -2px 0 var(--mono-00)}
+.te .c-pad::after{content:"";position:absolute;top:4px;right:4px;width:4px;height:4px;background:var(--mono-28)}
+.te .c-pad[aria-pressed="true"]{background:var(--mono-96);box-shadow:inset 0 -2px 0 var(--mono-47)}
+.te .c-pad[aria-pressed="true"]::after{background:var(--c);box-shadow:0 0 0 1px var(--mono-00)}
+.te .c-pad.lit{box-shadow:inset 0 -2px 0 var(--mono-47),0 0 0 2px var(--c)}
+.te-key{display:grid;place-items:center;width:28px;height:22px;background:var(--mono-16);font:500 10px var(--mono);color:var(--mono-85)}
+.te .c-file{font-family:var(--mono);border-top:2px solid var(--mono-16)}
+.te .c-file b{font-family:var(--mono);font-weight:500;font-size:11px}
+.te .c-trk b{font-family:var(--mono);font-weight:600;text-transform:lowercase;letter-spacing:-.01em}
+.te .c-trk::before{width:14px;height:14px;background:var(--mono-100)}
+.te .primary{font-family:var(--mono);text-transform:lowercase;font-weight:600;min-width:120px;height:40px;box-shadow:inset 0 -3px 0 var(--mono-65)}
+.te .primary[aria-disabled="true"]{box-shadow:inset 0 -3px 0 var(--mono-00)}
+.te .secondary,.te .mini{font-family:var(--mono);text-transform:lowercase}
+.te .c-ft .alert{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head">
+    <p class="eyebrow">Groove · EXP-004 design study · #724 · chosen: B · Release</p>
+    <h1>Export Dialog Studies</h1>
+    <p class="lede">Three takes on the Export dialog, built from the faceplate parts: the switch, the group rule, label-over-value readouts, pressed toggles and one white action. Each one is a working prototype. Press Export, cancel partway, force a failure, or load the 52-track project to hit the 2 GB limit and turn tracks off until it fits.</p>
+  </header>
+
+  <nav class="nav" role="tablist" aria-label="Treatments">
+    <button role="tab" id="tab-a" aria-selected="false" aria-controls="panel-a" data-tab="a"><small>A · Functional</small>Console</button>
+    <button role="tab" id="tab-b" aria-selected="true" aria-controls="panel-b" data-tab="b"><small>B · Celebration</small>Release</button>
+    <button role="tab" id="tab-c" aria-selected="false" aria-controls="panel-c" data-tab="c"><small>C · Break the mold</small>Print matrix</button>
+  </nav>
+
+  <section id="panel-a" role="tabpanel" aria-labelledby="tab-a" data-panel="a" hidden>
+    <div class="brief">
+      <div>
+        <h2>A · Console</h2>
+        <p>The #724 spec, built exactly. The format is a two-option switch. The tracks are a tall, filterable list of pressed toggles in track order, returns last. The footer holds the readouts: size against the 2 GB limit, then progress. Nothing moves when you switch format. In stereo the list stays in place but locks, because the mix is what you hear.</p>
+        <ul>
+          <li>Progress is shown per stem: a hairline in the track's colour fills under its row, so a long render shows where it is.</li>
+          <li>Over budget, Export stays focusable with <code>aria-disabled</code>. The alert names the limit and how far over the selection is.</li>
+          <li>Package lists every file in the ZIP, so the producer sees the <code>01 BD.wav</code> names before they commit.</li>
+        </ul>
+      </div>
+      <div class="scen" data-scen="a"></div>
+    </div>
+  </section>
+  <section id="panel-b" role="tabpanel" aria-labelledby="tab-b" data-panel="b">
+    <div class="brief">
+      <div>
+        <h2>B · Release</h2>
+        <p>Exporting means the song is done, so this dialog leads with the song. Its name is the title, and the whole arrangement is drawn as coloured lanes. The track list is the lanes' own name column, so the list stays vertical and each toggle sits beside the music it controls. Turn a track off and its lane goes dark.</p>
+        <ul>
+          <li>While it renders, a white playhead crosses the song and prints each lane at full brightness behind it.</li>
+          <li>When it's done, the lanes gather into a sleeve drawn only in the tracks' own colours. The chrome stays monochrome. Next to the sleeve: the song's stats and what to do next.</li>
+          <li>The format choice uses the producer's words: "Share a mix" or "Stems for hand off".</li>
+          <li><b>Picking tracks.</b> Click flips one track. <kbd>⇧</kbd>-click sets every track between it and the last one you clicked to match that one. <kbd>⌘</kbd>/<kbd>Ctrl</kbd>-click picks tracks without flipping them; then On, Off or "Only these" act on the picked tracks, or click any one of them to flip them all. Clicking a lane in the arrangement does the same as clicking its name. From the keyboard: arrows, <kbd>⇧</kbd>+arrows to pick a run, Space to flip, <kbd>⌘</kbd>A to pick all.</li>
+          <li><b>Always in batches.</b> Stems never hit a size block. Up to 2 GB they come as one ZIP. Over 2 GB they split in track order into ZIPs that each fit under the limit, and a note under the footer says so. The split shows as numbered brackets beside the lanes and as cards in the Downloads row. Each ZIP downloads when it is done, before the next one starts. Cancel or a failure keeps the finished ZIPs and offers "Resume from ZIP 2". <span class="tag">Flag</span> This changes #66, which blocks Export over 2 GB. It needs a product decision and an amendment to the issue.</li>
+          <li><b>No layout shift.</b> The Downloads row, the readouts, the buttons and the one-line message slot keep fixed sizes, so a message, a failure or a label change never moves anything.</li>
+        </ul>
+      </div>
+      <div class="scen" data-scen="b"></div>
+    </div>
+  </section>
+  <section id="panel-c" role="tabpanel" aria-labelledby="tab-c" data-panel="c" hidden>
+    <div class="brief">
+      <div>
+        <h2>C · Print matrix <span class="tag">Exploration</span></h2>
+        <p>Borrowed from Teenage Engineering: a device, not a form. It has a dot-matrix display with tape reels, square numbered keys with small LEDs, and tiny lowercase mono labels. There is no modal and no format switch. Export becomes a <b>print</b> unit that slides up over the arrangement, like a rack unit at the end of the chain. Tracks are rows and output files are columns. A white pad means "this track goes into that file". The files it will write are listed along the bottom and update as you press pads.</p>
+        <ul>
+          <li><b>Mix</b> is the stereo WAV. <b>Stem</b> is one WAV per track. <b>+ Bus</b> adds a grouped stem, such as all drums in one file. Grouped stems go beyond #66's scope.</li>
+          <li>Printing works like recording to tape. The reels on the display spin and the take-up reel fills, each row's meter moves in its track colour, and each file card fills as it renders.</li>
+          <li>A pressed key is white, with a small LED in the track's colour. The budget is a 20-segment bar, and the last segment hatches when you go over.</li>
+          <li>The 2 GB budget counts files, so grouping tracks into a bus is another way to get under it.</li>
+        </ul>
+      </div>
+      <div class="scen" data-scen="c"></div>
+    </div>
+  </section>
+
+  <div class="stage-scroll"><div class="stage"><div class="stage-inner" id="stage">
+    <div class="ed-top">
+      <span class="pname" id="ed-name">Night Bus</span>
+      <span class="lbl num" id="ed-meta"></span>
+      <span class="sp"></span>
+      <button class="tb play" type="button" aria-label="Play" tabindex="-1"></button>
+      <button class="tb" type="button" tabindex="-1">Arrangement</button>
+      <button class="tb" type="button" tabindex="-1">Mixer</button>
+      <button class="tb exp" type="button" id="ed-export">Export</button>
+    </div>
+    <div class="ed-body">
+      <div class="ed-rail" id="ed-rail"></div>
+      <div class="ed-arr"><canvas id="ed-canvas"></canvas></div>
+    </div>
+    <div id="proto"></div>
+  </div></div></div>
+</div>
+
+<script>
+(() => {
+"use strict";
+/* ---------------- model ---------------- */
+const BUDGET = 2 * 1024 ** 3;
+const RATE = 48000, BYTES_PER_SEC = RATE * 2 * 3;
+const DATE = "2026-09-30";
+const HUES = [0,25,45,65,120,165,195,220,265,320];
+function hsl(h,s,l){s/=100;l/=100;const a=s*Math.min(l,1-l);const f=n=>{const k=(n+h/30)%12;return Math.round((l-a*Math.max(-1,Math.min(k-3,9-k,1)))*255).toString(16).padStart(2,"0")};return `#${f(0)}${f(8)}${f(4)}`}
+const COLORS = [...HUES.map(h=>hsl(h,75,50)), ...[45,65,120,165,195,265].map(h=>hsl(h,80,65))];
+function rng(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}}
+
+const SMALL = [
+  ["BD","Drum machine"],["Drums","Drum machine"],["Amen Break","Loop"],["Shaker","Loop"],
+  ["Sub","Synth"],["Bass","Synth"],["Tine Electric Key","Sampler"],["Pad","Synth"],
+  ["Arp","Synth"],["Lead","Synth"],["Vox Chop","Sampler"],["Strings","Sampler"],
+  ["Riser","Sampler"],["Impact","Sampler"],["Perc","Drum machine"],["Clap Chop","Sampler"],
+  ["Night Pads","Loop"],["Glass Bell","Synth"]
+];
+const EXTRA = ["Tom Fill","Ride","Rim","Conga","Hat Loop","Reese","Pluck","Organ","Choir","Brass Stab","Guitar Loop","Noise Sweep","Chord Stack","Counter Melody","Kick Top","Snare Layer","Foley","Rain","Vinyl","Keys 2","Sub 2","Arp 2","Vox Lead","Vox Harm","Ambience","Downlifter","Crash","Bongo","Bell 2","Pad 2","Stab 2","Wobble","Break 2","Tape Hiss"];
+
+function makeProject(big){
+  const r = rng(big ? 91 : 7);
+  const bpm = 124, bars = big ? 160 : 120;
+  const seconds = bars * 4 * 60 / bpm;
+  const names = big ? [...SMALL, ...EXTRA.map(n=>[n, ["Synth","Sampler","Loop","Drum machine"][Math.floor(r()*4)]])] : SMALL;
+  const tracks = names.map(([name, kind], i) => {
+    const lanes = []; let b = Math.floor(r()*12)*4;
+    while (b < bars) { const len = (1+Math.floor(r()*4))*4; if (r() > 0.25) lanes.push([b, Math.min(len, bars-b)]); b += len + Math.floor(r()*3)*4; }
+    if (i < 3 && !lanes.length) lanes.push([0, bars]);
+    return { id: "trk"+i, name, kind, color: COLORS[i % COLORS.length], muted: r() < 0.12, lanes, level: 0.4 + r()*0.6 };
+  });
+  const returns = [
+    { id: "ret0", name: "Reverb", kind: "Return", color: "#a6a6a6", lanes: [[0,bars]], level: .5, ret: true },
+    { id: "ret1", name: "Delay", kind: "Return", color: "#787878", lanes: [[0,bars]], level: .4, ret: true },
+  ];
+  return { name: big ? "Long Way Home" : "Night Bus", bpm, bars, seconds, tracks, returns };
+}
+const wavBytes = p => Math.round(p.seconds * BYTES_PER_SEC) + 44;
+function fmtBytes(b){ if (b >= 1000*1024**2) return (b/1024**3).toFixed(2)+" GB"; return Math.round(b/1024**2)+" MB"; }
+function fmtTime(s){ const m=Math.floor(s/60), ss=Math.round(s%60); return `${m}:${String(ss).padStart(2,"0")}`; }
+const pad2 = n => String(n).padStart(2,"0");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---- shared scenario state ---- */
+const scen = { big: false, fail: false };
+let project = makeProject(false);
+
+/* Fake offline render: files in order, per-file progress, cancel, failure. */
+function render(files, { onProgress, onDone, onFail, ms, fail }) {
+  const perFile = ms ?? (files.length > 1 ? Math.max(260, 5200 / files.length) : 4200);
+  const failAt = (fail ?? scen.fail) ? Math.floor(files.length * 0.6) : -1;
+  let i = 0, t0 = performance.now(), raf = 0, stopped = false;
+  const tick = now => {
+    if (stopped) return;
+    let p = (now - t0) / perFile;
+    if (i === failAt && p > 0.45) { stopped = true; onFail("decode_failed"); return; }
+    if (p >= 1) { onProgress(i, 1, (i+1)/files.length); i++; t0 = now; p = 0; if (i >= files.length) { stopped = true; onDone(); return; } }
+    onProgress(i, p, (i + p) / files.length);
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  return () => { stopped = true; cancelAnimationFrame(raf); };
+}
+const FAIL_MSG = "A sound in this project could not be loaded. Check your connection and try again.";
+function overMsg(total){ return `<b>This selection is ${fmtBytes(total)}.</b> A stems export can be at most 2 GB, the most a browser can hold. Turn off tracks until it fits: ${fmtBytes(total-BUDGET)} to go.`; }
+
+/* ---------------- faux editor ---------------- */
+function drawEditor(){
+  document.getElementById("ed-name").textContent = project.name;
+  document.getElementById("ed-meta").textContent = `${project.bpm} BPM · ${project.bars} bars · ${fmtTime(project.seconds)}`;
+  const rail = document.getElementById("ed-rail");
+  rail.innerHTML = project.tracks.map(t=>`<div style="--c:${t.color}">${esc(t.name)}</div>`).join("");
+  const cv = document.getElementById("ed-canvas"), box = cv.getBoundingClientRect();
+  const dpr = devicePixelRatio||1; cv.width = box.width*dpr; cv.height = box.height*dpr;
+  const g = cv.getContext("2d"); g.scale(dpr,dpr);
+  const bw = 22;
+  g.strokeStyle = "#141414";
+  for (let x=0;x<box.width;x+=bw){ g.beginPath(); g.moveTo(x+.5,0); g.lineTo(x+.5,box.height); g.stroke(); }
+  project.tracks.forEach((t,i)=>{ const y=i*37; if (y>box.height) return; g.fillStyle = t.color;
+    t.lanes.forEach(([s,l])=>{ g.globalAlpha=.28; g.fillRect(s*bw/4*4/4*1+1, y+1, l*bw/4*1-2, 34); g.globalAlpha=1; g.fillRect(s*bw/4+1,y+1,l*bw/4-2,3); }); });
+}
+
+/* ---------------- tabs + scenario panel ---------------- */
+let active = "b", current = null;
+function scenPanel(host){
+  host.innerHTML = `
+    <span class="lbl">Project</span>
+    <div class="seg"><button type="button" data-big="0" aria-pressed="${!scen.big}">Night Bus · 18 tracks</button><button type="button" data-big="1" aria-pressed="${scen.big}">52 tracks · over 2 GB</button></div>
+    <span class="lbl">Next render</span>
+    <div class="seg"><button type="button" data-fail="0" aria-pressed="${!scen.fail}">Succeeds</button><button type="button" data-fail="1" aria-pressed="${scen.fail}">Fails at 60%</button></div>
+    <button type="button" class="ghost" data-reopen>Reset and reopen</button>`;
+}
+document.querySelectorAll("[data-scen]").forEach(h => {
+  scenPanel(h);
+  h.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.big) { scen.big = b.dataset.big === "1"; project = makeProject(scen.big); drawEditor(); open(); }
+    if (b.dataset.fail) scen.fail = b.dataset.fail === "1";
+    if (b.dataset.reopen) open();
+    document.querySelectorAll("[data-scen]").forEach(scenPanel);
+  });
+});
+document.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
+  active = b.dataset.tab;
+  document.querySelectorAll("[data-tab]").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  document.querySelectorAll("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== active);
+  open();
+}));
+document.getElementById("ed-export").addEventListener("click", open);
+const proto = document.getElementById("proto"), stage = document.getElementById("stage");
+function open(){
+  if (current) current.destroy();
+  proto.innerHTML = "";
+  stage.classList.toggle("scrimmed", active !== "c");
+  const host = document.createElement("div"); proto.appendChild(host);
+  current = ({ a: DesignA, b: DesignB, c: DesignC })[active](host);
+}
+function closeProto(){ if (current) current.destroy(); current = null; proto.innerHTML = ""; stage.classList.remove("scrimmed"); }
+const X_ICON = `<svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8"/></svg>`;
+
+/* Radio-group arrow keys for any switch */
+function wireSwitch(root, onPick){
+  root.addEventListener("keydown", e => {
+    if (!["ArrowDown","ArrowUp","ArrowLeft","ArrowRight"].includes(e.key)) return;
+    const opts = [...root.querySelectorAll('[role="radio"]:not(:disabled)')]; if (!opts.length) return;
+    const i = opts.indexOf(document.activeElement); const d = (e.key==="ArrowDown"||e.key==="ArrowRight")?1:-1;
+    const n = opts[(i + d + opts.length) % opts.length]; e.preventDefault(); onPick(n.dataset.fmt); root.querySelector(`[data-fmt="${n.dataset.fmt}"]`).focus();
+  });
+}
+
+/* ================= A · Console ================= */
+function DesignA(host){
+  const st = { fmt: "stereo", on: new Set([...project.tracks, ...project.returns].map(t=>t.id)), phase: "choose", filter: "", cancel: null };
+  const all = () => [...project.tracks, ...project.returns];
+  const files = () => {
+    if (st.fmt === "stereo") return [{ name: `${project.name} ${DATE}.wav`, ref: true }];
+    const f = [{ name: "Reference mix.wav", ref: true }];
+    project.tracks.forEach((t,i)=>{ if (st.on.has(t.id)) f.push({ name: `${pad2(i+1)} ${t.name}.wav`, id: t.id }); });
+    project.returns.forEach(t=>{ if (st.on.has(t.id)) f.push({ name: `Returns/${t.name}.wav`, id: t.id }); });
+    return f;
+  };
+  const total = () => files().length * wavBytes(project);
+  const over = () => st.fmt === "stems" && total() > BUDGET;
+  const count = () => all().filter(t => st.on.has(t.id)).length;
+
+  host.innerHTML = `<div class="modal-host"><div class="a-dlg" role="dialog" aria-modal="true" aria-labelledby="a-title">
+    <div class="a-hd">
+      <h2 id="a-title">Export</h2>
+      <div class="ro"><span class="lbl">Length</span><b class="num">${fmtTime(project.seconds)}</b></div>
+      <div class="ro"><span class="lbl">Bars</span><b class="num">1 – ${project.bars}</b></div>
+      <div class="ro"><span class="lbl">Sample rate</span><b class="num">48 kHz</b></div>
+      <div class="ro"><span class="lbl">Depth</span><b class="num">24-bit</b></div>
+      <span class="sp"></span>
+      <button type="button" class="ib" aria-label="Close export" data-close>${X_ICON}</button>
+    </div>
+    <div class="a-bd">
+      <div class="a-left">
+        <div class="grp-h"><span class="lbl">Format</span></div>
+        <div class="sw" role="radiogroup" aria-label="Format" id="a-sw">
+          <button type="button" class="opt" role="radio" data-fmt="stereo"><b>Stereo WAV</b><span>The mix, as you hear it</span></button>
+          <button type="button" class="opt" role="radio" data-fmt="stems"><b>Stems (ZIP)</b><span>One WAV per track, lined up at bar 1</span></button>
+        </div>
+        <div class="grp-h"><span class="lbl">Package</span></div>
+        <dl class="kv"><dt>File</dt><dd id="a-file"></dd><dt>Level</dt><dd>Project level, not normalized</dd><dt>Range</dt><dd>Bar 1 to the last clip, plus its tail</dd></dl>
+        <ul class="files" id="a-files" aria-label="Files in the package"></ul>
+      </div>
+      <div class="a-right">
+        <div class="grp-h"><span class="lbl">Tracks</span><div class="aside a-tools">
+          <span class="lbl num" id="a-count"></span>
+          <input class="a-filter" id="a-filter" type="search" placeholder="Filter tracks" aria-label="Filter tracks">
+          <button type="button" class="mini" data-all>All</button><button type="button" class="mini" data-none>None</button>
+        </div></div>
+        <div class="a-list" id="a-list" role="group" aria-label="Tracks to export"></div>
+      </div>
+    </div>
+    <div class="a-ft">
+      <div class="meter" id="a-meter"></div>
+      <div class="acts" id="a-acts"></div>
+      <div class="msg"><div class="alert" id="a-alert" role="alert" aria-live="assertive"></div><output id="a-status" class="done-line" aria-live="polite"></output></div>
+    </div>
+  </div></div>`;
+  const $ = s => host.querySelector(s);
+
+  function rowsHTML(){
+    const row = (t, ix, ret) => `<div class="a-row" data-id="${t.id}" data-on="${st.on.has(t.id)}" style="--c:${t.color}">
+      <button type="button" class="a-tg" aria-pressed="${st.on.has(t.id)}" aria-label="Include ${esc(t.name)}">${st.on.has(t.id) ? "ON" : "OFF"}</button>
+      <span class="a-sw"></span><span class="a-ix num">${ret ? "R" : pad2(ix+1)}</span>
+      <span class="a-nm">${esc(t.name)}${t.muted ? `<em title="Stems export muted tracks too">Muted</em>` : ""}</span>
+      <span class="a-kind">${t.kind}</span><span class="a-sz num">${fmtBytes(wavBytes(project))}</span><i class="pg"></i></div>`;
+    const q = st.filter.toLowerCase(), m = t => !q || t.name.toLowerCase().includes(q);
+    return `<div class="a-sub"><span class="lbl">Tracks · ${project.tracks.length}</span></div>` +
+      project.tracks.map((t,i)=> m(t) ? row(t,i,false) : "").join("") +
+      `<div class="a-sub"><span class="lbl">Returns · ${project.returns.length}</span></div>` +
+      project.returns.map(t => m(t) ? row(t,0,true) : "").join("");
+  }
+  function update(){
+    const busy = st.phase === "rendering";
+    host.querySelectorAll("#a-sw .opt").forEach(o => { o.setAttribute("aria-checked", String(o.dataset.fmt === st.fmt)); o.tabIndex = o.dataset.fmt === st.fmt ? 0 : -1; o.disabled = busy; });
+    const list = $("#a-list");
+    if (st.fmt === "stereo") {
+      list.classList.add("locked");
+      list.innerHTML = `<p class="a-stereo-note">Stereo WAV renders the whole mix as you hear it, with mutes and solos applied. To choose tracks, pick Stems.</p>` + rowsHTML();
+      list.querySelectorAll(".a-tg").forEach(b => { const t = all().find(x=>x.id===b.closest(".a-row").dataset.id); b.disabled = true; b.textContent = t.muted ? "—" : "MIX"; b.setAttribute("aria-pressed", String(!t.muted)); });
+      list.querySelectorAll(".a-row").forEach(r => { const t = all().find(x=>x.id===r.dataset.id); r.dataset.on = String(!t.muted); r.querySelector(".a-sz").textContent = t.muted ? "muted" : ""; });
+    } else {
+      list.classList.remove("locked"); list.innerHTML = rowsHTML();
+      list.querySelectorAll(".a-tg").forEach(b => b.disabled = busy);
+    }
+    $("#a-filter").disabled = st.fmt === "stereo" || busy;
+    host.querySelectorAll("[data-all],[data-none]").forEach(b => b.disabled = st.fmt === "stereo" || busy);
+    $("#a-count").textContent = st.fmt === "stems" ? `${count()} of ${all().length}` : `${project.tracks.length} in mix`;
+    const f = files();
+    $("#a-file").textContent = st.fmt === "stereo" ? f[0].name : `${project.name} ${DATE} stems.zip`;
+    $("#a-files").innerHTML = st.fmt === "stereo" ? `<li>${esc(f[0].name)}</li>` :
+      f.map(x => `<li>${esc(x.name)}</li>`).join("");
+    const t = total(), o = over();
+    if (st.phase !== "rendering") {
+      $("#a-meter").innerHTML = `<div class="row"><div class="ro"><span class="lbl">Estimated size</span><b class="num">${fmtBytes(t)}</b></div>
+        <div class="ro"><span class="lbl">Budget</span><b class="num">2 GB</b></div><div class="ro"><span class="lbl">Files</span><b class="num">${f.length}</b></div></div>
+        <div class="budget ${o ? "over" : ""}" style="--b:${t/BUDGET}" aria-hidden="true"></div>`;
+    }
+    $("#a-alert").innerHTML = st.phase === "failed" ? FAIL_MSG : o ? overMsg(t) : "";
+    $("#a-status").textContent = st.phase === "done" ? "" : "";
+    if (st.phase === "done") $("#a-status").innerHTML = `Export complete. <span>${esc($("#a-file").textContent)} is in your downloads.</span>`;
+    const acts = $("#a-acts");
+    if (busy) acts.innerHTML = `<button type="button" class="secondary" data-cancel>Cancel</button>`;
+    else if (st.phase === "done") acts.innerHTML = `<button type="button" class="secondary" data-again>Export again</button><button type="button" class="primary" data-close>Close</button>`;
+    else acts.innerHTML = `<button type="button" class="secondary" data-close>Close</button><button type="button" class="primary" data-go ${o ? `aria-disabled="true" aria-describedby="a-alert"` : ""}>Export</button>`;
+  }
+  function go(){
+    if (over()) return;
+    st.phase = "rendering"; update();
+    const f = files();
+    $("#a-meter").innerHTML = `<div class="row"><div class="ro"><span class="lbl">Rendering</span><b class="num" id="a-cur"></b></div><div class="ro"><span class="lbl">Progress</span><b class="num" id="a-pct">0%</b></div></div>
+      <progress id="a-prog" max="1" value="0" aria-label="Export progress"></progress>`;
+    st.cancel = render(f, {
+      onProgress(i, p, all){
+        $("#a-prog").value = all; $("#a-pct").textContent = Math.floor(all*100)+"%"; $("#a-cur").textContent = f[i] ? f[i].name.replace(/\.wav$/,"") : "";
+        const id = f[i] && f[i].id; if (id) { const r = host.querySelector(`.a-row[data-id="${id}"]`); if (r) { r.style.setProperty("--p", p); if (p === 1) r.dataset.state = "done"; } }
+      },
+      onDone(){ st.phase = "done"; update(); },
+      onFail(){ st.phase = "failed"; update(); },
+    });
+  }
+  host.addEventListener("click", e => {
+    const b = e.target.closest("button");
+    const row = e.target.closest(".a-row");
+    if (b?.dataset.fmt && st.phase !== "rendering") { st.fmt = b.dataset.fmt; if (st.phase !== "rendering") st.phase = "choose"; update(); return; }
+    if (row && st.fmt === "stems" && st.phase !== "rendering") { const id = row.dataset.id; st.on.has(id) ? st.on.delete(id) : st.on.add(id); st.phase = "choose"; update(); host.querySelector(`.a-row[data-id="${id}"] .a-tg`)?.focus(); return; }
+    if (!b) return;
+    if (b.dataset.all != null) { all().forEach(t => st.on.add(t.id)); update(); }
+    if (b.dataset.none != null) { st.on.clear(); update(); }
+    if (b.dataset.go != null) go();
+    if (b.dataset.again != null) { st.phase = "choose"; update(); }
+    if (b.dataset.cancel != null) { st.cancel?.(); st.phase = "choose"; update(); }
+    if (b.dataset.close != null) { st.cancel?.(); closeProto(); }
+  });
+  $("#a-filter").addEventListener("input", e => { st.filter = e.target.value; update(); $("#a-filter").focus(); });
+  wireSwitch($("#a-sw"), fmt => { if (st.phase !== "rendering") { st.fmt = fmt; st.phase = "choose"; update(); } });
+  update();
+  if (scen.big) { st.fmt = "stems"; update(); }
+  return { destroy(){ st.cancel?.(); } };
+}
+
+/* ================= B · Release ================= */
+function DesignB(host){
+  const ROW = 24;
+  const lanes = [...project.tracks, ...project.returns];
+  const st = { fmt: "stems", on: new Set(lanes.map(t=>t.id)), sel: new Set(), anchor: null, focus: 0,
+    phase: "choose", cancel: null, head: 0, batch: 0, got: [], resumeFrom: 0, stopped: null };
+  const perBatch = Math.max(2, Math.floor(BUDGET / wavBytes(project)));
+  const included = () => lanes.filter(t => st.on.has(t.id));
+  const nFiles = () => st.fmt === "stereo" ? 1 : 1 + included().length;
+  const total = () => nFiles() * wavBytes(project);
+  const batching = () => st.fmt === "stems";
+  const over = () => false; // stems never block on size: over 2 GB they split into ZIPs
+  /* Batches follow track order. The reference mix takes the first slot of batch 1,
+     and every batch holds as many stems as fit under the budget. */
+  function batches(){
+    if (st.fmt === "stereo") return [lanes.filter(t => !t.muted).map(t => t.id)];
+    if (!batching()) return [included().map(t => t.id)];
+    const out = []; let cur = [], slots = perBatch - 1;
+    for (const t of included()) { if (slots === 0) { out.push(cur); cur = []; slots = perBatch; } cur.push(t.id); slots--; }
+    if (cur.length || !out.length) out.push(cur);
+    return out;
+  }
+  const batchOf = id => batches().findIndex(b => b.includes(id));
+  const batchBytes = (b, i) => (b.length + (i === 0 ? 1 : 0)) * wavBytes(project);
+  const zipName = (i, n) => n > 1 ? `${project.name} ${DATE} stems ${i+1} of ${n}.zip` : `${project.name} ${DATE} stems.zip`;
+  const fileName = () => st.fmt === "stereo" ? `${project.name} ${DATE}.wav` : zipName(0, 1);
+  const busy = () => st.phase === "rendering";
+  const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+  const CMD = MAC ? "⌘" : "Ctrl";
+
+  host.innerHTML = `<div class="modal-host"><div class="b-dlg" role="dialog" aria-modal="true" aria-label="Export">
+    <div class="b-hd">
+      <div class="b-title"><span class="lbl">Export</span><h2>${esc(project.name)}</h2></div>
+      <div class="ro"><span class="lbl">Length</span><b class="num">${fmtTime(project.seconds)}</b></div>
+      <div class="ro"><span class="lbl">Tempo</span><b class="num">${project.bpm} BPM</b></div>
+      <div class="ro"><span class="lbl">Tracks</span><b class="num">${project.tracks.length}</b></div>
+      <div class="ro"><span class="lbl">Quality</span><b class="num">24-bit · 48 kHz</b></div>
+      <span class="sp"></span>
+      <button type="button" class="ib" aria-label="Close export" data-close>${X_ICON}</button>
+    </div>
+    <div class="b-choose" role="radiogroup" aria-label="Format" id="b-sw">
+      <button type="button" class="b-card" role="radio" data-fmt="stereo" aria-label="Stereo WAV"><span class="lbl">Stereo WAV</span><b>Share a mix</b><span>One file of the song as you hear it. Ready to send or upload.</span></button>
+      <button type="button" class="b-card" role="radio" data-fmt="stems" aria-label="Stems (ZIP)"><span class="lbl">Stems (ZIP)</span><b>Stems for hand off</b><span>One WAV per track, lined up at bar 1, for mixing in another DAW.</span></button>
+    </div>
+    <div class="b-body">
+      <div class="b-ruler"><div class="b-sel" id="b-sel"></div><div aria-hidden="true"></div><div id="b-ruler" aria-hidden="true"></div></div>
+      <div class="b-lanes" id="b-lanes">
+        <div class="b-names" id="b-names" role="listbox" aria-multiselectable="true" aria-label="Tracks to export"></div>
+        <div class="b-gut" id="b-gut" aria-hidden="true"></div>
+        <div class="b-map"><canvas id="b-cv"></canvas><div class="b-head" id="b-head" hidden></div></div>
+      </div>
+    </div>
+    <div class="b-tray" id="b-tray" aria-label="Batches"></div>
+    <div class="b-ft">
+      <div class="ro"><span class="lbl" id="b-l1">Size</span><b class="num" id="b-v1"></b></div>
+      <div class="bud" id="b-bud"></div>
+      <div class="b-msg"><div class="alert" id="b-alert" role="alert"></div><output class="b-note" id="b-note" aria-live="polite"></output></div>
+      <span class="sp"></span>
+      <div id="b-acts" style="display:flex;gap:8px"></div>
+    </div>
+  </div></div>`;
+  const $ = s => host.querySelector(s);
+  $("#b-ruler").innerHTML = Array.from({length: Math.floor(project.bars/16)+1}, (_,k)=>`<span style="left:${k*16/project.bars*100}%">${k*16+1}</span>`).join("");
+
+  /* ---- selection: click flips one, ⇧-click sets a range to match, ⌘-click picks ---- */
+  const setOn = (id, v) => v ? st.on.add(id) : st.on.delete(id);
+  const range = (a, b) => { const lo = Math.min(a,b), hi = Math.max(a,b); return lanes.slice(lo, hi+1).map(t => t.id); };
+  function edited(){ st.got = []; st.resumeFrom = 0; st.stopped = null; if (st.phase !== "rendering") st.phase = "choose"; }
+  function rowClick(i, e){
+    if (st.fmt !== "stems" || busy()) return;
+    const id = lanes[i].id, mod = e.metaKey || e.ctrlKey;
+    if (mod && e.shiftKey && st.anchor != null) range(st.anchor, i).forEach(x => st.sel.add(x));
+    else if (mod) { st.sel.has(id) ? st.sel.delete(id) : st.sel.add(id); st.anchor = i; }
+    else if (e.shiftKey && st.anchor != null) { const v = st.on.has(lanes[st.anchor].id); range(st.anchor, i).forEach(x => setOn(x, v)); st.sel.clear(); edited(); }
+    else if (st.sel.has(id) && st.sel.size > 1) { const v = !st.on.has(id); st.sel.forEach(x => setOn(x, v)); edited(); }
+    else { st.sel.clear(); setOn(id, !st.on.has(id)); st.anchor = i; edited(); }
+    st.focus = i; update(true);
+  }
+  function names(){
+    const stereo = st.fmt === "stereo";
+    $("#b-names").innerHTML = lanes.map((t, i) => {
+      const on = stereo ? !t.muted : st.on.has(t.id), sel = st.sel.has(t.id);
+      return `<div class="b-name ${stereo ? "fixed" : ""}" role="option" id="bn-${i}" data-i="${i}" data-on="${on}" aria-selected="${sel}"
+        ${stereo || busy() ? `aria-disabled="true"` : ""} tabindex="${i === st.focus ? 0 : -1}" style="--c:${t.color}"
+        aria-label="${esc(t.name)}, ${stereo ? (t.muted ? "muted, not in the mix" : "in the mix") : on ? "included" : "left out"}">
+        <span>${esc(t.name)}</span><i aria-hidden="true">${stereo ? (t.muted ? "M" : "MIX") : on ? "ON" : "OFF"}</i></div>`;
+    }).join("");
+    $("#b-names").setAttribute("aria-activedescendant", "bn-" + st.focus);
+    const sel = $("#b-sel");
+    if (stereo) sel.innerHTML = `<span class="lbl">In the mix</span>`;
+    else if (st.sel.size) sel.innerHTML = `<span class="lbl num" style="color:var(--mono-100)">${st.sel.size} picked</span>
+      <button type="button" class="mini" data-selv="1" ${busy()?"disabled":""}>On</button><button type="button" class="mini" data-selv="0" ${busy()?"disabled":""}>Off</button>
+      <button type="button" class="mini" data-only ${busy()?"disabled":""}>Only these</button><button type="button" class="ib" data-clear aria-label="Clear picked tracks" style="width:22px;height:22px">${X_ICON}</button>`;
+    else sel.innerHTML = `<span class="lbl num">${included().length} of ${lanes.length} stems</span>
+      <span class="b-hint" title="Click flips a track. Shift-click sets every track between to match. ${CMD}-click picks tracks; click one of them to flip them all."><kbd>⇧</kbd> range <kbd>${CMD}</kbd> pick</span>`;
+  }
+  function gutter(){
+    const b = batches(), gut = $("#b-gut");
+    gut.style.height = lanes.length * ROW + "px";
+    if (!batching() || b.length < 2) { gut.innerHTML = ""; return; }
+    gut.innerHTML = b.map((ids, k) => {
+      if (!ids.length) return "";
+      const first = lanes.findIndex(t => t.id === ids[0]), last = lanes.findIndex(t => t.id === ids[ids.length-1]);
+      const state = st.got.includes(k) ? "done" : busy() && st.batch === k ? "now" : "";
+      return `<div class="b-brk ${state}" style="top:${first*ROW+3}px;height:${(last-first+1)*ROW-6}px"><span>${k+1}</span></div>`;
+    }).join("");
+  }
+  const cv = $("#b-cv");
+  function draw(){
+    const w = cv.parentElement.clientWidth, h = lanes.length * ROW, dpr = devicePixelRatio || 1;
+    cv.style.height = h + "px"; cv.parentElement.style.height = h + "px";
+    cv.width = w*dpr; cv.height = h*dpr; const g = cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+    g.clearRect(0,0,w,h);
+    const bx = w / project.bars;
+    g.fillStyle = "#141414"; for (let b=0;b<=project.bars;b+=16) g.fillRect(Math.round(b*bx),0,1,h);
+    const bmap = new Map(); batches().forEach((ids,k) => ids.forEach(id => bmap.set(id, k)));
+    lanes.forEach((t,i) => {
+      const on = st.fmt === "stereo" ? !t.muted : st.on.has(t.id);
+      const y = i*ROW, k = st.fmt === "stereo" ? 0 : bmap.get(t.id);
+      const printed = !on || st.phase === "choose" ? 0 : st.got.includes(k) ? 1 : busy() && k === st.batch ? st.head : 0;
+      if (st.sel.has(t.id)) { g.fillStyle = "rgb(255 255 255 / 8%)"; g.fillRect(0, y, w, ROW); }
+      t.lanes.forEach(([s,l]) => {
+        const x0 = s*bx+1, x1 = (s+l)*bx-1, hx = printed * w;
+        g.fillStyle = t.color;
+        g.globalAlpha = on ? .32 : .07; g.fillRect(x0, y+5, x1-x0, ROW-10);
+        if (hx > x0) { g.globalAlpha = 1; g.fillRect(x0, y+5, Math.min(x1, hx)-x0, ROW-10); }
+        g.globalAlpha = on ? .9 : .15; g.fillRect(x0, y+5, x1-x0, 2);
+      });
+      g.globalAlpha = 1;
+    });
+    // the playhead sits on the lanes of the batch it is printing
+    const head = $("#b-head");
+    if (busy()) { const ids = batches()[st.batch] || []; const rows = ids.map(id => lanes.findIndex(t => t.id === id));
+      const lo = st.fmt === "stereo" || !batching() ? 0 : Math.min(...rows), hi = st.fmt === "stereo" || !batching() ? lanes.length-1 : Math.max(...rows);
+      head.hidden = false; head.style.setProperty("--h", st.head); head.style.top = lo*ROW + "px"; head.style.height = (hi-lo+1)*ROW + "px"; }
+    else head.hidden = true;
+  }
+  function tray(){
+    const t = $("#b-tray");
+    if (!batching()) {
+      const state = st.phase === "done" ? "done" : busy() ? "now" : st.phase === "failed" ? "bad" : "";
+      t.innerHTML = `<span class="lbl">Downloads</span><div class="b-zip ${state}" style="--p:${state === "done" ? 1 : busy() ? st.head : 0}"><b>${esc(fileName())}</b>
+        <span class="num">1 file · ${fmtBytes(total())}</span><span class="st">${state === "now" ? `Printing ${Math.floor(st.head*100)}%` : state === "bad" ? "Failed" : "Waiting"}</span><i></i></div>`;
+      return;
+    }
+    const b = batches();
+    t.innerHTML = `<span class="lbl">Downloads</span>` + b.map((ids, k) => {
+      const state = st.got.includes(k) ? "done" : busy() && st.batch === k ? "now" : st.phase === "failed" && st.batch === k ? "bad" : "";
+      const p = state === "done" ? 1 : state === "now" ? st.head : 0;
+      return `<div class="b-zip ${state}" style="--p:${p}"><b>${b.length > 1 ? `ZIP ${k+1} of ${b.length}` : esc(zipName(0,1))}</b>
+        <span class="num">${ids.length + (k===0?1:0)} files · ${fmtBytes(batchBytes(ids,k))}</span>
+        <span class="st">${state === "done" ? "✓ Downloaded" : state === "now" ? `Printing ${Math.floor(st.head*100)}%` : state === "bad" ? "Failed" : "Waiting"}</span><i></i></div>`;
+    }).join("");
+  }
+  function foot(){
+    const acts = $("#b-acts"), t = total(), o = over(), b = batches(), n = b.length;
+    let note = "";
+    if (busy()) {
+      $("#b-l1").textContent = "Printing";
+      $("#b-v1").textContent = (batching() && n > 1 ? `ZIP ${st.batch+1} of ${n} · ` : "") + `bar ${Math.max(1,Math.ceil(st.head*project.bars))} of ${project.bars}`;
+      $("#b-bud").innerHTML = `<span class="lbl">Progress</span><progress id="b-prog" max="1" value="${(st.batch + st.head)/n}" aria-label="Export progress"></progress>`;
+      acts.innerHTML = `<button type="button" class="secondary" data-cancel>Cancel</button>`;
+      if (st.got.length) note = `${st.got.length} of ${n} in your downloads.`;
+    } else {
+      $("#b-l1").textContent = "Size"; $("#b-v1").textContent = `${fmtBytes(t)} · ${nFiles()} ${nFiles()===1?"file":"files"}`;
+      $("#b-bud").innerHTML = st.fmt === "stereo" ? `<span class="lbl">Level</span><span style="font-size:12px;color:var(--mono-85)">Project level, not normalized</span>`
+        : `<span class="lbl">Downloads</span><span class="num" style="font-size:14px;color:var(--mono-96)">${n === 1 ? "1 ZIP" : `${n} ZIPs, each under 2 GB`}</span>`;
+      const label = st.resumeFrom ? `Resume from ZIP ${st.resumeFrom+1}` : st.fmt === "stereo" ? "Export mix" : n > 1 ? `Export ${n} ZIPs` : "Export stems";
+      acts.innerHTML = `<button type="button" class="secondary" data-close>Close</button><button type="button" class="primary" data-go ${o || !included().length && st.fmt === "stems" ?`aria-disabled="true" aria-describedby="b-note"`:""}>${label}</button>`;
+      if (st.stopped) note = st.stopped;
+      else if (st.fmt === "stems" && !included().length) note = "Turn on at least one track to export stems.";
+      else if (batching() && n > 1) note = `${fmtBytes(t)} is over the 2 GB browser limit, so stems come as ${n} ZIPs in track order, each downloaded when ready.`;
+      else if (batching()) note = "Stems over 2 GB come as several ZIPs in track order. These fit in one.";
+    }
+    const failMsg = st.phase === "failed" ? (batching() && n > 1 ? `<b>ZIP ${st.batch+1} failed:</b> a sound could not be loaded. Check your connection, then ${st.got.length ? `resume. ${st.got.length > 1 ? `ZIPs 1–${st.got.length} are` : "ZIP 1 is"} already in your downloads.` : "try again."}` : FAIL_MSG) : "";
+    $("#b-alert").innerHTML = failMsg;
+    $("#b-note").textContent = failMsg ? "" : note;
+  }
+  function update(refocus){
+    host.querySelectorAll("#b-sw .b-card").forEach(c => { c.setAttribute("aria-checked", String(c.dataset.fmt === st.fmt)); c.tabIndex = c.dataset.fmt === st.fmt ? 0 : -1; c.disabled = busy(); });
+    names(); gutter(); draw(); tray(); foot();
+    if (refocus) host.querySelector(`#bn-${st.focus}`)?.focus();
+  }
+  function progress(){ draw(); tray(); gutter();
+    const p = $("#b-prog"); if (p) p.value = (st.batch + st.head) / batches().length;
+    const n = batches().length;
+    $("#b-v1").textContent = (batching() && n > 1 ? `ZIP ${st.batch+1} of ${n} · ` : "") + `bar ${Math.max(1,Math.ceil(st.head*project.bars))} of ${project.bars}`; }
+  function runBatch(k){
+    const n = batches().length;
+    st.batch = k; st.head = 0; st.phase = "rendering"; update();
+    // bring the batch's first stem to the top of the mini-arrangement
+    if (batching()) { const first = lanes.findIndex(t => t.id === batches()[k]?.[0]);
+      if (first >= 0) $("#b-lanes").scrollTo({ top: first * ROW, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); }
+    st.cancel = render([0], {
+      ms: n > 1 ? 2600 : 4200,
+      fail: scen.fail && k === Math.min(1, n-1),
+      onProgress(_i, _p, a){ st.head = a; progress(); },
+      onDone(){ st.got.push(k); if (k + 1 < n) runBatch(k + 1); else { st.phase = "done"; st.head = 1; celebrate(); } },
+      onFail(){ st.phase = "failed"; st.resumeFrom = k; st.head = 0; update(); },
+    });
+  }
+  function go(){
+    if (over() || (st.fmt === "stems" && !included().length)) return;
+    st.sel.clear(); st.stopped = null;
+    const from = st.resumeFrom; if (!from) st.got = [];
+    runBatch(from);
+  }
+  function celebrate(){
+    const dlg = host.querySelector(".b-dlg");
+    const inc = st.fmt === "stereo" ? lanes.filter(t=>!t.muted && !t.ret) : included();
+    const b = batches(), n = b.length, multi = batching() && n > 1;
+    const div = document.createElement("div"); div.className = "b-done";
+    div.innerHTML = `<div class="b-sleeve"><canvas id="b-sl" aria-label="Cover drawn from ${inc.length} track colours" role="img"></canvas></div>
+      <div class="b-out">
+        <output class="lbl" aria-live="polite">Export complete</output>
+        <h3>${esc(project.name)} is out.</h3>
+        <p>${multi ? `${n} ZIPs are in your downloads. Unzip them into one folder and drop it into any DAW. Every stem starts at bar 1, so they line up.`
+          : `${esc(fileName())} is in your downloads. ${st.fmt === "stereo" ? "Send it to anyone. It plays everywhere." : "Drop the folder into any DAW. Every stem starts at bar 1, so they line up."}`}</p>
+        <div class="b-stats">
+          <div class="ro"><span class="lbl">Length</span><b class="num">${fmtTime(project.seconds)}</b></div>
+          <div class="ro"><span class="lbl">${st.fmt === "stereo" ? "Tracks in the mix" : "Stems"}</span><b class="num">${inc.length}</b></div>
+          <div class="ro"><span class="lbl">Size</span><b class="num">${fmtBytes(total())}</b></div>
+          <div class="ro"><span class="lbl">${multi ? "ZIPs" : "Bars"}</span><b class="num">${multi ? n : project.bars}</b></div>
+        </div>
+        ${multi ? `<ul class="b-zips">${b.map((ids,k)=>`<li><span>✓</span>${esc(zipName(k,n))}<em class="num">${fmtBytes(batchBytes(ids,k))}</em></li>`).join("")}</ul>` : ""}
+        <div class="acts"><button type="button" class="primary" data-close>Back to the song</button><button type="button" class="secondary" data-again>Export ${st.fmt === "stereo" ? "stems" : "a mix"} too</button></div>
+        <div class="b-next"><b>It's still your project.</b> Exporting changed nothing. Keep working on it, and export again whenever you like.</div>
+      </div>`;
+    dlg.appendChild(div);
+    sleeve(div.querySelector("#b-sl"), inc.filter(t => !t.ret));
+    div.querySelector(".primary").focus();
+  }
+  let sleeveRaf = 0;
+  function sleeve(c, inc){
+    const box = c.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+    c.width = box.width*dpr; c.height = box.height*dpr; const g = c.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+    const W = box.width, H = box.height, n = inc.length || 1;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const t0 = performance.now(), D = reduce ? 1 : 1400;
+    const frame = now => {
+      const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+      g.fillStyle = "#000"; g.fillRect(0,0,W,H);
+      const side = Math.min(W, H) * .72, ox = (W-side)/2, oy = (H-side)/2 - 12;
+      inc.forEach((t,i) => {
+        // each lane flies from its arrangement row into a stripe of the sleeve
+        const band = side / n, fy = oy + i*band, sy = (i / n) * H;
+        const y = sy + (fy - sy) * e, x = ox * e, w = W + (side - W) * e;
+        g.fillStyle = t.color; g.globalAlpha = .25 + .75*e;
+        t.lanes.forEach(([s,l]) => { g.fillRect(x + s/project.bars*w, y, Math.max(1, l/project.bars*w), Math.max(1, band - (n > 30 ? 0 : 1))); });
+      });
+      g.globalAlpha = 1;
+      if (k === 1) { g.strokeStyle = "#fff"; g.lineWidth = 1; g.strokeRect(ox-.5, oy-.5, side+1, side+1);
+        g.fillStyle = "#fff"; g.font = "600 12px system-ui,sans-serif"; g.fillText(project.name.toUpperCase(), ox, oy + side + 22);
+        g.fillStyle = "#787878"; g.fillText(`${project.bpm} BPM · ${fmtTime(project.seconds)}`, ox, oy + side + 40); }
+      if (k < 1) sleeveRaf = requestAnimationFrame(frame);
+    };
+    sleeveRaf = requestAnimationFrame(frame);
+  }
+
+  host.addEventListener("click", e => {
+    const row = e.target.closest(".b-name");
+    if (row) { rowClick(+row.dataset.i, e); return; }
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.fmt && !busy()) { st.fmt = b.dataset.fmt; st.sel.clear(); edited(); update(); }
+    if (b.dataset.selv) { const v = b.dataset.selv === "1"; st.sel.forEach(x => setOn(x, v)); edited(); update(); }
+    if (b.dataset.only != null) { lanes.forEach(t => setOn(t.id, st.sel.has(t.id))); edited(); update(); }
+    if (b.dataset.clear != null) { st.sel.clear(); update(true); }
+    if (b.dataset.go != null) go();
+    if (b.dataset.cancel != null) {
+      st.cancel?.(); const got = st.got.length, n = batches().length;
+      st.phase = "choose"; st.head = 0;
+      if (batching() && got) { st.resumeFrom = got; st.stopped = `Stopped. ZIP${got>1?"s":""} 1${got>1?"–"+got:""} of ${n} ${got>1?"are":"is"} in your downloads. Resume to print the rest.`; }
+      else st.stopped = null;
+      update();
+    }
+    if (b.dataset.again != null) { cancelAnimationFrame(sleeveRaf); host.querySelector(".b-done").remove(); st.fmt = st.fmt === "stereo" ? "stems" : "stereo"; edited(); st.head = 0; update(); }
+    if (b.dataset.close != null) { st.cancel?.(); closeProto(); }
+  });
+  // clicking a lane in the map works like clicking its name
+  cv.addEventListener("click", e => { const i = Math.floor(e.offsetY / ROW); if (lanes[i]) rowClick(i, e); });
+  $("#b-names").addEventListener("keydown", e => {
+    if (st.fmt !== "stems" || busy()) return;
+    const n = lanes.length, mod = e.metaKey || e.ctrlKey;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); const d = e.key === "ArrowDown" ? 1 : -1, next = Math.max(0, Math.min(n-1, st.focus + d));
+      if (e.shiftKey) { if (st.anchor == null) st.anchor = st.focus; st.sel = new Set(range(st.anchor, next)); }
+      st.focus = next; update(true);
+    } else if (e.key === " " || e.key === "Enter") { e.preventDefault(); rowClick(st.focus, { metaKey: false, ctrlKey: false, shiftKey: false }); }
+    else if (mod && e.key.toLowerCase() === "a") { e.preventDefault(); st.sel = new Set(lanes.map(t => t.id)); update(true); }
+    else if (e.key === "Escape" && st.sel.size) { e.preventDefault(); e.stopPropagation(); st.sel.clear(); update(true); }
+  });
+  host.addEventListener("keydown", e => { if (e.key === "Escape" && st.sel.size) { e.stopPropagation(); st.sel.clear(); update(); } });
+  wireSwitch($("#b-sw"), fmt => { if (!busy()) { st.fmt = fmt; st.sel.clear(); edited(); update(); } });
+  const ro = new ResizeObserver(() => draw()); ro.observe($("#b-lanes"));
+  update();
+  return { destroy(){ st.cancel?.(); cancelAnimationFrame(sleeveRaf); ro.disconnect(); } };
+}
+
+/* ================= C · Print matrix ================= */
+function DesignC(host){
+  const drums = project.tracks.filter(t => t.kind === "Drum machine" || /Break|Shaker|Perc|Clap/.test(t.name)).map(t=>t.id);
+  const st = {
+    cols: [{ id: "mix", kind: "mix", name: "Mix" }, { id: "stem", kind: "stem", name: "Stem" }, { id: "bus1", kind: "bus", name: "Drums" }],
+    cells: new Map(), phase: "choose", cancel: null,
+  };
+  const rows = () => [...project.tracks, ...project.returns];
+  const key = (r, c) => r + "|" + c;
+  rows().forEach(t => { st.cells.set(key(t.id,"mix"), !t.muted); st.cells.set(key(t.id,"stem"), !drums.includes(t.id)); st.cells.set(key(t.id,"bus1"), drums.includes(t.id)); });
+  const on = (r, c) => !!st.cells.get(key(r, c));
+
+  function files(){
+    const out = [];
+    st.cols.forEach(c => {
+      if (c.kind === "mix") { const m = rows().filter(t=>on(t.id,c.id)); if (m.length) out.push({ name: `${project.name} ${DATE}.wav`, sub: `Mix · ${m.length} tracks`, tracks: m, col: c.id }); }
+      else if (c.kind === "stem") rows().forEach((t,i) => { if (on(t.id,c.id)) out.push({ name: t.ret ? `Returns/${t.name}.wav` : `${pad2(i+1)} ${t.name}.wav`, sub: "Stem", tracks: [t], col: c.id }); });
+      else { const m = rows().filter(t=>on(t.id,c.id)); if (m.length) out.push({ name: `Bus ${c.name}.wav`, sub: `Bus · ${m.length} tracks`, tracks: m, col: c.id }); }
+    });
+    return out;
+  }
+  const total = () => files().length * wavBytes(project);
+  const over = () => total() > BUDGET;
+
+  host.innerHTML = `<div class="c-host te"><section class="c-unit" role="dialog" aria-label="Export">
+    <div class="c-hd">
+      <div class="c-trk"><div><span class="lbl">master › out</span><b>print</b></div></div>
+      <span class="tl">route tracks into files. white key = in.</span>
+      <span class="sp"></span>
+      <button type="button" class="ib" aria-label="Close export" data-close>${X_ICON}</button>
+    </div>
+    <div class="te-body">
+      <div class="te-screen" aria-label="Display">
+        <div class="row"><span class="tl">${esc(project.name.toLowerCase())}</span><span class="tl num">${project.bpm} bpm · ${fmtTime(project.seconds)}</span></div>
+        <div class="te-reels"><canvas id="c-reels" aria-hidden="true"></canvas></div>
+        <div class="row"><div><span class="tl">files</span><div class="big num" id="c-nf"></div></div><div style="text-align:right"><span class="tl" id="c-bl">size</span><div class="big num" id="c-sz"></div></div></div>
+        <div><div class="row"><span class="tl">budget</span><span class="tl num">2 gb</span></div><div class="te-seg" id="c-bud"></div></div>
+        <div class="row"><span class="tl">24-bit</span><span class="tl">48 khz</span><span class="tl">stereo</span><span class="tl">bar 1 aligned</span></div>
+        <div class="msg" id="c-alert" role="alert"></div>
+      </div>
+      <div class="c-mtx" id="c-mtx"></div>
+    </div>
+    <div class="c-files" id="c-files" aria-label="Files it will write"></div>
+    <div class="c-ft">
+      <output id="c-status" class="done-line" aria-live="polite"></output>
+      <span class="sp"></span>
+      <div id="c-acts" style="display:flex;gap:8px"></div>
+    </div>
+  </section></div>`;
+  const $ = s => host.querySelector(s);
+
+  function matrix(){
+    const busy = st.phase === "rendering";
+    const colW = st.cols.map(()=>"84px").join(" ") + " 96px";
+    const head = `<div class="c-hcell corner"><span class="lbl">Track</span><b>${rows().length} sources</b></div>` +
+      st.cols.map(c => `<div class="c-hcell" style="position:sticky">
+        <span class="lbl">${c.kind === "mix" ? "Stereo" : c.kind === "stem" ? "Each track" : "Bus"}</span>
+        ${c.kind === "bus" ? `<input class="c-grp-name" value="${esc(c.name)}" data-rename="${c.id}" aria-label="Bus name" ${busy?"disabled":""}>` : `<b>${c.name}</b>`}
+        <button type="button" class="mini" data-colall="${c.id}" ${busy?"disabled":""} style="height:16px;font-size:9px;padding:0 5px">${rows().every(t=>on(t.id,c.id)) ? "None" : "All"}</button>
+        ${c.kind === "bus" ? `<button type="button" class="ib c-x" data-rmcol="${c.id}" aria-label="Remove bus ${esc(c.name)}" ${busy?"disabled":""}>${X_ICON}</button>` : ""}
+      </div>`).join("") +
+      `<div class="c-hcell add"><button type="button" class="mini" data-addbus ${busy?"disabled":""}>+ Bus</button></div><div class="c-hcell" style="padding:0"></div>`;
+    const row = (t, i) => `<div class="c-rn" style="--c:${t.color}"><span class="te-key num">${t.ret ? "r" : pad2(i+1)}</span><span>${esc(t.name)}</span>${t.muted ? `<i class="m" title="Muted">M</i>` : ""}<i class="lv"><i data-lv="${t.id}"></i></i></div>` +
+      st.cols.map(c => `<div class="c-cell"><button type="button" class="c-pad" style="--c:${t.color}" data-r="${t.id}" data-c="${c.id}" aria-pressed="${on(t.id,c.id)}" aria-label="${esc(t.name)} into ${esc(c.name)}" ${busy?"disabled":""}></button></div>`).join("") +
+      `<div class="c-fill"></div><div class="c-fill"></div>`;
+    $("#c-mtx").innerHTML = `<div class="c-grid" style="--cols:${colW}">${head}` +
+      project.tracks.map((t,i)=>row(t,i)).join("") +
+      `<div class="c-sub"><span class="lbl">Returns</span></div>` + project.returns.map(t=>row(t,0)).join("") + `</div>`;
+    $("#c-mtx").querySelector(".c-grid").style.gridTemplateColumns = `240px ${colW} minmax(0,1fr)`;
+  }
+  function tray(){
+    const f = files();
+    $("#c-files").innerHTML = f.length ? f.map((x,i) => `<div class="c-file" data-f="${i}"><b>${esc(x.name)}</b><span>${x.sub}</span><span class="strip">${x.tracks.slice(0,24).map(t=>`<i style="--c:${t.color}"></i>`).join("")}</span><i class="pg"></i></div>`).join("")
+      : `<div class="c-file"><b>Nothing to print</b><span>Press a pad to route a track into a file.</span></div>`;
+  }
+  function foot(){
+    const f = files(), t = total(), o = over();
+    $("#c-nf").textContent = pad2(f.length); if (st.phase !== "rendering") $("#c-sz").textContent = fmtBytes(t).toLowerCase();
+    $("#c-alert").innerHTML = st.phase === "failed" ? FAIL_MSG : o && st.phase !== "rendering" ? overMsg(t).replace("Turn off tracks", "Turn off pads, or group tracks into a bus,") : "";
+    $("#c-status").innerHTML = st.phase === "done" ? `done. <span>${f.length === 1 ? esc(f[0].name) : `${esc(project.name)} ${DATE} stems.zip`} is in your downloads.</span>` : "";
+    if (st.phase !== "rendering") { $("#c-bl").textContent = "size"; segs(t/BUDGET, o); }
+    const acts = $("#c-acts");
+    if (st.phase === "rendering") acts.innerHTML = `<button type="button" class="secondary" data-cancel>Cancel</button>`;
+    else acts.innerHTML = `<button type="button" class="secondary" data-close>Close</button><button type="button" class="primary" data-go ${o || !f.length ?`aria-disabled="true" aria-describedby="c-alert"`:""}>● print ${pad2(f.length)}</button>`;
+  }
+  function segs(r, o){ const n = 20, lit = Math.min(n, Math.ceil(r*n)); $("#c-bud").className = "te-seg" + (o ? " over" : "");
+    $("#c-bud").innerHTML = Array.from({length:n},(_,i)=>`<i class="${i<lit?(o&&i===n-1?"x":"on"):""}"></i>`).join(""); }
+  // OP-1 style tape reels on the display: the take-up reel fills as it prints
+  let reelRaf = 0, reelSpeed = 0, reelPos = 0, ang = 0;
+  function reels(){
+    const c = $("#c-reels"), g = c.getContext("2d"), dpr = devicePixelRatio || 1;
+    const frame = () => {
+      const w = c.clientWidth, h = c.clientHeight; if (c.width !== w*dpr) { c.width = w*dpr; c.height = h*dpr; }
+      g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+      if (st.phase !== "rendering") reelSpeed *= .94; ang += .08 * reelSpeed;
+      const r = h/2 - 4, cx1 = w*.25, cx2 = w*.75, cy = h/2;
+      const fill1 = r*(.92 - .6*reelPos), fill2 = r*(.32 + .6*reelPos);
+      g.strokeStyle = "#474747"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(cx1, cy+fill1); g.lineTo(cx2, cy+fill2); g.stroke();
+      [[cx1, fill1],[cx2, fill2]].forEach(([cx, f]) => {
+        g.fillStyle = "#292929"; g.beginPath(); g.arc(cx, cy, f, 0, 7); g.fill();
+        g.strokeStyle = "#f6f6f6"; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
+        g.fillStyle = "#000"; g.beginPath(); g.arc(cx, cy, r*.28, 0, 7); g.fill();
+        for (let k=0;k<3;k++){ const a = ang + k*2.094; g.fillStyle = "#f6f6f6"; g.fillRect(cx + Math.cos(a)*r*.18 - 2, cy + Math.sin(a)*r*.18 - 2, 4, 4); }
+      });
+      g.fillStyle = "#fff"; g.fillRect(w/2 - 1, cy + (fill1+fill2)/2 - 6, 2, 12);
+      reelRaf = requestAnimationFrame(frame);
+    };
+    reelRaf = requestAnimationFrame(frame);
+  }
+  function update(){ matrix(); tray(); foot(); }
+  function go(){
+    const f = files(); if (over() || !f.length) return;
+    st.phase = "rendering"; update();
+    $("#c-bl").textContent = "printing"; $("#c-sz").innerHTML = `<span id="c-pct">0</span>%<progress id="c-prog" class="sr" max="1" value="0" aria-label="Export progress"></progress>`;
+    let lastI = -1; const t0 = performance.now();
+    st.cancel = render(f, {
+      onProgress(i, p, a){
+        $("#c-prog").value = a; $("#c-pct").textContent = pad2(Math.floor(a*100)); reelSpeed = 1; reelPos = a;
+        const card = host.querySelector(`[data-f="${i}"]`); if (card) { card.style.setProperty("--p", p); if (i !== lastI) card.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+        if (i !== lastI) { host.querySelectorAll(".c-pad.lit").forEach(x=>x.classList.remove("lit")); f[i]?.tracks.forEach(t => host.querySelector(`.c-pad[data-r="${t.id}"][data-c="${f[i].col}"]`)?.classList.add("lit")); lastI = i; }
+        const tt = (performance.now() - t0) / 90;
+        rows().forEach((t,k) => { const el = host.querySelector(`[data-lv="${t.id}"]`); if (!el) return;
+          const live = f[i]?.tracks.includes(t); const lvl = live ? t.level * (.55 + .45*Math.abs(Math.sin(tt + k*1.7))) : 0; el.style.setProperty("--m", lvl.toFixed(2)); });
+      },
+      onDone(){ st.phase = "done"; host.querySelectorAll("[data-lv]").forEach(el=>el.style.setProperty("--m",0)); update(); },
+      onFail(){ st.phase = "failed"; update(); },
+    });
+  }
+  host.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const refocus = sel => host.querySelector(sel)?.focus();
+    if (b.dataset.r) { const k = key(b.dataset.r, b.dataset.c); st.cells.set(k, !st.cells.get(k)); st.phase = "choose"; update(); refocus(`.c-pad[data-r="${b.dataset.r}"][data-c="${b.dataset.c}"]`); }
+    if (b.dataset.colall) { const c = b.dataset.colall, v = !rows().every(t=>on(t.id,c)); rows().forEach(t=>st.cells.set(key(t.id,c), v)); st.phase="choose"; update(); refocus(`[data-colall="${c}"]`); }
+    if (b.dataset.addbus != null) { const id = "bus" + Date.now(); st.cols.push({ id, kind: "bus", name: "Bus " + (st.cols.filter(c=>c.kind==="bus").length + 1) }); update(); refocus(`[data-rename="${id}"]`); }
+    if (b.dataset.rmcol) { st.cols = st.cols.filter(c => c.id !== b.dataset.rmcol); update(); }
+    if (b.dataset.go != null) go();
+    if (b.dataset.cancel != null) { st.cancel?.(); st.phase = "choose"; reelPos = 0; update(); }
+    if (b.dataset.close != null) { st.cancel?.(); closeProto(); }
+  });
+  host.addEventListener("change", e => { const id = e.target.dataset.rename; if (!id) return; const c = st.cols.find(x=>x.id===id); c.name = e.target.value.trim() || c.name; tray(); foot(); });
+  host.addEventListener("keydown", e => { if (e.target.dataset.rename && e.key === "Enter") e.target.blur(); });
+  update(); reels();
+  return { destroy(){ st.cancel?.(); cancelAnimationFrame(reelRaf); } };
+}
+
+addEventListener("keydown", e => { if (e.key === "Escape" && current) { closeProto(); } });
+drawEditor(); addEventListener("resize", drawEditor);
+open();
+})();
+</script>
+</body>
+</html>

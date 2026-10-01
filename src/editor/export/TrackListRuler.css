@@ -1,0 +1,108 @@
+/* The ruler row above the Export mini-arrangement (EXP-004). Its columns are
+   set inline from the same constants the lanes use. */
+
+.track-ruler {
+  display: grid;
+  height: 28px;
+  background: var(--color-background-secondary);
+  font-size: 10px;
+  color: var(--color-foreground-muted);
+}
+
+.track-ruler-marks {
+  position: relative;
+}
+
+.track-ruler-marks span {
+  position: absolute;
+  top: 7px;
+  transform: translateX(2px);
+}
+
+.track-ruler-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 8px 0 12px;
+}
+
+.track-ruler-label {
+  margin-right: auto;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.track-ruler-picked {
+  color: var(--color-foreground-bright);
+}
+
+.track-ruler-hint {
+  white-space: nowrap;
+  cursor: help;
+}
+
+.track-ruler-hint kbd {
+  margin-left: 4px;
+  padding: 0 4px;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-weight: 600;
+  line-height: normal;
+}
+
+.track-ruler-mini,
+.track-ruler-clear {
+  height: 20px;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.track-ruler-mini {
+  padding: 0 6px;
+}
+
+.track-ruler-clear {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  color: var(--color-foreground);
+}
+
+.track-ruler-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+.track-ruler-clear path {
+  stroke: currentColor;
+  stroke-width: 1.6;
+  fill: none;
+}
+
+.track-ruler-mini:hover,
+.track-ruler-clear:hover {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-bright);
+}
+
+.track-ruler-clear:hover {
+  background: var(--color-background-tertiary);
+}
+
+.track-ruler-mini:disabled {
+  color: var(--color-foreground-muted);
+  cursor: default;
+}

@@ -108,6 +108,19 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `library.browse_packs` | Browse packs | `P` | `P` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.back` | Back | `Backspace` | `Backspace` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.search` | Search | `/` | `/` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `export.focus_previous` | Focus previous track | `Up` | `Up` | Browser | export_tracks | Groove addition — Live's export dialog has no track list; these are Groove's own list keys. |
+| `export.focus_next` | Focus next track | `Down` | `Down` | Browser | export_tracks | Groove addition — Live's export dialog has no track list; these are Groove's own list keys. |
+| `export.extend_previous` | Extend pick upward | `Shift+Up` | `Shift+Up` | Browser | export_tracks | Groove addition — Live's export dialog has no track list; these are Groove's own list keys. |
+| `export.extend_next` | Extend pick downward | `Shift+Down` | `Shift+Down` | Browser | export_tracks | Groove addition — Live's export dialog has no track list; these are Groove's own list keys. |
+| `export.toggle_focused` | Include or leave out track | `Space / Enter` | `Space / Enter` | Browser | export_tracks | Groove addition — Live's export dialog has no track list; these are Groove's own list keys. |
+| `export.pick_all` | Pick every track | `Cmd+A` | `Ctrl+A` | Browser | export_tracks | Groove addition — Live's export dialog has no track list; these are Groove's own list keys. |
+
+The `export.*` entries are the keys of the Export dialog's track list
+(`EXP-004`), in the same `Browser` group. `export_tracks` is a focus context
+kept beside `dialog`, like `library`: it is active only while the list has
+keyboard focus, so `Space`, the arrows and `Cmd/Ctrl+A` mean the list's own
+actions there and nothing behind the dialog. `Escape` stays `view.close_surface`;
+the dialog clears a pick before it closes.
 
 The `library.*` entries are the `Browser` group: the keys of the library modal
 (`LIB-010`), live only while it is open. The `library` context is active
