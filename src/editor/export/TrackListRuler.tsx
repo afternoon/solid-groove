@@ -1,8 +1,8 @@
 import type { JSX } from "@solidjs/web";
-import { For, Show } from "solid-js";
+import { createSignal, For, onSettled, Show } from "solid-js";
 import { detectPlatform } from "../../shortcuts/keys";
 import "./TrackListRuler.css";
-import { rulerBars } from "./trackLanes";
+import { rulerBars, rulerStep } from "./trackLanes";
 import { GUTTER_PX, NAME_COLUMN_PX } from "./trackLanesCanvas";
 import type { PickAction } from "./trackListSelection";
 
@@ -10,7 +10,8 @@ import type { PickAction } from "./trackListSelection";
  * The ruler row above the Export dialog's mini-arrangement (EXP-004). Its left
  * cell is the list's status: "N of M stems" with a short hint at rest, or, while
  * tracks are picked, "N picked" with On, Off, Only these and a clear button. The
- * rest is the bar ruler, labelled every 16 bars over the lane area.
+ * rest is the bar ruler, labelled over the lane area at the first of 16, 32, 64... bars that keeps
+ * the labels apart.
  */
 
 export interface TrackListRulerProps {
@@ -76,6 +77,16 @@ function Hint(props: TrackListRulerProps): JSX.Element {
 }
 
 export default function TrackListRuler(props: TrackListRulerProps): JSX.Element {
+  let marks!: HTMLDivElement;
+  const [width, setWidth] = createSignal(0);
+  onSettled(() => {
+    setWidth(marks.clientWidth);
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => setWidth(marks.clientWidth));
+    observer.observe(marks);
+    return () => observer.disconnect();
+  });
+  const step = () => rulerStep(props.bars, width());
   return (
     <div
       class="track-ruler"
@@ -95,8 +106,8 @@ export default function TrackListRuler(props: TrackListRulerProps): JSX.Element 
         </Show>
       </div>
       <div aria-hidden="true" />
-      <div class="track-ruler-marks" aria-hidden="true">
-        <For each={rulerBars(props.bars)}>
+      <div class="track-ruler-marks" ref={marks} aria-hidden="true">
+        <For each={rulerBars(props.bars, step())}>
           {(bar) => (
             <span style={{ left: `${((bar - 1) / Math.max(1, props.bars)) * 100}%` }}>
               {bar}

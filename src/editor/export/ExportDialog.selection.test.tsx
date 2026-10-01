@@ -105,9 +105,9 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     it("shows the size, which shrinks as tracks are left out", () => {
       renderDialog(project);
       const size = () => screen.getByText("Size").nextElementSibling?.textContent;
-      expect(size()).toBe("7.8 GiB \u00b7 51 files");
+      expect(size()).toBe("7.82 GiB \u00b7 51 files");
       turnOff(trackRows().slice(0, 1));
-      expect(size()).toBe("7.7 GiB \u00b7 50 files");
+      expect(size()).toBe("7.66 GiB \u00b7 50 files");
     });
 
     it("blocks Export over the budget, names the limit, and exports once under it", () => {
@@ -154,6 +154,10 @@ describe("stemsBlocker", () => {
   it("formats sizes in binary units", () => {
     expect(formatBytes(512)).toBe("1 MiB");
     expect(formatBytes(300 * 1024 ** 2)).toBe("300 MiB");
-    expect(formatBytes(1.25 * 1024 ** 3)).toBe("1.3 GiB");
+    expect(formatBytes(1.25 * 1024 ** 3)).toBe("1.25 GiB");
+    // Two decimals, so a ZIP under the limit never rounds up to it.
+    expect(formatBytes(1.96 * 1024 ** 3)).toBe("1.96 GiB");
+    expect(formatBytes(4.57 * 1024 ** 3)).toBe("4.57 GiB");
+    expect(formatBytes(2 * 1024 ** 3)).toBe("2 GiB");
   });
 });
