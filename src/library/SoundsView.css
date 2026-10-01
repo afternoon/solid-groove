@@ -420,13 +420,13 @@
   background: var(--color-background-hover);
 }
 
-.filter-pick[data-set="true"] {
+.filter-pick-set {
   background: var(--color-accent);
   color: var(--color-on-accent);
   font-weight: 600;
 }
 
-.filter-pick[data-set="true"]::after {
+.filter-pick-set::after {
   border-top-color: var(--color-border-strong);
 }
 

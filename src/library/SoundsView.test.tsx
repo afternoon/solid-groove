@@ -353,7 +353,7 @@ describe("SoundsView filters", () => {
     await waitFor(() => expect(count()).toBeLessThan(before));
     // The picker names the genre now, and turns white to say a filter is set.
     expect(picker()).not.toHaveAccessibleName(/^Any genre/);
-    expect(picker()).toHaveAttribute("data-set", "true");
+    expect(picker()).toHaveClass("filter-pick-set");
     press("library.genre_menu");
     await waitFor(() =>
       expect(screen.queryByRole("group", { name: "Genres" })).toBeNull(),
@@ -368,13 +368,13 @@ describe("SoundsView filters", () => {
     const options = menu.querySelectorAll("input");
     fireEvent.click(options[0]);
     fireEvent.click(options[options.length - 1]);
-    await waitFor(() => expect(picker()).toHaveAttribute("data-set", "true"));
+    await waitFor(() => expect(picker()).toHaveClass("filter-pick-set"));
 
     fireEvent.click(within(menu).getByRole("button", { name: "Any genre" }));
 
     await waitFor(() => expect(count()).toBe(before));
     expect(picker()).toHaveAccessibleName(/^Any genre/);
-    expect(picker()).toHaveAttribute("data-set", "false");
+    expect(picker()).not.toHaveClass("filter-pick-set");
     expect(screen.queryByRole("group", { name: "Genres" })).toBeNull();
   });
 
