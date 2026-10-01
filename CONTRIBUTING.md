@@ -25,8 +25,10 @@ gitignored for that reason.
 
 For everyday UI work you need nothing in `.env` at all — `bun run dev:mock`
 supplies its own placeholders. What you put there matters only for the real
-project; see the next section. Every `dev` script regenerates the starter sound
-library first, so the first run is slower than later ones.
+project; see the next section. Every `dev` script builds the starter sound
+library into `public/samples` first (`library:build`: the pack index, manifests
+and audio the library browser reads same-origin), which takes about fifteen
+seconds before the server starts.
 
 ### Prerequisites by task
 
