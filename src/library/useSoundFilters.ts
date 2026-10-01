@@ -30,6 +30,7 @@ export function useSoundFilters(songBpm: Accessor<number>) {
       setGenres((have) =>
         have.includes(genre) ? have.filter((g) => g !== genre) : [...have, genre],
       ),
+    clearGenres: () => setGenres([]),
     toggleTempo: () => setTempo((now) => (now === "near" ? "any" : "near")),
     /** Whether any filter beside the search is narrowing the list. */
     active: () => genres().length > 0 || tempo() !== "any" || bars() !== null,

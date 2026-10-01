@@ -23,7 +23,7 @@ export function allLabel(family: ShelfFamily): string {
  * are. It is decoration for sighted users: the button announces the key
  * through `aria-keyshortcuts`, so the badge stays out of the accessible name.
  */
-function ChipKey(props: { label?: string }): JSX.Element {
+export function ChipKey(props: { label?: string }): JSX.Element {
   return (
     <Show when={props.label}>
       <span class="library-modal-key shelf-key" aria-hidden="true">

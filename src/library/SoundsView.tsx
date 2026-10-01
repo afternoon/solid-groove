@@ -212,11 +212,12 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
           </Show>
           <Show when={jumps().length > 0}>
             <div class="role-jumps">
+              <span class="filter-label">Categories</span>
               <For each={jumps()}>
                 {(jump) => (
                   <button
                     type="button"
-                    class="filter-button"
+                    class="shelf-chip"
                     onClick={() => {
                       shelf.select(jump.family, jump.role);
                       props.onQueryChange?.("");
@@ -240,6 +241,10 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
             keyLabel={props.keyLabel}
             onMenuOpen={setGenreMenuOpen}
             onGenre={filters.toggleGenre}
+            onClearGenres={() => {
+              filters.clearGenres();
+              setGenreMenuOpen(false);
+            }}
             onTempo={filters.setTempo}
             onBars={filters.setBars}
           />
