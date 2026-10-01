@@ -11,10 +11,12 @@ import { downloadFile } from "./downloadFile";
 import ExportTitleRow from "./ExportTitleRow";
 import { exportFacts } from "./exportFacts";
 import FormatCards, { type ExportFormat } from "./FormatCards";
-import StemTrackPicker, { STEMS_BLOCKER_ID } from "./StemTrackPicker";
-import { createStemSelection } from "./stemSelection";
-import { exportStemsFile } from "./stemsExport";
+import StemsBudgetNote, { STEMS_BLOCKER_ID } from "./StemsBudgetNote";
+import { stemsBlocker } from "./stemSelection";
+import { estimateStemsFile, exportStemsFile } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
+import TrackLanes from "./TrackLanes";
+import { useTrackList } from "./useTrackList";
 import "./ExportDialog.css";
 
 export interface ExportDialogProps {
@@ -72,9 +74,13 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
 export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const [phase, setPhase] = createSignal<Phase>({ kind: "choose" });
   const [format, setFormat] = createSignal<Format>("stereo");
-  const selection = createStemSelection(props.project);
   const facts = createMemo(() => exportFacts(props.project()));
-  const blocked = () => format() === "stems" && selection.blocker() !== null;
+  const list = useTrackList({
+    project: props.project,
+  });
+  const estimate = createMemo(() => estimateStemsFile(props.project(), list.trackIds()));
+  const blocker = createMemo(() => stemsBlocker(list.trackIds().length, estimate()));
+  const blocked = () => format() === "stems" && blocker() !== null;
   let controller: AbortController | undefined;
 
   const cancel = () => controller?.abort();
@@ -105,7 +111,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         format() === "stems"
           ? await (props.exportStems ?? exportStemsFile)(props.project(), {
               ...options,
-              trackIds: selection.trackIds(),
+              trackIds: list.trackIds(),
             })
           : await (props.exportWav ?? exportStereoWav)(props.project(), options);
       if (current.signal.aborted) return;
@@ -137,14 +143,24 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       <FormatCards
         value={format()}
         disabled={phase().kind === "rendering"}
-        onChange={setFormat}
+        onChange={(next) => {
+          list.pick("clear");
+          setFormat(next);
+        }}
+      />
+      <TrackLanes
+        rows={list.rows()}
+        bars={list.bars()}
+        focusId={list.focusId()}
+        readOnly={format() === "stereo"}
+        disabled={phase().kind === "rendering"}
+        heightPx={250}
+        onRowClick={list.click}
+        onPickAction={list.pick}
       />
       <div class="export-dialog">
         <Show when={format() === "stems"}>
-          <StemTrackPicker
-            selection={selection}
-            disabled={phase().kind === "rendering"}
-          />
+          <StemsBudgetNote estimate={estimate()} blocker={blocker()} />
         </Show>
         <p class="export-note">
           <Show

@@ -1,12 +1,14 @@
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSliceFixtureProject } from "../../domain/fixtures";
+import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush } from "../../testing/events";
 import ExportDialog from "./ExportDialog";
 
 /** The Release layout's title row and format cards (EXP-004). */
 
 afterEach(cleanup);
+stubCanvasContext();
 
 function renderDialog(exportWav = vi.fn(() => new Promise<never>(() => {}))) {
   const project = createSliceFixtureProject();

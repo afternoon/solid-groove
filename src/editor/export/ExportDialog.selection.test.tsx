@@ -3,14 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "../../domain/entities";
 import { createReferenceProject } from "../../domain/fixtures";
 import { createStemFixtureProject } from "../../export/stems/stemFixture";
+import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush } from "../../testing/events";
 import ExportDialog from "./ExportDialog";
 import { formatBytes, stemsBlocker } from "./stemSelection";
 import type { exportStemsFile, StemsExportRequest } from "./stemsExport";
 
-/** The stems dialog's track selection and size budget (EXP-003, #66). */
+/** The stems dialog's track selection and size budget (EXP-003, #66), now made on
+ * the track list's rows rather than on checkboxes (EXP-004). */
 
 afterEach(cleanup);
+stubCanvasContext();
 
 function renderDialog(project: Project) {
   const requests: StemsExportRequest[] = [];
@@ -42,7 +45,16 @@ function expectBlocked(requests: StemsExportRequest[]) {
   clickAndFlush(button);
   expect(requests).toEqual([]);
 }
-const checkbox = (name: string) => screen.getByRole("checkbox", { name });
+/** A track's row: its name is `<name>, included` or `<name>, left out`. */
+const row = (name: string) =>
+  screen
+    .getAllByRole("option")
+    .find((option) => option.getAttribute("aria-label")?.startsWith(`${name}, `)) as
+    | HTMLElement
+    | undefined;
+const toggle = (name: string) => clickAndFlush(row(name) as HTMLElement);
+const isOn = (name: string) =>
+  row(name)?.getAttribute("aria-label")?.endsWith(", included");
 const ordered = (project: Project) =>
   [...project.song.tracks].sort((a, b) => a.order - b.order);
 
@@ -51,17 +63,17 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     const project = createStemFixtureProject();
     const { requests } = renderDialog(project);
     const tracks = ordered(project);
-    for (const track of tracks) expect(checkbox(track.name)).toBeChecked();
+    for (const track of tracks) expect(isOn(track.name)).toBe(true);
     clickAndFlush(exportButton());
     expect(requests.map((r) => r.trackIds)).toEqual([tracks.map((track) => track.id)]);
   });
 
-  it("exports only the tracks left selected", async () => {
+  it("exports only the tracks left included", async () => {
     const project = createStemFixtureProject();
     const { requests } = renderDialog(project);
     const [lead, bass] = ordered(project);
-    clickAndFlush(checkbox(lead.name));
-    expect(checkbox(lead.name)).not.toBeChecked();
+    toggle(lead.name);
+    expect(isOn(lead.name)).toBe(false);
     clickAndFlush(exportButton());
     expect(requests.map((r) => r.trackIds)).toEqual([[bass.id]]);
   });
@@ -72,7 +84,7 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     // The reason's live region is there, empty, before anything blocks Export.
     const region = document.getElementById("export-stems-blocker");
     expect(region).toBeEmptyDOMElement();
-    for (const track of ordered(project)) clickAndFlush(checkbox(track.name));
+    for (const track of ordered(project)) toggle(track.name);
     expectBlocked(requests);
     expect(document.getElementById("export-stems-blocker")).toBe(region);
     expect(region).toHaveTextContent("Select at least one track to export.");
@@ -83,24 +95,25 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     const project = createReferenceProject();
     const tracks = ordered(project);
 
-    // One checkbox per track, in track order: queried once, because a role
+    // One option per track, in track order: queried once, because a role
     // query over fifty of them is slow in jsdom.
-    const uncheck = (boxes: HTMLElement[]) => {
-      for (const box of boxes) clickAndFlush(box);
+    const turnOff = (rows: HTMLElement[]) => {
+      for (const option of rows) clickAndFlush(option);
     };
+    const trackRows = () => screen.getAllByRole("option").slice(0, 50);
 
     it("shows the estimated size, which shrinks as tracks are left out", () => {
       renderDialog(project);
       const size = () => screen.getByText(/^Estimated size/).textContent;
       expect(size()).toBe("Estimated size: about 7.8 GiB of 2 GiB.");
-      uncheck(screen.getAllByRole("checkbox").slice(0, 1));
+      turnOff(trackRows().slice(0, 1));
       expect(size()).toBe("Estimated size: about 7.7 GiB of 2 GiB.");
     });
 
     it("blocks Export over the budget, names the limit, and exports once under it", () => {
       const { requests } = renderDialog(project);
-      const boxes = screen.getAllByRole("checkbox");
-      expect(boxes).toHaveLength(50);
+      const rows = trackRows();
+      expect(rows).toHaveLength(50);
       expectBlocked(requests);
       const reason = () => document.getElementById("export-stems-blocker");
       // One live region, mounted throughout: only what it says changes.
@@ -110,9 +123,9 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
       expect(reason()).toHaveTextContent(/Deselect tracks/);
       expect(exportButton()).toHaveAttribute("aria-describedby", "export-stems-blocker");
       // 13 tracks do not fit; 12 do.
-      uncheck(boxes.slice(13));
+      turnOff(rows.slice(13));
       expect(reason()).toHaveTextContent(/over the 2 GiB limit/);
-      uncheck(boxes.slice(12, 13));
+      turnOff(rows.slice(12, 13));
       expect(reason()).toBe(region);
       expect(region).toBeEmptyDOMElement();
       expect(exportButton()).not.toHaveAttribute("aria-disabled");

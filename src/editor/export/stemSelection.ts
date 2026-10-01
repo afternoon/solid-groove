@@ -1,18 +1,9 @@
-import { createMemo, createSignal } from "solid-js";
-import type { Project, Track } from "../../domain/entities";
-import type { TrackId } from "../../domain/ids";
 import type { StemExportEstimate } from "../../export/stems/exportStems";
-import { estimateStemsFile } from "./stemsExport";
 
 /**
- * The stems dialog's track selection (EXP-003, a product-owner decision on
- * #66): which tracks a stem export includes, every one unless the producer
- * leaves some out, and whether that selection fits the export's size budget.
- *
- * It is export UI state, not project state: it is never saved, never a
- * command, and gone when the dialog closes. It records the tracks left out
- * rather than the ones kept, so a track added while the dialog is open is
- * included like every other.
+ * How a stem selection reads against the export's size budget (EXP-003, a
+ * product-owner decision on #66). Which tracks are selected is the track
+ * list's state (`trackListSelection`), export UI state that is never saved.
  */
 
 const MiB = 1024 ** 2;
@@ -37,32 +28,3 @@ export function stemsBlocker(
     "Deselect tracks to get under it."
   );
 }
-
-export function createStemSelection(project: () => Project) {
-  const [leftOut, setLeftOut] = createSignal<ReadonlySet<TrackId>>(new Set());
-  const tracks = createMemo((): Track[] =>
-    [...project().song.tracks].sort((a, b) => a.order - b.order),
-  );
-  const trackIds = createMemo(() =>
-    tracks()
-      .map((track) => track.id)
-      .filter((id) => !leftOut().has(id)),
-  );
-  const estimate = createMemo(() => estimateStemsFile(project(), trackIds()));
-  const blocker = createMemo(() => stemsBlocker(trackIds().length, estimate()));
-  return {
-    tracks,
-    trackIds,
-    estimate,
-    blocker,
-    isSelected: (id: TrackId) => !leftOut().has(id),
-    setSelected(id: TrackId, selected: boolean) {
-      const next = new Set(leftOut());
-      if (selected) next.delete(id);
-      else next.add(id);
-      setLeftOut(next);
-    },
-  };
-}
-
-export type StemSelection = ReturnType<typeof createStemSelection>;
