@@ -7,7 +7,7 @@ import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush } from "../../testing/events";
 import { fakeStemsBatch } from "../../testing/stemsBatchFake";
 import ExportDialog from "./ExportDialog";
-import { formatBytes, stemsBlocker } from "./stemSelection";
+import { formatBytes } from "./stemSelection";
 import type { StemsBatchRequest } from "./stemsExport";
 
 /** The stems dialog's track selection and size budget (EXP-003, #66), now made on
@@ -38,16 +38,6 @@ function renderDialog(project: Project) {
 }
 
 const exportButton = () => screen.getByRole("button", { name: "Export" });
-/** Blocked, Export stays focusable, so its reason is read out, and does nothing. */
-function expectBlocked(requests: StemsBatchRequest[]) {
-  const button = exportButton();
-  expect(button).toHaveAttribute("aria-disabled", "true");
-  expect(button).not.toBeDisabled();
-  button.focus();
-  expect(button).toHaveFocus();
-  clickAndFlush(button);
-  expect(requests).toEqual([]);
-}
 /** A track's row: its name is `<name>, included` or `<name>, left out`. */
 const row = (name: string) =>
   screen
@@ -81,17 +71,21 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     expect(requests.map((r) => r.trackIds)).toEqual([[bass.id]]);
   });
 
-  it("blocks Export with no track selected", () => {
+  it("turns Export off with no track on, and says why", () => {
     const project = createStemFixtureProject();
     const { requests } = renderDialog(project);
-    // The reason's live region is there, empty, before anything blocks Export.
-    const region = document.getElementById("export-stems-blocker");
-    expect(region).toBeEmptyDOMElement();
+    const button = exportButton();
+    expect(button).not.toHaveAttribute("aria-disabled");
     for (const track of ordered(project)) toggle(track.name);
-    expectBlocked(requests);
-    expect(document.getElementById("export-stems-blocker")).toBe(region);
-    expect(region).toHaveTextContent("Select at least one track to export.");
-    expect(screen.getByText("Select at least one track to export.")).toBeVisible();
+    // Off stays focusable, so its reason is read out, and does nothing.
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAttribute("aria-describedby", "export-note");
+    expect(document.getElementById("export-note")).toHaveTextContent(
+      "Turn on at least one track to export stems.",
+    );
+    clickAndFlush(button);
+    expect(requests).toEqual([]);
   });
 
   describe("with the PRD reference project (50 tracks, ten minutes, 44.1 kHz)", () => {
@@ -113,47 +107,30 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
       expect(size()).toBe("7.66 GiB \u00b7 50 files");
     });
 
-    it("blocks Export over the budget, names the limit, and exports once under it", () => {
+    it("never blocks Export over the budget: it splits, and fewer tracks mean fewer ZIPs", () => {
       const { requests } = renderDialog(project);
       const rows = trackRows();
       expect(rows).toHaveLength(50);
-      expectBlocked(requests);
-      const reason = () => document.getElementById("export-stems-blocker");
-      // One live region, mounted throughout: only what it says changes.
-      const region = reason();
-      expect(region).toHaveAttribute("aria-live", "polite");
-      expect(reason()).toHaveTextContent(/over the 2 GiB limit/);
-      expect(reason()).toHaveTextContent(/Deselect tracks/);
-      expect(exportButton()).toHaveAttribute("aria-describedby", "export-stems-blocker");
-      // 13 tracks do not fit; 12 do.
-      turnOff(rows.slice(13));
-      expect(reason()).toHaveTextContent(/over the 2 GiB limit/);
-      turnOff(rows.slice(12, 13));
-      expect(reason()).toBe(region);
-      expect(region).toBeEmptyDOMElement();
+      const zips = () =>
+        screen.getByText("Downloads", { selector: ".export-footer .export-label" })
+          .parentElement?.textContent;
       expect(exportButton()).not.toHaveAttribute("aria-disabled");
-      expect(exportButton()).not.toHaveAttribute("aria-describedby");
+      expect(zips()).toMatch(/\d+ ZIPs, each under 2 GiB$/);
+      // 12 tracks and the reference mix fit one ZIP; a thirteenth does not.
+      turnOff(rows.slice(13));
+      expect(zips()).toMatch(/^Downloads2 ZIPs/);
+      turnOff(rows.slice(12, 13));
+      expect(zips()).toBe("Downloads1 ZIP");
       clickAndFlush(exportButton());
       expect(requests.map((r) => r.trackIds)).toEqual([
         tracks.slice(0, 12).map((track) => track.id),
       ]);
+      expect(requests[0].count).toBe(1);
     });
   });
 });
 
-describe("stemsBlocker", () => {
-  const estimate = { bytes: 3 * 1024 ** 3, limitBytes: 2 * 1024 ** 3, fits: false };
-
-  it("says nothing while the selection fits", () => {
-    expect(stemsBlocker(3, { ...estimate, fits: true })).toBeNull();
-  });
-
-  it("names the size and the limit", () => {
-    expect(stemsBlocker(3, estimate)).toBe(
-      "This selection is about 3 GiB, over the 2 GiB limit for an export in the browser. Deselect tracks to get under it.",
-    );
-  });
-
+describe("formatBytes", () => {
   it("formats sizes in binary units", () => {
     expect(formatBytes(512)).toBe("1 MiB");
     expect(formatBytes(300 * 1024 ** 2)).toBe("300 MiB");

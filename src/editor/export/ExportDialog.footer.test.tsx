@@ -104,15 +104,18 @@ describe("ExportDialog: the message slot", () => {
     expect(alert).toHaveClass("shown");
   });
 
-  it("says when it is done, and why Export is blocked, in its one-line note", () => {
-    renderDialog(createReferenceProject());
+  it("says why Export is off in its one-line note, which stays one live region", () => {
+    renderDialog();
     stems();
-    const note = document.getElementById("export-stems-blocker") as HTMLElement;
+    const note = document.getElementById("export-note") as HTMLElement;
     expect(note).toHaveAttribute("aria-live", "polite");
-    expect(note).toHaveTextContent(/over the 2 GiB limit/);
+    expect(note).toHaveTextContent(/These fit in one/);
+    clickAndFlush(screen.getAllByRole("option")[0]);
+    expect(document.getElementById("export-note")).toBe(note);
+    expect(note).toHaveTextContent("Turn on at least one track to export stems.");
     expect(screen.getByRole("button", { name: "Export" })).toHaveAttribute(
       "aria-describedby",
-      "export-stems-blocker",
+      "export-note",
     );
   });
 });
