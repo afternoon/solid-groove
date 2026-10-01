@@ -299,7 +299,8 @@ tempo-labelled loop whose source tempo is not the tempo a new project opens at.
    pattern.
 2. Choose to add a loop from the library. The library opens over the arrangement.
 3. Find a drum loop that was recorded at a different tempo from the project's,
-   and insert it.
+   and insert it. The library opens on loops near the project's tempo, so widen
+   it to any tempo to find one.
 4. The library closes. A new track appears at the bottom of the track list,
    carrying that loop as a clip starting at bar 1.
 5. Open that clip. It is named as a loop that follows the project tempo rather

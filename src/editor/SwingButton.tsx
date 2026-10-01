@@ -14,9 +14,9 @@ export interface SwingButtonProps {
 }
 
 /**
- * The transport toolbar's swing entry (#500): an icon button that opens a small
- * panel holding the swing slider. It reads "on" (brighter) above 50%, and
- * pressed while the panel is open. Like the track colour picker, the panel is
+ * The transport toolbar's swing entry (#500): a button showing the swing glyph
+ * and its value (#819) that opens a small panel holding the swing slider. It
+ * reads "on" (brighter) above 50%, and pressed while the panel is open. Like the track colour picker, the panel is
  * portalled, closes on a press outside, on focus leaving, and on
  * `view.close_surface` (Escape); opening focuses the slider and closing
  * returns focus to the button.
@@ -61,7 +61,10 @@ export default function SwingButton(props: SwingButtonProps): JSX.Element {
         aria-expanded={ariaBool(open())}
         onClick={toggle}
       >
-        <SwingGlyph />
+        <SwingGlyph size={16} />
+        {/* The value, so the bar shows the song's swing without the panel
+            (#819). The aria-label stays the button's name. */}
+        <span class="swing-value">{Math.round(props.swing())}%</span>
       </button>
       <Show when={at()}>
         {(position) => (
