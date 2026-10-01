@@ -30,6 +30,8 @@ export interface UseTrackListOptions {
   readonly project: () => Project;
   /** Whether the list can be changed: stems chosen, and no export running. */
   readonly editable: () => boolean;
+  /** Stereo mix: a row is in it unless its track is muted, whatever was picked. */
+  readonly stereo: () => boolean;
 }
 
 export function useTrackList(options: UseTrackListOptions) {
@@ -40,9 +42,10 @@ export function useTrackList(options: UseTrackListOptions) {
 
   const views = createMemo((): TrackLaneView[] => {
     const current = state();
+    const mix = options.stereo();
     return rows().map((row) => ({
       ...row,
-      included: isIncluded(current, row),
+      included: mix ? !row.muted : isIncluded(current, row),
       picked: current.picked.has(row.id),
     }));
   });

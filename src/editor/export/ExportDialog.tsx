@@ -14,14 +14,17 @@ import { OfflineRenderError } from "../../audio/offlineRenderer";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
+import { systemClock } from "../../shared/clock";
 import { useShortcuts } from "../../shortcuts";
+import DownloadsRow, { type DownloadState } from "./DownloadsRow";
+import { downloadCards } from "./downloadCards";
 import { downloadFile } from "./downloadFile";
 import ExportTitleRow from "./ExportTitleRow";
-import { exportFacts } from "./exportFacts";
+import { estimateStereoBytes, exportFacts } from "./exportFacts";
 import FormatCards, { type ExportFormat } from "./FormatCards";
 import StemsBudgetNote, { STEMS_BLOCKER_ID } from "./StemsBudgetNote";
 import { stemsBlocker } from "./stemSelection";
-import { estimateStemsFile, exportStemsFile } from "./stemsExport";
+import { estimateStemsFile, exportStemsFile, planStemsFiles } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
 import TrackLanes from "./TrackLanes";
 import { useTrackList } from "./useTrackList";
@@ -84,7 +87,43 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const list = useTrackList({
     project: props.project,
     editable: () => format() === "stems" && phase().kind !== "rendering",
+    stereo: () => format() === "stereo",
   });
+  const rendering = () => {
+    const current = phase();
+    return current.kind === "rendering" ? current : null;
+  };
+  const cardState = (): DownloadState => {
+    const current = phase().kind;
+    if (current === "rendering") return "now";
+    if (current === "done") return "done";
+    return current === "failed" ? "bad" : "waiting";
+  };
+  const stamp = new Date(systemClock.now());
+  const plan = createMemo(() => planStemsFiles(props.project(), list.trackIds()));
+  const stereoBytes = createMemo(() => estimateStereoBytes(props.project()));
+  const printing = () => {
+    const current = rendering();
+    return current ? { batchIndex: 0, fraction: current.progress } : null;
+  };
+  const cards = createMemo(() =>
+    downloadCards({
+      format: format(),
+      projectName: props.project().metadata.name,
+      date: stamp,
+      batches: plan(),
+      stereoBytes: stereoBytes(),
+      state: cardState(),
+      fraction: rendering()?.progress ?? 0,
+    }),
+  );
+  /** Every row the export includes, so the playhead prints returns as well as tracks. */
+  const printedRows = createMemo(() =>
+    list
+      .rows()
+      .filter((row) => row.included)
+      .map((row) => row.id),
+  );
   const estimate = createMemo(() => estimateStemsFile(props.project(), list.trackIds()));
   const blocker = createMemo(() => stemsBlocker(list.trackIds().length, estimate()));
   const blocked = () => format() === "stems" && blocker() !== null;
@@ -157,10 +196,6 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     }
   }
 
-  const rendering = () => {
-    const current = phase();
-    return current.kind === "rendering" ? current : null;
-  };
   const failed = () => {
     const current = phase();
     return current.kind === "failed" ? current : null;
@@ -185,6 +220,9 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
           readOnly={format() === "stereo"}
           disabled={phase().kind === "rendering"}
           heightPx={250}
+          batches={format() === "stems" ? [printedRows()] : []}
+          doneBatches={phase().kind === "done" ? [0] : []}
+          printing={printing()}
           onRowClick={(index, modifiers) => {
             list.click(index, modifiers);
             focusList();
@@ -193,6 +231,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
           onFocusChange={list.setFocused}
         />
       </div>
+      <DownloadsRow cards={cards()} />
       <div class="export-dialog">
         <Show when={format() === "stems"}>
           <StemsBudgetNote estimate={estimate()} blocker={blocker()} />
