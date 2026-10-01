@@ -57,6 +57,15 @@ h2 {
   margin-bottom: 14px;
 }
 
+/* Form controls do not inherit the font family on their own: without this they
+   fall back to the browser's default face, and `?font=` never reaches them. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 button {
   padding: 12px 20px;
   cursor: pointer;
