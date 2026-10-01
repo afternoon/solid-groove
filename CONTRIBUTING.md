@@ -25,10 +25,8 @@ gitignored for that reason.
 
 For everyday UI work you need nothing in `.env` at all — `bun run dev:mock`
 supplies its own placeholders. What you put there matters only for the real
-project; see the next section. Every `dev` script builds the starter sound
-library into `public/samples` first (`library:build`: the pack index, manifests
-and audio the library browser reads same-origin), which takes about fifteen
-seconds before the server starts.
+project; see the next section. Every `dev` script regenerates the starter sound
+library first, so the first run is slower than later ones.
 
 ### Prerequisites by task
 
@@ -136,6 +134,22 @@ exists.
 
 Setting `VITE_DEV_BACKEND=mock` in `.env` makes plain `bun run dev` do the same
 thing, if that is what you want most days.
+
+### The sound library on a local dev server
+
+With no `VITE_FIREBASE_STORAGE_BUCKET` set, the app reads the factory sound
+library from `public/samples/starter-library` on the dev server itself. The
+`dev` scripts do not build it, because that takes about fifteen seconds. Build
+it once, then restart the dev server:
+
+```sh
+bun run library:build
+```
+
+Until you do, every `dev` script prints a warning and the library browser shows
+"This library is unavailable." Run it again after changing the library's
+sources. See [`docs/sample-library.md`](./docs/sample-library.md) for the rest
+of the library workflow.
 
 ### Running against the Firebase Emulator
 
