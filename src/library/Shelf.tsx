@@ -1,5 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidChevronLeft, HiSolidChevronRight } from "solid-icons/hi";
+import { createEffect, createSignal, onSettled } from "solid-js";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
 import { familyLabel, type ShelfEntry, type ShelfFamily } from "./shelf";
@@ -9,6 +10,27 @@ import "./SoundsView.css";
 function pickAction(index: number): ShortcutActionId | null {
   if (index === 0) return "library.pick_all";
   return index <= 9 ? (`library.pick_${index}` as ShortcutActionId) : null;
+}
+
+/** "All drums", in sentence case like every label; an acronym ("FX") keeps its capitals. */
+export function allLabel(family: ShelfFamily): string {
+  const label = familyLabel(family);
+  return `All ${label === label.toUpperCase() ? label : label.toLowerCase()}`;
+}
+
+/**
+ * A chip's boxed key badge, drawn before its label as the window's other keys
+ * are. It is decoration for sighted users: the button announces the key
+ * through `aria-keyshortcuts`, so the badge stays out of the accessible name.
+ */
+function ChipKey(props: { label?: string }): JSX.Element {
+  return (
+    <Show when={props.label}>
+      <span class="library-modal-key shelf-key" aria-hidden="true">
+        <kbd>{props.label}</kbd>
+      </span>
+    </Show>
+  );
 }
 
 /**
@@ -28,12 +50,46 @@ export default function Shelf(props: {
   onRole(role: string | null): void;
 }): JSX.Element {
   let chips: HTMLDivElement | undefined;
+  const [overflows, setOverflows] = createSignal(false);
+  const measure = () => {
+    if (chips) setOverflows(chips.scrollWidth > chips.clientWidth);
+  };
   const scroll = (direction: 1 | -1) =>
     chips?.scrollBy?.({ left: direction * 240, behavior: "smooth" });
   const badge = (index: number) => {
     const action = pickAction(index);
     return action ? props.keyLabel?.(action) : undefined;
   };
+
+  // The arrows only show when there is somewhere to scroll: re-measure when the
+  // chips change, and when the window (so the row) is resized.
+  createEffect(
+    () => [props.family, props.roles] as const,
+    () => measure(),
+  );
+  onSettled(() => {
+    measure();
+    if (typeof ResizeObserver !== "function" || !chips) return;
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(chips);
+    return () => observer.disconnect();
+  });
+
+  const arrow = (direction: 1 | -1) => (
+    <button
+      type="button"
+      class="shelf-arrow"
+      hidden={!overflows()}
+      aria-label={`Scroll categories ${direction === 1 ? "right" : "left"}`}
+      onClick={() => scroll(direction)}
+    >
+      {direction === 1 ? (
+        <HiSolidChevronRight size={12} />
+      ) : (
+        <HiSolidChevronLeft size={12} />
+      )}
+    </button>
+  );
 
   return (
     <div class="shelf">
@@ -47,32 +103,27 @@ export default function Shelf(props: {
               aria-selected={ariaBool(props.family === entry.key)}
               onClick={() => props.onFamily(entry.key)}
             >
-              {entry.label} <span class="shelf-count">{entry.count}</span>
+              <b class="shelf-family-name">{entry.label}</b>{" "}
+              <small class="shelf-family-count">{entry.count}</small>
             </button>
           )}
         </For>
       </div>
       <div class="shelf-roles">
-        <button
-          type="button"
-          class="shelf-arrow"
-          aria-label="Scroll categories left"
-          onClick={() => scroll(-1)}
-        >
-          <HiSolidChevronLeft size={14} />
-        </button>
-        <div class="shelf-chips" ref={chips}>
+        {arrow(-1)}
+        <div class={["shelf-chips", { "shelf-chips-overflow": overflows() }]} ref={chips}>
           <button
             type="button"
             class="shelf-chip"
             aria-pressed={ariaBool(props.role === null)}
+            aria-keyshortcuts={badge(0)}
             onClick={() => props.onRole(null)}
           >
-            All {familyLabel(props.family)}{" "}
+            <ChipKey label={badge(0)} />
+            {allLabel(props.family)}{" "}
             <span class="shelf-count">
               {props.families.find((entry) => entry.key === props.family)?.count}
             </span>
-            <Show when={badge(0)}>{(key) => <kbd>{key()}</kbd>}</Show>
           </button>
           <For each={props.roles}>
             {(entry, index) => (
@@ -80,22 +131,16 @@ export default function Shelf(props: {
                 type="button"
                 class="shelf-chip"
                 aria-pressed={ariaBool(props.role === entry.key)}
+                aria-keyshortcuts={badge(index() + 1)}
                 onClick={() => props.onRole(entry.key)}
               >
+                <ChipKey label={badge(index() + 1)} />
                 {entry.label} <span class="shelf-count">{entry.count}</span>
-                <Show when={badge(index() + 1)}>{(key) => <kbd>{key()}</kbd>}</Show>
               </button>
             )}
           </For>
         </div>
-        <button
-          type="button"
-          class="shelf-arrow"
-          aria-label="Scroll categories right"
-          onClick={() => scroll(1)}
-        >
-          <HiSolidChevronRight size={14} />
-        </button>
+        {arrow(1)}
       </div>
     </div>
   );
