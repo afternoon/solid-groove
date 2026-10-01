@@ -199,6 +199,9 @@ export function sampleName(project: Project | null, track: Track | null): string
 
 /** What the library was opened for, named for its header (`LIB-010`). */
 export interface LibrarySlotHeader {
+  /** The small label over the slot: the track, and for a pad its position. */
+  readonly eyebrow: string;
+  /** The slot itself, large: a pad's own name ("BD"), else what it holds. */
   readonly slot: string;
   readonly current: string | null;
   /** What the slot is, so the library opens on its family. */
@@ -213,19 +216,27 @@ export function librarySlotHeader(
   pad: { readonly padId: string } | null,
   loops: boolean,
 ): LibrarySlotHeader {
-  if (loops) return { slot: "Loops", current: null, kind: "loop-track" };
+  if (loops)
+    return { eyebrow: "Library", slot: "Loops", current: null, kind: "loop-track" };
   const instrument = editedInstrument(track);
   if (pad && instrument?.kind === "drumMachine") {
-    const found = instrument.pads.find((entry) => entry.id === pad.padId);
+    const index = instrument.pads.findIndex((entry) => entry.id === pad.padId);
+    const found = instrument.pads[index];
     const asset = project?.song.assets.find((entry) => entry.id === found?.assetId);
     return {
-      slot: `Drums · ${found?.name ?? "Pad"}`,
+      eyebrow: `${track?.name ?? "Drums"} · Pad ${index + 1}`,
+      slot: found?.name ?? "Pad",
       current: asset?.name ?? null,
       kind: "drum-pad",
       currentRef: asset?.storageRef ?? null,
     };
   }
-  return { slot: "Sampler", current: sampleName(project, track), kind: "sampler" };
+  return {
+    eyebrow: track?.name ?? "Sampler",
+    slot: "Sample",
+    current: sampleName(project, track),
+    kind: "sampler",
+  };
 }
 
 /**

@@ -45,6 +45,14 @@
   height: min(690px, 100%);
 }
 
+/* A hairline edge and a deeper shadow, so the library's panel does not merge
+   with the dimmed editor behind it. Doubled up to outrank `.dialog` below. */
+.dialog.dialog-modal {
+  box-shadow:
+    0 20px 60px var(--scrim),
+    0 0 0 1px var(--color-border);
+}
+
 /* Click-outside as a real control rather than a handler on a div, so it is one
    accessible affordance instead of a mouse-only one. Out of the tab order: the
    close button is the keyboard path. */

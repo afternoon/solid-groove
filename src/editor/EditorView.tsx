@@ -726,6 +726,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   addedPackIds={addedPackIds()}
                   assetTypes={libraryTypes()}
                   heading={libraryLoops() ? "Loops" : "Library"}
+                  eyebrow={librarySlot().eyebrow}
                   slot={librarySlot().slot}
                   trackColor={track()?.color}
                   keyLabel={keyHint}
