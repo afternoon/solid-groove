@@ -77,6 +77,16 @@
   flex: none;
 }
 
+/* The pointer lights the whole row, not just the main button under it; the
+   button stays clear so the row's own fill shows through (#812). */
+.sound-row:hover {
+  background: var(--color-background-highlight);
+}
+
+.sound-row-main:hover {
+  background: transparent;
+}
+
 .sound-row-icon {
   flex: none;
   background: transparent;
@@ -88,7 +98,8 @@
 }
 
 /* The selected row is a white fill: everything on it reads dark. */
-.sound-row-selected {
+.sound-row-selected,
+.sound-row-selected:hover {
   background: var(--color-accent);
 }
 
@@ -97,6 +108,12 @@
 .sound-row-selected .sound-row-length,
 .sound-row-selected .sound-row-icon {
   color: var(--color-on-accent);
+}
+
+/* Under the pointer on the white row, a step down from white, never the dark
+   hover fill under dark icons. */
+.sound-row-selected .sound-row-icon:hover {
+  background: var(--color-accent-dim);
 }
 
 /* The two-level shelf: family tiles over a scrolling row of category chips. */
