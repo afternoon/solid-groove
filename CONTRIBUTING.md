@@ -135,6 +135,22 @@ exists.
 Setting `VITE_DEV_BACKEND=mock` in `.env` makes plain `bun run dev` do the same
 thing, if that is what you want most days.
 
+### The sound library on a local dev server
+
+With no `VITE_FIREBASE_STORAGE_BUCKET` set, the app reads the factory sound
+library from `public/samples/starter-library` on the dev server itself. The
+`dev` scripts do not build it, because that takes about fifteen seconds. Build
+it once, then restart the dev server:
+
+```sh
+bun run library:build
+```
+
+Until you do, every `dev` script prints a warning and the library browser shows
+"This library is unavailable." Run it again after changing the library's
+sources. See [`docs/sample-library.md`](./docs/sample-library.md) for the rest
+of the library workflow.
+
 ### Running against the Firebase Emulator
 
 This points the real Firebase SDK at a local Firestore + Auth emulator, so a
