@@ -320,6 +320,82 @@ describe("LibraryModal shell", () => {
   });
 });
 
+describe("LibraryModal footer and rail", () => {
+  const [drums] = FIXTURE_PACK_INDEX_DOC.packs;
+  const label = (action: string) => `<${action}>`;
+
+  function renderSlot(fetcher = fixtureFetcher()) {
+    const slot = { preview: () => true, clear: () => {}, isPlaying: () => true };
+    render(() => (
+      <LibraryModal
+        client={new LibraryClient(fetcher)}
+        previewEngine={fakePreviewEngine()}
+        slotAudition={slot}
+        slotKind="drum-pad"
+        slot="BD"
+        current="Rounded Club Kick"
+        keyLabel={label}
+        onInsert={() => {}}
+        addedPackIds={[drums.id]}
+        onClose={() => {}}
+      />
+    ));
+    return within(screen.getByRole("navigation", { name: "Places" }));
+  }
+  const hint = () => document.querySelector(".library-modal-hint");
+
+  it("teaches the slot and its keys, with different words over packs and similar sounds", async () => {
+    const rail = renderSlot();
+    await screen.findAllByRole("listitem");
+    expect(hint()).toHaveTextContent(
+      "Sounds play in the BD pad over your beat. <library.select_previous> " +
+        "<library.select_next> for the next, <view.close_surface> puts back Rounded Club Kick.",
+    );
+
+    clickAndFlush(rail.getByRole("button", { name: /^Browse packs/ }));
+    expect(hint()).toHaveTextContent(/^Pick a pack to see its sounds\.$/);
+
+    clickAndFlush(rail.getByRole("button", { name: /^All sounds/ }));
+    clickAndFlush((await screen.findAllByRole("button", { name: /^Sounds like / }))[0]);
+    await screen.findByRole("navigation", { name: "Similar sounds trail" });
+    expect(hint()).toHaveTextContent(
+      /^Every result plays in the BD pad\. Press its similar/,
+    );
+  });
+
+  it("selects an opened pack's own rail row rather than Browse packs", async () => {
+    const rail = renderSlot();
+    const browse = rail.getByRole("button", { name: /^Browse packs/ });
+    clickAndFlush(browse);
+    expect(browse).toHaveAttribute("aria-current", "true");
+
+    clickAndFlush(await screen.findByRole("button", { name: `Open ${drums.name}` }));
+
+    const project = within(screen.getByRole("group", { name: "In this project" }));
+    expect(project.getByRole("button", { name: new RegExp(drums.name) })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(browse).not.toHaveAttribute("aria-current");
+  });
+
+  it("says the project's packs couldn't load when the pack index fails", async () => {
+    renderSlot(async () => {
+      throw new Error("offline");
+    });
+    const project = screen.getByRole("group", { name: "In this project" });
+    expect(await within(project).findByText("Packs couldn't load.")).toBeVisible();
+  });
+
+  it("badges Insert with the registry's key without changing its name", async () => {
+    renderSlot();
+    const insert = screen.getByRole("button", { name: "Insert" });
+    const badge = within(insert).getByText("<library.insert>");
+    expect(badge).toHaveClass("library-modal-key");
+    expect(badge).toHaveAttribute("aria-hidden", "true");
+  });
+});
+
 describe("LibraryModal packs", () => {
   const [drums, bass] = FIXTURE_PACK_INDEX_DOC.packs;
 
