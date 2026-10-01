@@ -1,0 +1,44 @@
+/* The ZIP brackets between the Export mini-arrangement's names and lanes. */
+
+.batch-gutter {
+  position: relative;
+  background: var(--color-background-secondary);
+  border-left: 1px solid var(--color-background);
+}
+
+.batch-bracket {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-foreground-muted);
+  border-right: 0;
+}
+
+.batch-bracket span {
+  padding: 2px 0;
+  background: var(--color-background-secondary);
+  color: var(--color-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.batch-bracket[data-state="now"] {
+  border-color: var(--color-accent);
+}
+
+.batch-bracket[data-state="now"] span {
+  color: var(--color-accent);
+}
+
+.batch-bracket[data-state="done"] {
+  border-color: var(--color-foreground);
+}
+
+.batch-bracket[data-state="done"] span {
+  padding: 2px 3px;
+  background: var(--color-foreground);
+  color: var(--color-on-accent);
+}

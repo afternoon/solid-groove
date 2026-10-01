@@ -14,7 +14,7 @@ import {
   shortcutsInContext,
 } from "./registry";
 import type { ShortcutContext } from "./types";
-import { SHORTCUT_CONTEXTS, SHORTCUT_GROUPS } from "./types";
+import { MODAL_OWNED_CONTEXTS, SHORTCUT_CONTEXTS, SHORTCUT_GROUPS } from "./types";
 
 const PLATFORMS: readonly ShortcutPlatform[] = ["mac", "other"];
 
@@ -176,7 +176,7 @@ describe("conflict rules", () => {
           if (first === second) continue;
           // `library` is only ever active beside `dialog` (see the live sets
           // below), so a pair that pairs it with anything else is not a screen.
-          if (first === "library" || second === "library") continue;
+          if (MODAL_OWNED_CONTEXTS.some((c) => c === first || c === second)) continue;
           expect(
             ambiguousIn([first, second], platform),
             `ambiguous in ${first}+${second} on ${platform}`,
@@ -200,6 +200,7 @@ describe("conflict rules", () => {
       ["editor", "automation_lane", "timeline", "selection"],
       ["dialog"],
       ["dialog", "library"],
+      ["dialog", "export_tracks"],
       ["editor", "gesture"],
     ];
     for (const platform of PLATFORMS) {
@@ -223,6 +224,38 @@ describe("context resolution", () => {
     expect(resolveContexts(["dialog", "editor"])).toEqual(["dialog"]);
     const inDialog = shortcutsInContext(["dialog", "editor", "selection"]);
     expect(inDialog.map((shortcut) => shortcut.id)).toEqual(["view.close_surface"]);
+  });
+
+  it("keeps the export list's keys firing inside the dialog, and only there", () => {
+    const key = (k: string, extra: Partial<ChordEvent> = {}) =>
+      ({
+        key: k,
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        ...extra,
+      }) as ChordEvent;
+    const within: readonly ShortcutContext[] = ["dialog", "export_tracks", "editor"];
+    const id = (event: ChordEvent, active = within) =>
+      matchShortcut(event, "other", active)?.id;
+    expect(id(key("ArrowUp"))).toBe("export.focus_previous");
+    expect(id(key("ArrowDown"))).toBe("export.focus_next");
+    expect(id(key("ArrowUp", { shiftKey: true }))).toBe("export.extend_previous");
+    expect(id(key("ArrowDown", { shiftKey: true }))).toBe("export.extend_next");
+    expect(id(key(" "))).toBe("export.toggle_focused");
+    expect(id(key("Enter"))).toBe("export.toggle_focused");
+    expect(id(key("a", { ctrlKey: true }))).toBe("export.pick_all");
+    // Escape is still the dialog's own close, not the list's.
+    expect(id(key("Escape"))).toBe("view.close_surface");
+    // With the list unfocused the dialog claims none of them, and the editor behind
+    // it stays suppressed (Space is not play/stop, Mod+A is not select all).
+    expect(id(key(" "), ["dialog", "editor"])).toBeUndefined();
+    expect(
+      id(key("a", { ctrlKey: true }), ["dialog", "editor", "selection"]),
+    ).toBeUndefined();
+    // Outside a dialog the context is inert for the editor's own keys.
+    expect(id(key(" "), ["editor"])).toBe("transport.play_stop");
   });
 
   it("keeps library beside dialog, and only there", () => {
@@ -269,6 +302,7 @@ describe("context resolution", () => {
         gesture: { key: "escape", id: "view.close_surface" },
         loop_brace: { key: "arrowleft", id: "arrangement.loop_move_earlier" },
         value_field: { key: "arrowup", id: "value.nudge_up" },
+        export_tracks: { key: "arrowup", id: "export.focus_previous" },
       };
     for (const context of SHORTCUT_CONTEXTS) {
       const probe = expected[context];

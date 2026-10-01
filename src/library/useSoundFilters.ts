@@ -9,7 +9,9 @@ import type { SoundFilters, TempoFilter } from "./filters";
  */
 export function useSoundFilters(songBpm: Accessor<number>) {
   const [genres, setGenres] = createSignal<readonly string[]>([]);
-  const [tempo, setTempo] = createSignal<TempoFilter>("any");
+  // Loops open near the song tempo, the ones that stretch well (#823). It only
+  // ever narrows loops, so a one-shot list is unaffected.
+  const [tempo, setTempo] = createSignal<TempoFilter>("near");
   const [bars, setBars] = createSignal<number | null>(null);
 
   return {

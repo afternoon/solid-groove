@@ -225,6 +225,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
+  // The Export dialog is a modal over the editor, so the editor's keys stand down.
+  const [exportOpen, setExportOpen] = createSignal(false);
 
   // The project's packs: its derived dependencies and its shelf. Nothing in the
   // library window adds a pack for the session any more; inserting does.
@@ -385,6 +387,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     deleteSelection,
     guideOpen,
     setGuideOpen,
+    exportOpen,
     // A true modal takes the keyboard, unlike the sequence editor: there is
     // nothing to do underneath the library while you pick a sound.
     libraryOpen,
@@ -604,6 +607,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onSwingInput={swingGesture.input}
                 onSwingCommit={commitSwing}
                 onOpenGuide={() => setGuideOpen(true)}
+                onExportOpenChange={setExportOpen}
                 keyHint={keyHint}
               />
               <div class="editor-body">
@@ -729,7 +733,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   slot={librarySlot().slot}
                   trackColor={track()?.color}
                   keyLabel={keyHint}
-                  onShowKeys={() => setGuideOpen(true)}
                   current={librarySlot().current}
                   slotKind={librarySlot().kind}
                   songBpm={tempo()}
