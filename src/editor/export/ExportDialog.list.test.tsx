@@ -4,8 +4,9 @@ import type { Project } from "../../domain/entities";
 import { createReferenceProject } from "../../domain/fixtures";
 import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
+import { fakeStemsBatch } from "../../testing/stemsBatchFake";
 import ExportDialog from "./ExportDialog";
-import type { exportStemsFile, StemsExportRequest } from "./stemsExport";
+import type { StemsBatchRequest } from "./stemsExport";
 
 /** The track list mounted in the dialog: selection, keys and Escape (EXP-004). */
 
@@ -20,16 +21,17 @@ const project: Project = createReferenceProject({
 });
 
 function renderDialog() {
-  const requests: StemsExportRequest[] = [];
-  const exportStems = vi.fn(async (_p: Project, request: StemsExportRequest) => {
+  const fake = fakeStemsBatch();
+  const requests: StemsBatchRequest[] = [];
+  const exportStemsBatch = ((p: Project, request: StemsBatchRequest) => {
     requests.push(request);
-    return { blob: new Blob([]), fileName: "stems.zip" };
-  }) as unknown as typeof exportStemsFile;
+    return fake.exportStemsBatch(p, request);
+  }) as unknown as typeof fake.exportStemsBatch;
   const onClose = vi.fn();
   render(() => (
     <ExportDialog
       project={() => project}
-      exportStems={exportStems}
+      exportStemsBatch={exportStemsBatch}
       download={vi.fn()}
       onClose={onClose}
     />

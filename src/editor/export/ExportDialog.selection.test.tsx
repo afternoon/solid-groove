@@ -5,9 +5,10 @@ import { createReferenceProject } from "../../domain/fixtures";
 import { createStemFixtureProject } from "../../export/stems/stemFixture";
 import { stubCanvasContext } from "../../testing/canvas";
 import { clickAndFlush } from "../../testing/events";
+import { fakeStemsBatch } from "../../testing/stemsBatchFake";
 import ExportDialog from "./ExportDialog";
 import { formatBytes, stemsBlocker } from "./stemSelection";
-import type { exportStemsFile, StemsExportRequest } from "./stemsExport";
+import type { StemsBatchRequest } from "./stemsExport";
 
 /** The stems dialog's track selection and size budget (EXP-003, #66), now made on
  * the track list's rows rather than on checkboxes (EXP-004). */
@@ -16,16 +17,18 @@ afterEach(cleanup);
 stubCanvasContext();
 
 function renderDialog(project: Project) {
-  const requests: StemsExportRequest[] = [];
-  const exportStems = vi.fn(async (_project: Project, request: StemsExportRequest) => {
-    requests.push(request);
-    return { blob: new Blob([]), fileName: "stems.zip" };
-  }) as unknown as typeof exportStemsFile;
+  const fake = fakeStemsBatch();
+  const requests: StemsBatchRequest[] = [];
   const download = vi.fn();
   render(() => (
     <ExportDialog
       project={() => project}
-      exportStems={exportStems}
+      exportStemsBatch={
+        ((p: Project, request: StemsBatchRequest) => {
+          requests.push(request);
+          return fake.exportStemsBatch(p, request);
+        }) as never
+      }
       download={download}
       onClose={vi.fn()}
     />
@@ -36,7 +39,7 @@ function renderDialog(project: Project) {
 
 const exportButton = () => screen.getByRole("button", { name: "Export" });
 /** Blocked, Export stays focusable, so its reason is read out, and does nothing. */
-function expectBlocked(requests: StemsExportRequest[]) {
+function expectBlocked(requests: StemsBatchRequest[]) {
   const button = exportButton();
   expect(button).toHaveAttribute("aria-disabled", "true");
   expect(button).not.toBeDisabled();

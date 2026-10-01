@@ -35,6 +35,9 @@ export interface TrackLanesProps {
   /** Stem batches as arrays of row ids; the gutter shows with two or more. */
   readonly batches?: readonly (readonly string[])[];
   readonly doneBatches?: readonly number[];
+  /** Nothing is printing or finished: ZIPs already downloaded keep their filled
+   * bracket, but their lanes are not drawn printed. */
+  readonly idle?: boolean;
   readonly printing?: PrintState | null;
   readonly heightPx?: number;
   /** Scroll this row to the top, e.g. a batch's first stem when it starts. */
@@ -112,7 +115,7 @@ export default function TrackLanes(props: TrackLanesProps): JSX.Element {
           rows={props.rows}
           bars={props.bars}
           batches={props.batches}
-          doneBatches={props.doneBatches}
+          doneBatches={props.idle ? [] : props.doneBatches}
           printing={props.printing}
           onRowClick={props.readOnly || props.disabled ? undefined : props.onRowClick}
         />
