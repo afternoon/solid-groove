@@ -138,9 +138,14 @@ test.describe("Export dialog layout", () => {
         const title = document.querySelector(".export-title h2") as HTMLElement;
         const readout = document.querySelector(".export-head .export-readout");
         return {
+          // To a tenth of a pixel: Firefox lays text out on a finer grid
+          // than Chromium, so the same 32px gap measures 31.99998px there.
           gap:
-            (readout?.getBoundingClientRect().left ?? 0) -
-            title.getBoundingClientRect().right,
+            Math.round(
+              ((readout?.getBoundingClientRect().left ?? 0) -
+                title.getBoundingClientRect().right) *
+                10,
+            ) / 10,
           clipped: title.scrollWidth > title.clientWidth,
         };
       });
