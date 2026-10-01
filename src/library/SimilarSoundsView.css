@@ -10,17 +10,28 @@
   align-items: center;
   gap: 14px;
   padding: 10px 16px;
-  border-bottom: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border);
   min-width: 0;
 }
 
+/* The way back reads where it goes: "‹ Kicks". Every control here sets its
+   own padding, alignment and size, so the global button rules never leak in. */
 .similar-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   height: 28px;
   padding: 0 10px;
   flex: none;
+  font-size: 12px;
   font-weight: 600;
-  background: var(--color-background-tertiary);
+  line-height: 1;
+  background: var(--color-background-highlight);
   color: var(--color-text);
+}
+
+.similar-back:hover {
+  background: var(--color-background-hover);
 }
 
 .similar-trail {
@@ -29,16 +40,32 @@
   gap: 6px;
   min-width: 0;
   overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .similar-trail button {
+  padding: 0;
+  font-size: 12px;
+  background: transparent;
   white-space: nowrap;
-  color: var(--color-text-secondary);
+  color: var(--color-foreground);
+}
+
+.similar-trail button:hover {
+  background: transparent;
+  color: var(--color-foreground-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .similar-trail button[aria-current="location"] {
-  color: var(--color-text);
+  color: var(--color-foreground-bright);
   font-weight: 600;
+}
+
+.similar-sep {
+  font-size: 12px;
+  color: var(--color-foreground-muted);
 }
 
 .similar-ref {
@@ -48,16 +75,21 @@
   align-items: center;
   padding: 14px 16px;
   background: var(--color-background);
-  border-bottom: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .similar-ref-play {
   width: 44px;
   height: 44px;
+  padding: 0;
   display: grid;
   place-items: center;
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+.similar-ref-play:hover {
+  background: var(--color-accent-dim);
 }
 
 .similar-ref-wave {
@@ -67,12 +99,14 @@
 .similar-ref-text {
   display: flex;
   flex-direction: column;
+  gap: 1px;
   min-width: 0;
-  color: var(--color-text-secondary);
+  font-size: 12px;
+  color: var(--color-foreground);
 }
 
 .similar-ref-text b {
-  color: var(--color-text);
+  color: var(--color-foreground-bright);
   font-size: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -82,14 +116,18 @@
 .similar-label {
   color: var(--color-foreground-muted);
   text-transform: uppercase;
-  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .similar-filters {
   border: 0;
+  border-bottom: 1px solid var(--color-border);
   margin: 0;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
@@ -98,84 +136,59 @@
 .similar-chip {
   height: 26px;
   padding: 0 10px;
-  background: var(--color-background-tertiary);
-  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1;
+  background: var(--color-background-highlight);
+  color: var(--color-foreground);
+}
+
+.similar-chip:hover {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-bright);
 }
 
 .similar-chip[aria-pressed="true"] {
   background: var(--color-accent);
   color: var(--color-on-accent);
+  font-weight: 600;
 }
 
 .similar-count {
   margin-left: auto;
+  font-size: 11px;
   color: var(--color-foreground-muted);
 }
 
+.similar-count svg {
+  vertical-align: -1px;
+}
+
 .similar-empty {
-  margin: auto;
-  color: var(--color-foreground-muted);
+  margin: 0;
+  padding: 40px 20px;
+  font-size: 12px;
+  text-align: center;
+  color: var(--color-foreground);
 }
 
 .similar-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 4px 0;
   overflow-y: auto;
   flex: 1 1 auto;
+  min-height: 0;
 }
 
-.similar-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px 0 0;
-}
-
-.similar-row:hover {
-  background: var(--color-background-highlight);
-}
-
-.similar-row-selected {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.similar-pick {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr) 150px 60px;
-  gap: 12px;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 6px 16px;
-  text-align: left;
-  color: inherit;
-  background: transparent;
-}
-
-.similar-wave {
-  height: 22px;
-}
-
-.similar-name {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.similar-name b,
-.similar-name span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* A result is a sound row (SoundsView.css) with its match meter in the tags
+   column: a 2px track and a 4px fill, the percentage in tabular numerals. */
 .similar-match {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
+  color: var(--color-foreground);
 }
 
 .similar-meter {
@@ -190,19 +203,18 @@
   left: 0;
   top: -1px;
   height: 4px;
-  background: currentColor;
+  background: var(--color-accent-dim);
 }
 
-.similar-length {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+/* On the selected (white) row the meter reads dark. */
+.sound-row-selected .similar-match {
+  color: var(--color-on-accent);
 }
 
-.similar-icon {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  color: inherit;
-  background: transparent;
+.sound-row-selected .similar-meter {
+  background: var(--color-accent-dim);
+}
+
+.sound-row-selected .similar-meter-fill {
+  background: var(--color-on-accent);
 }

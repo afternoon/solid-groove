@@ -10,11 +10,12 @@ import { filterSounds, genreCounts, roleJumps } from "./filters";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
-import Shelf from "./Shelf";
+import Shelf, { allLabel } from "./Shelf";
 import SoundRow from "./SoundRow";
 import { familyLabel, shelfFamilyOf } from "./shelf";
 import type { SoundsKeyAction } from "./soundKeys";
 import { nextIn, previousIn } from "./stepping";
+import { groupLabel } from "./tree";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import { type ShelfSlot, useShelf } from "./useShelf";
 import { useSoundFilters } from "./useSoundFilters";
@@ -48,6 +49,8 @@ export interface SoundsViewProps {
   readonly selected: LibraryAsset | null;
   onSelect(asset: LibraryAsset): void;
   onSimilar(asset: LibraryAsset): void;
+  /** The list in view's name ("Kicks", "All drums", a pack's), for a way back to it. */
+  onListLabel?(label: string): void;
   /** Hands the modal this view's key handler, and takes it back when unmounted. */
   onKeys(handler: ((action: SoundsKeyAction) => void) | null): void;
 }
@@ -161,6 +164,16 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   onSettled(() => {
     props.onKeys(press);
     return () => props.onKeys(null);
+  });
+
+  // The list's name, as similar sounds' back button reads it.
+  const listLabel = (): string => {
+    if (props.packSlug) return typed()[0]?.packName ?? "Pack";
+    const { family: shelfFamily, role } = shelf.selection();
+    return role ? groupLabel(shelfFamily, role, false) : allLabel(shelfFamily);
+  };
+  createEffect(listLabel, (label) => {
+    props.onListLabel?.(label);
   });
 
   // Keep the heard row on screen as the arrow keys walk the list.

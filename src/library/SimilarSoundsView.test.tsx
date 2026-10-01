@@ -97,8 +97,59 @@ describe("SimilarSoundsView", () => {
 
   it("goes back to the list it came from", () => {
     const { onBack } = renderView();
-    clickAndFlush(screen.getByRole("button", { name: "Back to Kicks" }));
+    const back = screen.getByRole("button", { name: "Back to Kicks" });
+    expect(back).toHaveTextContent(/^Kicks$/);
+    expect(back.querySelector("svg")).not.toBeNull();
+    clickAndFlush(back);
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads plain Back when the host names no list", () => {
+    renderView({ backLabel: undefined });
+    expect(screen.getByRole("button", { name: "Back" })).toHaveTextContent(/^Back$/);
+  });
+
+  it("labels role and length as the sound rows do", () => {
+    const tagged = sound({
+      name: "Tagged",
+      role: "closed-hat",
+      characters: ["tight"],
+      durationSeconds: 0.42,
+      packName: "Pack B",
+      url,
+    });
+    renderView({ reference: tagged, library: [tagged, near] });
+    expect(screen.getByText("Pack B · Closed hat · tight · 0.42 s")).toBeVisible();
+    const row = within(list()).getAllByRole("listitem")[0];
+    expect(row).toHaveTextContent("Pack A · Kick");
+    expect(row).toHaveTextContent("1.00 s");
+  });
+
+  it("gives every result the sound row's actions and a match meter", () => {
+    renderView();
+    const row = within(list()).getAllByRole("listitem")[0];
+    for (const name of ["Audition Near", "Favourite Near", "Sounds like Near"]) {
+      expect(within(row).getByRole("button", { name })).toBeInTheDocument();
+    }
+    const meter = row.querySelector(".similar-match");
+    expect(meter).toHaveTextContent(/^100%$/);
+    expect(meter).toHaveAttribute("title", "100% match");
+    expect(meter?.querySelector(".similar-meter-fill")).toHaveStyle({ width: "100%" });
+    const second = within(list()).getAllByRole("listitem")[1];
+    const percent = second.textContent?.match(/(\d{1,3})%/)?.[1];
+    expect(second.querySelector(".similar-meter-fill")).toHaveStyle({
+      width: `${percent}%`,
+    });
+    expect(row.querySelector(".sound-row-tags")).toBeNull();
+  });
+
+  it("counts the results and says how to hop on", () => {
+    renderView();
+    expect(
+      screen.getByText(
+        /^3 closest from every pack · on a result hops to its neighbours$/,
+      ),
+    ).toBeVisible();
   });
 
   it("plays the reference and stops when it unmounts", async () => {

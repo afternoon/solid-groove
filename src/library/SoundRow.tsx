@@ -19,11 +19,11 @@ export function lengthLabel(asset: LibraryAsset): string {
 }
 
 /** The similar-sounds mark: two overlapping circles, as the reference draws it. */
-function SimilarIcon(): JSX.Element {
+export function SimilarIcon(props: { size?: number }): JSX.Element {
   return (
     <svg
-      width="15"
-      height="15"
+      width={props.size ?? 15}
+      height={props.size ?? 15}
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
@@ -50,6 +50,8 @@ export default function SoundRow(props: {
   error: string | null;
   /** The slot's track colour: the selected row's waveform is drawn in it. */
   color?: string;
+  /** How close a similar-sounds result is, 0-100: a meter takes the tags' place. */
+  match?: number;
   onSelect: () => void;
   onSimilar: () => void;
 }): JSX.Element {
@@ -95,9 +97,22 @@ export default function SoundRow(props: {
             </Show>
           </span>
         </span>
-        <span class="sound-row-tags">
-          {props.asset.characters.slice(0, 2).join(" · ")}
-        </span>
+        <Show
+          when={props.match !== undefined}
+          fallback={
+            <span class="sound-row-tags">
+              {props.asset.characters.slice(0, 2).join(" · ")}
+            </span>
+          }
+        >
+          {/* The space keeps "100%" a word of its own in the row's text. */}{" "}
+          <span class="similar-match" title={`${props.match}% match`}>
+            <span class="similar-meter">
+              <span class="similar-meter-fill" style={{ width: `${props.match}%` }} />
+            </span>
+            <span>{props.match}%</span>
+          </span>
+        </Show>
         <span class="sound-row-length">{lengthLabel(props.asset)}</span>
       </button>
       <button

@@ -125,6 +125,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const client = props.client ?? new LibraryClient();
   // Similar sounds swaps in over whichever place opened it.
   const [similarOf, setSimilarOf] = createSignal<LibraryAsset | null>(null);
+  // What the sounds list in view is called, so similar sounds' way back names it.
+  const [listLabel, setListLabel] = createSignal<string | undefined>(undefined);
   const [everyAsset, setEveryAsset] = createSignal<readonly LibraryAsset[]>([]);
   const showsPacks = createMemo(
     () => similarOf() === null && view() === "packs" && packScope() === null,
@@ -321,6 +323,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 trackColor={props.trackColor}
                 onSelect={setSelected}
                 onBack={back}
+                backLabel={listLabel()}
               />
             )}
           </Show>
@@ -359,6 +362,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               selected={selected()}
               onSelect={setSelected}
               onSimilar={openSimilar}
+              onListLabel={setListLabel}
               query={query()}
               onQueryChange={setQuery}
               packSlug={packScope()}

@@ -226,6 +226,8 @@ describe("LibraryModal shell", () => {
     flush();
     await screen.findByRole("navigation", { name: "Similar sounds trail" });
     expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+    // The way back names the list it returns to, as the shelf in view calls it.
+    expect(screen.getByRole("button", { name: /^Back to All \w+$/ })).toBeVisible();
 
     expect(actions.back()).toBe(true);
     flush();
