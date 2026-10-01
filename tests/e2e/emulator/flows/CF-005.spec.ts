@@ -154,7 +154,9 @@ test.describe("CF-005", () => {
     // Loops open near the project's tempo (#823), the ones that stretch well,
     // so a loop recorded at another tempo may sit outside that window: widen
     // it to any tempo first.
-    await library(page).getByRole("button", { name: /^Any tempo/ }).click();
+    await library(page)
+      .getByRole("button", { name: /^Any tempo/ })
+      .click();
     const loop = await loopAtAnotherTempo(page, projectTempo);
     await expect(loop.row).toBeVisible();
     await step("Find a loop in the library recorded at another tempo");
