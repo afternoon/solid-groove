@@ -8,6 +8,7 @@ import {
   shortcutLabel,
   useShortcuts,
 } from "../shortcuts";
+import { arrangementHasFocus } from "./arrangementFocus";
 import type { EditorViewName } from "./editorViews";
 import type { LibraryActions } from "./LibraryModal";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
@@ -172,6 +173,23 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   const arrangementDragging = (): boolean =>
     arrangementEditingActions()?.isDragging() ?? false;
 
+  /**
+   * Whether the arrangement has focus (#835): it is the view on screen (its
+   * actions exist only while it is mounted), no sequence editor is open over
+   * it, and focus is not in a text field, dialog or popover. Select all and
+   * Escape act on its clips only then, whatever it has selected.
+   */
+  const arrangementFocused = (): boolean =>
+    arrangementEditingActions() !== null &&
+    !sequenceEditorOpen() &&
+    arrangementHasFocus();
+
+  /** Whether Escape has an arrangement selection to clear (#835). */
+  const arrangementClearable = (): boolean =>
+    arrangementFocused() &&
+    !(arrangementEditingActions()?.isBanding() ?? false) &&
+    arrangementEditingActions()?.getArrangementSelection() != null;
+
   // The KEY-01 registry owns every mapping; this component only says which
   // actions exist here and what they do. An action the slice does not
   // implement yet simply has no handler and never fires.
@@ -280,19 +298,25 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // is the registry's `view.close_surface`, like every other close. A clip
     // drag in flight is innermost of all: Escape cancels it (ARR-011). The
     // sequence editor closes on Escape whichever editor it shows, and from a
-    // focused Transform value field too: every dialog does (#650).
+    // focused Transform value field too: every dialog does (#650). Last of
+    // all, with no surface open, it clears the arrangement's selection (#835).
     "view.close_surface": {
       run: () => {
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) {
           if (!libraryActions()?.closeKeys()) closeLibrary();
-        } else closeSequenceEditor();
+        } else if (sequenceEditorOpen()) closeSequenceEditor();
+        else arrangementEditingActions()?.clearSelection();
       },
       // The Export dialog closes itself on Escape, and nothing beneath it should.
       isEnabled: () =>
         !exportOpen() &&
-        (arrangementDragging() || guideOpen() || libraryOpen() || sequenceEditorOpen()),
+        (arrangementDragging() ||
+          guideOpen() ||
+          libraryOpen() ||
+          sequenceEditorOpen() ||
+          arrangementClearable()),
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.
@@ -334,9 +358,16 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         return owner === "piano_roll" || owner === "arrangement";
       },
     },
+    // Select all: the open piano roll's notes, as before; otherwise, with the
+    // arrangement focused, every clip in the song (#835) — even with nothing
+    // selected, so the browser never selects the page's text instead.
     "edit.select_all": {
-      run: () => pianoRollActions()?.selectAll(),
-      isEnabled: () => pianoRollActions() !== null,
+      run: () => {
+        const actions = pianoRollActions();
+        if (actions) actions.selectAll();
+        else arrangementEditingActions()?.selectAll();
+      },
+      isEnabled: () => pianoRollActions() !== null || arrangementFocused(),
     },
     // Cut and copy act on the piano roll's notes while it holds a selection
     // (ARR-010), and otherwise on the arrangement's clips (ARR-002) — whichever
@@ -384,10 +415,14 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // clips it took, and a click in empty space sets a point, so gating on
   // covered clips alone left Mod+V dead after either. Every other arrangement
   // edit keeps its own `isEnabled` on covered clips, so none of them fires.
+  //
+  // So does the arrangement having focus (#835), where Select all has to work
+  // with nothing selected at all.
   const arrangementContextLive = (): boolean => {
     const actions = arrangementEditingActions();
     return (
       hasArrangementSelection() ||
+      arrangementFocused() ||
       (actions !== null &&
         (actions.getArrangementSelection() !== null || actions.getClipboard().length > 0))
     );

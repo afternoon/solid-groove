@@ -9,6 +9,7 @@ import {
 } from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { analytics as defaultAnalytics } from "../analytics";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -34,6 +35,7 @@ import { LibraryClient } from "../library/libraryClient";
 import { packAssets, parsePackManifest } from "../library/manifest";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
+import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { editorViewFromPath, editorViewPath } from "./editorViews";
@@ -1880,6 +1882,160 @@ describe("EditorView keyboard shortcuts", () => {
     if (!loaded.ok) throw new Error("expected the project to load");
     const clipIds = loaded.value.song.placements.map((p) => p.clipId);
     expect(new Set(clipIds).size).toBe(2);
+  });
+});
+
+/**
+ * Select all in the arrangement (#835, CF-029): Cmd/Ctrl+A selects every clip
+ * in the song whenever the arrangement has focus, and Escape clears it.
+ */
+describe("EditorView Select all in the arrangement (#835)", () => {
+  const BAR = 768;
+
+  /** BD with clips in bars 1 to 3, a second track with clips in bars 1 and 2. */
+  async function renderFiveClips(layout = [3, 2]) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const { project } = buildArrangementProject(
+      layout.map((count) =>
+        Array.from({ length: count }, (_, bar) => ({
+          startTicks: bar * BAR,
+          durationTicks: BAR,
+        })),
+      ),
+    );
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    return project;
+  }
+
+  const announced = () => screen.getByTestId("arrangement-selection-live");
+
+  /** Press a key on the window; returns whether its default was prevented. */
+  function press(key: string, init: { ctrlKey?: boolean } = {}): boolean {
+    let prevented = false;
+    fireAndFlush(() => {
+      prevented = !fireEvent.keyDown(window, { key, ...init });
+    });
+    return prevented;
+  }
+  const selectAll = () => press("a", { ctrlKey: true });
+
+  /** A click on BD's row (the first) in the middle of `bar`. */
+  async function clickBdBar(bar: number): Promise<void> {
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    for (const type of ["pointerdown", "pointerup"]) {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: (bar - 0.5) * BAR * INITIAL_PIXELS_PER_TICK,
+        clientY: 22 + ROW_METRICS.trackHeightPx / 2,
+      });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      fireAndFlush(() => fireEvent(canvas, event));
+    }
+    await waitFor(() =>
+      expect(announced()).toHaveTextContent(`Selected clip on BD, bar ${bar}`),
+    );
+  }
+
+  it("selects every clip from one, and from none, without the page's text", async () => {
+    const log = vi.spyOn(defaultAnalytics, "log");
+    await renderFiveClips();
+    await clickBdBar(1);
+
+    expect(selectAll()).toBe(true);
+    await waitFor(() => expect(announced()).toHaveTextContent("5 clips selected"));
+
+    expect(press("Escape")).toBe(true);
+    await waitFor(() => expect(announced()).toHaveTextContent("No selection"));
+
+    expect(selectAll()).toBe(true);
+    await waitFor(() => expect(announced()).toHaveTextContent("5 clips selected"));
+
+    const uses = log.mock.calls.filter(
+      ([name, params]) =>
+        name === "shortcut_used" &&
+        (params as { action_id?: string }).action_id === "edit.select_all",
+    );
+    expect(uses).toHaveLength(2);
+  });
+
+  it("deletes and cuts exactly what it selected, leaving the tracks", async () => {
+    const project = await renderFiveClips();
+    selectAll();
+    press("Delete");
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        expect(loaded.value.song.placements).toEqual([]);
+        expect(loaded.value.song.tracks).toHaveLength(2);
+      },
+      { timeout: 3_000 },
+    );
+    press("z", { ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Redo / })).toBeEnabled(),
+    );
+
+    selectAll();
+    press("x", { ctrlKey: true });
+    await waitFor(
+      async () => {
+        const loaded = await repository.loadProject(project.metadata.id);
+        if (!loaded.ok) throw new Error("expected the project to load");
+        expect(loaded.value.song.placements).toEqual([]);
+      },
+      { timeout: 3_000 },
+    );
+  });
+
+  it("still takes Cmd/Ctrl+A from the browser in a song with no clips", async () => {
+    await renderFiveClips([0]);
+    expect(selectAll()).toBe(true);
+    expect(announced()).toHaveTextContent("No selection");
+  });
+
+  it("leaves a text field's Cmd/Ctrl+A alone, and the clip selection with it", async () => {
+    await renderFiveClips();
+    await clickBdBar(2);
+    const tempo = screen.getByRole("spinbutton", { name: "Tempo (BPM)" });
+    tempo.focus();
+    let prevented = false;
+    fireAndFlush(() => {
+      prevented = !fireEvent.keyDown(tempo, { key: "a", ctrlKey: true });
+    });
+    expect(prevented).toBe(false);
+    expect(announced()).toHaveTextContent("Selected clip on BD, bar 2");
+  });
+
+  it("lists Select all in the guide with nothing selected, and lets the guide take Escape first", async () => {
+    await renderFiveClips();
+    const openGuide = async () => {
+      press("?");
+      return screen.findByRole("dialog", { name: /keyboard/i });
+    };
+    const selectAllRow = (guide: HTMLElement) =>
+      guide
+        .querySelector('[data-action="edit.select_all"]')
+        ?.getAttribute("data-available");
+    expect(selectAllRow(await openGuide())).toBe("true");
+    press("Escape");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /keyboard/i })).toBeNull(),
+    );
+
+    await clickBdBar(1);
+    await openGuide();
+    press("Escape");
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /keyboard/i })).toBeNull(),
+    );
+    expect(announced()).toHaveTextContent("Selected clip on BD, bar 1");
   });
 });
 
