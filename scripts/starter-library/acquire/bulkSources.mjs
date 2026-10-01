@@ -27,6 +27,7 @@
 // licence on the page before running the ingest; the ingest then captures that
 // statement as the section 3.4 evidence and takes the whole archive.
 
+import { CC0_PACK_SLUGS } from "../packs.mjs";
 import { ALPHA_SOURCES } from "./alphaSources.mjs";
 import { repoBank } from "./repoBank.mjs";
 
@@ -57,6 +58,7 @@ import { repoBank } from "./repoBank.mjs";
  * @property {string[]} defaultCharacters
  * @property {BulkArchiveMapping[]} [mappings] Ordered; first match wins.
  * @property {number} [maxMembers]  Ceiling, so a huge archive cannot dump.
+ * @property {string} pack          Destination pack slug (packs.mjs).
  * @property {string} [repoUrl]     A git repository to clone instead of a .zip;
  *                                  the resolved commit is the pin.
  * @property {RegExp} [include]     Only repo paths matching this are ingested.
@@ -77,6 +79,7 @@ export const BULK_ID_BASE = {
 export const BULK_SOURCES = [
   {
     id: "producer-space:tech-house-essentials",
+    pack: CC0_PACK_SLUGS.percussion,
     sourceId: "producer-space",
     name: "Producer Space — Tech House Essentials",
     // The curator pins the exact pack .zip they confirmed on the page. This is
@@ -160,6 +163,7 @@ export const BULK_SOURCES = [
   },
   {
     id: "freepats:electric-percussion",
+    pack: CC0_PACK_SLUGS.percussion,
     sourceId: "freepats",
     name: "FreePats — Electric Percussion (CC0 bank)",
     // FreePats mirrors each bank to GitHub; the README there states CC0 for
@@ -239,6 +243,7 @@ function freepatsNote({ repo, name, note, file, idBase, ...tags }) {
   return repoBank({
     repo,
     name: `FreePats — ${name}`,
+    pack: CC0_PACK_SLUGS.synth,
     idBase,
     take: [{ file: `samples/${file}`, note, name, ...tags }],
   });
@@ -401,6 +406,7 @@ BULK_SOURCES.push(
   repoBank({
     repo: "world-percussion",
     name: "FreePats — World Percussion",
+    pack: CC0_PACK_SLUGS.percussion,
     idBase: 8500,
     take: [
       perc("Bongo", "Bongos/1_01.flac"),
@@ -425,6 +431,7 @@ BULK_SOURCES.push(
     owner: "sfzinstruments",
     repo: "karoryfer.caveman-cosmonaut",
     sourceId: "karoryfer",
+    pack: CC0_PACK_SLUGS.synth,
     name: "Karoryfer — Caveman Cosmonaut",
     licenseFile: "LICENSE",
     idBase: 9000,

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   acquirablePacks,
+  CC0_PACK_SLUGS,
   PACKS,
   packBySlug,
   packForFamily,
   packId,
   packRef,
-  RESERVED_CC0_PACK_SLUG,
 } from "./packs.mjs";
 import { GENRES, TAXONOMY } from "./taxonomy.mjs";
 
@@ -27,7 +27,9 @@ const EXPECTED_IDS = {
   "tonal-elements": "pak_RznkYK7KIIo7BOZQZ_i0O",
   "ambient-textures": "pak_gUou3hBgXF47EwgR-9gZ1",
   "transitions-fx": "pak_PrUvdIGkCE3uRGYeKOGRg",
-  "cc0-community": "pak_5o6qI8YY27cYVyqstlJyG",
+  "cc0-percussion": "pak_3u1p6AcmNVttj72UUHRcM",
+  "cc0-keys-mallets": "pak_kwsuLcebywnOaXrQe8lwN",
+  "cc0-synth-tones": "pak_cMIqFGAubCjPbi3mLQLOD",
   "alpha-drum-machines": "pak_CtXJaikSASIyJkhxZaczN",
 };
 
@@ -83,9 +85,11 @@ describe("PACKS", () => {
 
   it("declares a coverage claim whose roles are all real and whose genres are all known", () => {
     for (const pack of PACKS) {
-      if (!pack.coverage) continue; // the reserved pack has no content yet
+      if (!pack.coverage) continue; // an alpha-only pack makes no claim
+      // A family pack's roles are its family's; a mixed pack's are any family's.
+      const known = pack.family ? TAXONOMY[pack.family] : Object.values(TAXONOMY).flat();
       for (const role of pack.coverage.roles) {
-        expect(TAXONOMY[pack.family]).toContain(role);
+        expect(known, pack.slug).toContain(role);
       }
       for (const genre of pack.coverage.genres) {
         expect(GENRES).toContain(genre);
@@ -95,12 +99,17 @@ describe("PACKS", () => {
     }
   });
 
-  it("has a reserved, unpublished pack for acquired CC0 content", () => {
-    const reserved = packBySlug(RESERVED_CC0_PACK_SLUG);
-    expect(reserved).not.toBeNull();
-    expect(reserved.family).toBeNull();
-    expect(reserved.rights.licence).toBe("CC0-1.0");
-    expect(reserved.coverage).toBeNull();
+  it("delivers acquired CC0 content in focused packs, each with a coverage claim", () => {
+    for (const slug of Object.values(CC0_PACK_SLUGS)) {
+      const pack = packBySlug(slug);
+      expect(pack, slug).not.toBeNull();
+      expect(pack.family).toBeNull();
+      expect(pack.rights.licence).toBe("CC0-1.0");
+      expect(pack.coverage?.roles.length, slug).toBeGreaterThan(0);
+      expect(pack.coverage?.genres.length, slug).toBeGreaterThan(0);
+    }
+    // The grab-bag it replaced is retired, not kept as a second home.
+    expect(packBySlug("cc0-community")).toBeNull();
   });
 });
 

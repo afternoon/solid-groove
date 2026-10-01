@@ -484,7 +484,9 @@ export const LIBRARY_PACK_SLUGS = [
   "tonal-elements",
   "ambient-textures",
   "transitions-fx",
-  "cc0-community",
+  "cc0-percussion",
+  "cc0-keys-mallets",
+  "cc0-synth-tones",
   // Private-alpha only; leaves with the pack itself (CNT-003, #676).
   "alpha-drum-machines",
 ] as const;

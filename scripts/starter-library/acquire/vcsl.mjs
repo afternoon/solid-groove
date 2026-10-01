@@ -27,7 +27,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { packBySlug, packRef, RESERVED_CC0_PACK_SLUG } from "../packs.mjs";
+import { CC0_PACK_SLUGS, packBySlug, packRef } from "../packs.mjs";
 import { analyze, encodeWav, sha256, storageKeyFor, waveformPeaks } from "../wav.mjs";
 import { decodeToSamples, prepareOneShot } from "./audio.mjs";
 import { writeAcquiredBundle } from "./ingest.mjs";
@@ -315,11 +315,13 @@ export async function ingestInstrument(selection, { repoDir, commit, index }) {
   const master = encodeWav(prepared);
   const hash = sha256(master);
 
-  const pack = packBySlug(RESERVED_CC0_PACK_SLUG);
+  // Drums go with the other percussion; everything VCSL plays in tune is a
+  // key, mallet, bell, pluck or bowed chord.
+  const packSlug =
+    selection.family === "drums" ? CC0_PACK_SLUGS.percussion : CC0_PACK_SLUGS.keys;
+  const pack = packBySlug(packSlug);
   if (!pack) {
-    throw new Error(
-      `VCSL's destination pack "${RESERVED_CC0_PACK_SLUG}" is not registered`,
-    );
+    throw new Error(`VCSL's destination pack "${packSlug}" is not registered`);
   }
 
   return {

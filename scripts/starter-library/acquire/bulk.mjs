@@ -24,7 +24,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { packBySlug, packRef, RESERVED_CC0_PACK_SLUG } from "../packs.mjs";
+import { packBySlug, packRef } from "../packs.mjs";
 import { analyze, encodeWav, sha256, storageKeyFor, waveformPeaks } from "../wav.mjs";
 import { isArchive, listArchiveMembers, unsupportedArchiveReason } from "./archive.mjs";
 import { decodeToSamples, prepareOneShot } from "./audio.mjs";
@@ -78,7 +78,8 @@ export async function ingestMember(source, member, { archiveUrl, index, evidence
   const master = encodeWav(prepared);
   const hash = sha256(master);
 
-  const packSlug = source.pack ?? RESERVED_CC0_PACK_SLUG;
+  const packSlug = source.pack;
+  if (!packSlug) throw new Error(`bulk source "${source.id}" names no destination pack`);
   const pack = packBySlug(packSlug);
   if (!pack) {
     throw new Error(

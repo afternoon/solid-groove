@@ -98,6 +98,17 @@ const CC0 = {
 };
 
 /**
+ * The packs acquired CC0 content is delivered in, split by what a producer
+ * reaches for (CNT-002). An acquisition source names its destination pack;
+ * VCSL routes by family.
+ */
+export const CC0_PACK_SLUGS = {
+  percussion: "cc0-percussion",
+  keys: "cc0-keys-mallets",
+  synth: "cc0-synth-tones",
+};
+
+/**
  * Content admitted for the not-for-profit private alpha only (DEC-010). Its
  * licence is approved only while release.config.mjs says so (CNT-003).
  */
@@ -248,17 +259,58 @@ export const PACKS = [
     ),
   },
   {
-    id: "pak_5o6qI8YY27cYVyqstlJyG",
-    slug: "cc0-community",
+    id: "pak_3u1p6AcmNVttj72UUHRcM",
+    slug: CC0_PACK_SLUGS.percussion,
     family: null,
-    name: "CC0 Community Content",
-    version: "1.1.0",
+    name: "Drums & Percussion",
+    version: "1.0.0",
     publisher: "Groove",
     kind: "factory",
     description:
-      "Recorded CC0 one-shots from trusted bulk sources: VCSL instruments and percussion, FreePats banks (synth drum hits, world percussion, synth basses, leads, pads, strings, brass, bells, and FX), and Karoryfer Caveman Cosmonaut organ-synth tones. Contains no loops, vocals, or presets. Splits into focused packs once enough reviewed content exists to meet a coverage claim on its own (docs/sample-library.md section 15.8).",
+      "Recorded CC0 drums and percussion: VCSL acoustic drums, cymbals and hand percussion, FreePats world percussion (bongos, congas, cajon, shakers, tambourine), and FreePats synthesizer drum hits. Contains no loops, vocals, presets, or pitched instruments.",
     rights: CC0,
-    coverage: null,
+    coverage: {
+      roles: ["kick", "snare", "clap", "closed-hat", "cymbal", "tom", "percussion"],
+      genres: ["ambient", "breakbeat", "hip-hop", "house", "lofi", "techno"],
+      bpmRange: null,
+      intensity: ["medium"],
+    },
+  },
+  {
+    id: "pak_kwsuLcebywnOaXrQe8lwN",
+    slug: CC0_PACK_SLUGS.keys,
+    family: null,
+    name: "Keys, Mallets & Bells",
+    version: "1.0.0",
+    publisher: "Groove",
+    kind: "factory",
+    description:
+      "Recorded CC0 pitched instruments from VCSL: pianos and keys, marimba and vibraphone, bells, plucked strings, and bowed-string chords. Contains no drums, loops, vocals, or synthesizers.",
+    rights: CC0,
+    coverage: {
+      roles: ["key", "chord", "mallet", "bell", "pluck"],
+      genres: ["ambient", "lofi"],
+      bpmRange: null,
+      intensity: ["low", "medium"],
+    },
+  },
+  {
+    id: "pak_cMIqFGAubCjPbi3mLQLOD",
+    slug: CC0_PACK_SLUGS.synth,
+    family: null,
+    name: "Synth Tones",
+    version: "1.0.0",
+    publisher: "Groove",
+    kind: "factory",
+    description:
+      "CC0 synthesizer tones, one playable note each: FreePats basses, leads, pads, strings, brass, bells and FX, and Karoryfer Caveman Cosmonaut organ-synth voices. Contains no drums, loops, vocals, or presets.",
+    rights: CC0,
+    coverage: {
+      roles: ["sustained", "stab", "key", "chord", "pluck", "bell", "drone", "ambience"],
+      genres: ["ambient", "electronic-pop", "house", "techno", "trance"],
+      bpmRange: null,
+      intensity: ["medium"],
+    },
   },
   {
     id: "pak_CtXJaikSASIyJkhxZaczN",
@@ -274,9 +326,6 @@ export const PACKS = [
     coverage: null,
   },
 ];
-
-/** The one reserved pack acquisition currently targets. */
-export const RESERVED_CC0_PACK_SLUG = "cc0-community";
 
 export function packBySlug(slug) {
   return PACKS.find((pack) => pack.slug === slug) ?? null;

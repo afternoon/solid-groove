@@ -55,7 +55,7 @@ const draft = () => ({
   asset: {
     family: "drums",
     role: "kick",
-    pack: "cc0-community",
+    pack: "cc0-percussion",
     name: "Analog Four-Four Kick 01",
     genres: ["house"],
     characters: ["punchy"],
