@@ -7,6 +7,7 @@
   min-height: 0;
 }
 
+/* One row: the label, the chips, then the count pushed to the right edge. */
 .packs-filter {
   margin: 0;
   min-width: 0;
@@ -19,21 +20,47 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Floated, a legend is laid out as a flex item beside the chips rather than
+   above them, and still names the group. */
 .packs-filter-label {
+  float: left;
+  padding: 0;
   margin-right: 6px;
   font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-foreground-muted);
 }
 
+.packs-chip {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--color-background-highlight);
+  color: var(--color-foreground);
+}
+
+.packs-chip:hover {
+  background: var(--color-background-hover);
+  color: var(--color-accent);
+}
+
 .packs-chip[aria-pressed="true"] {
   background: var(--color-accent);
   color: var(--color-on-accent);
+  font-weight: 600;
 }
 
 .packs-count {
   margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--color-foreground-muted);
 }
 
@@ -52,23 +79,29 @@
   position: relative;
 }
 
-.pack-open {
+.pack-open,
+.pack-open:hover {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
   width: 100%;
   padding: 0;
+  font-size: 12px;
+  line-height: 1.4;
   text-align: left;
   background: transparent;
 }
 
 .pack-name {
-  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent);
 }
 
 .pack-meta {
-  color: var(--color-text-secondary);
+  font-size: 12px;
+  color: var(--color-foreground);
 }
 
 .pack-mix {
@@ -79,14 +112,21 @@
 .packs-empty {
   margin: auto;
   padding: 40px 20px;
+  font-size: 12px;
   text-align: center;
-  color: var(--color-foreground-muted);
+  color: var(--color-foreground);
 }
 
-.packs-empty button {
+.packs-reset,
+.packs-reset:hover {
   display: block;
   margin: 10px auto 0;
+  padding: 0;
+  font-size: 12px;
+  background: transparent;
+  color: var(--color-accent);
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .pack-hear {
@@ -100,8 +140,13 @@
   padding: 0 10px;
   font-size: 11px;
   font-weight: 700;
+  line-height: 1;
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+.pack-hear:hover {
+  background: var(--color-accent-dim);
 }
 
 .pack-hear:disabled {

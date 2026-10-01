@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Analytics } from "../analytics/analytics";
 import { clickAndFlush } from "../testing/events";
@@ -53,6 +53,7 @@ describe("PacksView", () => {
     expect(open).toHaveTextContent(/\+\d+ more/);
     expect(open).toHaveTextContent("CE");
     expect(open).toHaveTextContent("<library.pick_1>");
+    expect(within(open).getByText("<library.pick_1>").tagName).toBe("KBD");
     // Spaced from the initials and key badge, so it reads as words.
     expect(open.textContent).toMatch(/\bIn project\b/);
     expect(screen.getByRole("button", { name: `Open ${second.name}` })).toHaveTextContent(
@@ -89,7 +90,14 @@ describe("PacksView", () => {
     const total = FIXTURE_PACK_INDEX_DOC.packs.length;
     expect(screen.getByText(`${total} of ${total} packs`)).toBeVisible();
 
-    clickAndFlush(screen.getByRole("button", { name: "Bass" }));
+    // The inline label still names the group of chips.
+    const filter = screen.getByRole("group", { name: "Packs with" });
+    expect(within(filter).getByRole("button", { name: "Anything" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    clickAndFlush(within(filter).getByRole("button", { name: "Bass" }));
     expect(screen.getByRole("button", { name: "Bass" })).toHaveAttribute(
       "aria-pressed",
       "true",
