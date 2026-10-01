@@ -1,0 +1,78 @@
+/* The ruler row above the Export mini-arrangement (EXP-004). Its columns are
+   set inline from the same constants the lanes use. */
+
+.track-ruler {
+  display: grid;
+  height: 28px;
+  background: var(--color-background-secondary);
+  font-size: 10px;
+  color: var(--color-foreground-muted);
+}
+
+.track-ruler-marks {
+  position: relative;
+}
+
+.track-ruler-marks span {
+  position: absolute;
+  top: 7px;
+  transform: translateX(2px);
+}
+
+.track-ruler-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 8px 0 12px;
+}
+
+.track-ruler-label {
+  margin-right: auto;
+  white-space: nowrap;
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.track-ruler-picked {
+  color: var(--color-foreground-bright);
+}
+
+.track-ruler-hint {
+  white-space: nowrap;
+  cursor: help;
+}
+
+.track-ruler-hint kbd {
+  font: inherit;
+  color: var(--color-foreground);
+}
+
+.track-ruler-mini,
+.track-ruler-clear {
+  height: 20px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.track-ruler-clear {
+  width: 22px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-foreground);
+}
+
+.track-ruler-mini:hover,
+.track-ruler-clear:hover {
+  background: var(--color-background-hover);
+}
+
+.track-ruler-mini:disabled {
+  color: var(--color-foreground-muted);
+  cursor: default;
+}
