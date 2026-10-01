@@ -3,8 +3,8 @@ import { Show } from "solid-js";
 import type { ExportFormat } from "./FormatCards";
 import "./ExportFooter.css";
 
-/** The id of the one-line note, which says why Export is blocked, for `aria-describedby`. */
-export const EXPORT_NOTE_ID = "export-stems-blocker";
+/** The id of the one-line note, which says why Export is off, for `aria-describedby`. */
+export const EXPORT_NOTE_ID = "export-note";
 
 export interface ExportFooterProps {
   readonly format: ExportFormat;

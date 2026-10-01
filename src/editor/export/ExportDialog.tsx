@@ -14,9 +14,10 @@ import { downloadFile } from "./downloadFile";
 import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
 import { estimateStereoBytes, exportFacts } from "./exportFacts";
+import { stemsNote } from "./exportNotes";
 import FormatCards, { type ExportFormat } from "./FormatCards";
-import { formatBytes, stemsBlocker } from "./stemSelection";
-import { estimateStemsFile, exportStemsBatch, planStemsFiles } from "./stemsExport";
+import { formatBytes } from "./stemSelection";
+import { exportStemsBatch, planStemsFiles } from "./stemsExport";
 import { exportStereoWav, type StereoExportOptions } from "./stereoExport";
 import TrackLanes from "./TrackLanes";
 import { useTrackList } from "./useTrackList";
@@ -126,9 +127,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       },
     });
   });
-  const estimate = createMemo(() => estimateStemsFile(props.project(), list.trackIds()));
-  const blocker = createMemo(() => stemsBlocker(list.trackIds().length, estimate()));
-  const blocked = () => format() === "stems" && blocker() !== null;
+  const noTracks = () => format() === "stems" && list.trackIds().length === 0;
   let root!: HTMLDivElement;
   /** Keys reach the list only while it has focus, so a click hands it focus. */
   const focusList = () =>
@@ -239,12 +238,11 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     const current = phase();
     return current.kind === "failed" ? current : null;
   };
+  const stemsBytes = () => plan().reduce((sum, batch) => sum + batch.bytes, 0);
   const sizeText = () => {
     if (format() === "stereo") return `${formatBytes(stereoBytes())} · 1 file`;
-    const batches = plan();
-    const files = batches.reduce((sum, batch) => sum + batch.paths.length, 0);
-    const bytes = batches.reduce((sum, batch) => sum + batch.bytes, 0);
-    return `${formatBytes(bytes)} · ${files} ${files === 1 ? "file" : "files"}`;
+    const files = plan().reduce((sum, batch) => sum + batch.paths.length, 0);
+    return `${formatBytes(stemsBytes())} · ${files} ${files === 1 ? "file" : "files"}`;
   };
   /** What is printing, `ZIP 2 of 3 · bar 79 of 160`, and how far along the whole is. */
   const printingText = () => {
@@ -260,7 +258,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       fraction: (current.batch + current.fraction) / count,
     };
   };
-  /** The note under the footer: why Export is blocked, or that it is done. */
+  /** The note under the footer: why Export is off, how the stems split, or that it is done. */
   const noteText = () => {
     if (rendering()) {
       return got() > 0 ? `${got()} of ${fileCount()} in your downloads.` : "";
@@ -268,7 +266,12 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     if (phase().kind === "done") {
       return `Export complete. Your ${format() === "stems" ? "stems are" : "WAV is"} in your downloads.`;
     }
-    return (format() === "stems" && blocker()) || "";
+    if (format() !== "stems") return "";
+    return stemsNote({
+      tracks: list.trackIds().length,
+      zips: plan().length,
+      bytes: stemsBytes(),
+    });
   };
   const alertText = () => {
     const current = failed();
@@ -327,11 +330,11 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
               <button
                 type="button"
                 class="export-primary"
-                aria-disabled={blocked() ? "true" : undefined}
-                aria-describedby={blocked() ? EXPORT_NOTE_ID : undefined}
+                aria-disabled={noTracks() ? "true" : undefined}
+                aria-describedby={noTracks() ? EXPORT_NOTE_ID : undefined}
                 onClick={() => {
-                  // Blocked stays focusable, so its reason is read out; it does nothing.
-                  if (!blocked()) void start();
+                  // Off stays focusable, so its reason is read out; it does nothing.
+                  if (!noTracks()) void start();
                 }}
               >
                 {resumeFrom() > 0 ? `Resume from ZIP ${resumeFrom() + 1}` : "Export"}
