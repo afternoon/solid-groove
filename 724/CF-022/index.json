@@ -1,0 +1,10 @@
+{
+  "id": "CF-022",
+  "title": "A producer exports aligned stems for another DAW",
+  "steps": [
+    {
+      "file": "01-stems-choice.png",
+      "caption": "Choose Stems (ZIP): there is no bit-depth choice"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "CF-021",
+  "title": "A producer exports their song as a stereo WAV",
+  "steps": [
+    {
+      "file": "01-stereo-export.png",
+      "caption": "Press Export: Stereo WAV is chosen"
+    }
+  ]
+}

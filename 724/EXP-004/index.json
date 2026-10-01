@@ -1,0 +1,38 @@
+{
+  "id": "EXP-004",
+  "title": "The Export dialog, on the Release design",
+  "steps": [
+    {
+      "file": "01-stereo.png",
+      "caption": "Open Export: Stereo WAV, every track in the mix, one file in the Downloads row"
+    },
+    {
+      "file": "02-stems.png",
+      "caption": "Choose Stems (ZIP): all 50 tracks on, and a note says they come as 4 ZIPs, each under 2 GiB"
+    },
+    {
+      "file": "03-picked.png",
+      "caption": "Ctrl/⌘-click picks tracks without flipping them; the ruler offers On, Off and Only these"
+    },
+    {
+      "file": "04-batched.png",
+      "caption": "Export: ZIP 1 is downloaded, ZIP 2 of 4 prints behind the white playhead"
+    },
+    {
+      "file": "05-stopped.png",
+      "caption": "Cancel keeps the finished ZIP and offers Resume from ZIP 2"
+    },
+    {
+      "file": "06-failed.png",
+      "caption": "A failure names the ZIP and what to do, and offers Resume from it"
+    },
+    {
+      "file": "07-celebration.png",
+      "caption": "All ZIPs are in the downloads: the sleeve, in the tracks' own colours"
+    },
+    {
+      "file": "08-celebration-mix.png",
+      "caption": "A stereo mix finishes the same way, with the mix's own readouts"
+    }
+  ]
+}
