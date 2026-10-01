@@ -290,7 +290,7 @@
 }
 
 /* The last chip fades out at the edge when there is more past it. */
-.shelf-chips[data-overflow="true"] {
+.shelf-chips-overflow {
   mask-image: linear-gradient(
     90deg,
     var(--color-background) calc(100% - 40px),
