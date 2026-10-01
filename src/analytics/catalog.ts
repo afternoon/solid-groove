@@ -430,6 +430,12 @@ export const SHORTCUT_ACTION_IDS = [
   "library.browse_packs",
   "library.back",
   "library.search",
+  "export.focus_previous",
+  "export.focus_next",
+  "export.extend_previous",
+  "export.extend_next",
+  "export.toggle_focused",
+  "export.pick_all",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
