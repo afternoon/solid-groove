@@ -151,6 +151,10 @@ test.describe("CF-005", () => {
     // The library lists the sounds of every pack as rows, so finding a loop
     // means searching for it and picking its row.
     await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
+    // Loops open near the project's tempo (#823), the ones that stretch well,
+    // so a loop recorded at another tempo may sit outside that window: widen
+    // it to any tempo first.
+    await library(page).getByRole("button", { name: /^Any tempo/ }).click();
     const loop = await loopAtAnotherTempo(page, projectTempo);
     await expect(loop.row).toBeVisible();
     await step("Find a loop in the library recorded at another tempo");
