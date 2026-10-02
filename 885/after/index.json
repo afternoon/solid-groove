@@ -1,0 +1,10 @@
+{
+  "id": "after",
+  "title": "Saturator (after)",
+  "steps": [
+    {
+      "file": "01-default-saturator-curve-after.png",
+      "caption": "Default saturator curve, after"
+    }
+  ]
+}

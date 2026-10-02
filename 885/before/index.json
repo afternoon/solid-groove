@@ -1,0 +1,10 @@
+{
+  "id": "before",
+  "title": "Saturator (before)",
+  "steps": [
+    {
+      "file": "01-default-saturator-curve-before.png",
+      "caption": "Default saturator curve, before"
+    }
+  ]
+}
