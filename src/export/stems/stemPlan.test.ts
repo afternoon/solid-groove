@@ -157,6 +157,29 @@ describe("planStems", () => {
     expect([stems[0], stems[99]]).toEqual(["001 Lead.wav", "100 Lead.wav"]);
     expect([...stems].sort()).toEqual(stems);
   });
+
+  it("numbers a track by its song position, leaving gaps for tracks left out (#843)", () => {
+    const names = ["BD", "Drums", "Bass", "Keys", "Lead", "Perc", "Pad"];
+    const tracks = names.map((name, order) => ({
+      ...lead,
+      id: `trk_${name.toLowerCase()}` as typeof lead.id,
+      name,
+      order,
+    }));
+    const song = { ...project.song, tracks, placements: [], returns: [], automation: [] };
+    const kept = new Set(
+      tracks.filter((track) => !["Lead", "Pad"].includes(track.name)).map((t) => t.id),
+    );
+    const paths = planStems({ ...project, song, clips: [] }, kept).map((s) => s.path);
+    expect(paths).toEqual([
+      "01 BD.wav",
+      "02 Drums.wav",
+      "03 Bass.wav",
+      "04 Keys.wav",
+      "06 Perc.wav",
+      REFERENCE_MIX_PATH,
+    ]);
+  });
 });
 
 describe("safeFileName", () => {
