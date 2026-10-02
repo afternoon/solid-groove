@@ -1425,6 +1425,41 @@ describe("EditorView library insert keys", () => {
     await insertByKey(second, true);
     await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
   });
+
+  it("leaves Enter to any other focused control, with a sound selected", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const { location } = renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    const slot = () => screen.getByRole("group", { name: "In the slot" });
+    const library = await openLibraryFromPad();
+    const sounds = await within(library).findByRole("list", { name: "Sounds" });
+    const before = slot().textContent;
+    const audition = within(sounds).getAllByRole("button", { name: /^Audition / })[1];
+    clickAndFlush(audition);
+    const name = audition.getAttribute("aria-label")?.replace(/^Audition /, "") ?? "";
+    await vi.waitFor(() =>
+      expect(screen.getByRole("group", { name: "Hearing" })).toHaveTextContent(name),
+    );
+
+    // A rail button keeps its Enter: the browser presses it, nothing goes in.
+    const rail = within(library).getByRole("button", { name: /^Browse packs/ });
+    rail.focus();
+    for (const shiftKey of [false, true]) {
+      const pressed = fireEvent.keyDown(rail, { key: "Enter", shiftKey });
+      expect(pressed).toBe(true); // not prevented: the default still runs
+    }
+    expect(slot().textContent).toBe(before);
+    expect(location.get()).toMatch(/\/library$/);
+
+    // The sound row's own button is the Library's: Enter inserts from there.
+    audition.focus();
+    expect(fireEvent.keyDown(audition, { key: "Enter" })).toBe(false);
+    await vi.waitFor(() => expect(slot()).toHaveTextContent(name));
+  });
 });
 
 /** The Library at its own address, on `4` (`UI-002`). */
@@ -1451,6 +1486,28 @@ describe("EditorView library address", () => {
     );
     clickAndFlush(within(empty).getByRole("button", { name: "Instrument" }));
     await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
+  });
+
+  it("logs the empty screen's way out once, as reached from the empty screen", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const { location } = renderEditor(project.metadata.id, {
+      analytics: recordingAnalytics(transport),
+    });
+    await screen.findByTestId("arrangement-view-ready");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    const empty = await screen.findByRole("region", {
+      name: "Synths don't play samples",
+    });
+    clickAndFlush(within(empty).getByRole("button", { name: "Instrument" }));
+    await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
+
+    expect(transport.named("view_changed").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "library", via: "keyboard" }),
+      expect.objectContaining({ view: "instrument", via: "empty_screen" }),
+    ]);
   });
 
   it("says no track is selected in a song with none", async () => {
@@ -2350,6 +2407,25 @@ describe("EditorView sequence editor", () => {
     clickAndFlush(back);
     await screen.findByTestId("arrangement-view-ready");
     expect(location.get()).toBe(`/projects/${project.metadata.id}`);
+  });
+
+  it("logs the empty screen's way out once, as reached from the empty screen", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+    await screen.findByTestId("arrangement-view-ready");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    const empty = await screen.findByRole("region", { name: "No clip selected" });
+    clickAndFlush(within(empty).getByRole("button", { name: "Arrangement" }));
+    await screen.findByTestId("arrangement-view-ready");
+
+    expect(transport.named("view_changed").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "sequence", via: "keyboard" }),
+      expect.objectContaining({ view: "arrangement", via: "empty_screen" }),
+    ]);
   });
 
   it("has no clip once another track is selected, rather than a stale one", async () => {
