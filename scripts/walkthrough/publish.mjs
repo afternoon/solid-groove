@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Publish a captured core-flow walkthrough and print the Markdown for a pull
+ * Publish captured PR screenshots and print the Markdown for a pull
  * request body.
  *
  * Why this exists at all: GitHub's media-upload endpoint — the one behind
@@ -201,10 +201,7 @@ function markdown({ issue }, flows, slug) {
       );
     }
   }
-  lines.push(
-    `<sub>Captured by \`bun run walkthrough:capture\` from the core-flow specs, in Chromium. Flows are defined in [\`docs/core-flows.md\`](https://github.com/${slug}/blob/main/docs/core-flows.md).</sub>`,
-    "",
-  );
+  lines.push(`<sub>Captured in Chromium from the Playwright specs above.</sub>`, "");
   return lines.join("\n");
 }
 

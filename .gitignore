@@ -59,3 +59,4 @@ public/samples
 
 # Vite/start-mode build output.
 dist
+tests/e2e/**/*.screens.spec.ts
