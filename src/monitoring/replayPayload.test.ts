@@ -434,7 +434,7 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       "bracket.state",
       // The assistant panel's mode (#849): floating, minimised, docked or
       // closed, an enum of our own.
-      "mode()",
+      "props.panel.layout().mode",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { Match, Show, Switch } from "solid-js";
+import { createEffect, Match, Show, Switch } from "solid-js";
 import {
   CloseIcon,
   DockRightIcon,
@@ -8,13 +8,34 @@ import {
   RestoreIcon,
   SparkIcon,
 } from "../../components/icons";
-import { resizable } from "./assistantPanelLayout";
+import {
+  FLOATING_INSET,
+  FLOATING_WIDTH,
+  MINIMISED_HEIGHT,
+  MINIMISED_WIDTH,
+  resizable,
+  rightClearance,
+} from "./assistantPanelLayout";
 import type { AssistantPanel as AssistantPanelState } from "./useAssistantPanel";
 import "./AssistantPanel.css";
 
 export interface AssistantPanelProps {
   readonly panel: AssistantPanelState;
+  /**
+   * Whether a modal dialog (Export, the library, the shortcut guide) is open.
+   * The panel then sits under it and cannot be reached, by pointer or by
+   * keyboard, until it closes. The sequence editor is not modal, and the
+   * panel floats over it.
+   */
+  readonly underModal?: () => boolean;
 }
+
+/**
+ * The custom property fixed bottom-right chrome (the release badge, the
+ * telemetry disclosure) reads to stand clear of the panel. Set on the root,
+ * because that chrome is the app's, not the editor's.
+ */
+export const CLEARANCE_PROPERTY = "--assistant-clearance";
 
 /** The note under the composer while there is no assistant to talk to. */
 export const UNAVAILABLE_NOTE = "The assistant isn't available yet";
@@ -33,16 +54,35 @@ export const UNAVAILABLE_NOTE = "The assistant isn't available yet";
 export default function AssistantPanel(props: AssistantPanelProps): JSX.Element {
   const mode = () => props.panel.layout().mode;
   const expanded = () => mode() === "floating" || mode() === "docked";
+  const underModal = () => props.underModal?.() ?? false;
+
+  // The room the panel takes at the window's right edge, published for the
+  // app's bottom-right chrome so none of it is ever drawn over the panel's
+  // buttons or composer. The clearance is the one reactive read; the root
+  // write is the apply half's, and its cleanup clears it when the panel goes.
+  createEffect(
+    () => rightClearance(props.panel.layout()),
+    (clearance) => {
+      const root = document.documentElement;
+      root.style.setProperty(CLEARANCE_PROPERTY, `${clearance}px`);
+      return () => root.style.removeProperty(CLEARANCE_PROPERTY);
+    },
+  );
 
   return (
     <Show when={mode() !== "closed"}>
       <section
         ref={(element) => props.panel.bindPanel(element)}
-        class="assistant-panel"
-        data-mode={mode()}
+        class={["assistant-panel", { "assistant-panel-under-modal": underModal() }]}
+        data-mode={props.panel.layout().mode}
+        inert={underModal() || undefined}
         style={{
           "--assistant-height": `${props.panel.layout().height}px`,
           "--assistant-width": `${props.panel.layout().width}px`,
+          "--assistant-floating-width": `${FLOATING_WIDTH}px`,
+          "--assistant-bar-width": `${MINIMISED_WIDTH}px`,
+          "--assistant-bar-height": `${MINIMISED_HEIGHT}px`,
+          "--assistant-inset": `${FLOATING_INSET}px`,
         }}
         aria-label="Assistant"
         tabindex={-1}
@@ -173,6 +213,7 @@ function ResizeEdge(props: { readonly panel: AssistantPanelState }): JSX.Element
       props.panel.setSize(current.value + (from - to));
     };
     const end = () => {
+      props.panel.endResize();
       edge.removeEventListener("pointermove", move);
       edge.removeEventListener("pointerup", end);
       edge.removeEventListener("pointercancel", end);

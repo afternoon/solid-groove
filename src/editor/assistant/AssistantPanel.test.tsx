@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../../analytics/analytics";
 import { ConsentStore } from "../../analytics/consent";
 import { createRecordingTransport } from "../../analytics/transport";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
 import { memoryStorage } from "../../testing/storage";
-import AssistantPanel, { UNAVAILABLE_NOTE } from "./AssistantPanel";
+import AssistantPanel, { CLEARANCE_PROPERTY, UNAVAILABLE_NOTE } from "./AssistantPanel";
 import { LAYOUT_STORAGE_KEY, loadLayout } from "./assistantPanelLayout";
 import {
   type AssistantPanel as PanelState,
@@ -30,6 +31,7 @@ function renderPanel(
   analytics: Analytics = recordingAnalytics(createRecordingTransport()),
 ) {
   let state!: PanelState;
+  const [underModal, setUnderModal] = createSignal(false);
   const Harness = () => {
     state = useAssistantPanel({ storage, analytics: () => analytics });
     return (
@@ -37,13 +39,36 @@ function renderPanel(
         <button type="button" onClick={(event) => state.toggle(event.currentTarget)}>
           Open it
         </button>
-        <AssistantPanel panel={state} />
+        <AssistantPanel panel={state} underModal={underModal} />
       </>
     );
   };
   render(() => <Harness />);
-  return { state: () => state, storage };
+  return { state: () => state, storage, setUnderModal };
 }
+
+/** A storage that counts its writes. */
+function countingStorage() {
+  const inner = memoryStorage();
+  let writes = 0;
+  const storage = {
+    get length() {
+      return inner.length;
+    },
+    clear: () => inner.clear(),
+    getItem: (key: string) => inner.getItem(key),
+    key: (index: number) => inner.key(index),
+    removeItem: (key: string) => inner.removeItem(key),
+    setItem: (key: string, value: string) => {
+      writes += 1;
+      inner.setItem(key, value);
+    },
+  } as Storage;
+  return { storage, writes: () => writes };
+}
+
+const clearance = () =>
+  document.documentElement.style.getPropertyValue(CLEARANCE_PROPERTY);
 
 const panel = () => screen.getByRole("region", { name: "Assistant" });
 const queryPanel = () => screen.queryByRole("region", { name: "Assistant" });
@@ -183,6 +208,52 @@ describe("AssistantPanel", () => {
     expect(edge()).toHaveAttribute("aria-valuenow", "484");
     clickAndFlush(button("Float"));
     expect(edge()).toHaveAttribute("aria-valuenow", "660");
+  });
+
+  it("remembers a drag once, when it ends, not on every pointer move", () => {
+    const { storage, writes } = countingStorage();
+    renderPanel(storage);
+    clickAndFlush(opener());
+    const before = writes();
+    const pointer = (type: string, y: number) =>
+      new MouseEvent(type, { bubbles: true, button: 0, clientX: 0, clientY: y });
+    fireAndFlush(() => edge().dispatchEvent(pointer("pointerdown", 400)));
+    for (const y of [390, 370, 340, 300]) {
+      fireAndFlush(() => edge().dispatchEvent(pointer("pointermove", y)));
+    }
+    expect(writes()).toBe(before);
+    expect(edge()).toHaveAttribute("aria-valuenow", "660");
+    fireAndFlush(() => edge().dispatchEvent(pointer("pointerup", 300)));
+    expect(writes()).toBe(before + 1);
+    expect(loadLayout(storage).height).toBe(660);
+  });
+
+  it("sits under a modal dialog, inert, and comes back when it closes", () => {
+    const { setUnderModal } = renderPanel();
+    clickAndFlush(opener());
+    expect(panel()).not.toHaveAttribute("inert");
+    fireAndFlush(() => setUnderModal(true));
+    const region = document.querySelector(".assistant-panel");
+    expect(region).toHaveAttribute("inert");
+    expect(region).toHaveClass("assistant-panel-under-modal");
+    fireAndFlush(() => setUnderModal(false));
+    expect(panel()).not.toHaveAttribute("inert");
+    expect(panel()).not.toHaveClass("assistant-panel-under-modal");
+  });
+
+  it("publishes the room it takes at the right edge for the app's corner chrome", () => {
+    renderPanel();
+    expect(clearance()).toBe("0px");
+    clickAndFlush(opener());
+    expect(clearance()).toBe("400px");
+    clickAndFlush(button("Minimise"));
+    expect(clearance()).toBe("356px");
+    clickAndFlush(button("Dock to the right"));
+    expect(clearance()).toBe("384px");
+    clickAndFlush(button("Close"));
+    expect(clearance()).toBe("0px");
+    cleanup();
+    expect(clearance()).toBe("");
   });
 
   it("falls back to the defaults when its storage is corrupt", () => {

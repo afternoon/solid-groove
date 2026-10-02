@@ -29,8 +29,14 @@ export interface AssistantPanel {
   float(): void;
   dock(): void;
   close(): void;
-  /** A drag on the resize edge: the size it controls in this mode. */
+  /**
+   * One step of a drag on the resize edge: the size it controls in this mode.
+   * Shown at once but not remembered until `endResize`, so a drag writes the
+   * device's storage once rather than on every pointer move.
+   */
   setSize(value: number): void;
+  /** The end of a drag on the resize edge: remember the size it left. */
+  endResize(): void;
   /** A key on the resize edge: out (positive) or in (negative) by pixels. */
   resizeBy(by: number): void;
   /** A double-click on the resize edge. */
@@ -72,10 +78,10 @@ export function useAssistantPanel(
     document.activeElement === null ||
     document.activeElement === document.body;
 
-  function apply(next: AssistantPanelLayout, focus: FocusIntent): void {
+  function apply(next: AssistantPanelLayout, focus: FocusIntent, save = true): void {
     pendingFocus = focus;
     setLayout(next);
-    layouts.saveLayout(next, storage);
+    if (save) layouts.saveLayout(next, storage);
   }
 
   // Focus moves once the panel has rendered its new mode: into the panel when
@@ -122,7 +128,8 @@ export function useAssistantPanel(
     float: () => move(layouts.float(layout())),
     dock: () => move(layouts.dock(layout())),
     close,
-    setSize: (value) => apply(layouts.setSize(layout(), value), null),
+    setSize: (value) => apply(layouts.setSize(layout(), value), null, false),
+    endResize: () => layouts.saveLayout(layout(), storage),
     resizeBy: (by) => apply(layouts.resizeBy(layout(), by), null),
     resetSize: () => apply(layouts.resetSize(layout()), null),
     dismissAction() {

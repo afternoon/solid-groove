@@ -3,10 +3,11 @@
    designed home on the landing page per DEC-009. */
 .telemetry-disclosure {
   position: fixed;
-  right: 8px;
+  /* Clear of the assistant panel while it is open (#849); zero otherwise. */
+  right: calc(8px + var(--assistant-clearance, 0px));
   bottom: 26px;
   z-index: 1000;
-  max-width: min(340px, calc(100vw - 24px));
+  max-width: min(340px, calc(100vw - 24px - var(--assistant-clearance, 0px)));
   font-size: var(--font-size-small);
   color: var(--color-foreground);
 }
