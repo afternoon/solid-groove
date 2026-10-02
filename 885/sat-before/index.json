@@ -1,0 +1,10 @@
+{
+  "id": "sat-before",
+  "title": "Saturator (before)",
+  "steps": [
+    {
+      "file": "01-saturator-at-its-default-4-db-drive-char.png",
+      "caption": "Saturator at its default 4 dB drive, character 20% (before)"
+    }
+  ]
+}
