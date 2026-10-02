@@ -161,6 +161,8 @@ async function addSamplerTrack(
 
 test.describe("CF-002", () => {
   test("a producer builds a five-part loop", async ({ page }) => {
+    // Five tracks built by hand through three views is a long journey.
+    test.setTimeout(120_000);
     const step = walkthrough(page, {
       id: "CF-002",
       title: "A producer builds a five-part loop",
