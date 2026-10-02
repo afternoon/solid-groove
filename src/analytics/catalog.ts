@@ -732,11 +732,12 @@ export const ANALYTICS_EVENTS = {
     // sound came from (#892). `choice` says whether that was the automatic,
     // safe upgrade (every sound the project used is still in the pack) or the
     // producer's "Upgrade anyway" over sounds that would go missing, and
-    // `missing_sound_count` how many went missing (0 when automatic). Neither
-    // the pack nor any sound is named.
+    // `missing_sound_count` how many went missing (0 when automatic; absent
+    // when the newer version's manifest could not be read to count them).
+    // Neither the pack nor any sound is named.
     params: {
       choice: enumParam(["automatic", "upgrade_anyway"]),
-      missing_sound_count: countParam(100),
+      missing_sound_count: optionalCountParam(100),
     },
   },
 
