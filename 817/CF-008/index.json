@@ -1,0 +1,50 @@
+{
+  "id": "CF-008",
+  "title": "A producer moves between the five views by dock and by keyboard",
+  "steps": [
+    {
+      "file": "01-a-new-project-opens-on-the-arrangement-five-tiles-in-the-doc.png",
+      "caption": "A new project opens on the arrangement, five tiles in the dock"
+    },
+    {
+      "file": "02-press-2-with-no-clip-the-view-says-what-is-missing.png",
+      "caption": "Press 2 with no clip: the view says what is missing"
+    },
+    {
+      "file": "03-point-at-the-second-tile-its-tip-names-the-view-and-key.png",
+      "caption": "Point at the second tile: its tip names the view and key"
+    },
+    {
+      "file": "04-open-the-clip-the-sequence-view-fills-the-page.png",
+      "caption": "Open the clip: the sequence view fills the page"
+    },
+    {
+      "file": "05-turn-on-a-step-that-was-off.png",
+      "caption": "Turn on a step that was off"
+    },
+    {
+      "file": "06-press-1-the-arrangement-unchanged.png",
+      "caption": "Press 1: the arrangement, unchanged"
+    },
+    {
+      "file": "07-press-3-the-instrument-fills-the-page-tracks-down-the-left.png",
+      "caption": "Press 3: the instrument fills the page, tracks down the left"
+    },
+    {
+      "file": "08-press-5-pull-the-track-s-fader-down-in-the-mixer.png",
+      "caption": "Press 5: pull the track's fader down in the mixer"
+    },
+    {
+      "file": "09-back-to-the-arrangement-from-the-dock.png",
+      "caption": "Back to the arrangement from the dock"
+    },
+    {
+      "file": "10-back-button-the-mixer-again.png",
+      "caption": "Back button: the mixer again"
+    },
+    {
+      "file": "11-reload-the-mixer-it-reopens-there-fader-where-you-left-it.png",
+      "caption": "Reload the mixer: it reopens there, fader where you left it"
+    }
+  ]
+}

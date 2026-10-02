@@ -1,0 +1,46 @@
+{
+  "id": "CF-030",
+  "title": "A producer tries several kicks on a pad without leaving the library",
+  "steps": [
+    {
+      "file": "01-add-a-pad-its-empty-slot-is-the-library-s-target.png",
+      "caption": "Add a pad: its empty slot is the library's target"
+    },
+    {
+      "file": "02-select-the-bd-pad-its-slot-becomes-the-target.png",
+      "caption": "Select the BD pad: its slot becomes the target"
+    },
+    {
+      "file": "03-point-at-the-fourth-tile-library-sounds-for-bd.png",
+      "caption": "Point at the fourth tile: Library, sounds for BD"
+    },
+    {
+      "file": "04-press-4-the-library-aimed-at-the-bd-pad.png",
+      "caption": "Press 4: the library, aimed at the BD pad"
+    },
+    {
+      "file": "05-enter-the-kick-goes-in-and-the-library-stays.png",
+      "caption": "Enter: the kick goes in, and the library stays"
+    },
+    {
+      "file": "06-down-enter-the-next-kick-goes-in-still-in-the-library.png",
+      "caption": "Down, Enter: the next kick goes in, still in the library"
+    },
+    {
+      "file": "07-undo-once-the-first-kick-is-back-in-the-slot.png",
+      "caption": "Undo once: the first kick is back in the slot"
+    },
+    {
+      "file": "08-shift-enter-back-on-the-bd-pad-with-the-third-kick.png",
+      "caption": "Shift+Enter: back on the BD pad with the third kick"
+    },
+    {
+      "file": "09-press-1-then-4-still-aimed-at-the-bd-pad.png",
+      "caption": "Press 1, then 4: still aimed at the BD pad"
+    },
+    {
+      "file": "10-reload-bd-keeps-the-third-kick-pad-2-is-still-empty.png",
+      "caption": "Reload: BD keeps the third kick, Pad 2 is still empty"
+    }
+  ]
+}

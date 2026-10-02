@@ -1,0 +1,30 @@
+{
+  "id": "CF-004",
+  "title": "A producer sets the span they are working in",
+  "steps": [
+    {
+      "file": "01-a-new-project-opens-with-the-brace-over-bar-1-and-looping-on.png",
+      "caption": "A new project opens with the brace over bar 1 and looping on"
+    },
+    {
+      "file": "02-playback-loops-around-the-first-bar.png",
+      "caption": "Playback loops around the first bar"
+    },
+    {
+      "file": "03-drag-the-brace-out-to-the-end-of-bar-2-playback-never-stoppe.png",
+      "caption": "Drag the brace out to the end of bar 2 — playback never stopped"
+    },
+    {
+      "file": "04-looping-off-the-playhead-runs-past-the-brace-which-stays-put.png",
+      "caption": "Looping off — the playhead runs past the brace, which stays put"
+    },
+    {
+      "file": "05-looping-back-on-and-stopped.png",
+      "caption": "Looping back on, and stopped"
+    },
+    {
+      "file": "06-reopened-the-brace-and-the-toggle-are-exactly-as-they-were-l.png",
+      "caption": "Reopened: the brace and the toggle are exactly as they were left"
+    }
+  ]
+}

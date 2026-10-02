@@ -1,0 +1,34 @@
+{
+  "id": "CF-018",
+  "title": "A producer picks a key and pulls stray notes into it",
+  "steps": [
+    {
+      "file": "01-the-key-starts-at-chromatic.png",
+      "caption": "The key starts at Chromatic"
+    },
+    {
+      "file": "02-add-three-notes-one-of-them-f-2.png",
+      "caption": "Add three notes, one of them F♯2"
+    },
+    {
+      "file": "03-choose-minor-f-2-shows-as-an-off-row.png",
+      "caption": "Choose Minor: F♯2 shows as an Off row"
+    },
+    {
+      "file": "04-quantize-to-scale-pulls-f-2-into-c-minor.png",
+      "caption": "Quantize to scale pulls F♯2 into C minor"
+    },
+    {
+      "file": "05-undo-the-stray-note-and-its-off-row-return.png",
+      "caption": "Undo: the stray note and its Off row return"
+    },
+    {
+      "file": "06-redo-they-are-gone-again.png",
+      "caption": "Redo: they are gone again"
+    },
+    {
+      "file": "07-reload-the-key-and-the-notes-are-kept.png",
+      "caption": "Reload: the key and the notes are kept"
+    }
+  ]
+}
