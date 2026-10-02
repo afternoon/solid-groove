@@ -1,20 +1,24 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  backToInstrument,
   library,
   newProjectOnInstrumentView,
   openPadSlot,
   railButton,
   readout,
-  sampleSlot,
+  slotSound,
   soundList,
 } from "./support/library";
+import { expectView } from "./support/views";
 
 // #860: the library's Enter (insert) and Space (audition again) let the
-// browser's default run too, so the focused button was pressed as well. Enter
-// inserted, then the slot button that focus returned to took the Enter and
-// opened the library again; Space pressed the Close button the library parks
-// focus on, and closed it. Asserted in a real browser, because only a real one
-// turns a key into a click on whatever is focused.
+// browser's default run too, so the focused button was pressed as well.
+// Asserted in a real browser, because only a real one turns a key into a click
+// on whatever is focused.
+//
+// Since #817 the library is the view on `4`, and Enter inserts and stays there
+// so another sound can be tried: the insert shows as the sound in the slot,
+// and the library is still the view you are on.
 
 /** Select the second sound in the list with the keyboard, as a producer would. */
 async function selectSecondSound(page: Page): Promise<string> {
@@ -25,24 +29,27 @@ async function selectSecondSound(page: Page): Promise<string> {
   return hearing.replace(/^Hearing/, "").trim();
 }
 
+/** The insert landed, and the library is still the view you are on. */
+async function expectInsertedAndStayed(page: Page, name: string): Promise<void> {
+  await expect(readout(page, "In the slot")).toContainText(name);
+  await page.waitForTimeout(300);
+  await expectView(page, "Library");
+  await backToInstrument(page);
+  await expect.poll(() => slotSound(page, "BD")).toBe(name);
+}
+
 test.describe("library keys", () => {
-  test("Enter inserts the selected sound and the library stays closed", async ({
-    page,
-  }) => {
+  test("Enter inserts the selected sound and the library stays", async ({ page }) => {
     await newProjectOnInstrumentView(page);
     await openPadSlot(page, "BD");
     const name = await selectSecondSound(page);
 
     await page.keyboard.press("Enter");
 
-    await expect(sampleSlot(page, "BD")).toContainText(name);
-    await page.waitForTimeout(300);
-    await expect(library(page)).toBeHidden();
+    await expectInsertedAndStayed(page, name);
   });
 
-  test("Enter on a clicked row inserts it and the library stays closed", async ({
-    page,
-  }) => {
+  test("Enter on a clicked row inserts it and the library stays", async ({ page }) => {
     await newProjectOnInstrumentView(page);
     await openPadSlot(page, "BD");
     const row = soundList(page)
@@ -53,9 +60,7 @@ test.describe("library keys", () => {
 
     await page.keyboard.press("Enter");
 
-    await expect(sampleSlot(page, "BD")).toContainText(name);
-    await page.waitForTimeout(300);
-    await expect(library(page)).toBeHidden();
+    await expectInsertedAndStayed(page, name);
   });
 
   test("Space auditions again and leaves the library open", async ({ page }) => {
@@ -73,13 +78,13 @@ test.describe("library keys", () => {
     await newProjectOnInstrumentView(page);
     await openPadSlot(page, "BD");
     await selectSecondSound(page);
-    const before = await sampleSlot(page, "BD").textContent();
+    const before = (await readout(page, "In the slot").textContent()) ?? "";
 
     await railButton(page, "Browse packs").focus();
     await page.keyboard.press("Enter");
 
     await expect(railButton(page, "Browse packs")).toHaveAttribute("aria-current", /.+/);
     await expect(library(page)).toBeVisible();
-    expect(await sampleSlot(page, "BD").textContent()).toBe(before);
+    await expect(readout(page, "In the slot")).toHaveText(before);
   });
 });
