@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
  * `CF-017`: a producer writes a bassline in the piano roll.
@@ -9,9 +10,10 @@ import { walkthrough } from "../../support/walkthrough";
  * (ARR-010, the piano roll redesign), and it is frozen once it lands: a later
  * PR that changes an assertion here has to say so in its body and justify it.
  *
- * It is `test.fixme` because the redesigned roll does not exist yet. Today's
- * roll has no ruler, no named pitch rows, no key panel, and creates a note on
- * any press. The PR that closes #450 removes this marker.
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: opening the clip lands on it (`/sequence`), and step 8
+ * leaves it with `1` instead of its close button. Parked at `test.fixme` until
+ * #817's stack lands; the PR that closes #817 removes the marker.
  *
  * What the roll has to expose for a person, and this spec, to follow the
  * journey (the same contract is repeated in CF-018 and CF-019):
@@ -43,10 +45,6 @@ const timeline = (page: Page): Locator => page.locator(".arrangement-layer-inter
 /** The arrangement's accessible mirror of the track list, top to bottom. */
 const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
-
-/** The clip editor that opens over the arrangement (CF-001). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 /** A pitch name as a pattern that reads a sharp spelled `♯` or `#`. */
 const pitchPattern = (pitch: string): string => pitch.replace("♯", "[♯#]");
@@ -166,17 +164,11 @@ async function openSynthClip(page: Page): Promise<Locator> {
       y: rulerHeight + 1.5 * rowHeight,
     },
   });
-  const editor = sequenceEditor(page);
+  await expectView(page, "Sequence");
+  const editor = sequenceView(page);
   await expect(editor).toBeVisible();
   await expect(editor.getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
   return editor;
-}
-
-async function closeEditor(page: Page): Promise<void> {
-  await sequenceEditor(page)
-    .getByRole("button", { name: "Close sequence editor" })
-    .click();
-  await expect(sequenceEditor(page)).toHaveCount(0);
 }
 
 const WHITE = "rgb(255, 255, 255)";
@@ -193,16 +185,16 @@ const OUTCOME = [
 ];
 
 test.describe("CF-017", () => {
-  // `test.fixme` until #450 (ARR-010) lands: the PR that closes it removes this
+  // `test.fixme` until #817's stack lands: the PR that closes it removes this
   // marker in the same diff that makes the flow pass.
-  test("a producer writes a bassline in the piano roll", async ({ page }) => {
+  test.fixme("a producer writes a bassline in the piano roll", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-017",
       title: "A producer writes a bassline in the piano roll",
     });
 
     // 1. Create a new project and add a synth track. Its clip sits in bar 1.
-    //    Open it. The sequence editor shows the piano roll: 16 steps, rows
+    //    Open it. The sequence view shows the piano roll: 16 steps, rows
     //    named down the left with white rows for white keys and black rows for
     //    black keys, and the key reads "Chromatic".
     await page.goto("/dashboard");
@@ -307,11 +299,12 @@ test.describe("CF-017", () => {
     await expectNotes(editor, OUTCOME);
     await step("Double-click a note to delete it");
 
-    // 8. Close the editor and reload the page. Open the clip again.
+    // 8. Press 1 to go back to the arrangement, and reload the page. Open the
+    //    clip again.
     //
     // The save status is how the editor reports that a revision-checked write
     // completed, so the reload tests persistence rather than a race (CF-016).
-    await closeEditor(page);
+    await backToArrangement(page);
     await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
     await page.reload();
     await expect(page).toHaveURL(projectUrl);

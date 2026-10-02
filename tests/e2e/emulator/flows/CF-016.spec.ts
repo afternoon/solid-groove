@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
  * `CF-016`: a producer Alt-drags clips to copy them.
@@ -9,9 +10,12 @@ import { walkthrough } from "../../support/walkthrough";
  * frozen once it lands: a later PR that changes an assertion here has to say
  * so in its body and justify it.
  *
- * Alt-drag copy shipped with #456. The spec is parked at `test.fixme` only
- * because the starter's step lane is now a drum-machine pad (#496); the PR
- * that closes #496 removes the marker.
+ * Alt-drag copy shipped with #456, and the "BD" pad lane with #496.
+ *
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: opening a clip lands on it (`/sequence`), and `1` leaves it
+ * instead of Escape. Parked at `test.fixme` until #817's stack lands; the PR
+ * that closes #817 removes the marker.
  *
  * What it holds #456 to, from the product owner's decisions (2026-09-27):
  *
@@ -48,10 +52,6 @@ const announcement = (page: Page): Locator =>
 /** The arrangement's accessible mirror of the track list, top to bottom. */
 const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
-
-/** The clip editor that opens over the arrangement (CF-001). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 /**
  * The middle of `bar` (1-based) on track row `rowIndex`, in the timeline
@@ -124,17 +124,12 @@ async function expectClipsIn(page: Page, bars: readonly number[]): Promise<void>
   }
 }
 
-/** Open the "BD" clip in `bar` and return its editor. */
+/** Open the "BD" clip in `bar` and return the sequence view. */
 async function openBdClip(page: Page, bar: number): Promise<Locator> {
   await timeline(page).dblclick({ position: await barCentre(page, 0, bar) });
-  await expect(sequenceEditor(page)).toBeVisible();
-  return sequenceEditor(page);
-}
-
-/** Close the clip editor. */
-async function closeEditor(page: Page): Promise<void> {
-  await page.keyboard.press("Escape");
-  await expect(sequenceEditor(page)).toHaveCount(0);
+  await expectView(page, "Sequence");
+  await expect(sequenceView(page)).toBeVisible();
+  return sequenceView(page);
 }
 
 /**
@@ -147,11 +142,11 @@ async function expectBdStepTwo(page: Page, bar: number, on: boolean): Promise<vo
   await expect(
     editor.getByRole("button", { name: `BD, step 2, ${on ? "on" : "off"}` }),
   ).toBeVisible();
-  await closeEditor(page);
+  await backToArrangement(page);
 }
 
 test.describe("CF-016", () => {
-  test("a producer Alt-drags clips to copy them", async ({ page }) => {
+  test.fixme("a producer Alt-drags clips to copy them", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-016",
       title: "A producer Alt-drags clips to copy them",
@@ -200,16 +195,16 @@ test.describe("CF-016", () => {
     await expectClipsIn(page, [1, 3, 5]);
     await step("Alt-drag again: the copies are copied to bar 5");
 
-    // 5. Open the "BD" clip in bar 5. Turn on a step that was off, and close
-    //    the editor.
+    // 5. Open the "BD" clip in bar 5. Turn on a step that was off on the "BD"
+    //    pad, and press 1 to go back to the arrangement.
     const editor = await openBdClip(page, 5);
     await editor.getByRole("button", { name: "BD, step 2, off" }).click();
     await expect(editor.getByRole("button", { name: "BD, step 2, on" })).toBeVisible();
     await step("Turn on a step in the BD copy in bar 5");
-    await closeEditor(page);
+    await backToArrangement(page);
 
     // 6. Open the "BD" clip in bar 1. The step you turned on in bar 5 is still
-    //    off here. Close the editor.
+    //    off on the "BD" pad here. Press 1.
     await expectBdStepTwo(page, 1, false);
     await step("The BD clip in bar 1 is unchanged: the copy is independent");
 

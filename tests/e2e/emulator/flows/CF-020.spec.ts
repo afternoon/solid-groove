@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { expectView, pressView, sequenceView } from "../support/views";
 
 /**
  * `CF-020`: a producer fills a drum row from the Generate panel.
@@ -9,9 +10,11 @@ import { walkthrough } from "../../support/walkthrough";
  * sequencer revamp), and it is frozen once it lands: a later PR that changes
  * an assertion here has to say so in its body and justify it.
  *
- * It is `test.fixme` because the revamp does not exist yet. Today's step grid
- * has no selectable row and no Generate panel. The PR that closes #643
- * removes this marker.
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: opening the clip lands on it (`/sequence`), and step 7 goes
+ * straight from it to the instrument view with `3` instead of closing it first.
+ * Parked at `test.fixme` until #817's stack lands; the PR that closes #817
+ * removes the marker.
  *
  * What the step grid has to expose for a person, and this spec, to follow
  * the journey:
@@ -40,10 +43,6 @@ const viewLink = (page: Page, name: "Arrangement" | "Instrument"): Locator =>
 
 /** The arrangement's interaction canvas: a `<canvas>`, so a class (CF-016). */
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
-
-/** The clip editor that opens over the arrangement (CF-001). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 const rowName = (editor: Locator, pad: string): Locator =>
   editor
@@ -89,16 +88,10 @@ async function openDrumClip(page: Page): Promise<Locator> {
       y: rulerHeight + 0.5 * rowHeight,
     },
   });
-  const editor = sequenceEditor(page);
+  await expectView(page, "Sequence");
+  const editor = sequenceView(page);
   await expect(editor).toBeVisible();
   return editor;
-}
-
-async function closeEditor(page: Page): Promise<void> {
-  await sequenceEditor(page)
-    .getByRole("button", { name: "Close sequence editor" })
-    .click();
-  await expect(sequenceEditor(page)).toHaveCount(0);
 }
 
 const KICK = [1, 5, 9, 13];
@@ -107,9 +100,9 @@ const OFFBEATS = [3, 7, 11, 15];
 const EUCLID_3_OF_8 = [1, 4, 7, 9, 12, 15];
 
 test.describe("CF-020", () => {
-  // `test.fixme` until #643 lands: the PR that closes it removes this marker
-  // in the same diff that makes the flow pass.
-  test("a producer fills a drum row from the Generate panel", async ({ page }) => {
+  // `test.fixme` until #817's stack lands: the PR that closes it removes this
+  // marker in the same diff that makes the flow pass.
+  test.fixme("a producer fills a drum row from the Generate panel", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-020",
       title: "A producer fills a drum row from the Generate panel",
@@ -174,10 +167,10 @@ test.describe("CF-020", () => {
     await expectRow(editor, "Pad 2", EUCLID_3_OF_8);
     await step("Undo and redo the generate as one step");
 
-    // 7. Close the editor and go to the instrument view. "Pad 2" is the
-    //    selected pad.
-    await closeEditor(page);
-    await viewLink(page, "Instrument").click();
+    // 7. Press 3. The instrument view shows the "BD" drum machine, and "Pad 2"
+    //    is the selected pad.
+    await pressView(page, "Instrument");
+    await expect(page.getByRole("region", { name: "Drum machine: BD" })).toBeVisible();
     await expect(page.getByRole("region", { name: "Pad 2 pad" })).toBeVisible();
     await step("The instrument view has Pad 2 selected too");
 

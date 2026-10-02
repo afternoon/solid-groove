@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { library } from "../support/library";
+import { backToArrangement, expectView, pressView, sequenceView } from "../support/views";
 
 /**
  * `CF-002` — a producer turns a loop into a song outline.
@@ -13,7 +15,8 @@ import { walkthrough } from "../../support/walkthrough";
  * about what that means here:
  *
  *  - Steps 2-5 depend on work outside `ARR-003` — creating a sampler track
- *    (#223) and loading a library sound onto one by dragging (#225). Neither
+ *    (#223) and loading a library sound onto one (#225; since #817, from its
+ *    sample slot through the Library view, not by dragging). Neither
  *    affordance exists, so the selectors this file uses for them are the shape
  *    those issues are expected to deliver, not names read off a built UI.
  *  - Steps 7-11 are `ARR-003`'s own surface: the loop-range selection, the
@@ -25,6 +28,11 @@ import { walkthrough } from "../../support/walkthrough";
  * written in the piano roll at C4, which plays the sample as recorded. The
  * starter kick is read off the "BD" pad. Only what the new model forces has
  * changed: the loop, the outline and the undos are as before.
+ *
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: opening a clip lands on it (`/sequence`), and `1` leaves it
+ * instead of Escape. Parked at `test.fixme` until #817's stack lands too; the
+ * PR that closes the last of these issues removes the marker.
  *
  * Where an existing surface already has an accessible name — the dashboard, the
  * step grid, the transport, undo, the arrangement's DOM mirror of its selection
@@ -52,11 +60,7 @@ const TICKS_PER_BAR = 4 * 192;
 /** The interaction canvas the tracks are drawn on: a `<canvas>`, so a class (CF-016). */
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
 
-/** The clip editor that opens over the arrangement (CF-001). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
-
-/** Open the clip in bar 1 of track row `rowIndex`, and return its editor. */
+/** Open the clip in bar 1 of track row `rowIndex`, and return the sequence view. */
 async function openClip(page: Page, rowIndex: number): Promise<Locator> {
   const root = page.getByTestId("arrangement-view-ready");
   const pixelsPerTick = Number(await root.getAttribute("data-pixels-per-tick"));
@@ -70,13 +74,9 @@ async function openClip(page: Page, rowIndex: number): Promise<Locator> {
       y: rulerHeight + rowIndex * rowHeight + rowHeight / 2,
     },
   });
-  await expect(sequenceEditor(page)).toBeVisible();
-  return sequenceEditor(page);
-}
-
-async function closeEditor(page: Page): Promise<void> {
-  await page.keyboard.press("Escape");
-  await expect(sequenceEditor(page)).toHaveCount(0);
+  await expectView(page, "Sequence");
+  await expect(sequenceView(page)).toBeVisible();
+  return sequenceView(page);
 }
 
 /** Name the track just added, through the mixer's name field. */
@@ -105,7 +105,7 @@ async function addDrumTrack(
       editor.getByRole("button", { name: `${part.pad}, step ${step}, on` }),
     ).toBeVisible();
   }
-  await closeEditor(page);
+  await backToArrangement(page);
 }
 
 /**
@@ -123,19 +123,24 @@ async function addSamplerTrack(
   await page.getByRole("button", { name: "Add sampler track" }).click();
   await nameTrack(page, part.name);
 
-  await page.getByRole("button", { name: "Library" }).click();
-  await page.getByRole("searchbox", { name: "Search sounds" }).fill(part.sound);
-  const asset = page.getByRole("listitem").filter({ hasText: part.sound });
-  await asset
+  // From the library (#817): the sampler's sample slot aims the Library view
+  // at it, Shift+Enter inserts and comes back, and `1` returns to the song.
+  await pressView(page, "Instrument");
+  const instrument = page.getByRole("region", { name: `${part.name} instrument` });
+  await instrument.getByRole("button", { name: "Sample", exact: true }).click();
+  await expectView(page, "Library");
+  await library(page).getByRole("searchbox", { name: "Search sounds" }).fill(part.sound);
+  await library(page)
+    .getByRole("button", { name: new RegExp(`^Audition .*${part.sound}`) })
     .first()
-    .dragTo(page.getByRole("region", { name: `${part.name} instrument` }));
+    .click();
+  await page.keyboard.press("Shift+Enter");
+  await expectView(page, "Instrument");
 
-  // The sampler names what it is holding, so the drop is visible rather than
-  // inferred from a later sound.
-  await expect(
-    page.getByRole("region", { name: `${part.name} instrument` }),
-  ).toContainText(part.sound);
-  await page.getByRole("button", { name: "Library" }).click();
+  // The sampler names what it is holding, so the insert is visible rather
+  // than inferred from a later sound.
+  await expect(instrument).toContainText(part.sound);
+  await pressView(page, "Arrangement");
 
   const editor = await openClip(page, part.row);
   await expect(editor.getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
@@ -161,7 +166,7 @@ async function addSamplerTrack(
         .getByRole("option", { name: new RegExp(`^${AS_RECORDED}, step ${step},`) }),
     ).toBeVisible();
   }
-  await closeEditor(page);
+  await backToArrangement(page);
 }
 
 /** The arrangement's DOM mirror of what is selected (`ArrangementView.tsx`). */
@@ -169,8 +174,9 @@ const selectedPlacements = (page: Page): Locator =>
   page.getByTestId("placement-selection").locator("li");
 
 test.describe("CF-002", () => {
-  // `test.fixme` for #61 (the outline) and, since #496, for the starter drum
-  // machine (step 1) and the sampler's piano roll (steps 4-5). The PR that
+  // `test.fixme` for #61 (the outline), since #496 for the starter drum
+  // machine (step 1) and the sampler's piano roll (steps 4-5), and since #817
+  // for the sequence view. The PR that
   // closes the last of them removes this marker.
   test.fixme("a producer turns a loop into a song outline", async ({ page }) => {
     const step = walkthrough(page, {
@@ -191,7 +197,7 @@ test.describe("CF-002", () => {
       ).toBeVisible();
     }
     await step("The new project opens on the starter kick");
-    await closeEditor(page);
+    await backToArrangement(page);
 
     // 2. Add a drum-machine track named "Hats", and put the "HH" pad on
     //    every offbeat.
