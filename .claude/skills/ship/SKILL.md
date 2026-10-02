@@ -13,10 +13,15 @@ without asking questions. See `CLAUDE.md`, "Shape, then ship".
 2. **Run the workflow**: call the Workflow tool with
    `{ name: "solid-groove-ship", args: { issue: <n> } }`. Do not build anything
    yourself; the workflow does triage, build, review (features only) and landing.
-   If the session cannot run workflows, run the same stages by hand with the
-   Agent tool, following `.claude/workflows/solid-groove-ship.js` and the agent
-   briefs in `.claude/agents/`.
-3. **When it returns**, tell the user in a few lines:
+   If the session cannot run workflows, or is headless (GitHub Actions, `-p`),
+   run the same stages yourself with the Agent tool in the foreground
+   (`run_in_background: false`), following `.claude/workflows/solid-groove-ship.js`
+   and the agent briefs in `.claude/agents/`. A headless run ends when your turn
+   ends, so a background workflow there is killed before it does anything.
+   Never end your turn while the work is still running.
+3. **When it returns**, confirm every PR it names exists (`gh pr view <n>` or the
+   GitHub MCP tools) before reporting it. Report only what you have seen, never
+   an expected or summarised result. Then tell the user in a few lines:
    - the PRs it opened (full URLs), and the kind of work it treated the issue as;
    - any assumptions or open review findings that ended up in a PR body;
    - or, if it stopped, why (an unclear issue posts its question on the issue;
