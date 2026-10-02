@@ -367,7 +367,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     label: "Select all",
     description: "Selects everything in the current selection scope.",
     group: "global_editing",
-    contexts: ["selection", "arrangement"],
+    contexts: ["selection", "arrangement", "step_editor"],
     keys: "Mod+A",
     ableton: { kind: "follows", abletonKeys: "Cmd/Ctrl+A" },
   }),

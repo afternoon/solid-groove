@@ -2176,6 +2176,24 @@ describe("EditorView sequence editor", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("selects every note in the step grid with Cmd/Ctrl+A, not the page's text (#835)", async () => {
+    await renderSlice();
+    const editor = await openSequenceEditor();
+    const on = () => editor.querySelectorAll(".step-cell.active").length;
+    expect(on()).toBeGreaterThan(0);
+
+    let prevented = false;
+    fireAndFlush(() => {
+      prevented = !fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    });
+    expect(prevented).toBe(true);
+
+    // Every note is now selected, so Backspace takes them all.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "Backspace" }));
+    expect(on()).toBe(0);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   // The editor owns one pad selection for a drum track, and both the
   // instrument view's drum machine and the grid's row picker read and write it
   // (#643): neither side keeps its own.

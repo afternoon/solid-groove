@@ -62,7 +62,7 @@ import {
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
-import { playbackStep as playbackStepOf } from "./stepEditorModel";
+import { noteEventsOf, playbackStep as playbackStepOf } from "./stepEditorModel";
 import {
   type AddTrackHost,
   addTrackOfKind,
@@ -359,6 +359,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setSelectedNoteIds([]);
   }
 
+  /** The step grid's Select all (#835): every note in the open clip. */
+  function selectAllSteps(): (() => void) | undefined {
+    const currentClip = clip();
+    if (!currentClip) return undefined;
+    return () => setSelectedNoteIds(noteEventsOf(currentClip).map((note) => note.id));
+  }
+
   const instrument = createMemo(() => model.editedInstrument(track()));
   const showPianoRoll = createMemo(() =>
     model.showPianoRoll(opened()?.track ?? null, clip()),
@@ -385,6 +392,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     pianoRollActions,
     selectedNoteIds,
     deleteSelection,
+    selectAllSteps,
     guideOpen,
     setGuideOpen,
     exportOpen,
