@@ -23,6 +23,9 @@ export interface UseEditorShortcutsOptions {
   readonly pianoRollActions: Accessor<PianoRollActions | null>;
   readonly selectedNoteIds: Accessor<readonly EventId[]>;
   readonly deleteSelection: () => void;
+  /** Selects every note in the clip the step grid shows (#835): `undefined`
+   * when there is no clip to select in. */
+  readonly selectAllSteps: () => (() => void) | undefined;
   readonly guideOpen: Accessor<boolean>;
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
@@ -102,6 +105,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     pianoRollActions,
     selectedNoteIds,
     deleteSelection,
+    selectAllSteps,
     guideOpen,
     setGuideOpen,
     exportOpen,
@@ -168,6 +172,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     isEnabled: rollHasSelection,
   });
+
+  /** Whether the sequence editor is showing the step grid, not the roll. */
+  const stepGridOpen = (): boolean => sequenceEditorOpen() && !showPianoRoll();
 
   /** Whether a clip is being dragged in the arrangement right now. */
   const arrangementDragging = (): boolean =>
@@ -361,13 +368,19 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // Select all: the open piano roll's notes, as before; otherwise, with the
     // arrangement focused, every clip in the song (#835) — even with nothing
     // selected, so the browser never selects the page's text instead.
+    // Select all acts on the open note editor, the roll or the step grid,
+    // and otherwise on the focused arrangement's clips (#835).
     "edit.select_all": {
       run: () => {
         const actions = pianoRollActions();
         if (actions) actions.selectAll();
+        else if (stepGridOpen()) selectAllSteps()?.();
         else arrangementEditingActions()?.selectAll();
       },
-      isEnabled: () => pianoRollActions() !== null || arrangementFocused(),
+      isEnabled: () =>
+        pianoRollActions() !== null ||
+        (stepGridOpen() && selectAllSteps() !== undefined) ||
+        arrangementFocused(),
     },
     // Cut and copy act on the piano roll's notes while it holds a selection
     // (ARR-010), and otherwise on the arrangement's clips (ARR-002) — whichever
