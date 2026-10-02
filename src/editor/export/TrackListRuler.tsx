@@ -11,7 +11,7 @@ import type { PickAction } from "./trackListSelection";
  * cell, which spans the names and the empty batch gutter, is the list's status:
  * "N of M stems" with a hint that says what a click, a ⇧-click and a pick do at
  * rest, or, while tracks are picked, "N picked" with On, Off, Only these and a
- * clear button. The rest is the bar ruler, labelled over the lane area at the first of 16, 32, 64... bars that keeps
+ * clear button. The rest is the bar ruler, labelled over the lane area at the first of 1, 2, 4, 8... bars that keeps
  * the labels apart.
  */
 

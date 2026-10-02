@@ -54,10 +54,23 @@ describe("TrackListRuler", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("labels bar 1 and every 16 bars on the ruler", () => {
-    const { container } = renderRuler();
+  it("labels bar 1 and every 4 bars on the ruler before the lanes are measured", () => {
+    const { container } = renderRuler({ bars: 16 });
     const marks = [...container.querySelectorAll(".track-ruler-marks span")];
-    expect(marks.map((mark) => mark.textContent)).toEqual(["1", "17", "33"]);
-    expect((marks[1] as HTMLElement).style.left).toBe("40%");
+    expect(marks.map((mark) => mark.textContent)).toEqual(["1", "5", "9", "13"]);
+    expect((marks[1] as HTMLElement).style.left).toBe("25%");
+  });
+
+  it("numbers every bar of a 4-bar song once the lanes are measured (#840)", () => {
+    const width = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(700);
+    try {
+      const { container } = renderRuler({ bars: 4 });
+      const marks = [...container.querySelectorAll(".track-ruler-marks span")];
+      expect(marks.map((mark) => mark.textContent)).toEqual(["1", "2", "3", "4"]);
+    } finally {
+      width.mockRestore();
+    }
   });
 });
