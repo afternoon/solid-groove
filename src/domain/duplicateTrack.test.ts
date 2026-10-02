@@ -108,6 +108,27 @@ describe("duplicateTrack", () => {
     expect(dup.track.name).toBe(`${source.name} copy`);
   });
 
+  it("gives each repeated duplicate of the same track a unique name (#870)", () => {
+    let project = createDrumMachineFixtureProject();
+    const source = project.song.tracks[0];
+    const names: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const dup = duplicateTrack(project, source.id, {
+        ids: createSeededIdFactory(`dup-${i}`),
+      });
+      names.push(dup.track.name);
+      project = {
+        ...project,
+        song: { ...project.song, tracks: [...project.song.tracks, dup.track] },
+      };
+    }
+    expect(names).toEqual([
+      `${source.name} copy`,
+      `${source.name} copy 2`,
+      `${source.name} copy 3`,
+    ]);
+  });
+
   it("produces a project that still validates when inserted", () => {
     const project = createDrumMachineFixtureProject();
     const source = project.song.tracks[0];
