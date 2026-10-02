@@ -128,6 +128,52 @@ describe("compressor (FX-01)", () => {
     );
   });
 
+  it("never raises the level at 0 dB makeup (#884)", async () => {
+    // A `DynamicsCompressorNode` applies its own automatic makeup gain, the
+    // Web Audio spec's `(1 / curve(1.0)) ^ 0.6`. Left in place it makes the
+    // device louder as the ratio rises even with Makeup at 0 dB. Each setting
+    // gets its own channel of one render (see the makeup test above for why),
+    // and both halves of the input step -- the quiet half under the threshold
+    // and the loud half over it -- must come out no louder than they went in.
+    const settings = [
+      { threshold: -18, ratio: 2 },
+      { threshold: -12, ratio: 20 },
+      { threshold: -30, ratio: 4 },
+      { threshold: -60, ratio: 20 },
+      { threshold: 0, ratio: 1 },
+    ] as const;
+    const buffer = await Tone.Offline(
+      () => {
+        const merge = new Tone.Merge({ channels: settings.length }).toDestination();
+        settings.forEach((setting, channel) => {
+          buildStep(
+            device({ ...setting, attack: 0.001, release: 0.05, makeup: 0 }),
+            (output) => {
+              output.connect(merge, 0, channel);
+            },
+          );
+        });
+      },
+      1,
+      settings.length,
+    );
+    // The input step's own RMS: a unit sine scaled by 0.05, then by 1.
+    const quietIn = 0.05 / Math.SQRT2;
+    const loudIn = 1 / Math.SQRT2;
+    settings.forEach((setting, channel) => {
+      const data = buffer.getChannelData(channel);
+      const label = `threshold ${setting.threshold} dB, ratio ${setting.ratio}`;
+      // A hundredth of a dB of slack for the knee solver's float rounding.
+      expect(rmsWindow(data, 0.2, 0.45) / quietIn, label).toBeLessThanOrEqual(1.002);
+      expect(rmsWindow(data, 0.75, 0.95) / loudIn, label).toBeLessThanOrEqual(1.002);
+    });
+    // And the cancellation does not overshoot: the quiet half at -26 dBFS sits
+    // under a -18 dB threshold, so it passes at (within 0.2 dB of) unity.
+    expect(rmsWindow(buffer.getChannelData(0), 0.2, 0.45) / quietIn).toBeGreaterThan(
+      0.977,
+    );
+  });
+
   it("keeps the dry and wet legs time-aligned at a partial mix (#490)", async () => {
     // A `DynamicsCompressorNode` delays its output by a fixed lookahead (6 ms
     // in Chromium, 384 samples at 48 kHz in node-web-audio-api). If the dry leg
