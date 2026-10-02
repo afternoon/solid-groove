@@ -41,7 +41,7 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `edit.cut` | Cut | `Cmd+X` | `Ctrl+X` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+X`) |
 | `edit.copy` | Copy | `Cmd+C` | `Ctrl+C` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+C`) |
 | `edit.paste` | Paste | `Cmd+V` | `Ctrl+V` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+V`) |
-| `edit.select_all` | Select all | `Cmd+A` | `Ctrl+A` | Global Editing | selection | Follows Live (`Cmd/Ctrl+A`) |
+| `edit.select_all` | Select all | `Cmd+A` | `Ctrl+A` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+A`) |
 | `edit.delete` | Delete selection | `Delete / Backspace` | `Delete / Backspace` | Global Editing | arrangement, step_editor, piano_roll, automation_lane | Follows Live (`Delete / Backspace`) |
 | `edit.duplicate` | Duplicate selection | `Cmd+D` | `Ctrl+D` | Global Editing | selection, arrangement | Follows Live (`Cmd/Ctrl+D`) |
 | `arrangement.split_clip` | Split clip | `E` | `E` | Arrangement | arrangement | Differs from Live's `Cmd/Ctrl+E` |

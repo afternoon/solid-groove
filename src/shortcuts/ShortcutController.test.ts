@@ -334,6 +334,34 @@ describe("analytics", () => {
     expect(run).toHaveBeenCalledTimes(1);
     expect(transport.events).toHaveLength(0);
   });
+
+  // #835: Select all reaches the arrangement context, with or without analytics.
+  it("logs edit.select_all once per press in the arrangement, and runs it opted out too", () => {
+    const run = vi.fn();
+    const handlers = { "edit.select_all": { run } };
+    const on = setup({ handlers, contexts: ["editor", "arrangement"] });
+    const pressed = keyEvent("a", { ctrlKey: true });
+    expect(on.press(pressed).ran).toBe(true);
+    expect(pressed.defaultPrevented).toBe(true);
+    const uses = on.transport.events.filter((event) => event.name === "shortcut_used");
+    expect(uses.map((event) => event.params.action_id)).toEqual(["edit.select_all"]);
+
+    const transport = createRecordingTransport();
+    const consent = new ConsentStore(memoryStorage());
+    consent.set({ productAnalytics: false });
+    const off = new ShortcutController({
+      handlers: () => handlers,
+      contexts: () => ["editor", "arrangement"],
+      platform: "other",
+      analytics: new Analytics({ transport, consent, storage: memoryStorage() }),
+      isTextEntry: () => false,
+    });
+    const offPress = keyEvent("a", { ctrlKey: true });
+    off.handleKeyDown(offPress as unknown as KeyboardEvent);
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(offPress.defaultPrevented).toBe(true);
+    expect(transport.events).toHaveLength(0);
+  });
 });
 
 describe("attach", () => {
