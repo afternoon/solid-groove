@@ -22,6 +22,7 @@ const zip = (index: number, bytes: number): StemBatch => ({
   trackIds: [],
   rowIds: [],
   bytes,
+  expectedBytes: bytes,
   fits: true,
 });
 const base = {
@@ -33,7 +34,6 @@ const base = {
     quality: "24-bit · 48 kHz",
   },
   date: new Date(2026, 8, 30),
-  stereoBytes: 300 * 1024 ** 2,
   bars: 64,
 };
 const rows = [
@@ -45,7 +45,13 @@ const rows = [
 
 describe("finishedExport", () => {
   it("reads a stereo mix: one WAV, the tracks in the mix, no returns on the sleeve", () => {
-    const finished = finishedExport({ ...base, format: "stereo", rows, batches: [] });
+    const finished = finishedExport({
+      ...base,
+      format: "stereo",
+      rows,
+      batches: [],
+      fileBytes: [300 * 1024 ** 2],
+    });
     expect(finished).toMatchObject({
       fileName: "Night Drive 2026-09-30.wav",
       zips: [],
@@ -65,6 +71,7 @@ describe("finishedExport", () => {
       format: "stems",
       rows,
       batches: [zip(0, 0.5 * GiB)],
+      fileBytes: [0.5 * GiB],
     });
     expect(finished).toMatchObject({
       fileName: "Night Drive 2026-09-30 stems.zip",
@@ -81,11 +88,33 @@ describe("finishedExport", () => {
       format: "stems",
       rows,
       batches: [zip(0, 1.96 * GiB), zip(1, 1.5 * GiB)],
+      fileBytes: [1.96 * GiB, 1.5 * GiB],
     });
     expect(finished.zips).toEqual([
       { name: "Night Drive 2026-09-30 stems 1 of 2.zip", size: "1.96 GiB" },
       { name: "Night Drive 2026-09-30 stems 2 of 2.zip", size: "1.50 GiB" },
     ]);
     expect(finished.size).toBe("3.46 GiB");
+  });
+
+  // #836: the finished screen repeated the estimate, not what it had written.
+  it("reads the size of the files the export wrote, not the estimate", () => {
+    const stereo = finishedExport({
+      ...base,
+      format: "stereo",
+      rows,
+      batches: [],
+      fileBytes: [2_304_044],
+    });
+    expect(stereo.size).toBe("2 MiB");
+    const stems = finishedExport({
+      ...base,
+      format: "stems",
+      rows,
+      batches: [zip(0, 1.9 * GiB), zip(1, 1.9 * GiB)],
+      fileBytes: [1.25 * GiB, 0.5 * GiB],
+    });
+    expect(stems.zips.map((entry) => entry.size)).toEqual(["1.25 GiB", "512 MiB"]);
+    expect(stems.size).toBe("1.75 GiB");
   });
 });

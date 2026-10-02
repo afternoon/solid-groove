@@ -62,6 +62,13 @@ export function maxStemFrames(seconds: number, rate: number, tail = MAX_TAIL_SEC
   return Math.ceil((seconds + tail) * rate) + 1;
 }
 
+/** The frames a render whose tails fall silent by the song's end returns: the
+ * renderer never trims below the song, and that is the usual length. What the
+ * dialog shows, where {@link maxStemFrames} is what the budget checks. */
+export function songFrames(seconds: number, rate: number): number {
+  return Math.round(seconds * rate);
+}
+
 export type StemRenderer = typeof renderProjectOffline;
 
 export interface StemExportOptions {
@@ -149,6 +156,14 @@ export function planFrames(
     options.sampleRate,
     options.maxTailSeconds,
   );
+}
+
+/** The frames a stem is expected to be: the song's length, with no tail. */
+export function expectedPlanFrames(
+  plan: readonly StemRender[],
+  sampleRate: number,
+): number {
+  return songFrames(songEndSeconds(plan[plan.length - 1].projection), sampleRate);
 }
 
 /** The archive limit: the working-memory budget, never past a plain ZIP. */

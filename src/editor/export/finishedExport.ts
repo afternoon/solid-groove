@@ -36,7 +36,8 @@ export interface FinishedExportInput {
   readonly date: Date;
   readonly rows: readonly TrackLaneView[];
   readonly batches: readonly StemBatch[];
-  readonly stereoBytes: number;
+  /** The size of each file the export wrote, in order: the WAV, or every ZIP. */
+  readonly fileBytes: readonly number[];
   readonly bars: number;
 }
 
@@ -49,9 +50,7 @@ export function finishedExport(input: FinishedExportInput): FinishedExport {
   const names = batches.map((_, i) =>
     stemsBatchFileName(facts.name, date, i, batches.length),
   );
-  const bytes = stereo
-    ? input.stereoBytes
-    : batches.reduce((sum, batch) => sum + batch.bytes, 0);
+  const bytes = input.fileBytes.reduce((sum, size) => sum + size, 0);
   return {
     name: facts.name,
     tempo: facts.tempo,
@@ -59,7 +58,7 @@ export function finishedExport(input: FinishedExportInput): FinishedExport {
     format,
     fileName: stereo ? exportFileName(facts.name, date, "wav") : (names[0] ?? ""),
     zips: several
-      ? batches.map((batch, i) => ({ name: names[i], size: formatBytes(batch.bytes) }))
+      ? batches.map((_, i) => ({ name: names[i], size: formatBytes(input.fileBytes[i]) }))
       : [],
     count: stereo ? tracks.length : included.length,
     size: formatBytes(bytes),

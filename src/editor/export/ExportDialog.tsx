@@ -101,6 +101,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   const fileCount = () => (format() === "stems" ? plan().length : 1);
   /** The ZIPs already downloaded, in order, and where Export picks up again. */
   const [got, setGot] = createSignal(0);
+  /** The size of each file already downloaded, for the finished screen. */
+  const [written, setWritten] = createSignal<readonly number[]>([]);
   const [resumeFrom, setResumeFrom] = createSignal(0);
   /** What Cancel said, until the next export or edit. */
   const [stopped, setStopped] = createSignal("");
@@ -160,6 +162,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   /** Changing the format or the selection starts the export over. */
   const startOver = () => {
     setGot(0);
+    setWritten([]);
     setResumeFrom(0);
     setStopped("");
     if (phase().kind === "failed") setPhase({ kind: "choose" });
@@ -192,6 +195,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     const count = stems ? batches.length : 1;
     if (resumeFrom() === 0) {
       setGot(0);
+      setWritten([]);
       startedAt = systemClock.now();
     }
     setStopped("");
@@ -223,6 +227,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         // call sees the aborted signal and ends the export as cancelled.
         if (current.signal.aborted) continue;
         (props.download ?? downloadFile)(file.blob, file.fileName);
+        setWritten((sizes) => [...sizes.slice(0, index), file.blob.size]);
         setGot(index + 1);
       }
       if (current.signal.aborted) throw new StemExportError("aborted", "cancelled");
@@ -263,11 +268,12 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       date: stamp,
       rows: list.rows(),
       batches: plan(),
-      stereoBytes: stereoBytes(),
+      fileBytes: written(),
       bars: list.bars(),
     }),
   );
-  const stemsBytes = () => plan().reduce((sum, batch) => sum + batch.bytes, 0);
+  /** What the stems are expected to weigh, which the footer shows. */
+  const stemsBytes = () => plan().reduce((sum, batch) => sum + batch.expectedBytes, 0);
   const sizeText = () => {
     if (format() === "stereo") return `${formatBytes(stereoBytes())} · 1 file`;
     const files = plan().reduce((sum, batch) => sum + batch.paths.length, 0);
@@ -297,7 +303,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     return stemsNote({
       tracks: list.trackIds().length,
       zips: plan().length,
-      bytes: stemsBytes(),
+      // The bound the split was made on, so "over the limit" is always true.
+      bytes: plan().reduce((sum, batch) => sum + batch.bytes, 0),
     });
   };
   /** A failure of one ZIP of several names it; any other keeps the one-file wording. */

@@ -102,9 +102,9 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     it("shows the size, which shrinks as tracks are left out", () => {
       renderDialog(project);
       const size = () => screen.getByText("Size").nextElementSibling?.textContent;
-      expect(size()).toBe("7.82 GiB \u00b7 51 files");
+      expect(size()).toBe("7.44 GiB \u00b7 51 files");
       turnOff(trackRows().slice(0, 1));
-      expect(size()).toBe("7.66 GiB \u00b7 50 files");
+      expect(size()).toBe("7.29 GiB \u00b7 50 files");
     });
 
     it("never blocks Export over the budget: it splits, and fewer tracks mean fewer ZIPs", () => {

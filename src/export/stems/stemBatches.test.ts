@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { RENDER_CHANNELS } from "../../audio/offlineRenderer";
+import { songEndSeconds } from "../../audio/renderLength";
+import { wav24ByteLength } from "../../audio/wavEncoder";
 import { estimateStemExport } from "./exportStems";
+import { stemArchiveBytes } from "./stemArchive";
 import { planStemBatches } from "./stemBatches";
 import { createStemFixtureProject } from "./stemFixture";
 import { planStems } from "./stemPlan";
@@ -24,6 +28,17 @@ describe("planStemBatches", () => {
     expect([...batches[0].paths].sort()).toEqual([...todayPaths].sort());
     expect(batches[0]).toMatchObject({ index: 0, hasMix: true, bytes: whole.bytes });
     expect(batches[0].trackIds).toEqual(trackIds);
+  });
+
+  // #836: the dialog shows this, so it is the song's length, not the budget's
+  // bound with 30 s of possible tail on every stem.
+  it("expects every stem to be the song's length, as a render with no tail past it is", () => {
+    const [batch] = planStemBatches(project, { sampleRate: RATE });
+    const frames = Math.round(songEndSeconds(plan[plan.length - 1].projection) * RATE);
+    expect(batch.expectedBytes).toBe(
+      stemArchiveBytes(batch.paths, wav24ByteLength(RENDER_CHANNELS, frames)),
+    );
+    expect(batch.expectedBytes).toBeLessThan(batch.bytes);
   });
 
   it("splits in order: mix first, tracks, then returns, each under budget", () => {
