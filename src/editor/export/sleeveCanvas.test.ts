@@ -91,6 +91,48 @@ describe("drawSleeve", () => {
     ]);
   });
 
+  it("paints clips that touch or overlap as one span, so their joins leave no seam (#839)", () => {
+    const { ctx, painted } = recordingContext();
+    drawSleeve(
+      ctx,
+      {
+        ...frame,
+        bars: 4,
+        stripes: [
+          {
+            color: RED,
+            lanes: [
+              { startBar: 0, lengthBars: 1 },
+              { startBar: 1, lengthBars: 2 },
+              { startBar: 2, lengthBars: 1 },
+              { startBar: 3, lengthBars: 1 },
+            ],
+          },
+          {
+            color: BLUE,
+            lanes: [
+              { startBar: 0, lengthBars: 1 },
+              { startBar: 2, lengthBars: 2 },
+            ],
+          },
+        ],
+      },
+      1,
+    );
+    const side = 300 * 0.72;
+    const ox = (400 - side) / 2;
+    const spans = (colour: string) =>
+      painted
+        .filter((paint) => paint.style === colour)
+        .map(({ args: [x, , w] }) => [x as number, (x as number) + (w as number)]);
+    const [red] = spans(RED);
+    expect(spans(RED)).toHaveLength(1);
+    expect(red[0]).toBeCloseTo(ox);
+    expect(red[1]).toBeCloseTo(ox + side);
+    // A real gap between clips stays a gap.
+    expect(spans(BLUE)).toHaveLength(2);
+  });
+
   it("draws no stripe in a colour that is not a track's, whatever the progress", () => {
     for (const progress of [0, 0.3, 1]) {
       const { ctx, painted } = recordingContext();

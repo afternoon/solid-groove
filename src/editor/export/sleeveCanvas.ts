@@ -51,6 +51,28 @@ export interface SleeveFrame {
   readonly palette: SleevePalette;
 }
 
+/**
+ * A stripe's clips as unbroken runs: clips that touch or overlap become one
+ * span. Two rectangles meeting on a fractional pixel each antialias their
+ * shared edge, which lets the ground show through as a faint seam (#839), and
+ * overlapping ones would double up while the lanes are still translucent.
+ */
+function mergeLanes(lanes: readonly LaneSpan[]): LaneSpan[] {
+  const runs: { startBar: number; endBar: number }[] = [];
+  for (const { startBar, lengthBars } of [...lanes].sort(
+    (a, b) => a.startBar - b.startBar,
+  )) {
+    const last = runs.at(-1);
+    const endBar = startBar + lengthBars;
+    if (last && startBar <= last.endBar) last.endBar = Math.max(last.endBar, endBar);
+    else runs.push({ startBar, endBar });
+  }
+  return runs.map(({ startBar, endBar }) => ({
+    startBar,
+    lengthBars: endBar - startBar,
+  }));
+}
+
 /** The sleeve at `progress`, 0 (lanes where the arrangement has them) to 1 (landed). */
 export function drawSleeve(
   ctx: CanvasRenderingContext2D,
@@ -76,7 +98,7 @@ export function drawSleeve(
     const w = W + (side - W) * ease;
     ctx.fillStyle = stripe.color;
     ctx.globalAlpha = 0.25 + 0.75 * ease;
-    for (const { startBar, lengthBars } of stripe.lanes) {
+    for (const { startBar, lengthBars } of mergeLanes(stripe.lanes)) {
       ctx.fillRect(
         x + (startBar / bars) * w,
         y,
