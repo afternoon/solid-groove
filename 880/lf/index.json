@@ -1,0 +1,14 @@
+{
+  "id": "lf",
+  "title": "After: library focus (#880)",
+  "steps": [
+    {
+      "file": "01-opened.png",
+      "caption": "After: the library has just opened"
+    },
+    {
+      "file": "02-down-x3.png",
+      "caption": "After: three presses of the down arrow"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "lf-before",
+  "title": "Before: library focus (#880)",
+  "steps": [
+    {
+      "file": "01-opened.png",
+      "caption": "Before: the library has just opened"
+    },
+    {
+      "file": "02-down-x3.png",
+      "caption": "Before: three presses of the down arrow"
+    }
+  ]
+}
