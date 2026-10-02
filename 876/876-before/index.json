@@ -1,0 +1,10 @@
+{
+  "id": "876-before",
+  "title": "Dialogs (before)",
+  "steps": [
+    {
+      "file": "01-before-shift-tab-twice-from-the-library-.png",
+      "caption": "Before: two Shift+Tabs from the search field put focus on the editor's \"Add delay device\" behind the scrim, so no focus ring shows"
+    }
+  ]
+}

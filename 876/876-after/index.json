@@ -1,0 +1,10 @@
+{
+  "id": "876-after",
+  "title": "Dialogs (after)",
+  "steps": [
+    {
+      "file": "01-after-shift-tab-twice-from-the-library-s.png",
+      "caption": "After: the same two Shift+Tabs wrap round to the library's own Shuffle button"
+    }
+  ]
+}
