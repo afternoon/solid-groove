@@ -86,6 +86,11 @@ const PRESSES_ENTER = 'button, a[href], [role="button"], [role="link"], summary'
 const focusPressesEnter = (): boolean =>
   document.activeElement?.matches(PRESSES_ENTER) ?? false;
 
+/** The Library's Enter inserts only from a sound row's audition button or
+ * from nothing pressable; any other focused control keeps its own Enter. */
+const focusLeavesEnterToLibrary = (): boolean =>
+  !focusPressesEnter() || (document.activeElement?.matches(".sound-row-main") ?? false);
+
 /**
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
  * slice implements, what each does, and which contexts are active.
@@ -215,6 +220,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     isEnabled: () => libraryActions() !== null,
   });
+  const libraryEnter = (run: (actions: LibraryActions) => void) => ({
+    run: inLibrary(run).run,
+    isEnabled: () => libraryActions() !== null && focusLeavesEnterToLibrary(),
+  });
 
   const handlers = (): ShortcutHandlers => ({
     "transport.play_stop": { run: () => void audio.toggle() },
@@ -314,8 +323,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
     // Enter inserts and stays, so another sound can be tried; Shift+Enter
     // inserts and goes back (UI-002). Each insert is one history entry.
-    "library.insert": inLibrary((a) => void a.insertSelected()),
-    "library.insert_and_return": inLibrary((a) => {
+    "library.insert": libraryEnter((a) => void a.insertSelected()),
+    "library.insert_and_return": libraryEnter((a) => {
       if (a.insertSelected()) leaveLibrary();
     }),
     ...Object.fromEntries(

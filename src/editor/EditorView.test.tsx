@@ -1374,6 +1374,41 @@ describe("EditorView library insert keys", () => {
     await insertByKey(second, true);
     await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
   });
+
+  it("leaves Enter to any other focused control, with a sound selected", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const { location } = renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    const slot = () => screen.getByRole("group", { name: "In the slot" });
+    const library = await openLibraryFromPad();
+    const sounds = await within(library).findByRole("list", { name: "Sounds" });
+    const before = slot().textContent;
+    const audition = within(sounds).getAllByRole("button", { name: /^Audition / })[1];
+    clickAndFlush(audition);
+    const name = audition.getAttribute("aria-label")?.replace(/^Audition /, "") ?? "";
+    await vi.waitFor(() =>
+      expect(screen.getByRole("group", { name: "Hearing" })).toHaveTextContent(name),
+    );
+
+    // A rail button keeps its Enter: the browser presses it, nothing goes in.
+    const rail = within(library).getByRole("button", { name: /^Browse packs/ });
+    rail.focus();
+    for (const shiftKey of [false, true]) {
+      const pressed = fireEvent.keyDown(rail, { key: "Enter", shiftKey });
+      expect(pressed).toBe(true); // not prevented: the default still runs
+    }
+    expect(slot().textContent).toBe(before);
+    expect(location.get()).toMatch(/\/library$/);
+
+    // The sound row's own button is the Library's: Enter inserts from there.
+    audition.focus();
+    expect(fireEvent.keyDown(audition, { key: "Enter" })).toBe(false);
+    await vi.waitFor(() => expect(slot()).toHaveTextContent(name));
+  });
 });
 
 /** The Library at its own address, on `4` (`UI-002`). */
