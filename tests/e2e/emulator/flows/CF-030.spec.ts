@@ -62,7 +62,8 @@ const select = async (page: Page, name: string): Promise<void> => {
 };
 
 test.describe("CF-030", () => {
-  test.fixme(
+  // biome-ignore format: unparked by removing only test.fixme, so the frozen body keeps its lines
+  test(
     "a producer tries several kicks on a pad without leaving the library",
     async ({ page }) => {
       const step = walkthrough(page, {

@@ -144,7 +144,7 @@ const COPIES = ["C2, step 9, 1 step", "G2, step 11, 1 step"];
 const TRANSPOSED = ["C3, step 1, 1 step", "G3, step 3, 1 step"];
 const DOUBLED = ["C3, step 17, 1 step", "G3, step 19, 1 step"];
 
-test.describe.fixme("CF-019", () => {
+test.describe("CF-019", () => {
   test("a producer copies, pastes and transforms notes from the keyboard", async ({
     page,
   }) => {

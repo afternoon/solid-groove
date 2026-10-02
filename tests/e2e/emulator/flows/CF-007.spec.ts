@@ -83,7 +83,6 @@ test.describe("CF-007", () => {
     browserName,
   }) => {
     // Parked from inside the body so the body keeps its indentation.
-    test.fixme();
     // Playback runs across several steps of this flow in real time.
     test.setTimeout(120_000);
 

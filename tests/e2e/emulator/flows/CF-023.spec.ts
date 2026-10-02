@@ -67,7 +67,7 @@ const GENRE = { slug: "house", label: "House" } as const;
 test.describe("CF-023", () => {
   // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
   // marker in the same diff that makes the flow pass.
-  test.fixme("a producer finds a kick by ear and puts it on a pad", async ({ page }) => {
+  test("a producer finds a kick by ear and puts it on a pad", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-023",
       title: "A producer finds a kick by ear and puts it on a pad",
