@@ -1,0 +1,14 @@
+{
+  "id": "pr-bars",
+  "title": "Piano roll Bars control",
+  "steps": [
+    {
+      "file": "01-the-piano-roll-s-toolbar-now-leads-with-.png",
+      "caption": "The piano roll's toolbar now leads with Bars, as the step grid's does"
+    },
+    {
+      "file": "02-bars-set-to-4-the-clip-is-four-bars-long.png",
+      "caption": "Bars set to 4: the clip is four bars long in one step"
+    }
+  ]
+}
