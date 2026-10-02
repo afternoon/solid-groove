@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
  * `CF-019`: a producer copies, pastes and transforms notes from the keyboard.
@@ -11,6 +12,12 @@ import { walkthrough } from "../../support/walkthrough";
  *
  * #647 changed step 6: Double used to refuse copies that would not fit in the
  * clip, and now makes room for them by doubling the clip.
+ *
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: opening the clip lands on it (`/sequence`), and step 7
+ * leaves it with `1` rather than Esc, which closes dialogs (#650). Parked at
+ * `test.fixme` (on the describe, so the body keeps its indentation) until
+ * #817's stack lands; the PR that closes #817 removes the marker.
  *
  * The roll's pitch rows, ruler, notes and selection count are found exactly as
  * in CF-017 (read its header for that contract). On top of it, this flow needs:
@@ -39,10 +46,6 @@ const timeline = (page: Page): Locator => page.locator(".arrangement-layer-inter
 /** The arrangement's accessible mirror of the track list, top to bottom. */
 const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
-
-/** The clip editor that opens over the arrangement (CF-001). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 /** A pitch name as a pattern that reads a sharp spelled `♯` or `#`. */
 const pitchPattern = (pitch: string): string => pitch.replace("♯", "[♯#]");
@@ -129,7 +132,8 @@ async function openSynthClip(page: Page): Promise<Locator> {
       y: rulerHeight + 1.5 * rowHeight,
     },
   });
-  const editor = sequenceEditor(page);
+  await expectView(page, "Sequence");
+  const editor = sequenceView(page);
   await expect(editor).toBeVisible();
   await expect(editor.getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
   return editor;
@@ -140,7 +144,7 @@ const COPIES = ["C2, step 9, 1 step", "G2, step 11, 1 step"];
 const TRANSPOSED = ["C3, step 1, 1 step", "G3, step 3, 1 step"];
 const DOUBLED = ["C3, step 17, 1 step", "G3, step 19, 1 step"];
 
-test.describe("CF-019", () => {
+test.describe.fixme("CF-019", () => {
   test("a producer copies, pastes and transforms notes from the keyboard", async ({
     page,
   }) => {
@@ -219,13 +223,12 @@ test.describe("CF-019", () => {
     await expect(rulerStep(editor, 33)).toHaveCount(0);
     await step("Double makes the clip two bars");
 
-    // 7. Press Esc. The editor closes, as every dialog does on Esc (#650).
-    //    Reload the page and open the clip again.
+    // 7. Press 1. The editor goes back to the arrangement. Reload the page and
+    //    open the clip again.
     //
     // The save status is how the editor reports that a revision-checked write
     // completed, so the reload tests persistence rather than a race (CF-016).
-    await page.keyboard.press("Escape");
-    await expect(sequenceEditor(page)).toHaveCount(0);
+    await backToArrangement(page);
     await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
     await page.reload();
     await expect(page).toHaveURL(projectUrl);

@@ -1,5 +1,4 @@
-import { expect, type Locator, test } from "@playwright/test";
-import { newProjectOnInstrumentView, openPadSlot, soundList } from "./support/library";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 // #812: the pointer is still over a sound row right after it is clicked to
 // select it. The global `button:hover` fill then landed on the row's main
@@ -15,10 +14,32 @@ const resolved = (locator: Locator, property: "backgroundColor" | "color") =>
 
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
+// This test is live, so it walks today's UI with its own setup: the shared
+// `./support/library` helpers describe the #817 views the parked core flows
+// are written against. When #817 lands, this setup moves onto them.
+const library = (page: Page): Locator =>
+  page.getByRole("dialog", { name: "Library", exact: true });
+const soundList = (page: Page): Locator =>
+  library(page).getByRole("list", { name: "Sounds", exact: true });
+
+/** A new project, its "BD" pad's sample slot pressed, and the library open. */
+async function openBdSlot(page: Page): Promise<void> {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "New Project" }).click();
+  await page.getByTestId("arrangement-view-ready").waitFor();
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("link", { name: "Instrument" })
+    .click();
+  const drums = page.getByRole("region", { name: "Drum machine: BD" });
+  await drums.getByRole("button", { name: "Audition BD", exact: true }).click();
+  await drums.getByRole("button", { name: "Sample for BD", exact: true }).click();
+  await expect(library(page)).toBeVisible();
+}
+
 test.describe("library sound rows", () => {
   test("the selected row stays one white band under the pointer", async ({ page }) => {
-    await newProjectOnInstrumentView(page);
-    await openPadSlot(page, "BD");
+    await openBdSlot(page);
     const rows = soundList(page).getByRole("listitem");
     await expect(rows.nth(1)).toBeVisible();
 
@@ -59,8 +80,7 @@ test.describe("library sound rows", () => {
   });
 
   test("hovering an unselected row lights the whole row", async ({ page }) => {
-    await newProjectOnInstrumentView(page);
-    await openPadSlot(page, "BD");
+    await openBdSlot(page);
     const row = soundList(page).getByRole("listitem").nth(2);
     const main = row.getByRole("button", { name: /^Audition / });
     await expect(main).toHaveAttribute("aria-pressed", "false");

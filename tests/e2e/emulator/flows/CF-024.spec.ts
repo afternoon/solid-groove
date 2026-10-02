@@ -2,12 +2,14 @@ import { expect, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   audition,
+  backToInstrument,
   categoryChip,
   deliveredLibrary,
   expectSelected,
   familyTab,
   insertButton,
   library,
+  libraryHeader,
   listedNames,
   literal,
   newProjectOnInstrumentView,
@@ -16,10 +18,13 @@ import {
   precondition,
   projectPacks,
   railButton,
+  readout,
   reloadOnInstrumentView,
   sampleSlot,
+  slotSound,
   soundList,
 } from "../support/library";
+import { pressView } from "../support/views";
 
 /**
  * `CF-024`: a producer browses packs and uses a sound from one they did not
@@ -30,10 +35,12 @@ import {
  * redesign), and it is frozen once it lands: a later PR that changes an
  * assertion here has to say so in its body and justify it.
  *
- * It is `test.fixme` because none of the redesigned library exists yet: there
- * is no "Browse packs" in the library, no cover grid or "Packs with" filter,
- * no pack banner, and no family tabs or category chips. The PR that closes
- * #449 removes this marker.
+ * **Revised for #817.** The library is the Library view on `4`, filling the
+ * page, not a dialog over the editor. Insert keeps it open, showing the
+ * inserted impact as the sound in the slot, `3` goes back to the instrument,
+ * and `4` comes back to the library still aimed at the "BD" pad. Parked at
+ * `test.fixme` until #817's stack lands: the PR that closes #817 removes the
+ * marker.
  *
  * **Locators.** Every library locator is assumed from #449 and the reference
  * design, and listed in `../support/library.ts`. This spec adds its own for
@@ -70,18 +77,23 @@ const anyCover = (page: Page) => library(page).getByRole("button", { name: /^Ope
 const IN_PROJECT = /\bin (this )?project\b/i;
 
 test.describe("CF-024", () => {
+  // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
+  // marker in the same diff that makes the flow pass.
   test("a producer browses packs and uses a sound from one they did not have", async ({
     page,
   }) => {
+    // Parked from inside the body so the body keeps its indentation.
+    test.fixme();
     const step = walkthrough(page, {
       id: "CF-024",
       title: "A producer browses packs and uses a sound from one they did not have",
     });
 
-    // 1. Create a new project and go to the instrument view. Open the sample
-    //    slot of the drum machine's "BD" pad.
+    // 1. Create a new project and go to the instrument view. Press the sample
+    //    slot of the drum machine's "BD" pad. The editor goes to the Library
+    //    view.
     const projectUrl = await newProjectOnInstrumentView(page);
-    const starterKick = ((await sampleSlot(page, "BD").textContent()) ?? "").trim();
+    const starterKick = await slotSound(page, "BD");
 
     const sounds = await deliveredLibrary(page);
     const projectPack = sounds.find((sound) => sound.name === starterKick)?.pack;
@@ -96,7 +108,7 @@ test.describe("CF-024", () => {
     precondition(impacts.length > 0, "CF-024", `impacts in ${NEW_PACK}`);
 
     await openPadSlot(page, "BD");
-    await step('Open the sample slot of the drum machine\'s "BD" pad');
+    await step('Press the sample slot of the drum machine\'s "BD" pad');
 
     // 2. Choose Browse packs. The sound list gives way to pack covers, and
     //    the packs this project already uses are marked as in the project.
@@ -137,29 +149,28 @@ test.describe("CF-024", () => {
       .toEqual([...impacts].sort());
     await step("Choose FX, then Impact: only that pack's impacts are listed");
 
-    // 6. Select an impact and press Insert. The library closes, and the "BD"
-    //    pad's slot names that impact.
+    // 6. Select an impact and press Insert. The library shows it as the sound
+    //    in the slot. Press 3: the "BD" pad's slot names that impact.
     const impact = impacts[0];
     await audition(soundList(page), impact).click();
     await expectSelected(page, impact);
     await insertButton(page, impact).click();
-    await expect(library(page)).toHaveCount(0);
-    await expect(sampleSlot(page, "BD")).toHaveText(impact);
+    await expect(readout(page, "In the slot")).toContainText(impact);
+    await backToInstrument(page);
+    await expect.poll(() => slotSound(page, "BD")).toBe(impact);
     await step('Select an impact and press Insert: the "BD" slot names it');
 
-    // 7. Open the slot again. Transitions & FX is now listed with the
-    //    project's own packs.
-    await sampleSlot(page, "BD").click();
-    await expect(library(page)).toBeVisible();
+    // 7. Press 4. The library is still aimed at the "BD" pad, and Transitions &
+    //    FX is now listed with the project's own packs.
+    await pressView(page, "Library");
+    await expect(libraryHeader(page)).toContainText("BD");
     await expect(projectPacks(page)).toContainText(NEW_PACK);
-    await step(
-      "Open the slot again: Transitions & FX is listed with the project's packs",
-    );
+    await step("Press 4: Transitions & FX is listed with the project's packs");
 
     // 8. Reload the page. The "BD" pad still holds the impact, and
     //    Transitions & FX is still listed with the project's packs.
     await reloadOnInstrumentView(page, projectUrl);
-    await expect(sampleSlot(page, "BD")).toHaveText(impact);
+    await expect.poll(() => slotSound(page, "BD")).toBe(impact);
     await sampleSlot(page, "BD").click();
     await expect(projectPacks(page)).toContainText(NEW_PACK);
     await step("Reload: the BD pad holds the impact, and Transitions & FX is listed");

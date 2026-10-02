@@ -153,6 +153,11 @@ one-shot player).** The starter project is a drum-machine track, its kick on the
 "BD" pad, so steps 5-7 read the pattern as a pad lane rather than a sampler's
 single lane. The journey is unchanged. Parked at `test.fixme` until #496 lands.
 
+**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
+`2`, not a window over the arrangement, so step 6 lands on it and step 7 leaves
+it with `1`. The journey is unchanged. Parked at `test.fixme` until #817's stack
+lands.
+
 **Preconditions:** none. No account, no existing project.
 
 1. Open the landing page.
@@ -161,9 +166,10 @@ single lane. The journey is unchanged. Parked at `test.fixme` until #496 lands.
 4. Create a new project.
 5. The project opens on the arrangement, with a four-on-the-floor starter
    pattern sitting on its only track, a drum machine named "BD".
-6. Open that clip. The sequence editor comes up over the arrangement, showing
-   the pattern on the "BD" pad: steps 1, 5, 9 and 13 on.
-7. Turn on a step that was off on the "BD" pad, and close the editor.
+6. Open that clip. The sequence view fills the page, showing the pattern on the
+   "BD" pad: steps 1, 5, 9 and 13 on.
+7. Turn on a step that was off on the "BD" pad, and press 1 to go back to the
+   arrangement.
 8. Start playback.
 
 **Outcome:** a visitor who arrived with no account is listening to a loop they
@@ -173,8 +179,8 @@ just edited, and the transport shows it is running.
 and Playwright captures none, so this flow proves the transport starts, not that
 a sound reached a speaker. Playback is asserted in Chromium only — see
 [`docs/testing.md`](./testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap)
-and issue #43. Moving between the three views, which is CF-008's subject: this
-flow only ever sees the arrangement. And persistence — it never reloads, and
+and issue #43. Moving between the five views, which is CF-008's subject: this
+flow only ever sees the arrangement and the sequence view. And persistence — it never reloads, and
 CF-004 onwards are where coming back to your work is proved.
 
 ### CF-002 — A producer turns a loop into a song outline
@@ -187,6 +193,11 @@ one-shot player).** The drum parts are drum-machine tracks and are sequenced on
 the step grid by pad; the pitched parts (chord stab, bass) are sampler tracks
 written in the piano roll, where a note plays the sample at its pitch and C4
 plays it as recorded. The loop, the outline and the undos are unchanged.
+
+**Revised for #817 (five views on `1`–`5`).** A clip is sequenced in the
+sequence view and a sound is loaded in the Library view, so "from the library"
+in steps 4-5 means pressing the sampler's sample slot, inserting there, and
+coming back. The steps read the same; only the surfaces under them moved.
 
 **Preconditions:** signed in as a guest with no projects — where CF-001 ends.
 Building the pitched parts in steps 4-5 depends on #225 (loading a library sound
@@ -292,20 +303,29 @@ unchanged — a loop out of the library lands on a new track at bar 1 and nothin
 else in the project moves — but the drag this flow used to describe no longer
 exists, so the producer asks the arrangement for a loop and picks one instead.
 
+**Revised for #817 (five views on `1`–`5`).** The library is a view on `4`, not
+a modal, and the sequence editor a view on `2`. Asking the arrangement for a loop
+aims the Library at a **new track** rather than at a slot, and Shift+Enter
+inserts and goes back to where the producer came from — here, the arrangement.
+Parked at `test.fixme` until #817's stack lands.
+
 **Preconditions:** signed in with no projects. The library contains a
 tempo-labelled loop whose source tempo is not the tempo a new project opens at.
 
 1. Create a new project. It opens on the arrangement, carrying the starter kick
    pattern.
-2. Choose to add a loop from the library. The library opens over the arrangement.
+2. Choose to add a loop from the library. The editor goes to the Library view,
+   which fills the page. Its header says it is inserting into a new track, and
+   it lists loops, not one-shots.
 3. Find a drum loop that was recorded at a different tempo from the project's,
-   and insert it. The library opens on loops near the project's tempo, so widen
+   and select it. The library opens on loops near the project's tempo, so widen
    it to any tempo to find one.
-4. The library closes. A new track appears at the bottom of the track list,
-   carrying that loop as a clip starting at bar 1.
-5. Open that clip. It is named as a loop that follows the project tempo rather
-   than a pitched one-shot, and it states the tempo it was recorded at. Close it
-   again.
+4. Press Shift+Enter. The loop is inserted and the editor goes back to the
+   arrangement. A new track appears at the bottom of the track list, carrying
+   that loop as a clip starting at bar 1.
+5. Open that clip. The sequence view names it as a loop that follows the project
+   tempo rather than a pitched one-shot, and states the tempo it was recorded at.
+   Press 1 to go back to the arrangement.
 6. Nothing else moved: the project tempo is unchanged, the loop brace is where it
    was, and the transport is still stopped.
 7. Reload the page. The new track and its loop are still there.
@@ -373,6 +393,10 @@ in the **mixer view**, not by switching a main-region tab — #304 replaces that
 tab with the three-view shell — and step 1 brings its loop in through the library
 modal, as CF-005 now does. What the flow proves is unchanged.
 
+**Revised for #817 (five views on `1`–`5`).** Step 1 brings its loop in through
+the Library view, as CF-005 now does, and the mixer is the view on `5`. The steps
+read the same. Parked at `test.fixme` until #817's stack lands.
+
 **Preconditions:** signed in with no projects.
 
 1. Create a new project and bring a library loop into it, so the starter kick and
@@ -396,7 +420,7 @@ view they left it on — when they came back.
 records no audio, so this proves the chain, the controls, and the state, not the
 processing, which is asserted in the audio suite. Track device chains (#241),
 the other five device types, device presets, and reordering a chain, all of which
-are tested at their own layers. Moving between the three views, which is CF-008's
+are tested at their own layers. Moving between the five views, which is CF-008's
 subject and is only used here. Two orderings here are deliberate rather than
 incidental. The undo and redo come *before* the drive is pushed, because a
 parameter gesture is its own history entry: undoing after it would take back the
@@ -405,44 +429,57 @@ payload described it. And both come before the reload, because history is
 session-local — a reload legitimately ends the undo stack, so a flow that undid
 afterwards would assert something the product does not promise.
 
-### CF-008 — A producer works across the arrangement, the instrument and the mixer
+### CF-008 — A producer moves between the five views by dock and by keyboard
 
-**Issue:** #304 · **Suite:** `tests/e2e/emulator/flows/CF-008.spec.ts` · **Entrypoint:** the
-project dashboard
+**Issue:** #304, rewritten for #817 · **Suite:** `tests/e2e/emulator/flows/CF-008.spec.ts` ·
+**Entrypoint:** the project dashboard
 
-**Revised for #496.** The starter track is a drum machine, so steps 2-3 work on
-its "BD" pad lane. The track keeps the name "BD", so steps 4-7 are unchanged.
-Parked at `test.fixme` until #496 lands.
+**Rewritten for #817 (five views on `1`–`5`).** #304 gave the editor three views
+and two modals; #817 makes the modals views of their own and puts all five on one
+fixed map: `1` Arrangement, `2` Sequence, `3` Instrument, `4` Library, `5` Mixer.
+The journey is the one it always was — do different jobs on uncluttered screens
+and move between them without losing anything — on that map. Parked at
+`test.fixme` until #817's stack lands.
 
 **Preconditions:** signed in with no projects.
 
 1. Create a new project. It opens on the arrangement, which fills the page, with
-   the starter pattern sitting on the only track and a dock floating along the
-   bottom naming the three views.
-2. Open the clip on the timeline. The sequence editor comes up over the
-   arrangement, nearly filling the window, showing the four-on-the-floor pattern
-   on the starter drum machine's "BD" pad.
-3. Turn on a step that was off on the "BD" pad, then close the editor. The
-   arrangement is underneath, exactly as it was apart from the edit.
-4. Go to the instrument view with the keyboard. The track's instrument fills the
-   page, with a list of the project's tracks down the left edge and the dock
-   still showing which view you are on.
-5. Go to the mixer with the keyboard, and pull the track's volume fader down.
-6. Go back to the arrangement from the dock. The timeline is as you left it, and
-   the dock marks the arrangement as the view you are on.
-7. Return to the mixer and reload the page. The project reopens on the mixer,
-   with the fader still where you put it.
+   the starter pattern on the only track ("BD", a drum machine) and a dock
+   floating along the bottom: five square tiles numbered 1 to 5, with the
+   arrangement's marked as the view you are on.
+2. Press 2 before choosing a clip. The sequence view says no clip is selected,
+   tells you to select one in the arrangement, and offers a button back to the
+   arrangement that shows its key, 1. Press that button. You are back on the
+   arrangement.
+3. Point at the dock's second tile. Its tip names the view, its key and what it
+   will open; with no clip chosen it names no clip.
+4. Open the clip on the timeline. The sequence view fills the page, showing the
+   four-on-the-floor pattern on the "BD" pad, and the dock marks the sequence
+   view as the one you are on.
+5. Turn on a step that was off on the "BD" pad, then press 1. The arrangement is
+   exactly as it was apart from the edit.
+6. Press 3. The track's instrument fills the page, with a list of the project's
+   tracks down the left edge and the dock marking the instrument view.
+7. Press 5. The mixer fills the page with the "BD" track's strip marked as the
+   one you came from. Pull its volume fader down.
+8. Go back to the arrangement from the dock. The timeline is as you left it, and
+   the dock marks the arrangement as the view you are on. Press the browser's
+   back button: you are on the mixer again.
+9. Reload the page. The project reopens on the mixer, with the fader still where
+   you put it.
 
-**Outcome:** a producer did three different jobs on three uncluttered screens,
-moved between them by dock and by keyboard without losing anything they had done,
-and the view they were on survived a reload because it is part of the address.
+**Outcome:** a producer did different jobs on uncluttered screens, moved between
+them by keys under one hand and by the dock without losing anything they had
+done, was told plainly what a view needed when it had nothing to show, and the
+view they were on survived the back button and a reload because it is part of
+the address.
 
 **Out of scope:** that any of it is *audible*, as in every other flow here. The
-library modal, which is CF-005's. Device chains, which the instrument view only
-reserves a place for — #241 and #283 own those and have their own flows. Touch
-and tablet layouts, which #304 explicitly does not claim. And the sequence
-editor's own editing behavior beyond one step toggling, which CLP-02 and CLP-03
-already cover at the component layer.
+Library view, which CF-005 and CF-023 to CF-026 and CF-030 walk. The Library's
+own empty screens (a synth track, no track), which are component-layer. Device
+chains, which #241 and #283 own. Touch and tablet layouts, which #304 and #817
+explicitly do not claim. The sequence view's own editing beyond one step
+toggling, which CF-017 to CF-020 cover. What the tiles and icons look like.
 
 ### CF-009 — A producer clicks a clip and is told which one it is
 
@@ -554,6 +591,10 @@ outlines look like, as in CF-009.
 
 **Issue:** #241 · **Suite:** `tests/e2e/emulator/flows/CF-012.spec.ts` · **Entrypoint:** the
 project dashboard
+
+**Revised for #817 (five views on `1`–`5`).** Step 1 brings its loop in through
+the Library view, as CF-005 now does. The steps read the same. Parked at
+`test.fixme` until #817's stack lands.
 
 **Preconditions:** signed in with no projects.
 
@@ -712,6 +753,12 @@ project dashboard
 and edit the "BD" pad's lane. Alt-drag itself is unchanged and already live;
 parked at `test.fixme` only until #496's starter lands.
 
+**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
+`2`, not a window over the arrangement, so opening a clip goes to it and
+"close the editor" in steps 5-6 is pressing 1 to go back to the
+arrangement. The journey is unchanged. Parked at `test.fixme` until #817's stack
+lands.
+
 **Preconditions:** signed in with no projects.
 
 1. Create a new project and add a sampler track, so "BD" (the starter drum
@@ -728,9 +775,9 @@ parked at `test.fixme` only until #496's starter lands.
    Copies of both clips from bar 3 land in bar 5, one on each track, so the copies
    made in step 3 were what was selected.
 5. Open the "BD" clip in bar 5. Turn on a step that was off on the "BD" pad, and
-   close the editor.
+   press 1 to go back to the arrangement.
 6. Open the "BD" clip in bar 1. The step you turned on in bar 5 is still off on
-   the "BD" pad here. Close the editor.
+   the "BD" pad here. Press 1.
 7. Reload the page.
 8. The project reopens exactly as step 6 left it: "BD" and "Sampler" each have
    clips in bars 1, 3 and 5, with bars 2 and 4 empty, and the step you turned on
@@ -754,10 +801,15 @@ copies look like while they move, as in CF-009.
 **Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-017.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
+`2`, not a window over the arrangement, so opening a clip goes to it and
+step 8 leaves it with 1. The journey is unchanged. Parked at `test.fixme` until #817's stack
+lands.
+
 **Preconditions:** signed in with no projects.
 
 1. Create a new project and add a synth track. Its clip sits in bar 1. Open it. The
-   sequence editor shows the piano roll: 16 steps, rows named down the left with
+   sequence view shows the piano roll: 16 steps, rows named down the left with
    white rows for white keys and black rows for black keys, and the key reads
    "Chromatic".
 2. Click the empty cell at C2, step 1. A one-step note appears there, selected.
@@ -773,7 +825,8 @@ project dashboard
    eight steps and let go. Copies land at C2 steps 9 and 13. The originals have not
    moved.
 7. Double-click the note at G2 step 13. It is deleted.
-8. Close the editor and reload the page. Open the clip again.
+8. Press 1 to go back to the arrangement, and reload the page. Open the clip
+   again.
 
 **Outcome:** the clip holds six notes: C2 at steps 1 (two steps long), 5, 9 (two
 steps long) and 13, F2 at step 10, and F2 at step 15 (two steps long). Clicking,
@@ -789,6 +842,11 @@ component layer. Touch input.
 **Issue:** #450 · **Suite:** `tests/e2e/emulator/flows/CF-018.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
+`2`, not a window over the arrangement, so opening a clip goes to it and
+step 6 leaves it with 1. The journey is unchanged. Parked at `test.fixme` until #817's stack
+lands.
+
 **Preconditions:** signed in with no projects.
 
 1. Create a new project, add a synth track and open its clip. The key reads
@@ -800,7 +858,8 @@ project dashboard
 4. Press Quantize to scale. The F♯2 note moves onto a C minor row, and the Off row
    disappears. The C2 and D♯2 notes have not changed.
 5. Undo. The F♯2 note and its Off row are back. Redo. They are gone again.
-6. Close the editor and reload the page. Open the clip again.
+6. Press 1 to go back to the arrangement, and reload the page. Open the clip
+   again.
 
 **Outcome:** the key reads "C minor" and the roll shows only C minor rows, so the key
 was saved with the project. The clip holds three notes, all in C minor.
@@ -813,6 +872,12 @@ root with notes out of key. Key changes from anywhere other than the piano roll.
 
 **Issue:** #450, #647, #650 · **Suite:** `tests/e2e/emulator/flows/CF-019.spec.ts` · **Entrypoint:** the
 project dashboard
+
+**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
+`2`, not a window over the arrangement, so opening a clip goes to it and
+step 7 leaves it with 1 rather than Esc: a view is not a dialog, and
+Esc closes dialogs (#650). The journey is unchanged. Parked at `test.fixme` until #817's stack
+lands.
 
 **Preconditions:** signed in with no projects.
 
@@ -829,8 +894,8 @@ project dashboard
    and G3 step 3.
 6. Press Double. The one-bar clip becomes two bars long, and copies land at C3
    step 17 and G3 step 19.
-7. Press Esc. The editor closes, as every dialog does on Esc (#650). Reload the
-   page and open the clip again.
+7. Press 1. The editor goes back to the arrangement. Reload the page and open the
+   clip again.
 
 **Outcome:** the clip is two bars long and holds C3 at steps 1 and 17 and G3 at
 steps 3 and 19. Keyboard copy and paste landed at the insert marker, arrow keys
@@ -853,6 +918,11 @@ refusal at the longest clip length, are tested at the command layer.
 **Issue:** #643 · **Suite:** `tests/e2e/emulator/flows/CF-020.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
+`2`, not a window over the arrangement, so opening a clip goes to it and
+step 7 goes straight from it to the instrument view with 3. The journey is unchanged. Parked at `test.fixme` until #817's stack
+lands.
+
 **Preconditions:** signed in with no projects.
 
 1. Create a new project. Go to the instrument view for the starter "BD" track and
@@ -868,7 +938,8 @@ project dashboard
    gone. The "BD" row has not changed.
 6. Undo once. The "Pad 2" row is back to the offbeats. Redo. It is back to the
    Euclidean pattern.
-7. Close the editor and go to the instrument view. "Pad 2" is the selected pad.
+7. Press 3. The instrument view shows the "BD" drum machine, and "Pad 2" is the
+   selected pad.
 8. Reload the page. Go to the arrangement and open the "BD" clip again.
 
 **Outcome:** the "BD" row has steps 1, 5, 9 and 13 on, and the "Pad 2" row has
@@ -965,14 +1036,21 @@ Stereo export (CF-021).
 **Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-023.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The library is a view on `4`
+that fills the page, not a window over the editor. A sample slot opens it aimed
+at that slot, inserting keeps it open so another sound can be tried, and `3` goes
+back to the instrument without inserting. Parked at `test.fixme` until #817's
+stack lands.
+
 **Preconditions:** signed in with no projects. The library holds kicks tagged
 with genres.
 
 1. Create a new project. It opens on the arrangement, with the starter kick on a
    drum machine's "BD" pad.
-2. Go to the instrument view and press the "BD" pad's sample slot. The library
-   opens over the editor, no larger than the pack browser used to be. It names
-   the slot it will fill, shows the sound the pad has now, and is already
+2. Go to the instrument view. The "BD" pad's sample slot shows the library's
+   icon and its key, 4. Press the slot. The editor goes to the Library view,
+   which fills the page. Its header names the slot it will fill as a path
+   ending at the "BD" pad, shows the sound the pad has now, and it is already
    showing kicks.
 3. Choose a genre from the genre menu. The list narrows to kicks in that genre,
    and says how many there are.
@@ -980,10 +1058,12 @@ with genres.
    hearing.
 5. Press the down arrow. The next kick is selected and is the one you are
    hearing now.
-6. Press Escape. The library closes, and the pad's sample slot still names the
-   sound it had before. Nothing in the project changed while you listened.
-7. Open the slot again, select a different kick, and press Insert. The library
-   closes, and the slot names the kick you chose.
+6. Press 3. The editor goes back to the instrument view, and the pad's sample
+   slot still names the sound it had before. Nothing in the project changed
+   while you listened.
+7. Press the slot again, select a different kick, and press Insert. The library
+   stays where it is and now shows that kick as the sound in the slot. Press 3:
+   the slot names the kick you chose.
 8. Reload the page. The "BD" pad still holds the kick you inserted.
 
 **Outcome:** a producer heard several kicks in place, walked away from them
@@ -993,7 +1073,7 @@ when they come back.
 **Out of scope:** that the auditions are *audible*, or heard through the pad in
 the beat. No headless browser records audio, so hot-swap audio is asserted in
 the audio suite. Loops, which are CF-005's. The similar-sounds view (CF-025) and
-packs (CF-024). Shuffle, and the arrow buttons on the category row, are covered
+packs (CF-024). Trying several sounds in a row by key, which is CF-030's. Shuffle, and the arrow buttons on the category row, are covered
 at the component layer.
 
 ### CF-024 — A producer browses packs and uses a sound from one they did not have
@@ -1001,10 +1081,16 @@ at the component layer.
 **Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-024.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The library is a view on `4`
+that fills the page, not a window over the editor. A sample slot opens it aimed
+at that slot, inserting keeps it open so another sound can be tried, and `3` goes
+back to the instrument without inserting. Parked at `test.fixme` until #817's
+stack lands.
+
 **Preconditions:** signed in with no projects.
 
-1. Create a new project and go to the instrument view. Open the sample slot of
-   the drum machine's "BD" pad.
+1. Create a new project and go to the instrument view. Press the sample slot of
+   the drum machine's "BD" pad. The editor goes to the Library view.
 2. Choose Browse packs. The sound list gives way to pack covers, and the packs
    this project already uses are marked as in the project.
 3. Narrow the packs to those with FX.
@@ -1013,10 +1099,10 @@ project dashboard
    when you insert one of its sounds.
 5. Choose the FX family, then the Impact category. Only that pack's impacts are
    listed.
-6. Select an impact and press Insert. The library closes, and the "BD" pad's
-   slot names that impact.
-7. Open the slot again. Transitions & FX is now listed with the project's own
-   packs.
+6. Select an impact and press Insert. The library shows it as the sound in the
+   slot. Press 3: the "BD" pad's slot names that impact.
+7. Press 4. The library is still aimed at the "BD" pad, and Transitions & FX is
+   now listed with the project's own packs.
 8. Reload the page. The "BD" pad still holds the impact, and Transitions & FX is
    still listed with the project's packs.
 
@@ -1034,11 +1120,17 @@ personal packs, whose cover and banner are the same parts.
 **Issue:** #449 · **Suite:** `tests/e2e/emulator/flows/CF-025.spec.ts` · **Entrypoint:** the
 project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The library is a view on `4`
+that fills the page, not a window over the editor. A sample slot opens it aimed
+at that slot, inserting keeps it open so another sound can be tried, and `3` goes
+back to the instrument without inserting. Parked at `test.fixme` until #817's
+stack lands.
+
 **Preconditions:** signed in with no projects. The library holds several kicks
 whose tags overlap.
 
-1. Create a new project, go to the instrument view and open the "BD" pad's
-   sample slot. The library shows kicks.
+1. Create a new project, go to the instrument view and press the "BD" pad's
+   sample slot. The Library view shows kicks.
 2. Press the similar-sounds button on a kick. The list gives way to that kick's
    closest matches. Each shows how close it is, and the kick you started from
    is named above them.
@@ -1049,7 +1141,8 @@ whose tags overlap.
 5. Choose the first kick in the trail. Its matches come back.
 6. Go back. The list of kicks you started from returns.
 7. Open similar sounds again from any kick, select one of its matches and
-   press Insert. The library closes, and the slot names that match.
+   press Insert. The library shows it as the sound in the slot. Press 3: the
+   slot names that match.
 8. Reload the page. The pad still holds it.
 
 **Outcome:** a producer went from "like this, but…" to a sound they chose,
@@ -1065,18 +1158,21 @@ tests cover.
 **Issue:** #449 (favourites slice), after #691 · **Suite:**
 `tests/e2e/emulator/flows/CF-026.spec.ts` · **Entrypoint:** the project dashboard
 
+**Revised for #817 (five views on `1`–`5`).** The library is a view on `4`,
+so leaving it without inserting is pressing 3, not closing a window.
+
 **Preconditions:** signed in with no projects and no favourites. Depends on
 #691: until per-user favourites exist, this flow cannot be walked.
 
-1. Create a new project, go to the instrument view and open the "BD" pad's
-   sample slot.
+1. Create a new project, go to the instrument view and press the "BD" pad's
+   sample slot. The editor goes to the Library view.
 2. Mark a kick as a favourite. Its heart fills, and Favourites counts one.
-3. Close the library without inserting anything.
-4. Go back to the dashboard and create a second project. Open its "BD" pad's
+3. Press 3 to go back to the instrument view without inserting anything.
+4. Go back to the dashboard and create a second project. Press its "BD" pad's
    sample slot and choose Favourites. The kick you marked is listed.
-5. Insert it. The slot names that kick.
-6. Reload the page. Open the slot again and choose Favourites. The kick is still
-   there, still marked.
+5. Insert it, then press 3. The slot names that kick.
+6. Reload the page. Press 4 and choose Favourites. The kick is still there,
+   still marked.
 
 **Outcome:** a sound a producer liked once stays with them, across projects and
 reloads, one click away from any slot.
@@ -1195,3 +1291,46 @@ with no clips, which are tested at the component layer. Cmd+A in the piano roll
 Cut, copy, paste, duplicate and drag on a selection made this way, which act on
 the same selection as CF-010 and are tested at the component layer. Undo. What
 the outlines look like, as in CF-009.
+
+### CF-030 — A producer tries several kicks on a pad without leaving the library
+
+**Issue:** #817 · **Suite:** `tests/e2e/emulator/flows/CF-030.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects. The library holds at least three
+kicks besides the starter's.
+
+1. Create a new project and press 3. The instrument view shows the starter drum
+   machine. Add a pad: it is called "Pad 2", it is the selected pad, and its
+   empty sample slot is marked as the library's target.
+2. Press the "BD" pad to select it. Now the "BD" pad's sample slot is the one
+   marked as the target, and "Pad 2"'s is not.
+3. Point at the dock's fourth tile. Its tip says it will open the Library on
+   sounds for the "BD" track.
+4. Press 4. The Library view fills the page. Its header says it is inserting
+   into the "BD" track's drum machine, on the "BD" pad, names the kick the pad
+   holds now, and lists one-shots, not loops.
+5. Select a different kick and press Enter. The library stays open and shows
+   that kick as the sound in the slot. Press the down arrow to select the next
+   kick and press Enter again. The library is still open, and shows the second
+   kick in the slot.
+6. Undo once. The library shows the first kick in the slot again.
+7. Select a third kick and press Shift+Enter. The editor goes back to the
+   instrument view, with the "BD" pad selected, its slot naming the third kick
+   and still marked as the target.
+8. Press 1, then 4. The library is still aimed at the "BD" pad. Press 3 to go
+   back without inserting. The slot still names the third kick.
+9. Reload the page. The "BD" pad holds the third kick, and "Pad 2" is still
+   empty.
+
+**Outcome:** a producer aimed the library at one pad by touching it, tried two
+sounds there by key without the library closing, took one back in a single undo,
+kept a third and landed back on the pad they started from. The library stayed
+aimed at that pad across views, and the sound they kept was still there when they
+came back.
+
+**Out of scope:** that any sound is *audible*. The sampler's and the loop
+player's slots, which share the same part and are covered at the component
+layer, as are the Library's empty screens (a synth track, no track) and what the
+slot's target edge and the dock's target dot look like. Choosing sounds, packs,
+genres and similar sounds, which CF-023 to CF-026 own.

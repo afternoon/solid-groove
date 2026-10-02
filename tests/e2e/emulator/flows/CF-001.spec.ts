@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
  * `CF-001` — a visitor with no account reaches a playing loop.
@@ -20,7 +21,7 @@ import { walkthrough } from "../../support/walkthrough";
  *    flow spec that grows assertions becomes a flow nobody can read.
  *
  * **Rewritten for the three-view shell (#304), and parked at `test.fixme`
- * until that stack lands.** This flow shipped live and passing; what changed
+ * until that stack landed.** This flow shipped live and passing; what changed
  * under it is where the pattern is edited. A project used to open with the step
  * editor mounted below the arrangement, so steps 5 and 6 could assert the grid
  * on arrival. #304 makes the arrangement the whole page and moves sequencing
@@ -32,14 +33,19 @@ import { walkthrough } from "../../support/walkthrough";
  * the register contradict CF-008 — which asserts, at the same moment in the same
  * journey, that no step editor is on the page. The PR that closes #304 removes
  * this marker in the same diff that makes the flow pass, exactly as it does for
- * CF-008. Until then the register has no live flow, which is a real cost and a
+ * CF-008. Until then the register had no live flow, which is a real cost and a
  * deliberate one: a wrong live flow is worse than a parked correct one.
  *
  * **Revised for #496 (a sampler is a tonal instrument; the drum machine is the
  * one-shot player).** The starter project is now a drum-machine track, so step
  * 6 reads the kick off the "BD" pad lane ("BD, step 1, on") instead of a
- * sampler's single "Notes" lane. The journey is unchanged. The marker above is
- * #496's, and #496's closing PR removes it.
+ * sampler's single "Notes" lane. The journey is unchanged.
+ *
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: step 6 lands on it (`/sequence`) and step 7 leaves it with
+ * `1` instead of Escape. Parked at `test.fixme` (on the describe, so the body
+ * keeps its indentation) until #817's stack lands; the PR that closes #817
+ * removes the marker.
  *
  * Runs against the Firestore/Auth emulator, like every core flow (`TEST-001`):
  * a flow's outcome includes surviving a reload, and the in-memory mock backend
@@ -73,11 +79,7 @@ const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
 /** The interaction canvas the tracks are drawn on — see CF-008 on why a class. */
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
 
-/** The sequence editor #304 opens over the arrangement (see CF-008). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
-
-test.describe("CF-001", () => {
+test.describe.fixme("CF-001", () => {
   test("a visitor with no account reaches a playing loop", async ({
     page,
     browserName,
@@ -116,8 +118,8 @@ test.describe("CF-001", () => {
     ).toHaveCount(1);
     await step("The new project opens on the arrangement, with a starter pattern");
 
-    // 6. Open that clip. The sequence editor comes up over the arrangement,
-    //    showing the pattern.
+    // 6. Open that clip. The sequence view fills the page, showing the pattern on the
+    //    "BD" pad: steps 1, 5, 9 and 13 on.
     //
     // Where the clip is drawn can only be reached as a coordinate: bar 1 of
     // the first row, through the horizontal scale the arrangement publishes
@@ -135,31 +137,32 @@ test.describe("CF-001", () => {
       },
     });
 
-    await expect(sequenceEditor(page)).toBeVisible();
+    await expectView(page, "Sequence");
+    await expect(sequenceView(page)).toBeVisible();
     // The starter project's four-on-the-floor clip: the kick pad "BD", steps
     // 1, 5, 9, 13 on. Two of them, plus an off step, so this cannot pass
     // against an empty grid. The starter is a drum machine (#496), so the
     // lane is the pad's own name, not the sampler's old "Notes" lane.
     await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 1, on" }),
+      sequenceView(page).getByRole("button", { name: "BD, step 1, on" }),
     ).toBeVisible();
     await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 5, on" }),
+      sequenceView(page).getByRole("button", { name: "BD, step 5, on" }),
     ).toBeVisible();
     await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 2, off" }),
+      sequenceView(page).getByRole("button", { name: "BD, step 2, off" }),
     ).toBeVisible();
     await step("Open the clip — the sequence editor shows the starter pattern");
 
-    // 7. Turn on a step that was off, and close the editor.
-    await sequenceEditor(page).getByRole("button", { name: "BD, step 2, off" }).click();
+    // 7. Turn on a step that was off on the "BD" pad, and press 1 to go back to the
+    //    arrangement.
+    await sequenceView(page).getByRole("button", { name: "BD, step 2, off" }).click();
     await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 2, on" }),
+      sequenceView(page).getByRole("button", { name: "BD, step 2, on" }),
     ).toBeVisible();
     await step("Turn on a step that was off");
 
-    await page.keyboard.press("Escape");
-    await expect(sequenceEditor(page)).toHaveCount(0);
+    await backToArrangement(page);
 
     // 8. Start playback.
     //

@@ -1,49 +1,50 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import {
+  dock,
+  dockTile,
+  emptyScreen,
+  expectView,
+  pressView,
+  sequenceView,
+} from "../support/views";
 
 /**
- * `CF-008` — a producer works across the arrangement, the instrument and the
- * mixer.
+ * `CF-008` — a producer moves between the five views by dock and by keyboard.
  *
  * Read the flow in `docs/core-flows.md`; the numbered comments below are its
- * steps, in its words. This is the acceptance contract for `UI-001` (#304) and
- * is frozen once it lands: a later PR that changes an assertion here has to say
- * so in its body and justify it.
+ * steps, in its words. It was the acceptance contract for `UI-001` (#304), and
+ * is **rewritten for #817**, which puts five views on `1`–`5`: Arrangement,
+ * Sequence, Instrument, Library, Mixer. It is frozen once it lands: a later PR
+ * that changes an assertion here has to say so in its body and justify it.
  *
- * `test.fixme` because none of the shell exists — #304 is the stack that
- * removes this marker. What is missing today:
+ * `test.fixme` until #817's stack lands; the PR that closes #817 removes this
+ * marker. What is missing today:
  *
- *  - **There are no views.** `EditorView` renders the library, the arrangement
- *    and a workspace of stacked panels all at once, in one scroll. There is no
- *    dock, nothing switches, and a project has exactly one address.
- *  - **Sequencing is not a modal.** The step editor and piano roll are panels
- *    below the arrangement, always mounted for whichever track is selected.
- *    Nothing opens from a clip.
- *  - **There is no instrument view.** `InstrumentArea` is a panel inside the
- *    workspace and there is no track rail to switch with.
+ *  - **Sequence is a modal**, a dialog over the arrangement opened from a clip,
+ *    with no key and no address. #817 makes it the view on `2`, with an empty
+ *    screen when no clip is selected.
+ *  - **The dock has three labelled links** and the instrument and mixer sit on
+ *    `2` and `3`. #817 draws five icon tiles with their keys, moves the
+ *    instrument to `3` and the mixer to `5`, and gives each tile a hover tip.
+ *  - **The mixer does not say where you came from.** #817's `5` lands with the
+ *    track you came from marked.
  *
- * What this flow deliberately does *not* wait for is the device chain. The
- * instrument view reserves a place for it and #241 fills it; a flow that
- * asserted an empty slot would be asserting the absence of a feature, which
- * goes stale the moment it ships.
+ * Every locator #817 introduces is assumed, and listed in `../support/views.ts`.
+ * The tiles carry no visible label, so the view you are on is read by
+ * accessible name, never by text.
  *
- * **Revised for #496.** The starter track is a drum machine, so the step
- * editor in steps 2-3 shows the "BD" pad's lane, not a sampler's "Notes" lane.
- * The starter track keeps the name "BD", so the instrument view and mixer
- * assertions in steps 4-7 are unchanged.
- *
- * Runs against the Firestore/Auth emulator, like every core flow: step 7 is a
+ * Runs against the Firestore/Auth emulator, like every core flow: step 9 is a
  * real `page.reload()`, and the mock backend is a fresh, empty store on every
  * page load.
  *
  * ---
  *
- * **Why this flow moves by keyboard *and* by dock.** #304 gives the views two
- * entrypoints — the dock and `1`/`2`/`3` — and two entrypoints that reach
- * different states is the classic way a switcher rots. Steps 4 and 5 use the
- * keyboard, step 6 uses the dock, and every one of them asserts the dock's
- * current-view marker, so the two paths are held to the same state by
- * construction rather than by a separate test nobody runs.
+ * **Why this flow moves by keyboard *and* by dock.** Two entrypoints that reach
+ * different states is the classic way a switcher rots. Steps 2 and 4-7 use
+ * keys, step 8 the dock and the back button, and every one of them asserts the
+ * dock's current-view marker through `expectView`, so the paths are held to the
+ * same state by construction.
  */
 
 /** One bar of the alpha's fixed 4/4 at 192 PPQ (`src/domain/time.ts`). */
@@ -51,14 +52,8 @@ const TICKS_PER_BAR = 4 * 192;
 
 /**
  * The vertical middle of one track row, in the timeline canvas's coordinates.
- *
- * Read off the arrangement root rather than written down here. These two
- * numbers used to be copies — `22` and `28` — and when the row height became
- * `84` the copies did not go red: the old centre of row 0 still landed inside
- * the taller row 0, so a stale spec went on passing while describing a layout
- * that no longer existed. The horizontal scale was never copied for exactly
- * that reason (`data-pixels-per-tick`, the hook CF-004 introduced); this is
- * the same hook on the other axis.
+ * Read off the arrangement root rather than written down here, so a change of
+ * row height cannot leave a stale copy passing.
  */
 const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
   const root = page.getByTestId("arrangement-view-ready");
@@ -69,35 +64,11 @@ const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
 };
 
 /**
- * The view dock (#304): a landmark, and three links rather than tabs, because
- * a view is an address — `/projects/:id`, `/projects/:id/instrument`,
- * `/projects/:id/mixer` — and a link is what a person can open in a new tab,
- * copy, or reach with the back button. Which one you are on is `aria-current`,
- * the same way any navigation says so.
- */
-const dock = (page: Page): Locator => page.getByRole("navigation", { name: "Views" });
-const dockLink = (page: Page, name: string): Locator =>
-  dock(page).getByRole("link", { name });
-const currentView = (page: Page): Locator => dock(page).locator("[aria-current='page']");
-
-/**
  * The interaction canvas the tracks are drawn on. A class, deliberately: it is
  * a `<canvas>`, so there is no role or accessible name to reach it by, and the
  * gesture that opens a clip is a coordinate on it (see CF-005 and CF-007).
  */
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
-
-/**
- * The sequence editor #304 opens over the arrangement.
- *
- * `role="dialog"` is an accessibility fact — it is a window over the page, and
- * a screen reader has to be told so. It is deliberately *not* the shortcut
- * layer's `dialog` context: #304 gives it a `sequence_editor` context instead,
- * so the transport and the note shortcuts keep working while it is open. The
- * two words are unrelated, and step 3 below is what holds the distinction.
- */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 /** The instrument view's track rail, down the left edge. */
 const trackRail = (page: Page): Locator => page.getByRole("list", { name: "Tracks" });
@@ -106,169 +77,184 @@ const trackRail = (page: Page): Locator => page.getByRole("list", { name: "Track
 const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
 
+/** A view fills the page: seven tenths of each axis is a floor, not a target. */
+async function expectFillsPage(page: Page, region: Locator): Promise<void> {
+  const viewport = page.viewportSize();
+  const box = await region.boundingBox();
+  if (!viewport || !box) throw new Error("This spec needs a sized view to measure.");
+  expect(box.width).toBeGreaterThan(viewport.width * 0.7);
+  expect(box.height).toBeGreaterThan(viewport.height * 0.7);
+}
+
 test.describe("CF-008", () => {
-  test("a producer works across the arrangement, the instrument and the mixer", async ({
-    page,
-  }) => {
-    const step = walkthrough(page, {
-      id: "CF-008",
-      title: "A producer works across the arrangement, the instrument and the mixer",
-    });
+  test.fixme(
+    "a producer moves between the five views by dock and by keyboard",
+    async ({ page }) => {
+      const step = walkthrough(page, {
+        id: "CF-008",
+        title: "A producer moves between the five views by dock and by keyboard",
+      });
 
-    // 1. Create a new project. It opens on the arrangement, which fills the
-    //    page, with the starter pattern on the only track and a dock along
-    //    the bottom naming the three views.
-    await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-    await page.getByRole("button", { name: "New Project" }).click();
-    await expect(page).toHaveURL(/\/projects\/prj_[^/]+$/);
-    const arrangementUrl = page.url();
-    await page.getByTestId("arrangement-view-ready").waitFor();
-    await expect(trackList(page)).toHaveCount(1);
+      // 1. Create a new project. It opens on the arrangement, which fills the
+      //    page, with the starter pattern on the only track ("BD", a drum
+      //    machine) and a dock floating along the bottom: five square tiles
+      //    numbered 1 to 5, with the arrangement's marked as the view you are on.
+      await page.goto("/dashboard");
+      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+      await page.getByRole("button", { name: "New Project" }).click();
+      await expectView(page, "Arrangement");
+      const arrangementUrl = page.url();
+      await page.getByTestId("arrangement-view-ready").waitFor();
+      await expect(trackList(page)).toHaveCount(1);
+      const trackName = ((await trackList(page).first().textContent()) ?? "").trim();
+      expect(trackName).toBe("BD");
 
-    await expect(dockLink(page, "Arrangement")).toBeVisible();
-    await expect(dockLink(page, "Instrument")).toBeVisible();
-    await expect(dockLink(page, "Mixer")).toBeVisible();
-    await expect(currentView(page)).toHaveText("Arrangement");
+      // Five tiles, in key order, each showing its key: the dock is the number
+      // row drawn on screen.
+      const tiles = dock(page).getByRole("link");
+      await expect(tiles).toHaveCount(5);
+      const names = [
+        "Arrangement",
+        "Sequence",
+        "Instrument",
+        "Library",
+        "Mixer",
+      ] as const;
+      for (const [index, name] of names.entries()) {
+        await expect(tiles.nth(index)).toHaveAccessibleName(name);
+        await expect(tiles.nth(index)).toContainText(String(index + 1));
+      }
+      await expect(page.getByRole("region", { name: "Library" })).toHaveCount(0);
+      await expect(sequenceView(page)).toHaveCount(0);
+      await step("A new project opens on the arrangement, five tiles in the dock");
 
-    // The arrangement is the whole page now: the library column and the
-    // stacked workspace beneath it are both gone, which is the change a
-    // reviewer is actually looking at here.
-    await expect(page.getByRole("region", { name: "Library" })).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Step editor" })).toHaveCount(0);
-    await expect(page.getByRole("region", { name: "Mixer" })).toHaveCount(0);
-    await step("A new project opens on a full-page arrangement, with the dock");
+      // 2. Press 2 before choosing a clip. The sequence view says no clip is
+      //    selected, tells you to select one in the arrangement, and offers a
+      //    button back to the arrangement that shows its key, 1. Press that
+      //    button. You are back on the arrangement.
+      await pressView(page, "Sequence");
+      const noClip = emptyScreen(page, "No clip selected");
+      await expect(noClip).toBeVisible();
+      await expect(noClip).toContainText(
+        "Select a clip in the arrangement, then press 2 to edit its steps or notes.",
+      );
+      const fix = noClip.getByRole("button", { name: /Arrangement/ });
+      await expect(fix).toContainText("1");
+      await step("Press 2 with no clip: the view says what is missing");
 
-    // 2. Open the clip on the timeline. The sequence editor comes up over the
-    //    arrangement, nearly filling the window, showing the pattern.
-    //
-    // Where the starter clip is drawn can only be reached as a coordinate:
-    // bar 1 of the first row, read through the horizontal scale the
-    // arrangement publishes (`data-pixels-per-tick`, the hook CF-004
-    // introduced).
-    const pixelsPerTick = Number(
-      await page
-        .getByTestId("arrangement-view-ready")
-        .getAttribute("data-pixels-per-tick"),
-    );
-    expect(pixelsPerTick).toBeGreaterThan(0);
-    await timeline(page).dblclick({
-      position: {
-        x: (TICKS_PER_BAR / 2) * pixelsPerTick,
-        y: await rowCentreY(page, 0),
-      },
-    });
+      await fix.click();
+      await expectView(page, "Arrangement");
+      await page.getByTestId("arrangement-view-ready").waitFor();
 
-    await expect(sequenceEditor(page)).toBeVisible();
-    // The starter project's four-on-the-floor clip on the drum machine's
-    // "BD" pad (#496): steps 1, 5, 9, 13 on. Two of them, plus an off step,
-    // so this cannot pass against an empty grid — the same guard CF-001
-    // carries.
-    await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 1, on" }),
-    ).toBeVisible();
-    await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 5, on" }),
-    ).toBeVisible();
-    await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 2, off" }),
-    ).toBeVisible();
+      // 3. Point at the dock's second tile. Its tip names the view, its key and
+      //    what it will open; with no clip chosen it names no clip.
+      await dockTile(page, "Sequence").hover();
+      const tip = page.getByRole("tooltip");
+      await expect(tip).toContainText("2");
+      await expect(tip).toContainText("Sequence");
+      await expect(tip).not.toContainText("Four on the floor");
+      await step("Point at the second tile: its tip names the view and key");
 
-    // "Nearly filling the window" is the point of the modal — the piano roll
-    // in particular exists to get this room — so it is asserted rather than
-    // left to the screenshot. Seven tenths of each axis is a floor, not a
-    // target: it fails a panel that merely grew, and passes the 100px gap
-    // (clamped to 12% of a short side) that #538 settled on.
-    const viewport = page.viewportSize();
-    if (!viewport) throw new Error("This spec needs a sized viewport to measure.");
-    const box = await sequenceEditor(page).boundingBox();
-    if (!box) throw new Error("The sequence editor is visible but has no box.");
-    expect(box.width).toBeGreaterThan(viewport.width * 0.7);
-    expect(box.height).toBeGreaterThan(viewport.height * 0.7);
-    await step("Open the clip — the sequence editor fills the window");
+      // 4. Open the clip on the timeline. The sequence view fills the page,
+      //    showing the four-on-the-floor pattern on the "BD" pad, and the dock
+      //    marks the sequence view as the one you are on.
+      const pixelsPerTick = Number(
+        await page
+          .getByTestId("arrangement-view-ready")
+          .getAttribute("data-pixels-per-tick"),
+      );
+      expect(pixelsPerTick).toBeGreaterThan(0);
+      await timeline(page).dblclick({
+        position: {
+          x: (TICKS_PER_BAR / 2) * pixelsPerTick,
+          y: await rowCentreY(page, 0),
+        },
+      });
+      await expectView(page, "Sequence");
+      await expect(sequenceView(page)).toBeVisible();
+      // Steps 1, 5, 9 and 13 on (#496). Two of them, plus an off step, so this
+      // cannot pass against an empty grid — the same guard CF-001 carries.
+      const editor = sequenceView(page);
+      await expect(editor.getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
+      await expect(editor.getByRole("button", { name: "BD, step 5, on" })).toBeVisible();
+      await expect(editor.getByRole("button", { name: "BD, step 2, off" })).toBeVisible();
+      await expectFillsPage(page, editor);
+      // One job at a time: the timeline is not behind the sequence view, it is
+      // not on the page.
+      await expect(page.getByTestId("arrangement-view-ready")).toHaveCount(0);
+      await step("Open the clip: the sequence view fills the page");
 
-    // 3. Turn on a step that was off, then close the editor. The arrangement
-    //    is underneath, exactly as it was apart from the edit.
-    await sequenceEditor(page).getByRole("button", { name: "BD, step 2, off" }).click();
-    await expect(
-      sequenceEditor(page).getByRole("button", { name: "BD, step 2, on" }),
-    ).toBeVisible();
-    await step("Turn on a step that was off");
+      // 5. Turn on a step that was off on the "BD" pad, then press 1. The
+      //    arrangement is exactly as it was apart from the edit.
+      await editor.getByRole("button", { name: "BD, step 2, off" }).click();
+      await expect(editor.getByRole("button", { name: "BD, step 2, on" })).toBeVisible();
+      await step("Turn on a step that was off");
 
-    await page.keyboard.press("Escape");
-    await expect(sequenceEditor(page)).toHaveCount(0);
-    await expect(page).toHaveURL(arrangementUrl);
-    await expect(trackList(page)).toHaveCount(1);
-    await expect(currentView(page)).toHaveText("Arrangement");
-    await step("Close it — the arrangement is underneath, unchanged");
+      await pressView(page, "Arrangement");
+      await expect(page).toHaveURL(arrangementUrl);
+      await page.getByTestId("arrangement-view-ready").waitFor();
+      await expect(trackList(page)).toHaveCount(1);
+      await step("Press 1: the arrangement, unchanged");
 
-    // 4. Go to the instrument view with the keyboard. The track's instrument
-    //    fills the page, with a list of the project's tracks down the left
-    //    edge and the dock still showing which view you are on.
-    const trackName = ((await trackList(page).first().textContent()) ?? "").trim();
-    expect(trackName).not.toBe("");
+      // 6. Press 3. The track's instrument fills the page, with a list of the
+      //    project's tracks down the left edge and the dock marking the
+      //    instrument view.
+      await pressView(page, "Instrument");
+      await expect(
+        page.getByRole("region", { name: `${trackName} instrument` }),
+      ).toBeVisible();
+      await expect(trackRail(page).getByRole("listitem")).toHaveCount(1);
+      await expect(trackRail(page)).toContainText(trackName);
+      await expect(page.getByTestId("arrangement-view-ready")).toHaveCount(0);
+      await step("Press 3: the instrument fills the page, tracks down the left");
 
-    await page.keyboard.press("2");
-    await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
-    await expect(currentView(page)).toHaveText("Instrument");
-    await expect(
-      page.getByRole("region", { name: `${trackName} instrument` }),
-    ).toBeVisible();
-    await expect(trackRail(page).getByRole("listitem")).toHaveCount(1);
-    await expect(trackRail(page)).toContainText(trackName);
-    // One job at a time: the timeline is not merely hidden behind the
-    // instrument, it is not on the page.
-    await expect(page.getByTestId("arrangement-view-ready")).toHaveCount(0);
-    await step("Press 2 — the instrument fills the page, tracks down the left");
+      // 7. Press 5. The mixer fills the page with the "BD" track's strip marked
+      //    as the one you came from. Pull its volume fader down.
+      await pressView(page, "Mixer");
+      const mixerUrl = page.url();
+      await expect(page.getByRole("region", { name: "Mixer" })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: `Edit ${trackName}` }),
+      ).toHaveAttribute("aria-pressed", "true");
 
-    // 5. Go to the mixer with the keyboard, and pull the track's volume fader
-    //    down.
-    await page.keyboard.press("3");
-    await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/mixer$/);
-    const mixerUrl = page.url();
-    await expect(currentView(page)).toHaveText("Mixer");
-    await expect(page.getByRole("region", { name: "Mixer" })).toBeVisible();
+      // The fader travels in its own normalized position, not in decibels
+      // (`src/domain/faders.ts`); 0.4 is simply somewhere below where a new
+      // track starts.
+      const fader = page.getByRole("slider", { name: `Volume for ${trackName}` });
+      const restingVolume = Number(await fader.inputValue());
+      await fader.fill("0.4");
+      await expect(fader).toHaveValue("0.4");
+      expect(restingVolume).toBeGreaterThan(0.4);
+      await step("Press 5: pull the track's fader down in the mixer");
 
-    // The fader travels in its own normalized position, not in decibels
-    // (`src/domain/faders.ts`); 0.4 is simply somewhere below where a new
-    // track starts, which is all step 5 asks for.
-    const fader = page.getByRole("slider", { name: `Volume for ${trackName}` });
-    await expect(fader).toBeVisible();
-    const restingVolume = Number(await fader.inputValue());
-    await fader.fill("0.4");
-    await expect(fader).toHaveValue("0.4");
-    expect(restingVolume).toBeGreaterThan(0.4);
-    await step("Press 3 — pull the track's fader down in the mixer");
+      // 8. Go back to the arrangement from the dock. The timeline is as you left
+      //    it, and the dock marks the arrangement as the view you are on. Press
+      //    the browser's back button: you are on the mixer again.
+      await dockTile(page, "Arrangement").click();
+      await expectView(page, "Arrangement");
+      await page.getByTestId("arrangement-view-ready").waitFor();
+      await expect(trackList(page)).toHaveCount(1);
+      await step("Back to the arrangement from the dock");
 
-    // 6. Go back to the arrangement from the dock. The timeline is as you
-    //    left it, and the dock marks the arrangement as the view you are on.
-    await dockLink(page, "Arrangement").click();
-    await expect(page).toHaveURL(arrangementUrl);
-    await expect(currentView(page)).toHaveText("Arrangement");
-    await page.getByTestId("arrangement-view-ready").waitFor();
-    await expect(trackList(page)).toHaveCount(1);
-    await step("Back to the arrangement from the dock");
+      await page.goBack();
+      await expectView(page, "Mixer");
+      await expect(page).toHaveURL(mixerUrl);
+      await step("Back button: the mixer again");
 
-    // 7. Return to the mixer and reload the page. The project reopens on the
-    //    mixer, with the fader still where you put it.
-    //
-    // The reload is only meaningful once the edits have been written, which
-    // the save status is how the editor reports.
-    await dockLink(page, "Mixer").click();
-    await expect(page).toHaveURL(mixerUrl);
-    await expect(page.locator(".save-status")).toHaveText("Saved", {
-      timeout: 10_000,
-    });
-    await page.reload();
-
-    // The view is part of the address, so the reload lands on the mixer
-    // without anyone clicking anything — which is the half of this flow that
-    // a session-scoped signal would quietly fail.
-    await expect(page).toHaveURL(mixerUrl);
-    await expect(currentView(page)).toHaveText("Mixer");
-    await expect(
-      page.getByRole("slider", { name: `Volume for ${trackName}` }),
-    ).toHaveValue("0.4");
-    await step("Reload the mixer — it reopens there, fader where you left it");
-  });
+      // 9. Reload the page. The project reopens on the mixer, with the fader
+      //    still where you put it.
+      //
+      // The reload is only meaningful once the edits have been written, which
+      // the save status is how the editor reports.
+      await expect(page.locator(".save-status")).toHaveText("Saved", {
+        timeout: 10_000,
+      });
+      await page.reload();
+      await expectView(page, "Mixer");
+      await expect(
+        page.getByRole("slider", { name: `Volume for ${trackName}` }),
+      ).toHaveValue("0.4");
+      await step("Reload the mixer: it reopens there, fader where you left it");
+    },
+  );
 });

@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
  * `CF-018`: a producer picks a key and pulls stray notes into it.
@@ -9,9 +10,10 @@ import { walkthrough } from "../../support/walkthrough";
  * (ARR-010, the piano roll redesign), and it is frozen once it lands: a later
  * PR that changes an assertion here has to say so in its body and justify it.
  *
- * It is `test.fixme` because none of this exists yet. Today's key guide is a
- * view-only toggle that is never saved, offers only major and minor, and has
- * no Quantize to scale. The PR that closes #450 removes this marker.
+ * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
+ * the arrangement: opening the clip lands on it (`/sequence`), and step 6
+ * leaves it with `1` instead of its close button. Parked at `test.fixme` until
+ * #817's stack lands; the PR that closes #817 removes the marker.
  *
  * The roll's pitch rows, ruler and notes are found exactly as in CF-017 (read
  * its header for that contract). On top of it, this flow needs:
@@ -45,10 +47,6 @@ const timeline = (page: Page): Locator => page.locator(".arrangement-layer-inter
 /** The arrangement's accessible mirror of the track list, top to bottom. */
 const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
-
-/** The clip editor that opens over the arrangement (CF-001). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 /** A pitch name as a pattern that reads a sharp spelled `♯` or `#`. */
 const pitchPattern = (pitch: string): string => pitch.replace("♯", "[♯#]");
@@ -180,23 +178,17 @@ async function openSynthClip(page: Page): Promise<Locator> {
       y: rulerHeight + 1.5 * rowHeight,
     },
   });
-  const editor = sequenceEditor(page);
+  await expectView(page, "Sequence");
+  const editor = sequenceView(page);
   await expect(editor).toBeVisible();
   await expect(editor.getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
   return editor;
 }
 
-async function closeEditor(page: Page): Promise<void> {
-  await sequenceEditor(page)
-    .getByRole("button", { name: "Close sequence editor" })
-    .click();
-  await expect(sequenceEditor(page)).toHaveCount(0);
-}
-
 test.describe("CF-018", () => {
-  // `test.fixme` until #450 (ARR-010) lands: the PR that closes it removes this
+  // `test.fixme` until #817's stack lands: the PR that closes it removes this
   // marker in the same diff that makes the flow pass.
-  test("a producer picks a key and pulls stray notes into it", async ({ page }) => {
+  test.fixme("a producer picks a key and pulls stray notes into it", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-018",
       title: "A producer picks a key and pulls stray notes into it",
@@ -285,11 +277,12 @@ test.describe("CF-018", () => {
     await expectCMinorRows(editor);
     await step("Redo: they are gone again");
 
-    // 6. Close the editor and reload the page. Open the clip again.
+    // 6. Press 1 to go back to the arrangement, and reload the page. Open the
+    //    clip again.
     //
     // The save status is how the editor reports that a revision-checked write
     // completed, so the reload tests persistence rather than a race (CF-016).
-    await closeEditor(page);
+    await backToArrangement(page);
     await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
     await page.reload();
     await expect(page).toHaveURL(projectUrl);

@@ -2,18 +2,21 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   audition,
+  backToInstrument,
   expectSelected,
   goToInstrumentView,
   insertButton,
   library,
+  libraryHeader,
   listedNames,
   newProjectOnInstrumentView,
   openPadSlot,
   railButton,
   reloadOnInstrumentView,
-  sampleSlot,
+  slotSound,
   soundList,
 } from "../support/library";
+import { pressView } from "../support/views";
 
 /**
  * `CF-026`: a producer keeps a sound as a favourite and finds it in another
@@ -25,11 +28,15 @@ import {
  * later PR that changes an assertion here has to say so in its body and
  * justify it.
  *
- * It is `test.fixme` for two reasons. None of the redesigned library exists
- * yet (#449), and favourites need somewhere to live: per-user favourites in
- * Firestore are #691 (LIB-011), a persistence contract change that lands
- * before #449's favourites slice. Until #691 is in, this flow cannot be
- * walked. The PR that delivers #449's favourites slice removes this marker.
+ * It is `test.fixme` because favourites need somewhere to live: per-user
+ * favourites in Firestore are #691 (LIB-011), a persistence contract change.
+ * Until #691 is in, this flow cannot be walked.
+ *
+ * **Revised for #817.** The library is the Library view on `4`, not a dialog
+ * with a close button: leaving it without inserting is pressing `3`, Insert
+ * keeps it open, and step 6 comes back to it with `4`. The marker stays until
+ * both #691 and #817's stack land; the PR that lands the later of the two
+ * removes it.
  *
  * **Locators.** Every library locator is assumed from #449 and the reference
  * design, and listed in `../support/library.ts`. This spec relies on two in
@@ -57,9 +64,8 @@ const heart = (page: Page, name: string): Locator =>
   library(page).getByRole("button", { name: `Favourite ${name}`, exact: true });
 
 test.describe("CF-026", () => {
-  // `test.fixme` until #691 and #449's favourites slice land: the PR that
-  // delivers that slice removes this marker in the same diff that makes the
-  // flow pass.
+  // `test.fixme` until #691 and #817's stack land: the PR that lands the later
+  // of the two removes this marker in the same diff that makes the flow pass.
   test.fixme(
     "a producer keeps a sound as a favourite and finds it in another project",
     async ({ page }) => {
@@ -68,12 +74,12 @@ test.describe("CF-026", () => {
         title: "A producer keeps a sound as a favourite and finds it in another project",
       });
 
-      // 1. Create a new project, go to the instrument view and open the "BD"
-      //    pad's sample slot.
+      // 1. Create a new project, go to the instrument view and press the "BD"
+      //    pad's sample slot. The editor goes to the Library view.
       const firstProject = await newProjectOnInstrumentView(page);
-      const starterKick = ((await sampleSlot(page, "BD").textContent()) ?? "").trim();
+      const starterKick = await slotSound(page, "BD");
       await openPadSlot(page, "BD");
-      await step('Open the "BD" pad\'s sample slot');
+      await step('Press the "BD" pad\'s sample slot');
 
       // 2. Mark a kick as a favourite. Its heart fills, and Favourites counts
       //    one.
@@ -89,13 +95,13 @@ test.describe("CF-026", () => {
         "Mark a kick as a favourite: its heart fills, and Favourites counts one",
       );
 
-      // 3. Close the library without inserting anything.
-      await library(page).getByRole("button", { name: "Close library" }).click();
-      await expect(library(page)).toHaveCount(0);
-      await expect(sampleSlot(page, "BD")).toHaveText(starterKick);
-      await step("Close the library without inserting anything");
+      // 3. Press 3 to go back to the instrument view without inserting
+      //    anything.
+      await backToInstrument(page);
+      await expect.poll(() => slotSound(page, "BD")).toBe(starterKick);
+      await step("Press 3 to go back without inserting anything");
 
-      // 4. Go back to the dashboard and create a second project. Open its "BD"
+      // 4. Go back to the dashboard and create a second project. Press its "BD"
       //    pad's sample slot and choose Favourites. The kick you marked is
       //    listed.
       await page.getByRole("link", { name: "Projects" }).click();
@@ -112,24 +118,24 @@ test.describe("CF-026", () => {
       await expect.poll(() => listedNames(soundList(page))).toEqual([kick]);
       await step("In a second project, choose Favourites: the kick you marked is listed");
 
-      // 5. Insert it. The slot names that kick.
+      // 5. Insert it, then press 3. The slot names that kick.
       await audition(soundList(page), kick).click();
       await expectSelected(page, kick);
       await insertButton(page, kick).click();
-      await expect(library(page)).toHaveCount(0);
-      await expect(sampleSlot(page, "BD")).toHaveText(kick);
-      await step("Insert it: the slot names that kick");
+      await backToInstrument(page);
+      await expect.poll(() => slotSound(page, "BD")).toBe(kick);
+      await step("Insert it, then press 3: the slot names that kick");
 
-      // 6. Reload the page. Open the slot again and choose Favourites. The
-      //    kick is still there, still marked.
+      // 6. Reload the page. Press 4 and choose Favourites. The kick is still
+      //    there, still marked.
       await reloadOnInstrumentView(page, secondProject);
-      await expect(sampleSlot(page, "BD")).toHaveText(kick);
-      await sampleSlot(page, "BD").click();
-      await expect(library(page)).toBeVisible();
+      await expect.poll(() => slotSound(page, "BD")).toBe(kick);
+      await pressView(page, "Library");
+      await expect(libraryHeader(page)).toContainText("BD");
       await railButton(page, "Favourites").click();
       await expect.poll(() => listedNames(soundList(page))).toEqual([kick]);
       await expect(heart(page, kick)).toHaveAttribute("aria-pressed", "true");
-      await step("Reload, open the slot and choose Favourites: the kick is still marked");
+      await step("Reload, press 4 and choose Favourites: the kick is still marked");
     },
   );
 });

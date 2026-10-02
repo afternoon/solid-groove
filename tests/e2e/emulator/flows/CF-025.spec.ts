@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   audition,
+  backToInstrument,
   categoryChip,
   deliveredLibrary,
   drumOneShots,
@@ -13,9 +14,10 @@ import {
   newProjectOnInstrumentView,
   openPadSlot,
   precondition,
+  readout,
   reloadOnInstrumentView,
-  sampleSlot,
   similarList,
+  slotSound,
   soundList,
 } from "../support/library";
 
@@ -27,9 +29,11 @@ import {
  * redesign), and it is frozen once it lands: a later PR that changes an
  * assertion here has to say so in its body and justify it.
  *
- * It is `test.fixme` because there is no similar-sounds view, no similarity
- * scoring and no select-then-insert library yet. The PR that closes #449
- * removes this marker.
+ * **Revised for #817.** The library is the Library view on `4`, filling the
+ * page, not a dialog over the editor. Insert keeps it open, showing the
+ * inserted match as the sound in the slot, and `3` goes back to the
+ * instrument. Parked at `test.fixme` until #817's stack lands: the PR that
+ * closes #817 removes the marker.
  *
  * **Locators.** Every library locator is assumed from #449 and the reference
  * design, and listed in `../support/library.ts`. This spec adds its own for
@@ -77,14 +81,16 @@ async function matches(page: Page): Promise<string[]> {
 }
 
 test.describe("CF-025", () => {
-  test("a producer follows similar sounds to a better kick", async ({ page }) => {
+  // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
+  // marker in the same diff that makes the flow pass.
+  test.fixme("a producer follows similar sounds to a better kick", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-025",
       title: "A producer follows similar sounds to a better kick",
     });
 
-    // 1. Create a new project, go to the instrument view and open the "BD"
-    //    pad's sample slot. The library shows kicks.
+    // 1. Create a new project, go to the instrument view and press the "BD"
+    //    pad's sample slot. The Library view shows kicks.
     const projectUrl = await newProjectOnInstrumentView(page);
     const kicks = drumOneShots(await deliveredLibrary(page), "kick");
     precondition(
@@ -100,7 +106,7 @@ test.describe("CF-025", () => {
     await expect(categoryChip(page, "Kick")).toHaveAttribute("aria-pressed", "true");
     const startingList = await listedNames(soundList(page));
     expect(startingList.length).toBeGreaterThan(2);
-    await step('Open the "BD" pad\'s sample slot: the library shows kicks');
+    await step('Press the "BD" pad\'s sample slot: the library shows kicks');
 
     // 2. Press the similar-sounds button on a kick. The list gives way to that
     //    kick's closest matches. Each shows how close it is, and the kick you
@@ -152,7 +158,8 @@ test.describe("CF-025", () => {
     await step("Go back: the list of kicks you started from returns");
 
     // 7. Open similar sounds again from any kick, select one of its matches
-    //    and press Insert. The library closes, and the slot names that match.
+    //    and press Insert. The library shows it as the sound in the slot.
+    //    Press 3: the slot names that match.
     const again = startingList[1];
     await soundsLike(soundList(page), again).click();
     await expect(reference(page, again)).toBeVisible();
@@ -160,13 +167,14 @@ test.describe("CF-025", () => {
     await audition(similarList(page), chosen).click();
     await expectSelected(page, chosen);
     await insertButton(page, chosen).click();
-    await expect(library(page)).toHaveCount(0);
-    await expect(sampleSlot(page, "BD")).toHaveText(chosen);
+    await expect(readout(page, "In the slot")).toContainText(chosen);
+    await backToInstrument(page);
+    await expect.poll(() => slotSound(page, "BD")).toBe(chosen);
     await step("Select a match and press Insert: the slot names it");
 
     // 8. Reload the page. The pad still holds it.
     await reloadOnInstrumentView(page, projectUrl);
-    await expect(sampleSlot(page, "BD")).toHaveText(chosen);
+    await expect.poll(() => slotSound(page, "BD")).toBe(chosen);
     await step("Reload: the pad still holds it");
   });
 });

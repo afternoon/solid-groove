@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { library, libraryHeader } from "../support/library";
+import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
  * `CF-005` — a producer brings a library loop into their project.
@@ -17,24 +19,11 @@ import { walkthrough } from "../../support/walkthrough";
  * flow asserts is the same in every particular: a new track at the bottom,
  * carrying that loop as a clip at bar 1, and nothing else in the project moved.
  *
- * `test.fixme` because none of that path exists yet — #281 is the PR that
- * removes this marker. What is missing today:
- *
- *  - **The insertion itself.** `loadSampleCommands` (#225) points a *sampler*
- *    at an asset; nothing turns a chosen loop into a new track carrying an
- *    audio clip. That is #281's subject and the reason this flow exists.
- *  - **The way in.** The arrangement has no affordance that opens the library,
- *    because today the library is always on screen. #304 removes the panel and
- *    owes this entrypoint.
- *  - **The loop's tempo on the row.** Step 3 asks the producer to find a loop
- *    "recorded at a different tempo from the project's", which they can only do
- *    if the browser says what tempo each loop was recorded at. `AssetRow` shows
- *    a name, a role and a pack; the manifest already carries `bpm`. Surfacing
- *    it is #281's, and this spec finds its loop by reading it.
- *  - **The loop brace** step 6 asserts is unchanged, which is #280/#278.
- *    CF-005 is where "nothing in the product moves the brace on the user's
- *    behalf" is proved from the other side, so this flow depends on that
- *    surface existing even though it never touches it.
+ * **Revised for #817.** The library is the Library view on `4`, not a modal,
+ * and the sequence editor the view on `2`. The arrangement's library button aims
+ * the Library view at a new track, Shift+Enter inserts and goes back to the
+ * arrangement, and `1` leaves the sequence view. Parked at `test.fixme` until
+ * #817's stack lands: the PR that closes #817 removes the marker.
  *
  * Runs against the Firestore/Auth emulator rather than the mock backend,
  * because step 7 is a real `page.reload()` and the mock repository is a fresh,
@@ -61,19 +50,12 @@ const TICKS_PER_BAR = 4 * 192;
 const addFromLibrary = (page: Page): Locator =>
   page.getByRole("button", { name: /library/i }).first();
 
-/** The library, as the modal #304 makes it (`LibraryBrowser` inside a dialog). */
-const library = (page: Page): Locator => page.getByRole("dialog", { name: "Library" });
-
 /**
  * The interaction canvas the tracks are drawn on. A class, deliberately: it is
  * a `<canvas>`, so there is no role or accessible name to reach it by, and the
  * click that inspects the result is a coordinate on it.
  */
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
-
-/** The sequence editor #304 opens over the arrangement (see CF-008). */
-const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
 
 /** The arrangement's accessible mirror of the loop brace (see CF-004). */
 const loopBrace = (page: Page): Locator => page.getByTestId("arrangement-loop-live");
@@ -119,9 +101,9 @@ async function loopAtAnotherTempo(
 }
 
 test.describe("CF-005", () => {
-  // `test.fixme` until #281 (LOOP-019) lands: that PR removes this marker in
-  // the same diff that makes the flow pass.
-  test("a producer brings a library loop into their project", async ({ page }) => {
+  // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
+  // marker in the same diff that makes the flow pass.
+  test.fixme("a producer brings a library loop into their project", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-005",
       title: "A producer brings a library loop into their project",
@@ -138,15 +120,18 @@ test.describe("CF-005", () => {
     await expect(trackList(page)).toHaveCount(1);
     await step("A new project opens on the arrangement, with the starter pattern");
 
-    // 2. Choose to add a loop from the library. The library opens over the
-    //    arrangement.
+    // 2. Choose to add a loop from the library. The editor goes to the Library
+    //    view, which fills the page. Its header says it is inserting into a new
+    //    track, and it lists loops, not one-shots.
     const tempoInput = page.getByRole("spinbutton", { name: "Tempo (BPM)" });
     const projectTempo = Number(await tempoInput.inputValue());
     await addFromLibrary(page).click();
-    await expect(library(page)).toBeVisible();
+    await expectView(page, "Library");
+    await expect(libraryHeader(page)).toContainText("new track");
 
     // 3. Find a drum loop that was recorded at a different tempo from the
-    //    project's, and insert it.
+    //    project's, and select it. The library opens on loops near the
+    //    project's tempo, so widen it to any tempo to find one.
     //
     // The library lists the sounds of every pack as rows, so finding a loop
     // means searching for it and picking its row.
@@ -164,12 +149,11 @@ test.describe("CF-005", () => {
     // Select-then-insert: hearing the loop is what makes it the one to insert.
     await loop.row.getByRole("button", { name: /^Audition / }).click();
 
-    await library(page)
-      .getByRole("button", { name: `Insert ${loop.name}` })
-      .click();
-
-    // 4. The library closes. A new track appears at the bottom of the track
-    //    list, carrying that loop as a clip starting at bar 1.
+    // 4. Press Shift+Enter. The loop is inserted and the editor goes back to the
+    //    arrangement. A new track appears at the bottom of the track list,
+    //    carrying that loop as a clip starting at bar 1.
+    await page.keyboard.press("Shift+Enter");
+    await expectView(page, "Arrangement");
     await expect(library(page)).toHaveCount(0);
     await expect(trackList(page)).toHaveCount(2);
     await expect(trackList(page).last()).toContainText(loop.name);
@@ -195,22 +179,22 @@ test.describe("CF-005", () => {
     await expect(selectedPlacements(page)).toHaveCount(1);
     await step("A new track at the bottom carries the loop at bar 1");
 
-    // 5. Open that clip. It is named as a loop that follows the project tempo
-    //    rather than a pitched one-shot, and it states the tempo it was
-    //    recorded at. Close it again.
+    // 5. Open that clip. The sequence view names it as a loop that follows the
+    //    project tempo rather than a pitched one-shot, and states the tempo it
+    //    was recorded at. Press 1 to go back to the arrangement.
     //
     // `LoopInfo` (INS-02) is the surface that says so, and #304 moves it inside
     // the sequence editor, beside the clip it describes.
     await timeline(page).dblclick({ position: bar1OfNewTrack });
-    const loopPanel = sequenceEditor(page).getByRole("region", { name: "Audio loop" });
+    await expectView(page, "Sequence");
+    const loopPanel = sequenceView(page).getByRole("region", { name: "Audio loop" });
     await expect(loopPanel).toContainText("Tempo-labelled loop");
     await expect(loopPanel).toContainText(loop.name);
     await expect(loopPanel).toContainText(`${loop.sourceTempo} BPM`);
     await expect(loopPanel).toContainText(`${projectTempo} BPM`);
     await step("Open the clip — it is a tempo-labelled loop, not a one-shot");
 
-    await page.keyboard.press("Escape");
-    await expect(sequenceEditor(page)).toHaveCount(0);
+    await backToArrangement(page);
 
     // 6. Nothing else moved: the project tempo is unchanged, the loop brace is
     //    where it was, and the transport is still stopped.

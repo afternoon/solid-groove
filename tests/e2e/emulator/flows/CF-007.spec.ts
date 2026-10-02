@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { library } from "../support/library";
+import { expectView } from "../support/views";
 
 /**
  * `CF-007` — a producer drives the whole mix through an overdrive.
@@ -12,23 +14,15 @@ import { walkthrough } from "../../support/walkthrough";
  * **Rewritten by #304**, which replaces the editor's main region with three
  * views. The master chain is reached by going to the **mixer** and selecting
  * the master strip, not by switching a tab inside the arrangement; and step 1
- * brings its loop in through the library modal, as CF-005 now does. Everything
+ * brings its loop in through the library, as CF-005 does. Everything
  * this flow proves — the chain, the commands behind it, the control, the
  * reload — is unchanged.
  *
- * `test.fixme` because the surface is entirely missing — #283 is the PR that
- * removes this marker. What is *not* missing is the processing: `LOOP-009`
- * shipped all six device types with real DSP (`src/audio/devices/`) and
- * `device.add/remove/reorder/duplicate/setBypass/reset` are registered commands
- * (`src/commands/definitions/devices.ts`). This flow is blocked on UI only:
- *
- *  - **There is no master strip.** `Mixer` has no master channel and nothing
- *    anywhere renders a device chain, so a producer cannot reach an insert
- *    chain at all today (#241 tracks the same gap for tracks).
- *  - **There are no views to switch between**, which is #304 — this flow is
- *    blocked on it and only uses the shell CF-008 proves.
- *  - **Step 1 depends on #281** (CF-005's insertion), which is how a second
- *    part gets into the project without a track-creation detour.
+ * **Revised for #817.** Step 1 brings its loop in through the Library view on
+ * `4`, as CF-005 now does: the arrangement's library button aims it at a new
+ * track and Shift+Enter inserts and goes back to the arrangement. The mixer is
+ * the view on `5`. Parked at `test.fixme` until #817's stack lands: the PR that
+ * closes #817 removes the marker.
  *
  * Runs against the Firestore/Auth emulator rather than the mock backend,
  * because step 8 is a real `page.reload()` and the mock repository is a fresh,
@@ -73,22 +67,23 @@ const masterView = (page: Page): Locator =>
 const masterChain = (page: Page): Locator =>
   masterView(page).getByRole("list", { name: "Master chain" });
 
-/** The arrangement's way into the library, and the library itself — see CF-005. */
+/** The arrangement's way into the library — see CF-005. */
 const addFromLibrary = (page: Page): Locator =>
   page.getByRole("button", { name: /library/i }).first();
-const library = (page: Page): Locator => page.getByRole("dialog", { name: "Library" });
 
 /** The transport's playhead readout, by the accessible text `EditorHeader` gives it. */
 const playheadReadout = (page: Page): Locator =>
   page.getByText(/^Playhead at bar \d+\.\d+$/);
 
 test.describe("CF-007", () => {
-  // `test.fixme` until #283 (LOOP-020) lands: that PR removes this marker in
-  // the same diff that makes the flow pass.
+  // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
+  // marker in the same diff that makes the flow pass.
   test("a producer drives the whole mix through an overdrive", async ({
     page,
     browserName,
   }) => {
+    // Parked from inside the body so the body keeps its indentation.
+    test.fixme();
     // Playback runs across several steps of this flow in real time.
     test.setTimeout(120_000);
 
@@ -123,7 +118,7 @@ test.describe("CF-007", () => {
     await page.getByTestId("arrangement-view-ready").waitFor();
 
     await addFromLibrary(page).click();
-    await expect(library(page)).toBeVisible();
+    await expectView(page, "Library");
     await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
     // A loop states the tempo it was recorded at; a one-shot has none, and a
     // one-shot inserted here would load a sampler instead of making a track.
@@ -140,11 +135,8 @@ test.describe("CF-007", () => {
     await library(page)
       .getByRole("button", { name: loopName ?? "", exact: true })
       .click();
-    await library(page)
-      .getByRole("button", {
-        name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
-      })
-      .click();
+    await page.keyboard.press("Shift+Enter");
+    await expectView(page, "Arrangement");
     await expect(library(page)).toHaveCount(0);
     await expect(
       page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),

@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { library } from "../support/library";
+import { expectView } from "../support/views";
 
 /**
  * `CF-012` — a producer builds an effects chain on one track.
@@ -9,20 +11,18 @@ import { walkthrough } from "../../support/walkthrough";
  * and is frozen once it lands: a later PR that changes an assertion here has to
  * say so in its body and justify it.
  *
- * `test.fixme` because the surface is missing — #241 is the PR that removes
- * this marker. Everything under it exists: the six device types and their
- * parameter definitions (`src/domain/devices.ts`), the `device.*` commands
- * (`src/commands/definitions/devices.ts`), and `DeviceChain` on every track
- * (`src/audio/DeviceChain.ts`). What does not is the panel: the instrument view
- * has only the empty "Device chain" slot UI-001 reserved for it
- * (`src/editor/DeviceChainSlot.tsx`).
+ * **Revised for #817.** Step 1 brings its loop in through the Library view on
+ * `4`, as CF-005 now does: the arrangement's library button aims it at a new
+ * track and Shift+Enter inserts and goes back to the arrangement. Parked at
+ * `test.fixme` until #817's stack lands: the PR that closes #817 removes the
+ * marker.
  *
  * Runs against the Firestore/Auth emulator rather than the mock backend,
  * because step 9 is a real `page.reload()` and the mock repository is a fresh,
  * empty store on every page load.
  */
 
-/** The dock's links to the three views (#304). */
+/** The dock's links to two of the five views (#304, #817). */
 const viewLink = (page: Page, name: "Mixer" | "Instrument"): Locator =>
   page.getByRole("navigation", { name: "Views" }).getByRole("link", { name });
 const mixer = (page: Page): Locator => page.getByRole("region", { name: "Mixer" });
@@ -65,22 +65,23 @@ async function addDevice(page: Page, label: string): Promise<void> {
     .click();
 }
 
-/** The arrangement's way into the library, and the library itself — see CF-005. */
+/** The arrangement's way into the library — see CF-005. */
 const addFromLibrary = (page: Page): Locator =>
   page.getByRole("button", { name: /library/i }).first();
-const library = (page: Page): Locator => page.getByRole("dialog", { name: "Library" });
 
 /** The transport's playhead readout, by the accessible text `EditorHeader` gives it. */
 const playheadReadout = (page: Page): Locator =>
   page.getByText(/^Playhead at bar \d+\.\d+$/);
 
 test.describe("CF-012", () => {
-  // `test.fixme` until #241 (LOOP-017) lands: that PR removes this marker in
-  // the same diff that makes the flow pass.
+  // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
+  // marker in the same diff that makes the flow pass.
   test("a producer builds an effects chain on one track", async ({
     page,
     browserName,
   }) => {
+    // Parked from inside the body so the body keeps its indentation.
+    test.fixme();
     test.setTimeout(120_000);
 
     const step = walkthrough(page, {
@@ -109,7 +110,7 @@ test.describe("CF-012", () => {
     await page.getByTestId("arrangement-view-ready").waitFor();
 
     await addFromLibrary(page).click();
-    await expect(library(page)).toBeVisible();
+    await expectView(page, "Library");
     await library(page).getByRole("searchbox", { name: "Search sounds" }).fill("loop");
     // A loop states its tempo; a one-shot does not, and would load a sampler
     // instead of making a track. Which loop does not matter here.
@@ -124,11 +125,8 @@ test.describe("CF-012", () => {
     await library(page)
       .getByRole("button", { name: loopName ?? "", exact: true })
       .click();
-    await library(page)
-      .getByRole("button", {
-        name: `Insert ${(loopName ?? "").replace(/^Audition /, "")}`,
-      })
-      .click();
+    await page.keyboard.press("Shift+Enter");
+    await expectView(page, "Arrangement");
     await expect(library(page)).toHaveCount(0);
     await expect(
       page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem"),
