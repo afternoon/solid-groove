@@ -24,7 +24,6 @@ import {
   toLibrarySample,
 } from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
-import type { LibraryAssetType } from "../library/manifest";
 import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -44,7 +43,15 @@ import {
   editorViewSpec,
   type ViewChangeSource,
 } from "./editorViews";
+import LibraryEmpty from "./LibraryEmpty";
 import LibraryModal, { type LibraryActions } from "./LibraryModal";
+import {
+  type LibraryTarget,
+  libraryAim,
+  targetAssetTypes,
+  targetPath,
+  targetSound,
+} from "./libraryTarget";
 import {
   type LoopActionContext,
   moveLoopByBars,
@@ -104,6 +111,14 @@ export interface EditorViewProps {
 function NoTracks(): JSX.Element {
   return <p class="no-track">This project has no tracks yet. Add one in the mixer.</p>;
 }
+
+/** What the sounds view opens on, for each Library target (LIB-010). */
+const SLOT_KINDS: Record<LibraryTarget["kind"], "drum-pad" | "sampler" | "loop-track"> = {
+  pad: "drum-pad",
+  sampler: "sampler",
+  loop: "loop-track",
+  "new-track": "loop-track",
+};
 
 /** Mints IDs for tracks the arrangement creates. A module singleton. */
 const factoryContext = createFactoryContext();
@@ -194,38 +209,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // The step editor's note selection, lifted here so the `edit.delete` shortcut
   // can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
   const [selectedNoteIds, setSelectedNoteIds] = createSignal<readonly EventId[]>([]);
-  // The library is a view you reach from the slot it is going to fill
-  // (`UI-001`, `UI-002`), at its own address.
-  const libraryOpen = () => props.view === "library";
-  // What the library was opened for (`UI-001`): a sampler's slot takes any
-  // sound, the arrangement's Loop button takes a loop, and the tree shows what
-  // can go in the slot rather than everything with a refusal afterwards.
-  const [libraryTypes, setLibraryTypes] = createSignal<
-    readonly LibraryAssetType[] | undefined
-  >(undefined);
-
-  // The drum pad the library was opened for (#447), or null when it was
-  // opened for the sampler's slot or the arrangement.
-  const [padTarget, setPadTarget] = createSignal<{
-    trackId: TrackId;
-    padId: PadId;
-  } | null>(null);
-
-  // The loop track whose loop slot opened the library, or null. Inserting then
-  // replaces that track's loop rather than adding a new loop track.
-  const [loopTarget, setLoopTarget] = createSignal<TrackId | null>(null);
-
-  function openLibrary(
-    via: ViewChangeSource,
-    types?: readonly LibraryAssetType[],
-    pad: { trackId: TrackId; padId: PadId } | null = null,
-    loopTrackId: TrackId | null = null,
-  ): void {
-    setLibraryTypes(() => types);
-    setPadTarget(pad);
-    setLoopTarget(loopTrackId);
-    selectView("library", via);
-  }
+  // The arrangement's "add a loop" aims the Library at a new track (`UI-002`).
+  // Every other aim is the selected track's own slot (`libraryTarget`), so
+  // choosing a track or touching a slot ends this one.
+  const [newTrackAim, setNewTrackAim] = createSignal(false);
   const leaveLibrary = () => selectView(libraryReturn, "keyboard");
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
@@ -309,6 +296,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   );
   function selectTrack(trackId: TrackId): void {
+    setNewTrackAim(false);
     setSelection(selectOnly({ kind: "track", id: trackId }));
   }
   const selectedTrackId = createMemo(() => model.focusedTrackId(selection()));
@@ -349,7 +337,30 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // outlives a switch of view.
   const [padSelection, setPadSelection] = createSignal<PadSelection>(emptyPadSelection);
   function selectPad(trackId: TrackId, padId: PadId): void {
+    setNewTrackAim(false);
     setPadSelection((current) => withSelectedPad(current, trackId, padId));
+  }
+
+  // Where the Library is aimed (`UI-002`): the selected track's slot (its
+  // selected pad, on a drum machine), or a new track, or why there is none.
+  const libraryAimed = createMemo(() =>
+    libraryAim(
+      track() ?? null,
+      selectedPadOf(padSelection(), drumTrack() ?? null),
+      newTrackAim(),
+    ),
+  );
+  const libraryTargetOf = createMemo(() => {
+    const aim = libraryAimed();
+    return aim.kind === "target" ? aim.target : null;
+  });
+  /** The Library view is on screen with somewhere to insert. */
+  const libraryOpen = () => props.view === "library" && libraryTargetOf() !== null;
+
+  /** Aims the Library and goes to `4` (`UI-002`). */
+  function aimLibrary(via: ViewChangeSource, newTrack = false): void {
+    setNewTrackAim(newTrack);
+    selectView("library", via);
   }
   const sampleAssets = createMemo(() => model.sampleAssets(project()));
   /** The clip being programmed: the opened one, not the selection's. */
@@ -408,8 +419,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     guideOpen,
     setGuideOpen,
     exportOpen,
-    // A true modal takes the keyboard, unlike the sequence editor: there is
-    // nothing to do underneath the library while you pick a sound.
     libraryOpen,
     closeLibrary: leaveLibrary,
     libraryActions,
@@ -471,14 +480,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const sampleName = createMemo(() => model.sampleName(project(), track()));
 
   /**
-   * The slot the open library auditions through (LIB-010 hot-swap): the pad
-   * it was opened for, else the edited track's sampler. The Loop button's
-   * library fills no slot, so its loops audition standalone, on the bar.
+   * The slot the Library auditions through (LIB-010 hot-swap): its target's
+   * pad or sampler. A loop or a new track fills no instrument, so loops
+   * audition standalone, on the bar.
    */
   function slotAudition(): SlotAudition | undefined {
-    const pad = padTarget();
-    const trackId = libraryLoops() ? null : model.samplerTrackId(track());
-    const slot = pad ?? (trackId ? { trackId } : null);
+    const target = libraryTargetOf();
+    const slot =
+      target?.kind === "pad"
+        ? { trackId: target.trackId, padId: target.padId }
+        : target?.kind === "sampler"
+          ? { trackId: target.trackId }
+          : null;
     if (!slot) return undefined;
     return {
       preview: (asset) => audio.previewInSlot(slot, asset),
@@ -486,10 +499,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       isPlaying: () => audio.isPlaying(),
     };
   }
-  const libraryLoops = () => libraryTypes()?.includes("loop") ?? false;
-  const librarySlot = createMemo(() =>
-    model.librarySlotHeader(project(), track(), padTarget(), libraryLoops()),
-  );
+
+  /**
+   * Inserts into the Library's target (`UI-002`): one transaction, so one
+   * revision and one undo. A loop inserted on a new track selects that track,
+   * so the next loop tried replaces it rather than adding another.
+   */
+  function insertIntoTarget(sample: LibrarySample, target: LibraryTarget): boolean {
+    if (target.kind === "pad") return loadPadSample(sample, target);
+    if (target.kind === "loop") return replaceLoop(sample, target.trackId);
+    if ((sample.kind === "loop") !== (target.kind === "new-track")) return false;
+    if (!loadLibrarySample(sample)) return false;
+    const added = project()?.song.tracks.at(-1);
+    if (target.kind === "new-track" && added) selectTrack(added.id);
+    return true;
+  }
 
   /**
    * Puts a library sound into the project — the one path the drag onto the
@@ -672,7 +696,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                             <NewTrackButtons
                               label="Add track to the arrangement"
                               onAdd={(spec) => addTrack(currentProject(), spec)}
-                              onAddLoop={() => openLibrary("arrangement", ["loop"])}
+                              onAddLoop={() => aimLibrary("arrangement", true)}
                             />
                           }
                         />
@@ -743,13 +767,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       auditionPad={(trackId, padId) =>
                         void audio.auditionPad(trackId, padId)
                       }
-                      onBrowse={() => openLibrary("slot")}
-                      onBrowsePad={(trackId, padId) =>
-                        openLibrary("slot", ["one-shot"], { trackId, padId })
-                      }
-                      onBrowseLoop={(trackId) =>
-                        openLibrary("slot", ["loop"], null, trackId)
-                      }
+                      onBrowse={() => aimLibrary("slot")}
+                      onBrowsePad={(trackId, padId) => {
+                        selectPad(trackId, padId);
+                        aimLibrary("slot");
+                      }}
+                      onBrowseLoop={() => aimLibrary("slot")}
                       watchPeaks={audio.watchAssetPeaks}
                       watchTriggers={audio.watchTriggers}
                       trackLevel={audio.trackLevel}
@@ -759,7 +782,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       onAddTrack={(spec) =>
                         addTrack(currentProject(), spec, "instrument_add_track")
                       }
-                      onAddLoop={() => openLibrary("slot", ["loop"])}
+                      onAddLoop={() => aimLibrary("slot", true)}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}
                     />
@@ -767,38 +790,51 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   <Match when={props.view === "library"}>
                     {/* A fresh audition engine per visit: leaving disposes it
                         (LOOP-013), so a cached one would be dead. */}
-                    <LibraryModal
-                      client={props.libraryClient}
-                      previewEngine={createAuditionEngine()}
-                      slotAudition={slotAudition()}
-                      analytics={props.analytics}
-                      onInsert={(asset) => {
-                        const sample = toLibrarySample(asset);
-                        // Only a committed insertion leaves (a refusal stays).
-                        const pad = padTarget();
-                        const loopTrackId = loopTarget();
-                        const loaded =
-                          sample &&
-                          (pad
-                            ? loadPadSample(sample, pad)
-                            : loopTrackId
-                              ? replaceLoop(sample, loopTrackId)
-                              : loadLibrarySample(sample));
-                        if (loaded) leaveLibrary();
-                      }}
-                      addedPackIds={addedPackIds()}
-                      assetTypes={libraryTypes()}
-                      heading={libraryLoops() ? "Loops" : "Library"}
-                      eyebrow={librarySlot().eyebrow}
-                      slot={librarySlot().slot}
-                      trackColor={track()?.color}
-                      keyLabel={keyHint}
-                      current={librarySlot().current}
-                      slotKind={librarySlot().kind}
-                      songBpm={tempo()}
-                      currentRef={librarySlot().currentRef}
-                      onActions={(actions) => setLibraryActions(() => actions)}
-                    />
+                    <Show
+                      when={libraryTargetOf()}
+                      fallback={
+                        <LibraryEmpty
+                          kind={libraryAimed().kind as "synth" | "no-slot" | "no-track"}
+                          fix={viewFix}
+                          onFix={(view) => selectView(view, "empty_screen")}
+                        />
+                      }
+                    >
+                      {(target) => (
+                        <LibraryModal
+                          client={props.libraryClient}
+                          previewEngine={createAuditionEngine()}
+                          slotAudition={slotAudition()}
+                          analytics={props.analytics}
+                          onInsert={(asset) => {
+                            const sample = toLibrarySample(asset);
+                            // Only a committed insertion leaves (a refusal stays).
+                            if (sample && insertIntoTarget(sample, target()))
+                              leaveLibrary();
+                          }}
+                          addedPackIds={addedPackIds()}
+                          assetTypes={targetAssetTypes(target())}
+                          heading={
+                            SLOT_KINDS[target().kind] === "loop-track"
+                              ? "Loops"
+                              : "Library"
+                          }
+                          path={targetPath(currentProject(), target())}
+                          slot={targetPath(currentProject(), target())
+                            .split(" › ")
+                            .at(-1)}
+                          trackColor={track()?.color}
+                          keyLabel={keyHint}
+                          current={targetSound(currentProject(), target())?.name ?? null}
+                          slotKind={SLOT_KINDS[target().kind]}
+                          songBpm={tempo()}
+                          currentRef={
+                            targetSound(currentProject(), target())?.storageRef ?? null
+                          }
+                          onActions={(actions) => setLibraryActions(() => actions)}
+                        />
+                      )}
+                    </Show>
                   </Match>
                   <Match when={props.view === "mixer"}>
                     <div class="mixer-view">
