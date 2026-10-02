@@ -45,20 +45,17 @@ async function loadedCovers(count: number = FIXTURE_PACK_INDEX_DOC.packs.length)
 }
 
 describe("PacksView", () => {
-  it("shows a monochrome cover per pack with its biggest categories and a key on the first nine", async () => {
+  it("shows a monochrome cover per pack with its biggest categories, and no digit key", async () => {
     renderPacks();
     await loadedCovers();
 
     const open = screen.getByRole("button", { name: `Open ${first.name}` });
     expect(open).toHaveTextContent(/\+\d+ more/);
     expect(open).toHaveTextContent("CE");
-    expect(open).toHaveTextContent("<library.pick_1>");
-    expect(within(open).getByText("<library.pick_1>").tagName).toBe("KBD");
+    // The digits are the editor's views (UI-002), so a cover has no key.
+    expect(open.querySelector("kbd")).toBeNull();
     // Spaced from the initials and key badge, so it reads as words.
     expect(open.textContent).toMatch(/\bIn project\b/);
-    expect(screen.getByRole("button", { name: `Open ${second.name}` })).toHaveTextContent(
-      "<library.pick_2>",
-    );
     // Initials over waveform stripes, never artwork.
     expect(document.querySelector(".pack-cover img")).toBeNull();
     expect(document.querySelectorAll(".pack-cover path")).toHaveLength(
@@ -66,22 +63,12 @@ describe("PacksView", () => {
     );
   });
 
-  it("opens a pack from its cover, and by digit through the host handle", async () => {
-    const host: { openNth: ((n: number) => void) | null } = { openNth: null };
-    const { onOpenPack } = renderPacks({
-      onRegisterOpenNth: (open) => {
-        host.openNth = open;
-      },
-    });
+  it("opens a pack from its cover", async () => {
+    const { onOpenPack } = renderPacks();
     await loadedCovers();
 
     clickAndFlush(screen.getByRole("button", { name: `Open ${second.name}` }));
     expect(onOpenPack).toHaveBeenLastCalledWith(second.slug);
-
-    host.openNth?.(1);
-    expect(onOpenPack).toHaveBeenLastCalledWith(first.slug);
-    host.openNth?.(9);
-    expect(onOpenPack).toHaveBeenCalledTimes(2);
   });
 
   it("narrows to packs with a family, and clears the filter again", async () => {

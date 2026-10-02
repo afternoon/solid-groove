@@ -307,20 +307,22 @@ describe("SoundsView shelf", () => {
     expect(names().length).toBeLessThanOrEqual(bass.length);
   });
 
-  it("badges the first nine categories and All with their registry keys", async () => {
+  it("badges All with its registry key, and no category with a digit (UI-002)", async () => {
     renderView();
     await rows();
 
     const [all, first] = [...chips()];
     expect(all.querySelector("kbd")?.textContent).toBe("<library.pick_all>");
-    expect(first.querySelector("kbd")?.textContent).toBe("<library.pick_1>");
+    expect(first.querySelector("kbd")).toBeNull();
   });
 
   it("picks categories and families from the keys", async () => {
     const { press } = renderView({ slot: { kind: "loop-track" } });
     await rows();
 
-    press("library.pick_2");
+    press("library.category_next");
+    await waitFor(() => expect(chips()[1]).toHaveAttribute("aria-pressed", "true"));
+    press("library.category_next");
     await waitFor(() => expect(chips()[2]).toHaveAttribute("aria-pressed", "true"));
     press("library.category_next");
     await waitFor(() => expect(chips()[3]).toHaveAttribute("aria-pressed", "true"));
@@ -328,8 +330,7 @@ describe("SoundsView shelf", () => {
     await waitFor(() => expect(chips()[2]).toHaveAttribute("aria-pressed", "true"));
     press("library.pick_all");
     await waitFor(() => expect(chips()[0]).toHaveAttribute("aria-pressed", "true"));
-    // A digit past the last category does nothing.
-    press("library.pick_9");
+    // Previous from All holds.
     press("library.category_previous");
     expect(chips()[0]).toHaveAttribute("aria-pressed", "true");
 

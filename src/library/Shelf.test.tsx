@@ -23,7 +23,7 @@ function renderShelf(family: ShelfFamily = "drums") {
         { key: "snare", label: "Snare", count: 3 },
       ]}
       role={chosen}
-      keyLabel={(action) => (action === "library.pick_all" ? "0" : action.slice(-1))}
+      keyLabel={(action) => (action === "library.pick_all" ? "0" : "?")}
       onFamily={() => {}}
       onRole={() => {}}
     />
@@ -46,17 +46,16 @@ describe("Shelf (LIB-010)", () => {
     expect(tile).toHaveAttribute("aria-selected", "true");
   });
 
-  it("boxes each chip's key before its label, out of the accessible name", () => {
+  it("boxes All's key before its label, and gives a category no digit (UI-002)", () => {
     renderShelf();
-    const kick = screen.getByRole("button", { name: "Kick 24" });
+    const all = screen.getByRole("button", { name: "All drums 27" });
 
-    expect(kick.firstElementChild).toHaveClass("library-modal-key");
-    expect(kick.firstElementChild).toHaveTextContent("1");
-    expect(kick).toHaveAttribute("aria-keyshortcuts", "1");
-    expect(screen.getByRole("button", { name: "All drums 27" })).toHaveAttribute(
-      "aria-keyshortcuts",
-      "0",
-    );
+    expect(all.firstElementChild).toHaveClass("library-modal-key");
+    expect(all.firstElementChild).toHaveTextContent("0");
+    expect(all).toHaveAttribute("aria-keyshortcuts", "0");
+    const kick = screen.getByRole("button", { name: "Kick 24" });
+    expect(kick).not.toHaveAttribute("aria-keyshortcuts");
+    expect(kick.querySelector(".library-modal-key")).toBeNull();
   });
 
   it("names All in sentence case, keeping an acronym's capitals", () => {

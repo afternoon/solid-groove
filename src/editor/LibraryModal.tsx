@@ -59,8 +59,6 @@ export interface LibraryActions {
   insertSelected(): boolean;
   /** Runs a `library.*` key on the visible view, which knows what it means. */
   press(action: ShortcutActionId): void;
-  /** `1`-`9`: open that pack over the grid of packs, else pick that category. */
-  pick(n: number): void;
   /** Open similar sounds for the selected sound; false when none is selected. */
   similar(): boolean;
   /**
@@ -145,7 +143,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   // The pack whose sounds the sounds view is scoped to (`null`: no scope). The
   // sounds view reads this; Browse packs and In this project set it.
   const [packScope, setPackScope] = createSignal<string | null>(null);
-  let openNthPack: ((n: number) => void) | null = null;
   const client = props.client ?? new LibraryClient();
   // Similar sounds swaps in over whichever place opened it.
   const [similarOf, setSimilarOf] = createSignal<LibraryAsset | null>(null);
@@ -193,11 +190,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     return true;
   }
 
-  /** A digit opens a pack over the grid, and picks a category over sounds. */
-  function pick(n: number): void {
-    if (showsPacks()) openNthPack?.(n);
-    else if (showsSounds()) soundsKeys?.(`library.pick_${n}` as SoundsKeyAction);
-  }
   const keyOf = (action?: ShortcutActionId) =>
     action ? props.keyLabel?.(action) : undefined;
 
@@ -222,9 +214,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     ) {
       active.blur();
     }
-    const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
-    if (digit) pick(Number(digit));
-    else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
+    if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
   function toggleKeys(): void {
@@ -255,7 +245,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       showView,
       insertSelected,
       press,
-      pick,
       similar,
       back,
       toggleKeys,
@@ -441,9 +430,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               projectPackIds={props.addedPackIds}
               keyLabel={props.keyLabel}
               onOpenPack={setPackScope}
-              onRegisterOpenNth={(open) => {
-                openNthPack = open;
-              }}
             />
           </Show>
           {/* Stays mounted while another place shows, so leaving and coming back

@@ -148,9 +148,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
 
   function press(action: SoundsKeyAction): void {
     const sound = current();
-    const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
-    if (digit) shelf.pick(Number(digit));
-    else if (shelfKeys[action]) shelfKeys[action]?.();
+    if (shelfKeys[action]) shelfKeys[action]?.();
     else if (action === "library.shuffle") shuffle();
     else if (action === "library.genre_menu") setGenreMenuOpen((open) => !open);
     else if (action === "library.loop_tempo" && family() === "loops")

@@ -466,12 +466,10 @@ describe("LibraryModal packs", () => {
     expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
   });
 
-  it("says a pack joins the project on insert when the project lacks it, and opens by digit", async () => {
-    const { browsePacks, actions } = renderPacks([drums.id]);
+  it("says a pack joins the project on insert when the project lacks it", async () => {
+    const { browsePacks } = renderPacks([drums.id]);
     browsePacks();
-    await screen.findByRole("button", { name: `Open ${bass.name}` });
-
-    actions().press("library.pick_2");
+    clickAndFlush(await screen.findByRole("button", { name: `Open ${bass.name}` }));
 
     const banner = await screen.findByRole("region", { name: `About ${bass.name}` });
     expect(banner).toHaveTextContent("Joins the project when you insert a sound");

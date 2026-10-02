@@ -6,10 +6,13 @@ import type { ShortcutActionId } from "../shortcuts";
 import { familyLabel, type ShelfEntry, type ShelfFamily } from "./shelf";
 import "./SoundsView.css";
 
-/** The registry action whose key picks the nth chip: `0` is all, `1`-`9` a category. */
+/**
+ * The registry action whose key picks the nth chip: `0` is all. The digits
+ * `1`-`5` are the editor's views everywhere, the library included (UI-002),
+ * so a category has no digit of its own.
+ */
 function pickAction(index: number): ShortcutActionId | null {
-  if (index === 0) return "library.pick_all";
-  return index <= 9 ? (`library.pick_${index}` as ShortcutActionId) : null;
+  return index === 0 ? "library.pick_all" : null;
 }
 
 /** "All drums", in sentence case like every label; an acronym ("FX") keeps its capitals. */
@@ -37,7 +40,7 @@ export function ChipKey(props: { label?: string }): JSX.Element {
  * The library's two-level shelf (LIB-010): families as tiles with counts, then
  * the chosen family's categories as chips in one scrolling row, with arrows
  * for the ones past the edge. Only entries with sounds arrive here, so there is
- * nothing to hide. The first nine chips carry the digit keys that pick them.
+ * nothing to hide. "All" carries the `0` key that picks it.
  */
 export default function Shelf(props: {
   families: readonly ShelfEntry<ShelfFamily>[];
