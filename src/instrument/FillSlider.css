@@ -273,3 +273,23 @@
   height: 100%;
   cursor: ew-resize;
 }
+
+/* A value shown but set by another control (a synced delay's Time, #865): it
+   still reads, but the track recedes and stops answering the pointer, as a
+   disabled option group does. */
+.fill-slider.disabled .fill-slider-track {
+  opacity: 0.4;
+}
+
+.fill-slider.disabled .fill-slider-input,
+.fill-slider.disabled .fill-slider-entry {
+  cursor: not-allowed;
+}
+
+.fill-slider.disabled .fill-slider-entry:hover {
+  background: transparent;
+}
+
+.fill-slider-entry:disabled {
+  color: var(--color-text);
+}

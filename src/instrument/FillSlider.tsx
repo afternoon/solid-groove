@@ -68,6 +68,12 @@ export interface FillSliderProps {
    * different `range` (a volume fader's positions) must supply it.
    */
   readonly resetValue?: number;
+  /**
+   * Shown but not adjustable: the value is set by another control (a synced
+   * delay's Time follows its division), so neither the track nor the value
+   * field takes input.
+   */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -179,7 +185,11 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     <div
       class={[
         "fill-slider",
-        { horizontal: horizontal(), bipolar: props.bipolar === true },
+        {
+          horizontal: horizontal(),
+          bipolar: props.bipolar === true,
+          disabled: props.disabled === true,
+        },
       ]}
     >
       <input
@@ -191,6 +201,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
         autocomplete="off"
         aria-label={`${props.ariaLabel ?? props.label ?? props.definition.label} value`}
         value={props.displayValue}
+        disabled={props.disabled}
         onFocus={(event) => event.currentTarget.select()}
         // Enter fires `change` in a text field, as leaving it does, so both
         // commit. Keys are otherwise left alone: key handling lives in
@@ -218,6 +229,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           max={scale().max}
           step={scale().step ?? "any"}
           value={props.value}
+          disabled={props.disabled}
           onInput={(event) => props.onInput(coerce(event.currentTarget.valueAsNumber))}
           // `change` settles a drag or a keyboard nudge, but it does not fire
           // at all when a drag ends somewhere the input never hears about —

@@ -11,7 +11,11 @@ import {
 } from "../commands";
 import { deviceParameters } from "../domain/devices";
 import type { Device } from "../domain/entities";
-import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
+import {
+  bareParameterId,
+  clampParameterValue,
+  type ParameterDefinition,
+} from "../domain/parameters";
 import ControlGroup from "../instrument/ControlGroup";
 import FillSlider from "../instrument/FillSlider";
 import OptionGroup from "../instrument/OptionGroup";
@@ -19,6 +23,7 @@ import {
   deviceChoices,
   deviceParameterTarget,
   formatDeviceValue,
+  readDeviceControl,
   readDeviceParameter,
 } from "./deviceControlModel";
 import "./DeviceControls.css";
@@ -32,6 +37,8 @@ export interface DeviceControlsProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /** The song's tempo, so a synced delay's Time shows its real time. Defaults to 120. */
+  readonly tempo?: number;
 }
 
 /**
@@ -70,6 +77,7 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
 
   const control = (definition: ParameterDefinition): JSX.Element => {
     const value = () => readDeviceParameter(props.device, definition);
+    const reading = () => readDeviceControl(props.device, definition, props.tempo ?? 120);
     const choices = deviceChoices(definition);
     return (
       <Show
@@ -77,7 +85,8 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
         fallback={
           <DeviceSlider
             definition={definition}
-            value={value()}
+            value={reading().value}
+            derived={reading().derived}
             inputId={key(definition)}
             command={(next) => command(definition, next)}
             dispatch={props.dispatch}
@@ -122,6 +131,8 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
 function DeviceSlider(props: {
   readonly definition: ParameterDefinition;
   readonly value: number;
+  /** Shown but set elsewhere (a synced delay's Time), so not adjustable. */
+  readonly derived: boolean;
   readonly inputId: string;
   command(value: number): RawCommandInput;
   dispatch(
@@ -139,9 +150,12 @@ function DeviceSlider(props: {
     <div class="device-control">
       <FillSlider
         definition={props.definition}
-        value={props.value}
+        // A derived value can lie outside the slider's own range (a synced
+        // 1/2 at a slow tempo); the fill stops at the end, the reading does not.
+        value={clampParameterValue(props.definition, props.value)}
         inputId={props.inputId}
         displayValue={formatDeviceValue(props.definition, props.value)}
+        disabled={props.derived}
         onInput={(next) => control.input(next)}
         onCommit={(next) => control.commit(next)}
       />
