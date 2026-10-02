@@ -547,11 +547,9 @@ describe("EditorView", () => {
     const name = oneShotAssetName("core-electronic-drums");
     await insertSound(name);
 
-    // Inserting is what the library was opened for, so it closes on insert
-    // and the slot behind it names the sound that landed.
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
-    );
+    // Inserting keeps the Library, so another sound can be tried (UI-002).
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary();
     await screen.findByRole("region", { name: "BD instrument" });
     expect(await within(sampler()).findByText(name)).toBeInTheDocument();
 
@@ -583,9 +581,11 @@ describe("EditorView", () => {
     await vi.waitFor(() => expect(engine.starts).toHaveLength(1));
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Enter" }));
 
+    // One insert, one history entry, and the Library stays (UI-002).
     await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /^Undo / })).toBeEnabled(),
     );
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
   });
 
   it("loads a library one-shot onto the drum pad whose slot opened it (#447)", async () => {
@@ -609,9 +609,9 @@ describe("EditorView", () => {
     const oneShotName = oneShotAssetName("core-electronic-drums");
     await insertSound(oneShotName);
 
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
-    );
+    // Inserting keeps the Library, so another sound can be tried (UI-002).
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary();
     // The chosen pad plays it; the first pad keeps its own sound.
     expect(
       screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
@@ -649,9 +649,9 @@ describe("EditorView", () => {
     const loopName = loopAssetName("core-electronic-drums");
     await insertSound(loopName);
 
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).toBeNull(),
-    );
+    // Inserting keeps the Library, so another sound can be tried (UI-002).
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary();
     // The same track now plays the new loop, and no track was added.
     expect(
       screen.getByRole("button", { name: `Loop for ${breakTrack.name}` }).textContent,
@@ -661,7 +661,7 @@ describe("EditorView", () => {
     expect(mixerSelect(breakTrack.name)).toBeInTheDocument();
   });
 
-  it("hears a library sound in the pad's slot without a command, and closing puts it back (LIB-010)", async () => {
+  it("hears a library sound in the pad's slot without a command, and leaving puts it back (LIB-010)", async () => {
     const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
     const reconcile = vi.spyOn(ProjectAudioGraph.prototype, "reconcile");
     repository = inMemoryModule.createInMemoryProjectRepository();
@@ -695,10 +695,7 @@ describe("EditorView", () => {
     fireEvent.click(await screen.findByRole("button", { name: `Audition ${name}` }));
 
     await vi.waitFor(() => expect(heardOnPad()).toMatch(/^ast_preview/));
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
-    );
+    await leaveLibrary();
     expect(heardOnPad()).toBe(pad.assetId);
     // Audio only: no history entry, no revision, nothing saved.
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
@@ -980,13 +977,6 @@ describe("EditorView library audition engine lifecycle", () => {
     return { engines };
   }
 
-  async function closeLibrary() {
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
-    await waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
-    );
-  }
-
   it("builds a fresh, live engine on each open and disposes the closed one", async () => {
     const { engines } = await renderWithLibrary();
 
@@ -998,7 +988,7 @@ describe("EditorView library audition engine lifecycle", () => {
     expect(engines[0].disposed()).toBe(false);
 
     // Closing unmounts LibraryBrowser, which disposes that engine.
-    await closeLibrary();
+    await leaveLibrary();
     await waitFor(() => expect(engines[0].disposed()).toBe(true));
 
     // Reopening builds a second, distinct, undisposed engine — never the dead
@@ -1159,7 +1149,7 @@ describe("EditorView new-track unit", () => {
     expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
   });
 
-  it("inserting a loop from the instrument view's rail adds an audio track and closes the library", async () => {
+  it("inserting a loop from the instrument view's rail adds an audio track", async () => {
     const transport = createRecordingTransport();
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();
@@ -1186,10 +1176,10 @@ describe("EditorView new-track unit", () => {
     const loopName = loopAssetName("core-electronic-drums");
     await insertSound(loopName);
 
+    // Inserting keeps the Library, so another sound can be tried (UI-002).
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary();
     await vi.waitFor(() => expect(rows()).toHaveLength(before + 1));
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).toBeNull(),
-    );
     const added = transport.events.filter((event) => event.name === "track_added");
     expect(added).toHaveLength(1);
     expect(added[0].params).toEqual(expect.objectContaining({ track_type: "audio" }));
@@ -1220,7 +1210,7 @@ describe("EditorView new-track unit", () => {
     ).toBeVisible();
   });
 
-  it("inserting a loop adds a track carrying it, and closes the library", async () => {
+  it("inserting a loop adds a track carrying it, and the library stays", async () => {
     // The regression this exists for: the Loop button opened the library, and
     // "Insert" reached a sampler-only path that returned silently because no
     // sampler was selected. The window closed, the project was untouched, and
@@ -1250,12 +1240,12 @@ describe("EditorView new-track unit", () => {
     const loopName = loopAssetName("core-electronic-drums");
     await insertSound(loopName);
 
-    // A track appears, named for the loop, and the window closes behind it.
+    // The Library stays (UI-002); 1 goes back to the arrangement, where a
+    // track has appeared, named for the loop.
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary("1");
     await vi.waitFor(() => expect(trackRows()).toHaveLength(before + 1));
     expect(trackRows().at(-1)).toHaveTextContent(loopName);
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).toBeNull(),
-    );
 
     // One track_added, reporting an audio track and no instrument — the case
     // the catalog leaves `instrument_type` optional for.
@@ -1329,7 +1319,7 @@ describe("EditorView library view", () => {
     expect(screen.queryByRole("button", { name: "Library" })).not.toBeInTheDocument();
   });
 
-  it("opens from the sampler's sample slot, and closes again", async () => {
+  it("opens from the sampler's sample slot, and a view key leaves it", async () => {
     await renderSlice();
 
     const library = await openLibrary();
@@ -1338,10 +1328,51 @@ describe("EditorView library view", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(within(library).getByRole("region", { name: "Browse sounds" })).toBeVisible();
 
+    // A view, not a dialog: Escape leaves it where it is (UI-002).
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
-    );
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary();
+  });
+});
+
+/** Inserting from the Library by key (`UI-002`, CF-030). */
+describe("EditorView library insert keys", () => {
+  it("stays on Enter, one undo per insert, and goes back on Shift+Enter", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const { location } = renderEditor(project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    const slot = () => screen.getByRole("group", { name: "In the slot" });
+    const library = await openLibraryFromPad();
+    const sounds = await within(library).findByRole("list", { name: "Sounds" });
+    const [first, second] = within(sounds)
+      .getAllByRole("button", { name: /^Audition / })
+      .map(
+        (button) => button.getAttribute("aria-label")?.replace(/^Audition /, "") ?? "",
+      );
+
+    const insertByKey = async (name: string, shiftKey = false) => {
+      clickAndFlush(within(sounds).getByRole("button", { name: `Audition ${name}` }));
+      await vi.waitFor(() =>
+        expect(screen.getByRole("group", { name: "Hearing" })).toHaveTextContent(name),
+      );
+      fireAndFlush(() => fireEvent.keyDown(window, { key: "Enter", shiftKey }));
+    };
+    await insertByKey(first);
+    await vi.waitFor(() => expect(slot()).toHaveTextContent(first));
+    await insertByKey(second);
+    await vi.waitFor(() => expect(slot()).toHaveTextContent(second));
+    expect(location.get()).toMatch(/\/library$/);
+
+    // Each insert was its own history entry: one undo takes back only the second.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "z", ctrlKey: true }));
+    await vi.waitFor(() => expect(slot()).toHaveTextContent(first));
+
+    await insertByKey(second, true);
+    await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
   });
 });
 
@@ -1400,8 +1431,7 @@ describe("EditorView library address", () => {
     });
     await openLibrary();
     expect(location.get()).toMatch(/\/library$/);
-    // Escape goes back to where it was reached from: the instrument.
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
     await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
     fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
     await vi.waitFor(() => expect(location.get()).toMatch(/\/library$/));
@@ -1604,7 +1634,7 @@ describe("EditorView keyboard shortcuts", () => {
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
   });
 
-  it("keeps editor keys off while the library is open, gives it its own, and Escape closes it", async () => {
+  it("keeps editor keys off while the library is open, gives it its own, and 1 leaves it", async () => {
     await renderSlice(createSliceFixtureProject(), {
       createAuditionEngine: () => fakePreviewEngine(),
       libraryClient: new LibraryClient(fixtureFetcher()),
@@ -1628,10 +1658,9 @@ describe("EditorView keyboard shortcuts", () => {
     await screen.findByRole("region", { name: "Browse sounds" });
 
     fireEvent.keyDown(window, { key: "Escape" });
-    await vi.waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
-    );
-    // With the modal gone the editor context has the keyboard back: `?` is an
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    await leaveLibrary("1");
+    // With the Library gone the editor context has the keyboard back: `?` is an
     // `editor`-context mapping, so it only fires once nothing is suppressing it.
     fireEvent.keyDown(window, { key: "?", shiftKey: true });
     expect(
@@ -2150,10 +2179,25 @@ async function insertSound(name: string): Promise<void> {
   clickAndFlush(await screen.findByRole("button", { name: `Insert ${name}` }));
 }
 
+/** Opens the Library from the drum machine's selected pad slot. */
+async function openLibraryFromPad(): Promise<HTMLElement> {
+  await goToView("Instrument");
+  clickAndFlush(await screen.findByRole("button", { name: /^Sample for / }));
+  return screen.findByRole("region", { name: "Library" });
+}
+
 async function openLibrary(): Promise<HTMLElement> {
   await goToView("Instrument");
   clickAndFlush(await screen.findByRole("button", { name: "Sample" }));
   return screen.findByRole("region", { name: "Library" });
+}
+
+/** Leaves the Library view by a view key: a view has no close (UI-002). */
+async function leaveLibrary(key = "3"): Promise<void> {
+  fireAndFlush(() => fireEvent.keyDown(window, { key }));
+  await vi.waitFor(() =>
+    expect(screen.queryByRole("region", { name: "Library" })).toBeNull(),
+  );
 }
 
 /** A pointer event at bar 1 of the first arrangement row, where the slice

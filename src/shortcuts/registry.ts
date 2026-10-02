@@ -857,12 +857,11 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   libraryKey(
     "library.insert",
     "Insert sound",
-    "Puts the selected sound in the slot and goes back to where you came from.",
+    "Puts the selected sound in the slot; the library stays, to try another.",
     "Enter",
-    {
-      preventDefault: false,
-      ableton: { kind: "follows", abletonKeys: "Enter" },
-    },
+    // The library owns Enter (UI-002): a focused sound row's button must not
+    // also be pressed by it, re-auditioning instead of inserting (CF-030).
+    { ableton: { kind: "follows", abletonKeys: "Enter" } },
   ),
   libraryKey(
     "library.insert_and_return",

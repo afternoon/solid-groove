@@ -56,6 +56,7 @@ const RECENT: RailItem = { id: "recent", label: "Recently viewed" };
  */
 export interface LibraryActions {
   showView(view: LibraryView): void;
+  /** Inserts the selected sound; true when the insert committed. */
   insertSelected(): boolean;
   /** Runs a `library.*` key on the visible view, which knows what it means. */
   press(action: ShortcutActionId): void;
@@ -83,7 +84,7 @@ export interface LibraryModalProps {
   readonly slotAudition?: SlotAudition;
   readonly analytics?: Analytics;
   /** Insert the chosen sound. The host closes this on the way through. */
-  onInsert(asset: LibraryAsset): void;
+  onInsert(asset: LibraryAsset): boolean;
   readonly addedPackIds: readonly string[];
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
@@ -234,9 +235,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   function insertSelected(): boolean {
     const asset = selected();
-    if (!asset) return false;
-    props.onInsert(asset);
-    return true;
+    return asset ? props.onInsert(asset) : false;
   }
 
   onSettled(() => {

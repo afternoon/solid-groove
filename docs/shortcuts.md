@@ -123,9 +123,12 @@ not a modal: `library` is its only context, so the editor's transport and edits
 stand down while it is up, but `global` (undo, redo, Escape) and the view keys
 `1`-`5` stay live in it. The library's keys use no digit for that reason.
 `Escape` is `view.close_surface` and `?` is `help.shortcut_guide`; the library
-reuses both. Typing in the search field keeps every key except `Escape` and
-`Down`, which leaves the field. `Enter` and `Space` leave the browser default
-alone, so a focused button or checkbox still presses.
+reuses both; Escape closes the keys sheet, and leaving the Library is a view
+key. Typing in the search field keeps every key except `Escape` and `Down`,
+which leaves the field. `Enter` inserts and stays, `Shift+Enter` inserts and
+goes back to where you came from, and both are the library's even on a focused
+button; `Space` leaves the browser default alone, so a focused button or
+checkbox still presses.
 The two `device.*` moves act on the device whose header has focus: they are the
 keyboard way to reorder a chain, which the pointer does by dragging.
 

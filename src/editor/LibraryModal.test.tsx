@@ -23,7 +23,7 @@ afterEach(cleanup);
 
 function renderModal(
   overrides: Partial<{
-    onInsert: () => void;
+    onInsert: () => boolean;
     previewEngine: ReturnType<typeof fakePreviewEngine>;
   }> = {},
 ) {
@@ -32,7 +32,7 @@ function renderModal(
     <LibraryModal
       client={new LibraryClient(fixtureFetcher())}
       previewEngine={engine}
-      onInsert={overrides.onInsert ?? (() => {})}
+      onInsert={overrides.onInsert ?? (() => true)}
       addedPackIds={[]}
     />
   ));
@@ -77,7 +77,7 @@ describe("LibraryModal hot-swap", () => {
         client={new LibraryClient(fixtureFetcher())}
         previewEngine={engine}
         slotAudition={slot}
-        onInsert={() => {}}
+        onInsert={() => true}
         addedPackIds={[]}
       />
     ));
@@ -105,7 +105,7 @@ describe("LibraryModal shell", () => {
 
   function renderShell(
     extra: {
-      onInsert?: () => void;
+      onInsert?: () => boolean;
       onActions?: (a: LibraryActions | null) => void;
       keyLabel?: (a: string) => string;
     } = {},
@@ -114,7 +114,7 @@ describe("LibraryModal shell", () => {
       <LibraryModal
         client={new LibraryClient(fixtureFetcher())}
         previewEngine={fakePreviewEngine()}
-        onInsert={extra.onInsert ?? (() => {})}
+        onInsert={extra.onInsert ?? (() => true)}
         addedPackIds={[pack.id]}
         path="BD › Drum machine › BD"
         slot="BD"
@@ -308,7 +308,7 @@ describe("LibraryModal footer and rail", () => {
         slot="BD"
         current="Rounded Club Kick"
         keyLabel={label}
-        onInsert={() => {}}
+        onInsert={() => true}
         addedPackIds={[drums.id]}
       />
     ));
@@ -377,7 +377,7 @@ describe("LibraryModal packs", () => {
       <LibraryModal
         client={new LibraryClient(fixtureFetcher())}
         previewEngine={fakePreviewEngine()}
-        onInsert={() => {}}
+        onInsert={() => true}
         addedPackIds={addedPackIds}
         onActions={(next) => {
           actions = next;
