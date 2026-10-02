@@ -105,84 +105,83 @@ async function expectNoClips(page: Page): Promise<void> {
 }
 
 test.describe("CF-029", () => {
-  test.fixme(
-    "a producer selects every clip in the arrangement with Cmd+A",
-    async ({ page }) => {
-      const step = walkthrough(page, {
-        id: "CF-029",
-        title: "A producer selects every clip in the arrangement with Cmd+A",
-      });
+  test("a producer selects every clip in the arrangement with Cmd+A", async ({
+    page,
+  }) => {
+    const step = walkthrough(page, {
+      id: "CF-029",
+      title: "A producer selects every clip in the arrangement with Cmd+A",
+    });
 
-      // 1. Create a new project, duplicate the "BD" clip twice, add a sampler
-      //    track, and duplicate its clip once, so "BD" has clips in bars 1, 2
-      //    and 3 and "Sampler" has clips in bars 1 and 2.
-      await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await page.getByTestId("arrangement-view-ready").waitFor();
+    // 1. Create a new project, duplicate the "BD" clip twice, add a sampler
+    //    track, and duplicate its clip once, so "BD" has clips in bars 1, 2
+    //    and 3 and "Sampler" has clips in bars 1 and 2.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    const projectUrl = page.url();
+    await page.getByTestId("arrangement-view-ready").waitFor();
 
-      await duplicateClip(page, 0, 1);
-      await duplicateClip(page, 0, 2);
-      await page.getByRole("button", { name: "Add sampler track" }).click();
-      await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
-      await duplicateClip(page, 1, 1);
-      await clickBar(page, 0, 3);
-      await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
-      await clickBar(page, 1, 2);
-      await expect(announcement(page)).toHaveText("Selected clip on Sampler, bar 2");
-      await step("BD has clips in bars 1 to 3, Sampler in bars 1 and 2");
+    await duplicateClip(page, 0, 1);
+    await duplicateClip(page, 0, 2);
+    await page.getByRole("button", { name: "Add sampler track" }).click();
+    await expect(trackList(page)).toHaveText(["BD", "Sampler"]);
+    await duplicateClip(page, 1, 1);
+    await clickBar(page, 0, 3);
+    await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
+    await clickBar(page, 1, 2);
+    await expect(announcement(page)).toHaveText("Selected clip on Sampler, bar 2");
+    await step("BD has clips in bars 1 to 3, Sampler in bars 1 and 2");
 
-      // 2. Click the "BD" clip in bar 1. It alone is selected, and the
-      //    arrangement announces "Selected clip on BD, bar 1".
-      await clickBar(page, 0, 1);
-      await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
-      await step("Click the BD clip in bar 1: it alone is selected");
+    // 2. Click the "BD" clip in bar 1. It alone is selected, and the
+    //    arrangement announces "Selected clip on BD, bar 1".
+    await clickBar(page, 0, 1);
+    await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
+    await step("Click the BD clip in bar 1: it alone is selected");
 
-      // 3. Press Cmd+A (Ctrl+A on Windows and Linux). Every clip on both tracks
-      //    is selected, and the arrangement announces "5 clips selected". No
-      //    text on the page is highlighted.
-      await page.keyboard.press("ControlOrMeta+A");
-      await expect(announcement(page)).toHaveText("5 clips selected");
-      expect(await selectedText(page)).toBe("");
-      await step("Press Cmd+A: all five clips are selected");
+    // 3. Press Cmd+A (Ctrl+A on Windows and Linux). Every clip on both tracks
+    //    is selected, and the arrangement announces "5 clips selected". No
+    //    text on the page is highlighted.
+    await page.keyboard.press("ControlOrMeta+A");
+    await expect(announcement(page)).toHaveText("5 clips selected");
+    expect(await selectedText(page)).toBe("");
+    await step("Press Cmd+A: all five clips are selected");
 
-      // 4. Press Escape. Nothing is selected, and the arrangement announces "No
-      //    selection".
-      await page.keyboard.press("Escape");
-      await expect(announcement(page)).toHaveText("No selection");
-      await step("Press Escape: nothing is selected");
+    // 4. Press Escape. Nothing is selected, and the arrangement announces "No
+    //    selection".
+    await page.keyboard.press("Escape");
+    await expect(announcement(page)).toHaveText("No selection");
+    await step("Press Escape: nothing is selected");
 
-      // 5. Press Cmd+A again. Every clip is selected again, the arrangement
-      //    announces "5 clips selected", and no text on the page is highlighted.
-      await page.keyboard.press("ControlOrMeta+A");
-      await expect(announcement(page)).toHaveText("5 clips selected");
-      expect(await selectedText(page)).toBe("");
-      await step("Press Cmd+A with nothing selected: all five again");
+    // 5. Press Cmd+A again. Every clip is selected again, the arrangement
+    //    announces "5 clips selected", and no text on the page is highlighted.
+    await page.keyboard.press("ControlOrMeta+A");
+    await expect(announcement(page)).toHaveText("5 clips selected");
+    expect(await selectedText(page)).toBe("");
+    await step("Press Cmd+A with nothing selected: all five again");
 
-      // 6. Press Delete. All five clips are gone. Both tracks are still there,
-      //    empty.
-      await page.keyboard.press("Delete");
-      await expectNoClips(page);
-      await step("Press Delete: every clip is gone, both tracks remain");
+    // 6. Press Delete. All five clips are gone. Both tracks are still there,
+    //    empty.
+    await page.keyboard.press("Delete");
+    await expectNoClips(page);
+    await step("Press Delete: every clip is gone, both tracks remain");
 
-      // 7. Reload the page.
-      //
-      // Not a step of the flow. The promise after the reload only means
-      // something once the delete has been written, and the save status is
-      // how the editor reports that a revision-checked write completed.
-      await expect(page.locator(".save-status")).toHaveText("Saved", {
-        timeout: 10_000,
-      });
-      await page.reload();
+    // 7. Reload the page.
+    //
+    // Not a step of the flow. The promise after the reload only means
+    // something once the delete has been written, and the save status is
+    // how the editor reports that a revision-checked write completed.
+    await expect(page.locator(".save-status")).toHaveText("Saved", {
+      timeout: 10_000,
+    });
+    await page.reload();
 
-      // 8. The project reopens exactly as step 6 left it: "BD" and "Sampler"
-      //    are there, with no clips.
-      await expect(page).toHaveURL(projectUrl);
-      await page.getByTestId("arrangement-view-ready").waitFor();
-      await expectNoClips(page);
-      await step("Reopened exactly as the delete left it");
-    },
-  );
+    // 8. The project reopens exactly as step 6 left it: "BD" and "Sampler"
+    //    are there, with no clips.
+    await expect(page).toHaveURL(projectUrl);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await expectNoClips(page);
+    await step("Reopened exactly as the delete left it");
+  });
 });
