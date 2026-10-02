@@ -1,0 +1,133 @@
+name: Board
+
+# The task board: `status:*` labels on issues plus one pinned "Board" issue
+# that lists them by column. See `.github/scripts/board.mjs` for the rules and
+# CLAUDE.md, "The board", for the columns.
+#
+#  - Adding a `status:*` label removes the issue's other status labels.
+#  - A new issue starts in Backlog; a closed one is Done.
+#  - A PR that closes an issue moves it to QA.
+#  - Moving an issue to Ready moves it to In progress and runs /ship on it.
+#
+# Uses RESTACK_TOKEN (the same fine-grained PAT restack.yml uses) so its label
+# changes trigger other workflows; it falls back to GITHUB_TOKEN.
+on:
+  issues:
+    types: [opened, reopened, closed, labeled, unlabeled]
+  pull_request:
+    types: [opened, ready_for_review, closed]
+  schedule:
+    # Daily, so "Done this week" ages out even on quiet days.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  status:
+    # Never react to the Board issue itself: rewriting it would trigger another render.
+    if: >-
+      (github.event_name == 'issues' || github.event_name == 'pull_request') &&
+      !contains(github.event.issue.labels.*.name, 'board')
+    runs-on: ubuntu-latest
+    # Per issue/PR and never cancelled: each run applies one event's rule.
+    concurrency:
+      group: board-status-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
+    outputs:
+      ship: ${{ steps.status.outputs.ship }}
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - id: status
+        run: node .github/scripts/board.mjs status
+
+  render:
+    needs: status
+    # Runs after status, or on its own for schedule/dispatch (status skipped).
+    if: >-
+      always() && needs.status.result != 'failure' &&
+      !contains(github.event.issue.labels.*.name, 'board')
+    runs-on: ubuntu-latest
+    # Only the latest render matters.
+    concurrency:
+      group: board-render
+      cancel-in-progress: true
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - run: node .github/scripts/board.mjs render
+
+  ship:
+    needs: status
+    if: needs.status.outputs.ship != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    concurrency:
+      group: ship-${{ needs.status.outputs.ship }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/claude-env
+      - name: Install Chromium for screenshots and browser tests
+        run: bunx playwright install --with-deps chromium
+      - name: Ship the issue
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
+          show_full_output: true
+          prompt: |
+            Ship GitHub issue #${{ needs.status.outputs.ship }}, unattended. It was moved to Ready on the board.
+
+            Follow `.claude/skills/ship/SKILL.md`, with one change for this environment: do NOT use the Workflow tool. This is a headless run that ends the moment your turn ends, so a background workflow would be killed before it does anything. Instead run the stages in `.claude/workflows/solid-groove-ship.js` yourself, in order (triage, build, review for features only, land), giving each stage's prompt to the Agent tool with `run_in_background: false` and waiting for its result before starting the next. Read the agent briefs in `.claude/agents/` the same way the workflow does.
+
+            Do not end your turn until the pull requests are open, or the issue is labelled `status:blocked` with a comment saying why. Before you report a PR, confirm it exists with `gh pr view`. Never report a result you have not seen. Use the `gh` CLI for GitHub (GH_TOKEN is set).
+          claude_args: |
+            --model opus
+            --max-turns 400
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,WebFetch,WebSearch,Task,Agent,Skill,ToolSearch,Bash"
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      - name: Check the run actually produced a PR
+        # The agent's own report is not evidence: an earlier run ended its turn
+        # early and described PRs that did not exist. Trust only GitHub.
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+          ISSUE: ${{ needs.status.outputs.ship }}
+        run: |
+          labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
+          if echo "$labels" | grep -qx 'status:blocked'; then
+            echo "Issue was moved to Blocked by the run; nothing to check."; exit 0
+          fi
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE in:body" --json number,body \
+            --jq "[.[] | select(.body | test(\"(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?) #$ISSUE\\\\b\"))] | length")
+          if [ "$prs" -gt 0 ]; then echo "Found $prs open PR(s) closing #$ISSUE."; exit 0; fi
+          echo "No open PR closes #$ISSUE."; exit 1
+      - name: Move the card to Blocked if the run failed
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+          ISSUE: ${{ needs.status.outputs.ship }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "The unattended /ship run stopped before finishing: $RUN"
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label status:blocked --remove-label status:in-progress

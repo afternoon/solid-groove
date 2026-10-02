@@ -78,6 +78,7 @@
     "test:browser:install": "playwright install --with-deps chromium firefox webkit",
     "prewalkthrough:capture": "bun run samples",
     "walkthrough:capture": "CAPTURE_WALKTHROUGH=1 firebase emulators:exec --only firestore,auth --project demo-solid-groove \"playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --workers=1 flows\"",
+    "screenshots": "CAPTURE_WALKTHROUGH=1 playwright test --config=tests/e2e/mock/playwright.config.ts --project=chromium --workers=1",
     "walkthrough:publish": "node scripts/walkthrough/publish.mjs",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && biome check && bun run verify:no-solid-1",

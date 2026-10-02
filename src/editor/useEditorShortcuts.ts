@@ -1,7 +1,7 @@
 import type { Accessor } from "solid-js";
 import type { PlacementEditingActions } from "../arrangement/ArrangementView";
 import type { EventId } from "../domain/ids";
-import { SOUNDS_KEY_ACTIONS } from "../library/soundKeys";
+import { focusKeepsKey, SOUNDS_KEY_ACTIONS } from "../library/soundKeys";
 import {
   type ShortcutContext,
   type ShortcutHandlers,
@@ -85,11 +85,6 @@ const focusKeepsArrows = (): boolean =>
 const PRESSES_ENTER = 'button, a[href], [role="button"], [role="link"], summary';
 const focusPressesEnter = (): boolean =>
   document.activeElement?.matches(PRESSES_ENTER) ?? false;
-
-/** The Library's Enter inserts only from a sound row's audition button or
- * from nothing pressable; any other focused control keeps its own Enter. */
-const focusLeavesEnterToLibrary = (): boolean =>
-  !focusPressesEnter() || (document.activeElement?.matches(".sound-row-main") ?? false);
 
 /**
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
@@ -220,9 +215,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     isEnabled: () => libraryActions() !== null,
   });
-  const libraryEnter = (run: (actions: LibraryActions) => void) => ({
-    run: inLibrary(run).run,
-    isEnabled: () => libraryActions() !== null && focusLeavesEnterToLibrary(),
+  // Enter and Space stand down for a focused control, which takes the key
+  // itself (#860); otherwise they act on the selected sound and stop there.
+  const onSelectedSound = (run: (actions: LibraryActions) => void) => ({
+    ...inLibrary(run),
+    isEnabled: () => libraryActions() !== null && !focusKeepsKey(),
   });
 
   const handlers = (): ShortcutHandlers => ({
@@ -323,13 +320,14 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
     // Enter inserts and stays, so another sound can be tried; Shift+Enter
     // inserts and goes back (UI-002). Each insert is one history entry.
-    "library.insert": libraryEnter((a) => void a.insertSelected()),
-    "library.insert_and_return": libraryEnter((a) => {
+    "library.insert": onSelectedSound((a) => void a.insertSelected()),
+    "library.insert_and_return": onSelectedSound((a) => {
       if (a.insertSelected()) leaveLibrary();
     }),
     ...Object.fromEntries(
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
     ),
+    "library.audition": onSelectedSound((a) => a.press("library.audition")),
     "library.back": inLibrary((a) => a.back()),
     // Escape closes the innermost surface: the guide, then the library's keys
     // sheet (#813), then the library. Nothing here compares a key — this is

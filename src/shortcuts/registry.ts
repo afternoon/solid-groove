@@ -849,20 +849,21 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     "Audition again",
     "Plays the selected sound again.",
     "Space",
-    {
-      // A focused button or checkbox still presses on Space and Enter.
-      preventDefault: false,
-    },
+    // No `preventDefault: false`: the press must not also reach the focused
+    // button, which is the Close button when the library opens (#860). A
+    // focused control keeps Space through the handler's `isEnabled` instead.
   ),
   libraryKey(
     "library.insert",
     "Insert sound",
     "Puts the selected sound in the slot; the library stays, to try another.",
     "Enter",
-    // The library owns Enter (UI-002): a focused sound row's button must not
-    // also be pressed by it, re-auditioning instead of inserting (CF-030).
-    // Any other focused control keeps its own Enter (`useEditorShortcuts`).
-    { ableton: { kind: "follows", abletonKeys: "Enter" } },
+    {
+      // The library owns Enter (UI-002, #860): the browser's default would
+      // also press the focused sound row, re-auditioning instead of
+      // inserting. Any other focused control keeps its own Enter.
+      ableton: { kind: "follows", abletonKeys: "Enter" },
+    },
   ),
   libraryKey(
     "library.insert_and_return",
