@@ -171,8 +171,10 @@ const SATURATOR_DRIVE = deviceParameter("saturator", {
   unit: "decibels",
   min: 0,
   max: 48,
-  // 4 dB: a normal-level source already reaches the soft knee, and the partial
-  // (drive/2) output compensation keeps the level within a few dB of bypass.
+  // 4 dB: a normal-level source already reaches the soft knee. Both curves are
+  // unity at low level (#885), so the only level change is the drive's own: the
+  // partial (drive/2) output compensation leaves a quiet source 2 dB over
+  // bypass, and the knee pulls louder material back towards it.
   defaultValue: 4,
 });
 const SATURATOR_CHARACTER = deviceParameter("saturator", {
@@ -181,10 +183,11 @@ const SATURATOR_CHARACTER = deviceParameter("saturator", {
   unit: "normalized",
   min: 0,
   max: 1,
-  // Character crossfades tape-soft to a sine wavefolder. At 0.5 the fold is half
-  // the signal and a source peaking at 0.5 with a few dB of drive is folded to
-  // near silence (sin(pi) = 0), which sounds broken. 0.2 is mostly soft
-  // saturation with a hint of bite; the fold stays one turn of the knob away.
+  // Character crossfades tape-soft to a sine wavefolder. The fold peaks just
+  // past full scale and turns back on itself above it, so with drive pushing a
+  // source over the top, half the signal folding (0.5) sounds broken. 0.2 is
+  // mostly soft saturation with a hint of bite; the fold stays one turn of the
+  // knob away.
   defaultValue: 0.2,
 });
 

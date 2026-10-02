@@ -156,20 +156,64 @@ describe("overdrive and saturator (FX-01, FX-02)", () => {
       await render(buildSaturator, device("saturator", { drive: 48, character: 1 })),
     );
     expect(data.every((s) => Number.isFinite(s))).toBe(true);
-    // The waveshaper curve is clamped to ±1, so however hard it is driven the
+    // Every curve table is clamped to ±1, so however hard it is driven the
     // device cannot hand an unsafe sample to the rest of the chain (FX-02).
     expect(Math.max(...data.map(Math.abs))).toBeLessThanOrEqual(1.0001);
   });
 
+  // #885: at Drive 0 dB the device is meant to be the cleanest it gets, so a
+  // quiet sine comes out at its own level on either leg, and a sine past full
+  // scale is rounded by the knee rather than flattened by the table's edge.
+  describe("at 0 dB drive (#885)", () => {
+    const clean = (character: number) =>
+      device("saturator", { drive: 0, character, wet: 1, output: 0 });
+    const sine = (dbfs: number) => ({ wave: "sine", level: 10 ** (dbfs / 20) }) as const;
+    const peakDb = (data: Float32Array) =>
+      20 * Math.log10(data.reduce((m, s) => Math.max(m, Math.abs(s)), 0));
+
+    it.each([0, 1])(
+      "passes a -30 dBFS sine near unity at character %s",
+      async (character) => {
+        const data = settled(await render(buildSaturator, clean(character), sine(-30)));
+        expect(peakDb(data)).toBeCloseTo(-30, 0);
+      },
+    );
+
+    it("rounds a +3 dBFS sine instead of flat-topping it at exactly full scale", async () => {
+      const data = settled(await render(buildSaturator, clean(0), sine(3)));
+      const pinned = data.filter((s) => Math.abs(s) >= 0.9999).length;
+      expect(pinned).toBe(0);
+      // Still saturated: the knee, not the input, sets the peak.
+      expect(peakDb(data)).toBeLessThan(0);
+    });
+
+    it("keeps the fold leg sounding at and above full scale", async () => {
+      const soft = settled(await render(buildSaturator, clean(0), sine(3)));
+      const fold = settled(await render(buildSaturator, clean(1), sine(3)));
+      // A fold that collapses to 0 at ±1 loses most of a hot sine's energy.
+      expect(rms(fold)).toBeGreaterThan(rms(soft) * 0.7);
+    });
+  });
+
   it("moves from a soft knee toward a hard fold with character", async () => {
-    // Measured at a moderate drive: past the point where both curves are fully
-    // saturated they necessarily converge on the same square-ish wave, so the
-    // two shapes are only distinguishable while the knee still matters.
+    // Measured where the fold has turned over: both curves are unity near 0
+    // (#885), and below its peak the sine is if anything gentler than the tanh,
+    // so the two only part once the drive pushes the signal past the fold
+    // (18 dB lifts this 0.3 sine to about 2.4, well over the fold's peak at
+    // pi/2 and still inside the tables' ±4 span).
     const soft = settled(
-      await render(buildSaturator, device("saturator", { drive: 6, character: 0 }), SINE),
+      await render(
+        buildSaturator,
+        device("saturator", { drive: 18, character: 0 }),
+        SINE,
+      ),
     );
     const hard = settled(
-      await render(buildSaturator, device("saturator", { drive: 6, character: 1 }), SINE),
+      await render(
+        buildSaturator,
+        device("saturator", { drive: 18, character: 1 }),
+        SINE,
+      ),
     );
     expect(hfEnergy(hard) / rms(hard)).toBeGreaterThan(hfEnergy(soft) / rms(soft));
   });
