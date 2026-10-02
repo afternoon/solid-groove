@@ -20,7 +20,8 @@
   /* The assistant's docked column (#849): the width the editor's views leave
      free at the right edge, under the header. It is zero unless the assistant
      is docked, and only the editor's own layout reads it (the body, the view
-     dock and the dialogs over the views), so no view knows the panel exists. */
+     dock and the working windows over the views), so no view knows the panel
+     exists. */
   --assistant-dock-space: 0px;
 
   width: 100vw;
@@ -418,9 +419,11 @@
   margin-right: var(--assistant-dock-space);
 }
 
-/* A window over a view, such as the sequence editor, stops at the docked
-   assistant's edge too, so nothing is under the column. */
-.editor .dialog-backdrop {
+/* A working window over a view (the sequence editor, a jumbo dialog) stops
+   at the docked assistant's edge too, so nothing is under the column. A modal
+   dialog (Export, the library) does not: it covers the whole window, the
+   column included, because while it is open nothing else may be reached. */
+.editor .dialog-backdrop-jumbo {
   right: var(--assistant-dock-space);
 }
 
