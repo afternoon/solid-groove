@@ -187,6 +187,32 @@ test.describe("Export dialog layout", () => {
     }
   });
 
+  test("sizes the lanes to a short song's tracks, with the Downloads row right under them", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const measure = () =>
+      page.evaluate(() => {
+        const box = (selector: string) =>
+          document.querySelector(selector)?.getBoundingClientRect();
+        return {
+          rows: document.querySelectorAll('.export-shell [role="option"]').length,
+          lanes: box(".track-lanes-scroll")?.height,
+          gap: (box(".downloads")?.top ?? 0) - (box(".track-lanes")?.bottom ?? 0),
+        };
+      });
+    // A 7-track song has no empty space under its last lane (#841).
+    await harness(page, "mountExportDialog", "few");
+    await expect(page.getByRole("dialog", { name: "Export" })).toBeVisible();
+    const few = await measure();
+    expect(few.rows).toBeLessThan(10);
+    expect(few).toEqual({ rows: few.rows, lanes: few.rows * 24, gap: 0 });
+
+    // A long list stops at the cap and scrolls inside it.
+    await harness(page, "mountExportDialog", "over");
+    expect((await measure()).lanes).toBe(250);
+  });
+
   test("keeps the same frame for stems that fit one ZIP", async ({ page }) => {
     await page.goto("/");
     await harness(page, "mountExportDialog", "fits");

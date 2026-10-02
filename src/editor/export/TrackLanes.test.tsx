@@ -124,11 +124,12 @@ describe("TrackLanes", () => {
     renderLanes();
     expect(fillRect).toHaveBeenCalled();
   });
-  it("takes the height it is given, for a list that scrolls inside it", () => {
-    const { container } = renderLanes({ heightPx: 250 });
-    expect(
-      container.querySelector<HTMLElement>(".track-lanes-scroll")?.style.height,
-    ).toBe("250px");
+  it("grows with its rows up to the height it is given, and scrolls past it", () => {
+    const { container } = renderLanes({ maxHeightPx: 250 });
+    const scroller = container.querySelector<HTMLElement>(".track-lanes-scroll");
+    // A fixed height would leave a short list sitting over empty space (#841).
+    expect(scroller?.style.height).toBe("");
+    expect(scroller?.style.maxHeight).toBe("250px");
   });
 
   it("pads the ruler by the scrollbar the lanes carry, so the two stay aligned", () => {

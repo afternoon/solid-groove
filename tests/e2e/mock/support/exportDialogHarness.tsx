@@ -14,7 +14,7 @@ import { StemExportError } from "~/export/stems/exportStems";
  * module by path and the spec imports it into the page.
  */
 
-export type ProjectKind = "fits" | "over";
+export type ProjectKind = "few" | "fits" | "over";
 
 interface Pending {
   readonly onProgress?: (fraction: number) => void;
@@ -26,10 +26,12 @@ const blob = () => new Blob([new Uint8Array([1])]);
 
 function projectFor(kind: ProjectKind, title?: string): Project {
   const base =
-    kind === "fits"
-      ? createReferenceProject({ trackCount: 18, minutes: 4, placementCount: 400 })
-      : createReferenceProject();
-  const name = title ?? (kind === "fits" ? "Night Bus" : "Long Way Home");
+    kind === "few"
+      ? createReferenceProject({ trackCount: 7, minutes: 0.5, placementCount: 28 })
+      : kind === "fits"
+        ? createReferenceProject({ trackCount: 18, minutes: 4, placementCount: 400 })
+        : createReferenceProject();
+  const name = title ?? (kind === "over" ? "Long Way Home" : "Night Bus");
   return { ...base, metadata: { ...base.metadata, name } };
 }
 
