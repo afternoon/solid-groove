@@ -14,6 +14,10 @@ import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
 import { SONG_SWING, SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
+import {
+  type SampleSlotTargeting,
+  SampleSlotTargetingContext,
+} from "../instrument/sampleSlotTargeting";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import {
@@ -356,6 +360,20 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   });
   /** The Library view is on screen with somewhere to insert. */
   const libraryOpen = () => props.view === "library" && libraryTargetOf() !== null;
+
+  /** What every sample slot shows of the Library's aim (`UI-002`). */
+  const slotTargeting: SampleSlotTargeting = {
+    get keyLabel() {
+      return keyHint("view.show_library");
+    },
+    isTarget: (slot) => {
+      const target = libraryTargetOf();
+      if (target?.kind !== slot.kind) return false;
+      return (
+        target.kind !== "pad" || (slot.kind === "pad" && slot.padId === target.padId)
+      );
+    },
+  };
 
   /** Aims the Library and goes to `4` (`UI-002`). */
   function aimLibrary(via: ViewChangeSource, newTrack = false): void {
@@ -754,38 +772,40 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     </Show>
                   </Match>
                   <Match when={props.view === "instrument"}>
-                    <EditorInstrument
-                      project={currentProject()}
-                      track={track() ?? null}
-                      drumTrack={drumTrack() ?? null}
-                      sampleAssets={sampleAssets()}
-                      instrument={instrument()}
-                      instrumentTrackId={instrumentPanelTrackId()}
-                      sampleName={sampleName()}
-                      loadSample={loadLibrarySample}
-                      audition={auditionInstrument}
-                      auditionPad={(trackId, padId) =>
-                        void audio.auditionPad(trackId, padId)
-                      }
-                      onBrowse={() => aimLibrary("slot")}
-                      onBrowsePad={(trackId, padId) => {
-                        selectPad(trackId, padId);
-                        aimLibrary("slot");
-                      }}
-                      onBrowseLoop={() => aimLibrary("slot")}
-                      watchPeaks={audio.watchAssetPeaks}
-                      watchTriggers={audio.watchTriggers}
-                      trackLevel={audio.trackLevel}
-                      onSelectTrack={selectTrack}
-                      selectedPadId={selectedPadOf(padSelection(), drumTrack() ?? null)}
-                      onSelectPad={selectPad}
-                      onAddTrack={(spec) =>
-                        addTrack(currentProject(), spec, "instrument_add_track")
-                      }
-                      onAddLoop={() => aimLibrary("slot", true)}
-                      dispatch={session.dispatch}
-                      beginGesture={session.beginGesture}
-                    />
+                    <SampleSlotTargetingContext value={slotTargeting}>
+                      <EditorInstrument
+                        project={currentProject()}
+                        track={track() ?? null}
+                        drumTrack={drumTrack() ?? null}
+                        sampleAssets={sampleAssets()}
+                        instrument={instrument()}
+                        instrumentTrackId={instrumentPanelTrackId()}
+                        sampleName={sampleName()}
+                        loadSample={loadLibrarySample}
+                        audition={auditionInstrument}
+                        auditionPad={(trackId, padId) =>
+                          void audio.auditionPad(trackId, padId)
+                        }
+                        onBrowse={() => aimLibrary("slot")}
+                        onBrowsePad={(trackId, padId) => {
+                          selectPad(trackId, padId);
+                          aimLibrary("slot");
+                        }}
+                        onBrowseLoop={() => aimLibrary("slot")}
+                        watchPeaks={audio.watchAssetPeaks}
+                        watchTriggers={audio.watchTriggers}
+                        trackLevel={audio.trackLevel}
+                        onSelectTrack={selectTrack}
+                        selectedPadId={selectedPadOf(padSelection(), drumTrack() ?? null)}
+                        onSelectPad={selectPad}
+                        onAddTrack={(spec) =>
+                          addTrack(currentProject(), spec, "instrument_add_track")
+                        }
+                        onAddLoop={() => aimLibrary("slot", true)}
+                        dispatch={session.dispatch}
+                        beginGesture={session.beginGesture}
+                      />
+                    </SampleSlotTargetingContext>
                   </Match>
                   <Match when={props.view === "library"}>
                     {/* A fresh audition engine per visit: leaving disposes it

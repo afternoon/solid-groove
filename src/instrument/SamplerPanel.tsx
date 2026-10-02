@@ -128,6 +128,7 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
                 {(browse) => (
                   <SampleSlot
                     label="Sample"
+                    slot={{ kind: "sampler" }}
                     name={props.sampleName}
                     onBrowse={browse()}
                   />

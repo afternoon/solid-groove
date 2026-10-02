@@ -83,6 +83,7 @@ export default function LoopPanel(props: LoopPanelProps): JSX.Element {
           </div>
           <SampleSlot
             label={`Loop for ${props.trackName}`}
+            slot={{ kind: "loop" }}
             name={props.asset?.name ?? null}
             placeholder="No loop loaded"
             onBrowse={browse()}
