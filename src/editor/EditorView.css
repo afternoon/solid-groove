@@ -511,3 +511,22 @@
   flex: 1 1 auto;
   margin: 0 -8px;
 }
+
+/* The header's Assistant button (#849): a labelled cell, white while the
+   panel is open, like every pressed toggle. */
+.editor-header .assistant-button {
+  gap: 6px;
+  padding: 0 10px;
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+.editor-header .assistant-button[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.editor-header .assistant-button[aria-pressed="true"]:hover {
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
+}

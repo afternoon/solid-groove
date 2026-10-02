@@ -116,3 +116,63 @@ export function HelpIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** The assistant's mark: a four-pointed spark (#849). */
+export function SparkIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <path d="M12 1.5l2.7 7.8L22.5 12l-7.8 2.7L12 22.5l-2.7-7.8L1.5 12l7.8-2.7z" />
+    </Icon>
+  );
+}
+
+/** Minimise a floating panel to a bar. */
+export function MinimiseIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <path d="M4.5 18.75h15" fill="none" stroke-width="2.4" />
+    </Icon>
+  );
+}
+
+/** Restore a minimised bar to a panel. */
+export function RestoreIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <path d="M5.25 15L12 8.25L18.75 15" fill="none" stroke-width="2.4" />
+    </Icon>
+  );
+}
+
+/** Dock a panel to the right edge: a frame with its right column filled. */
+export function DockRightIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <rect x="2.25" y="3.75" width="19.5" height="16.5" fill="none" stroke-width="2" />
+      <rect x="14.25" y="3.75" width="7.5" height="16.5" />
+    </Icon>
+  );
+}
+
+/** Float a docked panel: a frame with a small window in its corner. */
+export function FloatIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <rect x="2.25" y="3.75" width="19.5" height="16.5" fill="none" stroke-width="2" />
+      <rect x="12.75" y="12" width="7.5" height="6.75" />
+    </Icon>
+  );
+}
+
+/** Close a panel. */
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <path
+        d="M5.25 5.25l13.5 13.5M18.75 5.25l-13.5 13.5"
+        fill="none"
+        stroke-width="2.4"
+      />
+    </Icon>
+  );
+}

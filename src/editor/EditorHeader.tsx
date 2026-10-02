@@ -1,6 +1,6 @@
 import { Portal } from "@solidjs/web";
 import { HiSolidSquares2x2 } from "solid-icons/hi";
-import { type Accessor, createEffect, createSignal, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, Show, untrack } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import {
@@ -9,6 +9,7 @@ import {
   MetronomeIcon,
   PlayIcon,
   RedoIcon,
+  SparkIcon,
   StopIcon,
   UndoIcon,
 } from "../components/icons";
@@ -41,6 +42,15 @@ export type HeaderAudio = Pick<
   | "seekTicks"
 >;
 
+/** The header's half of the assistant panel (#849). */
+export interface HeaderAssistant {
+  readonly open: () => boolean;
+  /** `aria-keyshortcuts` for Cmd/Ctrl+K, e.g. `Control+K`. */
+  readonly ariaKeys: string;
+  toggle(opener: HTMLElement): void;
+  bindLauncher(element: HTMLElement): void;
+}
+
 /** The slice of the editor session the header reads: history and save state. */
 export type HeaderSession = Pick<
   UseEditorSessionResult,
@@ -68,6 +78,12 @@ export interface EditorHeaderProps {
   /** Told whether the Export dialog is open, so the editor's keys can stand down. */
   readonly onExportOpenChange?: (open: boolean) => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
+  /**
+   * The assistant (#849): whether its panel is open, and the button that opens
+   * and closes it. The button is handed back so a closing panel can return
+   * focus to it. Omitted, the header has no Assistant button.
+   */
+  readonly assistant?: HeaderAssistant;
   /** Injected in tests; defaults to the app-wide instance. */
   readonly analytics?: Analytics;
 }
@@ -76,7 +92,7 @@ export interface EditorHeaderProps {
  * The editor's top bar, in three zones with one job each (#340, UI-003 #819):
  * the project (projects link, name) on the left; playing it ([play | loop],
  * the editable playhead, [tempo | swing | metronome]) in the centre; the
- * document ([undo | redo], save state, export, help) on the right. Every
+ * document ([undo | redo], save state, export, help, the assistant) on the right. Every
  * control but the name and save state sits in one equal-height cell, and a
  * `header-cell-group` joins cells into one strip. Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
  * merge-clash surface, then handed the audio and session modules whole
@@ -267,6 +283,23 @@ export default function EditorHeader(props: EditorHeaderProps) {
         >
           <HelpIcon size={18} />
         </button>
+        <Show when={props.assistant}>
+          {(assistant) => (
+            <button
+              type="button"
+              class="assistant-button"
+              // Bound once, as the button is created: not a value to track.
+              ref={(element) => untrack(() => assistant().bindLauncher(element))}
+              aria-pressed={ariaBool(assistant().open())}
+              aria-keyshortcuts={assistant().ariaKeys}
+              title={`Assistant (${props.keyHint("assistant.toggle")})`}
+              onClick={(event) => assistant().toggle(event.currentTarget)}
+            >
+              <SparkIcon size={12} />
+              Assistant
+            </button>
+          )}
+        </Show>
       </div>
     </header>
   );

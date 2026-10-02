@@ -19,9 +19,6 @@ import {
  * frozen once it lands: a later PR that changes an assertion here has to say
  * so in its body and justify it.
  *
- * It is `test.fixme` because the assistant does not exist yet. The PR that
- * closes #849 removes this marker.
- *
  * **Locators.** Every assistant locator is assumed from #849 and its reference
  * design, and listed in `../support/assistant.ts`. "Click the bar" in step 4
  * is a click on the minimised panel's title, clear of its buttons.
@@ -42,9 +39,7 @@ import {
 const DRAG = 120;
 
 test.describe("CF-028", () => {
-  // `test.fixme` until #849 lands: the PR that closes it removes this marker in
-  // the same diff that makes the flow pass.
-  test.fixme("the assistant stays where a producer puts it", async ({ page }) => {
+  test("the assistant stays where a producer puts it", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-028",
       title: "The assistant stays where a producer puts it",

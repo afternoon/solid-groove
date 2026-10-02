@@ -432,6 +432,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // The Export ZIP gutter's bracket state (#724): an enum of our own
       // ("current", "done" or none). Never a name.
       "bracket.state",
+      // The assistant panel's mode (#849): floating, minimised, docked or
+      // closed, an enum of our own.
+      "mode()",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {
