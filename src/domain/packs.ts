@@ -215,8 +215,16 @@ export interface PackAvailability {
  * tracks and clips that use it. LIB-05 still holds either way: an asset is
  * immutable content, so finding it in a later version returns the same audio,
  * and the project keeps recording the version it resolved from. Nothing here
- * rewrites project state, upgrades a pinned version, or adopts a later version's
+ * rewrites project state, moves a pinned version, or adopts a later version's
  * metadata for an asset.
+ *
+ * A pinned version does move, but only as an explicit, undoable step: the
+ * `pack.setVersion` command, which an insert from a newer version of a pack the
+ * project already uses prepends to its own transaction (#892). It never changes
+ * how an existing sound sounds — a sound still in the newer version is the same
+ * immutable content, and one that is not becomes a `missingAssets` entry here,
+ * never a substitute. The upgrade is automatic when nothing would go missing
+ * and the producer's choice when something would.
  *
  * The contract stays deliberately narrow otherwise: this returns a *report*
  * rather than throwing (a project whose pack is offline still opens, edits, and

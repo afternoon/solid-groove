@@ -22,6 +22,7 @@ import type { ShortcutActionId } from "../shortcuts";
 import LibraryHint, { type LibraryPlace } from "./LibraryHint";
 import LibraryKeys from "./LibraryKeys";
 import { ClearIcon, DiceIcon, GridIcon, SearchIcon } from "./libraryIcons";
+import type { LibraryInsertOptions, LibraryInsertOutcome } from "./libraryInsert";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
@@ -84,8 +85,15 @@ export interface LibraryModalProps {
    */
   readonly slotAudition?: SlotAudition;
   readonly analytics?: Analytics;
-  /** Insert the chosen sound. The host closes this on the way through. */
-  onInsert(asset: LibraryAsset): void;
+  /**
+   * Insert the chosen sound. The host closes this on the way through when it
+   * lands; a refusal, or an upgrade that needs the producer's say-so, comes
+   * back for the footer to show (#892). Nothing returned means it landed.
+   */
+  onInsert(
+    asset: LibraryAsset,
+    options: LibraryInsertOptions,
+  ): LibraryInsertOutcome | Promise<LibraryInsertOutcome> | undefined;
   readonly addedPackIds: readonly string[];
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
@@ -125,6 +133,97 @@ function slotPlace(kind: LibraryModalProps["slotKind"], slot?: string): string {
   return kind === "loop-track" ? "the loop track" : "the sampler";
 }
 
+type PendingUpgrade = Extract<LibraryInsertOutcome, { upgrade: unknown }>["upgrade"];
+
+/** What the footer says in place of its hint after an insert did not land. */
+type InsertNotice =
+  | {
+      readonly kind: "refused";
+      readonly asset: LibraryAsset;
+      readonly text: string;
+      /** Whether "Upgrade anyway" is still on offer, so the producer is never stuck. */
+      readonly offerUpgrade: boolean;
+    }
+  | {
+      readonly kind: "confirm";
+      readonly asset: LibraryAsset;
+      readonly text: string;
+      readonly upgrade: PendingUpgrade;
+    };
+
+function sounds(count: number): string {
+  return count === 1 ? "1 sound" : `${count} sounds`;
+}
+
+/** The question an unsafe upgrade asks before it does anything. */
+function upgradeQuestion(upgrade: PendingUpgrade & { missing: number }): string {
+  return `Inserting this moves the project to ${upgrade.packName} ${upgrade.version}, which leaves ${sounds(upgrade.missing)} in this project missing.`;
+}
+
+/** The refusal an upgrade the producer has not agreed to leaves behind. */
+function couldNotUpgrade(asset: LibraryAsset, upgrade: PendingUpgrade): string {
+  return upgrade.missing === null
+    ? `Couldn't insert ${asset.name}: ${upgrade.packName} ${upgrade.version} didn't load, so this project's sounds couldn't be checked against it.`
+    : `Couldn't insert ${asset.name}: it needs ${upgrade.packName} ${upgrade.version}, which leaves ${sounds(upgrade.missing)} in this project missing.`;
+}
+
+function noticeFor(
+  asset: LibraryAsset,
+  outcome: Exclude<LibraryInsertOutcome, { ok: true }>,
+): InsertNotice {
+  if ("reason" in outcome) {
+    return { kind: "refused", asset, text: outcome.reason, offerUpgrade: false };
+  }
+  const { upgrade } = outcome;
+  // Missing sounds that could not be counted cannot be asked about honestly,
+  // so the footer says why it stopped and still offers the upgrade.
+  if (upgrade.missing === null) {
+    return {
+      kind: "refused",
+      asset,
+      text: couldNotUpgrade(asset, upgrade),
+      offerUpgrade: true,
+    };
+  }
+  return {
+    kind: "confirm",
+    asset,
+    text: upgradeQuestion({ ...upgrade, missing: upgrade.missing }),
+    upgrade,
+  };
+}
+
+/** The footer's sentence beside Insert, with the upgrade's choices when it has them. */
+function InsertNoticeView(props: {
+  notice: InsertNotice;
+  onUpgrade(): void;
+  onCancel(): void;
+}): JSX.Element {
+  return (
+    <output class="library-modal-notice">
+      <span class={["library-modal-notice-text", MASK_CONTENT]}>{props.notice.text}</span>
+      <Show when={props.notice.kind === "confirm" || props.notice.offerUpgrade}>
+        <button
+          type="button"
+          class="library-modal-ghost"
+          onClick={() => props.onUpgrade()}
+        >
+          Upgrade anyway
+        </button>
+      </Show>
+      <Show when={props.notice.kind === "confirm"}>
+        <button
+          type="button"
+          class="library-modal-ghost"
+          onClick={() => props.onCancel()}
+        >
+          Cancel
+        </button>
+      </Show>
+    </output>
+  );
+}
+
 /**
  * The library window (`UI-001`, `LIB-010`): a header naming the slot with
  * **Was** and **Hearing** readouts, a rail of places to look, and a footer with
@@ -137,7 +236,15 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
   const [query, setQuery] = createSignal("");
   const [keysOpen, setKeysOpen] = createSignal(false);
-  const [selected, setSelected] = createSignal<LibraryAsset | null>(null);
+  const [selected, setSelectedSound] = createSignal<LibraryAsset | null>(null);
+  // Why the last insert did not land, or the upgrade it is waiting on (#892).
+  const [notice, setNotice] = createSignal<InsertNotice | null>(null);
+  const [inserting, setInserting] = createSignal(false);
+  /** A new selection clears whatever the footer said about the last one. */
+  function setSelected(asset: LibraryAsset | null): void {
+    if (asset !== selected()) setNotice(null);
+    setSelectedSound(asset);
+  }
   // Every view auditions through this one engine, so each is heard in the slot.
   const previewEngine = props.slotAudition
     ? slotPreviewEngine(props.previewEngine, props.slotAudition, selected)
@@ -245,8 +352,36 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   function insertSelected(): boolean {
     const asset = selected();
     if (!asset) return false;
-    props.onInsert(asset);
+    void insert(asset, false);
     return true;
+  }
+
+  /** Runs one insert and keeps what came back for the footer to show. */
+  async function insert(asset: LibraryAsset, upgradeAnyway: boolean): Promise<void> {
+    if (inserting()) return;
+    setNotice(null);
+    setInserting(true);
+    let outcome: LibraryInsertOutcome | undefined;
+    try {
+      outcome = await props.onInsert(asset, { upgradeAnyway });
+    } finally {
+      setInserting(false);
+    }
+    // A selection made while it ran is what the footer is about now.
+    if (!outcome || outcome.ok || selected() !== asset) return;
+    setNotice(noticeFor(asset, outcome));
+  }
+
+  /** "Cancel" on the upgrade question: nothing changes, and the footer says so. */
+  function cancelUpgrade(): void {
+    const current = notice();
+    if (current?.kind !== "confirm") return;
+    setNotice({
+      kind: "refused",
+      asset: current.asset,
+      text: couldNotUpgrade(current.asset, current.upgrade),
+      offerUpgrade: true,
+    });
   }
 
   onSettled(() => {
@@ -341,13 +476,26 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       }
       footer={
         <>
-          <LibraryHint
-            place={place()}
-            where={props.slotAudition && slotPlace(props.slotKind, props.slot)}
-            current={props.current}
-            selected={selected()?.name}
-            keyLabel={props.keyLabel}
-          />
+          <Show
+            when={notice()}
+            fallback={
+              <LibraryHint
+                place={place()}
+                where={props.slotAudition && slotPlace(props.slotKind, props.slot)}
+                current={props.current}
+                selected={selected()?.name}
+                keyLabel={props.keyLabel}
+              />
+            }
+          >
+            {(shown) => (
+              <InsertNoticeView
+                notice={shown()}
+                onUpgrade={() => void insert(shown().asset, true)}
+                onCancel={cancelUpgrade}
+              />
+            )}
+          </Show>
           <button
             type="button"
             class="library-modal-ghost"
@@ -369,7 +517,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           <button
             type="button"
             class="library-modal-insert"
-            disabled={selected() === null}
+            disabled={selected() === null || inserting()}
             aria-keyshortcuts="Enter"
             onClick={() => insertSelected()}
           >

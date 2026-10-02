@@ -325,6 +325,29 @@
   color: var(--color-accent);
 }
 
+/* Why the last insert did not land, in the hint's place beside Insert (#892).
+   Monochrome like every status: framed and worded, not coloured. */
+.library-modal-notice {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--color-danger-edge);
+  background: var(--color-danger-wash);
+  color: var(--color-accent);
+}
+
+.library-modal-notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.library-modal-notice .library-modal-ghost {
+  height: 32px;
+}
+
 .library-modal-empty {
   margin: auto;
   color: var(--color-foreground-muted);

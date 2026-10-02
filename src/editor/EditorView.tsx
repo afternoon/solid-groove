@@ -21,9 +21,8 @@ import {
   loadPadSampleCommands,
   loadSampleCommands,
   replaceLoopCommands,
-  toLibrarySample,
 } from "../library/insertion";
-import type { LibraryClient } from "../library/libraryClient";
+import { LibraryClient } from "../library/libraryClient";
 import type { LibraryAssetType } from "../library/manifest";
 import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
@@ -44,6 +43,11 @@ import {
   type ViewChangeSource,
 } from "./editorViews";
 import LibraryModal, { type LibraryActions } from "./LibraryModal";
+import {
+  dropFromLibrary,
+  insertFromLibrary,
+  type LibraryInsertHost,
+} from "./libraryInsert";
 import {
   type LoopActionContext,
   moveLoopByBars,
@@ -240,6 +244,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // the second open would reuse a dead engine and every audition would fail
   // with `asset_missing` (LOOP-013). Auditions play through the same
   // destination the project does — never an export/offline context (LIB-01).
+  // One library client for the editor's life, so the library window and the
+  // pack-upgrade check (#892) share its cached index and manifests.
+  const libraryClient = props.libraryClient ?? new LibraryClient();
+
   const createAuditionEngine =
     props.createAuditionEngine ??
     (() => new ToneAuditionEngine(getAudioRuntime(), { songTempo: () => tempo() }));
@@ -483,11 +491,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    * Both paths can decline, and a decline has to be visible: the Loop button
    * used to reach a sampler-only path that returned silently, so inserting a
    * loop closed the window and did nothing at all. `onInsert` now only closes
-   * on a committed transaction, and a refusal says why.
+   * on a committed transaction, and a refusal says why: each of these returns
+   * `null` when it landed, else the sentence the library's footer shows (#892).
    */
-  function loadLibrarySample(sample: LibrarySample): boolean {
+  function loadLibrarySample(sample: LibrarySample): string | null {
     const currentProject = project();
-    if (!currentProject) return false;
+    if (!currentProject) return notOpen(sample);
     const analytics = props.analytics ?? defaultAnalytics;
 
     if (sample.kind === "loop") {
@@ -498,25 +507,27 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
           songTempo: currentProject.song.tempo,
         }),
       );
-      if (!result?.ok) return false;
+      if (!result?.ok) return refusedBy(sample);
       // No `instrument_type`: an audio track carries no instrument, which is
       // the case the catalog leaves that param optional for.
       analytics.log("track_added", { track_type: "audio" });
       analytics.logFeatureFirstUse("audio_loop");
-      return true;
+      return null;
     }
 
     // The track the editor is pointed at (#228), not the project's first —
     // so a drop lands on whichever track the user selected.
     const trackId = model.samplerTrackId(track());
-    if (!trackId) return false;
+    if (!trackId) {
+      return `Couldn't insert ${sample.name}: the selected track has no sampler to load it on.`;
+    }
     const result = session.dispatch(
       loadSampleCommands(currentProject, trackId, sample, createFactoryContext()),
     );
-    if (!result?.ok) return false;
+    if (!result?.ok) return refusedBy(sample);
     analytics.log("instrument_changed", { instrument_type: "sampler" });
     analytics.logFeatureFirstUse("sampler");
-    return true;
+    return null;
   }
 
   /**
@@ -525,9 +536,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    * use of an audio loop the Loop button's insertion is, so it logs the same
    * first use.
    */
-  function replaceLoop(sample: LibrarySample, trackId: TrackId): boolean {
+  function replaceLoop(sample: LibrarySample, trackId: TrackId): string | null {
     const currentProject = project();
-    if (!currentProject || sample.kind !== "loop") return false;
+    if (!currentProject) return notOpen(sample);
+    if (sample.kind !== "loop") {
+      return `Couldn't insert ${sample.name}: only a loop can replace a loop track's loop.`;
+    }
     const commands = replaceLoopCommands(
       currentProject,
       trackId,
@@ -535,11 +549,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       createFactoryContext(),
       { songTempo: currentProject.song.tempo },
     );
-    if (commands.length === 0) return false;
+    if (commands.length === 0) {
+      return `Couldn't insert ${sample.name}: this track doesn't play a loop.`;
+    }
     const result = session.dispatch(commands);
-    if (!result?.ok) return false;
+    if (!result?.ok) return refusedBy(sample);
     (props.analytics ?? defaultAnalytics).logFeatureFirstUse("audio_loop");
-    return true;
+    return null;
   }
 
   /**
@@ -551,9 +567,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   function loadPadSample(
     sample: LibrarySample,
     pad: { trackId: TrackId; padId: PadId },
-  ): boolean {
+  ): string | null {
     const currentProject = project();
-    if (!currentProject || sample.kind === "loop") return false;
+    if (!currentProject) return notOpen(sample);
+    if (sample.kind === "loop") {
+      return `Couldn't insert ${sample.name}: a loop can't go on a drum pad.`;
+    }
     const result = session.dispatch(
       loadPadSampleCommands(
         currentProject,
@@ -563,12 +582,51 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
         createFactoryContext(),
       ),
     );
-    if (!result?.ok) return false;
+    if (!result?.ok) return refusedBy(sample);
     const analytics = props.analytics ?? defaultAnalytics;
     // A pad sample replacement is an instrument change (PRD OPS-02).
     analytics.log("instrument_changed", { instrument_type: "drum_machine" });
     analytics.logFeatureFirstUse("drum_machine");
-    return true;
+    return null;
+  }
+
+  /**
+   * The library's insert, through the pack-upgrade check (#892): to the pad
+   * or loop track that opened the library, else onto the selected sampler or
+   * as a new loop track.
+   */
+  const libraryInsertHost = libraryHost((sample) => {
+    const pad = padTarget();
+    const loopTrackId = loopTarget();
+    return pad
+      ? loadPadSample(sample, pad)
+      : loopTrackId
+        ? replaceLoop(sample, loopTrackId)
+        : loadLibrarySample(sample);
+  });
+
+  /** A drop on the instrument panel always loads the selected sampler. */
+  const dropHost = libraryHost(loadLibrarySample);
+
+  function libraryHost(insert: LibraryInsertHost["insert"]): LibraryInsertHost {
+    return {
+      project,
+      client: libraryClient,
+      get analytics() {
+        return props.analytics ?? defaultAnalytics;
+      },
+      insert,
+    };
+  }
+
+  /** The footer's sentence when there is no project to insert into. */
+  function notOpen(sample: LibrarySample): string {
+    return `Couldn't insert ${sample.name}: the project isn't open.`;
+  }
+
+  /** The footer's sentence when the project's own checks refused the change. */
+  function refusedBy(sample: LibrarySample): string {
+    return `Couldn't insert ${sample.name}: the project can't take it, so nothing changed.`;
   }
 
   /** Adds a track of the chosen kind, through the route the arrangement's
@@ -668,7 +726,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       instrument={instrument()}
                       instrumentTrackId={instrumentPanelTrackId()}
                       sampleName={sampleName()}
-                      loadSample={loadLibrarySample}
+                      loadSample={(sample) => void dropFromLibrary(dropHost, sample)}
                       audition={auditionInstrument}
                       auditionPad={(trackId, padId) =>
                         void audio.auditionPad(trackId, padId)
@@ -715,25 +773,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                */}
               <Show when={libraryOpen()}>
                 <LibraryModal
-                  client={props.libraryClient}
+                  client={libraryClient}
                   previewEngine={createAuditionEngine()}
                   slotAudition={slotAudition()}
                   analytics={props.analytics}
-                  onInsert={(asset) => {
-                    const sample = toLibrarySample(asset);
+                  onInsert={async (asset, options) => {
                     // Only a committed insertion closes the window. Closing
                     // regardless is what made a refused insert look like a
                     // successful one that lost the sound.
-                    const pad = padTarget();
-                    const loopTrackId = loopTarget();
-                    const loaded =
-                      sample &&
-                      (pad
-                        ? loadPadSample(sample, pad)
-                        : loopTrackId
-                          ? replaceLoop(sample, loopTrackId)
-                          : loadLibrarySample(sample));
-                    if (loaded) setLibraryOpen(false);
+                    const outcome = await insertFromLibrary(
+                      libraryInsertHost,
+                      asset,
+                      options,
+                    );
+                    if (outcome.ok) setLibraryOpen(false);
+                    return outcome;
                   }}
                   addedPackIds={addedPackIds()}
                   assetTypes={libraryTypes()}

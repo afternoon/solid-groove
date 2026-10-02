@@ -6,6 +6,7 @@ import {
   type RawCommandInput,
   removeClip,
   renamePad,
+  setPackVersion,
   setPadAsset,
   setSample,
 } from "../commands";
@@ -23,6 +24,7 @@ import { isAutoPadName } from "../domain/padNames";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { assetStorageRef, type LibraryAsset } from "./manifest";
+import { packUpgradeFor } from "./packUpgrade";
 
 /**
  * Putting a library sound into a project (PRD LIB-05, invariant 12).
@@ -45,6 +47,13 @@ import { assetStorageRef, type LibraryAsset } from "./manifest";
  *   tracks leaves one asset behind rather than four identical ones — which is
  *   also what keeps the buffer cache resolving one entry (`AudioBufferCache`
  *   keys on asset identity).
+ * - **A newer version of a pack the project pins moves the pin (#892).** A
+ *   project resolves one version per pack, so a sound from P@N cannot join a
+ *   project pinned to P@O on its own. Every helper here prepends
+ *   `pack.setVersion` to the same transaction instead, so the insert and the
+ *   upgrade are one revision and one undo. Whether the upgrade is *safe* — all
+ *   the project's sounds from P still in P@N — is the caller's question, asked
+ *   before dispatch with the manifest in hand (see `./packUpgrade`).
  */
 
 /**
@@ -134,6 +143,30 @@ export function carriedAsset(project: Project, sample: LibrarySample): Asset | n
   );
 }
 
+/**
+ * What carrying a sound costs: the commands that come first (an upgrade of the
+ * pack's pin, a new asset) and the asset ID the rest of the transaction points
+ * at.
+ *
+ * Under an upgrade the project's own copy of the same content at the older
+ * version is reused — `storageRef` is content-addressed, and the upgrade moves
+ * that copy to the new version in the same transaction.
+ */
+function carry(
+  project: Project,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+): { readonly commands: readonly RawCommandInput[]; readonly assetId: AssetId } {
+  const upgrade = packUpgradeFor(project, sample);
+  const first = upgrade ? [setPackVersion(upgrade.packId, upgrade.from, upgrade.to)] : [];
+  const existing = upgrade
+    ? carriedAsset(project, { ...sample, packVersion: upgrade.from })
+    : carriedAsset(project, sample);
+  if (existing) return { commands: first, assetId: existing.id };
+  const asset = createLibraryAsset(context, sample);
+  return { commands: [...first, addAsset(asset)], assetId: asset.id };
+}
+
 /** A fresh project-scoped reference to a library sound. */
 export function createLibraryAsset(
   context: DomainFactoryContext,
@@ -214,10 +247,8 @@ function carryThen(
   context: DomainFactoryContext,
   point: (assetId: AssetId) => RawCommandInput,
 ): readonly RawCommandInput[] {
-  const existing = carriedAsset(project, sample);
-  if (existing) return [point(existing.id)];
-  const asset = createLibraryAsset(context, sample);
-  return [addAsset(asset), point(asset.id)];
+  const carried = carry(project, sample, context);
+  return [...carried.commands, point(carried.assetId)];
 }
 
 /** What a loop insertion needs to know about the project it is landing in. */
@@ -282,8 +313,7 @@ export function insertLoopCommands(
   context: DomainFactoryContext,
   options: InsertLoopOptions,
 ): readonly RawCommandInput[] {
-  const existing = carriedAsset(project, sample);
-  const asset = existing ?? createLibraryAsset(context, sample);
+  const carried = carry(project, sample, context);
 
   const name = uniqueName(sample.name, options.existingNames);
   const track = createTrack(context, {
@@ -296,7 +326,7 @@ export function insertLoopCommands(
   const clip = createAudioLoopClip(context, {
     trackId: track.id,
     name,
-    assetId: asset.id,
+    assetId: carried.assetId,
     sourceTempo: sample.bpm ?? options.songTempo,
     lengthTicks,
   });
@@ -311,7 +341,7 @@ export function insertLoopCommands(
   // insertion is one revision and one undo — take it back and the track, the
   // clip and the asset go together, leaving nothing orphaned.
   const create = addTrack(track, { clips: [clip], placements: [placement] });
-  return existing ? [create] : [addAsset(asset), create];
+  return [...carried.commands, create];
 }
 
 /**
@@ -336,8 +366,7 @@ export function replaceLoopCommands(
   const track = project.song.tracks.find((candidate) => candidate.id === trackId);
   if (!track || track.type !== "audio" || sample.kind !== "loop") return [];
 
-  const existing = carriedAsset(project, sample);
-  const asset = existing ?? createLibraryAsset(context, sample);
+  const carried = carry(project, sample, context);
   const old =
     project.clips.find(
       (clip) => clip.trackId === trackId && clip.content.kind === "audioLoop",
@@ -347,7 +376,7 @@ export function replaceLoopCommands(
     trackId,
     name: sample.name,
     color: old?.color,
-    assetId: asset.id,
+    assetId: carried.assetId,
     sourceTempo: sample.bpm ?? options.songTempo,
     lengthTicks,
   });
@@ -375,7 +404,7 @@ export function replaceLoopCommands(
         ];
 
   return [
-    ...(existing ? [] : [addAsset(asset)]),
+    ...carried.commands,
     addClip(clip, placements),
     ...(old ? [removeClip(old.id)] : []),
   ];

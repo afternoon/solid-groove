@@ -15,7 +15,8 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
-import type { Project } from "../domain/entities";
+import { executeTransaction } from "../commands";
+import { type Project, packVersion } from "../domain/entities";
 import {
   createDrumMachineInstrument,
   createDrumPad,
@@ -31,8 +32,9 @@ import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import { fixtureFetcher, fixturePackManifest } from "../library/__fixtures__/fixtures";
 import { LIBRARY_SAMPLE_MIME } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
+import { loadPadSampleCommands, toLibrarySample } from "../library/insertion";
 import { LibraryClient } from "../library/libraryClient";
-import { packAssets, parsePackManifest } from "../library/manifest";
+import { type LibraryAsset, packAssets, parsePackManifest } from "../library/manifest";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { buildArrangementProject } from "../testing/arrangementProject";
@@ -268,6 +270,12 @@ function loopAssetName(slug: string): string {
 /** The name of the first insertable one-shot in a committed fixture pack. */
 function oneShotAssetName(slug: string): string {
   return assetNameOfType(slug, "one-shot");
+}
+
+/** The insertable one-shots of the committed Core Electronic Drums fixture. */
+function drumOneShots(): LibraryAsset[] {
+  const manifest = parsePackManifest(fixturePackManifest("core-electronic-drums"));
+  return packAssets(manifest).filter((asset) => asset.type === "one-shot" && asset.url);
 }
 
 function assetNameOfType(slug: string, type: "loop" | "one-shot"): string {
@@ -613,6 +621,123 @@ describe("EditorView", () => {
     const changed = transport.named("instrument_changed");
     expect(changed).toHaveLength(1);
     expect(changed[0].params.instrument_type).toBe("drum_machine");
+  });
+
+  describe("into a project pinned to an older pack version (#892)", () => {
+    /**
+     * The drum-machine fixture with its first pad playing a Core Electronic
+     * Drums sound pinned at 1.0.0, as a project made before the factory packs
+     * moved to 1.1.0 does. `gone` gives that sound content the newer manifest
+     * does not deliver.
+     */
+    async function seedOlderPinnedProject(gone: boolean) {
+      const [kept, inserted] = drumOneShots();
+      const keptSample = toLibrarySample(kept);
+      if (!keptSample) throw new Error("expected an insertable sample");
+      const fixture = createDrumMachineFixtureProject();
+      const [drums] = fixture.song.tracks;
+      if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+      const [first, second] = drums.instrument.pads;
+      const seeded = executeTransaction(
+        fixture,
+        loadPadSampleCommands(
+          fixture,
+          drums.id,
+          first.id,
+          {
+            ...keptSample,
+            packVersion: packVersion("1.0.0"),
+            storageRef: gone
+              ? "samples/starter-library/audio/sha256/00/00/gone.wav"
+              : keptSample.storageRef,
+          },
+          createFactoryContext(),
+        ),
+      );
+      if (!seeded.ok) throw new Error(seeded.issues[0].message);
+      repository = inMemoryModule.createInMemoryProjectRepository();
+      const created = await repository.createProject(seeded.project);
+      if (!created.ok) throw new Error("fixture project failed to create");
+      const transport = createRecordingTransport();
+      renderEditor(seeded.project.metadata.id, {
+        createAuditionEngine: () => fakePreviewEngine(),
+        libraryClient: new LibraryClient(fixtureFetcher()),
+        analytics: recordingAnalytics(transport),
+      });
+      await goToView("Instrument");
+      clickAndFlush(
+        await screen.findByRole("button", { name: `Audition ${second.name}` }),
+      );
+      clickAndFlush(screen.getByRole("button", { name: `Sample for ${second.name}` }));
+      await screen.findByRole("dialog", { name: "Library" });
+      return { transport, second, inserted };
+    }
+
+    const closed = () =>
+      vi.waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Library" })).not.toBeInTheDocument(),
+      );
+
+    it("upgrades the pin without asking when every sound is still in the pack, and one undo takes both back", async () => {
+      const { transport, second, inserted } = await seedOlderPinnedProject(false);
+
+      await insertSound(inserted.name);
+
+      await closed();
+      expect(
+        screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
+      ).toBe(inserted.name);
+      const upgraded = transport.named("library_pack_upgraded");
+      expect(upgraded).toHaveLength(1);
+      expect(upgraded[0].params).toMatchObject({
+        choice: "automatic",
+        missing_sound_count: 0,
+      });
+      expect(
+        transport
+          .named("feature_first_use")
+          .filter((event) => event.params.feature === "pack_upgrade"),
+      ).toHaveLength(1);
+
+      fireEvent.click(await screen.findByRole("button", { name: /^Undo/ }));
+      await vi.waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
+        ).not.toBe(inserted.name),
+      );
+    });
+
+    it("asks in the footer when sounds would go missing; Cancel changes nothing, Upgrade anyway inserts", async () => {
+      const { transport, second, inserted } = await seedOlderPinnedProject(true);
+
+      await insertSound(inserted.name);
+
+      const library = screen.getByRole("dialog", { name: "Library" });
+      expect(
+        await within(library).findByText(
+          /moves the project to Core Electronic Drums \S+, which leaves 1 sound in this project missing\./,
+        ),
+      ).toBeVisible();
+      clickAndFlush(within(library).getByRole("button", { name: "Cancel" }));
+      expect(within(library).getByText(/^Couldn't insert /)).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
+      ).not.toBe(inserted.name);
+      expect(transport.named("library_pack_upgraded")).toHaveLength(0);
+
+      clickAndFlush(within(library).getByRole("button", { name: "Upgrade anyway" }));
+
+      await closed();
+      expect(
+        screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
+      ).toBe(inserted.name);
+      const upgraded = transport.named("library_pack_upgraded");
+      expect(upgraded).toHaveLength(1);
+      expect(upgraded[0].params).toMatchObject({
+        choice: "upgrade_anyway",
+        missing_sound_count: 1,
+      });
+    });
   });
 
   it("replaces a loop track's loop from its loop slot, without adding a track", async () => {
