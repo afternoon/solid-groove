@@ -1,8 +1,10 @@
 import type { JSX } from "@solidjs/web";
+import { onSettled } from "solid-js";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { ShortcutContext, ShortcutHandlers } from "../shortcuts";
 import { useShortcuts } from "../shortcuts";
 import "./ConfirmDialog.css";
+import { holdModal } from "./modalInert";
 
 export interface ConfirmDialogProps {
   title: string;
@@ -31,8 +33,26 @@ const DIALOG_CONTEXTS: readonly ShortcutContext[] = ["dialog"];
  * registry, dispatched by the shared `ShortcutController` like every other
  * mapping. That is what keeps the combination written down once, and it picks
  * up the text-entry rule and the `shortcut_used` measurement for free.
+ *
+ * While it is open the rest of the app is `inert` (#876), the same as the
+ * shared `Dialog`: focus goes in on Cancel, the safe choice, and back to
+ * whatever opened it on close.
  */
 export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
+  let backdrop!: HTMLDivElement;
+  let cancelButton!: HTMLButtonElement;
+
+  onSettled(() => {
+    const opener = document.activeElement;
+    const release = holdModal(backdrop);
+    cancelButton.focus();
+    return () => {
+      // Released first: an inert opener cannot take focus back.
+      release();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
+  });
+
   useShortcuts({
     handlers: (): ShortcutHandlers => ({
       "view.close_surface": {
@@ -47,7 +67,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
   });
 
   return (
-    <div class="confirm-dialog-backdrop">
+    <div ref={backdrop} class="confirm-dialog-backdrop">
       <div
         class="confirm-dialog"
         role="alertdialog"
@@ -65,6 +85,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
         <p class="confirm-dialog-message">{props.message}</p>
         <div class="confirm-dialog-actions">
           <button
+            ref={cancelButton}
             type="button"
             class="confirm-dialog-cancel"
             disabled={props.busy}

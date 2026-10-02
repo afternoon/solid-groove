@@ -150,4 +150,30 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("button", { name: "Discard" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keep editing" })).toBeInTheDocument();
   });
+
+  // #876: the same gap as the shared `Dialog`. `aria-modal` alone keeps
+  // nothing behind the dialog out of reach of Tab or a click.
+  it("makes the page behind it inert, and hands focus back when it closes", () => {
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+
+    const { unmount } = render(() => (
+      <ConfirmDialog
+        title="Delete?"
+        message="Sure?"
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    ));
+
+    expect(opener).toHaveAttribute("inert");
+    // Focus goes in on the safe choice, not the destructive one.
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
+
+    unmount();
+    expect(opener).not.toHaveAttribute("inert");
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
 });

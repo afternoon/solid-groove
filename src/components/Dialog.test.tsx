@@ -1,4 +1,6 @@
 import { cleanup, render, screen } from "@solidjs/testing-library";
+import { Show } from "@solidjs/web";
+import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clickAndFlush } from "../testing/events";
 import Dialog from "./Dialog";
@@ -79,5 +81,79 @@ describe("Dialog", () => {
     expect(close).toBeVisible();
     expect(document.activeElement).toBe(close);
     expect(screen.getByRole("heading", { name: "Loops" })).toBeVisible();
+  });
+
+  // #876: moving focus in on open was all it did, so Shift+Tab from the
+  // library's search field walked straight out to the editor behind the scrim.
+  it("makes everything behind it inert while it is open, and only then", () => {
+    const [open, setOpen] = createSignal(true);
+    render(() => (
+      <main>
+        <nav>
+          <button type="button">Add reverb device</button>
+        </nav>
+        <section aria-label="Editor">
+          <button type="button">Add delay device</button>
+          <Show when={open()}>
+            <Dialog label="Library" onClose={() => setOpen(false)}>
+              <input aria-label="Search sounds" />
+            </Dialog>
+          </Show>
+        </section>
+      </main>
+    ));
+
+    const reverb = screen.getByRole("button", { name: "Add reverb device" });
+    const delay = screen.getByRole("button", { name: "Add delay device" });
+    const dialog = screen.getByRole("dialog", { name: "Library" });
+
+    // A sibling at its own level and one an ancestor further out both go inert,
+    // while the dialog and the path down to it stay live.
+    expect(delay).toHaveAttribute("inert");
+    expect(reverb.parentElement).toHaveAttribute("inert");
+    expect(dialog.closest("[inert]")).toBeNull();
+
+    setOpen(false);
+    flush();
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it("lets the newest of two stacked dialogs win, and hands back on close", () => {
+    const [second, setSecond] = createSignal(true);
+    const [first, setFirst] = createSignal(true);
+    render(() => (
+      <div>
+        <button type="button">Add reverb device</button>
+        <Show when={first()}>
+          <Dialog label="Library" onClose={() => setFirst(false)}>
+            <input aria-label="Search sounds" />
+          </Dialog>
+        </Show>
+        <Show when={second()}>
+          <Dialog label="Packs" onClose={() => setSecond(false)}>
+            <p>packs</p>
+          </Dialog>
+        </Show>
+      </div>
+    ));
+
+    const app = screen.getByRole("button", { name: "Add reverb device" });
+    const library = screen.getByRole("dialog", { name: "Library" });
+    const packs = screen.getByRole("dialog", { name: "Packs" });
+
+    expect(app).toHaveAttribute("inert");
+    expect(library.closest("[inert]")).not.toBeNull();
+    expect(packs.closest("[inert]")).toBeNull();
+
+    // The one underneath becomes interactive again; the app does not.
+    setSecond(false);
+    flush();
+    expect(app).toHaveAttribute("inert");
+    expect(library.closest("[inert]")).toBeNull();
+
+    // Only the last one closing gives the app back.
+    setFirst(false);
+    flush();
+    expect(document.querySelector("[inert]")).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import type { JSX } from "@solidjs/web";
 import { HiSolidXMark } from "solid-icons/hi";
 import { onSettled, Show } from "solid-js";
 import "./Dialog.css";
+import { holdModal } from "./modalInert";
 
 /**
  * How much of the view the dialog takes.
@@ -68,9 +69,14 @@ export interface DialogProps {
  * - **Focus goes in and comes back.** The close button takes focus on open,
  *   and whatever opened the dialog gets it back on close, so a keyboard does
  *   not get dropped at the top of the document.
+ * - **Nothing behind it can be reached.** While it is open the rest of the
+ *   app is `inert` (#876), so Tab, Shift+Tab, a click and a screen reader all
+ *   stay inside it. Stacked dialogs hand that on: the newest one wins.
+ *   Shortcuts run through the registry's window listener and are unaffected.
  */
 export default function Dialog(props: DialogProps): JSX.Element {
   let closeButton!: HTMLButtonElement;
+  let backdrop!: HTMLDivElement;
 
   /**
    * "Close sequence editor", not "Close Sequence editor": the label names the
@@ -88,14 +94,20 @@ export default function Dialog(props: DialogProps): JSX.Element {
 
   onSettled(() => {
     const opener = document.activeElement;
+    const release = holdModal(backdrop);
     closeButton.focus();
     return () => {
+      // Released first: an inert opener cannot take focus back.
+      release();
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
   });
 
   return (
-    <div class={`dialog-backdrop dialog-backdrop-${props.size ?? "panel"}`}>
+    <div
+      ref={backdrop}
+      class={`dialog-backdrop dialog-backdrop-${props.size ?? "panel"}`}
+    >
       <button
         type="button"
         class="dialog-scrim"
