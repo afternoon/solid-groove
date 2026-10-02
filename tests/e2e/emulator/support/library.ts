@@ -4,11 +4,13 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import { expectView, pressView } from "./views";
 
 /**
- * What the redesigned library's core flows (CF-023 to CF-026, #449) share:
- * the way from the dashboard to a drum pad's sample slot, the locators for
- * the library modal, and a read of the library the emulator suite serves.
+ * What the redesigned library's core flows (CF-023 to CF-026 and CF-030, #449
+ * and #817) share: the way from the dashboard to a drum pad's sample slot, the
+ * locators for the Library view, and a read of the library the emulator suite
+ * serves.
  *
  * It lives here rather than in each spec so the four contracts name the same
  * surface the same way. Each spec keeps its own numbered steps, assertions and
@@ -20,9 +22,13 @@ import {
  * The implementing PRs build to these names, or say in their body why one had
  * to change:
  *
- *  - the modal is a dialog named "Library", closed by a "Close library" button;
- *  - the header's readouts are groups named "Was" (the sound the slot holds)
- *    and "Hearing" (the one selected), and it names the slot's pad;
+ *  - the library is a **view** (#817), a region named "Library" that fills the
+ *    page at `/projects/:id/library`. There is no dialog and no close button:
+ *    `3` goes back to the instrument without inserting;
+ *  - the header is a heading that names the target as a path, starting
+ *    "Inserting into" ("Inserting into BD › Drum machine › BD");
+ *  - its readouts are groups named "In the slot" (the sound the slot holds
+ *    now, which follows each insert) and "Hearing" (the one selected);
  *  - the rail has buttons whose names start "Browse packs", "All sounds" and
  *    "Favourites", the one in view marked `aria-current`, and the project's
  *    packs in a group named "In this project";
@@ -34,11 +40,16 @@ import {
  *  - sounds are a list named "Sounds" (or "Similar sounds"); each row has an
  *    "Audition <name>" button, a "Favourite <name>" toggle and a
  *    "Sounds like <name>" button;
- *  - the primary action is a button whose name starts "Insert <name>".
+ *  - the primary action is a button whose name starts "Insert <name>". It does
+ *    what `Enter` does: it inserts and stays in the library;
+ *  - a sample slot is still a button named "Sample for <pad>", showing the
+ *    sound's name, the library's icon and the key `4`. The slot the library is
+ *    aimed at is marked `aria-current="true"`.
  *
- * The rest is surface that exists today: the view dock (CF-008), the drum
- * machine region and its pads' "Audition <pad>" and "Sample for <pad>"
- * buttons (#447), and the header's "Undo" button.
+ * The rest is surface that exists today: the drum machine region and its
+ * pads' "Audition <pad>" and "Sample for <pad>" buttons (#447), the slot's
+ * `.sample-slot-name` (the one part of the slot that is only the sound's
+ * name), and the header's "Undo" button. The views are `./views.ts`'s.
  */
 
 export type Step = (caption: string) => Promise<void>;
@@ -49,10 +60,6 @@ export const literal = (text: string): string =>
 
 // --- The editor --------------------------------------------------------------
 
-/** The view dock (CF-008): three links, one per view. */
-const dockLink = (page: Page, name: string): Locator =>
-  page.getByRole("navigation", { name: "Views" }).getByRole("link", { name });
-
 /** The starter track's drum machine, as the instrument view shows it (#447). */
 export const drumMachine = (page: Page): Locator =>
   page.getByRole("region", { name: "Drum machine: BD" });
@@ -60,6 +67,15 @@ export const drumMachine = (page: Page): Locator =>
 /** One pad's sample slot: a button naming the sound it holds (#447). */
 export const sampleSlot = (page: Page, pad: string): Locator =>
   drumMachine(page).getByRole("button", { name: `Sample for ${pad}`, exact: true });
+
+/**
+ * The sound a slot names. Read off its name alone, because the slot also
+ * carries the library's key, `4` (#817).
+ */
+export async function slotSound(page: Page, pad: string): Promise<string> {
+  const name = sampleSlot(page, pad).locator(".sample-slot-name");
+  return ((await name.textContent()) ?? "").trim();
+}
 
 /** The header's undo button. It is named "Undo" alone while history is empty. */
 export const emptyUndo = (page: Page): Locator =>
@@ -81,8 +97,7 @@ export async function newProjectOnInstrumentView(page: Page): Promise<string> {
 }
 
 export async function goToInstrumentView(page: Page): Promise<void> {
-  await dockLink(page, "Instrument").click();
-  await expect(page).toHaveURL(/\/projects\/prj_[^/]+\/instrument$/);
+  await pressView(page, "Instrument");
   await expect(drumMachine(page)).toBeVisible();
 }
 
@@ -94,11 +109,21 @@ export async function selectPad(page: Page, pad: string): Promise<void> {
   await expect(sampleSlot(page, pad)).toBeVisible();
 }
 
-/** Select a pad and open its sample slot. */
+/** Select a pad and press its sample slot: the editor goes to the Library view. */
 export async function openPadSlot(page: Page, pad: string): Promise<void> {
   await selectPad(page, pad);
+  await expect(sampleSlot(page, pad)).toContainText("4");
   await sampleSlot(page, pad).click();
+  await expectView(page, "Library");
   await expect(library(page)).toBeVisible();
+  await expect(libraryHeader(page)).toContainText(pad);
+}
+
+/** Press `3`: back to the instrument without inserting anything. */
+export async function backToInstrument(page: Page): Promise<void> {
+  await pressView(page, "Instrument");
+  await expect(library(page)).toHaveCount(0);
+  await expect(drumMachine(page)).toBeVisible();
 }
 
 /**
@@ -116,14 +141,17 @@ export async function reloadOnInstrumentView(
   await expect(drumMachine(page)).toBeVisible();
 }
 
-// --- The library modal (assumed; see the header) ------------------------------
+// --- The Library view (assumed; see the header) -------------------------------
 
 // Exact: the library's own keys sheet ("Library keys", #813) is a dialog
 // inside it, and a substring match would find both while it is open.
 export const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 
-export const readout = (page: Page, name: "Was" | "Hearing"): Locator =>
+export const libraryHeader = (page: Page): Locator =>
+  library(page).getByRole("heading", { name: /^Inserting into / });
+
+export const readout = (page: Page, name: "In the slot" | "Hearing"): Locator =>
   library(page).getByRole("group", { name });
 
 export const railButton = (
