@@ -1,7 +1,9 @@
 /* The assistant panel (#849), after docs/assistant-panel.html: square, on the
    lifted panel ground, a hairline edge and a deep shadow while it floats over
-   the view. Above the views and the windows over them (the sequence editor is
-   z-index 80), below the shortcut guide (100). */
+   the view. Above the views and the working window over them (the sequence
+   editor, z-index 80), below the shortcut guide (100). While a modal dialog is
+   open (Export, the library) it drops under the dialog layer and is inert, so
+   the dialog is on top and nothing in the panel can be reached. */
 
 .assistant-panel {
   /* Its two sizes, set on the element from the remembered layout; these are
@@ -21,6 +23,10 @@
     0 0 0 1px var(--color-border-strong);
 }
 
+.assistant-panel.assistant-panel-under-modal {
+  z-index: 79;
+}
+
 .assistant-panel:focus {
   outline: none;
 }
@@ -30,21 +36,29 @@
   outline-offset: -1px;
 }
 
-/* Floating: bottom-right over the view, covering it rather than reflowing it. */
+/* Floating: bottom-right over the view, covering it rather than reflowing it.
+   Never taller than the room under the editor's header, so a short window
+   keeps its transport and its Assistant button in reach. The sizes and the
+   inset are set on the element from assistantPanelLayout.ts. */
 .assistant-panel[data-mode="floating"] {
-  right: 16px;
+  right: var(--assistant-inset);
   bottom: 0;
-  width: 384px;
+  width: var(--assistant-floating-width);
   height: var(--assistant-height);
-  max-height: 100vh;
+  max-height: calc(
+    100vh -
+    var(--editor-header-height, 40px) -
+    2 *
+    var(--size-divider, 5px)
+  );
 }
 
-/* Minimised: a 40px bar in the same corner. */
+/* Minimised: a bar in the same corner. */
 .assistant-panel[data-mode="minimised"] {
-  right: 16px;
+  right: var(--assistant-inset);
   bottom: 0;
-  width: 340px;
-  height: 40px;
+  width: var(--assistant-bar-width);
+  height: var(--assistant-bar-height);
 }
 
 /* Docked: a column at the right edge, under the header, from there to the

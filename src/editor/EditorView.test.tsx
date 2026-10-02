@@ -2729,7 +2729,18 @@ describe("EditorView assistant panel", () => {
   });
 
   it("steps the size from its focused edge, and the arrows mean nothing else there", async () => {
-    await renderSlice();
+    // Two tracks in the instrument view, where ↑/↓ otherwise step the
+    // selected track (#533): on the edge they must leave it where it is.
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    await goToView("Instrument");
+    const drumRegion = `Drum machine: ${project.song.tracks[0].name}`;
+    expect(screen.getByRole("region", { name: drumRegion })).toBeInTheDocument();
+
     press("k", assistantChord());
     const edge = within(panel() as HTMLElement).getByRole("separator");
     edge.focus();
@@ -2737,6 +2748,10 @@ describe("EditorView assistant panel", () => {
     expect(edge).toHaveAttribute("aria-valuenow", "576");
     press("ArrowDown", { shiftKey: true });
     expect(edge).toHaveAttribute("aria-valuenow", "512");
+    press("ArrowDown");
+    expect(edge).toHaveAttribute("aria-valuenow", "496");
+    // The selected track is unchanged: the arrows were the edge's alone.
+    expect(screen.getByRole("region", { name: drumRegion })).toBeInTheDocument();
 
     clickAndFlush(panelButton("Dock to the right"));
     const docked = within(panel() as HTMLElement).getByRole("separator");
@@ -2756,6 +2771,28 @@ describe("EditorView assistant panel", () => {
     expect(dockSpace()).toBe("384px");
     clickAndFlush(panelButton("Close"));
     expect(dockSpace()).toBe("0px");
+  });
+
+  it("drops under a modal dialog and out of reach until it closes", async () => {
+    await renderSlice();
+    press("k", assistantChord());
+    expect(panel()).not.toHaveAttribute("inert");
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    await screen.findByRole("dialog", { name: "Export" });
+    const region = document.querySelector(".assistant-panel") as HTMLElement;
+    expect(region).toHaveAttribute("inert");
+    expect(region).toHaveClass("assistant-panel-under-modal");
+    // Cmd/Ctrl+K is the editor's, which the dialog stands down.
+    press("k", assistantChord());
+    expect(region).toHaveAttribute("data-mode", "floating");
+
+    clickAndFlush(screen.getByRole("button", { name: "Close export" }));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Export" })).not.toBeInTheDocument(),
+    );
+    expect(panel()).not.toHaveAttribute("inert");
+    expect(panel()).not.toHaveClass("assistant-panel-under-modal");
   });
 
   it("lists Cmd/Ctrl+K in the shortcut guide", async () => {
