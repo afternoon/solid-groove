@@ -2246,7 +2246,7 @@ describe("EditorView sequence editor", () => {
     const { location, project } = await renderSlice();
     await openSequenceEditor();
 
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "5" }));
     await vi.waitFor(() =>
       expect(location.get()).toBe(`/projects/${project.metadata.id}/mixer`),
     );
@@ -2409,10 +2409,10 @@ describe("EditorView views", () => {
     await atView(location, `/projects/${projectId}/mixer`, "Mixer");
   });
 
-  it("moves to a view with 1/2/3, through the shortcut registry", async () => {
+  it("moves to a view with its key, through the shortcut registry", async () => {
     const { location, projectId } = await renderViews();
 
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
     await atView(location, `/projects/${projectId}/instrument`, "Instrument");
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
@@ -2426,7 +2426,7 @@ describe("EditorView views", () => {
 
     clickAndFlush(viewLink("Mixer"));
     await atView(location, `/projects/${projectId}/mixer`, "Mixer");
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
     await atView(location, `/projects/${projectId}/instrument`, "Instrument");
 
     location.back();
@@ -2441,7 +2441,7 @@ describe("EditorView views", () => {
 
     clickAndFlush(viewLink("Mixer"));
     await vi.waitFor(() => expect(currentView()).toHaveTextContent("Mixer"));
-    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
     await vi.waitFor(() => expect(currentView()).toHaveTextContent("Instrument"));
 
     const switches = transport.events.filter((event) => event.name === "view_changed");

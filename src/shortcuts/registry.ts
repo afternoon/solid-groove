@@ -85,8 +85,11 @@ export const SHORTCUT_ACTION_IDS = [
   "view.zoom_in",
   "view.zoom_out",
   "view.show_arrangement",
+  "view.show_sequence",
   "view.show_instrument",
+  "view.show_library",
   "view.show_mixer",
+  "arrangement.open_clip",
   "view.close_surface",
   "help.shortcut_guide",
   "device.move_earlier",
@@ -113,6 +116,7 @@ export const SHORTCUT_ACTION_IDS = [
   "library.select_next",
   "library.audition",
   "library.insert",
+  "library.insert_and_return",
   "library.like",
   "library.similar",
   "library.shuffle",
@@ -263,6 +267,39 @@ const LIBRARY_PICKS = ORDINALS.map((nth, i) =>
     String(i + 1),
   ),
 );
+
+const VIEW_KEY_PARITY: AbletonParity = {
+  kind: "solid_groove",
+  reason:
+    "Live shows everything at once and has no view to switch to; 1-5 is the hardware idiom UI-001 and UI-002 borrow.",
+};
+
+/**
+ * The five views on `1`-`5` (`UI-002`), in key order: song, clip, sound, the
+ * sounds you could swap in, and the mix. The number row drawn on the dock.
+ */
+const EDITOR_VIEW_KEYS = [
+  ["arrangement", "Show the arrangement", "Switches the editor to the arrangement.", "1"],
+  [
+    "sequence",
+    "Show the sequence",
+    "Switches the editor to the selected clip's steps or notes.",
+    "2",
+  ],
+  [
+    "instrument",
+    "Show the instrument",
+    "Switches the editor to the selected track's instrument.",
+    "3",
+  ],
+  [
+    "library",
+    "Show the library",
+    "Switches the editor to the library, aimed at the selected sample slot.",
+    "4",
+  ],
+  ["mixer", "Show the mixer", "Switches the editor to the mixer.", "5"],
+] as const;
 
 /**
  * The PRD `KEY-01` initial mapping, in guide order.
@@ -533,43 +570,28 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     repeatable: true,
     ableton: { kind: "follows", abletonKeys: "-" },
   }),
+  ...EDITOR_VIEW_KEYS.map(([view, label, description, keys]) =>
+    define({
+      id: `view.show_${view}`,
+      label,
+      description,
+      group: "navigation",
+      contexts: ["editor", "sequence_editor"],
+      keys,
+      ableton: VIEW_KEY_PARITY,
+    }),
+  ),
   define({
-    id: "view.show_arrangement",
-    label: "Show the arrangement",
-    description: "Switches the editor to the arrangement.",
+    id: "arrangement.open_clip",
+    label: "Open clip",
+    description: "Opens the selected clip in the sequence view.",
     group: "navigation",
-    contexts: ["editor", "sequence_editor"],
-    keys: "1",
+    contexts: ["arrangement"],
+    keys: "Enter",
     ableton: {
       kind: "solid_groove",
       reason:
-        "Live shows everything at once and has no view to switch to; 1/2/3 is the hardware idiom UI-001 borrows.",
-    },
-  }),
-  define({
-    id: "view.show_instrument",
-    label: "Show the instrument",
-    description: "Switches the editor to the selected track's instrument.",
-    group: "navigation",
-    contexts: ["editor", "sequence_editor"],
-    keys: "2",
-    ableton: {
-      kind: "solid_groove",
-      reason:
-        "Live shows everything at once and has no view to switch to; 1/2/3 is the hardware idiom UI-001 borrows.",
-    },
-  }),
-  define({
-    id: "view.show_mixer",
-    label: "Show the mixer",
-    description: "Switches the editor to the mixer.",
-    group: "navigation",
-    contexts: ["editor", "sequence_editor"],
-    keys: "3",
-    ableton: {
-      kind: "solid_groove",
-      reason:
-        "Live shows everything at once and has no view to switch to; 1/2/3 is the hardware idiom UI-001 borrows.",
+        "Live shows a clip's notes under the arrangement; Groove's are a view of their own.",
     },
   }),
   define({
@@ -871,6 +893,12 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       // it; a default left to run then presses that slot and reopens it (#860).
       ableton: { kind: "follows", abletonKeys: "Enter" },
     },
+  ),
+  libraryKey(
+    "library.insert_and_return",
+    "Insert and go back",
+    "Puts the selected sound in the slot and goes back to where you came from.",
+    "Shift+Enter",
   ),
   libraryKey(
     "library.like",

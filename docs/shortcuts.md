@@ -60,8 +60,11 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Groove addition — Live has no single key that frames the whole set |
 | `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
 | `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_sequence` | Show the sequence | `2` | `2` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_instrument` | Show the instrument | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_library` | Show the library | `4` | `4` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_mixer` | Show the mixer | `5` | `5` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `arrangement.open_clip` | Open clip | `Enter` | `Enter` | Navigation | arrangement | Groove addition — Live shows a clip's notes under the arrangement; Groove's are a view of their own |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor, library | Groove addition — `?` is the web convention |
 | `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
@@ -93,6 +96,7 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `library.select_next` | Next sound | `Down` | `Down` | Browser | library | Follows Live (`Down`) |
 | `library.audition` | Audition again | `Space` | `Space` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.insert` | Insert sound | `Enter` | `Enter` | Browser | library | Follows Live (`Enter`) |
+| `library.insert_and_return` | Insert and go back | `Shift+Enter` | `Shift+Enter` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.like` | Like sound | `L` | `L` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.similar` | Similar sounds | `S` | `S` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.shuffle` | Shuffle | `R` | `R` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
