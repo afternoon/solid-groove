@@ -1,0 +1,14 @@
+{
+  "id": "868",
+  "title": "After: sign-in fails",
+  "steps": [
+    {
+      "file": "01-the-dashboard-says-sign-in-failed-and-of.png",
+      "caption": "The dashboard says sign-in failed and offers Try again"
+    },
+    {
+      "file": "02-try-again-signs-in-and-loads-the-dashboa.png",
+      "caption": "Try again signs in and loads the dashboard"
+    }
+  ]
+}

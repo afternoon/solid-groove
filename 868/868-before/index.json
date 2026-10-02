@@ -1,0 +1,10 @@
+{
+  "id": "868-before",
+  "title": "Before: sign-in fails",
+  "steps": [
+    {
+      "file": "01-before-the-dashboard-stays-on-the-loader.png",
+      "caption": "Before: the dashboard stays on the loader when anonymous sign-in fails"
+    }
+  ]
+}
