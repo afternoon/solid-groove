@@ -38,6 +38,7 @@ export const SHORTCUT_CONTEXTS = [
   "loop_brace",
   "value_field",
   "export_tracks",
+  "resize_edge",
 ] as const;
 export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
 
@@ -47,8 +48,17 @@ export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
  * while the focused element claims it the focused element wins; the wider
  * meaning is untouched everywhere else. Unlike `dialog` nothing else is
  * suppressed: the transport and every other mapping keep working.
+ *
+ * Only one element has focus, so no two of these are ever live together, and
+ * two of them may claim the same key: `resize_edge` (a focused resize edge,
+ * such as the assistant panel's, #849) takes every arrow, as `loop_brace` and
+ * `value_field` each take some.
  */
-export const FOCUS_CONTEXTS: readonly ShortcutContext[] = ["loop_brace", "value_field"];
+export const FOCUS_CONTEXTS: readonly ShortcutContext[] = [
+  "loop_brace",
+  "value_field",
+  "resize_edge",
+];
 
 /**
  * Contexts of a surface open over the editor (ARR-010). After any focus

@@ -795,6 +795,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onSelect={(view) => selectView(view, "dock")}
                 keyHint={(view) => keyHint(editorViewSpec(view).actionId)}
               />
+              {/*
+               * The assistant's slot (#849): its panel mounts here, once per
+               * editor, floating over the views or docked beside them. Docking
+               * moves `--assistant-dock-space` (EditorView.css), the editor's
+               * own layout, and no view learns the panel exists.
+               */}
               <Show when={guideOpen()}>
                 <ShortcutGuide
                   contexts={editorContexts()}

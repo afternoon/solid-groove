@@ -64,6 +64,11 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor, library | Groove addition — `?` is the web convention |
+| `assistant.toggle` | Open or close the assistant | `Cmd+K` | `Ctrl+K` | Navigation | editor | Groove addition — Live has no assistant; `Cmd/Ctrl+K` is the web's convention for summoning one |
+| `assistant.grow` | Grow the assistant | `Up / Left` | `Up / Left` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
+| `assistant.shrink` | Shrink the assistant | `Down / Right` | `Down / Right` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
+| `assistant.grow_more` | Grow the assistant more | `Shift+Up / Shift+Left` | `Shift+Up / Shift+Left` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
+| `assistant.shrink_more` | Shrink the assistant more | `Shift+Down / Shift+Right` | `Shift+Down / Shift+Right` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
 | `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
 | `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
 | `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Groove addition — Live reorders tracks by dragging only |
@@ -142,6 +147,16 @@ context: while the roll is open, its arrows outrank the editor's
 context, above that again: while a typed value field has focus, Up and Down
 nudge the value.
 
+`assistant.toggle` opens the assistant (#849) where it was last left, floating
+or docked, and closes it. It works from a focused text field too, because it
+types nothing. The four `assistant.grow`/
+`shrink` entries are the keys of the assistant's focused resize edge, in the
+`resize_edge` focus context: the top edge while it floats, the left edge while
+it is docked. Each takes the arrow for either orientation, so Up and Left both
+move the edge outward by 16px, and `Shift` moves it 64px. Only one element has
+focus, so `resize_edge` is never live beside `loop_brace` or `value_field`, and
+may claim the arrows they claim.
+
 ## Deviations from Ableton Live
 
 Groove follows Live where the same concept exists *and* the browser leaves
@@ -204,6 +219,7 @@ override recorded on the entry:
 | Action | Combination | Note |
 | --- | --- | --- |
 | `edit.duplicate` | `Cmd/Ctrl+D` | Bookmarks the page in most browsers. Groove cancels the default while an editor selection exists, matching Live. |
+| `assistant.toggle` | `Cmd/Ctrl+K` | Ctrl+K focuses the browser's search box in Chrome and Firefox on Windows and Linux. Groove cancels the default while the editor is open. |
 
 ## Rules the registry enforces
 

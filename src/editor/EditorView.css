@@ -17,6 +17,11 @@
   --view-dock-clearance: 120px;
   /* What the sticky header covers at the top of a scrolling view. */
   --editor-header-height: 40px;
+  /* The assistant's docked column (#849): the width the editor's views leave
+     free at the right edge, under the header. It is zero unless the assistant
+     is docked, and only the editor's own layout reads it (the body, the view
+     dock and the dialogs over the views), so no view knows the panel exists. */
+  --assistant-dock-space: 0px;
 
   width: 100vw;
   height: 100vh;
@@ -409,6 +414,14 @@
   gap: var(--size-divider);
   flex: 1 1 auto;
   min-height: 0;
+  /* Room for the docked assistant (#849); zero otherwise. */
+  margin-right: var(--assistant-dock-space);
+}
+
+/* A window over a view, such as the sequence editor, stops at the docked
+   assistant's edge too, so nothing is under the column. */
+.editor .dialog-backdrop {
+  right: var(--assistant-dock-space);
 }
 
 /* The Instrument and Mixer views (UI-001). Only one view is on the page at a
