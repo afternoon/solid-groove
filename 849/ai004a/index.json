@@ -1,0 +1,22 @@
+{
+  "id": "ai004a",
+  "title": "The assistant panel shell",
+  "steps": [
+    {
+      "file": "01-floating-over-the-arrangement.png",
+      "caption": "Floating over the arrangement"
+    },
+    {
+      "file": "02-minimised-to-a-bar.png",
+      "caption": "Minimised to a bar"
+    },
+    {
+      "file": "03-docked-the-arrangement-makes-room.png",
+      "caption": "Docked: the arrangement makes room"
+    },
+    {
+      "file": "04-docked-beside-the-mixer.png",
+      "caption": "Docked beside the mixer"
+    }
+  ]
+}
