@@ -9,7 +9,7 @@ import {
 import { executeCommand } from "../execute";
 import { CommandHistory } from "../history";
 import { createCommandTestProject } from "../testProjects";
-import { addPack, removePack } from "./packs";
+import { addPack, removePack, setPackVersion } from "./packs";
 
 /**
  * The pack-shelf commands (LIB-08).
@@ -127,6 +127,103 @@ describe("pack.remove", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.issues[0].message).toContain("not on the project's shelf");
+  });
+});
+
+describe("pack.setVersion (#892)", () => {
+  const NEXT = packVersion("9.1.0");
+
+  it("moves every asset of the pack, its dependency and its shelf entry, in one revision", () => {
+    const { project, packs } = createCommandTestProject();
+    const [pack, other] = packs;
+
+    const result = executeCommand(project, setPackVersion(pack.id, pack.version, NEXT));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const next = result.project;
+    for (const asset of next.song.assets.filter((entry) => entry.packId === pack.id)) {
+      expect(asset.packVersion).toBe(NEXT);
+    }
+    // Another pack's assets are untouched.
+    for (const asset of next.song.assets.filter((entry) => entry.packId === other.id)) {
+      expect(asset.packVersion).toBe(other.version);
+    }
+    expect(next.metadata.packDependencies).toContainEqual({
+      packId: pack.id,
+      version: NEXT,
+    });
+    expect(next.metadata.packDependencies).not.toContainEqual({
+      packId: pack.id,
+      version: pack.version,
+    });
+    expect(next.metadata.addedPacks).toContainEqual({ packId: pack.id, version: NEXT });
+    expect(next.metadata.revision).toBe(project.metadata.revision + 1);
+    expectValid(next);
+  });
+
+  it("moves a shelved pack the project draws no sound from", () => {
+    const { project, shelfOnlyPack } = createCommandTestProject();
+
+    const result = executeCommand(
+      project,
+      setPackVersion(shelfOnlyPack.id, shelfOnlyPack.version, NEXT),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.metadata.addedPacks).toContainEqual({
+      packId: shelfOnlyPack.id,
+      version: NEXT,
+    });
+    expectValid(result.project);
+  });
+
+  it("undoes to the old pin in one step", () => {
+    const { project, packs } = createCommandTestProject();
+    const [pack] = packs;
+    const history = new CommandHistory(project);
+
+    history.execute(setPackVersion(pack.id, pack.version, NEXT));
+    history.undo();
+
+    expect(history.project.song.assets).toEqual(project.song.assets);
+    expect(history.project.metadata.packDependencies).toEqual(
+      project.metadata.packDependencies,
+    );
+    expect(history.project.metadata.addedPacks).toEqual(project.metadata.addedPacks);
+  });
+
+  it("refuses a version the project does not pin", () => {
+    const { project, packs } = createCommandTestProject();
+    const [pack] = packs;
+
+    const result = executeCommand(
+      project,
+      setPackVersion(pack.id, packVersion("0.0.1"), NEXT),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues[0].message).toContain(`at version ${pack.version}`);
+    expect(result.project).toBe(project);
+  });
+
+  it("refuses a pack the project does not have, and a move to the same version", () => {
+    const { project, packs } = createCommandTestProject();
+    const absent = freshPack("absent-upgrade");
+
+    const missing = executeCommand(
+      project,
+      setPackVersion(absent.packId, absent.version, NEXT),
+    );
+    const same = executeCommand(
+      project,
+      setPackVersion(packs[0].id, packs[0].version, packs[0].version),
+    );
+
+    expect(missing.ok).toBe(false);
+    expect(same.ok).toBe(false);
   });
 });
 

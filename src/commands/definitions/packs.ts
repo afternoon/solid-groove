@@ -1,6 +1,11 @@
 import { z } from "zod";
-import { type PackDependency, packDependencySchema } from "../../domain/entities";
-import type { PackId } from "../../domain/ids";
+import {
+  type PackDependency,
+  type PackVersion,
+  packDependencySchema,
+  packVersionSchema,
+} from "../../domain/entities";
+import { type PackId, packIdSchema } from "../../domain/ids";
 import {
   applied,
   type CommandInput,
@@ -31,6 +36,16 @@ import {
  *   state via `resolvePackAvailability`); the command does not do it for them.
  *
  * Neither command touches `song.assets`, so neither changes `packDependencies`.
+ *
+ * `pack.setVersion` (#892) is the one pack command that does: it moves the
+ * project's pin for one pack from one version to another — every asset the
+ * project carries from that pack, and its shelf entry, together. Assets are
+ * immutable content, so the sounds themselves do not change; only the version
+ * the project resolves them from does. It is how a project pinned to an older
+ * version takes a sound from a newer one, in the same transaction as the
+ * insert, and its inverse (the same command, versions swapped) is how one undo
+ * puts the old pin back. It refuses a pin the project does not hold, so it can
+ * never leave a pack at two versions.
  */
 
 export const packAddPayloadSchema = z.strictObject({
@@ -42,6 +57,13 @@ export const packRemovePayloadSchema = z.strictObject({
   pack: packDependencySchema,
 });
 export type PackRemovePayload = z.infer<typeof packRemovePayloadSchema>;
+
+export const packSetVersionPayloadSchema = z.strictObject({
+  packId: packIdSchema,
+  from: packVersionSchema,
+  to: packVersionSchema,
+});
+export type PackSetVersionPayload = z.infer<typeof packSetVersionPayloadSchema>;
 
 function shelfIndexOf(shelf: readonly PackDependency[], packId: PackId): number {
   return shelf.findIndex((entry) => entry.packId === packId);
@@ -111,6 +133,57 @@ export const packRemoveCommand = defineCommand<PackRemovePayload>({
   invert: (payload) => [addPack(payload.pack)],
 });
 
+export const packSetVersionCommand = defineCommand<PackSetVersionPayload>({
+  type: "pack.setVersion",
+  version: 1,
+  schema: packSetVersionPayloadSchema,
+  summarize: (payload) =>
+    `Move pack ${payload.packId} from version ${payload.from} to ${payload.to}`,
+  apply(project, payload) {
+    const { packId, from, to } = payload;
+    if (from === to) {
+      return rejected(`Pack ${packId} is already at version ${to}`);
+    }
+    const assets = project.song.assets.filter((asset) => asset.packId === packId);
+    const shelf = project.metadata.addedPacks;
+    const shelfIndex = shelfIndexOf(shelf, packId);
+    if (assets.length === 0 && shelfIndex < 0) {
+      return rejected(`Pack ${packId} is not in this project`);
+    }
+    const elsewhere =
+      assets.find((asset) => asset.packVersion !== from)?.packVersion ??
+      (shelfIndex >= 0 && shelf[shelfIndex].version !== from
+        ? shelf[shelfIndex].version
+        : undefined);
+    if (elsewhere !== undefined) {
+      return rejected(
+        `Pack ${packId} is at version ${elsewhere} in this project, not ${from}`,
+      );
+    }
+    // The derived dependency list follows the assets when the transaction
+    // normalizes; the shelf is maintained, so it moves here.
+    return applied({
+      ...project,
+      song: {
+        ...project.song,
+        assets: project.song.assets.map((asset) =>
+          asset.packId === packId ? { ...asset, packVersion: to } : asset,
+        ),
+      },
+      metadata: {
+        ...project.metadata,
+        addedPacks:
+          shelfIndex < 0
+            ? shelf
+            : shelf.map((entry, position) =>
+                position === shelfIndex ? { ...entry, version: to } : entry,
+              ),
+      },
+    });
+  },
+  invert: (payload) => [setPackVersion(payload.packId, payload.to, payload.from)],
+});
+
 // --- Typed builders -------------------------------------------------------
 
 export function addPack(pack: PackDependency): CommandInput<PackAddPayload> {
@@ -121,8 +194,18 @@ export function removePack(pack: PackDependency): CommandInput<PackRemovePayload
   return { type: packRemoveCommand.type, payload: { pack } };
 }
 
+/** Moves the project's pin for `packId` from version `from` to `to`. */
+export function setPackVersion(
+  packId: PackId,
+  from: PackVersion,
+  to: PackVersion,
+): CommandInput<PackSetVersionPayload> {
+  return { type: packSetVersionCommand.type, payload: { packId, from, to } };
+}
+
 /** Registered, payload-erased commands from this module. */
 export const packCommands: readonly RegisteredCommand[] = [
   eraseCommand(packAddCommand),
   eraseCommand(packRemoveCommand),
+  eraseCommand(packSetVersionCommand),
 ];
