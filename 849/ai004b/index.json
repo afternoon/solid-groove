@@ -1,0 +1,26 @@
+{
+  "id": "ai004b",
+  "title": "The assistant panel (#849)",
+  "steps": [
+    {
+      "file": "01-floating-over-the-arrangement-the-releas.png",
+      "caption": "Floating over the arrangement; the release badge and Privacy stand clear of it"
+    },
+    {
+      "file": "02-minimised-to-a-bar-its-buttons-clear-of-.png",
+      "caption": "Minimised to a bar, its buttons clear of the corner chrome"
+    },
+    {
+      "file": "03-docked-the-arrangement-makes-room-and-th.png",
+      "caption": "Docked: the arrangement makes room and the chrome moves left of the column"
+    },
+    {
+      "file": "04-export-open-the-modal-covers-the-docked-.png",
+      "caption": "Export open: the modal covers the docked panel, which is out of reach"
+    },
+    {
+      "file": "05-export-open-over-the-floating-panel-the-.png",
+      "caption": "Export open over the floating panel: the dialog is on top"
+    }
+  ]
+}
