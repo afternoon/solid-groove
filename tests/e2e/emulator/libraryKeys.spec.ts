@@ -4,7 +4,6 @@ import {
   openBdSlot,
   railButton,
   readout,
-  sampleSlot,
   soundList,
 } from "./support/libraryModal";
 
@@ -14,6 +13,9 @@ import {
 // opened the library again; Space pressed the Close button the library parks
 // focus on, and closed it. Asserted in a real browser, because only a real one
 // turns a key into a click on whatever is focused.
+//
+// Since #817, Enter inserts and stays in the library so another sound can be
+// tried: the insert shows as the sound in the slot, and the library stays open.
 
 /** Select the second sound in the list with the keyboard, as a producer would. */
 async function selectSecondSound(page: Page): Promise<string> {
@@ -25,22 +27,18 @@ async function selectSecondSound(page: Page): Promise<string> {
 }
 
 test.describe("library keys", () => {
-  test("Enter inserts the selected sound and the library stays closed", async ({
-    page,
-  }) => {
+  test("Enter inserts the selected sound and the library stays", async ({ page }) => {
     await openBdSlot(page);
     const name = await selectSecondSound(page);
 
     await page.keyboard.press("Enter");
 
-    await expect(sampleSlot(page)).toContainText(name);
+    await expect(readout(page, "In the slot")).toContainText(name);
     await page.waitForTimeout(300);
-    await expect(library(page)).toBeHidden();
+    await expect(library(page)).toBeVisible();
   });
 
-  test("Enter on a clicked row inserts it and the library stays closed", async ({
-    page,
-  }) => {
+  test("Enter on a clicked row inserts it and the library stays", async ({ page }) => {
     await openBdSlot(page);
     const row = soundList(page)
       .getByRole("button", { name: /^Audition / })
@@ -50,9 +48,9 @@ test.describe("library keys", () => {
 
     await page.keyboard.press("Enter");
 
-    await expect(sampleSlot(page)).toContainText(name);
+    await expect(readout(page, "In the slot")).toContainText(name);
     await page.waitForTimeout(300);
-    await expect(library(page)).toBeHidden();
+    await expect(library(page)).toBeVisible();
   });
 
   test("Space auditions again and leaves the library open", async ({ page }) => {
@@ -68,13 +66,15 @@ test.describe("library keys", () => {
   test("a focused rail button keeps Enter for itself", async ({ page }) => {
     await openBdSlot(page);
     await selectSecondSound(page);
-    const before = await sampleSlot(page).textContent();
+    // The slot is not on the page while the library is the view (#817), so
+    // what it holds is read off the library's own readout.
+    const before = (await readout(page, "In the slot").textContent()) ?? "";
 
     await railButton(page, "Browse packs").focus();
     await page.keyboard.press("Enter");
 
     await expect(railButton(page, "Browse packs")).toHaveAttribute("aria-current", /.+/);
     await expect(library(page)).toBeVisible();
-    expect(await sampleSlot(page).textContent()).toBe(before);
+    await expect(readout(page, "In the slot")).toHaveText(before);
   });
 });
