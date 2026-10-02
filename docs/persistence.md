@@ -110,7 +110,7 @@ A producer's favourite sounds (LIB-011, #691) belong to the person, not to a pro
 
 `FavouritesRepository` (`src/persistence/favouritesRepository.ts`) mirrors `ProjectRepository`: `InMemoryFavouritesRepository` and `FirestoreFavouritesRepository` run one contract suite (`favouritesRepositoryContract.ts`, executed by `src/persistence/inMemoryFavouritesRepository.test.ts` and `tests/emulator/firestoreFavouritesRepository.emulator.test.ts`), and only the Firestore store imports `firebase/firestore`. A permission denial is reported as `not_allowed`. A stored document this build cannot read is left out of the list, as the dashboard does with a malformed project.
 
-A favourite whose pack or sound the library no longer holds is not the repository's call — it stores references, not library facts. The library resolves each one against the packs it has loaded and reports it as missing rather than dropping it.
+A favourite whose pack or sound the library no longer holds is not the repository's call — it stores references, not library facts. `resolveFavourites` (`src/library/favourites.ts`) resolves each one against the packs the library has loaded and reports it as missing (`pack_unavailable` or `asset_unavailable`) in its place in the list, rather than dropping it. `createFavouriteActions` in the same module is the one add/remove path a surface calls, and logs `library_favourite_changed` once per successful action (plus `feature_first_use` for `library_favourites` on the first add) without naming the sound or its pack. `getFavouritesRepository()` (`src/favouritesRepositoryClient.ts`) picks the in-memory or Firestore store the way `getProjectRepository()` does.
 
 ## Autosave
 
