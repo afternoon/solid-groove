@@ -861,6 +861,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     "Enter",
     // The library owns Enter (UI-002): a focused sound row's button must not
     // also be pressed by it, re-auditioning instead of inserting (CF-030).
+    // Any other focused control keeps its own Enter (`useEditorShortcuts`).
     { ableton: { kind: "follows", abletonKeys: "Enter" } },
   ),
   libraryKey(
