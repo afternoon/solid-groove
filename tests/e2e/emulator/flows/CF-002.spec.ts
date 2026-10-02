@@ -79,8 +79,14 @@ async function openClip(page: Page, rowIndex: number): Promise<Locator> {
   return sequenceView(page);
 }
 
-/** Name the track just added, through the mixer's name field. */
+/**
+ * Name the track just added, the way the arrangement renames any track: a
+ * click on its name in the header opens the "Track name" field. A new track
+ * opens no name field of its own, and the newest track is the last header.
+ * `.track-header-name` is the class the header's own tests click.
+ */
 async function nameTrack(page: Page, name: string): Promise<void> {
+  await page.locator(".track-header-name").last().click();
   await page.getByRole("textbox", { name: "Track name" }).fill(name);
   await page.getByRole("textbox", { name: "Track name" }).press("Enter");
 }
