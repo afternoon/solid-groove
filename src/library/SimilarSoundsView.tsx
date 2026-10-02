@@ -16,7 +16,7 @@ import SoundRow, { lengthLabel, SimilarIcon } from "./SoundRow";
 import { roleLabel } from "./shelf";
 import { ALL_MATCH_ON, type MatchOn, similarSounds } from "./similarity";
 import type { SoundsKeyAction } from "./soundKeys";
-import { nextIn, previousIn } from "./stepping";
+import { nextIn, previousIn, revealSelectedRow, tabStopId } from "./stepping";
 import "./SimilarSoundsView.css";
 
 const CRITERIA: readonly { key: keyof MatchOn; label: string }[] = [
@@ -78,6 +78,13 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
 
   const reference = () => trail()[trail().length - 1];
   const results = createMemo(() => similarSounds(reference(), props.library, matchOn()));
+  // The list is one Tab stop (#880): the selected result, or the first.
+  const tabStop = createMemo(() =>
+    tabStopId(
+      results().map((result) => result.asset.id),
+      selectedId(),
+    ),
+  );
 
   const audition = props.previewEngine
     ? new AuditionController(props.previewEngine, { onActiveChange: setPlayingId })
@@ -108,11 +115,21 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
   const resultAssets = createMemo(() => results().map((result) => result.asset));
   const current = () => resultAssets().find((asset) => asset.id === selectedId()) ?? null;
 
+  // Set by a step, so the selection it makes takes focus with it (#880).
+  let focusFollows = false;
+
   /** Select the neighbouring result, which auditions it; the ends hold. */
   function step(direction: 1 | -1): void {
     const from = current();
     const target = (direction === 1 ? nextIn : previousIn)(resultAssets(), from);
-    if (target && target !== from) select(target);
+    if (!target) return;
+    if (target === from) {
+      // At an end there is nothing new to hear, but focus still joins the row.
+      revealSelectedRow(list, true);
+      return;
+    }
+    focusFollows = true;
+    select(target);
   }
 
   // The library's keys arrive from the modal, as they do for the Sounds list
@@ -132,9 +149,10 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
   });
 
   let list: HTMLUListElement | undefined;
-  // Keep the heard row on screen as the arrow keys walk the list.
+  // Keep the heard row on screen, and focused when a step chose it.
   createEffect(selectedId, () => {
-    list?.querySelector(".sound-row-selected")?.scrollIntoView?.({ block: "nearest" });
+    revealSelectedRow(list, focusFollows);
+    focusFollows = false;
   });
 
   return (
@@ -238,6 +256,7 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
               <SoundRow
                 asset={result.asset}
                 selected={selectedId() === result.asset.id}
+                tabbable={tabStop() === result.asset.id}
                 playing={playingId() === result.asset.id}
                 error={null}
                 color={props.trackColor}

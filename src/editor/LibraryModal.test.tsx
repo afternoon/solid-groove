@@ -51,6 +51,14 @@ describe("LibraryModal", () => {
     expect(within(view).getByRole("region", { name: "Browse sounds" })).toBeVisible();
   });
 
+  it("leaves the search field unfocused on open, so the view keys work at once (#880)", () => {
+    renderModal();
+
+    expect(document.activeElement).not.toBe(
+      screen.getByRole("searchbox", { name: "Search sounds" }),
+    );
+  });
+
   it("disposes the audition engine it was given when it closes", () => {
     // `useLibraryBrowser` disposes the engine on unmount and a disposed
     // `ToneAuditionEngine` stays disposed, so the host has to build a fresh
