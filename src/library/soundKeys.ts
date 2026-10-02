@@ -33,3 +33,23 @@ export const SOUNDS_KEY_ACTIONS = [
 ] as const satisfies readonly ShortcutActionId[];
 
 export type SoundsKeyAction = (typeof SOUNDS_KEY_ACTIONS)[number];
+
+/**
+ * Controls whose own Enter and Space the library's keys leave alone (#860).
+ * A sound row's main button and Insert do what the keys do anyway, and the
+ * close button is only where the dialog parks focus when it opens.
+ */
+const CONTROLS =
+  "button, a[href], input, select, textarea, summary, [role='checkbox'], [role='tab']";
+const STANDS_IN_FOR_THE_LIST = ".sound-row-main, .library-modal-insert, .dialog-close";
+
+/**
+ * Whether the focused element is a control that should take Enter or Space
+ * itself — a rail button, a chip, a genre checkbox — rather than the library's
+ * insert and audition. Those two keys stop the browser's default when they run,
+ * so without this a focused control could never be pressed from the keyboard.
+ */
+export function focusKeepsKey(active: Element | null = document.activeElement): boolean {
+  if (!active?.matches(CONTROLS)) return false;
+  return !active.matches(STANDS_IN_FOR_THE_LIST);
+}
