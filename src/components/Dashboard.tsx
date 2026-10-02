@@ -39,7 +39,7 @@ export default function Dashboard(props: DashboardProps = {}) {
   const analytics = props.analytics ?? defaultAnalytics;
   const auth = useAuth();
   const navigate = useNavigate();
-  const userId = createMemo(() => auth?.user?.uid);
+  const userId = createMemo(() => auth.user?.uid);
   const [creating, setCreating] = createSignal(false);
   const [createError, setCreateError] = createSignal<string | null>(null);
   const [projectsState, setProjectsState] = createSignal<ProjectsState>({
@@ -225,6 +225,12 @@ export default function Dashboard(props: DashboardProps = {}) {
 
   return (
     <Switch>
+      <Match when={auth.signInFailed}>
+        <ErrorPanel
+          message="Couldn't sign you in. Check your connection and try again."
+          onRetry={() => auth.retrySignIn()}
+        />
+      </Match>
       <Match when={!userId() || projectsState().loading}>
         <TapeLoader label="Loading projects" />
       </Match>
@@ -250,18 +256,12 @@ export default function Dashboard(props: DashboardProps = {}) {
               <p class="create-error">{createError()}</p>
             </Show>
           </div>
-          <Show when={auth?.isAnonymous}>
+          <Show when={auth.isAnonymous}>
             <UpgradeAccountPrompt analytics={analytics} />
           </Show>
           <Switch>
             <Match when={projectsState().error}>
-              <div class="projects-error">
-                <p class="projects-error-message">{projectsState().error}</p>
-                <button type="button" class="retry-button" onClick={retryFetchProjects}>
-                  <HiSolidArrowPath size={16} />
-                  <span>Try again</span>
-                </button>
-              </div>
+              {(error) => <ErrorPanel message={error()} onRetry={retryFetchProjects} />}
             </Match>
             <Match when={projectsState().data}>
               <ProjectList
@@ -275,5 +275,18 @@ export default function Dashboard(props: DashboardProps = {}) {
         </div>
       </Match>
     </Switch>
+  );
+}
+
+/** A failure the dashboard cannot get past on its own, with a retry. */
+function ErrorPanel(props: { message: string; onRetry: () => void }) {
+  return (
+    <div class="projects-error">
+      <p class="projects-error-message">{props.message}</p>
+      <button type="button" class="retry-button" onClick={() => props.onRetry()}>
+        <HiSolidArrowPath size={16} />
+        <span>Try again</span>
+      </button>
+    </div>
   );
 }
