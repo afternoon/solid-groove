@@ -120,16 +120,20 @@ async function addSamplerTrack(
   await instrument.getByRole("button", { name: "Sample", exact: true }).click();
   await expectView(page, "Library");
   await library(page).getByRole("searchbox", { name: "Search sounds" }).fill(part.sound);
-  await library(page)
-    .getByRole("button", { name: new RegExp(`^Audition .*${part.sound}`) })
-    .first()
-    .click();
+  const pick = library(page)
+    .getByRole("button", { name: new RegExp(`^Audition .*${part.sound}`, "i") })
+    .first();
+  const picked = ((await pick.getAttribute("aria-label")) ?? "").replace(
+    /^Audition /,
+    "",
+  );
+  await pick.click();
   await page.keyboard.press("Shift+Enter");
   await expectView(page, "Instrument");
 
   // The sampler names what it is holding, so the insert is visible rather
   // than inferred from a later sound.
-  await expect(instrument).toContainText(part.sound);
+  await expect(instrument).toContainText(picked);
   await pressView(page, "Arrangement");
 
   const editor = await openClip(page, part.row);
