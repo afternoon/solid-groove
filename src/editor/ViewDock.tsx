@@ -2,6 +2,7 @@ import { For, type JSX } from "@solidjs/web";
 import {
   HiSolidAdjustmentsVertical,
   HiSolidMusicalNote,
+  HiSolidSquares2x2,
   HiSolidViewColumns,
 } from "solid-icons/hi";
 import { EDITOR_VIEW_SPECS, type EditorViewName } from "./editorViews";
@@ -9,6 +10,7 @@ import "./ViewDock.css";
 
 const ICONS: Record<EditorViewName, () => JSX.Element> = {
   arrangement: () => <HiSolidViewColumns size={18} />,
+  sequence: () => <HiSolidSquares2x2 size={18} />,
   instrument: () => <HiSolidMusicalNote size={18} />,
   mixer: () => <HiSolidAdjustmentsVertical size={18} />,
 };

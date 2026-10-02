@@ -165,7 +165,7 @@ export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
  * segment, dock order — over this list, so the analytics vocabulary and the
  * addresses cannot drift apart.
  */
-export const EDITOR_VIEWS = ["arrangement", "instrument", "mixer"] as const;
+export const EDITOR_VIEWS = ["arrangement", "sequence", "instrument", "mixer"] as const;
 export type EditorViewName = (typeof EDITOR_VIEWS)[number];
 
 /**

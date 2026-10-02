@@ -165,7 +165,16 @@ async function openSequenceEditor(rowIndex = 0): Promise<HTMLElement> {
       clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX * (rowIndex + 0.5),
     }),
   );
-  return screen.findByRole("dialog", { name: "Sequence editor" });
+  return screen.findByRole("region", { name: "Sequence editor" });
+}
+
+/** The sequence view, or null while another view is on screen (`UI-002`). */
+const SEQUENCE = () => screen.queryByRole("region", { name: "Sequence editor" });
+
+/** Presses `1`: from the sequence view back to the arrangement (`UI-002`). */
+async function leaveForArrangement(): Promise<void> {
+  fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
+  await screen.findByTestId("arrangement-view-ready");
 }
 
 /**
@@ -419,7 +428,7 @@ describe("EditorView", () => {
 
     // Esc closes the roll, selection or not, as it closes every dialog (#650).
     press("Escape");
-    expect(screen.queryByRole("dialog", { name: "Sequence editor" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Sequence editor" })).toBeNull();
   });
 
   // ARR-010: a focused Transform value field takes ↑/↓ from the roll, through
@@ -455,7 +464,7 @@ describe("EditorView", () => {
     fireAndFlush(() => field.focus());
     field.value = "-5";
     press("Escape");
-    expect(screen.queryByRole("dialog", { name: "Sequence editor" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Sequence editor" })).toBeNull();
     // The closed field let go of the arrows, or they would still nudge it.
     expect(focusedValueField()).toBeNull();
   });
@@ -1624,6 +1633,7 @@ describe("EditorView keyboard shortcuts", () => {
 
   it("cancels an Alt-drag with Escape before it closes anything (ARR-011)", async () => {
     await renderSlice();
+    await leaveForArrangement();
     const canvas = document.querySelector(".arrangement-layer-interactive");
     if (!canvas) throw new Error("no arrangement interaction canvas rendered");
     const at = (type: string, bar: number) => {
@@ -1643,8 +1653,8 @@ describe("EditorView keyboard shortcuts", () => {
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
     at("pointerup", 3);
-    // The drag is gone, not the sequence editor over it, and nothing changed.
-    expect(screen.getByRole("dialog", { name: "Sequence editor" })).toBeVisible();
+    // The drag is gone, and nothing changed.
+    expect(screen.getByTestId("arrangement-view-ready")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
     expect(screen.getByTestId("arrangement-selection-live")).toHaveTextContent(
       "No selection",
@@ -1657,7 +1667,7 @@ describe("EditorView keyboard shortcuts", () => {
     // This block opens the sequence editor, which owns Delete while it is up
     // (#643); close it so the key reaches the arrangement.
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(SEQUENCE()).toBeNull());
 
     // Select the fixture's one placement (tick 0..TICKS_PER_BAR, row 0) by
     // pointer, the same way a user would, then delete it with the KEY-01
@@ -1702,6 +1712,7 @@ describe("EditorView keyboard shortcuts", () => {
   // (no `selection` context of its own) Mod+V matched no shortcut at all.
   it("pastes after a cut with the step editor showing (#292)", async () => {
     const project = await renderSlice();
+    await leaveForArrangement();
     const [source] = project.song.placements;
     await selectPlacementInArrangement(source.id);
 
@@ -1729,6 +1740,7 @@ describe("EditorView keyboard shortcuts", () => {
 
   it("zooms the arrangement to its selection with Z, and not without one (#292)", async () => {
     await renderSlice();
+    await leaveForArrangement();
     const root = await screen.findByTestId("arrangement-view-ready");
     const scale = () => Number(root.getAttribute("data-pixels-per-tick"));
     const before = scale();
@@ -2096,20 +2108,42 @@ describe("EditorView sequence editor", () => {
     await renderSlice();
     await screen.findByTestId("arrangement-view-ready");
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(SEQUENCE()).toBeNull();
     expect(screen.queryByRole("region", { name: "Step editor" })).not.toBeInTheDocument();
   });
 
-  it("opens on the clip that was double-clicked, and closes with Escape", async () => {
-    await renderSlice();
+  it("opens the double-clicked clip at its own address, and leaves on Escape", async () => {
+    const { location, project } = await renderSlice();
     const editor = await openSequenceEditor();
 
     expect(within(editor).getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
+    expect(location.get()).toBe(`/projects/${project.metadata.id}/sequence`);
+    // One view at a time: the timeline is not behind it, and it is no dialog.
+    expect(screen.queryByTestId("arrangement-view-ready")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    // The arrangement is underneath, exactly as it was.
-    expect(screen.getByTestId("arrangement-view-ready")).toBeInTheDocument();
+    await vi.waitFor(() => expect(SEQUENCE()).toBeNull());
+    // The arrangement is back, exactly as it was.
+    expect(await screen.findByTestId("arrangement-view-ready")).toBeInTheDocument();
+  });
+
+  it("says no clip is selected on 2 before one is opened, and its button goes back", async () => {
+    const { location, project } = await renderSlice();
+    await screen.findByTestId("arrangement-view-ready");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    const empty = await screen.findByRole("region", { name: "No clip selected" });
+    expect(empty).toHaveTextContent(
+      "Select a clip in the arrangement, then press 2 to edit its steps or notes.",
+    );
+    expect(location.get()).toBe(`/projects/${project.metadata.id}/sequence`);
+
+    const back = within(empty).getByRole("button", { name: "Arrangement" });
+    expect(back).toHaveTextContent("1");
+    clickAndFlush(back);
+    await screen.findByTestId("arrangement-view-ready");
+    expect(location.get()).toBe(`/projects/${project.metadata.id}`);
   });
 
   it("keeps the transport and the view switches working while it is open", async () => {
@@ -2149,7 +2183,7 @@ describe("EditorView sequence editor", () => {
 
     fireAndFlush(() => fireEvent.keyDown(window, { key: "y", ctrlKey: true }));
 
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(SEQUENCE()).toBeNull());
   });
 
   it("keeps Backspace for the note editor's steps, never the clip under it (#643)", async () => {
@@ -2166,14 +2200,14 @@ describe("EditorView sequence editor", () => {
 
     // Nothing selected: Backspace does nothing, and the clip stays open.
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Backspace" }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(SEQUENCE()).toBeInTheDocument();
     expect(on()).toBe(notes);
 
     // With the steps selected it deletes them, and only them.
     clickAndFlush(within(editor).getByRole("button", { name: "Select all" }));
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Backspace" }));
     expect(on()).toBe(0);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(SEQUENCE()).toBeInTheDocument();
   });
 
   it("selects every note in the step grid with Cmd/Ctrl+A, not the page's text (#835)", async () => {
@@ -2191,7 +2225,7 @@ describe("EditorView sequence editor", () => {
     // Every note is now selected, so Backspace takes them all.
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Backspace" }));
     expect(on()).toBe(0);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(SEQUENCE()).toBeInTheDocument();
   });
 
   // The editor owns one pad selection for a drum track, and both the
@@ -2224,7 +2258,7 @@ describe("EditorView sequence editor", () => {
     // And back: a row picked in the grid is the pad the instrument view shows.
     clickAndFlush(rowButton(editor, "BD"));
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
-    await vi.waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(SEQUENCE()).toBeNull());
     await goToView("Instrument");
     expect(await screen.findByRole("region", { name: "BD pad" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "CP pad" })).not.toBeInTheDocument();

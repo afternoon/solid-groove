@@ -90,7 +90,7 @@ export const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
 
 const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
+  page.getByRole("region", { name: "Sequence editor" });
 
 const selectedPlacements = (page: Page): Locator =>
   page.getByTestId("placement-selection").locator("li");
@@ -142,9 +142,7 @@ async function openClip(page: Page, row: number): Promise<Locator> {
 }
 
 async function closeEditor(page: Page): Promise<void> {
-  await sequenceEditor(page)
-    .getByRole("button", { name: "Close sequence editor" })
-    .click();
+  await page.keyboard.press("Escape");
   await expect(sequenceEditor(page)).toHaveCount(0);
 }
 

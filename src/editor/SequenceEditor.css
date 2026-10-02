@@ -1,8 +1,24 @@
-/* The sequence editor's own contents (UI-001). Its window — the backdrop,
-   the panel, the header bar and the close control — is the shared `Dialog`
-   shell, which is also what holds it to almost the whole view (CF-008 asserts
-   four fifths of each axis, and the piano roll is why the surface exists).
-   What is left here is the title and the one scroller the roll lives in. */
+/* The sequence view (UI-002): the whole body, like the arrangement, running
+   under the dock to the bottom of the window. The piano roll is why the
+   surface exists, so it gets every pixel the page has. */
+.sequence-view {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--size-divider);
+  min-width: 0;
+  min-height: 0;
+  margin-bottom: calc(-1 * var(--view-dock-clearance));
+  padding: var(--size-divider) var(--size-divider) var(--view-dock-clearance);
+  box-sizing: border-box;
+  background-color: var(--color-background-secondary);
+}
+
+.sequence-view-header {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
 
 .sequence-editor-title {
   margin: 0;
@@ -16,7 +32,7 @@
   overflow: auto;
 }
 
-/* The step grid grows into the height the dialog has left, too (#643); the
+/* The step grid grows into the height the view has left, too (#643); the
    body still scrolls when a big kit needs more than that. */
 .sequence-editor-body:not(.with-roll) {
   display: flex;
@@ -29,7 +45,7 @@
   flex-direction: column;
 }
 
-/* The piano roll takes every pixel the dialog has (ARR-010): the roll itself
+/* The piano roll takes every pixel the view has (ARR-010): the roll itself
    scrolls, so the body does not, and the Key and Transform panels sit side by
    side under it. */
 .sequence-editor-body.with-roll {

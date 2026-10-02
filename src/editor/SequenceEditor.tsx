@@ -1,12 +1,11 @@
 import type { JSX } from "@solidjs/web";
-import { type Accessor, onSettled, Show } from "solid-js";
+import { type Accessor, Show } from "solid-js";
 import type {
   Gesture,
   GestureOptions,
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import Dialog from "../components/Dialog";
 import type { Clip, Project, Track } from "../domain/entities";
 import type { EventId, PadId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -47,37 +46,25 @@ export interface SequenceEditorProps {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
-  onClose(): void;
 }
 
 /**
- * The sequence editor (`UI-001`): one clip, almost the whole window, over
- * whichever view opened it.
+ * The sequence view (`UI-002`): the selected clip's steps or notes, filling
+ * the page, on `2`.
  *
- * The step grid and the piano roll used to be panels stacked under the
- * arrangement, always mounted for the selected track and sharing their height
- * with everything else in the workspace. Here they get the room instead — the
- * piano roll most of all — and they show the clip you *opened* rather than the
- * one the selection happens to imply.
- *
- * `role="dialog"` is an accessibility fact: this is a window over the page and
- * a screen reader has to be told so. It is deliberately **not** the shortcut
- * layer's `dialog` context, which would take the keyboard from everything
- * underneath: `EditorView` gives it `sequence_editor` instead, so the
- * transport, the note shortcuts and `1`/`2`/`3` keep working while a producer
- * programs. `Escape` closes it, through the registry's `view.close_surface`.
+ * `UI-001` opened this as a window over the arrangement; `UI-002` makes it a
+ * view of its own, so it is a named region rather than a dialog and leaving it
+ * is pressing another view's key, not closing anything. Its contexts stay its
+ * own (`sequence_editor`): the transport, the note shortcuts and the view keys
+ * all keep working while a producer programs.
  */
 export default function SequenceEditor(props: SequenceEditorProps): JSX.Element {
   return (
-    <Dialog
-      label="Sequence editor"
-      size="jumbo"
-      onClose={() => props.onClose()}
-      header={
-        /* The track's name, chosen by the user (ADR 0002 decision 2). */
+    <section class="sequence-view" aria-label="Sequence editor">
+      <header class="sequence-view-header">
+        {/* The track's name, chosen by the user (ADR 0002 decision 2). */}
         <h2 class={`sequence-editor-title ${MASK_CONTENT}`}>{props.track.name}</h2>
-      }
-    >
+      </header>
       <div class={["sequence-editor-body", { "with-roll": props.showPianoRoll() }]}>
         {/* An audio loop has no notes to program, so what it gets is what
               LOOP-006 always showed — the tempo it was recorded at, and how
@@ -117,6 +104,6 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
           )}
         </Show>
       </div>
-    </Dialog>
+    </section>
   );
 }

@@ -23,6 +23,7 @@ describe("editorViews", () => {
   it("puts the default view at the bare project address, and the rest below it", () => {
     expect(editorViewSpec(DEFAULT_EDITOR_VIEW).segment).toBe("");
     expect(editorViewPath("prj_abc", "arrangement")).toBe("/projects/prj_abc");
+    expect(editorViewPath("prj_abc", "sequence")).toBe("/projects/prj_abc/sequence");
     expect(editorViewPath("prj_abc", "instrument")).toBe("/projects/prj_abc/instrument");
     expect(editorViewPath("prj_abc", "mixer")).toBe("/projects/prj_abc/mixer");
   });
