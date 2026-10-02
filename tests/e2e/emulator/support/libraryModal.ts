@@ -14,7 +14,7 @@ export const library = (page: Page): Locator =>
 export const soundList = (page: Page): Locator =>
   library(page).getByRole("list", { name: "Sounds", exact: true });
 
-export const readout = (page: Page, name: "Was" | "Hearing"): Locator =>
+export const readout = (page: Page, name: "In the slot" | "Hearing"): Locator =>
   library(page).getByRole("group", { name });
 
 export const railButton = (
