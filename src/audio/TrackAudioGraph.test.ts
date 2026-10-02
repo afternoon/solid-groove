@@ -435,4 +435,55 @@ describe("TrackAudioGraph", () => {
     expect(left).toBeGreaterThan(0.01);
     expect(right).toBeLessThan(0.001);
   });
+
+  it("plays every instrument 12 dB under its fader, but not an audio track's loops (#837)", async () => {
+    /** Renders a unit DC signal through one track, entering either through
+     * its instrument or straight into its audio input, and returns the level. */
+    async function render(via: "instrument" | "audio"): Promise<number> {
+      const rendered = await Tone.Offline(
+        ({ destination }) => {
+          const runtime = new AudioRuntimeModule.AudioRuntime();
+          const scope = runtime.openProjectScope("p");
+          const dc = new Tone.Signal(1);
+          const track = new TrackAudioGraphModule.TrackAudioGraph(
+            ids("track"),
+            {
+              scope,
+              assetsById: new Map(),
+              bufferCache: {} as never,
+              getReturnInput: () => undefined,
+              createInstrument: (instrument) => ({
+                kind: instrument.kind,
+                output: dc,
+                trigger: vi.fn(),
+                update: vi.fn(),
+                dispose: vi.fn(),
+              }),
+            },
+            destination,
+          );
+          if (via === "instrument") {
+            track.reconcile(trackProjection(), false);
+          } else {
+            track.reconcile(trackProjection({ type: "audio", instrument: null }), false);
+            dc.connect(track.audioInput);
+          }
+        },
+        0.05,
+        2,
+      );
+      const samples = rendered.getChannelData(0);
+      return samples[samples.length - 1] ?? 0;
+    }
+
+    const instrumentLevel = await render("instrument");
+    const audioLevel = await render("audio");
+
+    expect(audioLevel).toBeGreaterThan(0.1);
+    expect(Tone.gainToDb(instrumentLevel / audioLevel)).toBeCloseTo(
+      TrackAudioGraphModule.INSTRUMENT_HEADROOM_DB,
+      1,
+    );
+    expect(TrackAudioGraphModule.INSTRUMENT_HEADROOM_DB).toBe(-12);
+  });
 });

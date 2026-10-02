@@ -23,6 +23,16 @@ import { type LevelReading, loudestDb, peakDbOf } from "./levels";
  */
 export const MIXER_SMOOTHING_SECONDS = 0.02;
 
+/**
+ * The fixed gain every instrument plays through before its track's device
+ * chain (#837). A fader at its 0 dB default is unity, so without this a
+ * 7-track song at default levels sums well past 0 dBFS and exports clipped.
+ * Live gives Simpler the same -12 dB default for the same reason; here it is a
+ * trim rather than a parameter, so faders keep starting at unity and saved
+ * projects get the headroom too. An audio track's loops are not trimmed.
+ */
+export const INSTRUMENT_HEADROOM_DB = -12;
+
 /** Samples per channel in the peak tap: about one 60 Hz frame at 48 kHz. */
 const PEAK_WINDOW = 1024;
 
@@ -62,6 +72,8 @@ export class TrackAudioGraph {
   private readonly meterHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly peakTap: Tone.Analyser;
   private readonly peakTapHandle: ReturnType<AudioProjectScope["register"]>;
+  private readonly instrumentTrim: Tone.Gain<"decibels">;
+  private readonly instrumentTrimHandle: ReturnType<AudioProjectScope["register"]>;
   private instrumentNode: InstrumentNode | null = null;
   private instrumentHandle: ReturnType<AudioProjectScope["register"]> | null = null;
   private lastInstrumentRef: AudioTrackProjection["instrument"] | null = null;
@@ -113,6 +125,11 @@ export class TrackAudioGraph {
     this.muteGainHandle = context.scope.register("node", () => {
       this.muteGain.dispose();
     });
+    this.instrumentTrim = new Tone.Gain(INSTRUMENT_HEADROOM_DB, "decibels");
+    this.instrumentTrimHandle = context.scope.register("node", () => {
+      this.instrumentTrim.dispose();
+    });
+    this.instrumentTrim.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.muteGain);
     this.muteGain.connect(this.panVol.input);
     this.panVol.connect(destination);
@@ -235,7 +252,7 @@ export class TrackAudioGraph {
       bufferCache: this.context.bufferCache,
     });
     this.instrumentHandle = this.context.scope.register("node", () => node.dispose());
-    node.output.connect(this.deviceChain.input);
+    node.output.connect(this.instrumentTrim);
     this.instrumentNode = node;
     this.lastInstrumentRef = next;
   }
@@ -293,6 +310,7 @@ export class TrackAudioGraph {
     if (this.disposed) return;
     this.disposed = true;
     this.disposeInstrument();
+    void this.context.scope.release(this.instrumentTrimHandle);
     for (const [, tracked] of this.sends) {
       void this.context.scope.release(tracked.handle);
     }
