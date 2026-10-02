@@ -1,7 +1,7 @@
 import type { Accessor } from "solid-js";
 import type { PlacementEditingActions } from "../arrangement/ArrangementView";
 import type { EventId } from "../domain/ids";
-import { SOUNDS_KEY_ACTIONS } from "../library/soundKeys";
+import { focusKeepsKey, SOUNDS_KEY_ACTIONS } from "../library/soundKeys";
 import {
   type ShortcutContext,
   type ShortcutHandlers,
@@ -216,6 +216,12 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     isEnabled: () => libraryActions() !== null,
   });
+  // Enter and Space stand down for a focused control, which takes the key
+  // itself (#860); otherwise they act on the selected sound and stop there.
+  const onSelectedSound = (run: (actions: LibraryActions) => void) => ({
+    ...inLibrary(run),
+    isEnabled: () => libraryActions() !== null && !focusKeepsKey(),
+  });
 
   /** One resize step on the assistant's focused edge (#849). */
   const resizeEdge = (by: number) => ({
@@ -309,10 +315,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.all_sounds": inLibrary((a) => a.showView("all")),
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
-    "library.insert": inLibrary((a) => void a.insertSelected()),
+    "library.insert": onSelectedSound((a) => void a.insertSelected()),
     ...Object.fromEntries(
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
     ),
+    "library.audition": onSelectedSound((a) => a.press("library.audition")),
     "library.back": inLibrary((a) => a.back()),
     // Escape closes the innermost surface: the guide, then the library's keys
     // sheet (#813), then the library, then
