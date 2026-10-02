@@ -11,12 +11,23 @@ installWebAudioGlobals();
 let Tone: typeof import("tone");
 let AudioRuntimeModule: typeof import("./AudioRuntime");
 let TrackAudioGraphModule: typeof import("./TrackAudioGraph");
+let SummingBusModule: typeof import("./summingBus");
 
 beforeAll(async () => {
   Tone = await import("tone");
   AudioRuntimeModule = await import("./AudioRuntime");
   TrackAudioGraphModule = await import("./TrackAudioGraph");
+  SummingBusModule = await import("./summingBus");
 });
+
+/** A bus summing into `destination`, where a track's output joins. */
+function busInto(
+  destination: import("tone").ToneAudioNode,
+): import("./summingBus").SummingBus {
+  const bus = new SummingBusModule.SummingBus();
+  bus.output.connect(destination);
+  return bus;
+}
 
 afterEach(async () => {
   try {
@@ -131,7 +142,7 @@ describe("TrackAudioGraph", () => {
         getReturnInput: () => undefined,
         createInstrument: instrumentSpy.factory,
       },
-      runtime.getDestination(),
+      busInto(runtime.getDestination()),
     );
 
     const projection = trackProjection();
@@ -161,7 +172,7 @@ describe("TrackAudioGraph", () => {
         createInstrument: instrumentSpy.factory,
         createDeviceNode: deviceSpy.factory,
       },
-      runtime.getDestination(),
+      busInto(runtime.getDestination()),
     );
 
     const instrument: Instrument = {
@@ -207,7 +218,7 @@ describe("TrackAudioGraph", () => {
         getReturnInput: () => undefined,
         createInstrument: instrumentSpy.factory,
       },
-      runtime.getDestination(),
+      busInto(runtime.getDestination()),
     );
 
     track.reconcile(
@@ -243,7 +254,7 @@ describe("TrackAudioGraph", () => {
         getReturnInput: () => undefined,
         createInstrument: instrumentSpy.factory,
       },
-      runtime.getDestination(),
+      busInto(runtime.getDestination()),
     );
 
     track.reconcile(trackProjection({ type: "audio", instrument: null }), false);
@@ -274,7 +285,7 @@ describe("TrackAudioGraph", () => {
         getReturnInput: () => undefined,
         createDeviceNode: deviceSpy.factory,
       },
-      runtime.getDestination(),
+      busInto(runtime.getDestination()),
     );
 
     track.reconcile(trackProjection({ devices: [device("dev_a", 0)] }), false);
@@ -295,7 +306,7 @@ describe("TrackAudioGraph", () => {
     const runtime = new AudioRuntimeModule.AudioRuntime();
     const scope = runtime.openProjectScope("p");
     const destination = runtime.getDestination();
-    const returnInput = new Tone.Gain(1);
+    const returnInput = new SummingBusModule.SummingBus();
     const track = new TrackAudioGraphModule.TrackAudioGraph(
       ids("track"),
       {
@@ -304,7 +315,7 @@ describe("TrackAudioGraph", () => {
         bufferCache: {} as never,
         getReturnInput: () => returnInput,
       },
-      destination,
+      busInto(destination),
     );
 
     const returnId = ids("return");
@@ -343,7 +354,7 @@ describe("TrackAudioGraph", () => {
         bufferCache: {} as never,
         getReturnInput: () => undefined,
       },
-      runtime.getDestination(),
+      busInto(runtime.getDestination()),
     );
 
     const projection = trackProjection();
@@ -360,7 +371,7 @@ describe("TrackAudioGraph", () => {
     const instrumentSpy = spyInstrumentFactory();
     const deviceSpy = spyDeviceFactory();
     const destination = runtime.getDestination();
-    const returnInput = new Tone.Gain(1);
+    const returnInput = new SummingBusModule.SummingBus();
     const track = new TrackAudioGraphModule.TrackAudioGraph(
       ids("track"),
       {
@@ -371,7 +382,7 @@ describe("TrackAudioGraph", () => {
         createInstrument: instrumentSpy.factory,
         createDeviceNode: deviceSpy.factory,
       },
-      destination,
+      busInto(destination),
     );
 
     const returnId = ids("return");
@@ -412,7 +423,7 @@ describe("TrackAudioGraph", () => {
             bufferCache: {} as never,
             getReturnInput: () => undefined,
           },
-          destination,
+          busInto(destination),
         );
         track.reconcile(trackProjection({ type: "audio", instrument: null }), false);
 
@@ -420,7 +431,7 @@ describe("TrackAudioGraph", () => {
         // track's channel strip; the right channel of `merge`'s input 1 is
         // left unconnected (silence).
         const merge = new Tone.Merge();
-        merge.connect(track.audioInput);
+        track.audioInput.add(merge);
         const noise = new Tone.Noise("white");
         noise.connect(merge, 0, 0);
         noise.start(0).stop(0.05);
@@ -460,13 +471,13 @@ describe("TrackAudioGraph", () => {
                 dispose: vi.fn(),
               }),
             },
-            destination,
+            busInto(destination),
           );
           if (via === "instrument") {
             track.reconcile(trackProjection(), false);
           } else {
             track.reconcile(trackProjection({ type: "audio", instrument: null }), false);
-            dc.connect(track.audioInput);
+            track.audioInput.add(dc);
           }
         },
         0.05,
