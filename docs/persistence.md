@@ -96,6 +96,19 @@ Two rules shape the interface:
 
 Reads report a permission denial as `not_found`, so the API never confirms the existence of a project the caller may not see. A listing the caller is not entitled to comes back empty rather than as an error.
 
+## Favourite sounds
+
+A producer's favourite sounds (LIB-011, #691) belong to the person, not to a project, so they live outside `projects/`, under the user: `users/{uid}/favourites/{favouriteId}`, one document per favourite. `src/persistence/favouriteDocuments.ts` owns that path and the document body, as `documents.ts` does for a project.
+
+- **What a document holds.** A pack-qualified sound reference — the `pak_` pack ID and the sound's *library* asset ID (the manifest's ID, not a project's `ast_` ID) — plus `favouritedAt` (integer epoch milliseconds) and its own `schemaVersion` (`1`). Nothing else: no sound or pack name, no URL, no user-entered text. Names are read from the pack manifest when a favourite is shown.
+- **One small document change.** The document ID is `{packId}~{URI-encoded assetId}`, derived from the reference, so adding is one `setDoc` and removing one `deleteDoc`, with no read first and no transaction. Favouriting a sound twice lands on the same document (refreshing `favouritedAt`); removing a non-favourite is a no-op.
+- **Live across sessions.** `watchFavourites` is one collection listener, so a favourite added in one signed-in session reaches every other session of the same user.
+- **Anonymous users.** An anonymous identity is a real uid that an account upgrade keeps, so a guest's favourites are still theirs after they register, exactly as their projects are.
+
+`FavouritesRepository` (`src/persistence/favouritesRepository.ts`) mirrors `ProjectRepository`: `InMemoryFavouritesRepository` and `FirestoreFavouritesRepository` run one contract suite (`favouritesRepositoryContract.ts`, executed by `src/persistence/inMemoryFavouritesRepository.test.ts` and `tests/emulator/firestoreFavouritesRepository.emulator.test.ts`), and only the Firestore store imports `firebase/firestore`. A permission denial is reported as `not_allowed`. A stored document this build cannot read is left out of the list, as the dashboard does with a malformed project.
+
+A favourite whose pack or sound the library no longer holds is not the repository's call — it stores references, not library facts. The library resolves each one against the packs it has loaded and reports it as missing rather than dropping it.
+
 ## Autosave
 
 `ProjectAutosave` (`src/persistence/autosave.ts`) implements PRJ-03 and has no SolidJS dependency — it exposes a plain listener a provider can adapt into a signal.
@@ -130,8 +143,10 @@ The current schema is **v5**. v1 was the first production schema; **v2 ([LIB-08]
 
 `firestore.rules` enforces the layout: owner-or-collaborator access resolved from the metadata document, no ownership reassignment, no backwards revision, a `song` collection that only accepts `current`, clip and chunk documents whose ID matches their path, and a `projectId` that must match the path a document is written to. Structurally wrong writes — unknown schema version, missing revision, missing pack dependency list or shelf, unexpected metadata field — are rejected by the rules as well as by the decoder. Each child write costs one document read for the parent lookup, which is the price of not duplicating ownership onto every tier.
 
+`users/{uid}/favourites/{favouriteId}` is readable and writable by `uid` alone. A write must carry exactly `schemaVersion` (`1`), a `pak_` `packId`, an `assetId` of 1–200 characters and an integer `favouritedAt`, under a document ID that starts with that pack ID.
+
 Anonymous Firebase identities are ordinary identities here (PRJ-01): they own projects exactly like registered users, and upgrading an account keeps the same uid, so no rule distinguishes them.
 
 `firestore.indexes.json` carries the dashboard's composite index (`ownerId` ascending, `modifiedAt` descending) and is wired into `firebase.json`.
 
-Coverage lives in `tests/emulator/` (`bun run test:emulator`): `firestoreRules.emulator.test.ts` for owner, collaborator, anonymous, unauthenticated, deletion, malformed-write, and cross-project cases, and `firestoreProjectRepository.emulator.test.ts` for the repository contract against a real Firestore instance.
+Coverage lives in `tests/emulator/` (`bun run test:emulator`): `firestoreRules.emulator.test.ts` for owner, collaborator, anonymous, unauthenticated, deletion, malformed-write, and cross-project cases, and `firestoreProjectRepository.emulator.test.ts` for the repository contract against a real Firestore instance. The favourites rules are in the same rules file, and `firestoreFavouritesRepository.emulator.test.ts` runs the favourites contract through them.
