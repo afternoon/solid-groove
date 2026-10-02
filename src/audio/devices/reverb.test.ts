@@ -39,13 +39,8 @@ async function renderBurst(
   duration: number,
   options: { source?: "sine" | "noise" } = {},
 ): Promise<Float32Array> {
-  const buffer = await Tone.Offline(async () => {
+  const buffer = await Tone.Offline(() => {
     const node = deviceNode.buildDeviceNode(d, context, create);
-    // The reverb builds its impulse response off the audio thread, so a
-    // render started before it lands has no tail at all. `Tone.Offline`
-    // awaits an async callback before rendering, which is exactly the hook
-    // this needs.
-    await node.ready?.();
     // White noise is the probe for anything measuring a *filter*: it has
     // energy at every frequency, so removing the top of the band shows up
     // unambiguously. A 220 Hz sine (the probe used elsewhere here) has almost
@@ -65,26 +60,20 @@ async function renderBurst(
 
 describe("reverb (FX-01)", () => {
   it("rings on after the source stops, and longer with a longer decay", async () => {
-    // Noise rather than a sine: `Tone.Reverb` builds each impulse response
-    // from unseeded noise, and a broadband source excites the whole impulse
+    // Noise rather than a sine: a broadband source excites the whole impulse,
     // so the measured tail reflects the decay setting rather than however
-    // this particular impulse happened to land near 220 Hz. Averaging a few
-    // renders removes what variance is left.
-    async function meanTail(decay: number): Promise<number> {
-      let total = 0;
-      for (let i = 0; i < 3; i++) {
-        const data = await renderBurst(
-          reverb.createReverbCore,
-          device({ decay, size: 0.5, wet: 1 }),
-          2,
-          { source: "noise" },
-        );
-        // The source stops a quarter of the way in; this window is tail only.
-        total += rmsWindow(data, 0.6, 0.9);
-      }
-      return total / 3;
+    // the impulse's noise happens to land near 220 Hz.
+    async function tail(decay: number): Promise<number> {
+      const data = await renderBurst(
+        reverb.createReverbCore,
+        device({ decay, size: 0.5, wet: 1 }),
+        2,
+        { source: "noise" },
+      );
+      // The source stops a quarter of the way in; this window is tail only.
+      return rmsWindow(data, 0.6, 0.9);
     }
-    expect(await meanTail(4)).toBeGreaterThan((await meanTail(0.3)) * 2);
+    expect(await tail(4)).toBeGreaterThan((await tail(0.3)) * 2);
   });
 
   it("damps the tail with its filter", async () => {
@@ -101,60 +90,57 @@ describe("reverb (FX-01)", () => {
       // a 400 Hz lowpass drops the total level too.
       return hfEnergy(data) / Math.max(1e-9, rms(data));
     }
-    // The gap here is roughly 18x, far larger than the run-to-run spread from
-    // `Tone.Reverb` building each impulse response from unseeded noise, so a
-    // wide margin keeps this deterministic rather than pinning one impulse.
+    // The gap here is roughly 18x, so a wide margin keeps this about tone
+    // rather than pinning one impulse.
     expect(await brightness(400)).toBeLessThan((await brightness(18_000)) / 4);
   });
 
-  it("regenerates its impulse once per change, only when decay, size, or pre-delay changed", async () => {
+  it("rebuilds its impulse once per change, only when decay, size, or pre-delay changed", () => {
+    const createBuffer = vi.spyOn(Tone.getContext(), "createBuffer");
     const core = reverb.createReverbCore(device(), context);
-    const node = core.input as unknown as import("tone").Reverb;
-    const generate = vi.spyOn(node, "generate");
-    const rebuilds = async () => {
-      await core.ready?.();
-      return generate.mock.calls.length;
-    };
+    const rebuilds = () => createBuffer.mock.calls.length;
 
     const values = { ...defaultDeviceParameters("reverb") };
-    // The first apply sets both values, then regenerates once.
     core.apply(values, context, true);
-    expect(await rebuilds()).toBe(1);
+    expect(rebuilds()).toBe(1);
 
     core.apply(values, context, false);
-    expect(await rebuilds()).toBe(1); // identical values: nothing to rebuild
+    expect(rebuilds()).toBe(1); // identical values: nothing to rebuild
 
     core.apply({ ...values, filter: 1_000 }, context, false);
-    // A filter-only edit is a ramp on the damping node. Regenerating here
+    // A filter-only edit is a ramp on the damping node. Rebuilding here
     // would restart a ringing tail from a fresh impulse for no reason.
-    expect(await rebuilds()).toBe(1);
+    expect(rebuilds()).toBe(1);
 
     core.apply({ ...values, decay: 6 }, context, false);
-    expect(await rebuilds()).toBe(2);
+    expect(rebuilds()).toBe(2);
     core.apply({ ...values, decay: 6, size: 0.9 }, context, false);
-    expect(await rebuilds()).toBe(3);
+    expect(rebuilds()).toBe(3);
+    // Size 0 rings for half the stated decay; there is no pre-delay to add.
+    core.apply({ ...values, decay: 1, size: 0, predelay: 0 }, context, false);
+    const [channels, length, rate] = createBuffer.mock.calls[3];
+    expect(channels).toBe(2);
+    expect(length / rate).toBeCloseTo(0.5, 2);
 
     core.dispose();
+    createBuffer.mockRestore();
   });
 
-  it("ends on the impulse for the latest values, never a slower stale one", async () => {
-    // Tone starts a generation per setter, and the constructor's long default
-    // impulse used to land *after* the short one asked for, replacing it.
-    const core = reverb.createReverbCore(device(), context);
-    const values = {
-      ...defaultDeviceParameters("reverb"),
-      decay: 1,
-      size: 0,
-      predelay: 0,
-    };
-    core.apply(values, context, true);
-    await core.ready?.();
-    // Every generation Tone could still have in flight has had time to land.
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const convolver = (core.input as unknown as { _convolver: { buffer: AudioBuffer } })
-      ._convolver;
-    expect(convolver.buffer.duration).toBeCloseTo(0.5, 2);
-    core.dispose();
+  it("builds the same impulse from the same settings, every time (#867)", () => {
+    const first = reverb.reverbImpulse(22_050, 2, 0.05);
+    const second = reverb.reverbImpulse(22_050, 2, 0.05);
+    expect(first).toHaveLength(2);
+    expect(first[0]).toHaveLength(Math.round(2.05 * 22_050));
+    expect(second).toEqual(first);
+    // The two sides are different noise, so the tail is stereo.
+    expect(first[1]).not.toEqual(first[0]);
+    // Silent through the pre-delay, loudest straight after it, silent at the end.
+    const preDelay = Math.round(0.05 * 22_050);
+    expect(first[0].subarray(0, preDelay).every((s) => s === 0)).toBe(true);
+    expect(rms(first[0].subarray(preDelay, preDelay + 2_205))).toBeGreaterThan(
+      rms(first[0].subarray(-2_205 * 4, -2_205 * 3)) * 100,
+    );
+    expect(Math.abs(first[0].at(-1) ?? 1)).toBe(0);
   });
 
   it("stays finite at the longest decay it allows (FX-02)", async () => {

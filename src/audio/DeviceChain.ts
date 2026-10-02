@@ -35,13 +35,6 @@ export interface DeviceNode {
    * the stored parameters alone.
    */
   resolvedDelaySeconds?(): number;
-  /**
-   * Resolves once any asynchronously-built resource this device needs is in
-   * place. Only the reverb implements it (its impulse response is generated
-   * off the audio thread). Live playback never awaits it — a node keeps its
-   * previous impulse until the new one lands — but an offline render must.
-   */
-  ready?(): Promise<void>;
 }
 
 /**

@@ -99,6 +99,5 @@ export function buildDeviceNode(
     },
     gainReductionDb: core.gainReductionDb?.bind(core),
     resolvedDelaySeconds: core.resolvedDelaySeconds?.bind(core),
-    ready: core.ready?.bind(core),
   };
 }

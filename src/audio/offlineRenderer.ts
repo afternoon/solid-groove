@@ -32,10 +32,10 @@ export { OfflineRenderError, RENDER_CHANNELS } from "./offlineSession";
  * touches the live context, transport or graph. Automation is not rendered
  * because live playback does not render it yet either (ARR-004).
  *
- * A render prepares (decodes assets, builds reverb impulses), then runs the
- * clock — firing scheduled events, the offline context installed only while
- * each chunk runs — and the audio thread in step, disposing each voice once
- * the audio is past it (see `offlineClock.ts`). A cancel takes effect before
+ * A render prepares (decodes assets), then runs the clock — firing scheduled
+ * events, the offline context installed only while each chunk runs — and the
+ * audio thread in step, disposing each voice once the audio is past it (see
+ * `offlineClock.ts`). A cancel takes effect before
  * the next chunk, at most five seconds of audio away.
  */
 
