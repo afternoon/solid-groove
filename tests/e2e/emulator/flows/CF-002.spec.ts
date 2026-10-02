@@ -164,7 +164,7 @@ async function addSamplerTrack(
 }
 
 test.describe("CF-002", () => {
-  test("a producer builds a five-part loop", async ({ page }) => {
+  test("a producer builds a five-part loop", async ({ page, browserName }) => {
     // Five tracks built by hand through three views is a long journey.
     test.setTimeout(120_000);
     const step = walkthrough(page, {
@@ -233,10 +233,23 @@ test.describe("CF-002", () => {
     //
     // As in CF-001, this asserts the transport is running, not that a sound
     // reached a speaker: a headless browser records no audio.
+    //
+    // Playback is asserted in Chromium only, exactly as in CF-001 and CF-004:
+    // Firefox here refuses `AudioContext.resume()` (HARD-001, #43). The click
+    // still runs everywhere.
+    const canAssertPlayback = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertPlayback ? "playback-asserted" : "playback-skipped",
+      description: canAssertPlayback
+        ? `playback asserted in ${browserName}`
+        : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
     await page.getByRole("button", { name: "Start playback" }).click();
-    await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
-    await step("Play the loop — five parts, one bar");
-    await page.getByRole("button", { name: "Stop playback" }).click();
+    if (canAssertPlayback) {
+      await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+      await step("Play the loop — five parts, one bar");
+      await page.getByRole("button", { name: "Stop playback" }).click();
+    }
 
     // 7. Reload the page. The five tracks are still there, in the order you
     //    added them.
