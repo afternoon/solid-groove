@@ -138,6 +138,20 @@ const closedBy = (body) => {
   ].map((m) => Number(m[1]));
 };
 
+const RULES_FILES = new Set(["firestore.rules", "storage.rules"]);
+
+function changesRules(pr) {
+  try {
+    const { files } = JSON.parse(
+      gh(["pr", "view", String(pr), "--repo", REPO, "--json", "files"]),
+    );
+    return files.some((f) => RULES_FILES.has(f.path));
+  } catch {
+    // If the files can't be read, assume the normal path: QA.
+    return false;
+  }
+}
+
 function status() {
   const name = process.env.GITHUB_EVENT_NAME;
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -162,7 +176,15 @@ function status() {
         appendFileSync(process.env.GITHUB_OUTPUT, `ship=${issue.number}\n`);
         return;
       }
-      setStatus(issue.number, event.label.name, labels);
+      // The event's label list is a snapshot from when it fired; another run
+      // may have changed the labels since. Read them fresh, or a stale
+      // snapshot leaves the issue in two columns.
+      const fresh = issueLabels(issue.number);
+      setStatus(
+        issue.number,
+        event.label.name,
+        fresh ? fresh.labels.map((l) => l.name) : labels,
+      );
     }
     return;
   }
@@ -170,13 +192,16 @@ function status() {
   if (name === "pull_request") {
     const pr = event.pull_request;
     if (pr.draft || pr.merged) return;
-    // A PR that closes an issue puts its card in QA.
+    // A PR that closes an issue puts its card in QA, unless it changes the
+    // security rules: those never get a preview deploy, so the QA bot never
+    // sees them, and the card goes straight to review.
+    const target = changesRules(pr.number) ? "status:review" : "status:qa";
     for (const number of closedBy(pr.body)) {
       const issue = issueLabels(number);
       if (issue?.state !== "OPEN") continue;
       setStatus(
         number,
-        "status:qa",
+        target,
         issue.labels.map((l) => l.name),
       );
     }
@@ -185,7 +210,7 @@ function status() {
 
 // ---------------------------------------------------------------- render
 
-const ISSUES = `query($owner:String!,$name:String!,$after:String){repository(owner:$owner,name:$name){issues(states:OPEN,first:100,after:$after,orderBy:{field:UPDATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor}nodes{number title updatedAt labels(first:30){nodes{name}}closedByPullRequestsReferences(first:3,includeClosedPrs:false){nodes{number}}}}}}`;
+const ISSUES = `query($owner:String!,$name:String!,$after:String){repository(owner:$owner,name:$name){issues(states:OPEN,first:100,after:$after,orderBy:{field:UPDATED_AT,direction:DESC}){pageInfo{hasNextPage endCursor}nodes{number title updatedAt milestone{title number}labels(first:30){nodes{name}}closedByPullRequestsReferences(first:3,includeClosedPrs:false){nodes{number}}}}}}`;
 
 function openIssues() {
   const all = [];
@@ -202,8 +227,33 @@ function openIssues() {
     number: i.number,
     title: i.title,
     labels: i.labels.nodes.map((l) => l.name),
+    milestone: i.milestone,
     prs: i.closedByPullRequestsReferences.nodes.map((p) => p.number),
   }));
+}
+
+/**
+ * When an issue carries more than one status label, the latest stage wins.
+ * Blocked beats everything, because it is the flag that asks for a person.
+ */
+const PRECEDENCE = [
+  "status:blocked",
+  "status:review",
+  "status:qa",
+  "status:in-progress",
+  "status:ready",
+  "status:backlog",
+];
+
+/** Leave every issue in exactly one column, repairing any that slipped. */
+function normalise(issues) {
+  for (const issue of issues) {
+    const statuses = issue.labels.filter((l) => STATUS.has(l));
+    if (statuses.length < 2) continue;
+    const keep = PRECEDENCE.find((l) => statuses.includes(l));
+    setStatus(issue.number, keep, issue.labels);
+    issue.labels = issue.labels.filter((l) => !STATUS.has(l) || l === keep);
+  }
 }
 
 function column(issue) {
@@ -212,8 +262,37 @@ function column(issue) {
   return issue.labels.includes("blocked") ? "status:blocked" : "status:backlog";
 }
 
+const SHAPING_LABEL = "needs-shaping";
+
 const line = (i) =>
-  `- #${i.number} ${i.title}${i.prs.length ? ` · PR ${i.prs.map((n) => `#${n}`).join(", ")}` : ""}`;
+  `- #${i.number} ${i.title}${i.labels.includes(SHAPING_LABEL) ? " · **needs shaping**" : ""}${i.prs.length ? ` · PR ${i.prs.map((n) => `#${n}`).join(", ")}` : ""}`;
+
+const BACKLOG_PER_MILESTONE = 10;
+
+/** The backlog, one sub-heading per milestone in milestone order, then the rest. */
+function backlogLines(cards) {
+  const groups = new Map();
+  for (const card of cards) {
+    const key = card.milestone ? card.milestone.number : Number.POSITIVE_INFINITY;
+    if (!groups.has(key)) groups.set(key, { milestone: card.milestone, cards: [] });
+    groups.get(key).cards.push(card);
+  }
+  const out = [];
+  for (const [, { milestone, cards: group }] of [...groups].sort((a, b) => a[0] - b[0])) {
+    const title = milestone ? milestone.title : "No milestone";
+    out.push(`### ${title} (${group.length})`, "");
+    out.push(...group.slice(0, BACKLOG_PER_MILESTONE).map(line));
+    if (group.length > BACKLOG_PER_MILESTONE) {
+      const scope = milestone ? `milestone:"${milestone.title}"` : "no:milestone";
+      const query = `is:issue is:open ${scope} -label:status:ready -label:status:in-progress -label:status:qa -label:status:review -label:status:blocked -label:board`;
+      out.push(
+        `- … and ${group.length - BACKLOG_PER_MILESTONE} more: [all](${search(query)})`,
+      );
+    }
+    out.push("");
+  }
+  return out;
+}
 const search = (q) => `https://github.com/${REPO}/issues?q=${encodeURIComponent(q)}`;
 
 function renderBody(issues, done, now) {
@@ -233,13 +312,11 @@ function renderBody(issues, done, now) {
     const col = COLUMNS.find((c) => c.label === label);
     const cards = by.get(label);
     out.push(`## ${col.title} (${cards.length})`, "");
-    const shown = label === "status:backlog" ? cards.slice(0, 15) : cards;
-    out.push(...(shown.length ? shown.map(line) : ["_Empty_"]));
-    if (shown.length < cards.length)
-      out.push(
-        `- … and ${cards.length - shown.length} more: [all backlog](${search("is:issue is:open -label:status:ready -label:status:in-progress -label:status:qa -label:status:review -label:status:blocked -label:board")})`,
-      );
-    out.push("");
+    if (label === "status:backlog" && cards.length) {
+      out.push(...backlogLines(cards));
+      continue;
+    }
+    out.push(...(cards.length ? cards.map(line) : ["_Empty_"]), "");
   }
   out.push(
     `## Done this week (${done.length})`,
@@ -278,6 +355,7 @@ function render() {
     ]),
   ).filter((i) => !i.labels.some((l) => l.name === BOARD_LABEL));
   const issues = openIssues().filter((i) => !i.labels.includes(BOARD_LABEL));
+  normalise(issues);
   const body = renderBody(issues, done, now);
 
   const existing = JSON.parse(
