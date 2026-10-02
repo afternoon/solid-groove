@@ -9,7 +9,9 @@ import Sleeve from "./Sleeve";
  * The finished screen of the Release design (EXP-004): the dialog's contents give
  * way to the sleeve on the left and, on the right, that the export is complete,
  * where the files are, what they hold, and what to do next. "Back to the song"
- * is the primary action and takes focus. Nothing here edits the project.
+ * is the primary action and takes focus. A stereo mix that went over 0 dBFS
+ * says so, since its level is the producer's own and is never limited away
+ * (DEC-004, #837). Nothing here edits the project.
  */
 
 export interface ExportDoneProps {
@@ -31,6 +33,13 @@ function whereText(finished: FinishedExport): string {
     return `${finished.zips.length} ZIPs are in your downloads. Unzip them into one folder and drop it into any DAW. ${line}`;
   }
   return `${finished.fileName} is in your downloads. Drop the folder into any DAW. ${line}`;
+}
+
+/** What a clipped mix did to the file, and the workaround the meters already show. */
+function clipText(samples: number): string {
+  const count = samples.toLocaleString("en-US");
+  const hit = samples === 1 ? "sample hits" : "samples hit";
+  return `${count} ${hit} full scale, so the WAV will sound distorted. Pull the faders down in the mixer until every meter stays green, then export again.`;
 }
 
 export default function ExportDone(props: ExportDoneProps): JSX.Element {
@@ -55,6 +64,12 @@ export default function ExportDone(props: ExportDoneProps): JSX.Element {
         </output>
         <h3>{props.finished.name} is out.</h3>
         <p>{whereText(props.finished)}</p>
+        <Show when={props.finished.clippedSamples > 0}>
+          <div class="export-clip" role="note" aria-label="This mix peaks over 0 dBFS">
+            <b>This mix peaks over 0 dBFS</b>
+            <span>{clipText(props.finished.clippedSamples)}</span>
+          </div>
+        </Show>
         <div class="export-stats">
           <ExportReadout label="Length">{props.finished.length}</ExportReadout>
           <ExportReadout label={stereo() ? "Tracks in the mix" : "Stems"}>

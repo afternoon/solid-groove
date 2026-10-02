@@ -35,6 +35,7 @@ const base = {
   date: new Date(2026, 8, 30),
   stereoBytes: 300 * 1024 ** 2,
   bars: 64,
+  clippedSamples: 0,
 };
 const rows = [
   row("a"),
@@ -52,6 +53,7 @@ describe("finishedExport", () => {
       count: 2,
       size: "300 MiB",
       bars: 64,
+      clippedSamples: 0,
     });
     expect(finished.stripes.map((stripe) => stripe.color)).toEqual([
       "#ff0000",
@@ -87,5 +89,11 @@ describe("finishedExport", () => {
       { name: "Night Drive 2026-09-30 stems 2 of 2.zip", size: "1.50 GiB" },
     ]);
     expect(finished.size).toBe("3.46 GiB");
+  });
+
+  it("carries a stereo mix's clipped samples, and none for stems (#837)", () => {
+    const input = { ...base, rows, batches: [zip(0, GiB)], clippedSamples: 7_900 };
+    expect(finishedExport({ ...input, format: "stereo" }).clippedSamples).toBe(7_900);
+    expect(finishedExport({ ...input, format: "stems" }).clippedSamples).toBe(0);
   });
 });

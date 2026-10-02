@@ -121,6 +121,33 @@ describe("exportStereoWav", () => {
     expect(Math.max(...largest)).toBe(WAV_CHUNK_FRAMES * 6);
   });
 
+  it("counts the samples a mix over 0 dBFS flattens at full scale, and leaves them clipped", async () => {
+    // #837: a song at default levels sums over full scale, and the producer
+    // must be told. Gain is still the project's own (DEC-004): only counted.
+    const hot = Float32Array.from([0.5, 1.4, -1.2, 0.99, 1]);
+    const render: RenderFunction = async (_projection, options) => ({
+      channels: [hot, hot.map((value) => value / 2)],
+      sampleRate: options.sampleRate,
+      frames: hot.length,
+      songEndSeconds: hot.length / options.sampleRate,
+      tailTruncated: false,
+    });
+    const project = createSliceFixtureProject();
+    const result = await exportStereoWav(project, { render, ...recordingAnalytics() });
+    expect(result.clippedSamples).toBe(3);
+    const bytes = await bytesOf(result.blob);
+    const channels = [hot, hot.map((value) => value / 2)];
+    expect(bytes).toEqual(encodeWav24(channels, projectSampleRate(project)));
+  });
+
+  it("reports no clipped samples for a mix under full scale", async () => {
+    const result = await exportStereoWav(createSliceFixtureProject(), {
+      render: fakeRender(),
+      ...recordingAnalytics(),
+    });
+    expect(result.clippedSamples).toBe(0);
+  });
+
   it("never edits the project it exports", async () => {
     const project = createSliceFixtureProject();
     const before = stringifyProject(project);

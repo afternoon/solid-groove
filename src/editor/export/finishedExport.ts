@@ -28,6 +28,8 @@ export interface FinishedExport {
   readonly size: string;
   readonly bars: number;
   readonly stripes: readonly SleeveStripe[];
+  /** Samples a stereo mix flattened at full scale; 0 when it did not clip, and for stems. */
+  readonly clippedSamples: number;
 }
 
 export interface FinishedExportInput {
@@ -38,6 +40,8 @@ export interface FinishedExportInput {
   readonly batches: readonly StemBatch[];
   readonly stereoBytes: number;
   readonly bars: number;
+  /** What the stereo export reported; stems carry their own gain per file. */
+  readonly clippedSamples: number;
 }
 
 export function finishedExport(input: FinishedExportInput): FinishedExport {
@@ -67,5 +71,6 @@ export function finishedExport(input: FinishedExportInput): FinishedExport {
     stripes: tracks.flatMap((row) =>
       row.color ? [{ color: row.color, lanes: row.lanes }] : [],
     ),
+    clippedSamples: stereo ? input.clippedSamples : 0,
   };
 }

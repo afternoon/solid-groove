@@ -50,6 +50,22 @@ export function toPcm24(sample: number): number {
   return Math.min(MAX_SAMPLE, Math.max(MIN_SAMPLE, scaled));
 }
 
+/**
+ * How many samples, across every channel, {@link toPcm24} writes at the very
+ * edge of the 24-bit range: the flat tops a mix over 0 dBFS leaves in the file.
+ * Only counted, never changed (DEC-004), so the producer can be told (#837).
+ */
+export function fullScaleSampleCount(channels: readonly Float32Array[]): number {
+  let count = 0;
+  for (const channel of channels) {
+    for (const sample of channel) {
+      const pcm = toPcm24(sample);
+      if (pcm === MAX_SAMPLE || pcm === MIN_SAMPLE) count++;
+    }
+  }
+  return count;
+}
+
 /** The byte length of the WAV `encodeWav24` writes for these dimensions. */
 export function wav24ByteLength(channelCount: number, frames: number): number {
   return WAV_HEADER_BYTES + channelCount * frames * BYTES_PER_SAMPLE;

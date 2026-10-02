@@ -17,6 +17,7 @@ const FILE: StereoExport = {
   fileName: "Song 2026-09-29.wav",
   sampleRate: 48_000,
   frames: 1,
+  clippedSamples: 0,
 };
 
 /** An export the test finishes by hand, capturing the options it was given. */

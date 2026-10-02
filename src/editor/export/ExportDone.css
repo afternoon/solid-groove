@@ -75,6 +75,24 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A mix that clipped: status is framing and wording, not colour (docs/design.md). */
+.export-clip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 48ch;
+  padding: 10px 12px;
+  border: 1px solid var(--color-danger-edge);
+  background: var(--color-danger-wash);
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.export-clip b {
+  font-weight: 600;
+  color: var(--color-foreground-bright);
+}
+
 .export-done-actions {
   display: flex;
   flex-wrap: wrap;
@@ -130,6 +148,10 @@
 
 .export-out > :nth-child(6) {
   animation-delay: 0.4s;
+}
+
+.export-out > :nth-child(7) {
+  animation-delay: 0.48s;
 }
 
 @media (prefers-reduced-motion: reduce) {

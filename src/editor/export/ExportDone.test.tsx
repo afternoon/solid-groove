@@ -21,6 +21,7 @@ const finished = (over: Partial<FinishedExport> = {}): FinishedExport => ({
   size: "40 MiB",
   bars: 64,
   stripes: [{ color: "#ff0000", lanes: [{ startBar: 0, lengthBars: 4 }] }],
+  clippedSamples: 0,
   ...over,
 });
 
@@ -105,6 +106,22 @@ describe("ExportDone", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
     clickAndFlush(screen.getByRole("button", { name: "Export stems too" }));
     expect(onAgain).toHaveBeenCalledTimes(1);
+  });
+
+  it("warns that a mix peaking over 0 dBFS clipped, and says how to fix it", () => {
+    renderDone({ clippedSamples: 7_900 });
+    const warning = screen.getByRole("note", { name: "This mix peaks over 0 dBFS" });
+    expect(warning).toHaveTextContent(
+      "This mix peaks over 0 dBFS7,900 samples hit full scale, so the WAV will sound distorted. Pull the faders down in the mixer until every meter stays green, then export again.",
+    );
+  });
+
+  it("shows no clip warning for a clean mix or for stems", () => {
+    renderDone({ clippedSamples: 0 });
+    expect(screen.queryByRole("note")).toBeNull();
+    cleanup();
+    renderDone(stems);
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("offers a mix after stems, and promises the project is untouched", () => {

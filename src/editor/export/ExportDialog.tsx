@@ -105,6 +105,8 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
   /** What Cancel said, until the next export or edit. */
   const [stopped, setStopped] = createSignal("");
   const [doneHeight, setDoneHeight] = createSignal(0);
+  /** What the last stereo WAV flattened at full scale, for the finished screen. */
+  const [clipped, setClipped] = createSignal(0);
   const [scrollTo, setScrollTo] = createSignal<string | null>(null);
   const batchRows = createMemo(() =>
     format() === "stems" ? plan().map((batch) => batch.rowIds) : [],
@@ -209,16 +211,24 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
             }
           },
         };
-        const file = stems
-          ? await (props.exportStemsBatch ?? exportStemsBatch)(props.project(), {
-              ...options,
-              batch: batches[index],
-              count,
-              startedAt,
-              date: stamp,
-              trackIds: list.trackIds(),
-            })
-          : await (props.exportWav ?? exportStereoWav)(props.project(), options);
+        let file: { readonly blob: Blob; readonly fileName: string };
+        if (stems) {
+          file = await (props.exportStemsBatch ?? exportStemsBatch)(props.project(), {
+            ...options,
+            batch: batches[index],
+            count,
+            startedAt,
+            date: stamp,
+            trackIds: list.trackIds(),
+          });
+        } else {
+          const wav = await (props.exportWav ?? exportStereoWav)(
+            props.project(),
+            options,
+          );
+          setClipped(wav.clippedSamples);
+          file = wav;
+        }
         // A ZIP that finished after Cancel is not downloaded; the next ZIP's
         // call sees the aborted signal and ends the export as cancelled.
         if (current.signal.aborted) continue;
@@ -265,6 +275,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       batches: plan(),
       stereoBytes: stereoBytes(),
       bars: list.bars(),
+      clippedSamples: clipped(),
     }),
   );
   const stemsBytes = () => plan().reduce((sum, batch) => sum + batch.bytes, 0);

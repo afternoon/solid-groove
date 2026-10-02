@@ -7,7 +7,7 @@ import {
   renderProjectOffline,
 } from "../../audio/offlineRenderer";
 import { songEndSeconds } from "../../audio/renderLength";
-import { wav24Chunks } from "../../audio/wavEncoder";
+import { fullScaleSampleCount, wav24Chunks } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
 import {
   type AudioSongProjection,
@@ -74,6 +74,8 @@ export interface StereoExport {
   readonly fileName: string;
   readonly sampleRate: number;
   readonly frames: number;
+  /** Samples the mix flattened at full scale: over 0 dBFS, so it clipped (#837). */
+  readonly clippedSamples: number;
 }
 
 /** Share of the progress bar the render takes; the encode is the rest. */
@@ -132,6 +134,7 @@ export async function exportStereoWav(
     });
     if (options.signal?.aborted) throw new OfflineRenderError("aborted", "Cancelled");
     const { frames, sampleRate: renderedRate } = rendered;
+    const clippedSamples = fullScaleSampleCount(rendered.channels);
     const blob = encodeToBlob(rendered);
     rendered = null;
     if (options.signal?.aborted) throw new OfflineRenderError("aborted", "Cancelled");
@@ -145,6 +148,7 @@ export async function exportStereoWav(
       fileName: exportFileName(project.metadata.name, new Date(clock.now()), "wav"),
       sampleRate: renderedRate,
       frames,
+      clippedSamples,
     };
   } catch (error) {
     const failure = failureOf(error);

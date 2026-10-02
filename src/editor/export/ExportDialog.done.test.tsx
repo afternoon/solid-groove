@@ -12,11 +12,12 @@ import ExportDialog from "./ExportDialog";
 afterEach(cleanup);
 stubCanvasContext();
 
-function renderDialog(project: Project) {
+function renderDialog(project: Project, clippedSamples = 0) {
   const fake = fakeStemsBatch(project.metadata.name);
   const exportWav = vi.fn(async () => ({
     blob: new Blob([new Uint8Array([1])]),
     fileName: "Song.wav",
+    clippedSamples,
   }));
   const onClose = vi.fn();
   render(() => (
@@ -34,8 +35,8 @@ function renderDialog(project: Project) {
 const primary = () => document.querySelector(".export-primary") as HTMLElement;
 const dialog = () => screen.getByRole("dialog", { name: "Export" });
 
-async function exportStereo(project = createSliceFixtureProject()) {
-  const view = renderDialog(project);
+async function exportStereo(project = createSliceFixtureProject(), clippedSamples = 0) {
+  const view = renderDialog(project, clippedSamples);
   clickAndFlush(primary());
   await settle();
   return { ...view, project };
@@ -77,6 +78,16 @@ describe("ExportDialog: the finished screen", () => {
     expect(items[0]).toHaveTextContent(
       new RegExp(` stems 1 of ${count}\\.zip\\d\\.\\d\\d GiB$`),
     );
+  });
+
+  it("warns when the mix it wrote clipped, and stays quiet when it did not (#837)", async () => {
+    await exportStereo(createSliceFixtureProject(), 7_900);
+    expect(
+      screen.getByRole("note", { name: "This mix peaks over 0 dBFS" }),
+    ).toHaveTextContent("7,900 samples hit full scale");
+    cleanup();
+    await exportStereo();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("offers the other format, back at the choice with it picked", async () => {
