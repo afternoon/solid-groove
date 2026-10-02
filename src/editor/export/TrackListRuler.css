@@ -19,7 +19,10 @@
   transform: translateX(2px);
 }
 
+/* Spans the names and the batch gutter, which is empty in this row, so the
+   whole hint fits beside "12 of 12 stems". */
 .track-ruler-cell {
+  grid-column: span 2;
   display: flex;
   align-items: center;
   gap: 4px;

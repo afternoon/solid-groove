@@ -8,9 +8,10 @@ import type { PickAction } from "./trackListSelection";
 
 /**
  * The ruler row above the Export dialog's mini-arrangement (EXP-004). Its left
- * cell is the list's status: "N of M stems" with a short hint at rest, or, while
- * tracks are picked, "N picked" with On, Off, Only these and a clear button. The
- * rest is the bar ruler, labelled over the lane area at the first of 16, 32, 64... bars that keeps
+ * cell, which spans the names and the empty batch gutter, is the list's status:
+ * "N of M stems" with a hint that says what a click, a ⇧-click and a pick do at
+ * rest, or, while tracks are picked, "N picked" with On, Off, Only these and a
+ * clear button. The rest is the bar ruler, labelled over the lane area at the first of 16, 32, 64... bars that keeps
  * the labels apart.
  */
 
@@ -70,7 +71,7 @@ function Hint(props: TrackListRulerProps): JSX.Element {
         class="track-ruler-hint"
         title={`Click flips a track. Shift-click sets every track between to match. ${mod}-click picks tracks; click one of them to flip them all.`}
       >
-        <kbd>⇧</kbd> range <kbd>{mod}</kbd> pick
+        click flips <kbd>⇧</kbd> range <kbd>{mod}</kbd> pick
       </span>
     </>
   );
@@ -105,7 +106,6 @@ export default function TrackListRuler(props: TrackListRulerProps): JSX.Element 
           </Show>
         </Show>
       </div>
-      <div aria-hidden="true" />
       <div class="track-ruler-marks" ref={marks} aria-hidden="true">
         <For each={rulerBars(props.bars, step())}>
           {(bar) => (
