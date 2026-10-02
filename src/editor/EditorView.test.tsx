@@ -1308,6 +1308,9 @@ describe("EditorView new-track unit", () => {
     const added = transport.events.filter((event) => event.name === "track_added");
     expect(added).toHaveLength(1);
     expect(added[0].params).toEqual(expect.objectContaining({ track_type: "audio" }));
+    // The new loop track is the selected one (#879): the view stays on the
+    // instrument view, now showing what was just added, not the old track.
+    expect(screen.getByRole("region", { name: `${loopName} loop` })).toBeInTheDocument();
   });
 
   it("opens the library on loops from the Loop button beside them", async () => {
@@ -1390,6 +1393,12 @@ describe("EditorView new-track unit", () => {
     expect(screen.getByRole("button", { name: "Start playback" })).toBeVisible();
     // Inserting a loop loads no sampler: the kind chose the other path.
     expect(transport.named("instrument_changed")).toHaveLength(0);
+    // The new loop track is selected, like any other added track (#879).
+    expect(
+      within(screen.getByLabelText("Tracks")).getByRole("button", {
+        name: `Edit ${loopName}`,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     // One undo takes the whole insertion back, track and all.
     clickAndFlush(screen.getByRole("button", { name: /^Undo / }));

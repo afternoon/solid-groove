@@ -212,20 +212,20 @@ describe("insertLoopCommands", () => {
     const sample = await loopSample();
     const before = project.song.tracks.length;
 
-    const result = executeTransaction(
-      project,
-      insertLoopCommands(project, sample, context(), {
-        order: before,
-        existingNames: project.song.tracks.map((track) => track.name),
-        songTempo: project.song.tempo,
-      }),
-    );
+    const insert = insertLoopCommands(project, sample, context(), {
+      order: before,
+      existingNames: project.song.tracks.map((track) => track.name),
+      songTempo: project.song.tempo,
+    });
+    const result = executeTransaction(project, insert.commands);
     expect(result.ok, result.ok ? "" : result.issues[0].message).toBe(true);
     if (!result.ok) return;
 
     // A new track, at the bottom, and no existing track touched.
     expect(result.project.song.tracks).toHaveLength(before + 1);
     const track = result.project.song.tracks[before];
+    // The insertion names the track it adds, so the editor can select it (#879).
+    expect(insert.trackId).toBe(track.id);
     expect(track.name).toBe(sample.name);
     expect(track.order).toBe(before);
     expect(track.type).toBe("audio");
@@ -264,7 +264,7 @@ describe("insertLoopCommands", () => {
         order: project.song.tracks.length,
         existingNames: project.song.tracks.map((track) => track.name),
         songTempo: project.song.tempo,
-      }),
+      }).commands,
     );
     expect(result.ok).toBe(true);
     expect(history.entries).toHaveLength(1);
@@ -292,7 +292,7 @@ describe("insertLoopCommands", () => {
         order: project.song.tracks.length,
         existingNames: project.song.tracks.map((track) => track.name),
         songTempo: project.song.tempo,
-      }),
+      }).commands,
     );
     if (!result.ok) throw new Error(result.issues[0].message);
 
@@ -320,7 +320,7 @@ describe("insertLoopCommands", () => {
         order: project.song.tracks.length,
         existingNames: [],
         songTempo: project.song.tempo,
-      }),
+      }).commands,
     );
     if (!result.ok) throw new Error(result.issues[0].message);
 
@@ -343,7 +343,7 @@ describe("insertLoopCommands", () => {
     };
     const first = executeTransaction(
       project,
-      insertLoopCommands(project, sample, context("first"), options),
+      insertLoopCommands(project, sample, context("first"), options).commands,
     );
     if (!first.ok) throw new Error(first.issues[0].message);
 
@@ -351,7 +351,7 @@ describe("insertLoopCommands", () => {
       ...options,
       order: first.project.song.tracks.length,
       existingNames: first.project.song.tracks.map((track) => track.name),
-    });
+    }).commands;
     // The track is added; the asset is not carried twice.
     expect(commands).toHaveLength(1);
 
@@ -429,7 +429,7 @@ describe("insertLoopCommands", () => {
         order: project.song.tracks.length,
         existingNames: [],
         songTempo: project.song.tempo,
-      }),
+      }).commands,
     );
     if (!result.ok) throw new Error(result.issues[0].message);
 
@@ -602,7 +602,7 @@ describe("inserting into a project pinned to an older pack version (#892)", () =
         order: project.song.tracks.length,
         existingNames: [],
         songTempo: project.song.tempo,
-      }),
+      }).commands,
     );
 
     if (loaded && !loaded.ok) throw new Error(loaded.issues[0].message);
