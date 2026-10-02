@@ -168,6 +168,22 @@ release.config.mjs      # Release stage and for-profit flag. Leaving the private
 
 Work is tracked in **GitHub issues** in `afternoon/solid-groove`. The issue body is the spec: what to build or fix and how to tell it works. Its comments carry progress, decisions and blockers. Readiness is the issue's native `blocked_by` graph (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`); dependency prose in a body is descriptive only. The `blocked` label marks a task gated on an undecided `DEC-*` product decision. [`docs/prd.md`](./docs/prd.md) holds the product's principles, not its features; only the product owner edits it.
 
+### The board
+
+Status is a `status:*` label on the issue, and the pinned **Board** issue lists every open issue by column (`.github/workflows/board.yml`, `.github/scripts/board.mjs`). An issue is in exactly one column: add the new `status:*` label and the Action removes the old one.
+
+| Column | Label | Moved there by |
+| --- | --- | --- |
+| Backlog | `status:backlog` | Opening an issue |
+| Ready | `status:ready` | The product owner, once the spec is agreed. **This starts `/ship`** in Actions and moves the card on to In progress |
+| In progress | `status:in-progress` | `/ship` starting; a failed QA |
+| Blocked | `status:blocked` | `/ship` stopping on an unclear issue or a failed run; QA failing twice |
+| QA | `status:qa` | A PR that closes the issue opening |
+| Ready for review | `status:review` | The QA bot passing the preview |
+| Done | (closed) | Merging the PR that closes the issue |
+
+The QA bot reports on the issue's card: on a pass it adds `status:review`; on a fail it comments the findings on the PR starting with `@claude` (which starts a fix) and adds `status:in-progress`, or `status:blocked` after the second failure on the same PR. An agent working an issue keeps its card current the same way.
+
 ### Shape, then ship
 
 Every task runs in two phases:

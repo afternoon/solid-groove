@@ -109,7 +109,7 @@ const t = await agent(
 
 Read the issue body and every comment. Decide:
 - **kind**: \`feature\` (new capability, likely several PRs), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
-- **unclear**: true only if two reasonable readings would build materially different things and nothing in the issue, its comments, a core flow or the code decides. Terse is not unclear; a missing cause is not unclear (finding it is the job). If unclear, post the single question as an issue comment, written so a one-line answer unblocks it.
+- **unclear**: true only if two reasonable readings would build materially different things and nothing in the issue, its comments, a core flow or the code decides. Terse is not unclear; a missing cause is not unclear (finding it is the job). If unclear, post the single question as an issue comment, written so a one-line answer unblocks it, and add the \`status:blocked\` label (the board removes the old status).
 - **existingPr**: an open PR that already closes #${issue}, if any.
 
 Read only enough code to answer. Do not change anything else.`,
@@ -137,7 +137,7 @@ ${ENV}`,
 if (!build) throw new Error('Build returned nothing')
 if (build.outcome !== 'built' || build.branches.length === 0) {
   await agent(
-    `Post one comment on GitHub issue #${issue} explaining why the unattended build stopped, in a few lines: ${build.outcome}. ${build.question ?? ''} ${GITHUB}`,
+    `Post one comment on GitHub issue #${issue} explaining why the unattended build stopped, in a few lines: ${build.outcome}. ${build.question ?? ''} Then add the \`status:blocked\` label to the issue. ${GITHUB}`,
     { label: `report #${issue}`, effort: 'low' },
   )
   log(`#${issue} stopped: ${build.outcome}`)
