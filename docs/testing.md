@@ -5,7 +5,7 @@
 | Status | Implemented (`FND-001`) |
 | Scope | Shared tooling all later agents use: dependencies, test suites, CI, and test helpers |
 
-Related documents: [Product principles](./prd.md) ([10 Non-functional requirements](./prd.md#10-non-functional-requirements)), [core flows](./core-flows.md), [`CLAUDE.md`](../CLAUDE.md#definition-of-done-for-every-task) for the definition of done
+Related documents: [Product principles](./prd.md) ([10 Non-functional requirements](./prd.md#10-non-functional-requirements)), [core flows](./core-flows.md), [`CLAUDE.md`](../CLAUDE.md#definition-of-done) for the definition of done
 
 This document is the map of "which suite do I run, and how." It does not restate `CLAUDE.md`'s stack/style conventions, and it is not the local setup guide — [`CONTRIBUTING.md`](../CONTRIBUTING.md) covers installing prerequisites, running the app against the mock backend or a local Firebase Emulator, and the pre-PR loop.
 
@@ -82,27 +82,26 @@ outcome, so every flow ends by reloading the page, and the mock backend is a
 fresh, empty store on every page load. What makes them different is their role,
 not their runner —
 
-- they are written **before** the implementation, from the register, and reviewed
-  on their own as the first PR in a feature's stack;
+- they are written **before** the implementation, as the first PR in the stack of
+  the feature that adds the journey;
 - they start at an entrypoint a person actually arrives at, never a deep link
   into seeded state; and
-- they are **frozen** once merged, so the implementation is measured against a
-  contract that cannot move.
+- their assertions are not weakened to fit an implementation.
 
 `bun run verify:core-flows` (part of CI's `checks` job) enforces that every
 registered flow has exactly one spec and vice versa, and reports any flow still
 marked `test.fixme`. A flow spec that is skipped is green, which is why nothing
-else catches it. See `CLAUDE.md`, "Core flows are the acceptance contract", for
-how they sequence a feature's PRs.
+else catches it. See `CLAUDE.md`, "Core flows".
 
-### Walkthrough screenshots
+### PR screenshots
 
-The screenshot walkthrough a reviewer reads on a pull request is a **byproduct of
-the flow spec**, not a separate errand: `tests/e2e/support/walkthrough.ts` takes one
-screenshot per `step()` call, so the images cannot drift from what shipped and
-always start where the flow starts.
+Any PR that changes UI carries screenshots of the change (see `CLAUDE.md`,
+"Landing work"). `tests/e2e/support/walkthrough.ts` takes one screenshot per
+`step()` call, from any spec: a core flow, an existing browser test, or a
+throwaway `*.screens.spec.ts` (gitignored) written just to show the change.
 
 ```sh
+bun run screenshots -- tests/e2e/mock/x.screens.spec.ts   # any mock-backend spec, Chromium
 bun run walkthrough:capture                  # tests/e2e/emulator/flows, Chromium, one worker
 bun run walkthrough:publish -- --issue 123   # push the images, print the Markdown
 ```
