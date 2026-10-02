@@ -182,6 +182,8 @@ Status is a `status:*` label on the issue, and the pinned **Board** issue lists 
 | Ready for review | `status:review` | The QA bot passing the preview |
 | Done | (closed) | Merging the PR that closes the issue |
 
+The Backlog column is grouped by milestone. An issue labelled `needs-shaping` has open questions (listed in a comment on it) to settle in a shaping session before it can go to Ready; the board lists those in their own **Needs shaping** section above the backlog. A PR that changes `firestore.rules` or `storage.rules` gets no preview, so it moves its issue straight to Ready for review instead of QA. If an issue ever carries two `status:*` labels, the next board render keeps the later stage (Blocked always wins).
+
 The QA bot reports on the issue's card: on a pass it adds `status:review`; on a fail it comments the findings on the PR starting with `@claude` (which starts a fix) and adds `status:in-progress`, or `status:blocked` after the second failure on the same PR. An agent working an issue keeps its card current the same way.
 
 ### Shape, then ship
@@ -212,6 +214,7 @@ A **core flow** is one user journey that must work end to end, written in plain 
 ### Landing work
 
 - **Open PRs ready for review, not as drafts.** The product owner is the only reviewer; a draft just hides finished work.
+- **Always open the PR yourself.** Work that ends as a pushed branch with a "Create PR" link is lost: nobody clicks it. Every run that pushes a branch for an issue, including an `@claude` run from `claude.yml`, opens its PR (`gh pr create`, or the GitHub MCP `create_pull_request`) before finishing, and checks it exists.
 - **Title:** `Implement #<issue>: Title` for a feature or polish, `Fix #<issue>: Title` for a fix. The title says what the PR does (for a fix, what was broken). A stack says its position in the body ("2 of 3, builds on #<prev>"), not the title.
 - **Body:** `Closes #<n>` on the PR that completes the issue, `Refs #<n>` on earlier ones; what changed; the commands run and their results. Follow `.github/pull_request_template.md`.
 - **One purpose per PR.** Split into a stack only when a change does more than one thing a reviewer would want to read separately (for example a refactor and the feature built on it). Around 400 changed lines is a sign to consider splitting, not a hard cap. Tests ship in the same PR as the code they cover. Never mix a behaviour change into a pure move.
