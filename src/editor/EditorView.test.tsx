@@ -434,7 +434,9 @@ describe("EditorView", () => {
     const editor = await openSequenceEditor();
     const field = within(editor).getByLabelText("Semitones") as HTMLInputElement;
     const firstNote = () =>
-      within(editor).getAllByRole("option")[0].getAttribute("aria-label");
+      within(within(editor).getByRole("listbox", { name: "Notes" }))
+        .getAllByRole("option")[0]
+        .getAttribute("aria-label");
     const before = firstNote();
     const press = (key: string) =>
       fireAndFlush(() => fireEvent.keyDown(field, { key, bubbles: true }));

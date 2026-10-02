@@ -13,6 +13,7 @@ import type { Clip, NoteEvent, Project } from "../../domain/entities";
 import { createFactoryContext } from "../../domain/factories";
 import type { EventId } from "../../domain/ids";
 import { detectPlatform } from "../../shortcuts/keys";
+import ClipLengthControl from "../ClipLengthControl";
 import { toggleTrackFlag } from "../trackSurface";
 import { pitchOf } from "./edits";
 import Gutter from "./Gutter";
@@ -212,6 +213,13 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
       style={{ "--pr-step": `${width()}px` }}
     >
       <Toolbar
+        leading={
+          <ClipLengthControl
+            clip={props.clip}
+            dispatch={props.dispatch}
+            analytics={analytics()}
+          />
+        }
         selectionCount={selected().size}
         onSelectAll={() => setSelection(new Set(notes().map((note) => note.id)))}
         onDelete={() => deleteNotes([...selected()])}

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, screen, within } from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setKey } from "../../commands";
+import { TICKS_PER_BAR } from "../../domain/time";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
 import { setUpRoll } from "./rollHarness";
 
@@ -147,5 +148,49 @@ describe("piano roll", () => {
     flush();
     expect(soloed()).toBe(false);
     expect(solo).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("sets the clip's length from a Bars control, as the step grid does (#869)", async () => {
+    const { renderRoll, session, events } = await setUpRoll();
+    renderRoll();
+    const bars = screen.getByRole("combobox", { name: "Bars" });
+    const length = () => session.project.clips[0].lengthTicks;
+    expect(bars).toHaveValue("2");
+    expect(
+      Array.from(bars.querySelectorAll("option")).map((option) => option.textContent),
+    ).toEqual(["1", "2", "4", "8", "16", "32"]);
+
+    fireEvent.change(bars, { target: { value: "4" } });
+    flush();
+    expect(length()).toBe(TICKS_PER_BAR * 4);
+    expect(rulerSteps()).toHaveLength(64);
+    expect(session.history.entries.at(-1)?.commands[0].type).toBe("clip.update");
+
+    // Shorter than it started, which Double could never do.
+    fireEvent.change(bars, { target: { value: "1" } });
+    flush();
+    expect(length()).toBe(TICKS_PER_BAR);
+    expect(rulerSteps()).toHaveLength(16);
+    expect(bars).toHaveValue("1");
+
+    session.undo();
+    flush();
+    expect(length()).toBe(TICKS_PER_BAR * 4);
+    expect(
+      events("feature_first_use").filter(
+        (event) => event.params.feature === "clip_length",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the clip alone when its own length is chosen again (#869)", async () => {
+    const { renderRoll, session } = await setUpRoll();
+    renderRoll();
+    const before = session.project;
+    fireEvent.change(screen.getByRole("combobox", { name: "Bars" }), {
+      target: { value: "2" },
+    });
+    flush();
+    expect(session.project).toBe(before);
   });
 });

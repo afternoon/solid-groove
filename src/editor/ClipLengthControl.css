@@ -1,0 +1,10 @@
+/* The Bars control at the head of the step grid's and the piano roll's
+   toolbar (#869). */
+
+.clip-length {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}

@@ -2,26 +2,23 @@ import { For, type JSX, Show } from "@solidjs/web";
 import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
-import { removeNotes, updateClip } from "../commands";
+import { removeNotes } from "../commands";
 import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
-import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
+import { TICKS_PER_SIXTEENTH } from "../domain/time";
+import ClipLengthControl from "./ClipLengthControl";
 import type { RowPreview } from "./generatedRow";
 import { clampZoom, stepWidth, ZOOM_FACTOR } from "./pianoRoll/layout";
 import Ruler from "./pianoRoll/Ruler";
 import Toolbar from "./pianoRoll/Toolbar";
 import VelocityLane from "./pianoRoll/VelocityLane";
 import {
-  barCount,
-  barOptions,
   eventCountBucket,
   isBarStart,
   isShadedBeat,
   lanesFor,
-  MAX_BARS,
-  MIN_BARS,
   noteAt,
   noteEventsOf,
   type StepLane,
@@ -99,7 +96,6 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
   const steps = createMemo(() =>
     Array.from({ length: stepCount(props.clip) }, (_, index) => index),
   );
-  const bars = createMemo(() => barCount(props.clip));
 
   // The selected row (#643): the target of the Generate panel and the rows
   // the velocity lane shows. On a drum machine it is the selected pad, shared
@@ -223,17 +219,6 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     platform: detectPlatform(),
   });
 
-  function resizeToBars(nextBars: number): void {
-    const clamped = Math.min(MAX_BARS, Math.max(MIN_BARS, Math.round(nextBars)));
-    const lengthTicks = clamped * TICKS_PER_BAR;
-    if (lengthTicks === props.clip.lengthTicks) return;
-    props.dispatch(
-      updateClip(props.clip.id, {
-        lengthTicks: lengthTicks as Clip["lengthTicks"],
-      }),
-    );
-  }
-
   const currentPlaybackStep = () => props.playbackStep?.() ?? null;
 
   function deleteSelection(): void {
@@ -252,18 +237,11 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
     >
       <Toolbar
         leading={
-          <label class="step-editor-length">
-            <span class="step-editor-length-label">Bars</span>
-            <select
-              class="step-editor-length-select"
-              value={bars()}
-              onChange={(event) => resizeToBars(Number(event.currentTarget.value))}
-            >
-              <For each={barOptions(props.clip)}>
-                {(count) => <option value={count}>{count}</option>}
-              </For>
-            </select>
-          </label>
+          <ClipLengthControl
+            clip={props.clip}
+            dispatch={props.dispatch}
+            analytics={props.analytics}
+          />
         }
         selectionCount={selectedIds().length}
         onSelectAll={() =>

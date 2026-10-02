@@ -282,6 +282,8 @@ export const FEATURE_KEYS = [
   "library_similar",
   "library_shuffle",
   "library_pack_preview",
+  // The Bars control the step grid and the piano roll share (#869).
+  "clip_length",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
