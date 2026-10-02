@@ -1,0 +1,14 @@
+{
+  "id": "i865",
+  "title": "Synced delay Time control",
+  "steps": [
+    {
+      "file": "01-synced-at-1-8-dotted-122-bpm-the-time-co.png",
+      "caption": "Synced at 1/8 dotted, 122 BPM: the Time control reads 369 ms"
+    },
+    {
+      "file": "02-free-the-time-control-is-live-again-at-i.png",
+      "caption": "Free: the Time control is live again at its own 250 ms"
+    }
+  ]
+}
