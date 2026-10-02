@@ -1,13 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
   library,
-  newProjectOnInstrumentView,
-  openPadSlot,
+  openBdSlot,
   railButton,
   readout,
   sampleSlot,
   soundList,
-} from "./support/library";
+} from "./support/libraryModal";
 
 // #860: the library's Enter (insert) and Space (audition again) let the
 // browser's default run too, so the focused button was pressed as well. Enter
@@ -29,13 +28,12 @@ test.describe("library keys", () => {
   test("Enter inserts the selected sound and the library stays closed", async ({
     page,
   }) => {
-    await newProjectOnInstrumentView(page);
-    await openPadSlot(page, "BD");
+    await openBdSlot(page);
     const name = await selectSecondSound(page);
 
     await page.keyboard.press("Enter");
 
-    await expect(sampleSlot(page, "BD")).toContainText(name);
+    await expect(sampleSlot(page)).toContainText(name);
     await page.waitForTimeout(300);
     await expect(library(page)).toBeHidden();
   });
@@ -43,8 +41,7 @@ test.describe("library keys", () => {
   test("Enter on a clicked row inserts it and the library stays closed", async ({
     page,
   }) => {
-    await newProjectOnInstrumentView(page);
-    await openPadSlot(page, "BD");
+    await openBdSlot(page);
     const row = soundList(page)
       .getByRole("button", { name: /^Audition / })
       .nth(2);
@@ -53,14 +50,13 @@ test.describe("library keys", () => {
 
     await page.keyboard.press("Enter");
 
-    await expect(sampleSlot(page, "BD")).toContainText(name);
+    await expect(sampleSlot(page)).toContainText(name);
     await page.waitForTimeout(300);
     await expect(library(page)).toBeHidden();
   });
 
   test("Space auditions again and leaves the library open", async ({ page }) => {
-    await newProjectOnInstrumentView(page);
-    await openPadSlot(page, "BD");
+    await openBdSlot(page);
     await selectSecondSound(page);
 
     await page.keyboard.press("Space");
@@ -70,16 +66,15 @@ test.describe("library keys", () => {
   });
 
   test("a focused rail button keeps Enter for itself", async ({ page }) => {
-    await newProjectOnInstrumentView(page);
-    await openPadSlot(page, "BD");
+    await openBdSlot(page);
     await selectSecondSound(page);
-    const before = await sampleSlot(page, "BD").textContent();
+    const before = await sampleSlot(page).textContent();
 
     await railButton(page, "Browse packs").focus();
     await page.keyboard.press("Enter");
 
     await expect(railButton(page, "Browse packs")).toHaveAttribute("aria-current", /.+/);
     await expect(library(page)).toBeVisible();
-    expect(await sampleSlot(page, "BD").textContent()).toBe(before);
+    expect(await sampleSlot(page).textContent()).toBe(before);
   });
 });
