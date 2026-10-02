@@ -19,12 +19,10 @@ import {
   projectPacks,
   railButton,
   readout,
-  reloadOnInstrumentView,
-  sampleSlot,
   slotSound,
   soundList,
 } from "../support/library";
-import { pressView } from "../support/views";
+import { expectView, pressView } from "../support/views";
 
 /**
  * `CF-024`: a producer browses packs and uses a sound from one they did not
@@ -92,7 +90,7 @@ test.describe("CF-024", () => {
     // 1. Create a new project and go to the instrument view. Press the sample
     //    slot of the drum machine's "BD" pad. The editor goes to the Library
     //    view.
-    const projectUrl = await newProjectOnInstrumentView(page);
+    await newProjectOnInstrumentView(page);
     const starterKick = await slotSound(page, "BD");
 
     const sounds = await deliveredLibrary(page);
@@ -169,10 +167,17 @@ test.describe("CF-024", () => {
 
     // 8. Reload the page. The "BD" pad still holds the impact, and
     //    Transitions & FX is still listed with the project's packs.
-    await reloadOnInstrumentView(page, projectUrl);
-    await expect.poll(() => slotSound(page, "BD")).toBe(impact);
-    await sampleSlot(page, "BD").click();
+    //
+    // The reload happens on the Library view, where step 7 left you, and a
+    // view keeps its address across a reload (#817), so it reopens there:
+    // read the packs first, then press 3 to read the pad.
+    await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 10_000 });
+    await page.reload();
+    await expectView(page, "Library");
+    await expect(libraryHeader(page)).toContainText("BD");
     await expect(projectPacks(page)).toContainText(NEW_PACK);
+    await backToInstrument(page);
+    await expect.poll(() => slotSound(page, "BD")).toBe(impact);
     await step("Reload: the BD pad holds the impact, and Transitions & FX is listed");
   });
 });
