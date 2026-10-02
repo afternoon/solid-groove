@@ -1371,6 +1371,28 @@ describe("EditorView library address", () => {
     await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
   });
 
+  it("logs the empty screen's way out once, as reached from the empty screen", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const { location } = renderEditor(project.metadata.id, {
+      analytics: recordingAnalytics(transport),
+    });
+    await screen.findByTestId("arrangement-view-ready");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    const empty = await screen.findByRole("region", {
+      name: "Synths don't play samples",
+    });
+    clickAndFlush(within(empty).getByRole("button", { name: "Instrument" }));
+    await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
+
+    expect(transport.named("view_changed").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "library", via: "keyboard" }),
+      expect.objectContaining({ view: "instrument", via: "empty_screen" }),
+    ]);
+  });
+
   it("says no track is selected in a song with none", async () => {
     const fixture = createSliceFixtureProject();
     await renderOn({
@@ -2250,6 +2272,25 @@ describe("EditorView sequence editor", () => {
     clickAndFlush(back);
     await screen.findByTestId("arrangement-view-ready");
     expect(location.get()).toBe(`/projects/${project.metadata.id}`);
+  });
+
+  it("logs the empty screen's way out once, as reached from the empty screen", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+    await screen.findByTestId("arrangement-view-ready");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    const empty = await screen.findByRole("region", { name: "No clip selected" });
+    clickAndFlush(within(empty).getByRole("button", { name: "Arrangement" }));
+    await screen.findByTestId("arrangement-view-ready");
+
+    expect(transport.named("view_changed").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "sequence", via: "keyboard" }),
+      expect.objectContaining({ view: "arrangement", via: "empty_screen" }),
+    ]);
   });
 
   it("has no clip once another track is selected, rather than a stale one", async () => {
