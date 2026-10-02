@@ -295,4 +295,4 @@ before starting a task, not after. In short:
 
 The full definition of done, including the analytics and privacy requirements
 every user-facing change carries, is in
-[`CLAUDE.md`](./CLAUDE.md#definition-of-done-for-every-task).
+[`CLAUDE.md`](./CLAUDE.md#definition-of-done).
