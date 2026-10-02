@@ -188,7 +188,7 @@ async function goToView(label: "Arrangement" | "Instrument" | "Mixer"): Promise<
   const dock = await screen.findByRole("navigation", { name: "Views" });
   clickAndFlush(within(dock).getByRole("link", { name: label }));
   await vi.waitFor(() =>
-    expect(dock.querySelector("[aria-current='page']")).toHaveTextContent(label),
+    expect(dock.querySelector("[aria-current='page']")).toHaveAccessibleName(label),
   );
 }
 
@@ -1358,6 +1358,34 @@ describe("EditorView library target", () => {
   });
 });
 
+/** What the dock's tiles say of the selection (`UI-002`, CF-008). */
+describe("EditorView dock tips", () => {
+  it("dims Sequence until a clip is open, names it, and dots a Library target", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    renderEditor(project.metadata.id);
+    const tile = async (name: string) =>
+      within(await screen.findByRole("navigation", { name: "Views" })).getByRole("link", {
+        name,
+      });
+    const tipOf = async (name: string) => {
+      const link = await tile(name);
+      fireAndFlush(() => fireEvent.pointerEnter(link));
+      return screen.getByRole("tooltip").textContent;
+    };
+    expect(await tile("Sequence")).toHaveClass("view-dock-dimmed");
+    expect(await tipOf("Sequence")).toBe("2 Sequence");
+    const track = project.song.tracks[0];
+    expect(await tipOf("Library")).toBe(`4 Library · sounds for ${track.name}`);
+    expect((await tile("Library")).querySelector(".view-dock-dot")).not.toBeNull();
+
+    await openSequenceEditor();
+    expect(await tile("Sequence")).not.toHaveClass("view-dock-dimmed");
+    expect(await tipOf("Sequence")).toBe(`2 Sequence · ${project.clips[0].name}`);
+  });
+});
+
 /** Inserting from the Library by key (`UI-002`, CF-030). */
 describe("EditorView library insert keys", () => {
   it("stays on Enter, one undo per insert, and goes back on Shift+Enter", async () => {
@@ -2486,7 +2514,7 @@ describe("EditorView views", () => {
   ): Promise<void> {
     await vi.waitFor(() => {
       expect(location.get()).toBe(path);
-      expect(currentView()).toHaveTextContent(label);
+      expect(currentView()).toHaveAccessibleName(label);
     });
   }
 
@@ -2494,7 +2522,7 @@ describe("EditorView views", () => {
     const { location, projectId } = await renderViews();
 
     expect(location.get()).toBe(`/projects/${projectId}`);
-    expect(currentView()).toHaveTextContent("Arrangement");
+    expect(currentView()).toHaveAccessibleName("Arrangement");
   });
 
   it("moves to a view from the dock, and the address follows", async () => {
@@ -2536,9 +2564,9 @@ describe("EditorView views", () => {
     await renderViews(recordingAnalytics(transport));
 
     clickAndFlush(viewLink("Mixer"));
-    await vi.waitFor(() => expect(currentView()).toHaveTextContent("Mixer"));
+    await vi.waitFor(() => expect(currentView()).toHaveAccessibleName("Mixer"));
     fireAndFlush(() => fireEvent.keyDown(window, { key: "3" }));
-    await vi.waitFor(() => expect(currentView()).toHaveTextContent("Instrument"));
+    await vi.waitFor(() => expect(currentView()).toHaveAccessibleName("Instrument"));
 
     const switches = transport.events.filter((event) => event.name === "view_changed");
     expect(switches.map((event) => event.params)).toEqual([
