@@ -282,6 +282,7 @@ export const FEATURE_KEYS = [
   "library_similar",
   "library_shuffle",
   "library_pack_preview",
+  "library_favourites",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -721,7 +722,7 @@ export const ANALYTICS_EVENTS = {
 
   library_favourite_changed: {
     phase: 1,
-    owners: ["LIB-010"],
+    owners: ["LIB-010", "LIB-011"],
     // One heart press or `L`: added or removed. The sound is deliberately not
     // named, and neither is its pack: what a producer keeps is theirs.
     params: { favourited: boolParam() },
