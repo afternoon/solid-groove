@@ -41,42 +41,34 @@ principle** in the PRD — a flow that requires the product to behave against it
 own principles is wrong, and the principle wins. And where a flow and an issue
 disagree about the same behavior, the flow wins: it is the frozen contract the
 implementation is measured against, and an issue that needs different behavior
-needs the flow changed first, deliberately and separately, before the work
-starts.
+changes the flow in the same stack, and says so.
 
 ## Who edits this file
 
-**The product owner, and no one else.** Implementing and reviewing agents must
-treat this file as read-only:
+The product owner, and the agent shipping a feature that adds a journey worth
+guarding (see `CLAUDE.md`, "Core flows"). A flow describes behaviour the product
+owner agreed while shaping the issue; it is never written to match whatever was
+built.
 
-- An implementer that finds a flow ambiguous, impossible, or contradicted by a
-  product principle in the PRD **stops and says so** on the issue. It does not edit the flow to match what
-  it built.
-- A reviewer treats any diff to `docs/core-flows.md` in an implementation PR as a
-  **blocking finding**. Retro-fitting the specification to the implementation is
-  the exact failure this rule exists to prevent.
+- An existing flow's assertions are not weakened to fit an implementation. When a
+  feature genuinely changes a journey, the PR that changes the flow says what
+  changed and why.
+- A flow that is ambiguous, impossible, or contradicted by a product principle
+  in the PRD is raised on the issue, not quietly edited.
 
-The same applies to `docs/prd.md`, for the same reason and by the same rule.
+`docs/prd.md` is the product owner's alone.
 
 ## Lifecycle of a flow
 
-1. **Written.** The product owner adds the flow here with a fresh ID, and links
-   it from the feature's GitHub issue by ID. If the flow depends on work that does
-   not exist yet, that dependency is broken out as its own issue first.
-2. **Specified.** The first PR in the feature's stack adds
-   `tests/e2e/emulator/flows/<ID>.spec.ts`, written from this file, marked
-   `test.fixme` because the implementation does not exist. It is reviewed on its
-   own — it is the acceptance contract for everything that follows — and it merges
-   green, because a `fixme` test does not fail.
-3. **Frozen.** From that point the spec is the contract. A later PR in the stack
-   may not change its assertions without saying so in the PR body and having the
-   reviewer confirm it; see `CLAUDE.md`, "Landing work".
-4. **Live.** The PR that closes the issue removes the `test.fixme` in the same
-   diff that makes it pass, and captures the screenshot walkthrough from that
-   now-passing run.
+1. **Specified.** The first PR in the feature's stack adds the entry here with a
+   fresh ID and `tests/e2e/emulator/flows/<ID>.spec.ts`, marked `test.fixme`
+   because the implementation does not exist yet. It merges green, because a
+   `fixme` test does not fail.
+2. **Live.** The PR that completes the feature removes the `test.fixme` in the
+   same diff that makes it pass.
 
 `bun run verify:core-flows` enforces the 1:1 mapping between the IDs in this file
-and the spec files, and reports any flow still parked at step 2 so a stack cannot
+and the spec files, and reports any flow still parked at `fixme` so a stack cannot
 quietly land with its flow permanently skipped.
 
 ## Which suite a flow belongs in

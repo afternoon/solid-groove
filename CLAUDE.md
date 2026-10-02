@@ -166,145 +166,55 @@ release.config.mjs      # Release stage and for-profit flag. Leaving the private
 
 ## Task tracking and landing work
 
-Implementation work is tracked entirely in **GitHub issues** in `afternoon/solid-groove` — there is no separate backlog document. Each task is one issue, titled with its task ID (for example `LOOP-003 - Transport, tempo, loop, and metronome`):
+Work is tracked in **GitHub issues** in `afternoon/solid-groove`. The issue body is the spec: what to build or fix and how to tell it works. Its comments carry progress, decisions and blockers. Readiness is the issue's native `blocked_by` graph (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`); dependency prose in a body is descriptive only. The `blocked` label marks a task gated on an undecided `DEC-*` product decision. [`docs/prd.md`](./docs/prd.md) holds the product's principles, not its features; only the product owner edits it.
 
-- **The GitHub issue is the single source of truth.** Its state, labels, assignee, comments, milestone, native `blocked_by` graph, and Projects v2 **Status** are authoritative for scope, ownership, status, and readiness. Agents read these fields directly from GitHub; they do not rely on any other record.
-- **The issue body is the specification** — scope, the behavior it delivers, and the acceptance checkboxes. Nothing outside the issue and its linked core flows specifies the feature: [`docs/prd.md`](./docs/prd.md) holds the product's principles (vision, target user, goals and non-goals, sample licensing, privacy), not its features, and an issue is checked against those principles rather than against a requirement ID.
-- **The issue is the live record** — its state and labels are status, its assignee is ownership, and its comments carry progress, blockers, and discoveries. Alpha Milestone 0 tasks `FND-001`–`FND-008` and `CNT-000` predate this convention and are recorded in git history instead; they have no issue.
-- **Readiness is the issue's native `blocked_by` graph — nothing else.** A task is ready to start when every issue in its `blocked_by` graph is closed (`gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by`, edited directly on GitHub). **Ignore any "Dependencies" field or dependency prose written into an issue body**: that text is descriptive only, is not kept in sync, and never gates readiness — the `blocked_by` graph is the authority. Keep the graph correct so the body never has to be consulted. The `blocked` label marks a task gated on an undecided `DEC-*` product decision. Milestones group tasks by Alpha Milestone; Projects v2 **Status** (Todo / In Progress / Done) drives the orchestrator.
+### Shape, then ship
 
-### Core flows are the acceptance contract
+Every task runs in two phases:
 
-A **core flow** is one user journey that must work end to end when a feature is
-finished, written in plain English *before* any code exists. They live in
-[`docs/core-flows.md`](./docs/core-flows.md), each with a stable ID (`CF-001`, …)
-that an issue links to, a Playwright spec is named after, and a screenshot
-walkthrough is captured from. Read that file for the format and the lifecycle;
-what matters here is how the flows shape the work:
+1. **Shape (interactive).** The product owner and Claude work the issue out together in a session: questions, prototypes, design studies. It ends with the agreed spec written into the issue body. Ask as many questions as it takes here; this is the cheap place to be wrong.
+2. **Ship (unattended).** **`/ship #123`** (`.claude/skills/ship/`, running `.claude/workflows/solid-groove-ship.js`) takes the issue from spec to ready PRs with no further questions. It works out which of three kinds of work the issue is and scales the process to it:
 
-1. **The product owner writes the flows and links them from the issue.** A flow
-   that depends on work which does not exist yet gets that dependency broken out
-   as its own issue first.
-2. **The flow and its spec land together, before implementation starts** —
-   the entry in `docs/core-flows.md` and `tests/e2e/emulator/flows/<ID>.spec.ts`
-   in one PR, marked `test.fixme` because the
-   implementation does not exist. That PR is the product owner's, and it is
-   reviewed on its own, before anything is built, because it is the contract
-   everything else is measured against — which is exactly why the implementation
-   pipeline does not write it. `test.fixme` is what keeps it honest *and*
-   mergeable: a skipped test is green, so the slice satisfies the same "green on
-   its own commit" rule as every other PR, and a deliberately red PR would either
-   block the work or redden `main` for every parallel task. The red→green
-   evidence belongs in the run log, not in a merge. It also has to land as one
-   PR: `bun run verify:core-flows` fails a registered flow that has no spec, so
-   a register edit on its own cannot merge green.
-3. **From then on the spec is frozen.** A later PR that changes its assertions
-   must say so in its body and justify it; a reviewer treats an unexplained
-   change as blocking. If the implementer can edit the test, the test proves
-   nothing.
-4. **`docs/core-flows.md` and `docs/prd.md` are read-only to implementers and
-   reviewers.** A flow that is ambiguous, impossible, or contradicted by a
-   product principle in the PRD is reported on the issue, never edited to match
-   what was built.
-5. **The PR that closes the issue removes every `test.fixme` marker in the same
-   diff that makes the flows pass**, and carries the walkthrough captured from
-   that passing run. `bun run verify:core-flows` enforces the 1:1 mapping between
-   registered flows and specs, and reports any flow still parked.
+| Kind | What it is | Tests | Review |
+| --- | --- | --- | --- |
+| **Feature** | New capability, usually several PRs | Unit/component tests, plus a core flow when the feature adds a new user journey | Adversarial review, up to two fix rounds |
+| **Fix** | Something is wrong | A regression test that fails before the fix (keep the red output for the PR body) | None |
+| **Polish** | A small enhancement or tweak | A unit test where the behaviour is testable | None |
 
-`.claude/workflows/solid-groove-feature.js` runs the rest of the pipeline for
-one issue — verify the contract → implement → review → land → walkthrough. It
-never writes a flow spec: if a linked flow is not registered and specced on
-`main`, it stops without building anything. Invoke it through the
-**`/implement-feature #123`** skill (`.claude/skills/implement-feature/`), from a
-terminal, claude.ai/code, or the mobile app: the skill verifies the prework first
-(the issue links flows, every flow is registered, complete, and specced, the
-`blocked_by` graph is closed), runs the workflow, and then verifies the resulting
-stack — bases, `Implement #<issue> (i/N): Title` titles, `Refs`/`Closes`, PR size, an untouched
-specification, no flow left at `test.fixme`, and that the walkthrough images
-actually return `200` rather than rendering as broken icons. The workflow and agent definitions are
-human-approved: an agent running the skill reports a problem with them and never
-edits them.
+Whether the issue says "bug" or "enhancement" does not matter. Behaviour that works as coded but is not what the product owner wants is still a change to make: never stop because something "is expected behaviour". Ship stops only when the issue is genuinely unclear (two reasonable readings would build materially different things) and comments the question on the issue.
 
-### Fixing a bug
+Quality outside features is kept by periodic code-quality and architecture sweeps that open their own cleanup issues, not by reviewing every small change.
 
-A bug is not a small feature, and it runs through its own pipeline:
-`.claude/workflows/solid-groove-fix.js`, invoked as **`/fix #123`**
-(`.claude/skills/fix/`). The difference is where the contract comes from. A
-feature is measured against core-flow specs written before it; a bug is measured
-against a **regression test written during the fix**, so the pipeline is built
-around making that test trustworthy: the fixer reproduces the bug and keeps the
-verbatim failure output from before the fix existed, and the reviewer
-independently reverts the source change and confirms the test goes red for the
-reported symptom. A test that turns out to pass without the fix is blocking, and
-an approval that could not confirm the red is not an approval.
+### Core flows
 
-Two outcomes short of a PR are first-class, because both are cheaper than the
-alternative. The pipeline **stops before building anything** when the issue is
-ambiguous — the symptom is not identifiable, the correct behavior is neither
-stated nor derivable from the issue, a registered core flow, or a documented
-contract, the "bug" is a feature request, or an open
-`DEC-*` gates the answer — rather than inventing the expected behavior and
-shipping a regression test that defends it. It stops again if the bug cannot be
-reproduced at any layer, rather than writing a speculative fix that closes the
-issue without addressing anything. If the review still requests changes after two
-fix rounds it leaves the branch open, opens no PR, and comments the findings on
-the issue. A bug fix never edits `docs/prd.md`, `docs/core-flows.md`, or a flow
-spec — including removing a `test.fixme` marker, which belongs to the feature
-that delivers the flow.
+A **core flow** is one user journey that must work end to end, written in plain English in [`docs/core-flows.md`](./docs/core-flows.md) with a stable ID (`CF-001`, …) and reproduced by `tests/e2e/emulator/flows/<ID>.spec.ts`. Flows are for journeys worth guarding for the life of the product, not for every feature.
+
+- A feature that adds such a journey gets its flow written by the agent shipping it, as the **first PR of its own stack**: the register entry and the spec, marked `test.fixme`. The PR that completes the feature removes the `fixme` and makes it pass.
+- An existing flow's assertions are not weakened to fit an implementation. If one has to change, the PR body says what changed and why.
+- `bun run verify:core-flows` enforces one spec per registered flow and lists any flow still parked at `fixme`.
 
 ### Landing work
 
-**Every PR title uses one format**, so a list of open PRs reads as the work it
-is and its stack order is obvious at a glance:
+- **Open PRs ready for review, not as drafts.** The product owner is the only reviewer; a draft just hides finished work.
+- **Title:** `Implement #<issue>: Title` for a feature or polish, `Fix #<issue>: Title` for a fix. The title says what the PR does (for a fix, what was broken). A stack says its position in the body ("2 of 3, builds on #<prev>"), not the title.
+- **Body:** `Closes #<n>` on the PR that completes the issue, `Refs #<n>` on earlier ones; what changed; the commands run and their results. Follow `.github/pull_request_template.md`.
+- **One purpose per PR.** Split into a stack only when a change does more than one thing a reviewer would want to read separately (for example a refactor and the feature built on it). Around 400 changed lines is a sign to consider splitting, not a hard cap. Tests ship in the same PR as the code they cover. Never mix a behaviour change into a pure move.
+- **Stacks:** each PR branches off the previous PR's branch and sets it as its base (`gh pr create --base <prev-branch>`). `.github/workflows/restack.yml` keeps the stack current: when a PR merges, the PRs on it are retargeted and merge the new base in; when a PR's branch moves, the PRs on it merge it in. It merges, never rebases, so never force-push a stacked branch. A conflict it cannot merge is labelled `restack-conflict` and handed to `@claude`.
+- **Screenshots: required whenever any UI changes** (markup, CSS, copy). Show the changed state, and the before state when that helps; usually one to five images, never a dump of every step, never none. Capture them with the helper in `tests/e2e/support/walkthrough.ts` from any Playwright run (a flow spec or a scratch spec) under `CAPTURE_WALKTHROUGH=1`, then `bun run walkthrough:publish -- --issue <n>` pushes them to the `claude/walkthroughs` branch and prints the Markdown for the PR body. Images cannot be attached through the GitHub API, which is why they live on a branch. Keep each image URL under 150 characters (the agent environment wraps longer ones in backticks and they render broken), and after updating a body check every image returns `200`. A PR with no UI change says so.
+- **Preview + QA:** the PR that completes the issue gets the `deploy-preview` label once CI is green. A preview runs against the **live production** backend with production's rules, so never label a PR that changes `firestore.rules` or `storage.rules`.
+- **Contracts:** domain schema, command registry, parameter definitions, persistence layout, selection, audio projection and rendering projection are contracts. Changing one is fine when the task needs it, but update every contract test and consumer in the same change and say so in the PR body.
+- Git history is the completion record; do not put a commit hash into a commit. Do not preserve compatibility with prototype project data (schema v1 is the first production schema).
 
-```
-$ACTION #<issue> (i/N): Title
-```
+### Definition of done
 
-- **`$ACTION`** is `Implement` for a feature task, `Fix` for a bug fix. Those
-  are the only two values — a PR is one or the other.
-- **`#<issue>`** is the GitHub issue the PR belongs to, so the title carries the
-  task even where GitHub does not render the body's `Refs`/`Closes` link.
-- **`(i/N)`** is the PR's 1-based position in its stack out of `N` total. A task
-  that ships as a single PR is `(1/1)`; a three-PR stack is `(1/3)`, `(2/3)`,
-  `(3/3)`. `N` counts only the PRs in that stack — the core-flow spec PR lands
-  separately, before the work begins, and is numbered on its own.
-- **`Title`** names what that slice does, in a few words. On a stack it is the
-  slice's purpose, not the whole task's; on a fix it says what was broken, not
-  which file changed.
+- The issue's spec is met, including the failure and empty states it touches. A deliberate deviation is stated in the PR body with its reason.
+- `bun run typecheck`, `bun run test` and `bun run check` pass. Work that touches browser, Firebase, audio or export behaviour also runs that suite.
+- New behaviour goes through shared commands and boundaries, not a feature-specific mutation path.
+- **Analytics ships with the feature.** A new or changed user action emits its events through the typed catalog in `src/analytics` (extend the catalog in the same PR, at minimum a `feature_first_use` key), with a test that it fires once per action. No ad-hoc event strings.
+- No event or error-report parameter carries a project, track, clip, section or asset name, assistant text, a user-entered string, an asset URL, or a token.
+- UI changes carry screenshots; the closing PR carries `deploy-preview`; every PR is ready for review.
+- No unrelated formatting, dependency, generated-file or refactor churn.
 
-Examples: `Implement #123 (2/3): Wire the step grid onto note commands`,
-`Fix #456 (1/1): Metronome fires a bar early after seek`.
-
-1. **A PR is a single reviewable unit of purpose, not a whole task.** Each agent works in its own git worktree so parallel implementations do not collide on the filesystem, and a broken PR never blocks review of an unrelated one. One PR does one thing a reviewer can hold in their head at once — "introduce the *X* commands", "add the *Y* domain entity and its schema", "wire the *Z* panel UI onto existing commands". A task that cannot be delivered as one such unit is **split into several stacked PRs**, sequenced so each builds on the last (see item 5).
-2. **A PR's diff is at most 400 lines changed** (added + deleted in product and test code; generated files, lockfiles, and vendored assets do not count — and never let a generated blob smuggle real logic past this). This is a hard ceiling, not a target: if the honest slice does not fit, the slice is wrong — cut it smaller, do not shave tests to squeeze under. Keep each PR vertical and self-contained *for its purpose*: the product code for that slice, **the tests that cover it in the same PR** (a UI PR that leans on commands from an earlier PR in the stack re-tests the behavior it newly exposes; splitting must never drop coverage or defer it to a later PR), and any fixtures/docs that slice needs. The PR body links its issue (`Refs #<n>` for a mid-stack PR, `Closes #<n>` only on the PR that completes the task), names its place in the stack ("2 of 3, builds on #<prev>"), and states the evidence. **Any change that alters the UI includes a walkthrough** in the body of the PR that closes the issue: a sequence of captioned screenshots starting from a common entrypoint (the public landing page, the project dashboard, or a project page) and walking to the change. It is not assembled by hand — `bun run walkthrough:capture` takes one screenshot per `step()` in the now-passing core-flow specs and `bun run walkthrough:publish -- --issue <n>` pushes them to the `claude/walkthroughs` orphan branch and prints the Markdown to paste in. That is deliberate: the walkthrough is a byproduct of the test that proves the flow, so it cannot drift from what shipped, and it always starts where a person actually arrives. (Images cannot be attached to a PR body through the GitHub API at all, which is why they live on a branch and the body links them.) A PR with no user-visible change says so instead. The PR template (`.github/pull_request_template.md`) has the section.
-
-   **Keep every walkthrough image URL under 150 characters.** When a PR body is written from the agent environment, through `gh` and the GitHub MCP tools alike, any URL of about 150 characters or more gets wrapped in a pair of double backticks inside the image link, and renders as a broken image. The step's filename is the part that grows: it is `NN-<caption slug>.png`, from `tests/e2e/support/walkthrough.ts`. After updating a body, re-read it and check that no image link contains a backtick and that every image URL returns `200`. If a body has been mangled, re-sending it will not help: give the images shorter names on `claude/walkthroughs` (add copies and keep the originals, since older PRs link them), then point the body at the short names.
-3. **Land the central-registration edits first, as their own tiny PR.** A few files are shared registration points that every parallel feature appends to — `src/analytics/catalog.ts` (event keys), `src/commands/registry.ts` and `src/commands/index.ts` (command IDs), `src/domain/parse.ts` (invariants), and `src/editor/EditorView.tsx` (where a panel mounts). Two features editing the same one collide on merge even when their real code is disjoint, and that collision surfaces late — after review, when the first of the pair lands. So when a task must touch one of these, the **first PR in its stack is the registration alone**: add the catalog keys, register the command ID, add the invariant, reserve the panel slot — nothing else. Keep it to a few lines so it reviews in seconds (a phone-sized review) and merges immediately, shrinking the window in which a sibling can clash with it. The bulky feature PR that follows then touches only its own new files. This does not apply to a task that adds no central registration; do not manufacture a trivial PR where there is nothing shared to land.
-4. **Do not edit `docs/prd.md`.** It holds the product's principles — vision, target user, goals and non-goals, sample licensing, privacy — not its features, so a task has nothing to add to it: what is being built lives in the issue, the behavior a test holds to lives in `docs/core-flows.md`, and how the code is arranged lives here. If a task cannot be done without contradicting a principle, say so on the issue and let the product owner change the PRD deliberately.
-5. Do not start a task until every `blocked_by` issue is closed, unless the task explicitly permits parallel discovery work. **Stacked PRs within one task** branch each next PR off the previous PR's branch (not off `main`), so each PR's diff shows only its own slice; set that PR's base to the previous branch (`gh pr create --base <prev-branch>`). Keeping the stack current is automated by `.github/workflows/restack.yml`: when a PR merges, the PRs stacked on it are retargeted to its base and merge that base in; when a PR's branch moves, the PRs stacked on it merge it in. It merges rather than rebases, so never force-push a stacked branch to "clean it up". A conflict it cannot merge is labelled `restack-conflict` and handed to `@claude` on the PR. A later PR in a stack may open while an earlier one is still in review — that is the point — but it must not be *merged* ahead of the PR it builds on.
-
-   **A stack is only worth it if the front can merge without the back.** Four properties buy that, and a stack without them costs more to review than one big PR: (a) **every slice is green on its own commit**, not merely at the tip — run the checks per slice, so PR 1 can merge and be walked away from; (b) **each PR states the invariant that makes it safe and proves it in one line** ("`Foo.test.tsx` untouched across the stack — `git diff --stat` is empty, 22 tests pass unchanged"), so the reviewer verifies a claim in seconds instead of reading every hunk; (c) **a move is only a move** — never mix a behavior change into a relocation, or the reviewer cannot tell which hunks are which, and the two land as separate PRs instead; (d) **red tests are named and diagnosed**, with evidence they fail on unmodified `main` too, rather than dismissed as an unrelated flake. A deliberate deviation from what the issue asked for is stated in the PR body with its reasoning — declining a suggestion is a normal outcome, silently skipping it is what costs.
-6. A **contract-owning task lands before its dependents start.** Domain schema, command registry, parameter definitions, persistence layout, selection, audio projection, and rendering projection are contracts; an agent must not alter a published one as incidental feature work. Changing a landed contract is its own issue, updating every contract test and consumer together.
-7. Git history is the completion record. Do not put a commit hash into the commit itself.
-8. Do not preserve compatibility with prototype project data. Schema v1 is the first production schema; migrations are required only for persisted changes after v1 is established.
-9. **Mark a PR ready for review when its work is finished.** A PR may open as a draft while work is in progress, but an agent that finishes the work — slice complete, checks green on its commit, evidence in the body — marks it ready (`gh pr ready <n>`, or the GitHub MCP `update_pull_request` with `draft: false`) before handing back. A finished PR left in draft is invisible to reviewers and stalls the stack.
-
-### Definition of done for every task
-
-- The issue's acceptance criteria pass, including failure and empty states relevant to the slice.
-- **Every core flow the issue links passes**, with its `test.fixme` marker removed by the PR that closes the issue, and neither `docs/core-flows.md`, `docs/prd.md`, nor the flow spec's assertions changed along the way. `bun run verify:core-flows` passes and reports no parked flow.
-- **Every PR in the stack is marked ready for review**, none left in draft (Landing work item 9).
-- **The closing PR carries the captured walkthrough** and, once CI is green, the `deploy-preview` label so the change can be walked on a preview channel. A preview runs against the **live production** backend with production's current security rules — never label a stack that changes `firestore.rules` or `storage.rules`, since a preview cannot prove a rules change and an unreviewed branch must not reach production's access rules.
-- New behavior is reachable through shared commands and boundaries rather than a feature-specific mutation path.
-- Tests fail before the implementation and pass afterward at the lowest useful layer.
-- `bun run typecheck`, `bun run test`, and `bun run check` pass. Tasks that touch browser, Firebase, audio, performance, or export behavior also run their task-specific suites.
-- Resource ownership, accessibility, supported-browser behavior, and persistence effects have been considered and tested where applicable.
-- **Analytics ships with the feature.** From `FND-001c` onward, any task that adds or changes a user action emits its events through the shared typed analytics catalog, plus the reliability event for its principal failure path, with tests that the event fires once per action and that disabling analytics changes nothing. A task whose events are left for later is not done. A user action the catalog does not yet cover extends the catalog in the same PR — at minimum a `feature_first_use` key — rather than shipping unmeasured, and no task introduces an ad-hoc event string outside the catalog.
-- No event or error-report parameter carries a project, track, clip, section, or asset name, assistant text, a user-entered string, an asset URL, or a token.
-- The slice has been exercised against a production-like build in the gating browsers through its browser E2E and emulator suites, not only against a local dev server. Hosted-environment verification is **not** a per-task gate: it is batched into `OPS-001` after Alpha Milestone 2. A task does not stay open waiting for a hosted environment that does not exist yet, and equally does not claim a deploy, smoke test, rollback, or delivered event that never happened.
-- No unrelated formatting, dependency, generated-file, or refactor churn is included.
-- **Every PR is at most 400 changed lines and has one clear purpose** (see Landing work items 1–3). A task larger than that ships as a stack of such PRs, each carrying the tests for its own slice so coverage never dips. The task is done when the final PR in its stack — the one that closes the issue — has landed with all acceptance criteria met; earlier PRs in the stack close no issue on their own.
 
 ## Commands
 
@@ -337,10 +247,11 @@ bun run test:browser:chromium           # Chromium-only pre-flight for the two s
 bun run test:browser:emulator:chromium  # (see "Which browsers run where" in docs/testing.md)
 bun run test:browser:install  # One-time: download Playwright's browser binaries
 
-# Core flows and PR walkthroughs
+# Core flows and PR screenshots
 bun run verify:landing-static                # `/` is statically generated, and no other path carries its markup
 bun run verify:core-flows                    # Every flow in docs/core-flows.md has exactly one spec, and vice versa
-bun run walkthrough:capture                  # Screenshot each step() of the passing tests/e2e/emulator/flows specs
+bun run screenshots -- <spec>                # Capture step() screenshots from any mock-backend spec (e.g. a scratch *.screens.spec.ts)
+bun run walkthrough:capture                  # Capture step() screenshots from the core-flow specs (emulator backend)
 bun run walkthrough:publish -- --issue <n>   # Push the images and print the Markdown for the PR body
 ```
 
