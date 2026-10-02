@@ -311,11 +311,26 @@ function renderBody(issues, done, now) {
   for (const label of order) {
     const col = COLUMNS.find((c) => c.label === label);
     const cards = by.get(label);
-    out.push(`## ${col.title} (${cards.length})`, "");
-    if (label === "status:backlog" && cards.length) {
-      out.push(...backlogLines(cards));
+    if (label === "status:backlog") {
+      // Backlog issues waiting on a shaping session get their own section,
+      // above the backlog: it is the product owner's to-do list.
+      const shaping = cards.filter((c) => c.labels.includes(SHAPING_LABEL));
+      const rest = cards.filter((c) => !c.labels.includes(SHAPING_LABEL));
+      out.push(`## Needs shaping (${shaping.length})`, "");
+      out.push(
+        ...(shaping.length
+          ? shaping.map(
+              (c) =>
+                `- #${c.number} ${c.title}${c.milestone ? ` · ${c.milestone.title}` : ""}`,
+            )
+          : ["_Empty_"]),
+        "",
+      );
+      out.push(`## ${col.title} (${rest.length})`, "");
+      out.push(...(rest.length ? backlogLines(rest) : ["_Empty_", ""]));
       continue;
     }
+    out.push(`## ${col.title} (${cards.length})`, "");
     out.push(...(cards.length ? cards.map(line) : ["_Empty_"]), "");
   }
   out.push(

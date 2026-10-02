@@ -182,7 +182,7 @@ Status is a `status:*` label on the issue, and the pinned **Board** issue lists 
 | Ready for review | `status:review` | The QA bot passing the preview |
 | Done | (closed) | Merging the PR that closes the issue |
 
-The Backlog column is grouped by milestone. An issue labelled `needs-shaping` has open questions (listed in a comment on it) to settle in a shaping session before it can go to Ready; the board flags it. A PR that changes `firestore.rules` or `storage.rules` gets no preview, so it moves its issue straight to Ready for review instead of QA. If an issue ever carries two `status:*` labels, the next board render keeps the later stage (Blocked always wins).
+The Backlog column is grouped by milestone. An issue labelled `needs-shaping` has open questions (listed in a comment on it) to settle in a shaping session before it can go to Ready; the board lists those in their own **Needs shaping** section above the backlog. A PR that changes `firestore.rules` or `storage.rules` gets no preview, so it moves its issue straight to Ready for review instead of QA. If an issue ever carries two `status:*` labels, the next board render keeps the later stage (Blocked always wins).
 
 The QA bot reports on the issue's card: on a pass it adds `status:review`; on a fail it comments the findings on the PR starting with `@claude` (which starts a fix) and adds `status:in-progress`, or `status:blocked` after the second failure on the same PR. An agent working an issue keeps its card current the same way.
 
