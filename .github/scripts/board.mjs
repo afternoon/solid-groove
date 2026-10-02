@@ -115,16 +115,28 @@ function setStatus(number, label, currentLabels) {
   if (args.length > 5) gh(args);
 }
 
-const issueLabels = (number) =>
-  JSON.parse(
-    gh(["issue", "view", String(number), "--repo", REPO, "--json", "labels,state"]),
-  );
+/** An issue's labels and state, or null if it does not exist (or is a PR). */
+function issueLabels(number) {
+  try {
+    return JSON.parse(
+      gh(["issue", "view", String(number), "--repo", REPO, "--json", "labels,state"]),
+    );
+  } catch {
+    return null;
+  }
+}
 
-/** Issues a PR body closes: "Closes #12", "fixes #3", "Resolves #45". */
-const closedBy = (body) =>
-  [
-    ...(body ?? "").matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi),
+/**
+ * Issues a PR body closes: "Closes #12", "fixes #3", "Resolves #45". Code
+ * spans and blocks are skipped, as GitHub skips them: a body that quotes
+ * "`Closes #12`" as an example does not close #12.
+ */
+const closedBy = (body) => {
+  const prose = (body ?? "").replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  return [
+    ...prose.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi),
   ].map((m) => Number(m[1]));
+};
 
 function status() {
   const name = process.env.GITHUB_EVENT_NAME;
@@ -161,7 +173,7 @@ function status() {
     // A PR that closes an issue puts its card in QA.
     for (const number of closedBy(pr.body)) {
       const issue = issueLabels(number);
-      if (issue.state !== "OPEN") continue;
+      if (issue?.state !== "OPEN") continue;
       setStatus(
         number,
         "status:qa",
