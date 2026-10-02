@@ -545,7 +545,9 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       label,
       description,
       group: "navigation",
-      contexts: ["editor", "sequence_editor"],
+      // The library's own keys share its context, so the views stay one key
+      // away from inside it (UI-002).
+      contexts: ["editor", "sequence_editor", "library"],
       keys,
       ableton: VIEW_KEY_PARITY,
     }),
@@ -855,7 +857,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   libraryKey(
     "library.insert",
     "Insert sound",
-    "Puts the selected sound in the slot and closes the library.",
+    "Puts the selected sound in the slot and goes back to where you came from.",
     "Enter",
     {
       preventDefault: false,

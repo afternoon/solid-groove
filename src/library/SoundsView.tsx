@@ -186,7 +186,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
       .filter((pack) => browser.packErrors().some((e) => e.packSlug === pack.slug));
 
   return (
-    <section class="sounds-view" aria-label="Library">
+    <section class="sounds-view" aria-label="Browse sounds">
       <h2 class="visually-hidden">{props.heading ?? "Library"}</h2>
       <Show
         when={browser.indexError() === null}

@@ -1,7 +1,6 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
-import Dialog from "../components/Dialog";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
 import { LibraryClient } from "../library/libraryClient";
@@ -22,6 +21,7 @@ import type { ShortcutActionId } from "../shortcuts";
 import LibraryHint, { type LibraryPlace } from "./LibraryHint";
 import LibraryKeys from "./LibraryKeys";
 import { ClearIcon, DiceIcon, GridIcon, SearchIcon } from "./libraryIcons";
+import ViewFrame from "./ViewFrame";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
@@ -68,7 +68,7 @@ export interface LibraryActions {
   back(): boolean;
   /** `?`: open or close the sheet of the library's own keys. */
   toggleKeys(): void;
-  /** Close that sheet; false when it was not open, so Escape closes the window. */
+  /** Close that sheet; false when it was not open, so Escape leaves the view. */
   closeKeys(): boolean;
 }
 
@@ -103,7 +103,6 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onActions?(actions: LibraryActions | null): void;
-  onClose(): void;
 }
 
 /** A boxed key badge. `hidden` when its control already names its key. */
@@ -128,8 +127,8 @@ function slotPlace(kind: LibraryModalProps["slotKind"], slot?: string): string {
  * **Was** and **Hearing** readouts, a rail of places to look, and a footer with
  * one large Insert button. Hearing a sound selects it and inserting is a second
  * step, so browsing never edits the project. Views other than All sounds are
- * placeholders until they land. `EditorView` hands it the `dialog` and
- * `library` shortcut contexts.
+ * placeholders until they land. It is the view on `4` (`UI-002`), not a
+ * window: `EditorView` hands it the `library` shortcut context.
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
@@ -252,7 +251,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     });
     return () => {
       props.onActions?.(null);
-      // Escape, close and Insert all end here: the slot plays its own sound.
+      // Leaving the view ends here: the slot plays its own sound again.
       props.slotAudition?.clear();
     };
   });
@@ -280,11 +279,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   return (
-    <Dialog
+    <ViewFrame
       label="Library"
-      size="modal"
-      flush
-      onClose={() => props.onClose()}
+      class="library-view"
       header={
         <div class="library-modal-head">
           <span
@@ -468,6 +465,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           </Show>
         </div>
       </div>
-    </Dialog>
+    </ViewFrame>
   );
 }

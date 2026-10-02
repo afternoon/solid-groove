@@ -1,0 +1,27 @@
+/* A view's frame (UI-002): the whole editor body, like the arrangement,
+   running under the dock to the bottom of the window. */
+.view-frame {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin-bottom: calc(-1 * var(--view-dock-clearance));
+  padding-bottom: var(--view-dock-clearance);
+  background: var(--color-background-secondary);
+}
+
+.view-frame-header,
+.view-frame-footer {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.view-frame-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}

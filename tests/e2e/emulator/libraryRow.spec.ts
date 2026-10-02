@@ -14,11 +14,11 @@ const resolved = (locator: Locator, property: "backgroundColor" | "color") =>
 
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
-// This test is live, so it walks today's UI with its own setup: the shared
+// This test is live, so it walks the Library view with its own setup: the shared
 // `./support/library` helpers describe the #817 views the parked core flows
 // are written against. When #817 lands, this setup moves onto them.
 const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 const soundList = (page: Page): Locator =>
   library(page).getByRole("list", { name: "Sounds", exact: true });
 
