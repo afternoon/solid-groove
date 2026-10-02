@@ -68,13 +68,15 @@ test.describe("library keys", () => {
   test("a focused rail button keeps Enter for itself", async ({ page }) => {
     await openBdSlot(page);
     await selectSecondSound(page);
-    const before = await sampleSlot(page).textContent();
+    // The slot is not on the page while the library is the view (#817), so
+    // what it holds is read off the library's own readout.
+    const before = (await readout(page, "In the slot").textContent()) ?? "";
 
     await railButton(page, "Browse packs").focus();
     await page.keyboard.press("Enter");
 
     await expect(railButton(page, "Browse packs")).toHaveAttribute("aria-current", /.+/);
     await expect(library(page)).toBeVisible();
-    expect(await sampleSlot(page).textContent()).toBe(before);
+    await expect(readout(page, "In the slot")).toHaveText(before);
   });
 });
