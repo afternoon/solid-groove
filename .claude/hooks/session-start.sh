@@ -76,3 +76,16 @@ modules or TS2688 in the first minute of the session, that install has not
 finished — wait and retry rather than diagnosing it as a tsconfig or lockfile
 problem. A null ALSA device and PW_CHROMIUM_PATH are already configured.
 NOTICE
+
+# The skills and workflows drive GitHub through `gh` (stacked PRs, `blocked_by`,
+# labels). An unauthenticated `gh` fails mid-run in ways that read like a broken
+# pipeline, so say so up front. The fix is a GH_TOKEN in the cloud environment's
+# settings; until then the GitHub MCP tools can still open a PR on a stacked base.
+if command -v gh >/dev/null 2>&1 && ! timeout 5 gh auth status >/dev/null 2>&1; then
+	cat <<'NOTICE'
+GitHub CLI: `gh` is NOT authenticated in this session (GH_TOKEN missing or
+invalid). Do not retry it. Use the GitHub MCP tools instead (create_pull_request
+takes a `base`, update_pull_request can retarget one), and tell the user the
+environment needs a valid GH_TOKEN for `blocked_by` edits and full skill support.
+NOTICE
+fi
