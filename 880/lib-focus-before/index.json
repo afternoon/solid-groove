@@ -1,0 +1,14 @@
+{
+  "id": "lib-focus-before",
+  "title": "Before: library focus (#880)",
+  "steps": [
+    {
+      "file": "01-before-the-library-has-just-opened.png",
+      "caption": "Before: the library has just opened"
+    },
+    {
+      "file": "02-before-three-presses-of-the-down-arrow.png",
+      "caption": "Before: three presses of the down arrow"
+    }
+  ]
+}
