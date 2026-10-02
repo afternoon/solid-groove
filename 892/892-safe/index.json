@@ -1,0 +1,10 @@
+{
+  "id": "892-safe",
+  "title": "Safe upgrade",
+  "steps": [
+    {
+      "file": "01-a-project-pinned-to-1-0-0-takes-a-1-1-0-.png",
+      "caption": "A project pinned to 1.0.0 takes a 1.1.0 kick: the pin moves without asking and the pad plays it"
+    }
+  ]
+}

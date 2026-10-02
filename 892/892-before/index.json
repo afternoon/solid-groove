@@ -1,0 +1,10 @@
+{
+  "id": "892-before",
+  "title": "Before the fix",
+  "steps": [
+    {
+      "file": "01-before-insert-is-pressed-on-a-project-pi.png",
+      "caption": "Before: Insert is pressed on a project pinned to 1.0.0, and nothing happens"
+    }
+  ]
+}

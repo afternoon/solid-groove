@@ -1,0 +1,18 @@
+{
+  "id": "892",
+  "title": "Upgrade that leaves a sound missing",
+  "steps": [
+    {
+      "file": "01-some-of-the-project-s-sounds-are-not-in-.png",
+      "caption": "Some of the project's sounds are not in 1.1.0: the footer asks, with Upgrade anyway and Cancel"
+    },
+    {
+      "file": "02-cancel-changes-nothing-the-footer-says-w.png",
+      "caption": "Cancel changes nothing; the footer says why, and still offers the upgrade"
+    },
+    {
+      "file": "03-upgrade-anyway-inserts-the-sound.png",
+      "caption": "Upgrade anyway inserts the sound"
+    }
+  ]
+}
