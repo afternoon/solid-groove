@@ -14,7 +14,7 @@ import Shelf, { allLabel } from "./Shelf";
 import SoundRow from "./SoundRow";
 import { familyLabel, shelfFamilyOf } from "./shelf";
 import type { SoundsKeyAction } from "./soundKeys";
-import { nextIn, previousIn } from "./stepping";
+import { nextIn, previousIn, revealSelectedRow, tabStopId } from "./stepping";
 import { groupLabel } from "./tree";
 import { useLibraryBrowser } from "./useLibraryBrowser";
 import { type ShelfSlot, useShelf } from "./useShelf";
@@ -124,11 +124,21 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   const selectedId = () => props.selected?.id ?? null;
   const current = () => sounds().find((sound) => sound.id === selectedId()) ?? null;
 
+  // Set by a step, so the selection it makes takes focus with it (#880).
+  let focusFollows = false;
+
   /** Select the neighbouring sound, which auditions it; the ends hold. */
   function step(direction: 1 | -1): void {
     const from = current();
     const target = (direction === 1 ? nextIn : previousIn)(sounds(), from);
-    if (target && target !== from) void browser.audition(target);
+    if (!target) return;
+    if (target === from) {
+      // At an end there is nothing new to hear, but focus still joins the row.
+      revealSelectedRow(list, true);
+      return;
+    }
+    focusFollows = true;
+    void browser.audition(target);
   }
 
   const shelfKeys: Partial<Record<SoundsKeyAction, () => void>> = {
@@ -176,10 +186,17 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     props.onListLabel?.(label);
   });
 
-  // Keep the heard row on screen as the arrow keys walk the list.
+  // Keep the heard row on screen, and focused when a step chose it.
   createEffect(selectedId, () => {
-    list?.querySelector(".sound-row-selected")?.scrollIntoView?.({ block: "nearest" });
+    revealSelectedRow(list, focusFollows);
+    focusFollows = false;
   });
+  const tabStop = createMemo(() =>
+    tabStopId(
+      sounds().map((sound) => sound.id),
+      selectedId(),
+    ),
+  );
 
   // A pack that would not load is named as missing; the others still list.
   const failedPacks = () =>
@@ -286,6 +303,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
                   <SoundRow
                     asset={asset}
                     selected={selectedId() === asset.id}
+                    tabbable={tabStop() === asset.id}
                     playing={browser.auditioningId() === asset.id}
                     error={browser.assetErrors().get(asset.id) ?? null}
                     color={props.trackColor}

@@ -146,6 +146,40 @@ describe("SoundsView", () => {
     expect(engine.starts).toHaveLength(3);
   });
 
+  it("moves focus to the selected row as the arrow keys step (#880)", async () => {
+    const { engine, press } = renderView();
+    const items = await rows();
+
+    press("library.select_next");
+    await waitFor(() => expect(engine.starts).toHaveLength(1));
+    press("library.select_next");
+    await waitFor(() => expect(engine.starts).toHaveLength(2));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(items[1].querySelector(".sound-row-main")),
+    );
+    press("library.select_previous");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(items[0].querySelector(".sound-row-main")),
+    );
+  });
+
+  it("is one Tab stop: the selected row, or the first with none selected (#880)", async () => {
+    const { engine, press } = renderView();
+    const items = await rows();
+    const tabStops = () =>
+      Array.from(
+        screen.getByRole("list", { name: "Sounds" }).querySelectorAll("button"),
+      ).filter((button) => button.tabIndex >= 0);
+
+    expect(tabStops()).toEqual([items[0].querySelector(".sound-row-main")]);
+    press("library.select_next");
+    await waitFor(() => expect(engine.starts).toHaveLength(1));
+    press("library.select_next");
+    await waitFor(() =>
+      expect(tabStops()).toEqual([items[1].querySelector(".sound-row-main")]),
+    );
+  });
+
   it("re-auditions the selected sound on Space, and ignores it with nothing selected", async () => {
     const { engine, press } = renderView();
     const [first] = await rows();

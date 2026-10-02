@@ -26,6 +26,7 @@ function renderRow(
       <SoundRow
         asset={asset}
         selected={false}
+        tabbable={false}
         playing={false}
         error={null}
         onSelect={onSelect}
