@@ -83,15 +83,6 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `note.lengthen` | Lengthen notes | `Shift+Right` | `Shift+Right` | Clips and Notes | piano_roll | Follows Live (`Shift+Right`) |
 | `value.nudge_up` | Nudge value up | `Up` | `Up` | Global Editing | value_field | Follows Live (`Up`) |
 | `value.nudge_down` | Nudge value down | `Down` | `Down` | Global Editing | value_field | Follows Live (`Down`) |
-| `library.pick_1` | Pick 1 | `1` | `1` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_2` | Pick 2 | `2` | `2` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_3` | Pick 3 | `3` | `3` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_4` | Pick 4 | `4` | `4` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_5` | Pick 5 | `5` | `5` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_6` | Pick 6 | `6` | `6` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_7` | Pick 7 | `7` | `7` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_8` | Pick 8 | `8` | `8` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_9` | Pick 9 | `9` | `9` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.select_previous` | Previous sound | `Up` | `Up` | Browser | library | Follows Live (`Up`) |
 | `library.select_next` | Next sound | `Down` | `Down` | Browser | library | Follows Live (`Down`) |
 | `library.audition` | Audition again | `Space` | `Space` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |

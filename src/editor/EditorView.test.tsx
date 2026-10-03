@@ -1670,10 +1670,11 @@ describe("EditorView keyboard shortcuts", () => {
     fireEvent.keyDown(window, { key: " " });
     expect(screen.getByRole("button", { name: "Start playback" })).toBeInTheDocument();
 
-    // `P` browses packs, `1` opens the first, and Backspace steps back out.
+    // `P` browses packs, a cover opens one, and Backspace steps back out.
     fireEvent.keyDown(window, { key: "p" });
-    await screen.findByRole("button", { name: "Open Core Electronic Drums" });
-    fireEvent.keyDown(window, { key: "1" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Core Electronic Drums" }),
+    );
     await screen.findByRole("heading", { name: "Core Electronic Drums" });
     fireEvent.keyDown(window, { key: "Backspace" });
     await screen.findByRole("region", { name: "Packs" });

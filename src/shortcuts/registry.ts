@@ -120,15 +120,6 @@ export const SHORTCUT_ACTION_IDS = [
   "library.like",
   "library.similar",
   "library.shuffle",
-  "library.pick_1",
-  "library.pick_2",
-  "library.pick_3",
-  "library.pick_4",
-  "library.pick_5",
-  "library.pick_6",
-  "library.pick_7",
-  "library.pick_8",
-  "library.pick_9",
   "library.pick_all",
   "library.category_previous",
   "library.category_next",
@@ -245,28 +236,6 @@ function exportKey(
     ableton: EXPORT_KEY_PARITY,
   });
 }
-
-const ORDINALS = [
-  "first",
-  "second",
-  "third",
-  "fourth",
-  "fifth",
-  "sixth",
-  "seventh",
-  "eighth",
-  "ninth",
-];
-
-/** `1`-`9`: the nth category, or in Browse packs the nth pack. */
-const LIBRARY_PICKS = ORDINALS.map((nth, i) =>
-  libraryKey(
-    `library.pick_${i + 1}` as ShortcutActionId,
-    `Pick ${i + 1}`,
-    `Picks the ${nth} category; in Browse packs, opens the ${nth} pack.`,
-    String(i + 1),
-  ),
-);
 
 const VIEW_KEY_PARITY: AbletonParity = {
   kind: "solid_groove",
@@ -855,7 +824,6 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     textEntry: "allowed",
     ableton: { kind: "follows", abletonKeys: "Down" },
   }),
-  ...LIBRARY_PICKS,
   libraryKey(
     "library.select_previous",
     "Previous sound",

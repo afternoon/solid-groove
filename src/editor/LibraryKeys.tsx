@@ -33,11 +33,6 @@ const GROUPS: readonly { readonly title: string; readonly rows: readonly KeyRow[
   {
     title: "Categories",
     rows: [
-      {
-        keys: ["library.pick_1", "library.pick_9"],
-        range: true,
-        text: "Pick that category; in Browse packs, open that pack",
-      },
       { keys: ["library.pick_all"], text: "All of the family" },
       {
         keys: ["library.category_previous", "library.category_next"],
