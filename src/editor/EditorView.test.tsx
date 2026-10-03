@@ -2206,6 +2206,112 @@ async function openLibrary(): Promise<HTMLElement> {
 
 /** A pointer event at bar 1 of the first arrangement row, where the slice
  * fixture's only placement sits. The canvas has no DOM node to aim at. */
+/**
+ * Delete removes a track only when the user chose it through its header
+ * (#960). A track that is merely the one a lane click, a clip click, Escape or
+ * a deleted clip left selected keeps it: a slip must never take a whole track.
+ */
+describe("EditorView Delete and the selected track (#960)", () => {
+  const BAR = 768;
+
+  /** BD with clips in bars 1 to 3, Track 2 with clips in bars 1 and 2. */
+  async function renderTwoTracks() {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const { project } = buildArrangementProject([
+      [0, 1, 2].map((bar) => ({ startTicks: bar * BAR, durationTicks: BAR })),
+      [0, 1].map((bar) => ({ startTicks: bar * BAR, durationTicks: BAR })),
+    ]);
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+  }
+
+  const announced = () => screen.getByTestId("arrangement-selection-live");
+  const press = (key: string) => fireAndFlush(() => fireEvent.keyDown(window, { key }));
+  const header = (name: string) => screen.queryByRole("button", { name: `Edit ${name}` });
+
+  /** A click on BD's row (the first) in the middle of `bar`. */
+  function clickBdBar(bar: number): void {
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    for (const type of ["pointerdown", "pointerup"]) {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: (bar - 0.5) * BAR * INITIAL_PIXELS_PER_TICK,
+        clientY: 22 + ROW_METRICS.trackHeightPx / 2,
+      });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      fireAndFlush(() => fireEvent(canvas, event));
+    }
+  }
+
+  it("keeps the track when a second Backspace follows a deleted clip", async () => {
+    await renderTwoTracks();
+    clickBdBar(1);
+    press("Backspace");
+    await waitFor(() => expect(announced()).toHaveTextContent("No selection"));
+    press("Backspace");
+    expect(header("BD")).toBeInTheDocument();
+  });
+
+  it("keeps the track after a missed clip click lands on empty lane", async () => {
+    await renderTwoTracks();
+    clickBdBar(1);
+    clickBdBar(5);
+    await waitFor(() => expect(announced()).toHaveTextContent("Position 5.1.1"));
+    press("Delete");
+    expect(header("BD")).toBeInTheDocument();
+  });
+
+  it("keeps the track after an empty-lane click on a fresh project", async () => {
+    await renderTwoTracks();
+    clickBdBar(5);
+    press("Delete");
+    expect(header("BD")).toBeInTheDocument();
+  });
+
+  it("keeps the track after Escape clears a clip selection", async () => {
+    await renderTwoTracks();
+    clickBdBar(1);
+    press("Escape");
+    await waitFor(() => expect(announced()).toHaveTextContent("No selection"));
+    press("Delete");
+    expect(header("BD")).toBeInTheDocument();
+  });
+
+  it("announces a track chosen by its header, and deletes it on Delete (#537)", async () => {
+    await renderTwoTracks();
+    await fireAndFlush(() => fireEvent.click(header("BD") as HTMLElement));
+    await waitFor(() => expect(announced()).toHaveTextContent("Selected track BD"));
+    expect(header("BD")?.closest(".track-header")).toHaveClass("chosen");
+    press("Delete");
+    expect(header("BD")).not.toBeInTheDocument();
+    expect(header("Track 2")?.closest(".track-header")).not.toHaveClass("chosen");
+    // The neighbour it falls to is shown, not chosen: a second Delete keeps it.
+    press("Delete");
+    expect(header("Track 2")).toBeInTheDocument();
+  });
+
+  it("drops the header's choice on a lane click or Escape", async () => {
+    await renderTwoTracks();
+    await fireAndFlush(() => fireEvent.click(header("BD") as HTMLElement));
+    clickBdBar(5);
+    expect(header("BD")?.closest(".track-header")).not.toHaveClass("chosen");
+    press("Delete");
+    expect(header("BD")).toBeInTheDocument();
+
+    await fireAndFlush(() => fireEvent.click(header("BD") as HTMLElement));
+    await waitFor(() => expect(announced()).toHaveTextContent("Selected track BD"));
+    press("Escape");
+    await waitFor(() => expect(announced()).toHaveTextContent("No selection"));
+    press("Delete");
+    expect(header("BD")).toBeInTheDocument();
+  });
+});
+
 function firePointerAtStarterClip(canvas: Element, type: string): void {
   const event = new MouseEvent(type, {
     bubbles: true,

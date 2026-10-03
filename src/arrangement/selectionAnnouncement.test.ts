@@ -81,3 +81,34 @@ describe("the arrangement selection announcement (#292)", () => {
     expect(describeArrangementSelection(exact, project)).toBe("Position 2.2.1");
   });
 });
+
+describe("the chosen track's announcement (#960)", () => {
+  it("names a track chosen on its header while no clip is selected", () => {
+    const { project, trackIds } = cf010();
+    expect(describeArrangementSelection(null, project, trackIds[1])).toBe(
+      "Selected track Sampler",
+    );
+    // It outranks a point, which Delete ignores.
+    const point = pointSelection({ trackId: trackIds[1], ticks: 0 });
+    expect(describeArrangementSelection(point, project, trackIds[1])).toBe(
+      "Selected track Sampler",
+    );
+  });
+
+  it("lets a clip selection outrank the track, as Delete does", () => {
+    const { project, trackIds, placementIds } = cf010();
+    const clip = clipsSelection([placementIds[0][0]]);
+    expect(describeArrangementSelection(clip, project, trackIds[0])).toBe(
+      "Selected clip on BD, bar 1",
+    );
+  });
+
+  it("falls back to the selection for a track that is gone", () => {
+    const { project, trackIds } = cf010();
+    const deleted = {
+      ...project,
+      song: { ...project.song, tracks: project.song.tracks.slice(0, 1) },
+    };
+    expect(describeArrangementSelection(null, deleted, trackIds[1])).toBe("No selection");
+  });
+});

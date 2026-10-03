@@ -375,7 +375,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
     id: "edit.delete",
     label: "Delete selection",
     description:
-      "Deletes the selected notes, clips, or placements, or the selected track when nothing inside it is selected.",
+      "Deletes the selected notes, clips, or placements, or a track chosen on its header when nothing inside it is selected.",
     group: "global_editing",
     contexts: ["arrangement", "step_editor", "piano_roll", "automation_lane"],
     keys: ["Delete", "Backspace"],
