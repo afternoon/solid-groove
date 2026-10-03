@@ -13,7 +13,7 @@ import { expectView } from "../support/views";
  *
  * **Revised for #817.** Step 1 brings its loop in through the Library view on
  * `4`, as CF-005 now does: the arrangement's library button aims it at a new
- * track and Shift+Enter inserts and goes back to the arrangement. Parked at
+ * track and Enter inserts and goes back to the arrangement. Parked at
  * `test.fixme` until #817's stack lands: the PR that closes #817 removes the
  * marker.
  *
@@ -125,7 +125,7 @@ test.describe("CF-012", () => {
     await library(page)
       .getByRole("button", { name: loopName ?? "", exact: true })
       .click();
-    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.press("Enter");
     await expectView(page, "Arrangement");
     await expect(library(page)).toHaveCount(0);
     await expect(

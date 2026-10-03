@@ -321,8 +321,8 @@ export async function buildExportSong(
   await library(page)
     .getByRole("button", { name: `Audition ${loopTrack}`, exact: true })
     .click();
-  // Shift+Enter inserts and goes back to the arrangement (UI-002).
-  await page.keyboard.press("Shift+Enter");
+  // Enter inserts and goes back to the arrangement (UI-002).
+  await page.keyboard.press("Enter");
   await expect(library(page)).toHaveCount(0);
   await expect(trackList(page)).toHaveText(["BD", "Drums", "Bass", loopTrack]);
   await timeline(page).click({ position: await barOneOfRow(page, ROW.loop) });
@@ -358,7 +358,7 @@ export async function buildExportSong(
   await library(page)
     .getByRole("button", { name: `Audition ${PIANO_SOUND}`, exact: true })
     .click();
-  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.press("Enter");
   await expect(library(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sample", exact: true })).toContainText(
     PIANO_SOUND,
