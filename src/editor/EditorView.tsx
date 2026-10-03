@@ -29,6 +29,7 @@ import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
 import {
+  type ArrangementSelection,
   emptySelection,
   reconcileSelection,
   type SelectionState,
@@ -324,6 +325,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // another track leaves `2` with no clip, rather than on one the instrument
   // and mixer views have moved away from.
   const [openPlacementId, setOpenPlacementId] = createSignal<PlacementId | null>(null);
+  // The arrangement's own selection, kept while another view is on screen:
+  // the arrangement is rebuilt on the way back and starts from it, so the
+  // clip you selected is still highlighted (`UI-002`). Read only on mount, so
+  // a plain variable rather than a signal.
+  let arrangementSelection: ArrangementSelection | null = null;
   const opened = createMemo(() => {
     const entry = model.openedClip(project(), openPlacementId());
     return entry && entry.track.id === selectedTrackId() ? entry : null;
@@ -668,6 +674,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           onSelectTrack={selectTrack}
                           onOpenPlacement={openPlacement}
                           onSelectPlacement={selectPlacement}
+                          initialSelection={arrangementSelection}
+                          onSelectionChange={(selected) => {
+                            arrangementSelection = selected;
+                          }}
                           onLoopBraceFocusChange={setLoopBraceFocused}
                           /* The arrangement's own way to add a track
                              (`UI-001`), the same unit and the same route the
