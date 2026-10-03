@@ -199,6 +199,8 @@ const COMPRESSOR_THRESHOLD = deviceParameter("compressor", {
   // -12 dB (was -24) with a 3:1 ratio: -24 dB with 4:1 and no makeup pulls a
   // typical -6 dB peak down ~13 dB, so a fresh compressor sounds much quieter.
   // Here the same peak loses ~4 dB, and 3 dB of makeup returns it to about level.
+  // That arithmetic holds because Makeup is the device's only gain stage: the
+  // audio core cancels the node's own automatic makeup (#884).
   defaultValue: -12,
 });
 const COMPRESSOR_RATIO = deviceParameter("compressor", {

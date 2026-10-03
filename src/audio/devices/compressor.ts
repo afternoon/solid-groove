@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { builtInMakeupGainDb } from "./compressorMakeup";
 import {
   type DeviceCore,
   type DeviceCoreFactory,
@@ -38,10 +39,19 @@ function applyParam(
   },
   value: number,
   initial: boolean,
-): void {
+): number {
   const ceiling = param.maxValue === 0 ? -ZERO_CEILING_EPSILON : param.maxValue;
-  setOrRamp(param, Math.min(ceiling, Math.max(param.minValue, value)), initial);
+  const applied = Math.min(ceiling, Math.max(param.minValue, value));
+  setOrRamp(param, applied, initial);
+  return applied;
 }
+
+/**
+ * The knee, in dB. Not exposed as a control: FX-01 lists five compressor
+ * parameters and a sixth would be a knob without a stated purpose. A fixed
+ * moderate knee keeps low ratios musical rather than abrupt.
+ */
+const KNEE_DB = 6;
 
 /**
  * Compressor: threshold, ratio, attack, release, and makeup gain, with a live
@@ -50,8 +60,15 @@ function applyParam(
  * Every control maps onto the one `Tone.Compressor` (a `DynamicsCompressorNode`
  * underneath), so a parameter edit is an `AudioParam` change, never a node
  * rebuild. Makeup is a separate gain stage after it rather than a compressor
- * setting, because `DynamicsCompressorNode` has none — folding it into the
- * threshold instead would silently change how hard the device compresses.
+ * setting — folding it into the threshold instead would silently change how
+ * hard the device compresses.
+ *
+ * That stage also cancels the gain `DynamicsCompressorNode` adds on its own
+ * (#884). The node applies an automatic makeup derived from its threshold,
+ * knee and ratio, which nothing can switch off; left alone it made a
+ * compressor at 0 dB Makeup *louder* as the ratio rose. The makeup stage runs
+ * at `makeup - builtInMakeupGainDb(...)`, so with Makeup at 0 dB the device
+ * only ever reduces level and Makeup is the only gain it adds.
  *
  * Parallel ("New York") compression comes from the shared wet/dry stage in
  * `deviceNode.ts`. What this core adds to it is `dryAlign`: a
@@ -76,15 +93,18 @@ export const createCompressorCore: DeviceCoreFactory = (): DeviceCore => {
     output: makeup,
     dryAlign,
     apply(values, _context, initial) {
-      // `knee` is not exposed as a control: FX-01 lists five compressor
-      // parameters and a sixth would be a knob without a stated purpose. A
-      // fixed moderate knee keeps low ratios musical rather than abrupt.
-      applyParam(compressor.knee, 6, initial);
-      applyParam(compressor.threshold, values.threshold, initial);
-      applyParam(compressor.ratio, values.ratio, initial);
+      const knee = applyParam(compressor.knee, KNEE_DB, initial);
+      const threshold = applyParam(compressor.threshold, values.threshold, initial);
+      const ratio = applyParam(compressor.ratio, values.ratio, initial);
       applyParam(compressor.attack, values.attack, initial);
       applyParam(compressor.release, values.release, initial);
-      applyParam(makeup.volume, values.makeup, initial);
+      // Computed from the values the node actually holds, after clamping, so
+      // the cancellation matches the gain it is cancelling.
+      setOrRamp(
+        makeup.volume,
+        values.makeup - builtInMakeupGainDb(threshold, knee, ratio),
+        initial,
+      );
     },
     /**
      * The node's own `reduction`, in dB: 0 when the compressor is not working
