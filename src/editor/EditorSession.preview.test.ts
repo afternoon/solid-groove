@@ -317,4 +317,116 @@ describe("EditorSession preview (UI-005)", () => {
     expect(preview.status).toBe("cancelled");
     expect(preview.endReason).toBe("disposed");
   });
+  it("is refused while a gesture is open, so nothing can join the gesture", () => {
+    const { session, project, clipId, trackId } = ctx;
+    const gesture = session.beginGesture();
+    gesture.apply(
+      setParameter({ scope: "track", trackId, parameterId: TRACK_VOLUME.id }, -6),
+    );
+    const committed = session.committedProject;
+
+    const result = session.beginPreview([addNotes(clipId, [aNote(1)])]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a refusal");
+    expect(result.issues[0]?.code).toBe("rejected");
+    expect(session.activePreview).toBeNull();
+    expect(session.committedProject).toBe(committed);
+    gesture.commit();
+    expect(session.history.entries).toHaveLength(1);
+    expect(session.history.entries[0].actor).toBe("user");
+    expect(noteCount(session.project, clipId)).toBe(noteCount(project, clipId));
+  });
+
+  it("commit while a gesture is open is refused without applying, and the preview stays open", () => {
+    const { session, project, clipId } = ctx;
+    const preview = openPreview(session, [addNotes(clipId, [aNote(1)])]);
+    const gesture = session.beginGesture();
+
+    const refused = preview.commit("assistant");
+
+    expect(refused?.ok).toBe(false);
+    if (!refused || refused.ok) throw new Error("expected a refusal");
+    expect(refused.issues[0]?.code).toBe("rejected");
+    expect(preview.status).toBe("open");
+    expect(session.committedProject).toBe(project);
+    expect(session.history.entries).toHaveLength(0);
+
+    // The gesture is abandoned: the preview is still valid and now commits
+    // as its own entry, under its own actor.
+    gesture.cancel();
+    const result = preview.commit("assistant");
+    expect(result?.ok).toBe(true);
+    expect(session.history.entries).toHaveLength(1);
+    expect(session.history.entries[0].actor).toBe("assistant");
+    expect(noteCount(session.project, clipId)).toBe(noteCount(project, clipId) + 1);
+  });
+
+  it("a gesture step after the preview opened makes it stale, so it never folds into the gesture", () => {
+    const { session, project, clipId, trackId } = ctx;
+    const preview = openPreview(session, [addNotes(clipId, [aNote(1)])]);
+    const gesture = session.beginGesture();
+    gesture.apply(
+      setParameter({ scope: "track", trackId, parameterId: TRACK_VOLUME.id }, -6),
+    );
+
+    expect(preview.status).toBe("stale");
+    expect(preview.commit("assistant")).toBeNull();
+    gesture.commit();
+
+    expect(session.history.entries).toHaveLength(1);
+    expect(session.history.entries[0].actor).toBe("user");
+    expect(noteCount(session.project, clipId)).toBe(noteCount(project, clipId));
+  });
+
+  it("an undo or redo refused mid-gesture leaves the preview open", () => {
+    const { session, clipId } = ctx;
+    session.dispatch(renameProject("Committed"));
+    const preview = openPreview(session, [addNotes(clipId, [aNote(1)])]);
+    const gesture = session.beginGesture();
+
+    expect(() => session.undo()).toThrow();
+    expect(() => session.redo()).toThrow();
+
+    expect(preview.status).toBe("open");
+    gesture.cancel();
+  });
+
+  it("a disposed session opens no preview", () => {
+    const { session, clipId } = ctx;
+    session.dispose();
+
+    const result = session.beginPreview([addNotes(clipId, [aNote(1)])]);
+
+    expect(result.ok).toBe(false);
+    expect(session.activePreview).toBeNull();
+  });
+
+  it("a commit the history refuses ends the preview as commit_failed and changes nothing", () => {
+    const { session, project, snapshots, clipId } = ctx;
+    const preview = openPreview(session, [addNotes(clipId, [aNote(1)])]);
+    vi.spyOn(session.history, "execute").mockReturnValueOnce({
+      ok: false,
+      project,
+      issues: [
+        {
+          code: "revision_conflict",
+          commandType: "note.add",
+          commandIndex: 0,
+          message: "moved on",
+        },
+      ],
+    });
+
+    const result = preview.commit("assistant");
+
+    expect(result?.ok).toBe(false);
+    expect(preview.status).toBe("cancelled");
+    expect(preview.endReason).toBe("commit_failed");
+    expect(session.activePreview).toBeNull();
+    expect(session.project).toBe(project);
+    expect(snapshots.at(-1)?.previewing).toBe(false);
+    expect(session.history.entries).toHaveLength(0);
+    expect(session.autosave.status.pending).toBe(0);
+  });
 });

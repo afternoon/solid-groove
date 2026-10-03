@@ -9,6 +9,7 @@ import {
   type GestureOptions,
   type HistorySnapshot,
   type RawCommandInput,
+  type TransactionFailure,
   type TransactionOptions,
   type TransactionResult,
   type TransactionSuccess,
@@ -201,10 +202,21 @@ export class EditorSession {
    * transaction, one history entry, one revision), or by going stale when the
    * committed revision moves under it — a local edit, a remote change, an
    * undo or a redo.
+   *
+   * It is refused (a `rejected` failure, nothing changes) while a gesture is
+   * open, since the committed project is mid-drag, and once the session is
+   * disposed. A gesture opened *after* the preview does not end it, but
+   * `commit` refuses until that gesture finishes: see {@link commitPreview}.
    */
   beginPreview(commands: RawCommandInput | readonly RawCommandInput[]): PreviewResult {
     const list = toList(commands);
     const base = this.history.project;
+    if (this.disposed) {
+      return refuse(base, list, "The editor session is closed; nothing can be previewed");
+    }
+    if (this.history.gestureActive) {
+      return refuse(base, list, "Cannot preview while a gesture is in progress");
+    }
     const result = executeTransaction(base, list, {
       clock: this.clock,
       // The preview is not a revision; only its commit makes one.
@@ -277,10 +289,11 @@ export class EditorSession {
    * `assistant_proposal_undone`, a distinct catalog event, not this one.
    *
    * An open preview is cancelled first (it ends `stale`, reason `undo`), then
-   * the undo acts on the committed history.
+   * the undo acts on the committed history. While a gesture is open the
+   * history refuses the undo (it throws), so the preview is left alone.
    */
   undo(actor: "user" | "assistant" = "user"): TransactionResult | null {
-    this.endOpenPreview("stale", "undo");
+    if (!this.history.gestureActive) this.endOpenPreview("stale", "undo");
     const before = this.history.project;
     const result = this.history.undo();
     if (result?.ok) {
@@ -292,7 +305,7 @@ export class EditorSession {
 
   /** Like `undo`, an open preview is cancelled first (reason `redo`). */
   redo(actor: "user" | "assistant" = "user"): TransactionResult | null {
-    this.endOpenPreview("stale", "redo");
+    if (!this.history.gestureActive) this.endOpenPreview("stale", "redo");
     const before = this.history.project;
     const result = this.history.redo();
     if (result?.ok) {
@@ -341,10 +354,26 @@ export class EditorSession {
     this.notify();
   }
 
+  /**
+   * A commit is always its own history entry with the caller's actor, or it
+   * does not happen. `history.execute` folds anything dispatched during an
+   * open gesture into that gesture (under the gesture's actor), so a commit
+   * while a gesture is open is refused without applying anything, and the
+   * preview stays open: if the gesture is cancelled the preview is still
+   * valid and can be committed then; if it commits a change, the preview goes
+   * stale like under any other local edit.
+   */
   private commitPreview(
     preview: SessionPreview,
     actor: CommandActor,
   ): TransactionResult | null {
+    if (this.history.gestureActive) {
+      return refuse(
+        this.history.project,
+        preview.commands,
+        "Cannot commit a preview while a gesture is in progress",
+      );
+    }
     // Ended before dispatching, so the history change the commit causes is
     // not mistaken for a local edit under the preview.
     this.endPreview(preview, "committed", "committed", false);
@@ -484,6 +513,26 @@ function toList(
   return Array.isArray(commands)
     ? (commands as readonly RawCommandInput[])
     : [commands as RawCommandInput];
+}
+
+/** A preview refusal, shaped like the failure a dispatch returns. */
+function refuse(
+  project: Project,
+  commands: readonly RawCommandInput[],
+  message: string,
+): TransactionFailure {
+  return {
+    ok: false,
+    project,
+    issues: [
+      {
+        code: "rejected",
+        commandType: commands[0]?.type ?? "",
+        commandIndex: 0,
+        message,
+      },
+    ],
+  };
 }
 
 export function createEditorSession(options: EditorSessionOptions): EditorSession {
