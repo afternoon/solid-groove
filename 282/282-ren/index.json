@@ -1,0 +1,14 @@
+{
+  "id": "282-ren",
+  "title": "Renaming a sound in My packs",
+  "steps": [
+    {
+      "file": "01-rename-sound-puts-the-sound-s-name-in-an.png",
+      "caption": "Rename sound puts the sound's name in an input, as a pack's is"
+    },
+    {
+      "file": "02-return-keeps-the-new-name-the-pack-s-ver.png",
+      "caption": "Return keeps the new name; the pack's version stays the same"
+    }
+  ]
+}
