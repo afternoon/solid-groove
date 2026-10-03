@@ -36,6 +36,7 @@ import {
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import EditorHeader from "./EditorHeader";
 import EditorInstrument from "./EditorInstrument";
+import EmptyView from "./EmptyView";
 import * as model from "./editorViewModel";
 import {
   type EditorViewName,
@@ -82,7 +83,7 @@ import "./EditorView.css";
 export interface EditorViewProps {
   readonly projectId: string;
   /**
-   * Which of the three views is on screen (`UI-001`). It comes from the URL —
+   * Which view is on screen (`UI-001`, `UI-002`). It comes from the URL —
    * the route decides, this component only renders — so a deep link opens that
    * view, the back button moves between them, and a reload returns to it.
    */
@@ -325,17 +326,19 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   };
 
-  // Which placement's clip the sequence editor is open on (`UI-001`) — a
+  // Which placement's clip the sequence view edits (`UI-001`, `UI-002`) — a
   // placement id, not a clip id: opening is a gesture on the timeline.
   const [openPlacementId, setOpenPlacementId] = createSignal<PlacementId | null>(null);
   const opened = createMemo(() => model.openedClip(project(), openPlacementId()));
 
+  /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
   function openPlacement(placementId: PlacementId): void {
     setOpenPlacementId(placementId);
     const track = model.openedClip(project(), placementId)?.track;
     // Opening a clip is also saying "this track": the instrument view and the
     // mixer follow it, which is what keeps selection one piece of state.
     if (track) selectTrack(track.id);
+    selectView("sequence", "arrangement");
   }
 
   const track = createMemo(() => model.editedTrack(project(), selectedTrackId()));
@@ -411,11 +414,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
-    // `1`/`2`/`3` reach the same `selectView` the dock does, so the two
+    // `1`-`5` reach the same `selectView` the dock does, so the two
     // entrypoints cannot drift into different states (CF-008).
     selectView: (view) => selectView(view, "keyboard"),
-    sequenceEditorOpen: () => opened() !== null,
-    closeSequenceEditor: () => setOpenPlacementId(null),
+    sequenceEditorOpen: () => props.view === "sequence" && opened() !== null,
+    closeSequenceEditor: () => selectView("arrangement", "keyboard"),
     toggleLooping: () => toggleLooping(loopActions),
     loopBraceFocused,
     moveLoop: (bars) => moveLoopByBars(loopActions, bars),
@@ -427,16 +430,24 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       return id ? () => selectTrack(id) : undefined;
     },
     // Backspace on the selected track (#537), where its header's trash button
-    // is: not the mixer, and not under the open sequence editor. Only a track
+    // is: not the mixer, and not in the sequence view. Only a track
     // the user chose — not the first-track fallback — so a stray key on a
     // freshly opened project deletes nothing.
     deleteSelectedTrack: () => {
       const id = selectedTrackId();
-      if (props.view === "mixer" || opened() !== null || id === null) return undefined;
+      if (props.view === "mixer" || props.view === "sequence" || id === null)
+        return undefined;
       if (!project()?.song.tracks.some((candidate) => candidate.id === id))
         return undefined;
       return () => deleteTrack(trackDeletion, id);
     },
+  });
+
+  /** An empty screen's way out: a view, named and keyed as the dock names it. */
+  const viewFix = (view: EditorViewName) => ({
+    view,
+    label: editorViewSpec(view).label,
+    keyLabel: keyHint(editorViewSpec(view).actionId),
   });
 
   const instrumentPanelTrackId = createMemo(() => model.instrumentPanelTrackId(track()));
@@ -717,6 +728,53 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       </Show>
                     </div>
                   </Match>
+                  <Match when={props.view === "sequence"}>
+                    <Show
+                      when={opened()}
+                      fallback={
+                        <EmptyView
+                          view="sequence"
+                          title="No clip selected"
+                          body="Select a clip in the arrangement, then press 2 to edit its steps or notes."
+                          fixes={[viewFix("arrangement")]}
+                          onFix={(view) => selectView(view, "empty_screen")}
+                        />
+                      }
+                    >
+                      {(open) => (
+                        <SequenceEditor
+                          clip={open().clip}
+                          track={open().track}
+                          project={currentProject()}
+                          showPianoRoll={showPianoRoll}
+                          loop={model.loopEntryFor(currentProject(), open().clip)}
+                          songTempo={tempo()}
+                          editorPlaybackStep={editorPlaybackStep}
+                          selectedNoteIds={selectedNoteIds}
+                          setSelectedNoteIds={setSelectedNoteIds}
+                          playheadTicks={audio.positionTicks()}
+                          registerPianoRollActions={setPianoRollActions}
+                          playing={audio.isPlaying()}
+                          onTogglePlay={() => void audio.toggle()}
+                          audition={(pitch, velocity) =>
+                            void audio.auditionTrack(
+                              open().track.id,
+                              { kind: "pitch", pitch },
+                              AUDITION_DURATION_TICKS,
+                              velocity,
+                            )
+                          }
+                          selectedPadId={selectedPadOf(padSelection(), open().track)}
+                          onSelectPad={(padId) => selectPad(open().track.id, padId)}
+                          auditionPad={(padId) =>
+                            void audio.auditionPad(open().track.id, padId)
+                          }
+                          dispatch={session.dispatch}
+                          beginGesture={session.beginGesture}
+                        />
+                      )}
+                    </Show>
+                  </Match>
                   <Match when={props.view === "instrument"}>
                     <EditorInstrument
                       project={currentProject()}
@@ -803,45 +861,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   onActions={(actions) => setLibraryActions(() => actions)}
                   onClose={() => setLibraryOpen(false)}
                 />
-              </Show>
-              {/* The sequence editor, over whichever view opened it
-                  (`UI-001`). Keyed on the placement, so deleting or undoing
-                  one closes the editor rather than leaving it on a clip the
-                  project no longer places. */}
-              <Show when={opened()}>
-                {(open) => (
-                  <SequenceEditor
-                    clip={open().clip}
-                    track={open().track}
-                    project={currentProject()}
-                    showPianoRoll={showPianoRoll}
-                    loop={model.loopEntryFor(currentProject(), open().clip)}
-                    songTempo={tempo()}
-                    editorPlaybackStep={editorPlaybackStep}
-                    selectedNoteIds={selectedNoteIds}
-                    setSelectedNoteIds={setSelectedNoteIds}
-                    playheadTicks={audio.positionTicks()}
-                    registerPianoRollActions={setPianoRollActions}
-                    playing={audio.isPlaying()}
-                    onTogglePlay={() => void audio.toggle()}
-                    audition={(pitch, velocity) =>
-                      void audio.auditionTrack(
-                        open().track.id,
-                        { kind: "pitch", pitch },
-                        AUDITION_DURATION_TICKS,
-                        velocity,
-                      )
-                    }
-                    selectedPadId={selectedPadOf(padSelection(), open().track)}
-                    onSelectPad={(padId) => selectPad(open().track.id, padId)}
-                    auditionPad={(padId) =>
-                      void audio.auditionPad(open().track.id, padId)
-                    }
-                    dispatch={session.dispatch}
-                    beginGesture={session.beginGesture}
-                    onClose={() => setOpenPlacementId(null)}
-                  />
-                )}
               </Show>
               <ViewDock
                 view={props.view}

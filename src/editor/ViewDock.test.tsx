@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { EditorViewName } from "./editorViews";
+import { EDITOR_VIEWS, type EditorViewName } from "./editorViews";
 import ViewDock from "./ViewDock";
 
 afterEach(cleanup);
@@ -17,7 +17,7 @@ function renderDock(
         `/projects/prj_abc${target === "arrangement" ? "" : `/${target}`}`
       }
       onSelect={onSelect}
-      keyHint={(target) => ({ arrangement: "1", instrument: "2", mixer: "3" })[target]}
+      keyHint={(target) => String(EDITOR_VIEWS.indexOf(target) + 1)}
     />
   ));
 }
@@ -95,7 +95,7 @@ describe("ViewDock", () => {
     renderDock("arrangement");
     expect(screen.getByRole("link", { name: "Instrument" })).toHaveAttribute(
       "title",
-      "Instrument (2)",
+      "Instrument (3)",
     );
     for (const icon of dock().querySelectorAll(".view-dock-icon")) {
       expect(icon).toHaveAttribute("aria-hidden", "true");
@@ -105,10 +105,10 @@ describe("ViewDock", () => {
   it("is keyboard operable, because every entry is a real link", () => {
     const onSelect = vi.fn();
     renderDock("arrangement", onSelect);
-    // Three focusable links, and Enter on one dispatches a click — which the
+    // One focusable link per view, and Enter on one dispatches a click — which the
     // dock treats as a pointer activation rather than handling keys itself.
     const links = dock().querySelectorAll("a[href]:not([tabindex='-1'])");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(EDITOR_VIEWS.length);
     fireEvent.click(screen.getByRole("link", { name: "Instrument" }));
     expect(onSelect).toHaveBeenCalledWith("instrument");
   });

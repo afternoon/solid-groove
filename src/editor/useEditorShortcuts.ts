@@ -48,7 +48,8 @@ export interface UseEditorShortcutsOptions {
   /** Switches the editor to a view (`UI-001`), through the same path the dock
    * takes — so `1`/`2`/`3` and the dock cannot reach different states. */
   readonly selectView: (view: EditorViewName) => void;
-  /** Whether the `UI-001` sequence editor is open over the current view. */
+  /** Whether the sequence view (`UI-002`) is on screen with a clip in it,
+   * and how Escape leaves it for the arrangement. */
   readonly sequenceEditorOpen: () => boolean;
   readonly closeSequenceEditor: () => void;
   /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
@@ -258,6 +259,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // The three views (UI-001). No `isEnabled`: a view is always reachable,
     // and asking for the one you are on is a no-op inside `selectView`.
     "view.show_arrangement": { run: () => selectView("arrangement") },
+    "view.show_sequence": { run: () => selectView("sequence") },
     "view.show_instrument": { run: () => selectView("instrument") },
     "view.show_mixer": { run: () => selectView("mixer") },
     // In the library, `?` lists the library's own keys rather than the guide (#813).
