@@ -1,0 +1,14 @@
+{
+  "id": "841-before",
+  "title": "Export dialog footer",
+  "steps": [
+    {
+      "file": "01-a-short-song-the-footer-ends-under-the-buttons-no-blank-stri.png",
+      "caption": "A short song: the footer ends under the buttons, no blank strip"
+    },
+    {
+      "file": "02-a-note-sits-in-the-footer-row-between-the-readouts-and-the-b.png",
+      "caption": "A note sits in the footer row, between the readouts and the buttons"
+    }
+  ]
+}
