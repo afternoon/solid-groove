@@ -18,9 +18,20 @@ describe("device drawings (#447)", () => {
     expect(Math.abs(overdriveTransfer(1, 0.05))).toBeGreaterThan(
       Math.abs(overdriveTransfer(0, 0.05)),
     );
-    expect(Math.abs(overdriveTransfer(0.5, -0.3))).toBeGreaterThan(
+    // Both halves start at unity (#925); the negative one bends away sooner
+    // and tops out lower, which is the asymmetry that gives it even harmonics.
+    expect(Math.abs(overdriveTransfer(0, -0.5))).toBeLessThan(overdriveTransfer(0, 0.5));
+    expect(Math.abs(overdriveTransfer(0.5, -0.3))).toBeLessThan(
       overdriveTransfer(0.5, 0.3),
     );
+  });
+
+  it("draws an overdrive at drive 0 as unity near zero, rounded past full scale (#925)", () => {
+    expect(overdriveTransfer(0, 0.01)).toBeCloseTo(0.01, 4);
+    expect(overdriveTransfer(0, -0.01)).toBeCloseTo(-0.01, 4);
+    const hot = overdriveTransfer(0, 1.4);
+    expect(hot).toBeGreaterThan(overdriveTransfer(0, 1));
+    expect(hot).toBeLessThan(1);
   });
 
   it("morphs a saturator from a soft knee to a fold with its character", () => {
