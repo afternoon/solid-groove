@@ -80,7 +80,9 @@ service cloud.firestore {
     // One personal pack (#282, LIB-05 `kind: "user"`): its name, its version,
     // and its sounds, whose audio lives in Cloud Storage under the same user.
     // `src/userLibrary/userPacks.ts` owns the full shape; the rules check what
-    // keeps one user's library well-formed and theirs.
+    // keeps one user's library well-formed and theirs. A pack's sounds are
+    // inline in this one document, which Firestore caps at 1 MiB, so it holds
+    // at most 500 (`MAX_PACK_SOUNDS` in `src/userData/userData.ts`).
     function userPackFields() {
       return ['schemaVersion', 'id', 'kind', 'name', 'version', 'assets',
               'createdAt', 'modifiedAt'];
@@ -94,7 +96,7 @@ service cloud.firestore {
         && data.kind == 'user'
         && data.name is string && data.name.size() > 0 && data.name.size() <= 80
         && data.version is string && data.version.matches('[0-9]+[.][0-9]+[.][0-9]+')
-        && data.assets is list && data.assets.size() <= 2000
+        && data.assets is list && data.assets.size() <= 500
         && data.createdAt is int && data.modifiedAt is int
         && data.modifiedAt >= data.createdAt;
     }

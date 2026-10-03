@@ -6,6 +6,7 @@ import {
   IMPORT_CONTENT_TYPES,
   importContentType,
   MAX_IMPORT_FILE_BYTES,
+  MAX_PACK_SOUNDS,
   packAudioPath,
   parseUserDataPath,
   USER_DATA_CAP_BYTES,
@@ -90,5 +91,13 @@ describe("storage.rules", () => {
     const listed = /contentType in \[([^\]]+)\]/.exec(rules)?.[1] ?? "";
     const types = [...listed.matchAll(/'([^']+)'/g)].map((match) => match[1]);
     expect(types.sort()).toEqual([...IMPORT_CONTENT_TYPES].sort());
+  });
+});
+
+describe("firestore.rules", () => {
+  const rules = readFileSync(resolve(process.cwd(), "firestore.rules"), "utf8");
+
+  it("caps a pack's sounds where the client does", () => {
+    expect(rules).toContain(`data.assets.size() <= ${MAX_PACK_SOUNDS}`);
   });
 });

@@ -13,6 +13,7 @@ import { deleteObject, getBytes, ref, uploadBytes } from "firebase/storage";
 import { afterAll, afterEach, beforeAll, describe, it } from "vitest";
 import {
   MAX_IMPORT_FILE_BYTES,
+  MAX_PACK_SOUNDS,
   USER_DATA_CAP_BYTES,
   usageDocPath,
 } from "../../src/userData/userData";
@@ -115,6 +116,15 @@ describe("firestore.rules: users/{uid}/packs", () => {
     await assertFails(setDoc(ref, pack({ version: "one" })));
     await assertFails(setDoc(ref, pack({ id: "pak_bbbbbbbbbbbbbbbbbbbbb" })));
     await assertFails(setDoc(ref, pack({ extra: true })));
+  });
+
+  it("holds a pack to as many sounds as one document safely fits", async () => {
+    const db = registeredContext(testEnv, "u1").firestore();
+    const ref = doc(db, "users", "u1", "packs", PACK);
+    const sounds = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({ id: `ast_${index}` }));
+    await assertSucceeds(setDoc(ref, pack({ assets: sounds(MAX_PACK_SOUNDS) })));
+    await assertFails(setDoc(ref, pack({ assets: sounds(MAX_PACK_SOUNDS + 1) })));
   });
 
   it("lets the owner read their usage and nobody write it", async () => {

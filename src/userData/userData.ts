@@ -21,6 +21,14 @@ export const USER_DATA_CAP_BYTES = 1024 ** 3;
 export const MAX_IMPORT_FILE_BYTES = 100 * 1024 ** 2;
 
 /**
+ * The most sounds one personal pack holds. A pack is one Firestore document
+ * with its sounds inline (about 1 KB each, waveform peaks included), and a
+ * document cannot exceed 1 MiB, so this keeps the fullest pack at half that.
+ * `firestore.rules` repeats it.
+ */
+export const MAX_PACK_SOUNDS = 500;
+
+/**
  * The kinds of user data that count against {@link USER_DATA_CAP_BYTES}, one
  * per top-level folder under `users/{uid}/`. Adding recordings or presets is a
  * new entry here plus its own `storage.rules` match; the usage counter already
@@ -93,6 +101,26 @@ export const IMPORT_EXTENSIONS = Object.keys(EXTENSION_TYPES).map((ext) => `.${e
 /** Where one personal pack's audio lives: `users/{uid}/packs/{packId}/{assetId}`. */
 export function packAudioPath(uid: string, packId: string, assetId: string): string {
   return `users/${uid}/packs/${packId}/${assetId}`;
+}
+
+/** Where one personal pack's document lives: `users/{uid}/packs/{packId}`. */
+export function userPackDocPath(uid: string, packId: string): string {
+  return `users/${uid}/packs/${packId}`;
+}
+
+/** The owner, pack and sound one stored sound's path names. */
+export interface PackAudioObject {
+  readonly uid: string;
+  readonly packId: string;
+  readonly assetId: string;
+}
+
+/** Reads {@link packAudioPath} back, or `null` for any other path. */
+export function parsePackAudioPath(path: string): PackAudioObject | null {
+  const match = /^users\/([^/]+)\/packs\/([^/]+)\/([^/]+)$/.exec(path);
+  if (!match) return null;
+  const [, uid, packId, assetId] = match;
+  return { uid, packId, assetId };
 }
 
 /** The owner and kind a storage object belongs to, or `null` if it is not user data. */

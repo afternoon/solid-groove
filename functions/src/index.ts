@@ -27,6 +27,8 @@ import {
   onObjectFinalized,
   type StorageEvent,
 } from "firebase-functions/v2/storage";
+import type { VersionedPack } from "../../src/userData/packVersions";
+import { withdrawRefusedSound } from "../../src/userData/refusedSound";
 import {
   type LedgerOutcome,
   recordObjectDeleted,
@@ -38,6 +40,7 @@ import {
   type UsageLedgerEntry,
   usageDocPath,
   usageObjectDocPath,
+  userPackDocPath,
 } from "../../src/userData/userData";
 
 /**
@@ -86,7 +89,34 @@ async function record(event: StorageEvent, recorder: Recorder): Promise<void> {
     logger.info("user data usage changed", { delta: outcome.deltaBytes });
   } else if (outcome.reason === "over_allowance") {
     await reclaim(event.data.bucket, event.data.name, generation);
+    await withdrawFromPack(db, event.data.name);
   }
+}
+
+/**
+ * Take a refused sound out of the pack that lists it, so the owner is never
+ * shown a sound with no audio behind it. A pack that does not list it yet
+ * (the browser writes the pack after the upload) is left alone; the browser
+ * holds the allowance for its own imports, so that only happens when two
+ * sessions race (`src/userData/refusedSound.ts`).
+ */
+async function withdrawFromPack(db: Firestore, objectPath: string): Promise<void> {
+  const withdrawn = await db.runTransaction((tx) =>
+    withdrawRefusedSound(
+      {
+        async getPack(uid, packId) {
+          const snapshot = await tx.get(db.doc(userPackDocPath(uid, packId)));
+          return snapshot.exists ? (snapshot.data() as VersionedPack) : null;
+        },
+        setPack(uid, packId, pack) {
+          tx.set(db.doc(userPackDocPath(uid, packId)), pack);
+        },
+      },
+      objectPath,
+      Date.now(),
+    ),
+  );
+  if (withdrawn) logger.warn("a refused sound was taken out of its pack");
 }
 
 /**
