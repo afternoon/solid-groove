@@ -40,6 +40,11 @@ export interface DeviceControlsProps {
   beginGesture(options?: GestureOptions): Gesture | undefined;
   /** The song's tempo, so a synced delay's Time shows its real time. Defaults to 120. */
   readonly tempo?: number;
+  /**
+   * Only these parameters, by bare id, when the device shows a part of its
+   * controls at a time — the EQ shows the band it is editing (LOOP-022).
+   */
+  readonly only?: readonly string[];
 }
 
 /**
@@ -74,9 +79,16 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
   // Grouped once per device type, not per edit: a new list on every value
   // change would remount the banks — and the slider being dragged with them.
   const type = createMemo(() => props.device.type);
-  const groups = createMemo(() => deviceGroups(type(), deviceParameters(type())));
+  const only = createMemo(() => props.only?.join(" "));
+  const groups = createMemo(() => {
+    const shown = only()?.split(" ");
+    const definitions = deviceParameters(type()).filter(
+      (definition) => !shown || shown.includes(bareParameterId(definition.id)),
+    );
+    return deviceGroups(type(), definitions);
+  });
 
-  const control = (definition: ParameterDefinition): JSX.Element => {
+  const control = (definition: ParameterDefinition, group: string): JSX.Element => {
     const value = () => readDeviceParameter(props.device, definition);
     const reading = () => readDeviceControl(props.device, definition, props.tempo ?? 120);
     const choices = deviceChoices(definition);
@@ -87,6 +99,7 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
           <DeviceSlider
             definition={definition}
             control={parameterControl(props.device.id, definition.id)}
+            label={controlLabel(group, definition.label)}
             value={reading().value}
             derived={reading().derived}
             inputId={key(definition)}
@@ -123,7 +136,9 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
             }
             style={{ "--controls": String(group.parameters.length) }}
           >
-            <For each={group.parameters}>{(definition) => control(definition)}</For>
+            <For each={group.parameters}>
+              {(definition) => control(definition, group.title)}
+            </For>
           </ControlGroup>
         )}
       </For>
@@ -131,8 +146,22 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
   );
 }
 
+/**
+ * A control's name inside its bank, where the bank already says whose it is:
+ * the EQ's "Low shelf gain" reads "Gain" under "Low shelf". The full name stays
+ * the control's accessible name, so it is still unambiguous to a screen reader.
+ */
+export function controlLabel(group: string, label: string): string {
+  const prefix = `${group} `;
+  if (!label.startsWith(prefix)) return label;
+  const rest = label.slice(prefix.length);
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
 function DeviceSlider(props: {
   readonly definition: ParameterDefinition;
+  /** The name shown, when shorter than the parameter's own. */
+  readonly label: string;
   readonly value: number;
   /** Shown but set elsewhere (a synced delay's Time), so not adjustable. */
   readonly derived: boolean;
@@ -159,6 +188,10 @@ function DeviceSlider(props: {
         value={clampParameterValue(props.definition, props.value)}
         inputId={props.inputId}
         control={props.control}
+        label={props.label}
+        ariaLabel={
+          props.label === props.definition.label ? undefined : props.definition.label
+        }
         displayValue={formatDeviceValue(props.definition, props.value)}
         disabled={props.derived}
         onInput={(next) => control.input(next)}

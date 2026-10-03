@@ -24,6 +24,7 @@ import type { DeviceId } from "../domain/ids";
 import { ariaBool } from "../shared/aria";
 import DeviceControls from "./DeviceControls";
 import DeviceWell, { hasDeviceWell } from "./DeviceWell";
+import EqFaceplate from "./EqFaceplate";
 import "./DeviceCard.css";
 
 export interface DeviceCardProps {
@@ -128,24 +129,37 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
           </button>
         </div>
       </header>
-      <div class={["device-card-body", { "with-well": hasDeviceWell(props.device) }]}>
-        <Show when={hasDeviceWell(props.device)}>
-          <DeviceWell
+      {/* The EQ is played on its curve, so its faceplate is its own (LOOP-022). */}
+      <Show
+        when={props.device.type !== "eq"}
+        fallback={
+          <EqFaceplate
+            chain={props.chain}
+            device={props.device}
+            dispatch={props.dispatch}
+            beginGesture={props.beginGesture}
+          />
+        }
+      >
+        <div class={["device-card-body", { "with-well": hasDeviceWell(props.device) }]}>
+          <Show when={hasDeviceWell(props.device)}>
+            <DeviceWell
+              chain={props.chain}
+              tempo={props.tempo}
+              device={props.device}
+              dispatch={props.dispatch}
+              beginGesture={props.beginGesture}
+            />
+          </Show>
+          <DeviceControls
             chain={props.chain}
             tempo={props.tempo}
             device={props.device}
             dispatch={props.dispatch}
             beginGesture={props.beginGesture}
           />
-        </Show>
-        <DeviceControls
-          chain={props.chain}
-          tempo={props.tempo}
-          device={props.device}
-          dispatch={props.dispatch}
-          beginGesture={props.beginGesture}
-        />
-      </div>
+        </div>
+      </Show>
     </article>
   );
 }

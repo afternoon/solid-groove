@@ -73,6 +73,16 @@ describe("DeviceCard", () => {
     expect(card(0).getByRole("slider", { name: "Size" })).toBeInTheDocument();
   });
 
+  it("gives the EQ its own faceplate: the curve, and the band being edited (LOOP-022)", () => {
+    const { card } = renderChain(["eq"]);
+    expect(card(0).getByRole("heading", { name: "EQ" })).toBeInTheDocument();
+    expect(card(0).getByRole("group", { name: "Band" })).toBeInTheDocument();
+    // Named in full for assistive tech, and by its bank's own word on screen.
+    const gain = card(0).getByRole("slider", { name: "Peak 1 gain" });
+    expect(gain.closest(".fill-slider")?.textContent).toContain("Gain");
+    expect(gain.closest(".fill-slider")?.textContent).not.toContain("Peak 1 gain");
+  });
+
   it("bypasses in place, keeping its settings, as one undoable entry", () => {
     const { history, devices, card } = renderChain(["overdrive", "reverb"]);
     const entries = history.entries.length;
