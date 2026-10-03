@@ -1,0 +1,22 @@
+{
+  "id": "eq",
+  "title": "EQ device",
+  "steps": [
+    {
+      "file": "01-a-fresh-eq-flat-both-cuts-switched-out-p.png",
+      "caption": "A fresh EQ: flat, both cuts switched out, Peak 1 being edited"
+    },
+    {
+      "file": "02-dragging-bands-on-the-curve-low-cut-a-cu.png",
+      "caption": "Dragging bands on the curve: low cut, a cut at 300 Hz, presence and air"
+    },
+    {
+      "file": "03-playing-the-live-spectrum-of-what-leaves.png",
+      "caption": "Playing: the live spectrum of what leaves the EQ, behind its curve"
+    },
+    {
+      "file": "04-the-low-cut-s-own-controls-its-switch-fr.png",
+      "caption": "The low cut's own controls: its switch, frequency and Q"
+    }
+  ]
+}
