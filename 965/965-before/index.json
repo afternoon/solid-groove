@@ -1,0 +1,10 @@
+{
+  "id": "965-before",
+  "title": "Before: the same project on main",
+  "steps": [
+    {
+      "file": "01-before-the-project-will-not-open.png",
+      "caption": "Before: the project will not open"
+    }
+  ]
+}
