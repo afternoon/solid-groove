@@ -73,6 +73,36 @@ function mergeLanes(lanes: readonly LaneSpan[]): LaneSpan[] {
   }));
 }
 
+/**
+ * Runs as `[left, right]` in canvas units, each edge on a whole device pixel,
+ * at least one device pixel wide, and joined where the gap between two is
+ * under a device pixel. An edge on a fractional pixel antialiases, and so does
+ * a sub-pixel gap, so two clips that nearly touch (a tick apart) would still
+ * leave a faint seam of the ground between them (#839).
+ */
+export function pixelRuns(
+  runs: readonly LaneSpan[],
+  x: number,
+  barWidth: number,
+  scale: number,
+): [number, number][] {
+  // Join on the true gap, in device pixels, then round: rounding first can
+  // turn a gap of a tenth of a pixel into a whole one.
+  const joined: [number, number][] = [];
+  for (const { startBar, lengthBars } of runs) {
+    const left = (x + startBar * barWidth) * scale;
+    const right = (x + (startBar + lengthBars) * barWidth) * scale;
+    const last = joined.at(-1);
+    if (last && left - last[1] < 1) last[1] = Math.max(last[1], right);
+    else joined.push([left, right]);
+  }
+  const out = joined.map(([left, right]): [number, number] => {
+    const l = Math.round(left);
+    return [l, Math.max(l + 1, Math.round(right))];
+  });
+  return out.map(([left, right]) => [left / scale, right / scale]);
+}
+
 /** The sleeve at `progress`, 0 (lanes where the arrangement has them) to 1 (landed). */
 export function drawSleeve(
   ctx: CanvasRenderingContext2D,
@@ -90,6 +120,7 @@ export function drawSleeve(
   const ox = (W - side) / 2;
   const oy = (H - side) / 2 - 12;
   const band = side / n;
+  const scale = ctx.getTransform?.().a || 1;
   stripes.forEach((stripe, i) => {
     // Each lane flies from its arrangement row into its stripe of the sleeve.
     const fromY = (i / n) * H;
@@ -98,13 +129,8 @@ export function drawSleeve(
     const w = W + (side - W) * ease;
     ctx.fillStyle = stripe.color;
     ctx.globalAlpha = 0.25 + 0.75 * ease;
-    for (const { startBar, lengthBars } of mergeLanes(stripe.lanes)) {
-      ctx.fillRect(
-        x + (startBar / bars) * w,
-        y,
-        Math.max(1, (lengthBars / bars) * w),
-        Math.max(1, band - (n > 30 ? 0 : 1)),
-      );
+    for (const [left, right] of pixelRuns(mergeLanes(stripe.lanes), x, w / bars, scale)) {
+      ctx.fillRect(left, y, right - left, Math.max(1, band - (n > 30 ? 0 : 1)));
     }
   });
   ctx.globalAlpha = 1;
