@@ -19,6 +19,7 @@
  */
 import { initializeApp } from "firebase-admin/app";
 import { type Firestore, getFirestore, type Transaction } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { setGlobalOptions } from "firebase-functions/v2";
 import {
@@ -62,9 +63,6 @@ function firestoreUsage(db: Firestore, tx: Transaction): UsageTransaction {
     setEntry(uid, objectPath, entry) {
       tx.set(db.doc(usageObjectDocPath(uid, objectPath)), entry);
     },
-    deleteEntry(uid, objectPath) {
-      tx.delete(db.doc(usageObjectDocPath(uid, objectPath)));
-    },
     setUsage(uid, usage) {
       tx.set(db.doc(usageDocPath(uid)), usage);
     },
@@ -75,20 +73,40 @@ type Recorder = typeof recordObjectWritten;
 
 async function record(event: StorageEvent, recorder: Recorder): Promise<void> {
   const db = getFirestore();
+  const generation = String(event.data.generation);
   const outcome: LedgerOutcome = await db.runTransaction((tx) =>
     recorder(
       firestoreUsage(db, tx),
-      {
-        path: event.data.name,
-        generation: String(event.data.generation),
-        size: Number(event.data.size),
-      },
+      { path: event.data.name, generation, size: Number(event.data.size) },
       Date.now(),
     ),
   );
   // The object path names the user and the pack, so it is not logged.
-  if (outcome.applied)
+  if (outcome.applied) {
     logger.info("user data usage changed", { delta: outcome.deltaBytes });
+  } else if (outcome.reason === "over_allowance") {
+    await reclaim(event.data.bucket, event.data.name, generation);
+  }
+}
+
+/**
+ * Delete an object the ledger refused because the account was already full:
+ * uploads that raced past `storage.rules` together. Only the generation that
+ * was refused, so a newer object at the same path is never touched; one that
+ * is already gone is fine.
+ */
+async function reclaim(bucket: string, name: string, generation: string): Promise<void> {
+  try {
+    await getStorage()
+      .bucket(bucket)
+      .file(name, { generation })
+      .delete({ ifGenerationMatch: generation });
+    logger.warn("user data over the allowance was deleted");
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    if (code === 404 || code === 412) return;
+    throw error;
+  }
 }
 
 /** A user stored something: count it. */

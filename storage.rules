@@ -50,8 +50,9 @@ service firebase.storage {
 
     // 1 GB per account across every kind of user data. The total lags a write
     // by the time the function takes to run, so two uploads started together
-    // can each pass this check; the client checks first, and the next write
-    // after the total catches up is refused.
+    // can each pass this check. The function holds the line there: a write
+    // that arrives with the account already full is not counted and is
+    // deleted again (`src/userData/usageLedger.ts`).
     function withinAllowance(uid) {
       return usedBytes(uid) + request.resource.size <= 1073741824;
     }

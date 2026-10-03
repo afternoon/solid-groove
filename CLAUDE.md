@@ -139,6 +139,9 @@ src/
 │   └── schema.ts             # Shared Zod parse helper
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
+├── userData/           # What a user stores outside projects, under users/{uid}/ (#282)
+│   ├── userData.ts          # The layout, the kinds, the 1 GB per-account cap, the per-file limit, accepted audio types
+│   └── usageLedger.ts       # How the usage total moves on Storage events: idempotent, order-tolerant, refuses over-cap writes
 ├── theme.css           # The palette: every colour named once, shared with the static pages
 ├── app.css             # The base layer over the theme: typography, document shell, element defaults
 ├── app.tsx             # Root application component; the plugin generates the entries from it
@@ -160,6 +163,7 @@ tests/                  # Every suite that is not a src/ unit or component test
 │       └── playwright.config.ts
 └── emulator/           # Firebase Emulator suite (Firestore rules, etc.)
     └── vitest.config.ts
+functions/              # Cloud Functions (#282): Storage triggers that keep users/{uid}/usage/current through src/userData/usageLedger.ts
 public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
 public/robots.txt       # Allows `/`, disallows the app's own routes (ADR 0008)
 site.config.mjs         # The public origin, titles, and description. One place to change the domain

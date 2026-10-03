@@ -140,12 +140,25 @@ export interface UsageDocument {
   readonly updatedAt: number;
 }
 
+/**
+ * What the ledger did with one generation of an object:
+ *
+ *  - `counted`: its bytes are in the total;
+ *  - `refused`: it arrived with the account already full, so the function
+ *    deleted it again and never counted it (two uploads raced past the rules);
+ *  - `deleted`: it is gone. The entry stays as a tombstone, so a write event
+ *    for that generation delivered late is recognised and not counted.
+ */
+export type UsageLedgerState = "counted" | "refused" | "deleted";
+
 /** One ledger entry: what an object was counted as. */
 export interface UsageLedgerEntry {
   readonly kind: UserDataKind;
+  /** Bytes in the total for this object: zero unless `state` is `counted`. */
   readonly bytes: number;
-  /** The object generation counted, so a delete of an older one is ignored. */
+  /** The object generation this entry is about; older events are ignored. */
   readonly generation: string;
+  readonly state: UsageLedgerState;
 }
 
 /** How full an account is, as the client shows it. */
