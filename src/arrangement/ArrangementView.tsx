@@ -149,14 +149,14 @@ const VERTICAL_SCALE = {
 export const HEADER_WIDTH_PX = 200;
 
 /**
- * Scrollable space kept below the last track (`UI-001`).
+ * Scrollable space kept below the last track and its add-track unit (`UI-001`).
  *
  * The arrangement runs to the bottom of the window so its grid does not stop
  * at a panel edge, which means the floating dock hovers over its lowest
  * strip. This is what stops that strip ever being a track: there is always
- * this much empty timeline underneath the song, so the last track can be
- * scrolled clear of the dock. It also gives the add-track unit somewhere to
- * sit. Matches `--view-dock-clearance` in `EditorView.css`.
+ * this much empty timeline underneath the song and the add-track unit, so
+ * both can be scrolled clear of the dock (#959). Matches
+ * `--view-dock-clearance` in `EditorView.css`.
  */
 const BELOW_TRACKS_CLEARANCE_PX = 120;
 /**
@@ -290,6 +290,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   let scrollEl!: HTMLDivElement;
   let spacerEl: HTMLDivElement | undefined;
+  let belowTracksEl: HTMLDivElement | undefined;
   let headerListEl!: HTMLUListElement;
   let headerColumnEl: HTMLDivElement | undefined;
   let backgroundCanvas!: HTMLCanvasElement;
@@ -461,7 +462,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
   onSettled(() => {
     shell = createArrangementShell(() => projection(), {
       initialViewport: initialViewport(),
-      config: { maxDevicePixelRatio: 2 },
+      config: { maxDevicePixelRatio: 2, extraHeightPx: extraHeightPx() },
       onDirty: () => canvas.scheduleDraw(),
     });
 
@@ -533,6 +534,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     // a viewport that is not laid out yet at this instant still reaches the
     // shell on that first delivery rather than waiting for a user resize.
     canvas.observeViewport(scrollEl, bumpState);
+    const belowTracksObserver = observeBelowTracks();
 
     // Prime the initial size and paint every layer once.
     const size = visibleViewportSize(scrollEl);
@@ -555,8 +557,32 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return () => {
       props.onEditingActionsReady?.(null);
       releaseCopyModifier?.();
+      belowTracksObserver?.disconnect();
     };
   });
+
+  /**
+   * The scrollable height past the rows: the ruler above them, the add-track
+   * unit under them, and the dock's clearance under that. The unit is
+   * measured, not assumed, because a narrow window wraps it onto more lines.
+   */
+  function extraHeightPx(): number {
+    return (
+      RULER_HEIGHT_PX + (belowTracksEl?.offsetHeight ?? 0) + BELOW_TRACKS_CLEARANCE_PX
+    );
+  }
+
+  /** Keeps the scroll range in step with the add-track unit's height. */
+  function observeBelowTracks(): ResizeObserver | undefined {
+    if (!belowTracksEl || typeof ResizeObserver !== "function") return undefined;
+    const observer = new ResizeObserver(() => {
+      shell?.setExtraHeight(extraHeightPx());
+      syncSpacer();
+      bumpState();
+    });
+    observer.observe(belowTracksEl);
+    return observer;
+  }
 
   // Project identity / structure changed: everything is dirty, scroll bounds
   // re-clamp. The projection memo makes this reactive to any project change,
@@ -624,12 +650,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
   function syncSpacer(): void {
     if (!shell) return;
     const port = shell.getViewport();
-    const proj = projection();
     const logicalWidth = shell.contentLengthTicks() * port.pixelsPerTick;
-    const logicalHeight =
-      (proj.rowOffsets[proj.rowOffsets.length - 1] ?? 0) +
-      RULER_HEIGHT_PX +
-      BELOW_TRACKS_CLEARANCE_PX;
+    // The shell's own height, so the native scroller and the shell's scroll
+    // clamp agree on where the bottom is (#959).
+    const logicalHeight = shell.contentHeight();
     // Written straight onto the element rather than through a signal: a zoom
     // sets the native `scrollLeft` right after this, and the browser clamps it
     // to the spacer's size at that instant. A reactive write would land after
@@ -1160,6 +1184,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
         <Show when={props.belowTracks}>
           <div
             class="arrangement-below-tracks"
+            ref={belowTracksEl}
             style={{
               left: `${HEADER_WIDTH_PX}px`,
               transform: `translateY(${-scrollTopMemo()}px)`,
