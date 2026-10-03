@@ -21,10 +21,15 @@ function renderRuler(props: Partial<TrackListRulerProps> = {}) {
 }
 
 describe("TrackListRuler", () => {
-  it("says how many stems are on, with the range and pick hint, when nothing is picked", () => {
+  it("says how many stems are on, with the click, range and pick hint, when nothing is picked", () => {
     renderRuler();
     expect(screen.getByText("4 of 6 stems")).toBeInTheDocument();
-    expect(screen.getByText("range", { exact: false })).toHaveTextContent("⇧ range");
+    const hint = screen.getByText("click flips", { exact: false });
+    expect(hint.textContent).toMatch(/^click flips ⇧ range (⌘|Ctrl) pick$/);
+    expect(hint).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Click flips a track\./),
+    );
     expect(screen.queryByRole("button", { name: "On" })).not.toBeInTheDocument();
   });
 
