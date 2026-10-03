@@ -6,7 +6,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 // want to see, so the new loop track is selected, and the view stays put.
 
 const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 const rail = (page: Page): Locator =>
   page.getByRole("main").getByRole("list", { name: "Tracks", exact: true });
 
