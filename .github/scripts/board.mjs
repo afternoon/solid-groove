@@ -59,6 +59,11 @@ const COLUMNS = [
 ];
 const STATUS = new Set(COLUMNS.map((c) => c.label));
 const BOARD_LABEL = "board";
+/**
+ * Pinned record issues that are not cards: the Board itself, and the QA
+ * sweep's run log (`.github/workflows/qa-sweep.yml`).
+ */
+const OFF_BOARD = new Set([BOARD_LABEL, "qa-sweep"]);
 
 const gh = (args, input) =>
   execFileSync("gh", args, {
@@ -231,7 +236,7 @@ function status() {
 
   if (name === "issues") {
     const issue = event.issue;
-    if (issue.pull_request || issue.labels.some((l) => l.name === BOARD_LABEL)) return;
+    if (issue.pull_request || issue.labels.some((l) => OFF_BOARD.has(l.name))) return;
     const labels = issue.labels.map((l) => l.name);
     const action = event.action;
 
@@ -440,8 +445,8 @@ function render() {
       "--json",
       "number,title,labels",
     ]),
-  ).filter((i) => !i.labels.some((l) => l.name === BOARD_LABEL));
-  const issues = openIssues().filter((i) => !i.labels.includes(BOARD_LABEL));
+  ).filter((i) => !i.labels.some((l) => OFF_BOARD.has(l.name)));
+  const issues = openIssues().filter((i) => !i.labels.some((l) => OFF_BOARD.has(l)));
   normalise(issues);
   const body = renderBody(issues, done, now);
 
