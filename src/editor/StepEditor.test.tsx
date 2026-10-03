@@ -33,8 +33,10 @@ function renderEditor(project: Project) {
   );
   const history = new CommandHistory(project);
   const [clip, setClip] = createSignal<Clip>(project.clips[0]);
+  const [live, setLive] = createSignal<Project>(project);
   const [selectedIds, setSelectedIds] = createSignal<readonly EventId[]>([]);
   history.subscribe((snapshot) => {
+    setLive(snapshot.project);
     const next = snapshot.project.clips.find((candidate) => candidate.id === clipId);
     if (next) setClip(next);
   });
@@ -53,6 +55,7 @@ function renderEditor(project: Project) {
   render(() => (
     <StepEditor
       clip={clip()}
+      project={live()}
       instrument={track?.instrument ?? null}
       dispatch={(commands) => history.execute(commands as never)}
       beginGesture={(options) => history.beginGesture(options)}
@@ -66,6 +69,7 @@ function renderEditor(project: Project) {
   return {
     history,
     clip,
+    live,
     transport,
     selectedIds,
     setSelectedIds,
@@ -351,6 +355,7 @@ describe("StepEditor", () => {
     render(() => (
       <StepEditor
         clip={clip()}
+        project={project}
         instrument={project.song.tracks[0].instrument}
         dispatch={(commands) => history.execute(commands as never)}
         beginGesture={(options) => history.beginGesture(options)}
@@ -396,6 +401,27 @@ describe("StepEditor", () => {
     // The grid now shows 4 bars × 16 steps on the single lane.
     expect(cell("Notes, step 64, off")).toBeInTheDocument();
     expect(history.entries.at(-1)?.commands[0].type).toBe("clip.update");
+  });
+
+  // #963: the arrangement placement stayed one bar, so bars 2-32 never played
+  // or exported. A placement that showed the whole clip grows with it.
+  it("grows the placement that showed the whole clip, as one undo step", () => {
+    const { history, live } = renderEditor(createSliceFixtureProject());
+    const placement = () => live().song.placements[0];
+    expect(placement().durationTicks).toBe(TICKS_PER_BAR);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Bars" }), {
+      target: { value: "32" },
+    });
+    flush();
+
+    expect(placement().durationTicks).toBe(TICKS_PER_BAR * 32);
+    expect(history.entries).toHaveLength(1);
+
+    history.undo();
+    flush();
+    expect(live().clips[0].lengthTicks).toBe(TICKS_PER_BAR);
+    expect(placement().durationTicks).toBe(TICKS_PER_BAR);
   });
 
   it("offers the musical bar lengths up to 32 rather than every integer", () => {
@@ -454,6 +480,7 @@ describe("StepEditor rows (#643)", () => {
     render(() => (
       <StepEditor
         clip={clip()}
+        project={project}
         instrument={track.instrument}
         dispatch={(commands) => history.execute(commands as never)}
         beginGesture={(options) => history.beginGesture(options)}
@@ -601,6 +628,7 @@ describe("StepEditor velocity lane (#643)", () => {
     render(() => (
       <StepEditor
         clip={clip()}
+        project={project}
         instrument={track.instrument}
         dispatch={(commands) => history.execute(commands as never)}
         beginGesture={(options) => history.beginGesture(options)}

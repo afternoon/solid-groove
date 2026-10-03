@@ -183,6 +183,18 @@ describe("piano roll", () => {
     ).toHaveLength(1);
   });
 
+  it("grows the clip's placement with it, so the new bars play (#963)", async () => {
+    const { renderRoll, session } = await setUpRoll();
+    renderRoll();
+    const placement = () => session.project.song.placements[0];
+    expect(placement().durationTicks).toBe(TICKS_PER_BAR * 2);
+    fireEvent.change(screen.getByRole("combobox", { name: "Bars" }), {
+      target: { value: "8" },
+    });
+    flush();
+    expect(placement().durationTicks).toBe(TICKS_PER_BAR * 8);
+  });
+
   it("leaves the clip alone when its own length is chosen again (#869)", async () => {
     const { renderRoll, session } = await setUpRoll();
     renderRoll();
