@@ -3,7 +3,7 @@ import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
-import { LibraryClient } from "../library/libraryClient";
+import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import type {
   LibraryAsset,
   LibraryAssetType,
@@ -105,7 +105,12 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onActions?(actions: LibraryActions | null): void;
+  /** After the Insert button's insert commits: go back, as Shift+Enter does. */
+  onInsertAndReturn?(): void;
 }
+
+/** How long a committed insert stays marked on the slot's readout. */
+const INSERTED_MARK_MS = 1600;
 
 /** A boxed key badge. `hidden` when its control already names its key. */
 function Key(props: { label?: string; hidden?: boolean }): JSX.Element {
@@ -144,7 +149,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   // The pack whose sounds the sounds view is scoped to (`null`: no scope). The
   // sounds view reads this; Browse packs and In this project set it.
   const [packScope, setPackScope] = createSignal<string | null>(null);
-  const client = props.client ?? new LibraryClient();
+  // Shared, so a second visit opens on what the first loaded.
+  const client = props.client ?? sharedLibraryClient();
   // Similar sounds swaps in over whichever place opened it.
   const [similarOf, setSimilarOf] = createSignal<LibraryAsset | null>(null);
   // What the sounds list in view is called, so similar sounds' way back names it.
@@ -233,9 +239,18 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     focusSearch();
   }
 
+  // The sound an insert just put in the slot, marked on its readout for a
+  // moment: Enter stays here, so this is what shows it worked (UI-002).
+  const [inserted, setInserted] = createSignal<string | null>(null);
+  let insertedTimer: ReturnType<typeof setTimeout> | undefined;
+
   function insertSelected(): boolean {
     const asset = selected();
-    return asset ? props.onInsert(asset) : false;
+    if (!asset || !props.onInsert(asset)) return false;
+    clearTimeout(insertedTimer);
+    setInserted(asset.name);
+    insertedTimer = setTimeout(() => setInserted(null), INSERTED_MARK_MS);
+    return true;
   }
 
   onSettled(() => {
@@ -250,6 +265,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       closeKeys,
     });
     return () => {
+      clearTimeout(insertedTimer);
       props.onActions?.(null);
       // Leaving the view ends here: the slot plays its own sound again.
       props.slotAudition?.clear();
@@ -293,10 +309,18 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             <span class="library-modal-label">Inserting into </span>
             <b>{props.path ?? props.heading ?? "Library"}</b>
           </h2>
-          <fieldset class="library-modal-readout">
+          <fieldset
+            class={[
+              "library-modal-readout",
+              { "library-modal-readout-inserted": inserted() !== null },
+            ]}
+          >
             <legend class="library-modal-label">In the slot</legend>
             <b>{props.current ?? "Empty"}</b>
           </fieldset>
+          <output class="library-modal-inserted">
+            {inserted() ? `Inserted ${inserted()}` : ""}
+          </output>
           <fieldset class="library-modal-readout">
             <legend class="library-modal-label">Hearing</legend>
             <b>{selected()?.name ?? "Nothing yet"}</b>
@@ -355,11 +379,13 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             type="button"
             class="library-modal-insert"
             disabled={selected() === null}
-            aria-keyshortcuts="Enter"
-            onClick={() => insertSelected()}
+            aria-keyshortcuts="Shift+Enter"
+            onClick={() => {
+              if (insertSelected()) props.onInsertAndReturn?.();
+            }}
           >
             <span>{selected() ? `Insert ${selected()?.name}` : "Insert"}</span>
-            <Key label={keyOf("library.insert")} hidden />
+            <Key label={keyOf("library.insert_and_return")} hidden />
           </button>
         </>
       }

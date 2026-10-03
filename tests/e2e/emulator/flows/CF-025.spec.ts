@@ -2,19 +2,18 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   audition,
-  backToInstrument,
   categoryChip,
   deliveredLibrary,
   drumOneShots,
   expectSelected,
   insertButton,
+  insertedBackToInstrument,
   library,
   listedNames,
   literal,
   newProjectOnInstrumentView,
   openPadSlot,
   precondition,
-  readout,
   reloadOnInstrumentView,
   similarList,
   slotSound,
@@ -158,8 +157,8 @@ test.describe("CF-025", () => {
     await step("Go back: the list of kicks you started from returns");
 
     // 7. Open similar sounds again from any kick, select one of its matches
-    //    and press Insert. The library shows it as the sound in the slot.
-    //    Press 3: the slot names that match.
+    //    and press Insert. The editor goes back to the instrument view, and
+    //    the slot names that match.
     const again = startingList[1];
     await soundsLike(soundList(page), again).click();
     await expect(reference(page, again)).toBeVisible();
@@ -167,10 +166,11 @@ test.describe("CF-025", () => {
     await audition(similarList(page), chosen).click();
     await expectSelected(page, chosen);
     await insertButton(page, chosen).click();
-    await expect(readout(page, "In the slot")).toContainText(chosen);
-    await backToInstrument(page);
+    await insertedBackToInstrument(page);
     await expect.poll(() => slotSound(page, "BD")).toBe(chosen);
-    await step("Select a match and press Insert: the slot names it");
+    await step(
+      "Select a match and press Insert: back on the instrument, the slot names it",
+    );
 
     // 8. Reload the page. The pad still holds it.
     await reloadOnInstrumentView(page, projectUrl);
