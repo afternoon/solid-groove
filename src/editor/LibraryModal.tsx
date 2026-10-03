@@ -73,6 +73,12 @@ export interface LibraryActions {
   toggleKeys(): void;
   /** Close that sheet; false when it was not open, so Escape closes the window. */
   closeKeys(): boolean;
+  /**
+   * Escape from the search field (#877): clear its query and keep focus there.
+   * False when focus is elsewhere or the field is empty, so Escape closes the
+   * window.
+   */
+  escapeSearch(): boolean;
 }
 
 export interface LibraryModalProps {
@@ -349,6 +355,16 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     focusSearch();
   }
 
+  function escapeSearch(): boolean {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !active.matches(".library-modal-search")) {
+      return false;
+    }
+    if (query() === "") return false;
+    clearSearch();
+    return true;
+  }
+
   function insertSelected(): boolean {
     const asset = selected();
     if (!asset) return false;
@@ -395,6 +411,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       back,
       toggleKeys,
       closeKeys,
+      escapeSearch,
     });
     return () => {
       props.onActions?.(null);

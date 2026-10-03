@@ -307,7 +307,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.audition": onSelectedSound((a) => a.press("library.audition")),
     "library.back": inLibrary((a) => a.back()),
     // Escape closes the innermost surface: the guide, then the library's keys
-    // sheet (#813), then the library, then
+    // sheet (#813), then a query typed in the library's search field (#877,
+    // only while that field has focus), then the library, then
     // the sequence editor underneath both. Nothing here compares a key — this
     // is the registry's `view.close_surface`, like every other close. A clip
     // drag in flight is innermost of all: Escape cancels it (ARR-011). The
@@ -319,7 +320,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) {
-          if (!libraryActions()?.closeKeys()) closeLibrary();
+          const actions = libraryActions();
+          if (!actions?.closeKeys() && !actions?.escapeSearch()) closeLibrary();
         } else if (sequenceEditorOpen()) closeSequenceEditor();
         else arrangementEditingActions()?.clearSelection();
       },
