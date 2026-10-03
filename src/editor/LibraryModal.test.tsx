@@ -159,6 +159,27 @@ describe("LibraryModal shell", () => {
     expect(onInsert).toHaveBeenCalledTimes(1);
   });
 
+  it("says when an insert is refused, until the next one goes in", async () => {
+    let accept = false;
+    renderShell({ onInsert: () => accept });
+    await hearFirstSound();
+    const insert = await waitFor(() => {
+      const button = document.querySelector<HTMLButtonElement>(".library-modal-insert");
+      expect(button).toBeEnabled();
+      return button as HTMLButtonElement;
+    });
+    const status = document.querySelector("output.library-modal-inserted");
+
+    clickAndFlush(insert);
+    expect(status).toHaveTextContent(/^Couldn't insert .+\. Nothing changed\.$/);
+    expect(status).toHaveClass("library-modal-refused");
+
+    accept = true;
+    clickAndFlush(insert);
+    expect(status).toHaveTextContent(/^Inserted /);
+    expect(status).not.toHaveClass("library-modal-refused");
+  });
+
   it("badges the rail and footer from the registry, and swaps in placeholders", () => {
     renderShell({ keyLabel: (action) => `<${action}>` });
     const rail = within(screen.getByRole("navigation", { name: "Places" }));

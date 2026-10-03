@@ -240,14 +240,23 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   // The sound an insert just put in the slot, marked on its readout for a
-  // moment: Enter stays here, so this is what shows it worked (UI-002).
+  // moment: an insert can stay here, so this is what shows it worked (UI-002).
   const [inserted, setInserted] = createSignal<string | null>(null);
   let insertedTimer: ReturnType<typeof setTimeout> | undefined;
+  // The sound an insert was refused for, said until the next insert: a
+  // refused insert changes nothing, so without this it looks like a dead key.
+  const [refused, setRefused] = createSignal<string | null>(null);
 
   function insertSelected(): boolean {
     const asset = selected();
-    if (!asset || !props.onInsert(asset)) return false;
+    if (!asset) return false;
     clearTimeout(insertedTimer);
+    setInserted(null);
+    if (!props.onInsert(asset)) {
+      setRefused(asset.name);
+      return false;
+    }
+    setRefused(null);
     setInserted(asset.name);
     insertedTimer = setTimeout(() => setInserted(null), INSERTED_MARK_MS);
     return true;
@@ -318,8 +327,17 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             <legend class="library-modal-label">In the slot</legend>
             <b>{props.current ?? "Empty"}</b>
           </fieldset>
-          <output class="library-modal-inserted">
-            {inserted() ? `Inserted ${inserted()}` : ""}
+          <output
+            class={[
+              "library-modal-inserted",
+              { "library-modal-refused": refused() !== null },
+            ]}
+          >
+            {refused()
+              ? `Couldn't insert ${refused()}. Nothing changed.`
+              : inserted()
+                ? `Inserted ${inserted()}`
+                : ""}
           </output>
           <fieldset class="library-modal-readout">
             <legend class="library-modal-label">Hearing</legend>

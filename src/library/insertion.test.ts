@@ -105,6 +105,41 @@ describe("loadSampleCommands", () => {
     expect(result.commands).toHaveLength(2);
   });
 
+  it("inserts a newer pack version's sound into a project pinned at an older one", async () => {
+    // A project made before the library moved its packs on (#817): it pins
+    // the pack at the version it used then, and may resolve only one.
+    const before = createSliceFixtureProject();
+    const track = before.song.tracks[0];
+    const [first, second] = await libraryAssets();
+    const pinned = toLibrarySample(first);
+    const newer = toLibrarySample(second);
+    if (!pinned || !newer) throw new Error("expected insertable samples");
+    const older = executeTransaction(
+      before,
+      loadSampleCommands(before, track.id, pinned, context("older")),
+    );
+    if (!older.ok) throw new Error(older.issues[0].message);
+    const served = { ...newer, packVersion: "9.0.0" } as typeof newer;
+
+    const result = executeTransaction(
+      older.project,
+      loadSampleCommands(older.project, track.id, served, context()),
+    );
+    expect(result.ok, result.ok ? "" : result.issues[0].message).toBe(true);
+    if (!result.ok) return;
+
+    // The sound lands at the version the project already pins.
+    const asset = carriedAsset(result.project, served);
+    expect(asset?.packVersion).toBe(pinned.packVersion);
+    expect(result.project.metadata.packDependencies).toEqual(
+      older.project.metadata.packDependencies,
+    );
+    // And the same sound at the newer version is the asset already carried.
+    expect(
+      carriedAsset(older.project, { ...pinned, packVersion: served.packVersion }),
+    ).toBe(carriedAsset(older.project, pinned));
+  });
+
   it("reuses a delivery the project already carries rather than duplicating it", async () => {
     const project = createSliceFixtureProject();
     const track = project.song.tracks[0];
