@@ -10,6 +10,7 @@ import { createSeededIdFactory } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import { fixturePackManifest } from "./__fixtures__/fixtures";
 import {
+  addPadWithSampleCommands,
   carriedAsset,
   createLibraryAsset,
   insertLoopCommands,
@@ -507,6 +508,55 @@ describe("loadPadSampleCommands (#447)", () => {
     );
     if (!kept.ok) throw new Error(kept.issues[0].message);
     expect(padOf(kept.project)?.name).toBe("My Kick");
+  });
+});
+
+describe("addPadWithSampleCommands (#947)", () => {
+  it("adds one pad playing the sound, named for it, undone in one step", async () => {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find((t) => t.instrument?.kind === "drumMachine");
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const before = track.instrument.pads;
+    const sample = toLibrarySample((await libraryAssets())[1]);
+    if (!sample) throw new Error("expected an insertable sample");
+    const history = new CommandHistory(project);
+
+    const { commands, padId } = addPadWithSampleCommands(
+      project,
+      track.id,
+      sample,
+      context(),
+    );
+    const result = history.execute(commands);
+    if (!result.ok) throw new Error(result.issues[0].message);
+
+    const padsOf = (p: typeof project) => {
+      const drum = p.song.tracks.find((t) => t.id === track.id)?.instrument;
+      return drum?.kind === "drumMachine" ? drum.pads : [];
+    };
+    const after = padsOf(history.project);
+    expect(after).toHaveLength(before.length + 1);
+    const added = after[after.length - 1];
+    expect(added.id).toBe(padId);
+    expect(added.name).toBe(sample.name);
+    expect(added.assetId).toBe(carriedAsset(history.project, sample)?.id);
+    expect(history.project.metadata.revision).toBe(project.metadata.revision + 1);
+
+    history.undo();
+    expect(padsOf(history.project)).toEqual(before);
+    expect(carriedAsset(history.project, sample)).toBeNull();
+  });
+
+  it("leaves a track that is not a drum machine unchanged", async () => {
+    const project = createSliceFixtureProject();
+    const track = project.song.tracks[0];
+    const sample = toLibrarySample((await libraryAssets())[1]);
+    if (!sample) throw new Error("expected an insertable sample");
+    const result = executeTransaction(
+      project,
+      addPadWithSampleCommands(project, track.id, sample, context()).commands,
+    );
+    expect(result.ok).toBe(false);
   });
 });
 

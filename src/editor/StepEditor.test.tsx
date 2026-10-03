@@ -658,3 +658,74 @@ describe("StepEditor velocity lane (#643)", () => {
     );
   });
 });
+
+describe("StepEditor [+ Pad] row (#947)", () => {
+  function renderWith(project: Project, onAddPad?: () => void) {
+    const clip = project.clips[0];
+    const track = project.song.tracks.find((candidate) => candidate.id === clip.trackId);
+    const history = new CommandHistory(project);
+    render(() => (
+      <StepEditor
+        clip={clip}
+        instrument={track?.instrument ?? null}
+        dispatch={(commands) => history.execute(commands as never)}
+        beginGesture={(options) => history.beginGesture(options)}
+        onAddPad={onAddPad}
+      />
+    ));
+    return track;
+  }
+
+  const addPadButton = () =>
+    screen.queryByRole("button", { name: "Add pad from library" });
+
+  it("sits under a drum machine's last lane and asks for a new pad", () => {
+    const onAddPad = vi.fn();
+    const track = renderWith(createDrumMachineFixtureProject(), onAddPad);
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const button = addPadButton();
+    expect(button).toBeEnabled();
+    expect(button).toHaveTextContent("Pad");
+    // Placed one row under the lanes, wherever the kit ends.
+    const grid = document.querySelector<HTMLElement>(".step-editor-grid");
+    expect(grid?.style.getPropertyValue("--step-lane-count")).toBe(
+      String(track.instrument.pads.length),
+    );
+    // It is not a lane: the lanes stay the kit's pads.
+    expect(screen.getAllByRole("group", { name: /^Lane / })).toHaveLength(
+      track.instrument.pads.length,
+    );
+
+    clickAndFlush(button as HTMLElement);
+    expect(onAddPad).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not offered without a handler, or on a track that is not a drum machine", () => {
+    renderWith(createDrumMachineFixtureProject());
+    expect(addPadButton()).toBeNull();
+    cleanup();
+
+    renderWith(createSliceFixtureProject(), vi.fn());
+    expect(addPadButton()).toBeNull();
+  });
+
+  it("is disabled once the kit holds as many pads as a drum machine can", () => {
+    const project = structuredClone(createDrumMachineFixtureProject());
+    const track = project.song.tracks.find(
+      (candidate) => candidate.id === project.clips[0].trackId,
+    );
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [template] = track.instrument.pads;
+    track.instrument.pads = Array.from({ length: 32 }, (_, index) => ({
+      ...template,
+      id: `pad_full${index}` as PadId,
+      name: `Pad ${index + 1}`,
+    }));
+    const onAddPad = vi.fn();
+    renderWith(project, onAddPad);
+
+    const button = addPadButton();
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "A drum machine holds at most 32 pads");
+  });
+});

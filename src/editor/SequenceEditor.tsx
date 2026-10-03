@@ -43,6 +43,11 @@ export interface SequenceEditorProps {
   onSelectPad?(padId: PadId): void;
   /** Plays one pad on the opened track, as a row is picked. */
   auditionPad?(padId: PadId): void;
+  /**
+   * Opens the library to add a pad to the opened drum track (#947), from the
+   * step grid's [+ Pad] row. Omitted, no row.
+   */
+  onAddPad?(): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -105,6 +110,7 @@ export default function SequenceEditor(props: SequenceEditorProps): JSX.Element 
               selectedPadId={props.selectedPadId}
               onSelectPad={(padId) => props.onSelectPad?.(padId)}
               auditionPad={(padId) => props.auditionPad?.(padId)}
+              onAddPad={props.onAddPad && (() => props.onAddPad?.())}
             />
           }
         >

@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   addAsset,
   addClip,
+  addPad,
   addTrack,
   type RawCommandInput,
   removeClip,
@@ -16,11 +17,12 @@ import type { DomainFactoryContext } from "../domain/factories";
 import {
   createAsset,
   createAudioLoopClip,
+  createDrumPad,
   createPlacement,
   createTrack,
 } from "../domain/factories";
 import { type AssetId, type PadId, packIdSchema, type TrackId } from "../domain/ids";
-import { isAutoPadName } from "../domain/padNames";
+import { isAutoPadName, nextPadName } from "../domain/padNames";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
 import { assetStorageRef, type LibraryAsset } from "./manifest";
@@ -229,6 +231,33 @@ export function loadPadSampleCommands(
   return pad && isAutoPadName(pad.name) && name !== ""
     ? [...commands, renamePad(trackId, padId, name)]
     : commands;
+}
+
+/**
+ * A new drum pad playing a library sound (#947): carry the sound if the
+ * project does not already, then add a pad pointed at it, named for the
+ * sound, at the end of the kit — one transaction, so one undo takes the pad
+ * (and an asset carried for it) away again. `drum.addPad` refuses a track
+ * that is not a drum machine or a kit that is full, which leaves the project
+ * unchanged. The new pad's ID comes back so the caller can select its lane.
+ */
+export function addPadWithSampleCommands(
+  project: Project,
+  trackId: TrackId,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+): { readonly commands: readonly RawCommandInput[]; readonly padId: PadId } {
+  const instrument = project.song.tracks.find(
+    (track) => track.id === trackId,
+  )?.instrument;
+  const existing = instrument?.kind === "drumMachine" ? instrument.pads : [];
+  const name = sample.name.trim();
+  const carried = carry(project, sample, context);
+  const pad = createDrumPad(context, {
+    name: name === "" ? nextPadName(existing) : name,
+    assetId: carried.assetId,
+  });
+  return { commands: [...carried.commands, addPad(trackId, pad)], padId: pad.id };
 }
 
 function drumPadOf(project: Project, trackId: TrackId, padId: PadId) {
