@@ -8,6 +8,8 @@ name: Board
 #  - A new issue starts in Backlog; a closed one is Done.
 #  - A PR that closes an issue moves it to QA.
 #  - Moving an issue to Ready moves it to In progress and runs /ship on it.
+#  - Moving an issue back to In progress while its PRs are open (sent back
+#    from QA, review or blocked) runs an agent that reworks those PRs.
 #
 # Uses RESTACK_TOKEN (the same fine-grained PAT restack.yml uses) so its label
 # changes trigger other workflows; it falls back to GITHUB_TOKEN.
@@ -39,6 +41,8 @@ jobs:
       cancel-in-progress: false
     outputs:
       ship: ${{ steps.status.outputs.ship }}
+      rework: ${{ steps.status.outputs.rework }}
+      rework_prs: ${{ steps.status.outputs.rework_prs }}
     env:
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
     steps:
@@ -130,4 +134,84 @@ jobs:
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "The unattended /ship run stopped before finishing: $RUN"
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label status:blocked --remove-label status:in-progress
+
+  rework:
+    needs: status
+    if: needs.status.outputs.rework != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    # Shares /ship's group: never rework an issue while it is being built.
+    concurrency:
+      group: ship-${{ needs.status.outputs.rework }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/claude-env
+      - name: Install Chromium for screenshots and browser tests
+        run: bunx playwright install --with-deps chromium
+      - id: start
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Rework the issue's PRs
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
+          show_full_output: true
+          prompt: |
+            GitHub issue #${{ needs.status.outputs.rework }} was sent back to In progress on the board while its PRs were open: ${{ needs.status.outputs.rework_prs }} (the PR that closes it; in a stack, the earlier PRs say `Refs #${{ needs.status.outputs.rework }}`, so find those too). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
+
+            1. If a Claude run is already handling this (an `@claude` comment on one of those PRs in the last 20 minutes, or an in-progress run of the "Claude Code" workflow on one of them: `gh run list --workflow claude.yml --status in_progress`), stop and do nothing.
+            2. Read the issue body and every comment on the issue, and on each PR its comments, reviews and review threads. The feedback is whatever the product owner (afternoon) or the QA report said after the PRs were last pushed. If it changes the spec, the issue body and comments are the authority.
+            3. Fix it on the existing PR branches, following CLAUDE.md ("Landing work", "Definition of done") and `.claude/agents/solid-groove-implementer.md`. This is not a fresh build: do not open new PRs unless the feedback asks for more work than the stack covers. In a stack, commit to the branch the change belongs on; restack.yml carries it up. Merge, never rebase or force-push. Run `bun run typecheck`, `bun run check`, `bun run test` and any browser suite you touched before pushing. A UI change needs updated screenshots in the PR body.
+            4. Reply on each piece of feedback (the review thread, or one comment on the PR) saying what changed, and resolve threads you fixed.
+            5. Move the card: `status:qa` if the closing PR has the `deploy-preview` label (the push redeploys it for QA), otherwise `status:review`.
+
+            Stop only if two reasonable readings of the feedback would build materially different things: then comment the one question on the issue and add `status:blocked`. Use the `gh` CLI for GitHub (GH_TOKEN is set). Never report a push you have not seen land.
+          claude_args: |
+            --model opus
+            --max-turns 300
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,WebFetch,WebSearch,Task,Agent,Skill,ToolSearch,Bash"
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      - name: Check the run did something
+        # Trust only GitHub: a push to one of the PRs, or the card moved on.
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+          ISSUE: ${{ needs.status.outputs.rework }}
+          PRS: ${{ needs.status.outputs.rework_prs }}
+          SINCE: ${{ steps.start.outputs.at }}
+        run: |
+          labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
+          if ! echo "$labels" | grep -qx 'status:in-progress'; then
+            echo "Card moved on: $(echo "$labels" | grep '^status:')"; exit 0
+          fi
+          for pr in $PRS; do
+            last=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json commits --jq '.commits[-1].committedDate')
+            if [[ "$last" > "$SINCE" ]]; then echo "PR #$pr was pushed at $last."; exit 0; fi
+          done
+          # Step 1 of the prompt stands down for an @claude run already on it.
+          recent=$(date -u -d "$SINCE - 20 minutes" +%Y-%m-%dT%H:%M:%SZ)
+          for pr in $PRS; do
+            n=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json comments \
+              --jq "[.comments[] | select(.createdAt > \"$recent\" and (.body | contains(\"@claude\")))] | length")
+            if [ "$n" -gt 0 ]; then echo "An @claude run on PR #$pr has it."; exit 0; fi
+          done
+          echo "No push to $PRS and the card is still In progress."; exit 1
+      - name: Move the card to Blocked if the run failed
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+          ISSUE: ${{ needs.status.outputs.rework }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "The unattended rework run stopped before finishing: $RUN"
           gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label status:blocked --remove-label status:in-progress

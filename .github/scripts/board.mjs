@@ -126,6 +126,78 @@ function issueLabels(number) {
   }
 }
 
+/** The status labels added to an issue, oldest first, or null if unreadable. */
+function statusHistory(number) {
+  try {
+    return JSON.parse(
+      gh([
+        "api",
+        "--paginate",
+        "--slurp",
+        `repos/${REPO}/issues/${number}/events?per_page=100`,
+      ]),
+    )
+      .flat()
+      .filter((e) => e.event === "labeled" && STATUS.has(e.label?.name))
+      .map((e) => e.label.name);
+  } catch {
+    return null;
+  }
+}
+
+/** Of the status labels an issue carries, the one added most recently. */
+function latestStatus(number, currentLabels) {
+  const present = currentLabels.filter((l) => STATUS.has(l));
+  if (present.length < 2) return present[0];
+  return (statusHistory(number) ?? []).findLast((l) => present.includes(l));
+}
+
+/** Open PRs whose body closes the issue, with their comments. */
+function closingPrs(number) {
+  try {
+    return JSON.parse(
+      gh([
+        "pr",
+        "list",
+        "--repo",
+        REPO,
+        "--state",
+        "open",
+        "--search",
+        `${number} in:body`,
+        "--json",
+        "number,body,comments",
+      ]),
+    ).filter((pr) => closedBy(pr.body).includes(number));
+  } catch {
+    return [];
+  }
+}
+
+const REWORK_GRACE_MS = 15 * 60 * 1000;
+
+/**
+ * Whether moving an issue to In progress sent it back for more work: its PRs
+ * are already open, and it did not just come from Ready (that is /ship
+ * starting). Returns the PR numbers to rework, or null. A recent `@claude`
+ * comment on one of them means a Claude run is already on it (QA's fail
+ * report is one), so that is left alone too.
+ */
+function sentBack(number) {
+  const history = statusHistory(number);
+  if (!history || history.at(-2) === "status:ready") return null;
+  const prs = closingPrs(number);
+  if (!prs.length) return null;
+  const now = Date.now();
+  const handled = prs.some((pr) =>
+    (pr.comments ?? []).some(
+      (c) =>
+        c.body.includes("@claude") && now - Date.parse(c.createdAt) < REWORK_GRACE_MS,
+    ),
+  );
+  return handled ? null : prs.map((pr) => pr.number);
+}
+
 /**
  * Issues a PR body closes: "Closes #12", "fixes #3", "Resolves #45". Code
  * spans and blocks are skipped, as GitHub skips them: a body that quotes
@@ -176,15 +248,22 @@ function status() {
         appendFileSync(process.env.GITHUB_OUTPUT, `ship=${issue.number}\n`);
         return;
       }
-      // The event's label list is a snapshot from when it fired; another run
-      // may have changed the labels since. Read them fresh, or a stale
-      // snapshot leaves the issue in two columns.
+      // Runs queue, so this event may be handled after newer label changes.
+      // Read the labels fresh and keep whichever status was added last, or a
+      // late run moves the card back (QA passes, then an old in-progress
+      // event lands and undoes it).
       const fresh = issueLabels(issue.number);
-      setStatus(
-        issue.number,
-        event.label.name,
-        fresh ? fresh.labels.map((l) => l.name) : labels,
-      );
+      const current = fresh ? fresh.labels.map((l) => l.name) : labels;
+      if (!current.includes(event.label.name)) return;
+      const target = latestStatus(issue.number, current) ?? event.label.name;
+      setStatus(issue.number, target, current);
+      if (target === "status:in-progress" && event.label.name === target) {
+        const prs = sentBack(issue.number);
+        if (prs) {
+          appendFileSync(process.env.GITHUB_OUTPUT, `rework=${issue.number}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `rework_prs=${prs.join(" ")}\n`);
+        }
+      }
     }
     return;
   }
@@ -264,8 +343,9 @@ function column(issue) {
 
 const SHAPING_LABEL = "needs-shaping";
 
-const line = (i) =>
-  `- #${i.number} ${i.title}${i.labels.includes(SHAPING_LABEL) ? " · **needs shaping**" : ""}${i.prs.length ? ` · PR ${i.prs.map((n) => `#${n}`).join(", ")}` : ""}`;
+// GitHub expands a bare "#123" in a list item into the issue's title and
+// state, so a line is only numbers: the issue, then each PR that closes it.
+const line = (i) => [`- #${i.number}`, ...(i.prs ?? []).map((n) => `  #${n}`)].join("\n");
 
 const BACKLOG_PER_MILESTONE = 10;
 
@@ -317,15 +397,7 @@ function renderBody(issues, done, now) {
       const shaping = cards.filter((c) => c.labels.includes(SHAPING_LABEL));
       const rest = cards.filter((c) => !c.labels.includes(SHAPING_LABEL));
       out.push(`## Needs shaping (${shaping.length})`, "");
-      out.push(
-        ...(shaping.length
-          ? shaping.map(
-              (c) =>
-                `- #${c.number} ${c.title}${c.milestone ? ` · ${c.milestone.title}` : ""}`,
-            )
-          : ["_Empty_"]),
-        "",
-      );
+      out.push(...(shaping.length ? shaping.map(line) : ["_Empty_"]), "");
       out.push(`## ${col.title} (${rest.length})`, "");
       out.push(...(rest.length ? backlogLines(rest) : ["_Empty_", ""]));
       continue;
@@ -336,7 +408,7 @@ function renderBody(issues, done, now) {
   out.push(
     `## Done this week (${done.length})`,
     "",
-    ...(done.length ? done.map((i) => `- #${i.number} ${i.title}`) : ["_Nothing yet_"]),
+    ...(done.length ? done.map(line) : ["_Nothing yet_"]),
     "",
   );
   out.push(

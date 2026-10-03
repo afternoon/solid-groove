@@ -176,7 +176,7 @@ Status is a `status:*` label on the issue, and the pinned **Board** issue lists 
 | --- | --- | --- |
 | Backlog | `status:backlog` | Opening an issue |
 | Ready | `status:ready` | The product owner, once the spec is agreed. **This starts `/ship`** in Actions and moves the card on to In progress |
-| In progress | `status:in-progress` | `/ship` starting; a failed QA |
+| In progress | `status:in-progress` | `/ship` starting; a failed QA; the product owner sending it back |
 | Blocked | `status:blocked` | `/ship` stopping on an unclear issue or a failed run; QA failing twice |
 | QA | `status:qa` | A PR that closes the issue opening |
 | Ready for review | `status:review` | The QA bot passing the preview |
@@ -185,6 +185,8 @@ Status is a `status:*` label on the issue, and the pinned **Board** issue lists 
 The Backlog column is grouped by milestone. An issue labelled `needs-shaping` has open questions (listed in a comment on it) to settle in a shaping session before it can go to Ready; the board lists those in their own **Needs shaping** section above the backlog. A PR that changes `firestore.rules` or `storage.rules` gets no preview, so it moves its issue straight to Ready for review instead of QA. If an issue ever carries two `status:*` labels, the next board render keeps the later stage (Blocked always wins).
 
 The QA bot reports on the issue's card: on a pass it adds `status:review`; on a fail it comments the findings on the PR starting with `@claude` (which starts a fix) and adds `status:in-progress`, or `status:blocked` after the second failure on the same PR. An agent working an issue keeps its card current the same way.
+
+**Sending a card back.** To ask for changes on an issue whose PRs are open, comment the feedback on the issue or a PR, then add `status:in-progress` (not `status:ready`, which starts a fresh build). The board runs a rework agent on the open PRs, which fixes them in place, replies to the feedback, and moves the card back to QA (or Ready for review if there's no preview). It stands down if an `@claude` run is already on it, as after a failed QA.
 
 ### Shape, then ship
 
