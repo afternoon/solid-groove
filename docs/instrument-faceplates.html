@@ -158,6 +158,12 @@ svg .edge{stroke:var(--mono-65);stroke-width:1.25;fill:none}
 .seg .opt[aria-pressed="true"]{background:var(--mono-100);color:var(--mono-00)!important}
 .seg .opt:disabled{opacity:.35;cursor:default}
 .seg .seg-l{flex:3;display:flex;align-items:center;justify-content:center;background:var(--mono-00);font-size:11px;color:var(--mono-96)}
+.lfosw{display:flex;gap:6px}
+.lfosw .shapes{flex:1;min-width:0;display:flex}
+.lfosw .shapes .opt{padding:0 2px}
+.lfosw .clock{flex:none;display:flex;min-width:84px}
+.lfosw .shapes:empty{display:none}
+.lfosw .clock:only-child{flex:1}
 .swnote{display:flex;align-items:center;font-size:11px;color:var(--mono-47)}
 
 /* tables */
@@ -207,6 +213,7 @@ svg .edge{stroke:var(--mono-65);stroke-width:1.25;fill:none}
     <li><b>Fader pitch</b>A section's width follows its number of faders, so faders keep one spacing from group to group.</li>
     <li><b>Well</b>One height in every band. It draws what the section does; a section with nothing to draw shows its facts in the same black panel instead.</li>
     <li><b>Switch row</b>Present in a band when any of its sections has a switch. Sections without one leave the row empty, so their faders still line up.</li>
+    <li><b>LFO clock</b>Every LFO has a Sync / Hz switch beside its shapes. Synced, Rate is a note value; free, it is in Hz.</li>
     <li><b>Randomize</b>A die. One per synth in its header, left of the preset, and one per voice on the drum synth's rows. Level and pan are never randomized.</li>
   </ul>
 
@@ -271,7 +278,7 @@ p("sy.cut","Cutoff",20,20000,420,"hz",EXP);p("sy.res","Resonance",0,20,6,"q");p(
 for(const [pre,a,d,s,r] of [["sy.f",.004,.32,.15,.2],["sy.a",.003,.6,.8,.12]]){p(pre+"a","Attack",0,4,a,"s",POW);p(pre+"d","Decay",0,4,d,"s",POW);p(pre+"s","Sustain",0,1,s,"pct");p(pre+"r","Release",0,4,r,"s",POW);}
 o("sy.vm","Voice mode",["Poly","Mono","Legato"],2);
 p("sy.uni","Voices",1,8,1,"int",{step:1});p("sy.det","Detune",0,50,12,"ct",{step:1});p("sy.spr","Spread",0,1,.3,"pct");p("sy.glide","Glide",.001,2,.06,"s",EXP);
-o("sy.ls","LFO shape",SHAPES,0);p("sy.lr","Rate",0,7,3,"div",{step:1});p("sy.lp","Pitch",0,1,0,"pct");p("sy.lw","Width",0,1,.3,"pct");p("sy.lc","Cutoff",0,1,.12,"pct");
+o("sy.ls","LFO shape",SHAPES,0);p("sy.lr","Rate",0,7,3,"div",{step:1});o("sy.lm","LFO clock",["Sync","Hz"],0);p("sy.lh","Rate",.05,40,2,"hz",EXP);p("sy.lp","Pitch",0,1,0,"pct");p("sy.lw","Width",0,1,.3,"pct");p("sy.lc","Cutoff",0,1,.12,"pct");
 
 /* Wavetable (#944) */
 const TABLES=["Basic Shapes","Harmonic Sweep","Formant Vox","Digital Grit"];
@@ -280,8 +287,8 @@ for(const [x,t,pos,w,lv,oc,wm] of [["a",1,.34,.2,-3,0,0],["b",2,.62,.45,-9,1,1]]
   p(`wt.${x}w`,"Warp",0,1,w,"pct");p(`wt.${x}o`,"Octave",-3,3,oc,"oct",{step:1});p(`wt.${x}l`,"Level",-60,0,lv,"db");}
 o("wt.fm","Filter mode",FMODES,0);p("wt.cut","Cutoff",20,20000,2400,"hz",EXP);p("wt.res","Resonance",0,20,3,"q");p("wt.drv","Drive",0,1,.15,"pct");
 for(const [pre,a,d,s,r] of [["wt.e1",.8,1.2,.7,2.2],["wt.e2",1.6,2.4,.3,1.8]]){p(pre+"a","Attack",0,4,a,"s",POW);p(pre+"d","Decay",0,4,d,"s",POW);p(pre+"s","Sustain",0,1,s,"pct");p(pre+"r","Release",0,4,r,"s",POW);}
-o("wt.l1s","LFO 1 shape",SHAPES,1);p("wt.l1r","Rate",0,7,6,"div",{step:1});
-o("wt.l2s","LFO 2 shape",SHAPES,4);p("wt.l2r","Rate",0,7,2,"div",{step:1});
+o("wt.l1s","LFO 1 shape",SHAPES,1);p("wt.l1r","Rate",0,7,6,"div",{step:1});o("wt.l1m","LFO 1 clock",["Sync","Hz"],0);p("wt.l1h","Rate",.05,40,.3,"hz",EXP);
+o("wt.l2s","LFO 2 shape",SHAPES,4);p("wt.l2r","Rate",0,7,2,"div",{step:1});o("wt.l2m","LFO 2 clock",["Sync","Hz"],1);p("wt.l2h","Rate",.05,40,.3,"hz",EXP);
 p("wt.uni","Voices",1,8,5,"int",{step:1});p("wt.det","Detune",0,50,18,"ct",{step:1});p("wt.spr","Spread",0,1,.7,"pct");
 const DEST=[["None",null],["Osc 1 position","wt.ap"],["Osc 1 warp","wt.aw"],["Osc 1 level","wt.al"],["Osc 2 position","wt.bp"],["Osc 2 warp","wt.bw"],["Osc 2 level","wt.bl"],["Cutoff","wt.cut"],["Res","wt.res"],["Drive","wt.drv"]];
 const DESTKEYS=new Set(DEST.map(d=>d[1]).filter(Boolean));
@@ -303,7 +310,7 @@ const ALGOS={
 const ALGO_IDS=Object.keys(ALGOS).map(Number);
 p("fm.algo","Algorithm",0,ALGO_IDS.length-1,2,"algo",{step:1});p("fm.fb","Feedback",0,7,5,"int",{step:1});
 p("fm.ma","Mod attack",-1,1,0,"pct",{bi:1});p("fm.md","Mod decay",-1,1,-.2,"pct",{bi:1});p("fm.ca","Carrier attack",-1,1,0,"pct",{bi:1});p("fm.cd","Carrier decay",-1,1,.15,"pct",{bi:1});
-p("fm.lr","Rate",0,99,35,"int",{step:1});p("fm.lp","Pitch",0,99,4,"int",{step:1});
+p("fm.lr","Rate",0,7,4,"div",{step:1});o("fm.lm","LFO clock",["Sync","Hz"],1);p("fm.lh","Rate",.05,40,5.5,"hz",EXP);p("fm.lp","Pitch",0,99,4,"int",{step:1});
 p("fm.tr","Transpose",-24,24,0,"st",{step:1,bi:1});p("fm.vel","Velocity",0,1,.7,"pct");
 const OPR=[1,14,1,1,1,1],OPL=[99,58,94,79,99,62];
 for(let i=1;i<=6;i++){p(`fm.r${i}`,"Ratio",.5,16,OPR[i-1],"x",{c:"exp",snap:1});p(`fm.l${i}`,"Level",0,99,OPL[i-1],"int",{step:1});}
@@ -348,7 +355,7 @@ const neg=s=>String(s).replace(/-/g,"−");
 const sgn=(v,u)=>neg((v>0?"+":"")+v+u);
 function fmt(k){const d=S[k],v=d.v;
   switch(d.u){
-    case "hz":return v<1000?Math.round(v)+" Hz":(v/1000).toFixed(v<10000?2:1)+" kHz";
+    case "hz":return v<10?v.toFixed(v<1?2:1)+" Hz":v<1000?Math.round(v)+" Hz":(v/1000).toFixed(v<10000?2:1)+" kHz";
     case "s":return v<1?(v<.01?(v*1000).toFixed(1):Math.round(v*1000))+" ms":v.toFixed(2)+" s";
     case "pct":return d.bi?(Math.round(v*100)===0?"0%":sgn(Math.round(v*100),"%")):Math.round(v*100)+"%";
     case "st":return v===0?"0 st":sgn(v," st");
@@ -454,15 +461,15 @@ const DRAW={
   syFilter:()=>filt(V("sy.fm"),V("sy.cut"),V("sy.res"),V("sy.hp")),
   syEnvF:()=>envD(env("sy.f"),false),syEnvA:()=>envD(env("sy.a")),
   syUni:()=>uniD(V("sy.uni"),V("sy.det"),V("sy.spr")),
-  syLfo:()=>lfoD(V("sy.ls"),1+V("sy.lr")/2,.12+.3*Math.max(V("sy.lp"),V("sy.lw"),V("sy.lc"))),
+  syLfo:()=>lfoD(V("sy.ls"),cycles("sy"),.12+.3*Math.max(V("sy.lp"),V("sy.lw"),V("sy.lc"))),
   wtA:()=>wtStack("a"),wtB:()=>wtStack("b"),
   wtFilter:()=>filt(V("wt.fm"),V("wt.cut"),V("wt.res")),
   wtE1:()=>envD(env("wt.e1")),wtE2:()=>envD(env("wt.e2"),false),
-  wtL1:()=>lfoD(V("wt.l1s"),1+V("wt.l1r")/2,.36),wtL2:()=>lfoD(V("wt.l2s"),1+V("wt.l2r")/2,.36),
+  wtL1:()=>lfoD(V("wt.l1s"),cycles("l1"),.36),wtL2:()=>lfoD(V("wt.l2s"),cycles("l2"),.36),
   wtUni:()=>uniD(V("wt.uni"),V("wt.det"),V("wt.spr")),
   fmAlgo:algoD,
   fmEnv(){const c=adsr(.004*(1+3*Math.max(0,V("fm.ca")))+.002,.9*(1+V("fm.cd")),.2,.5),m=adsr(.003*(1+3*Math.max(0,V("fm.ma")))+.002,.4*(1+V("fm.md")),.05,.3);return EGRID+`<path class="ar" d="${pathOf(c)} Z"/><path class="ln" d="${pathOf(c)}"/><path class="dash" d="${pathOf(m)}"/>`;},
-  fmLfo(){const pts=[],d=.04+.4*V("fm.lp")/99,cyc=1+V("fm.lr")/12;for(let i=0;i<=200;i++)pts.push([i/200,.5-Math.sin(2*Math.PI*i/200*cyc)*d]);return gridL([100,200],[50])+`<path class="ln" d="${pathOf(pts)}"/>`;},
+  fmLfo(){const pts=[],d=.04+.4*V("fm.lp")/99,cyc=cycles("fm");for(let i=0;i<=200;i++)pts.push([i/200,.5-Math.sin(2*Math.PI*i/200*cyc)*d]);return gridL([100,200],[50])+`<path class="ln" d="${pathOf(pts)}"/>`;},
   fmVel(){const s=V("fm.vel"),pts=[];for(let i=0;i<=60;i++){const x=i/60,y=(1-s)+s*x**1.6;pts.push([x,1-y*.94]);}const l=pathOf(pts);return gridL([75,150,225],[25,50,75])+`<path class="ar" d="${l} L300,100 L0,100 Z"/><path class="ln" d="${l}"/>`;},
   fmEnvMini:el=>{const car=isCarrier(+el.dataset.op);return `<path class="ln" d="${pathOf(adsr(.004,car?.9*(1+V("fm.cd")):.4*(1+V("fm.md")),car?.2:.05,.3))}"/>`;},
   dsPitch(){const k=`ds.${V("ds.sel")}.`,pts=[],top=Math.log(V(k+"pit")*2**(V(k+"pa")/12)/30)/Math.log(8000/30);
@@ -489,6 +496,11 @@ const MG=m=>`<svg viewBox="0 0 40 20" aria-hidden="true"><path d="${pathOf(respP
 const NONE=["","","","",""];
 const FSEG=k=>SEG(k,MG,["LP","HP","BP","Notch"]);
 
+/* An LFO runs synced (note values) or free (Hz); the rate fader follows the clock switch. */
+const LFOS={sy:["sy.lm","sy.lr","sy.lh"],l1:["wt.l1m","wt.l1r","wt.l1h"],l2:["wt.l2m","wt.l2r","wt.l2h"],fm:["fm.lm","fm.lr","fm.lh"]};
+const rateKey=id=>{const [m,d,h]=LFOS[id];return V(m)===0?d:h;};
+const cycles=id=>{const [m,d,h]=LFOS[id];return V(m)===0?1+V(d)/2:Math.max(.5,Math.min(8,1+Math.log2(V(h)/.05)/1.5));};
+const LFOSW=(shape,id)=>`<div class="lfosw">${shape?`<div class="shapes">${SEG(shape,SG,NONE)}</div>`:""}<div class="clock">${SEG(LFOS[id][0])}</div></div>`;
 /* ================= views ================= */
 /* Section names are shared across instruments: Osc 1/Osc 2 (Oscillator when there is one), Filter,
    Voice, Amp envelope, Filter envelope, Mod envelope, LFO. Order follows the signal. */
@@ -504,7 +516,7 @@ VIEW.synth=()=>HD("sy","T04","Bass",RO("Voice",R("sy.vm"))+RO("Cutoff",R("sy.cut
   {t:"Voice",well:VOICEWELL("sy"),sw:SEG("sy.vm"),f:VF("sy.uni")+VF("sy.det")+VF("sy.spr")+VF("sy.glide")},
   {t:"Amp envelope",well:WELL("syEnvA","ADSR","",ET),f:ADSR("sy.a")},
   {t:"Filter envelope",well:WELL("syEnvF","ADSR",R("sy.env"),ET),f:ADSR("sy.f")},
-  {t:"LFO",well:WELL("syLfo","Shape",R("sy.lr")),sw:SEG("sy.ls",SG,NONE),f:VF("sy.lr")+VF("sy.lp")+VF("sy.lw")+VF("sy.lc")},
+  {t:"LFO",well:WELL("syLfo","Shape",R(rateKey("sy"))),sw:LFOSW("sy.ls","sy"),f:VF(rateKey("sy"))+VF("sy.lp")+VF("sy.lw")+VF("sy.lc")},
  ]);
 
 const tablePick=x=>`<button type="button" class="pick" data-cycle="wt.${x}t" aria-label="Wavetable for osc ${x==="a"?1:2}"><span>${R(`wt.${x}t`)}</span></button>`;
@@ -518,8 +530,8 @@ VIEW.wt=()=>HD("wt","T05","Pad",RO("Osc 1",R("wt.at"))+RO("Osc 2",R("wt.bt"))+RO
   {t:"Voice",well:VOICEWELL("wt"),f:VF("wt.uni")+VF("wt.det")+VF("wt.spr")},
   {t:"Amp envelope",well:WELL("wtE1","ADSR","",ET),f:ADSR("wt.e1")},
   {t:"Mod envelope",well:WELL("wtE2","ADSR","",ET),f:ADSR("wt.e2")},
-  {t:"LFO 1",well:WELL("wtL1","Shape",R("wt.l1r")),sw:SEG("wt.l1s",SG,NONE),f:VF("wt.l1r"),n:3},
-  {t:"LFO 2",well:WELL("wtL2","Shape",R("wt.l2r")),sw:SEG("wt.l2s",SG,NONE),f:VF("wt.l2r"),n:3},
+  {t:"LFO 1",well:WELL("wtL1","Shape",R(rateKey("l1"))),sw:LFOSW("wt.l1s","l1"),f:VF(rateKey("l1")),n:5},
+  {t:"LFO 2",well:WELL("wtL2","Shape",R(rateKey("l2"))),sw:LFOSW("wt.l2s","l2"),f:VF(rateKey("l2")),n:5},
  ])+
  `<div class="col"><div class="grp-h lbl">Modulation <span class="sub">Each source moves one destination. A grey bar beside the destination's fader shows how far.</span></div><div class="tbl">${ROUTES.map(routeRow).join("")}</div></div>`;
 
@@ -529,7 +541,7 @@ VIEW.fm=()=>HD("fm","T06","Keys",RO("Algorithm",R("fm.algo"))+RO("Feedback",R("f
   {t:"Algorithm",well:WELL("fmAlgo","Carriers filled",`${R("fm.algo")} of 32`),f:VF("fm.algo","Algo")+VF("fm.fb"),n:3},
   {t:"Voice",well:WELL("fmVel","Velocity curve",R("fm.vel")),f:VF("fm.tr")+VF("fm.vel")},
   {t:"Envelope",well:WELL("fmEnv","Offsets · modulators dashed","",ET),f:VF("fm.ma","Mod A")+VF("fm.md","Mod D")+VF("fm.ca","Car A")+VF("fm.cd","Car D")},
-  {t:"LFO",well:WELL("fmLfo","Pitch",R("fm.lr")),f:VF("fm.lr")+VF("fm.lp")},
+  {t:"LFO",well:WELL("fmLfo","Pitch",R(rateKey("fm"))),sw:LFOSW(null,"fm"),f:VF(rateKey("fm"))+VF("fm.lp")},
  ])+
  `<div class="col"><div class="grp-h lbl">Operators <span class="sub">From the loaded patch</span></div>${opRows()}</div>`;
 
@@ -563,7 +575,7 @@ function drawIn(root){all("svg[data-draw]",root).forEach(svg=>{const f=DRAW[svg.
 function render(pre){const el=host(pre),a=document.activeElement,fk=el.contains(a)?a.dataset.k:null;el.innerHTML=VIEW[VIEWOF[pre]]();drawIn(el);if(fk)el.querySelector(`.ctl[data-k="${fk}"]`)?.focus();}
 Object.keys(VIEWOF).forEach(render);
 
-const RERENDER=new Set(["sp.play","sp.by","sp.sel","ds.sel"]);
+const RERENDER=new Set(["sp.play","sp.by","sp.sel","ds.sel","sy.lm","wt.l1m","wt.l2m","fm.lm"]);
 let raf=0,drag=null;const pending=new Set(),later=new Set();
 function paint(k){
   all(`[data-k="${CSS.escape(k)}"]`).forEach(el=>{
