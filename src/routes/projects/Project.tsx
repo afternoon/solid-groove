@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import { AuthProvider } from "../../auth/AuthProvider";
+import { detectCapabilities } from "../../browser/capabilities";
 import AccountControl from "../../components/AccountControls";
 import ProjectNotFound from "../../components/ProjectNotFound";
 import EditorView from "../../editor/EditorView";
@@ -13,6 +14,8 @@ export default function ProjectPage() {
   // makes a deep link, the back button and a reload all land on the same view.
   const location = useLocation();
   const navigate = useNavigate();
+  // Probed once per visit to the editor, never by user-agent (PRD section 10).
+  const capabilities = detectCapabilities();
 
   // Router 2 types `useParams()` as an open `Params` record, so `id` is
   // `string | undefined` even though this route only matches with one present.
@@ -31,6 +34,7 @@ export default function ProjectPage() {
             viewHref={(view) => editorViewPath(id(), view)}
             onSelectView={(view) => navigate(editorViewPath(id(), view))}
             account={<AccountControl class="account-button" />}
+            capabilities={capabilities}
           />
         )}
       </Show>

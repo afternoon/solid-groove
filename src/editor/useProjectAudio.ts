@@ -1,5 +1,6 @@
 import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import type { ErrorCode } from "../analytics/errorCodes";
 import type { BufferSubscription } from "../audio/AudioBufferCache";
 import { type AudioHost, getAudioRuntime } from "../audio/AudioRuntime";
 import { ProjectAudioGraph } from "../audio/ProjectAudioGraph";
@@ -11,6 +12,7 @@ import {
 } from "../audio/Transport";
 import { createTriggerFeed } from "../audio/triggerFeed";
 import { UnderrunMonitor } from "../audio/underrun";
+import { webAudioAvailable } from "../browser/capabilities";
 import type { NoteTrigger, Project } from "../domain/entities";
 import type { AssetId, PadId, TrackId } from "../domain/ids";
 import { toLibrarySample } from "../library/insertion";
@@ -38,8 +40,23 @@ function assetLoadFailureType(kind: string): "one_shot" | "loop" | "instrument_p
   return kind === "loop" ? "loop" : "one_shot";
 }
 
+/**
+ * The last time sound failed to start, for the editor to explain (#75). `attempt`
+ * counts failures, so a second failure after the producer dismissed the first
+ * is a new notice rather than the same dismissed one.
+ */
+export interface AudioStartFailure {
+  readonly code: ErrorCode;
+  readonly attempt: number;
+}
+
 export interface ProjectAudioControls {
   readonly isPlaying: Accessor<boolean>;
+  /**
+   * Why the last attempt to start sound failed, or `null` once sound has
+   * started. Set by the same failures that report `audio_start_failed`.
+   */
+  readonly startFailure: Accessor<AudioStartFailure | null>;
   /** The playhead position in ticks, updated per animation frame while playing. */
   readonly positionTicks: Accessor<number>;
   /**
@@ -132,6 +149,13 @@ export interface UseProjectAudioOptions {
   /** Overrides the timer used to bound the unlock; injectable for tests. */
   readonly setTimer?: (callback: () => void, delayMs: number) => number;
   readonly clearTimer?: (handle: number) => void;
+  /**
+   * Whether this browser has Web Audio at all (#75). Defaults to the feature
+   * detection in `src/browser/capabilities.ts`. Without it no graph is built,
+   * so the editor opens silent instead of failing on a missing
+   * `AudioContext`, and a play gesture reports `not_supported`.
+   */
+  readonly webAudioAvailable?: boolean;
 }
 
 /**
@@ -193,8 +217,11 @@ export function useProjectAudio(
     options.setTimer ??
     ((callback, delayMs) => setTimeout(callback, delayMs) as unknown as number);
   const clearTimer = options.clearTimer ?? ((handle) => clearTimeout(handle));
+  const audioAvailable = options.webAudioAvailable ?? webAudioAvailable();
 
   const [isPlaying, setIsPlaying] = createSignal(false);
+  const [startFailure, setStartFailure] = createSignal<AudioStartFailure | null>(null);
+  let startFailures = 0;
   const [positionTicks, setPositionTicks] = createSignal(0);
   const [loopEnabled, setLoopEnabled] = createSignal(false);
   const [loop, setLoop] = createSignal<LoopRange | null>(null);
@@ -357,6 +384,12 @@ export function useProjectAudio(
     () => project(),
     (current) => {
       if (!current) return;
+      if (!audioAvailable) {
+        // No Web Audio, so nothing to build a graph on (#75). The loop is
+        // still song state the transport bar shows, so it is mirrored anyway.
+        setLoopEnabled(current.song.loop.enabled);
+        return;
+      }
       if (!graph || ownerId !== current.metadata.id) {
         tearDown();
         ownerId = current.metadata.id;
@@ -435,6 +468,11 @@ export function useProjectAudio(
    * browser-blocked outcome a rejecting resume produces.
    */
   function resumeWithinTimeout(): Promise<void> {
+    if (!audioAvailable) {
+      return Promise.reject(
+        new CodedError("not_supported", "This browser does not provide Web Audio."),
+      );
+    }
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const timer = setTimer(() => {
@@ -484,17 +522,28 @@ export function useProjectAudio(
         is_first_play_in_session: firstPlayInSession,
       });
       firstPlayInSession = false;
+      setStartFailure(null);
       setIsPlaying(true);
       startFrameLoop();
     } catch (error) {
-      const code = codeFor(error);
-      analytics.log("audio_start_failed", {
-        error_code: code,
-        was_browser_blocked: code === "autoplay_blocked",
-      });
-      reportError(error, { area: "audio", fatal: false, code });
+      reportStartFailure(error);
       setIsPlaying(false);
     }
+  }
+
+  /**
+   * One failed start: reported as `audio_start_failed` and to monitoring, and
+   * kept for the editor to explain (#75).
+   */
+  function reportStartFailure(error: unknown): void {
+    const code = codeFor(error);
+    analytics.log("audio_start_failed", {
+      error_code: code,
+      was_browser_blocked: code === "autoplay_blocked",
+    });
+    reportError(error, { area: "audio", fatal: false, code });
+    startFailures += 1;
+    setStartFailure({ code, attempt: startFailures });
   }
 
   function play(): Promise<void> {
@@ -558,20 +607,17 @@ export function useProjectAudio(
     try {
       await resumeWithinTimeout();
       graph?.auditionTrack(trackId, trigger, durationTicks, velocity);
+      setStartFailure(null);
       return true;
     } catch (error) {
-      const code = codeFor(error);
-      analytics.log("audio_start_failed", {
-        error_code: code,
-        was_browser_blocked: code === "autoplay_blocked",
-      });
-      reportError(error, { area: "audio", fatal: false, code });
+      reportStartFailure(error);
       return false;
     }
   }
 
   return {
     isPlaying,
+    startFailure,
     positionTicks,
     loopEnabled,
     loop,

@@ -15,6 +15,7 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
+import { type CapabilityReport, detectCapabilities } from "../browser/capabilities";
 import { executeTransaction } from "../commands";
 import { type Project, packVersion } from "../domain/entities";
 import {
@@ -215,6 +216,7 @@ function renderEditor(
     createAuditionEngine?: () => PreviewEngine;
     libraryClient?: LibraryClient;
     analytics?: Analytics;
+    capabilities?: CapabilityReport;
   } = {},
 ) {
   const EditorView = EditorViewModule.default;
@@ -231,6 +233,7 @@ function renderEditor(
         createAuditionEngine={options.createAuditionEngine}
         libraryClient={options.libraryClient}
         analytics={options.analytics}
+        capabilities={options.capabilities}
       />
     );
   };
@@ -310,6 +313,48 @@ function recordingAnalytics(
 }
 
 describe("EditorView", () => {
+  // #75: a browser missing something Groove needs still opens the project, and
+  // says what is missing, what it costs and what to do.
+  it("opens the project and explains each missing capability, reporting it once", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    const transport = createRecordingTransport();
+    const capabilities = detectCapabilities({
+      AudioContext: class {
+        decodeAudioData() {}
+      },
+      localStorage: memoryStorage(),
+      indexedDB: {},
+      URL: { createObjectURL: () => "" },
+      HTMLAnchorElement: { prototype: { download: "" } },
+      document: { createElement: () => ({ getContext: () => ({}) }) as never },
+    });
+
+    renderEditor(project.metadata.id, {
+      analytics: recordingAnalytics(transport),
+      capabilities,
+    });
+
+    const notice = await screen.findByRole("region", { name: "Browser support" });
+    expect(notice).toHaveTextContent("Export isn't available here.");
+    expect(notice).toHaveTextContent(/Chrome, Edge or Firefox to export it/);
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(
+      transport.named("browser_capability_missing").map((event) => event.params),
+    ).toEqual([
+      expect.objectContaining({ capability: "offline_audio", is_required: false }),
+    ]);
+
+    clickAndFlush(
+      within(notice).getByRole("button", {
+        name: "Dismiss: Export isn't available here",
+      }),
+    );
+    expect(screen.queryByRole("region", { name: "Browser support" })).toBeNull();
+  });
+
   it("shows a loading state, then the 404 page for a project that does not exist", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
 

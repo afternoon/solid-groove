@@ -253,6 +253,22 @@ export const NOTE_EDIT_OPERATIONS = [
 export type NoteEditOperation = (typeof NOTE_EDIT_OPERATIONS)[number];
 
 /**
+ * The browser capabilities Groove feature-detects (PRD section 10, #75), as
+ * `browser_capability_missing`'s `capability`. Pinned here like
+ * `SHORTCUT_ACTION_IDS`: `catalog.test.ts` asserts it equals
+ * `CAPABILITY_IDS` in `src/browser/capabilities.ts` exactly, so a new probe has
+ * to be given an analytics decision in the same change.
+ */
+export const BROWSER_CAPABILITY_IDS = [
+  "web_audio",
+  "audio_decoding",
+  "offline_audio",
+  "site_storage",
+  "canvas_2d",
+  "file_download",
+] as const;
+
+/**
  * `feature_first_use` keys (PRD `OPS-02`). One low-cardinality key rather than
  * an event name per feature, so first-use is comparable across features in one
  * report and the catalog stays well inside GA4's distinct-event-name limit.
@@ -981,6 +997,20 @@ export const ANALYTICS_EVENTS = {
     params: {
       error_code: enumParam(ERROR_CODES),
       was_browser_blocked: boolParam(),
+    },
+  },
+
+  browser_capability_missing: {
+    phase: 1,
+    owners: ["#75"],
+    // The editor opened in a browser that lacks a capability Groove depends
+    // on, so the producer was shown what it costs and what to do (PRD section
+    // 10, #75). Once per capability per browser: a missing API is a property
+    // of the browser, not of a session. `is_required` separates "no sound at
+    // all" from one feature being unavailable.
+    params: {
+      capability: enumParam(BROWSER_CAPABILITY_IDS),
+      is_required: boolParam(),
     },
   },
 
