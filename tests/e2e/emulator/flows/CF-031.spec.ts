@@ -47,11 +47,7 @@ const returnDevices = (page: Page): Locator =>
   returnChain(page).getByRole("list", { name: "Return chain" }).getByRole("listitem");
 
 test.describe("CF-031", () => {
-  // `test.fixme` until #386's stack lands: the PR that closes #386 removes
-  // this marker in the same diff that makes the flow pass.
   test("a producer sends a track to a reverb return", async ({ page }) => {
-    // Parked from inside the body so the body keeps its indentation.
-    test.fixme();
     test.setTimeout(120_000);
 
     const step = walkthrough(page, {

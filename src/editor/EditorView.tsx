@@ -26,7 +26,7 @@ import { ControlRegistryContext } from "../controls/control";
 import { createControlRegistry } from "../controls/registry";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
+import type { EventId, PadId, PlacementId, ReturnId, TrackId } from "../domain/ids";
 import { SONG_SWING, SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import {
@@ -396,8 +396,20 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // lane or clip click, opening a clip, a deleted neighbour, a new track —
   // only points the editor at it, and clears the choice.
   const [chosenTrackId, setChosenTrackId] = createSignal<TrackId | null>(null);
+  // The return the mixer pointed the editor at (#386), which puts the
+  // instrument view in return mode. UI-only like the track selection, and
+  // beside it rather than in it: the arrangement and the step editor keep
+  // following the track while a return's chain is open. Selecting any track
+  // clears it, and a return that is deleted or undone away simply stops
+  // matching, so the view falls back to the track.
+  const [returnSelection, setReturnSelection] = createSignal<ReturnId | null>(null);
+  const selectedReturn = createMemo(() => {
+    const id = returnSelection();
+    return id ? (project()?.song.returns.find((bus) => bus.id === id) ?? null) : null;
+  });
   function selectTrack(trackId: TrackId, chosen = false): void {
     setNewTrackAim(false);
+    setReturnSelection(null);
     setSelection(selectOnly({ kind: "track", id: trackId }));
     setChosenTrackId(chosen ? trackId : null);
   }
@@ -1035,6 +1047,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                             <EditorInstrument
                               project={currentProject()}
                               track={track() ?? null}
+                              returnBus={selectedReturn()}
                               drumTrack={drumTrack() ?? null}
                               sampleAssets={sampleAssets()}
                               instrument={instrument()}
@@ -1141,6 +1154,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               trackLevel={audio.trackLevel}
                               selectedTrackId={track()?.id ?? null}
                               onSelectTrack={selectTrackFrom}
+                              selectedReturnId={selectedReturn()?.id ?? null}
+                              onSelectReturn={setReturnSelection}
                             />
                           </div>
                         </Match>

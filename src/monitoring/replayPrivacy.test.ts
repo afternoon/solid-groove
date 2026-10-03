@@ -142,6 +142,11 @@ const MASKED_NAMES: readonly {
     renders: "a return bus's name, editable in place on its mixer strip",
   },
   {
+    file: "editor/ReturnPanel.tsx",
+    anchor: "instrument-return-name",
+    renders: "the selected return's name atop the instrument view's return mode",
+  },
+  {
     file: "editor/TrackSends.tsx",
     anchor: "mixer-send-name",
     renders: "the return a track's send feeds, on the track's mixer strip",
