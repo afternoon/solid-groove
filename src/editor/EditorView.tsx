@@ -400,13 +400,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // instrument view in return mode. UI-only like the track selection, and
   // beside it rather than in it: the arrangement and the step editor keep
   // following the track while a return's chain is open. Selecting any track
-  // clears it, and a return that is deleted or undone away simply stops
-  // matching, so the view falls back to the track.
+  // clears it, and so does the return being deleted or undone away: the view
+  // falls back to the track, and stays there when an undo brings the return
+  // back.
   const [returnSelection, setReturnSelection] = createSignal<ReturnId | null>(null);
   const selectedReturn = createMemo(() => {
     const id = returnSelection();
     return id ? (project()?.song.returns.find((bus) => bus.id === id) ?? null) : null;
   });
+  // Both reads in compute; the write is only legal in the apply half.
+  createEffect(
+    () => returnSelection() !== null && selectedReturn() === null,
+    (stale) => {
+      if (stale) setReturnSelection(null);
+    },
+  );
   function selectTrack(trackId: TrackId, chosen = false): void {
     setNewTrackAim(false);
     setReturnSelection(null);
@@ -650,11 +658,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     // is: not the mixer, and not in the sequence view. Only a track the user
     // chose through its header (#960) — not the first-track fallback, and not
     // one a lane click, a clip click or a deleted clip left selected — so a
-    // slip never takes a whole track.
+    // slip never takes a whole track. Nor in the instrument view's return
+    // mode, where the track is not on screen at all (#386).
     deleteSelectedTrack: () => {
       const id = deletableTrackId();
       if (props.view === "mixer" || props.view === "sequence" || id === null)
         return undefined;
+      if (props.view === "instrument" && selectedReturn() !== null) return undefined;
       if (!project()?.song.tracks.some((candidate) => candidate.id === id))
         return undefined;
       return () => deleteTrack(trackDeletion, id);
