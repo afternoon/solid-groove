@@ -206,6 +206,52 @@ describe("playhead follow", () => {
     expect(playheadX).toBeGreaterThanOrEqual(0);
   });
 
+  /** Plays from bar 1 the way the transport does: one small seek a frame, at
+   * 120 BPM and 60 fps, for `seconds`. Reports where the playhead was drawn,
+   * in viewport pixels, on every frame. */
+  function play(shell: ArrangementShell, seconds: number): number[] {
+    shell.setPlayheadFollow(true);
+    const ticksPerFrame = (192 * 2) / 60;
+    const drawnAt: number[] = [];
+    for (let frame = 1; frame <= seconds * 60; frame++) {
+      const ticks = frame * ticksPerFrame;
+      shell.seekTo(ticks);
+      const port = shell.getViewport();
+      drawnAt.push(ticks * port.pixelsPerTick - port.scrollLeft);
+    }
+    return drawnAt;
+  }
+
+  it("keeps a playing playhead inside the view, clear of the right edge (#964)", () => {
+    const { shell } = setup();
+    // 800px at 0.08 px/tick is about 27 s of song; play well past three pages.
+    const drawnAt = play(shell, 90);
+    expect(shell.getViewport().scrollLeft).toBeGreaterThan(0);
+    const outside = drawnAt.filter((x) => x < 0 || x > 800 - 16);
+    expect({ framesOutside: outside.length, firstAt: outside[0] }).toEqual({
+      framesOutside: 0,
+      firstAt: undefined,
+    });
+  });
+
+  it("turns the page when the playhead reaches the right edge (#964)", () => {
+    const { shell } = setup();
+    const drawnAt = play(shell, 40);
+    // Each page turn is a jump: the playhead goes from the right of the view to
+    // near its left, then walks right again rather than creeping along the edge.
+    const turns = drawnAt.flatMap((x, frame) =>
+      frame > 0 && x < drawnAt[frame - 1] ? [{ from: drawnAt[frame - 1], to: x }] : [],
+    );
+    expect(turns.length).toBeGreaterThan(0);
+    for (const turn of turns) {
+      expect(turn.from).toBeGreaterThan(800 * 0.75);
+      expect(turn.to).toBeLessThan(800 * 0.25);
+      expect(turn.to).toBeGreaterThan(0);
+    }
+    // Between turns the view stands still, so the playhead moves on screen.
+    expect(turns.length).toBeLessThan(5);
+  });
+
   it("does not scroll on seek when follow is disabled", () => {
     const { shell } = setup();
     shell.setPlayheadFollow(false);

@@ -45,6 +45,13 @@ export interface ArrangementShellConfig {
   readonly resizeHandlePx: number;
   /** Device-pixel-ratio cap for canvas backing stores (PRD 9.3: capped at 2). */
   readonly maxDevicePixelRatio: number;
+  /**
+   * Playhead follow turns the page once the playhead comes this close, in CSS
+   * pixels, to the right edge of the view, so it never reaches the edge (#964).
+   */
+  readonly followEdgePx: number;
+  /** Where a page turn puts the playhead: this far in from the left edge. */
+  readonly followLeadPx: number;
 }
 
 export const DEFAULT_SHELL_CONFIG: ArrangementShellConfig = {
@@ -54,6 +61,8 @@ export const DEFAULT_SHELL_CONFIG: ArrangementShellConfig = {
   maxPixelsPerTick: 2,
   resizeHandlePx: 6,
   maxDevicePixelRatio: 2,
+  followEdgePx: 24,
+  followLeadPx: 24,
 };
 
 export interface ArrangementShellState {
@@ -101,9 +110,11 @@ export function createArrangementShell(
   let playheadTicks = 0;
   let hoverPlacementId: PlacementId | null = null;
   let playheadFollow = true;
-  // The furthest tick a zoom has framed. The timeline can scroll to here even
-  // when it is past the end of the song, so a range that runs beyond the last
-  // clip can still be shown edge to edge (#292, CF-011).
+  // The furthest tick a zoom or a playhead-follow page turn has framed. The
+  // timeline can scroll to here even when it is past the end of the song, so
+  // a range that runs beyond the last clip can still be shown edge to edge
+  // (#292, CF-011), and a playhead playing on past the last clip stays in view
+  // (#964).
   let framedExtentTicks = 0;
 
   const dirty = new Set<DirtyLayer>();
@@ -241,18 +252,31 @@ export function createArrangementShell(
     markDirty("background", "content", "interaction");
   }
 
-  /** Scroll horizontally so the playhead is in view (KEY-01 follow / the
-   * "scroll to playhead" named action). Vertical scroll is unaffected. */
+  /**
+   * Keep the playhead in view (KEY-01 follow / the "scroll to playhead" named
+   * action). It pages, the way Live's follow does: while the playhead is
+   * inside the view the view stands still, and once it nears the right edge,
+   * or is anywhere outside the view, the view jumps so the playhead sits just
+   * in from the left edge and walks across the new page (#964). A page turn
+   * past the end of the song extends the timeline that far, so a playhead
+   * playing on after the last clip is not left behind the scroll limit.
+   * Vertical scroll is unaffected.
+   */
   function scrollToPlayhead(): void {
+    // A view not laid out yet has nothing to keep the playhead in.
+    if (viewport.width <= 0) return;
+    // A view too narrow for both margins splits it rather than paging forever.
+    const edge = Math.min(config.followEdgePx, viewport.width / 4);
+    const lead = Math.min(config.followLeadPx, viewport.width / 4);
     const x = playheadTicks * viewport.pixelsPerTick;
-    let nextLeft = viewport.scrollLeft;
-    if (x < viewport.scrollLeft) {
-      nextLeft = x;
-    } else if (x > viewport.scrollLeft + viewport.width) {
-      nextLeft = x - viewport.width;
-    } else {
+    if (x >= viewport.scrollLeft && x <= viewport.scrollLeft + viewport.width - edge) {
       return;
     }
+    const nextLeft = Math.max(0, x - lead);
+    framedExtentTicks = Math.max(
+      framedExtentTicks,
+      (nextLeft + viewport.width) / viewport.pixelsPerTick,
+    );
     setScroll(nextLeft, viewport.scrollTop);
   }
 
