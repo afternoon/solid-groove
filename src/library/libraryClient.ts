@@ -170,3 +170,15 @@ export class LibraryClient {
     return promise;
   }
 }
+
+let shared: LibraryClient | null = null;
+
+/**
+ * The app's one library client. Its index and manifests are cached, and a pack
+ * version never changes, so every visit to the Library after the first opens
+ * on what is already loaded rather than fetching, and showing, it again.
+ */
+export function sharedLibraryClient(): LibraryClient {
+  shared ??= new LibraryClient();
+  return shared;
+}

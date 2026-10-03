@@ -3,7 +3,7 @@ import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
-import { LibraryClient } from "../library/libraryClient";
+import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import type {
   LibraryAsset,
   LibraryAssetType,
@@ -142,7 +142,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   // The pack whose sounds the sounds view is scoped to (`null`: no scope). The
   // sounds view reads this; Browse packs and In this project set it.
   const [packScope, setPackScope] = createSignal<string | null>(null);
-  const client = props.client ?? new LibraryClient();
+  // Shared, so a second visit opens on what the first loaded.
+  const client = props.client ?? sharedLibraryClient();
   // Similar sounds swaps in over whichever place opened it.
   const [similarOf, setSimilarOf] = createSignal<LibraryAsset | null>(null);
   // What the sounds list in view is called, so similar sounds' way back names it.
