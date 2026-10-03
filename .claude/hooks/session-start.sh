@@ -78,14 +78,29 @@ problem. A null ALSA device and PW_CHROMIUM_PATH are already configured.
 NOTICE
 
 # The skills and workflows drive GitHub through `gh` (stacked PRs, `blocked_by`,
-# labels). An unauthenticated `gh` fails mid-run in ways that read like a broken
-# pipeline, so say so up front. The fix is a GH_TOKEN in the cloud environment's
-# settings; until then the GitHub MCP tools can still open a PR on a stacked base.
-if command -v gh >/dev/null 2>&1 && ! timeout 5 gh auth status >/dev/null 2>&1; then
-	cat <<'NOTICE'
-GitHub CLI: `gh` is NOT authenticated in this session (GH_TOKEN missing or
-invalid). Do not retry it. Use the GitHub MCP tools instead (create_pull_request
-takes a `base`, update_pull_request can retarget one), and tell the user the
-environment needs a valid GH_TOKEN for `blocked_by` edits and full skill support.
+# labels). In a cloud session the GitHub proxy supplies the credentials for REST
+# calls but refuses GraphQL, and `gh auth status` reports the token as "invalid"
+# even though REST works. Agents read that line and gave up on `gh` entirely,
+# including the `blocked_by` reads and edits that only REST offers. So probe a
+# real REST call, never `gh auth status`, and say exactly what works.
+if command -v gh >/dev/null 2>&1; then
+	if timeout 10 gh api repos/afternoon/solid-groove --silent >/dev/null 2>&1; then
+		cat <<'NOTICE'
+GitHub CLI: `gh api` (REST) works in this session; use it. Ignore `gh auth
+status`: it reports the token as invalid here, but that is wrong for REST.
+GraphQL is blocked (HTTP 403), and the porcelain commands are built on it:
+`gh pr create/list/view/edit`, `gh issue view/list` all fail. Use REST instead:
+  gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by
+  gh api -X POST repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by -F issue_id=<blocking issue's numeric id>
+  gh api -X POST repos/afternoon/solid-groove/pulls -f title=... -f head=... -f base=... -f body=...
+  gh api repos/afternoon/solid-groove/pulls/<n>   (and /issues/<n>, /issues/<n>/comments, /issues/<n>/labels)
+or the GitHub MCP tools (create_pull_request takes a `base`).
 NOTICE
+	else
+		cat <<'NOTICE'
+GitHub CLI: `gh api` cannot reach GitHub from this session. Use the GitHub MCP
+tools instead (create_pull_request takes a `base`, update_pull_request can
+retarget one), and tell the user which call failed.
+NOTICE
+	fi
 fi
