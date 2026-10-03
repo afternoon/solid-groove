@@ -1326,3 +1326,41 @@ player's slots, which share the same part and are covered at the component
 layer, as are the Library's empty screens (a synth track, no track) and what the
 slot's target edge and the dock's target dot look like. Choosing sounds, packs,
 genres and similar sounds, which CF-023 to CF-026 own.
+
+### CF-031 — A producer sends a track to a reverb return
+
+**Issue:** #386 · **Suite:** `tests/e2e/emulator/flows/CF-031.spec.ts` · **Entrypoint:** the
+project dashboard
+
+**Preconditions:** signed in with no projects.
+
+1. Create a new project and switch to the mixer. The starter track's strip and
+   the master are there, and no returns.
+2. Add a return. A return strip appears after the tracks and before the master,
+   with its own volume and pan. Rename it "Verb".
+3. Select the return and go to the instrument view. It shows the return's device
+   chain, empty, and no instrument. Add a reverb to it.
+4. Go back to the mixer. The return's strip reads Reverb. Send the starter track
+   to the return, and drag the send level up.
+5. Undo once. The send level drops back to where the send started, in one step.
+   Redo. It is back up.
+6. Turn the return's volume down.
+7. Remove the return. Its strip goes, and so does the starter track's send to
+   it. Undo once. The return is back, with its reverb, and so is the send, at the
+   level you left it.
+8. Reload the page. The project reopens on the mixer. The return is still called
+   "Verb", still carries the reverb and still sits at the volume you set, and the
+   starter track still sends to it at that level.
+
+**Outcome:** a producer made a shared effects bus, put a reverb on it, sent a
+track to it, took a deletion back in one step with everything that hung off it,
+and found the whole routing intact when they came back.
+
+**Out of scope:** that the return is *audible*: a headless browser records no
+audio, so this proves the routing, the controls and the state; the signal path
+from a send into a return is asserted in the audio suite. A return's chain
+editing beyond adding one device (reorder, bypass, duplicate, reset), which is
+the same panel CF-012 and CF-013 walk through on a track. Several returns, the
+eight-return limit, pre-fader sends, return mute and automation, which are
+covered at the unit and component layers. As in CF-007, undo and redo come
+before the reload because history is session-local.
