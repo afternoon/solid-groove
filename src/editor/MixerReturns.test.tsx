@@ -29,7 +29,7 @@ afterEach(() => {
 /** The mixer against a real history, as `Mixer.test.tsx` drives it. */
 function renderMixer(
   initial: Project = createSliceFixtureProject(),
-  options: { optedOut?: boolean } = {},
+  options: { optedOut?: boolean; noReturnSelection?: boolean } = {},
 ) {
   const history = new CommandHistory(initial);
   const [project, setProject] = createSignal(history.project);
@@ -77,7 +77,7 @@ function renderMixer(
       selectedTrackId={project().song.tracks[0]?.id ?? null}
       onSelectTrack={() => setSelectedReturnId(null)}
       selectedReturnId={selectedReturnId()}
-      onSelectReturn={setSelectedReturnId}
+      onSelectReturn={options.noReturnSelection ? undefined : setSelectedReturnId}
     />
   ));
 
@@ -194,6 +194,13 @@ describe("Mixer returns (#386)", () => {
     }
   });
 
+  it("has no Edit control when there is nowhere to show a return", () => {
+    renderMixer(undefined, { noReturnSelection: true });
+    addReturn();
+    expect(returnStrips()).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Edit Return A" })).toBeNull();
+  });
+
   it("names the chain a return carries", () => {
     const { history, project } = renderMixer();
     addReturn();
@@ -278,6 +285,23 @@ describe("Mixer sends (#386)", () => {
       screen.getByRole("slider", { name: `Send level from ${track.name} to Return A` }),
       [0.5],
     );
+    expect(firstUses(transport, "send_return")).toHaveLength(1);
+  });
+
+  it("logs send_return only when a send is used, not for a return alone", () => {
+    const { transport } = renderMixer();
+    addReturn();
+    const strip = returnStrips()[0];
+    drag(within(strip).getByRole("slider", { name: "Volume for Return A" }), [0.5]);
+    drag(within(strip).getByRole("slider", { name: "Pan for Return A" }), [0.3]);
+    expect(firstUses(transport, "send_return")).toHaveLength(0);
+  });
+
+  it("logs send_return when a send is added", () => {
+    const { project, transport } = renderMixer();
+    addReturn();
+    const track = project().song.tracks[0];
+    clickAndFlush(screen.getByRole("button", { name: `Send ${track.name} to Return A` }));
     expect(firstUses(transport, "send_return")).toHaveLength(1);
   });
 

@@ -329,9 +329,10 @@ export default function Mixer(props: MixerProps): JSX.Element {
                 <ReturnStrip
                   returnBus={bus()}
                   selected={props.selectedReturnId === bus().id}
-                  onSelect={() => selectReturn(bus().id)}
+                  onSelect={
+                    props.onSelectReturn ? () => selectReturn(bus().id) : undefined
+                  }
                   onDelete={() => deleteReturnBus(returnHost, bus().id)}
-                  onFirstUse={() => analytics().logFeatureFirstUse("send_return")}
                   dispatch={props.dispatch}
                   beginGesture={props.beginGesture}
                 />

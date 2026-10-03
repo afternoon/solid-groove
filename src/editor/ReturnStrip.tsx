@@ -1,4 +1,4 @@
-import type { JSX } from "@solidjs/web";
+import { type JSX, Show } from "@solidjs/web";
 import { HiSolidTrash } from "solid-icons/hi";
 import {
   createControlGesture,
@@ -22,11 +22,12 @@ export interface ReturnStripProps {
   readonly returnBus: ReturnBus;
   /** Whether this return is the one the instrument view is showing. */
   readonly selected: boolean;
-  /** Points the editor at this return: the instrument view shows its chain. */
-  onSelect(): void;
+  /**
+   * Points the editor at this return: the instrument view shows its chain.
+   * With none, the strip has no Edit control, since there is nowhere to go.
+   */
+  onSelect?(): void;
   onDelete(): void;
-  /** Called once per landed volume or pan change, for first-use analytics. */
-  onFirstUse?(): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -45,21 +46,24 @@ export default function ReturnStrip(props: ReturnStripProps): JSX.Element {
     <li class={["mixer-strip", "mixer-return-strip", { selected: props.selected }]}>
       <div class="mixer-strip-head">
         <ReturnNameInput returnBus={props.returnBus} dispatch={props.dispatch} />
-        <button
-          type="button"
-          class="mixer-strip-select"
-          aria-pressed={ariaBool(props.selected)}
-          aria-label={`Edit ${name()}`}
-          title={`Edit ${name()}`}
-          onClick={() => props.onSelect()}
-        >
-          Return
-        </button>
+        <Show when={props.onSelect}>
+          {(select) => (
+            <button
+              type="button"
+              class="mixer-strip-select"
+              aria-pressed={ariaBool(props.selected)}
+              aria-label={`Edit ${name()}`}
+              title={`Edit ${name()}`}
+              onClick={() => select()()}
+            >
+              Return
+            </button>
+          )}
+        </Show>
       </div>
       <div class="mixer-strip-pan">
         <ReturnPan
           returnBus={props.returnBus}
-          onCommit={() => props.onFirstUse?.()}
           dispatch={props.dispatch}
           beginGesture={props.beginGesture}
         />
@@ -76,7 +80,6 @@ export default function ReturnStrip(props: ReturnStripProps): JSX.Element {
           inputId={`mixer-volume-${props.returnBus.id}`}
           ariaLabel={`Volume for ${name()}`}
           summary={`Set volume for return ${name()}`}
-          onCommit={() => props.onFirstUse?.()}
           dispatch={props.dispatch}
           beginGesture={props.beginGesture}
         />
@@ -100,7 +103,6 @@ export default function ReturnStrip(props: ReturnStripProps): JSX.Element {
 
 function ReturnPan(props: {
   readonly returnBus: ReturnBus;
-  onCommit(): void;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
@@ -129,10 +131,7 @@ function ReturnPan(props: {
       value={props.returnBus.mixer.pan}
       displayValue={formatPan(props.returnBus.mixer.pan)}
       onInput={(value) => control.input(value)}
-      onCommit={(value) => {
-        control.commit(value);
-        props.onCommit();
-      }}
+      onCommit={(value) => control.commit(value)}
     />
   );
 }

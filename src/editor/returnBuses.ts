@@ -15,8 +15,9 @@ import { MAX_RETURN_BUSES } from "../domain/parse";
  * called, and the dispatches the mixer's return strips and send controls make.
  *
  * Nothing here mutates a project; every change is one command through the
- * host's dispatch, and the `send_return` first use is logged only when the
- * command lands.
+ * host's dispatch. The `send_return` first use is logged the first time a
+ * send is used: when adding one lands (here) or a send level commits (the
+ * mixer), never for a return on its own.
  */
 
 const RETURN_LETTERS = "ABCDEFGH";
@@ -62,9 +63,7 @@ export function addReturnBus(
     order: returns.length,
   });
   const result = host.dispatch(addReturn(bus));
-  if (!result?.ok) return undefined;
-  host.analytics.logFeatureFirstUse("send_return");
-  return bus.id;
+  return result?.ok ? bus.id : undefined;
 }
 
 /** Removes a return, and with it every send to it: one undoable transaction. */
