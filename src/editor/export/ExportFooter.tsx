@@ -46,7 +46,9 @@ function Readout(props: {
  * The footer of the Release design (EXP-004). Everything in it has a fixed
  * size, so a label change, a message or a failure moves nothing: the readouts
  * sit in fixed-width slots, the actions in a fixed-width box, and the message
- * in a fixed one-line slot under them, which never wraps. The alert is always
+ * in the one-line slot between them, which never wraps: a long one ends in an
+ * ellipsis, with the whole text on hover. It sits in the row rather than under
+ * it so an empty slot leaves no blank strip at the foot of the dialog. The alert is always
  * mounted and only its content changes, so a screen reader announces each one.
  */
 export default function ExportFooter(props: ExportFooterProps): JSX.Element {
@@ -82,19 +84,31 @@ export default function ExportFooter(props: ExportFooterProps): JSX.Element {
           )}
         </Show>
       </Readout>
-      <span class="export-footer-fill" />
-      <div class="export-actions">{props.children}</div>
       <div class="export-message">
-        <div class={["export-alert", { shown: props.alert !== "" }]} role="alert">
+        <div
+          class={["export-alert", { shown: props.alert !== "" }]}
+          role="alert"
+          title={
+            props.alert === ""
+              ? undefined
+              : `${props.alertLead ?? ""} ${props.alert}`.trim()
+          }
+        >
           <Show when={props.alertLead}>
             <b>{props.alertLead}</b>{" "}
           </Show>
           {props.alert}
         </div>
-        <output class="export-note" id={EXPORT_NOTE_ID} aria-live="polite">
+        <output
+          class="export-note"
+          id={EXPORT_NOTE_ID}
+          aria-live="polite"
+          title={props.note || undefined}
+        >
           {props.note}
         </output>
       </div>
+      <div class="export-actions">{props.children}</div>
     </div>
   );
 }

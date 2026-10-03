@@ -3,11 +3,9 @@
 
 .export-footer {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-end;
-  align-content: flex-start;
-  gap: 12px 24px;
-  height: 124px;
+  gap: 24px;
+  height: 74px;
   padding: 14px 24px 18px;
 }
 
@@ -28,10 +26,6 @@
 .export-level {
   font-size: 12px;
   color: var(--color-text-secondary);
-}
-
-.export-footer-fill {
-  flex: 1;
 }
 
 .export-actions {
@@ -79,12 +73,14 @@
   color: var(--color-foreground-bright);
 }
 
+/* Between the readouts and the actions, on their baseline: it takes the room
+   they leave and never wraps. */
 .export-message {
-  order: 10;
   display: flex;
-  flex-basis: 100%;
-  align-items: flex-start;
-  height: 40px;
+  flex: 1;
+  align-items: flex-end;
+  min-width: 0;
+  height: 42px;
   overflow: hidden;
 }
 

@@ -39,7 +39,8 @@ export interface TrackLanesProps {
    * bracket, but their lanes are not drawn printed. */
   readonly idle?: boolean;
   readonly printing?: PrintState | null;
-  readonly heightPx?: number;
+  /** The tallest the list grows before it scrolls; a shorter song stays short. */
+  readonly maxHeightPx?: number;
   /** Scroll this row to the top, e.g. a batch's first stem when it starts. */
   readonly scrollToRowId?: string | null;
   readonly onRowClick?: (index: number, modifiers: ClickModifiers) => void;
@@ -94,7 +95,7 @@ export default function TrackLanes(props: TrackLanesProps): JSX.Element {
         ref={scroller}
         style={{
           "grid-template-columns": `${NAME_COLUMN_PX}px ${GUTTER_PX}px minmax(0, 1fr)`,
-          height: props.heightPx ? `${props.heightPx}px` : undefined,
+          "max-height": props.maxHeightPx ? `${props.maxHeightPx}px` : undefined,
         }}
       >
         <TrackNameList

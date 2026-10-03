@@ -351,7 +351,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
             focusId={list.focusId()}
             readOnly={format() === "stereo"}
             disabled={phase().kind === "rendering"}
-            heightPx={250}
+            maxHeightPx={250}
             batches={batchRows()}
             doneBatches={Array.from({ length: got() }, (_, i) => i)}
             idle={phase().kind === "choose"}
