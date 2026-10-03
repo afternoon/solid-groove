@@ -92,10 +92,19 @@ export class FirestoreProjectRepository implements ProjectRepository {
     if (oversized.length > 0) {
       return tooLarge(oversized);
     }
+    // `runTransaction` re-runs this function when a commit fails with a
+    // retryable code such as `unavailable`, and a commit can reach the server
+    // even though its acknowledgement never comes back. Once an attempt has
+    // written the metadata document, finding it on a later attempt means that
+    // write landed: the ID is this call's own claim, not someone else's (#891).
+    let claimed = false;
     try {
       await runTransaction(this.db, async (tx) => {
         const metadataRef = this.ref(documents.metadata.path);
         const existing = await tx.get(metadataRef);
+        if (existing.exists() && claimed) {
+          return;
+        }
         if (existing.exists()) {
           throw new AbortWrite(
             saveFailure(
@@ -105,6 +114,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
           );
         }
         this.write(tx, documents.metadata);
+        claimed = true;
       });
     } catch (error) {
       return toSaveFailure(error);
@@ -360,6 +370,11 @@ export class FirestoreProjectRepository implements ProjectRepository {
     patch: ProjectMetadataPatch = {},
     derived: DerivedMetadataFields = {},
   ): Promise<SaveResult> {
+    // The stamp the last attempt wrote. `runTransaction` re-runs this function
+    // when a commit fails with a retryable code, and a commit can land even
+    // though its acknowledgement is lost. A retry that finds exactly that
+    // revision and timestamp stored is reading its own write, not a conflict.
+    let attempted: WriteStamp | undefined;
     try {
       const outcome = await runTransaction<WriteStamp>(this.db, async (tx) => {
         const metadataRef = this.ref(projectDocumentPath(projectId));
@@ -382,6 +397,13 @@ export class FirestoreProjectRepository implements ProjectRepository {
           );
         }
         const metadata = decoded.value;
+        if (
+          attempted &&
+          metadata.revision === attempted.revision &&
+          metadata.modifiedAt === attempted.modifiedAt
+        ) {
+          return attempted;
+        }
         if (metadata.revision !== baseRevision) {
           throw new AbortWrite(revisionConflict(baseRevision, metadata.revision));
         }
@@ -396,6 +418,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
             nextMetadata(metadata, patch, derived, next.revision, next.modifiedAt),
           ),
         );
+        attempted = next;
         return next;
       });
       return { ok: true, ...outcome };
