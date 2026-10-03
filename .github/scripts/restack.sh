@@ -172,17 +172,18 @@ base)
 	for candidate in $(children_of "$branch"); do
 		# GitHub works mergeability out lazily after the base moves: ask until
 		# it answers, for up to a minute.
-		state=null
+		# `--jq` prints a null as an empty line, so wait for a real true/false.
+		state=""
 		for _ in $(seq 1 12); do
-			state="$(gh api "repos/$repo/pulls/$candidate" --jq '.mergeable')"
-			[ "$state" != "null" ] && break
+			state="$(gh api "repos/$repo/pulls/$candidate" --jq '.mergeable // "unknown"')"
+			[ "$state" = "true" ] || [ "$state" = "false" ] && break
 			sleep 5
 		done
 		if [ "$state" = "false" ]; then
 			log "#$candidate conflicts with $branch; rebasing it"
 			restack_tree "$candidate" ""
 		else
-			log "#$candidate merges cleanly into $branch (mergeable=$state); leaving it"
+			log "#$candidate merges cleanly into $branch, or GitHub has not said (mergeable=$state); leaving it"
 		fi
 	done
 	;;
