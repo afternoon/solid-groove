@@ -950,6 +950,30 @@ describe("EditorView", () => {
     ).toBeInTheDocument();
   });
 
+  // #844: every project change logged hundreds of Solid dev warnings, because
+  // the effects that react to it read the project from their untracked apply
+  // halves. Opening the project and editing it must log none.
+  it("opens and edits a project without a STRICT_READ_UNTRACKED warning (#844)", async () => {
+    const warn = vi.spyOn(console, "warn");
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    renderEditor(project.metadata.id);
+    await openSequenceEditor();
+    paintStep("BD, step 2, off");
+    expect(
+      await screen.findByRole("button", { name: "BD, step 2, on" }),
+    ).toBeInTheDocument();
+    flush();
+
+    const strictReads = warn.mock.calls
+      .map(([message]) => String(message))
+      .filter((message) => message.includes("STRICT_READ_UNTRACKED"));
+    expect(strictReads.length, strictReads[0]).toBe(0);
+  });
+
   it("autosaves an edit, and the save status settles to Saved with an advanced revision", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createStepGridProject();

@@ -1,5 +1,12 @@
 import type { JSX } from "@solidjs/web";
-import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  Show,
+  untrack,
+} from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
@@ -167,11 +174,14 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
     setStopped("");
     if (phase().kind === "failed") setPhase({ kind: "choose" });
   };
+  // Only the selection is a dependency: a phase change must not start over.
+  // The phase is read once, knowingly, under `untrack` (#844).
   createEffect(
     () => list.trackIds().join(","),
-    () => {
-      if (phase().kind !== "rendering") startOver();
-    },
+    () =>
+      untrack(() => {
+        if (phase().kind !== "rendering") startOver();
+      }),
   );
 
   // Escape clears the list's picks first, and closes only when there were none.
