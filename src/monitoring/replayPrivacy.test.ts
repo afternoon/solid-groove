@@ -137,6 +137,16 @@ const MASKED_NAMES: readonly {
     renders: "the track name, editable in place",
   },
   {
+    file: "editor/ReturnStrip.tsx",
+    anchor: "return-name-",
+    renders: "a return bus's name, editable in place on its mixer strip",
+  },
+  {
+    file: "editor/TrackSends.tsx",
+    anchor: "mixer-send-name",
+    renders: "the return a track's send feeds, on the track's mixer strip",
+  },
+  {
     file: "editor/InstrumentHeader.tsx",
     anchor: "instrument-header-name",
     renders: "the track's name atop the instrument view",

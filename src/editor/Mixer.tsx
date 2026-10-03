@@ -1,5 +1,5 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { HiSolidDocumentDuplicate, HiSolidTrash } from "solid-icons/hi";
+import { HiSolidDocumentDuplicate, HiSolidPlus, HiSolidTrash } from "solid-icons/hi";
 import { createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
@@ -19,10 +19,10 @@ import { CONTROL_PARTS, controlAddress } from "../commands/controlAddress";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { control } from "../controls/control";
 import { duplicateTrack } from "../domain/duplicateTrack";
-import type { Project, Track } from "../domain/entities";
+import type { Project, ReturnBus, Track } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import { formatPan } from "../domain/faders";
-import type { TrackId } from "../domain/ids";
+import type { ReturnId, TrackId } from "../domain/ids";
 import { TRACK_PAN } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 import { instrumentKindSpec } from "../instrument/instrumentKinds";
@@ -31,9 +31,20 @@ import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
 import MuteSoloToggles from "./MuteSoloToggles";
 import NewTrackButtons from "./NewTrackButtons";
+import ReturnStrip from "./ReturnStrip";
+import {
+  addReturnBus,
+  canAddReturn,
+  deleteReturnBus,
+  type ReturnHost,
+  removeTrackSend,
+  sendTrackToReturn,
+  sortedReturns,
+} from "./returnBuses";
 import TrackColorPicker from "./TrackColorPicker";
 import { type FaderProps, VolumeFader } from "./TrackFaders";
 import TrackNameInput from "./TrackNameInput";
+import TrackSends from "./TrackSends";
 import type { TrackLevel } from "./trackLevels";
 import "./trackDrag.css";
 import {
@@ -78,6 +89,13 @@ export interface MixerProps {
   readonly selectedTrackId?: TrackId | null;
   /** Called with the track a strip belongs to when the user clicks it. */
   onSelectTrack?(trackId: TrackId, how: TrackSelectionSource): void;
+  /**
+   * The return the editor is showing (#386), marked as selected here. While
+   * one is, no track strip reads as selected.
+   */
+  readonly selectedReturnId?: ReturnId | null;
+  /** Called with a return when its strip's Edit control is pressed. */
+  onSelectReturn?(returnId: ReturnId): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -107,6 +125,20 @@ export default function Mixer(props: MixerProps): JSX.Element {
   const trackById = (id: TrackId): Track | undefined =>
     props.project.song.tracks.find((track) => track.id === id);
   const [pendingDelete, setPendingDelete] = createSignal<Track | null>(null);
+  const returns = createMemo(() => sortedReturns(props.project));
+  const returnHost: ReturnHost = {
+    project: () => props.project,
+    dispatch: (commands) => props.dispatch(commands),
+    get analytics() {
+      return analytics();
+    },
+  };
+  /** Points the editor at a return: the instrument view then shows its chain. */
+  function selectReturn(returnId: ReturnId): void {
+    if (!props.onSelectReturn) return;
+    props.onSelectReturn(returnId);
+    analytics().logFeatureFirstUse("mixer");
+  }
   /** The master's effects, which selecting the master strip takes you to. */
   let masterEffects: HTMLElement | undefined;
   function clipCount(trackId: TrackId): number {
@@ -260,7 +292,11 @@ export default function Mixer(props: MixerProps): JSX.Element {
                       index={trackIds().indexOf(id)}
                       trackCount={trackIds().length}
                       clipCount={clipCount(id)}
-                      selected={props.selectedTrackId === id}
+                      selected={!props.selectedReturnId && props.selectedTrackId === id}
+                      returns={returns()}
+                      onAddSend={(bus) => sendTrackToReturn(returnHost, id, bus.id)}
+                      onRemoveSend={(bus) => removeTrackSend(returnHost, id, bus.id)}
+                      onSendCommit={() => analytics().logFeatureFirstUse("send_return")}
                       onSelect={() => selectTrack(id, "header")}
                       onMove={(toIndex) => moveBy(id, toIndex, "button")}
                       onDragStart={(event) => trackDrag.begin(event, id)}
@@ -280,6 +316,42 @@ export default function Mixer(props: MixerProps): JSX.Element {
               );
             }}
           </For>
+        </div>
+        {/*
+         * The returns (#386), after the tracks and before the master, where a
+         * console puts its effect returns: shared chains the tracks' sends
+         * feed. The add button closes the group, where the next one would go.
+         */}
+        <div class="mixer-returns">
+          <ol class="mixer-return-strips" aria-label="Returns">
+            <For each={returns()} keyed={(bus: ReturnBus) => bus.id}>
+              {(bus) => (
+                <ReturnStrip
+                  returnBus={bus()}
+                  selected={props.selectedReturnId === bus().id}
+                  onSelect={() => selectReturn(bus().id)}
+                  onDelete={() => deleteReturnBus(returnHost, bus().id)}
+                  onFirstUse={() => analytics().logFeatureFirstUse("send_return")}
+                  dispatch={props.dispatch}
+                  beginGesture={props.beginGesture}
+                />
+              )}
+            </For>
+          </ol>
+          <button
+            type="button"
+            class="new-track-button mixer-add-return"
+            disabled={!canAddReturn(props.project)}
+            title={
+              canAddReturn(props.project)
+                ? "Add return"
+                : "A song holds up to eight returns. Remove one to add another."
+            }
+            onClick={() => addReturnBus(returnHost, factoryContext)}
+          >
+            <HiSolidPlus size={13} />
+            <span>Add return</span>
+          </button>
         </div>
         {/*
          * The master and its chain, always on screen (`UI-001`), at the end of
@@ -336,6 +408,11 @@ interface TrackStripProps {
   /** Whether this strip's track is the one the editor is showing (#228). */
   readonly selected: boolean;
   onSelect(): void;
+  /** The song's returns, in order, for the strip's sends (#386). */
+  readonly returns: readonly ReturnBus[];
+  onAddSend(returnBus: ReturnBus): void;
+  onRemoveSend(returnBus: ReturnBus): void;
+  onSendCommit(): void;
   /** Move this strip's track to `toIndex` in display order. */
   onMove(toIndex: number): void;
   /** Start dragging this strip along the row, from anywhere on its
@@ -468,6 +545,16 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           onToggle={(flag) => toggleTrackFlag(props.dispatch, props.track, flag)}
         />
       </div>
+
+      <TrackSends
+        track={props.track}
+        returns={props.returns}
+        onAddSend={(bus) => props.onAddSend(bus)}
+        onRemoveSend={(bus) => props.onRemoveSend(bus)}
+        onLevelCommit={() => props.onSendCommit()}
+        dispatch={props.dispatch}
+        beginGesture={props.beginGesture}
+      />
 
       <div class="mixer-strip-pan">
         <PanControl
