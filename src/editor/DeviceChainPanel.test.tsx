@@ -92,10 +92,11 @@ describe("DeviceChainPanel", () => {
       "Compressor",
       "Delay",
       "Reverb",
+      "EQ",
     ]);
     addFromPanel(panel, "Filter");
     // The buttons stay where they are, after the chain, ready for the next one.
-    expect(addButtons()).toHaveLength(6);
+    expect(addButtons()).toHaveLength(7);
 
     const entries = history.entries.length;
     addFromPanel(panel, "Delay");
@@ -120,6 +121,28 @@ describe("DeviceChainPanel", () => {
       transport
         .named("feature_first_use")
         .filter((event) => event.params.feature === "device_chain"),
+    ).toHaveLength(1);
+  });
+
+  it("logs the EQ's own first use once, alongside device_added (LOOP-022)", () => {
+    const { transport, panel } = renderPanel();
+    addFromPanel(panel, "Filter");
+    expect(
+      transport
+        .named("feature_first_use")
+        .filter((event) => event.params.feature === "eq_device"),
+    ).toHaveLength(0);
+    addFromPanel(panel, "EQ");
+    addFromPanel(panel, "EQ");
+    expect(transport.named("device_added").map((event) => event.params)).toEqual([
+      expect.objectContaining({ device_type: "filter", chain: "insert" }),
+      expect.objectContaining({ device_type: "eq", chain: "insert" }),
+      expect.objectContaining({ device_type: "eq", chain: "insert" }),
+    ]);
+    expect(
+      transport
+        .named("feature_first_use")
+        .filter((event) => event.params.feature === "eq_device"),
     ).toHaveLength(1);
   });
 
