@@ -7,6 +7,7 @@ import type {
   TransactionResult,
 } from "../commands";
 import { createControlGesture, setParameter } from "../commands";
+import { parameterControl } from "../commands/controlAddress";
 import type { Instrument } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import {
@@ -176,6 +177,7 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
     return (
       <FillSlider
         definition={definition}
+        control={parameterControl(props.trackId, definition.id)}
         value={value()}
         displayValue={formatInstrumentValue(definition, value())}
         onInput={(next) => control.input(next)}

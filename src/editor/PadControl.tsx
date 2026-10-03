@@ -6,6 +6,7 @@ import type {
   TransactionResult,
 } from "../commands";
 import { createControlGesture, setPadParameter } from "../commands";
+import { parameterControl } from "../commands/controlAddress";
 import type { DrumPad, Track } from "../domain/entities";
 import { dbToFaderPosition, faderPositionToDb } from "../domain/faders";
 import {
@@ -75,6 +76,7 @@ export default function PadControl(props: PadControlProps): JSX.Element {
   return (
     <FillSlider
       definition={props.definition}
+      control={parameterControl(props.pad.id, props.definition.id)}
       inputId={`${props.idPrefix ?? "pad"}-${props.pad.id}-${props.label.toLowerCase()}`}
       label={props.label}
       // Every pad row shows a "Pitch", so the name has to say whose.

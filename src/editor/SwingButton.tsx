@@ -1,5 +1,8 @@
 import { type JSX, Portal, Show } from "@solidjs/web";
 import { type Accessor, createEffect, createSignal } from "solid-js";
+import { parameterControl, SONG_ENTITY } from "../commands/controlAddress";
+import { control } from "../controls/control";
+import { SONG_SWING } from "../domain/parameters";
 import { ariaBool } from "../shared/aria";
 import { type ShortcutHandlers, useShortcuts } from "../shortcuts";
 import SwingControl from "./SwingControl";
@@ -49,10 +52,18 @@ export default function SwingButton(props: SwingButtonProps): JSX.Element {
   });
 
   const title = () => `Swing ${Math.round(props.swing())}%`;
+  // The swing value's home while its panel is closed (`UI-004`): the button
+  // shows it, so the button is what a reveal focuses and a mark outlines.
+  const swingControl = control(parameterControl(SONG_ENTITY, SONG_SWING.id));
   return (
     <>
       <button
-        ref={button}
+        ref={[
+          (el: HTMLButtonElement) => {
+            button = el;
+          },
+          swingControl,
+        ]}
         type="button"
         class={props.swing() > 50 ? "swing-toggle is-on" : "swing-toggle"}
         aria-label="Swing"

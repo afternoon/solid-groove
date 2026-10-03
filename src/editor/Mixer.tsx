@@ -8,8 +8,16 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import { addTrack, createControlGesture, removeTrack, setParameter } from "../commands";
+import {
+  addTrack,
+  createControlGesture,
+  parameterControl,
+  removeTrack,
+  setParameter,
+} from "../commands";
+import { CONTROL_PARTS, controlAddress } from "../commands/controlAddress";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { control } from "../controls/control";
 import { duplicateTrack } from "../domain/duplicateTrack";
 import type { Project, Track } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
@@ -382,6 +390,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
     // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the strip's own Edit button
     // biome-ignore lint/a11y/useKeyWithClickEvents: the Edit button, and every control's own keys, are the keyboard path
     <div
+      ref={control(() => controlAddress(props.track.id, CONTROL_PARTS.header))}
       class={[
         "mixer-strip",
         {
@@ -524,6 +533,7 @@ function PanControl(props: FaderProps): JSX.Element {
   return (
     <FillSlider
       definition={TRACK_PAN}
+      control={parameterControl(props.track.id, TRACK_PAN.id)}
       inputId={`mixer-pan-${props.track.id}`}
       label="Pan"
       ariaLabel={`Pan for ${props.track.name}`}

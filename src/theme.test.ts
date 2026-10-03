@@ -230,3 +230,22 @@ describe("the theme is the only place a colour is written down", () => {
     }
   });
 });
+
+describe("control marks (UI-004, #850)", () => {
+  const marks = stylesheets["controls/controlMarks.css"] ?? "";
+  const rule = (mark: string): string =>
+    new RegExp(`\\[data-control-mark="${mark}"\\]\\s*\\{([^}]*)\\}`).exec(marks)?.[1] ??
+    "";
+
+  it("outlines a previewed control dashed and a changed one solid", () => {
+    expect(rule("previewed")).toMatch(/outline:[^;]*\bdashed\b/);
+    expect(rule("changed")).toMatch(/outline:[^;]*\bsolid\b/);
+  });
+
+  it("draws both from the accent: brightness, not hue", () => {
+    for (const mark of ["previewed", "changed"]) {
+      expect(rule(mark), mark).toMatch(/outline:[^;]*var\(--color-accent\)/);
+    }
+    expect(resolveToken("--color-accent")).toBe("#ffffff");
+  });
+});
