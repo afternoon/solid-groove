@@ -34,6 +34,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          # Push as the PAT's user, not github-actions[bot]: GitHub holds the
+          # CI, preview and restack runs a github-actions[bot] push starts until
+          # someone approves them by hand.
+          token: ${{ secrets.RESTACK_TOKEN || github.token }}
           # Full history, not a depth-1 clone. An implementation run has to
           # branch from `main`, and a task whose dependency landed on another
           # branch needs a real merge base to rebase or merge against. A
