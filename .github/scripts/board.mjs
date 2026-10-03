@@ -126,25 +126,76 @@ function issueLabels(number) {
   }
 }
 
-/** Of the status labels an issue carries, the one added most recently. */
-function latestStatus(number, currentLabels) {
-  const present = currentLabels.filter((l) => STATUS.has(l));
-  if (present.length < 2) return present[0];
+/** The status labels added to an issue, oldest first, or null if unreadable. */
+function statusHistory(number) {
   try {
-    const events = JSON.parse(
+    return JSON.parse(
       gh([
         "api",
         "--paginate",
         "--slurp",
         `repos/${REPO}/issues/${number}/events?per_page=100`,
       ]),
-    ).flat();
-    for (let i = events.length - 1; i >= 0; i--) {
-      const e = events[i];
-      if (e.event === "labeled" && present.includes(e.label?.name)) return e.label.name;
-    }
-  } catch {}
-  return undefined;
+    )
+      .flat()
+      .filter((e) => e.event === "labeled" && STATUS.has(e.label?.name))
+      .map((e) => e.label.name);
+  } catch {
+    return null;
+  }
+}
+
+/** Of the status labels an issue carries, the one added most recently. */
+function latestStatus(number, currentLabels) {
+  const present = currentLabels.filter((l) => STATUS.has(l));
+  if (present.length < 2) return present[0];
+  return (statusHistory(number) ?? []).findLast((l) => present.includes(l));
+}
+
+/** Open PRs whose body closes the issue, with their comments. */
+function closingPrs(number) {
+  try {
+    return JSON.parse(
+      gh([
+        "pr",
+        "list",
+        "--repo",
+        REPO,
+        "--state",
+        "open",
+        "--search",
+        `${number} in:body`,
+        "--json",
+        "number,body,comments",
+      ]),
+    ).filter((pr) => closedBy(pr.body).includes(number));
+  } catch {
+    return [];
+  }
+}
+
+const REWORK_GRACE_MS = 15 * 60 * 1000;
+
+/**
+ * Whether moving an issue to In progress sent it back for more work: its PRs
+ * are already open, and it did not just come from Ready (that is /ship
+ * starting). Returns the PR numbers to rework, or null. A recent `@claude`
+ * comment on one of them means a Claude run is already on it (QA's fail
+ * report is one), so that is left alone too.
+ */
+function sentBack(number) {
+  const history = statusHistory(number);
+  if (!history || history.at(-2) === "status:ready") return null;
+  const prs = closingPrs(number);
+  if (!prs.length) return null;
+  const now = Date.now();
+  const handled = prs.some((pr) =>
+    (pr.comments ?? []).some(
+      (c) =>
+        c.body.includes("@claude") && now - Date.parse(c.createdAt) < REWORK_GRACE_MS,
+    ),
+  );
+  return handled ? null : prs.map((pr) => pr.number);
 }
 
 /**
@@ -204,11 +255,15 @@ function status() {
       const fresh = issueLabels(issue.number);
       const current = fresh ? fresh.labels.map((l) => l.name) : labels;
       if (!current.includes(event.label.name)) return;
-      setStatus(
-        issue.number,
-        latestStatus(issue.number, current) ?? event.label.name,
-        current,
-      );
+      const target = latestStatus(issue.number, current) ?? event.label.name;
+      setStatus(issue.number, target, current);
+      if (target === "status:in-progress" && event.label.name === target) {
+        const prs = sentBack(issue.number);
+        if (prs) {
+          appendFileSync(process.env.GITHUB_OUTPUT, `rework=${issue.number}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `rework_prs=${prs.join(" ")}\n`);
+        }
+      }
     }
     return;
   }
