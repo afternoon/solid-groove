@@ -135,6 +135,7 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
         </Show>
         <DeviceControls
           chain={props.chain}
+          tempo={props.tempo}
           device={props.device}
           dispatch={props.dispatch}
           beginGesture={props.beginGesture}

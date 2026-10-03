@@ -1,9 +1,10 @@
 import type { DeviceChainTarget, ParameterTarget } from "../commands";
-import { DELAY_DIVISIONS } from "../domain/devices";
+import { DELAY_DIVISIONS, delayDivision, deviceParameters } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import type { DeviceId } from "../domain/ids";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
 import { formatInstrumentValue } from "../instrument/formatValue";
+import { delayTime } from "./deviceDrawings";
 
 /**
  * How one device parameter is shown (PRD FX-01: a device's own controls,
@@ -49,6 +50,39 @@ export function readDeviceParameter(
   definition: ParameterDefinition,
 ): number {
   return device.parameters[bareParameterId(definition.id)] ?? definition.defaultValue;
+}
+
+/** What one device control shows: the value in use, and whether it is set by another. */
+export interface DeviceControlReading {
+  /** The value the device is actually using, in the parameter's own unit. */
+  readonly value: number;
+  /**
+   * True when another setting decides the value, so the control shows it but
+   * does not set it: a synced delay's time comes from its division and the
+   * song tempo, and its stored free time is not in use (#865).
+   */
+  readonly derived: boolean;
+}
+
+/**
+ * The value a device control shows. Usually the stored value; but a synced
+ * delay's Time reads the time the division gives at `tempo`, computed by the
+ * same `delayTime` the delay's well reads out, so the two never disagree.
+ */
+export function readDeviceControl(
+  device: Device,
+  definition: ParameterDefinition,
+  tempo: number,
+): DeviceControlReading {
+  const stored = readDeviceParameter(device, definition);
+  if (definition.id !== "delay.time") return { value: stored, derived: false };
+  const setting = (id: string) => {
+    const sibling = deviceParameters(device.type).find((d) => d.id === `delay.${id}`);
+    return sibling ? readDeviceParameter(device, sibling) : 0;
+  };
+  if (setting("sync") < 0.5) return { value: stored, derived: false };
+  const division = delayDivision(setting("division")).wholeNotes;
+  return { value: delayTime(true, stored, division, tempo), derived: true };
 }
 
 /**

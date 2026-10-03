@@ -11,7 +11,10 @@ import DeviceCard from "./DeviceCard";
 afterEach(() => cleanup());
 
 /** A track carrying `types`, each rendered as a card over a real history. */
-function renderChain(types: readonly DeviceTypeId[], options = { canDuplicate: true }) {
+function renderChain(
+  types: readonly DeviceTypeId[],
+  options: { canDuplicate: boolean; tempo?: number } = { canDuplicate: true },
+) {
   const history = new CommandHistory(createPianoRollFixtureProject());
   const trackId = history.project.song.tracks[0].id;
   const ids = createSeededIdFactory("device-card");
@@ -39,6 +42,7 @@ function renderChain(types: readonly DeviceTypeId[], options = { canDuplicate: t
               newDeviceId={() => copyId}
               dispatch={(commands) => history.execute(commands)}
               beginGesture={(gesture) => history.beginGesture(gesture)}
+              tempo={options.tempo}
             />
           </li>
         )}
@@ -244,5 +248,24 @@ describe("DeviceCard dynamics and time wells (#447)", () => {
     press(50, 50);
     expect(devices()[0].parameters.division).toBe(5);
     expect(devices()[0].parameters.feedback).toBeCloseTo(0.495, 2);
+  });
+
+  it("shows a synced delay's real time in its Time control, as the header does (#865)", () => {
+    const { devices, card } = renderChain(["delay"], { canDuplicate: true, tempo: 122 });
+    clickAndFlush(card(0).getByRole("radio", { name: "1/8 dotted" }));
+    expect(devices()[0].parameters.sync).toBe(1);
+
+    // 1/8 dotted at 122 BPM: (240 / 122) * (1.5 / 8) = 0.369 s.
+    expect(card(0).getByText("1/8 dotted · 369 ms")).toBeInTheDocument();
+    const time = card(0).getByRole("slider", { name: "Time" });
+    expect(card(0).getByRole("textbox", { name: "Time value" })).toHaveValue("369 ms");
+    expect(time).toHaveAttribute("aria-valuetext", "369 ms");
+    // The division sets the time while synced; the free time is not in use.
+    expect(time).toBeDisabled();
+
+    // Free timing hands the control back its own stored value.
+    clickAndFlush(card(0).getByRole("radio", { name: "Free" }));
+    expect(card(0).getByRole("textbox", { name: "Time value" })).toHaveValue("250 ms");
+    expect(time).toBeEnabled();
   });
 });
