@@ -1998,6 +1998,32 @@ describe("EditorView keyboard shortcuts", () => {
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
   });
 
+  // #874: Escape with the genre menu open closes only the menu, hands focus
+  // back to its button, and leaves the library open. The library is a view
+  // (UI-002), so a second Escape does not leave it either.
+  it("closes the genre menu on Escape before the library", async () => {
+    await renderSlice(createSliceFixtureProject(), {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+    });
+    const library = await openLibrary();
+
+    fireEvent.keyDown(window, { key: "g" });
+    await within(library).findByRole("group", { name: "Genres" });
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("group", { name: "Genres" })).toBeNull(),
+    );
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+    const genreButton = within(library).getByRole("button", { name: /Any genre/ });
+    expect(genreButton).toHaveAttribute("aria-expanded", "false");
+    expect(genreButton).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
+  });
+
   it("gives the keyboard to the Export dialog while it is open, and back on Escape", async () => {
     await renderSlice();
 

@@ -31,6 +31,8 @@ export default function FilterRow(props: {
   /** Key badge text for a registry action, from the registry. */
   keyLabel?(action: ShortcutActionId): string | undefined;
   onMenuOpen(open: boolean): void;
+  /** The genre menu's button, which Escape hands focus back to (#874). */
+  genreButtonRef?(button: HTMLButtonElement): void;
   onGenre(genre: string): void;
   /** The menu's *Any genre* row: clear every genre at once. */
   onClearGenres(): void;
@@ -49,6 +51,7 @@ export default function FilterRow(props: {
     <div class="filter-row">
       <div class="filter-genre">
         <button
+          ref={(button) => props.genreButtonRef?.(button)}
           type="button"
           class={["filter-pick", { "filter-pick-set": props.selectedGenres.length > 0 }]}
           aria-haspopup="true"
