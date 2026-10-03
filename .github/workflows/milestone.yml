@@ -51,8 +51,10 @@ jobs:
             echo "Already has a milestone."; exit 0
           fi
           m=$(gh api "repos/$GITHUB_REPOSITORY/milestones?state=open&per_page=100" \
-            --jq '[.[] | select(.title == "Backlog")][0].number // empty')
-          if [ -z "$m" ]; then echo "::error::No open milestone named Backlog."; exit 1; fi
+            --jq '[.[] | select(.title | ascii_downcase | ltrimstr(" ") | rtrimstr(" ") == "backlog")][0].number // empty')
+          if [ -z "$m" ]; then
+            echo "::warning::No open milestone named Backlog; leaving #$ISSUE with no milestone."; exit 0
+          fi
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$ISSUE" -F milestone="$m" --jq '"#\(.number) -> \(.milestone.title)"'
 
       - uses: actions/checkout@v4

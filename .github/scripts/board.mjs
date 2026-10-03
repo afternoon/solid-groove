@@ -349,26 +349,37 @@ const line = (i) => [`- #${i.number}`, ...(i.prs ?? []).map((n) => `  #${n}`)].j
 
 const BACKLOG_PER_MILESTONE = 10;
 
-/** The catch-all milestone: listed after every numbered milestone, whatever its number. */
-const BACKLOG_MILESTONE = "Backlog";
+/**
+ * The catch-all milestone, matched by title in any case: listed after every
+ * other milestone. Everything else about milestones is read live, so they can
+ * be added, renamed or renumbered freely.
+ */
+const isBacklog = (milestone) => milestone.title.trim().toLowerCase() === "backlog";
 
-/** Where a milestone's group sorts: by number, then Backlog, then no milestone. */
-function milestoneOrder(milestone) {
-  if (!milestone) return Number.POSITIVE_INFINITY;
-  if (milestone.title === BACKLOG_MILESTONE) return Number.MAX_SAFE_INTEGER;
-  return milestone.number;
+/**
+ * Backlog groups in order: milestones by title ("M2" before "M10"), then
+ * Backlog, then cards with no milestone.
+ */
+function compareMilestones(a, b) {
+  const rank = (m) => (!m ? 2 : isBacklog(m) ? 1 : 0);
+  return (
+    rank(a) - rank(b) ||
+    (a && b ? a.title.localeCompare(b.title, "en", { numeric: true }) : 0)
+  );
 }
 
-/** The backlog, one sub-heading per milestone in milestone order, then Backlog, then the rest. */
+/** The backlog, one sub-heading per milestone in title order, then Backlog, then the rest. */
 function backlogLines(cards) {
   const groups = new Map();
   for (const card of cards) {
-    const key = milestoneOrder(card.milestone);
+    const key = card.milestone ? card.milestone.number : 0;
     if (!groups.has(key)) groups.set(key, { milestone: card.milestone, cards: [] });
     groups.get(key).cards.push(card);
   }
   const out = [];
-  for (const [, { milestone, cards: group }] of [...groups].sort((a, b) => a[0] - b[0])) {
+  for (const { milestone, cards: group } of [...groups.values()].sort((a, b) =>
+    compareMilestones(a.milestone, b.milestone),
+  )) {
     const title = milestone ? milestone.title : "No milestone";
     out.push(`### ${title} (${group.length})`, "");
     out.push(...group.slice(0, BACKLOG_PER_MILESTONE).map(line));
