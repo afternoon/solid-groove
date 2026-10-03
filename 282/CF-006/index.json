@@ -1,0 +1,38 @@
+{
+  "id": "CF-006",
+  "title": "A producer brings their own sounds into a pack",
+  "steps": [
+    {
+      "file": "01-you-arrive-on-the-dashboard-signed-in-to.png",
+      "caption": "You arrive on the dashboard, signed in to your own account"
+    },
+    {
+      "file": "02-open-a-project-the-library-browser-is-on.png",
+      "caption": "Open a project — the library browser is on screen"
+    },
+    {
+      "file": "03-choose-add-pack-the-new-pack-s-name-is-w.png",
+      "caption": "Choose Add pack — the new pack's name is waiting to be typed"
+    },
+    {
+      "file": "04-name-the-pack-it-is-listed-and-empty.png",
+      "caption": "Name the pack — it is listed, and empty"
+    },
+    {
+      "file": "05-drop-three-files-on-the-pack-each-lands-.png",
+      "caption": "Drop three files on the pack — each lands as a sound"
+    },
+    {
+      "file": "06-audition-one-of-the-imported-sounds.png",
+      "caption": "Audition one of the imported sounds"
+    },
+    {
+      "file": "07-find-it-by-searching-the-library.png",
+      "caption": "Find it by searching the library"
+    },
+    {
+      "file": "08-reload-the-pack-and-all-three-sounds-are.png",
+      "caption": "Reload — the pack and all three sounds are still there"
+    }
+  ]
+}

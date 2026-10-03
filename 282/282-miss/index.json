@@ -1,0 +1,14 @@
+{
+  "id": "282-miss",
+  "title": "A deleted sound the project uses",
+  "steps": [
+    {
+      "file": "01-deleting-a-sound-the-open-project-uses-w.png",
+      "caption": "Deleting a sound the open project uses warns first"
+    },
+    {
+      "file": "02-afterwards-the-project-names-the-missing.png",
+      "caption": "Afterwards the project names the missing sound, its track and clips"
+    }
+  ]
+}
