@@ -7,6 +7,9 @@ they came from, and it plays. The library follows
 [`library-browser.html`](./library-browser.html) (#449), which plays too.
 The Export dialog follows the Release design in
 [`export-dialog.html`](./export-dialog.html) (#724), which plays too.
+The Post-Alpha instruments (synth, wavetable, FM, drum synth and the
+sampler) follow [`instrument-faceplates.html`](./instrument-faceplates.html),
+which plays too.
 [`src/theme.css`](../src/theme.css) is the only
 place a colour is written down. Where a rule below is enforced by a test, the
 test is named.
