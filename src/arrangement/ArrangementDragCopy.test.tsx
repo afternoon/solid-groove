@@ -101,15 +101,15 @@ describe("Alt-drag in the arrangement (ARR-011)", () => {
     expect(session.history.entries).toHaveLength(1);
   });
 
-  it("moves instead when Alt is let go before the drop", async () => {
+  it("moves the selection instead when Alt is let go before the drop", async () => {
     const { canvas, bars } = await setUp();
     pointer(canvas, "pointerdown", 1, 0, true);
     pointer(canvas, "pointermove", 3, 0, true);
     pointer(canvas, "pointermove", 3, 0, false);
     expect(canvas.style.cursor).toBe("");
-    expect(bars()).toBe("3|1");
+    expect(bars()).toBe("3|3");
     pointer(canvas, "pointerup", 3, 0, false);
-    expect(bars()).toBe("3|1");
+    expect(bars()).toBe("3|3");
   });
 
   it("copies when Alt goes down only at the drop", async () => {

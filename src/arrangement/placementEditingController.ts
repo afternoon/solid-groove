@@ -59,7 +59,7 @@ import {
 } from "./placementDuplication";
 import {
   deletePlacements,
-  movePlacement,
+  moveSelection,
   resizePlacement,
   setPlacementLooped,
   snapToBar,
@@ -341,7 +341,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     if (drag.handle === "end" && stepEnd(drag, pointerTicks)) return;
     const commands =
       drag.handle === "body"
-        ? movePlacement(current, drag.placementId, pointerTicks - drag.grabOffsetTicks)
+        ? moveSelection(drag.base, current, drag.sources, drag.offsetTicks)
         : resizePlacement(current, drag.placementId, drag.handle, pointerTicks);
     if (commands.length === 0) return;
     if (drag.gesture) {
@@ -509,8 +509,13 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     options.analytics?.logFeatureFirstUse("arrangement_drag_copy");
   }
 
-  /** The overwrite of whatever the dragged placement covers in `at` (#290). */
+  /** The overwrite of whatever the dragged placements cover in `at` (#290):
+   * the pressed clip alone for a resize, every moved clip for a move (#872). */
   function overwriteForDrag(at: Project): RawCommandInput[] {
+    if (!drag) return [];
+    if (drag.handle === "body") {
+      return tileOverwrites(at, drag.sources, () => options.ids("placement"));
+    }
     const placement = at.song.placements.find((p) => p.id === drag?.placementId);
     return placement
       ? overwritePlacements(at, placement, () => options.ids("placement"))
@@ -557,8 +562,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
    * overwrite (#290), as the one step of a fresh gesture.
    */
   function dropMove(state: DragState): void {
-    const target = state.originTicks + state.offsetTicks;
-    const moved = movePlacement(state.base, state.placementId, target);
+    const moved = moveSelection(state.base, state.base, state.sources, state.offsetTicks);
     const landed = executeTransaction(state.base, moved, {
       commitRevision: false,
       deferredInvariants: ["placement_overlap"],

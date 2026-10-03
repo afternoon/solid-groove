@@ -120,6 +120,39 @@ export function movePlacement(
   ];
 }
 
+/**
+ * Move every placement in `placementIds` by one offset from where it sat in
+ * `base` (#872): a drag on a selected clip carries the whole selection. The
+ * offset is narrowed so no clip starts before the song or ends past the
+ * guaranteed bound, which keeps the clips' spacing. Only the placements whose
+ * start differs from `current` get a command, so a drag back to its origin
+ * undoes the steps before it and a repeat of the last step is empty.
+ */
+export function moveSelection(
+  base: Project,
+  current: Project,
+  placementIds: readonly PlacementId[],
+  offsetTicks: number,
+): RawCommandInput[] {
+  const sources = placementIds.flatMap((id) => findPlacement(base, id) ?? []);
+  let low = Number.NEGATIVE_INFINITY;
+  let high = Number.POSITIVE_INFINITY;
+  for (const source of sources) {
+    low = Math.max(low, -source.startTicks);
+    high = Math.min(
+      high,
+      MAX_ARRANGEMENT_TICKS - source.startTicks - source.durationTicks,
+    );
+  }
+  const offset = Math.max(low, Math.min(high, offsetTicks));
+  return sources.flatMap((source): RawCommandInput[] => {
+    const startTicks = toTicks(source.startTicks + offset);
+    const now = findPlacement(current, source.id);
+    if (!now || now.startTicks === startTicks) return [];
+    return [updatePlacement(source.id, { startTicks })];
+  });
+}
+
 /** True when `track` already owns the placement's clip, so a move is legal. */
 export function canMoveToTrack(
   project: Project,

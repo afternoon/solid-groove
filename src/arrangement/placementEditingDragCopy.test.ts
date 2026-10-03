@@ -185,10 +185,10 @@ describe("Alt changes the mode mid-drag", () => {
     // The preview shows copies; the originals stay put.
     expect(h.bars()).toBe("1,3|1,3");
     h.editing.updateDrag(2 * BAR + BAR / 2, false);
-    // Alt up: the copies go, and the pressed clip moves.
-    expect(h.bars()).toBe("3|1");
+    // Alt up: the copies go, and the selection moves.
+    expect(h.bars()).toBe("3|3");
     h.editing.endDrag(false);
-    expect(h.bars()).toBe("3|1");
+    expect(h.bars()).toBe("3|3");
     expect(h.history.project.clips).toHaveLength(2);
   });
 
@@ -225,7 +225,7 @@ describe("Alt is read at the drop", () => {
     const h = setup();
     const revision = h.history.project.metadata.revision;
     drag(h, "2a 3a", false);
-    expect(h.bars()).toBe("3|1");
+    expect(h.bars()).toBe("3|3");
     expect(h.history.project.clips).toHaveLength(2);
     expect(h.history.project.metadata.revision).toBe(revision + 1);
     expect(h.events("placement_duplicated")).toEqual([]);
@@ -240,7 +240,7 @@ describe("Alt is read at the drop", () => {
     };
     h.history.execute(addPlacement(neighbour));
     drag(h, "3a", false);
-    expect(h.bars()).toBe("3|1");
+    expect(h.bars()).toBe("3|3");
   });
 });
 
