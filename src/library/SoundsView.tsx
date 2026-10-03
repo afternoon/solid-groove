@@ -65,8 +65,8 @@ export interface SoundsViewProps {
   readonly extraAssets?: readonly LibraryAsset[];
   readonly extraPacks?: readonly LibraryPackSummary[];
   /**
-   * Hands the modal this view's audition, so a sound listed elsewhere in the
-   * window (a personal pack in the rail) is heard through the same one voice.
+   * Hands the library this view's audition, so a sound listed elsewhere in the
+   * view (a personal pack in the rail) is heard through the same one voice.
    */
   onAuditioner?(handler: ((asset: LibraryAsset) => void) | null): void;
 }

@@ -771,7 +771,6 @@ describe("LibraryModal with the producer's own packs (#282)", () => {
         family: "drums",
         role: "kick",
         storagePath: "users/u1/packs/pak_mypacksmypacksmypack1/ast_tapekicktapekicktape1",
-        url: "blob:tape-kick",
         contentType: "audio/wav",
         sizeBytes: 64,
         durationSeconds: 0.1,
@@ -796,7 +795,6 @@ describe("LibraryModal with the producer's own packs (#282)", () => {
           previewEngine={engine}
           onInsert={() => undefined}
           addedPackIds={[]}
-          onClose={() => {}}
           userLibrary={userLibrary}
         />
       );

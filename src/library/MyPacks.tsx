@@ -6,13 +6,13 @@ import {
   HiOutlineTrash,
   HiOutlineXMark,
 } from "solid-icons/hi";
-import { createMemo, createSignal } from "solid-js";
+import { createMemo, createSignal, onCleanup } from "solid-js";
 import UpgradeAccountPrompt from "../components/UpgradeAccountPrompt";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import { formatBytes, IMPORT_EXTENSIONS, importContentType } from "../userData/userData";
 import { type UserPack, userPackAssets } from "../userLibrary/userPacks";
-import type { ImportRow, UserLibrary } from "../userLibrary/useUserLibrary";
+import type { ImportMethod, ImportRow, UserLibrary } from "../userLibrary/useUserLibrary";
 import { writeLibrarySampleDrag } from "./assetDrag";
 import type { LibraryAsset } from "./manifest";
 import { lengthLabel } from "./SoundRow";
@@ -23,8 +23,7 @@ import "./MyPacks.css";
  * the factory packs.
  *
  * "Add pack" makes one and puts its name in an input; Return keeps what was
- * typed, and clicking away (or Escape, which closes the library) keeps the
- * name it already has. Audio files dragged from the
+ * typed, and clicking away keeps the name it already has. Audio files dragged from the
  * desktop import into the pack they are dropped on, or into "My Sounds" when
  * dropped on the space around the packs, and every file shows its own row —
  * its progress, then its sound, or why it failed. Opening a pack lists its
@@ -58,17 +57,25 @@ function dragVerdict(event: DragEvent): "none" | "accepted" | "refused" {
     : "refused";
 }
 
+/** How long a refused drop's "not audio" stays up after the files are let go. */
+const REFUSED_DROP_MS = 2500;
+
 /**
  * Handlers that make an element a drop target for audio files. `state` is
- * what the affordance shows: nothing, "drop here", or "not audio".
+ * what the affordance shows: nothing, "drop here", or "not audio". A drop
+ * with no audio in it at all is refused outright and imports nothing; one
+ * with some audio imports every file, and each one we cannot take says why.
  */
 function useFileDrop(onFiles: (files: File[]) => void) {
   const [state, setState] = createSignal<"none" | "accepted" | "refused">("none");
   let depth = 0;
+  let refusedTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(refusedTimer));
   const handlers = {
     onDragEnter(event: DragEvent) {
       const verdict = dragVerdict(event);
       if (verdict === "none") return;
+      clearTimeout(refusedTimer);
       event.preventDefault();
       event.stopPropagation();
       depth += 1;
@@ -96,24 +103,17 @@ function useFileDrop(onFiles: (files: File[]) => void) {
       event.preventDefault();
       event.stopPropagation();
       depth = 0;
+      if (!files.some((file) => importContentType(file) !== null)) {
+        setState("refused");
+        clearTimeout(refusedTimer);
+        refusedTimer = setTimeout(() => setState("none"), REFUSED_DROP_MS);
+        return;
+      }
       setState("none");
       onFiles(files);
     },
   };
   return { state, handlers };
-}
-
-/** A hidden file input the "Add sounds" buttons open. */
-function pickFiles(onFiles: (files: File[]) => void): void {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.multiple = true;
-  input.accept = ["audio/*", ...IMPORT_EXTENSIONS].join(",");
-  input.addEventListener("change", () => {
-    const files = Array.from(input.files ?? []);
-    if (files.length > 0) onFiles(files);
-  });
-  input.click();
 }
 
 function ImportRowView(props: { row: ImportRow; library: UserLibrary }): JSX.Element {
@@ -241,6 +241,8 @@ function PackItem(props: {
   onToggle(): void;
   onEdit(editing: boolean): void;
   onFiles(files: File[]): void;
+  /** Open the file picker for this pack. */
+  onPick(): void;
 }): JSX.Element {
   const library = () => props.shared.library;
   const drop = useFileDrop((files) => props.onFiles(files));
@@ -320,7 +322,7 @@ function PackItem(props: {
               class="my-packs-icon"
               aria-label="Add sounds"
               title="Add sounds from your computer"
-              onClick={() => pickFiles((files) => props.onFiles(files))}
+              onClick={() => props.onPick()}
             >
               <HiOutlineArrowUpTray size={13} />
             </button>
@@ -415,13 +417,30 @@ export default function MyPacks(props: MyPacksProps): JSX.Element {
     if (id) setEditing(id);
   }
 
-  function importInto(packId: string | null, files: File[]): void {
+  function importInto(packId: string | null, files: File[], method: ImportMethod): void {
     if (packId) setPackOpen(packId, true);
-    void library().importFiles(packId, files, "drop");
+    void library().importFiles(packId, files, method);
+  }
+
+  // "Add sounds" on a pack opens the one file picker for that pack: the same
+  // import as a drop, for anyone who cannot drag, and reported as the picker.
+  let picker: HTMLInputElement | undefined;
+  let pickingFor: string | null = null;
+  function openPicker(packId: string): void {
+    pickingFor = packId;
+    if (picker) picker.value = "";
+    picker?.click();
+  }
+  function picked(input: HTMLInputElement): void {
+    const files = Array.from(input.files ?? []);
+    const packId = pickingFor;
+    pickingFor = null;
+    input.value = "";
+    if (packId && files.length > 0) importInto(packId, files, "picker");
   }
 
   // Files dropped beside the packs, not on one, make "My Sounds".
-  const emptySpace = useFileDrop((files) => importInto(null, files));
+  const emptySpace = useFileDrop((files) => importInto(null, files, "drop"));
   const usageLine = createMemo(() => {
     const usage = library().usage();
     return `${formatBytes(usage.usedBytes)} of ${formatBytes(usage.capBytes)} used`;
@@ -438,6 +457,19 @@ export default function MyPacks(props: MyPacksProps): JSX.Element {
       onDrop={emptySpace.handlers.onDrop}
     >
       <h3 class="library-modal-label library-modal-rule">My packs</h3>
+      <input
+        ref={(element) => {
+          picker = element;
+        }}
+        type="file"
+        class="my-packs-picker"
+        aria-label="Choose sound files"
+        tabindex={-1}
+        hidden
+        multiple
+        accept={["audio/*", ...IMPORT_EXTENSIONS].join(",")}
+        onChange={(event) => picked(event.currentTarget)}
+      />
       <button
         type="button"
         class="library-modal-rail-item my-packs-add"
@@ -466,7 +498,8 @@ export default function MyPacks(props: MyPacksProps): JSX.Element {
               shared={props}
               onToggle={() => setPackOpen(pack().id, !open().has(pack().id))}
               onEdit={(value) => setEditing(value ? pack().id : null)}
-              onFiles={(files) => importInto(pack().id, files)}
+              onFiles={(files) => importInto(pack().id, files, "drop")}
+              onPick={() => openPicker(pack().id)}
             />
           )}
         </For>

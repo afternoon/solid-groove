@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -68,9 +69,14 @@ function setUp(
   options: {
     account?: UserLibraryAccount | null;
     repository?: InMemoryUserLibraryRepository;
+    /** Hands the repository over when this settles, not straight away. */
+    repositoryReady?: Promise<void>;
   } = {},
 ) {
   const repository = options.repository ?? createInMemoryUserLibraryRepository();
+  const [account, setAccount] = createSignal<UserLibraryAccount | null>(
+    options.account === undefined ? REGISTERED : options.account,
+  );
   const transport = createRecordingTransport();
   const analytics = new Analytics({
     transport,
@@ -80,8 +86,11 @@ function setUp(
   const auditioned: LibraryAsset[] = [];
   function Harness() {
     const library = useUserLibrary({
-      account: () => (options.account === undefined ? REGISTERED : options.account),
-      repository: async () => repository,
+      account,
+      repository: async () => {
+        await options.repositoryReady;
+        return repository;
+      },
       analytics,
       decode,
       ids: createSeededIdFactory("my-packs"),
@@ -96,8 +105,8 @@ function setUp(
       />
     );
   }
-  render(() => <Harness />);
-  return { repository, transport, auditioned };
+  const rendered = render(() => <Harness />);
+  return { repository, transport, auditioned, setAccount, unmount: rendered.unmount };
 }
 
 /** The packs have loaded once Add pack is live. */
@@ -235,7 +244,7 @@ describe("My packs", () => {
   it("explains a file it could not import, and reports the failure once", async () => {
     const { transport } = setUp();
     const pack = await addNamedPack("Field Recordings");
-    drop(pack, [audioFile("notes.txt", "text/plain")]);
+    drop(pack, [audioFile("notes.txt", "text/plain"), audioFile("tape-kick.wav")]);
     expect(
       await within(pack).findByText(/Not an audio file we can import/),
     ).toBeVisible();
@@ -247,6 +256,102 @@ describe("My packs", () => {
     ]);
     clickAndFlush(within(pack).getByRole("button", { name: "Dismiss" }));
     expect(within(pack).queryByText(/Not an audio file/)).toBeNull();
+    // The audio in the same drop still lands.
+    expect(
+      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+  });
+
+  it("refuses a drop with no audio in it at all, and imports nothing", async () => {
+    const { transport, repository } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    fireAndFlush(() => drop(pack, [audioFile("notes.txt", "text/plain")]));
+    expect(pack).toHaveAttribute("data-drop", "refused");
+    expect(within(pack).getByText("Only audio files can go in a pack.")).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(within(pack).queryByRole("progressbar")).toBeNull();
+    expect(within(pack).queryByText(/Not an audio file/)).toBeNull();
+    expect(transport.named("sound_import_failed")).toEqual([]);
+    expect(repository.objects.size).toBe(0);
+  });
+
+  it("imports from the file picker, reported as the picker exactly once", async () => {
+    const { transport } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    const input = screen.getByLabelText("Choose sound files") as HTMLInputElement;
+    const opened = vi.spyOn(input, "click");
+    clickAndFlush(within(pack).getByRole("button", { name: "Add sounds" }));
+    expect(opened).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [audioFile("tape-kick.wav")],
+    });
+    fireEvent.change(input);
+
+    expect(
+      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+    expect(transport.named("sound_imported")).toEqual([
+      {
+        name: "sound_imported",
+        params: expect.objectContaining({ method: "picker" }),
+      },
+    ]);
+  });
+
+  it("waits for a new My Sounds to exist before importing into it", async () => {
+    const repository = createInMemoryUserLibraryRepository();
+    const createPack = repository.createPack.bind(repository);
+    repository.createPack = async (uid, pack) => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      await createPack(uid, pack);
+    };
+    const { transport } = setUp({ repository });
+    await loaded();
+    drop(region(), [audioFile("door-slam.wav")]);
+    await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
+    expect(transport.named("sound_import_failed")).toEqual([]);
+    expect(await screen.findByRole("button", { name: /My Sounds/ })).toBeVisible();
+  });
+
+  it("keeps files dropped while the packs are loading, and imports them once they have", async () => {
+    let ready: () => void = () => undefined;
+    const repositoryReady = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const { transport } = setUp({ repositoryReady });
+    expect(screen.getByRole("button", { name: "Add pack" })).toBeDisabled();
+    drop(region(), [audioFile("door-slam.wav")]);
+    ready();
+    await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
+    expect(screen.getAllByRole("button", { name: /My Sounds/ })).toHaveLength(1);
+  });
+
+  it("cancels uploads in flight when a different account signs in", async () => {
+    const repository = createInMemoryUserLibraryRepository({ uploadMs: 5_000 });
+    const { transport, setAccount } = setUp({ repository });
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    await within(pack).findByRole("button", { name: "Cancel upload" });
+
+    fireAndFlush(() => setAccount({ uid: "u2", registered: true }));
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(repository.objects.size).toBe(0);
+    expect(transport.named("sound_imported")).toEqual([]);
+  });
+
+  it("cancels uploads in flight when the editor goes away", async () => {
+    const repository = createInMemoryUserLibraryRepository({ uploadMs: 5_000 });
+    const { transport, unmount } = setUp({ repository });
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    await within(pack).findByRole("button", { name: "Cancel upload" });
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(repository.objects.size).toBe(0);
+    expect(transport.named("sound_imported")).toEqual([]);
   });
 
   it("cancels an upload, leaving nothing stored and no failure reported", async () => {

@@ -335,13 +335,11 @@ importing sounds. Being signed in is now a precondition, the way "signed in with
 no projects" already is for its neighbours, and the flow starts where the producer
 starts. What it proves is unchanged.
 
-**Made to pass by #282.** The steps read the same; how the spec reaches the
-library does not. Today the library is the window a slot opens (#304), not a
-view on screen beside the project (#817), so step 2 opens it from the starter
-drum machine's BD pad and step 7 opens it again after the reload. My packs is
-in that window's rail. The spec also matches each sound by its whole name: the
-factory library carries a "Dusty Tape Kick", which a search for "tape" lists
-beside the producer's "tape kick".
+**Made to pass by #282.** The library is the Library view (#817), and My packs
+is in its rail: step 2 goes to it with `4`, and step 7's reload comes back to it.
+The spec matches each sound by its whole name: the factory library carries a
+"Dusty Tape Kick", which a search for "tape" lists beside the producer's
+"tape kick".
 
 **Preconditions:** signed in to a registered account whose personal library is
 empty. Importing requires an account: a guest is offered the upgrade path instead,

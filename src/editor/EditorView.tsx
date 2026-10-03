@@ -16,6 +16,7 @@ import ArrangementView, {
   type PlacementEditingActions,
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
+import { provideStoredAudio } from "../audio/storedAudio";
 import { clampTempo } from "../audio/Transport";
 import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
 import { reportMissingCapabilities } from "../browser/reportCapabilities";
@@ -56,7 +57,9 @@ import {
 } from "../selection";
 import { timeoutScheduler } from "../shared/scheduler";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import { getUserLibraryRepository } from "../userLibrary/userLibraryClient";
 import type { UserLibraryRepository } from "../userLibrary/userLibraryRepository";
+import { userPackAvailability } from "../userLibrary/userPacks";
 import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
 import AssistantPanel from "./assistant/AssistantPanel";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
@@ -99,6 +102,7 @@ import {
   resizeLoopByBars,
   toggleLooping,
 } from "./loopActions";
+import MissingSounds from "./MissingSounds";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import ProjectLoadStates from "./ProjectLoadStates";
@@ -353,11 +357,32 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const libraryClient = props.libraryClient ?? sharedLibraryClient();
   // The producer's own packs (#282). Held by the editor, not the library
   // view, so an import keeps going after you leave the Library view.
+  const loadUserLibrary = props.userLibraryRepository ?? getUserLibraryRepository;
   const userLibrary = useUserLibrary({
     account: () => props.libraryAccount ?? null,
     analytics: props.analytics,
-    repository: props.userLibraryRepository,
+    repository: loadUserLibrary,
   });
+  // A personal sound has no URL: playback and audition read its bytes from
+  // where it is stored, as the signed-in user, through the same repository.
+  onCleanup(
+    provideStoredAudio(async (storageRef) =>
+      (await loadUserLibrary()).readAudio(storageRef),
+    ),
+  );
+  // The personal sounds this project uses that are gone from the producer's
+  // packs (#282), named with the tracks and clips they leave silent. Judged
+  // only once the packs have loaded, so nothing reads as missing while they
+  // are on their way, and again whenever the project or the packs change.
+  const missingSounds = createMemo(() => {
+    const current = project();
+    const owner = props.libraryAccount?.uid;
+    if (!current || !owner || userLibrary.status() !== "ready") return null;
+    const report = userPackAvailability(current, userLibrary.packs(), owner);
+    return report.missingAssets.length + report.missingPacks.length > 0 ? report : null;
+  });
+  const userPackName = (packId: string): string | null =>
+    userLibrary.packs().find((pack) => pack.id === packId)?.name ?? null;
   /** Whether the open project uses a sound: its stored audio is one of the song's. */
   const projectUses = (asset: LibraryAsset): boolean =>
     asset.storageRef !== undefined &&
@@ -1028,6 +1053,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   <LoadRecoveryNotice
                     droppedPlacements={session.state.droppedPlacements}
                   />
+                  <Show when={missingSounds()}>
+                    {(report) => (
+                      <MissingSounds report={report()} packName={userPackName} />
+                    )}
+                  </Show>
                   {/* The views' device panels draw live spectra from playback (LOOP-022). */}
                   <DeviceSpectrumContext value={spectrumSource}>
                     <div class="editor-body">

@@ -1,7 +1,8 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import { seedRegisteredSession } from "../support/authSession";
-import { library, sampleSlot } from "../support/libraryModal";
+import { library } from "../support/library";
+import { expectView, pressView } from "../support/views";
 
 /**
  * `CF-006` — a producer brings their own sounds into a pack.
@@ -15,23 +16,14 @@ import { library, sampleSlot } from "../support/libraryModal";
  * library's rail, "Add pack", importing by drop into Cloud Storage under the
  * owning user, and the Storage emulator in this suite.
  *
- * #282 changed how the flow *reaches* the library, not what it asserts. This
- * spec was written for the library as a region on screen beside the project
- * (#817's Library view, not yet landed); today the library is the modal a
- * slot opens (#304). So:
+ * The library is the Library view (#817), a region named "Library" at
+ * `/projects/:id/library`, read through `../support/library` as the other
+ * library flows read it; My packs is in its rail. A new project's starter
+ * track aims it at its drum machine's first pad, so `4` reaches it.
  *
- *  - `library` is that modal, read through `../support/libraryModal`, the way
- *    the live library tests read it; its rail is where My packs lives;
- *  - step 2 opens it from the starter drum machine's BD pad, and keeps the
- *    address of that view, so step 7's reload comes back to the same page;
- *  - step 7 opens the library again after the reload, since a modal does not
- *    survive one;
- *  - {@link soundFrom} matches a sound's whole name rather than any name
- *    containing the file's: the factory library has a "Dusty Tape Kick", and
- *    a search for "tape" lists both it and the producer's "tape kick".
- *
- * When #817 lands, the library is a view again and these return to
- * `../support/library`.
+ * {@link soundFrom} matches a sound's whole name rather than any name
+ * containing the file's: the factory library has a "Dusty Tape Kick", and a
+ * search for "tape" lists both it and the producer's "tape kick".
  *
  * Runs against the emulator rather than the mock backend for two reasons at
  * once: the account in its precondition is a real one, and step 7 is a real
@@ -78,20 +70,9 @@ const soundFrom = (within: Locator, fileName: string): Locator => {
   });
 };
 
-/**
- * Open the library from the starter drum machine's BD pad: the instrument
- * view, the pad, then its sample slot.
- */
+/** Go to the Library view with its key, `4`. */
 async function openLibrary(page: Page): Promise<void> {
-  const drumMachine = page.getByRole("region", { name: "Drum machine: BD" });
-  if (!(await drumMachine.isVisible())) {
-    await page
-      .getByRole("navigation", { name: "Views" })
-      .getByRole("link", { name: "Instrument" })
-      .click();
-  }
-  await drumMachine.getByRole("button", { name: "Audition BD", exact: true }).click();
-  await sampleSlot(page).click();
+  await pressView(page, "Library");
   await expect(library(page)).toBeVisible();
 }
 
@@ -182,7 +163,7 @@ test.describe("CF-006", () => {
     await expect(page).toHaveURL(/\/projects\/prj_/);
     await page.getByTestId("arrangement-view-ready").waitFor();
     await openLibrary(page);
-    const projectUrl = page.url();
+    const libraryUrl = page.url();
     await step("Open a project — the library browser is on screen");
 
     // 3. Choose "Add pack". A new pack appears in the browser with its name
@@ -256,8 +237,8 @@ test.describe("CF-006", () => {
 
     // 7. Reload the page. The pack and all three sounds are still there.
     await page.reload();
-    await expect(page).toHaveURL(projectUrl);
-    await openLibrary(page);
+    await expect(page).toHaveURL(libraryUrl);
+    await expectView(page, "Library");
     await expect(personalPack(page)).toBeVisible();
     await personalPack(page)
       .getByRole("button", { name: new RegExp(PACK_NAME) })

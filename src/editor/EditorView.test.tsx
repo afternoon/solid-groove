@@ -28,6 +28,7 @@ import {
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
+import type { PackId } from "../domain/ids";
 import { toTicks } from "../domain/time";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import { fixtureFetcher, fixturePackManifest } from "../library/__fixtures__/fixtures";
@@ -37,10 +38,22 @@ import { loadPadSampleCommands, toLibrarySample } from "../library/insertion";
 import { LibraryClient } from "../library/libraryClient";
 import { type LibraryAsset, packAssets, parsePackManifest } from "../library/manifest";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
+import { systemClock } from "../shared/clock";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { packAudioPath } from "../userData/userData";
+import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
+import { deleteUserSound } from "../userLibrary/packOperations";
+import type { UserLibraryRepository } from "../userLibrary/userLibraryRepository";
+import {
+  addSound,
+  type NewUserPackAsset,
+  newUserPack,
+  userPackAssets,
+} from "../userLibrary/userPacks";
+import type { UserLibraryAccount } from "../userLibrary/useUserLibrary";
 import { LAYOUT_STORAGE_KEY } from "./assistant/assistantPanelLayout";
 import { editorViewFromPath, editorViewPath } from "./editorViews";
 import { NEW_TRACK_KINDS } from "./trackCreation";
@@ -218,6 +231,8 @@ function renderEditor(
     libraryClient?: LibraryClient;
     analytics?: Analytics;
     capabilities?: CapabilityReport;
+    account?: UserLibraryAccount | null;
+    userLibraryRepository?: () => Promise<UserLibraryRepository>;
   } = {},
 ) {
   const EditorView = EditorViewModule.default;
@@ -235,6 +250,8 @@ function renderEditor(
         libraryClient={options.libraryClient}
         analytics={options.analytics}
         capabilities={options.capabilities}
+        libraryAccount={options.account}
+        userLibraryRepository={options.userLibraryRepository}
       />
     );
   };
@@ -3752,5 +3769,124 @@ describe("EditorView assistant panel", () => {
     press("?");
     const guide = await screen.findByRole("dialog", { name: /keyboard/i });
     expect(within(guide).getByText("Open or close the assistant")).toBeInTheDocument();
+  });
+});
+
+describe("EditorView personal sounds (#282)", () => {
+  const OWNER = "u1";
+  const PACK = "pak_fieldfieldfieldfield1" as PackId;
+  const SOUND = "ast_tapekicktapekicktape1";
+
+  /**
+   * The drum-machine fixture with its first pad playing the producer's own
+   * "tape kick", inserted the way the library inserts any sound, and the
+   * producer's pack holding it.
+   */
+  async function seedPersonalSound(options: { deletedBeforeOpening?: boolean } = {}) {
+    const userLibraryRepository = createInMemoryUserLibraryRepository();
+    const path = packAudioPath(OWNER, PACK, SOUND);
+    await userLibraryRepository.uploadAudio(
+      path,
+      new Blob([new Uint8Array(8)]),
+      "audio/wav",
+    );
+    const pack = addSound(
+      newUserPack(PACK, "Field Recordings", 1),
+      {
+        id: SOUND as NewUserPackAsset["id"],
+        name: "tape kick",
+        type: "one-shot",
+        family: "drums",
+        role: "kick",
+        storagePath: path,
+        contentType: "audio/wav",
+        sizeBytes: 8,
+        durationSeconds: 0.1,
+        sampleRate: 44_100,
+        channelCount: 1,
+        bpm: null,
+        peaks: null,
+        createdAt: 1,
+      },
+      2,
+    );
+    await userLibraryRepository.createPack(OWNER, pack);
+
+    const sample = toLibrarySample(userPackAssets(pack)[0]);
+    if (!sample) throw new Error("expected an insertable personal sound");
+    const fixture = createDrumMachineFixtureProject();
+    const [drums] = fixture.song.tracks;
+    if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const seeded = executeTransaction(
+      fixture,
+      loadPadSampleCommands(
+        fixture,
+        drums.id,
+        drums.instrument.pads[0].id,
+        sample,
+        createFactoryContext(),
+      ),
+    );
+    if (!seeded.ok) throw new Error(seeded.issues[0].message);
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const created = await repository.createProject(seeded.project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    if (options.deletedBeforeOpening) {
+      await deleteUserSound(userLibraryRepository, OWNER, PACK, SOUND, systemClock);
+    }
+    renderEditor(seeded.project.metadata.id, {
+      createAuditionEngine: () => fakePreviewEngine(),
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      account: { uid: OWNER, registered: true },
+      userLibraryRepository: async () => userLibraryRepository,
+    });
+    return { userLibraryRepository, project: seeded.project };
+  }
+
+  it("reports a sound deleted before the project opened as soon as it opens", async () => {
+    await seedPersonalSound({ deletedBeforeOpening: true });
+    const report = await screen.findByRole("region", { name: "Missing sounds" });
+    expect(report).toHaveTextContent(
+      "tape kick was deleted from Field Recordings. Track: Drums. Clip: Beat.",
+    );
+  });
+
+  it("carries no URL for a personal sound into the project", async () => {
+    const { project } = await seedPersonalSound();
+    const carried = project.song.assets.find((asset) => asset.name === "tape kick");
+    expect(carried).toMatchObject({
+      storageRef: packAudioPath(OWNER, PACK, SOUND),
+      url: null,
+    });
+  });
+
+  it("reports an in-use sound deleted from My packs as missing, naming its track and clip", async () => {
+    const { userLibraryRepository } = await seedPersonalSound();
+    await screen.findByTestId("arrangement-view-ready");
+    // Nothing is missing while the sound is in its pack.
+    await screen.findByRole("navigation", { name: "Views" });
+    expect(screen.queryByRole("region", { name: "Missing sounds" })).toBeNull();
+
+    // Delete it from My packs, in the Library view: it warns first.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    const myPacks = await screen.findByRole("region", { name: "My packs" });
+    clickAndFlush(
+      await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
+    );
+    clickAndFlush(within(myPacks).getByRole("button", { name: "Delete sound" }));
+    expect(within(myPacks).getByRole("alert")).toHaveTextContent(
+      /This project uses this sound/,
+    );
+    clickAndFlush(within(myPacks).getByRole("button", { name: "Delete" }));
+
+    const report = await screen.findByRole("region", { name: "Missing sounds" });
+    expect(report).toHaveTextContent(
+      "tape kick was deleted from Field Recordings. Track: Drums. Clip: Beat.",
+    );
+    expect(
+      await userLibraryRepository
+        .readAudio(packAudioPath(OWNER, PACK, SOUND))
+        .catch((error: { reason: string }) => error.reason),
+    ).toBe("not_found");
   });
 });

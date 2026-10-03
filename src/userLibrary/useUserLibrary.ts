@@ -35,9 +35,10 @@ import {
  * sounds as the library browser lists them, the imports in flight, how full
  * the account is, and the actions on all of it.
  *
- * It belongs to the editor rather than to the library window, so closing the
- * window does not cancel an upload: an import keeps going and its sound is in
- * the pack next time the library opens.
+ * It belongs to the editor rather than to the Library view, so leaving the
+ * view does not cancel an upload: an import keeps going and its sound is in
+ * the pack next time the library is on screen. Leaving the editor, or a
+ * different account signing in, cancels every upload still in flight.
  *
  * Personal packs need an account. For a guest every action is refused before
  * it starts and `upgradeAsked` turns on, which is the library's cue to offer
@@ -150,11 +151,46 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
   let current: { uid: string; repository: UserLibraryRepository } | null = null;
   /** No registered account is signed in. */
   let guest = true;
+  /** The account's packs have arrived at least once. */
+  let packsLoaded = false;
   let latestPacks: readonly UserPack[] = [];
   let latestUsed = 0;
   /** Bytes of imports in flight, which the usage total does not count yet. */
   let pendingBytes = 0;
   const controllers = new Map<string, AbortController>();
+  /** Packs made here whose document is still being written, by ID. */
+  const creating = new Map<string, Promise<boolean>>();
+  /**
+   * Files dropped while the account's packs were still loading. They import
+   * once the packs arrive (a drop on empty space has to know whether "My
+   * Sounds" exists first), and are let go if the account changes.
+   */
+  let queued: {
+    readonly packId: string | null;
+    readonly files: readonly File[];
+    readonly method: ImportMethod;
+    readonly done: () => void;
+  }[] = [];
+
+  function releaseQueue(): void {
+    const waiting = queued;
+    queued = [];
+    for (const entry of waiting) entry.done();
+  }
+
+  function flushQueue(): void {
+    const waiting = queued;
+    queued = [];
+    for (const entry of waiting) {
+      void importFiles(entry.packId, entry.files, entry.method).then(entry.done);
+    }
+  }
+
+  /** Cancel every upload in flight: their account is no longer the one here. */
+  function abortAll(): void {
+    for (const controller of controllers.values()) controller.abort();
+    controllers.clear();
+  }
 
   const usage = createMemo<UserDataUsage>(() => ({
     usedBytes: usedBytes(),
@@ -174,8 +210,11 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     (uid) => {
       current = null;
       guest = uid === null;
+      packsLoaded = false;
       latestPacks = [];
+      creating.clear();
       setPacks([]);
+      setImports([]);
       setUsedBytes(0);
       if (uid === null) {
         setStatus("guest");
@@ -196,8 +235,12 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
                 latestPacks = next;
                 setPacks(next);
                 setStatus("ready");
+                if (!packsLoaded) {
+                  packsLoaded = true;
+                  flushQueue();
+                }
               },
-              () => setStatus("error"),
+              () => failLoading(),
             ),
             repository.watchUsage(uid, (bytes) => {
               latestUsed = bytes;
@@ -205,14 +248,26 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
             }),
           );
         },
-        () => setStatus("error"),
+        () => failLoading(),
       );
       return () => {
         stopped = true;
         for (const stop of stops) stop();
+        // A different account, a sign-out, or the editor going away: nothing
+        // started for this account carries on, and nothing waits for it.
+        abortAll();
+        releaseQueue();
       };
     },
   );
+
+  function failLoading(): void {
+    setStatus("error");
+    if (queued.length > 0) {
+      setFailure("Your packs couldn't load, so the dropped files weren't imported.");
+    }
+    releaseQueue();
+  }
 
   /** The signed-in account's repository, or `null` after asking a guest to sign up. */
   function session() {
@@ -227,25 +282,45 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     analytics.logFeatureFirstUse("user_packs");
   }
 
+  /**
+   * Make a pack: listed straight away, so its name can be typed while its
+   * document is written. `landed` settles once it is (false if it failed),
+   * and every import into it waits for that.
+   */
+  function startPack(
+    active: { uid: string; repository: UserLibraryRepository },
+    method: "button" | "drop",
+    name: string,
+  ): { readonly id: string; readonly landed: Promise<boolean> } {
+    const pack = newUserPack(ids("pack"), name, clock.now());
+    setFailure(null);
+    latestPacks = [...latestPacks, pack];
+    setPacks(latestPacks);
+    const landed = active.repository.createPack(active.uid, pack).then(
+      () => {
+        analytics.log("user_pack_created", { method });
+        firstUse();
+        return true;
+      },
+      () => {
+        setFailure("The pack could not be created. Try again.");
+        return false;
+      },
+    );
+    creating.set(pack.id, landed);
+    void landed.then(() => {
+      if (creating.get(pack.id) === landed) creating.delete(pack.id);
+    });
+    return { id: pack.id, landed };
+  }
+
   function createPack(
     method: "button" | "drop",
     name = DEFAULT_PACK_NAME,
   ): string | null {
     const active = session();
     if (!active) return null;
-    const pack = newUserPack(ids("pack"), name, clock.now());
-    setFailure(null);
-    // Listed straight away, so its name can be typed while the write lands.
-    latestPacks = [...latestPacks, pack];
-    setPacks(latestPacks);
-    void active.repository.createPack(active.uid, pack).then(
-      () => {
-        analytics.log("user_pack_created", { method });
-        firstUse();
-      },
-      () => setFailure("The pack could not be created. Try again."),
-    );
-    return pack.id;
+    return startPack(active, method, name).id;
   }
 
   async function rename(packId: string, name: string): Promise<void> {
@@ -291,10 +366,18 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     setImports((rows) => rows.filter((row) => row.id !== id));
   }
 
-  /** The pack a drop on empty space imports into: "My Sounds", made if need be. */
-  function dropPack(): string | null {
+  /**
+   * The pack a drop on empty space imports into: "My Sounds", made if need
+   * be. Resolves once that pack exists, or `null` if it could not be made.
+   */
+  async function dropPack(active: {
+    uid: string;
+    repository: UserLibraryRepository;
+  }): Promise<string | null> {
     const existing = latestPacks.find((pack) => pack.name === DROP_PACK_NAME);
-    return existing?.id ?? createPack("drop", DROP_PACK_NAME);
+    if (existing) return existing.id;
+    const { id, landed } = startPack(active, "drop", DROP_PACK_NAME);
+    return (await landed) ? id : null;
   }
 
   async function importOne(
@@ -360,11 +443,21 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     files: readonly File[],
     method: ImportMethod,
   ): Promise<void> {
+    if (files.length === 0) return;
+    if (!guest && !packsLoaded) {
+      // Signed in, but the packs have not arrived: hold the files until they do.
+      return new Promise<void>((done) => {
+        queued.push({ packId, files, method, done });
+      });
+    }
     const active = session();
-    if (!active || files.length === 0) return;
+    if (!active) return;
     setFailure(null);
-    const target = packId ?? dropPack();
+    const target = packId ?? (await dropPack(active));
     if (!target) return;
+    // A pack made a moment ago has to exist before a sound can be listed in it.
+    if ((await creating.get(target)) === false) return;
+    if (current !== active) return;
     await Promise.all(files.map((file) => importOne(active, target, file, method)));
   }
 
