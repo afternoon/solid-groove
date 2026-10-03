@@ -12,10 +12,12 @@ import ExportDialog from "./ExportDialog";
 afterEach(cleanup);
 stubCanvasContext();
 
-function renderDialog(project: Project) {
+const MiB = 1024 ** 2;
+
+function renderDialog(project: Project, wavBytes = 1) {
   const fake = fakeStemsBatch(project.metadata.name);
   const exportWav = vi.fn(async () => ({
-    blob: new Blob([new Uint8Array([1])]),
+    blob: new Blob([new Uint8Array(wavBytes)]),
     fileName: "Song.wav",
   }));
   const onClose = vi.fn();
@@ -34,8 +36,8 @@ function renderDialog(project: Project) {
 const primary = () => document.querySelector(".export-primary") as HTMLElement;
 const dialog = () => screen.getByRole("dialog", { name: "Export" });
 
-async function exportStereo(project = createSliceFixtureProject()) {
-  const view = renderDialog(project);
+async function exportStereo(project = createSliceFixtureProject(), wavBytes = 1) {
+  const view = renderDialog(project, wavBytes);
   clickAndFlush(primary());
   await settle();
   return { ...view, project };
@@ -65,7 +67,13 @@ describe("ExportDialog: the finished screen", () => {
     clickAndFlush(screen.getByRole("radio", { name: "Stems (ZIP)" }));
     const count = document.querySelectorAll(".download").length;
     clickAndFlush(primary());
-    for (let k = 0; k < count; k++) await view.calls[k].resolve();
+    for (let k = 0; k < count; k++) {
+      // #836: the screen reads the ZIPs written, not the estimate it planned with.
+      await view.calls[k].resolve({
+        blob: { size: (k + 1) * 100 * MiB } as Blob,
+        fileName: "x.zip",
+      });
+    }
     expect(screen.getByRole("status")).toHaveTextContent("Export complete");
     expect(
       screen.getByText(`${count} ZIPs are in your downloads.`, { exact: false }),
@@ -74,9 +82,15 @@ describe("ExportDialog: the finished screen", () => {
       "listitem",
     );
     expect(items).toHaveLength(count);
-    expect(items[0]).toHaveTextContent(
-      new RegExp(` stems 1 of ${count}\\.zip\\d\\.\\d\\d GiB$`),
-    );
+    expect(items[0]).toHaveTextContent(new RegExp(` stems 1 of ${count}\\.zip100 MiB$`));
+    expect(items[1]).toHaveTextContent(/200 MiB$/);
+  });
+
+  // #836: the dialog said 10 MiB for a 2.2 MB WAV, then repeated it here.
+  it("reads the size of the WAV it wrote", async () => {
+    await exportStereo(createSliceFixtureProject(), 3 * MiB);
+    const size = screen.getByText("Size").parentElement;
+    expect(size).toHaveTextContent(/^Size3 MiB$/);
   });
 
   it("offers the other format, back at the choice with it picked", async () => {

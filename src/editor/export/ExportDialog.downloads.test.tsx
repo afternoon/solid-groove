@@ -114,6 +114,7 @@ describe("downloadCards", () => {
     trackIds: [],
     rowIds: [],
     bytes: 10 * 1024 ** 2,
+    expectedBytes: 4 * 1024 ** 2,
     fits: true,
   });
   const zips = (
@@ -133,6 +134,17 @@ describe("downloadCards", () => {
       state: "done",
       fraction: 1,
     });
+  });
+
+  // #836: a card shows what the ZIP is expected to weigh, not the budget's bound.
+  it("sizes a ZIP at its expected weight", () => {
+    const [card] = downloadCards({
+      ...base,
+      format: "stems",
+      batches: [zipPlan(0)],
+      progress: idle,
+    });
+    expect(card.detail).toBe("2 files · 4 MiB");
   });
 
   it("walks the ZIPs in order: downloaded, printing, then waiting", () => {

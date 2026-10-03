@@ -2,7 +2,7 @@ import { RENDER_CHANNELS } from "../../audio/offlineRenderer";
 import { songEndSeconds } from "../../audio/renderLength";
 import { wav24ByteLength } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
-import { maxStemFrames } from "../../export/stems/exportStems";
+import { songFrames } from "../../export/stems/exportStems";
 import { buildAudioProjection } from "../../projection/audioProjection";
 import { projectSampleRate } from "./stereoExport";
 
@@ -48,13 +48,14 @@ export function exportFacts(project: Project): ExportFacts {
 }
 
 /**
- * What the stereo WAV would weigh, before rendering: an upper bound, the song
- * plus the longest release tail it may keep, as a stem export's estimate is.
+ * What the stereo WAV is expected to weigh, before rendering: the song's
+ * length, as a render whose tails fall silent by its end is. Not the 30 s tail
+ * bound, which made a 2 MB WAV read as 10 MiB (#836).
  */
 export function estimateStereoBytes(project: Project): number {
   const seconds = songEndSeconds(buildAudioProjection(project));
   return wav24ByteLength(
     RENDER_CHANNELS,
-    maxStemFrames(seconds, projectSampleRate(project)),
+    songFrames(seconds, projectSampleRate(project)),
   );
 }

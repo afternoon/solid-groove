@@ -2,7 +2,12 @@ import { RENDER_CHANNELS } from "../../audio/offlineRenderer";
 import { wav24ByteLength } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
 import type { TrackId } from "../../domain/ids";
-import { archiveLimitBytes, planFrames, type StemExportOptions } from "./exportStems";
+import {
+  archiveLimitBytes,
+  expectedPlanFrames,
+  planFrames,
+  type StemExportOptions,
+} from "./exportStems";
 import { stemArchiveBytes } from "./stemArchive";
 import { planStems, type StemRender } from "./stemPlan";
 
@@ -31,8 +36,12 @@ export interface StemBatch {
   /** Every track and return whose stem it holds, in packing order: the rows a
    * track list marks as this ZIP's. */
   readonly rowIds: readonly string[];
-  /** An upper bound on the archive, as the single export's estimate. */
+  /** An upper bound on the archive, as the single export's estimate: what
+   * batching and the budget check. */
   readonly bytes: number;
+  /** What the archive is expected to weigh, every stem the song's length:
+   * what the dialog shows. */
+  readonly expectedBytes: number;
   /** False only for a lone stem that is over the budget by itself. */
   readonly fits: boolean;
 }
@@ -53,6 +62,10 @@ export function planStemBatches(
 ): StemBatch[] {
   const plan = planStems(project, options.trackIds && new Set(options.trackIds));
   const wav = wav24ByteLength(RENDER_CHANNELS, planFrames(plan, options));
+  const expectedWav = wav24ByteLength(
+    RENDER_CHANNELS,
+    expectedPlanFrames(plan, options.sampleRate),
+  );
   const limit = archiveLimitBytes(options.maxBytes);
   const groups: StemRender[][] = [];
   for (const stem of packingOrder(plan)) {
@@ -76,6 +89,7 @@ export function planStemBatches(
       ),
       rowIds: stems.flatMap((stem) => (stem.sourceId ? [stem.sourceId] : [])),
       bytes,
+      expectedBytes: stemArchiveBytes(paths, expectedWav),
       fits: bytes <= limit,
     };
   });

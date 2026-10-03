@@ -60,7 +60,7 @@ export function downloadCards(input: DownloadCardsInput): DownloadCard[] {
     return {
       name: count > 1 ? `ZIP ${index + 1} of ${count}` : name,
       title: name,
-      detail: `${files(batch.paths.length)} · ${formatBytes(batch.bytes)}`,
+      detail: `${files(batch.paths.length)} · ${formatBytes(batch.expectedBytes)}`,
       ...cardState(index, input.progress),
     };
   });
