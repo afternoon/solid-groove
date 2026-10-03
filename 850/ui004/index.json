@@ -1,0 +1,14 @@
+{
+  "id": "ui004",
+  "title": "Control outlines (UI-004)",
+  "steps": [
+    {
+      "file": "01-mixer-bd-s-volume-previewed-dashed-its-p.png",
+      "caption": "Mixer: BD's volume previewed (dashed); its pan and the tempo changed (solid)"
+    },
+    {
+      "file": "02-instrument-the-pad-s-pitch-previewed-in-.png",
+      "caption": "Instrument: the pad's pitch previewed in both places, BD's volume still previewed on the rail; the cutoff changed"
+    }
+  ]
+}
