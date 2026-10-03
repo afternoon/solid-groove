@@ -115,13 +115,17 @@ const UNSTATED_LICENCE = "unstated";
  * dropped onto a sampler and becoming an asset whose buffer never resolves.
  */
 export function toLibrarySample(asset: LibraryAsset): LibrarySample | null {
-  if (!asset.storageKey || !asset.url) return null;
+  // A factory sound's reference is derived from its delivery key; a user's own
+  // sound (#282) states its storage path outright, since it lives elsewhere.
+  const storageRef =
+    asset.storageRef ?? (asset.storageKey ? assetStorageRef(asset.storageKey) : null);
+  if (!storageRef || !asset.url) return null;
   const parsed = librarySampleSchema.safeParse({
     name: asset.name,
     packId: asset.packId,
     packVersion: asset.packVersion,
     kind: asset.type === "loop" ? "loop" : "sample",
-    storageRef: assetStorageRef(asset.storageKey),
+    storageRef,
     url: asset.url,
     durationSeconds: asset.durationSeconds,
     sampleRate: asset.sampleRate,

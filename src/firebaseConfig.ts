@@ -21,7 +21,8 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? placeholders?.authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? placeholders?.projectId,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  storageBucket:
+    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? placeholders?.storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? placeholders?.appId,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,

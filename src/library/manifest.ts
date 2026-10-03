@@ -279,6 +279,12 @@ export interface LibraryAsset {
   /** Absolute audio URL, or `null` when the manifest carried no master file. */
   readonly url: string | null;
   readonly storageKey: string | null;
+  /**
+   * Where the audio is stored, when that is not derived from `storageKey`: a
+   * user's own sound lives under `users/{uid}/` rather than in the factory
+   * library (#282). Unset for delivered content.
+   */
+  readonly storageRef?: string;
   /** Delivered rights position, or `null` when the manifest stated none. */
   readonly licence: string | null;
   readonly durationSeconds: number | null;

@@ -6,7 +6,7 @@
  * | Value      | Backend                                                    |
  * | ---------- | ---------------------------------------------------------- |
  * | `mock`     | In-memory fakes; the Firebase SDK is never loaded          |
- * | `emulator` | The *real* Firebase SDK against a local Firestore + Auth   |
+ * | `emulator` | The *real* Firebase SDK against local Firestore/Auth/Storage |
  * | unset      | The real Firebase project in `.env` (production behavior)  |
  *
  * The distinction between the first two is the whole point of having three
@@ -36,6 +36,8 @@ const DEV_BACKENDS: readonly DevBackend[] = ["mock", "emulator", "project"];
  */
 export const DEFAULT_FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
 export const DEFAULT_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
+/** Where personal packs upload their audio in emulator mode (#282). */
+export const DEFAULT_STORAGE_EMULATOR_HOST = "127.0.0.1:9199";
 
 /**
  * The emulator's project ID, matching `bun run firebase:emulator` and both
@@ -75,6 +77,12 @@ export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
   authDomain: string;
   projectId: string;
   appId: string;
+  /**
+   * The emulator's default bucket, where a personal pack's audio goes (#282).
+   * `manifest.ts` reads `VITE_FIREBASE_STORAGE_BUCKET` itself, not this, so the
+   * factory library keeps its same-origin delivery in emulator mode.
+   */
+  storageBucket: string;
 } | null {
   if (backend === "project") return null;
   const projectId = backend === "emulator" ? EMULATOR_PROJECT_ID : "mock-project";
@@ -83,6 +91,7 @@ export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
     authDomain: `${projectId}.firebaseapp.com`,
     projectId,
     appId: `${projectId}-app-id`,
+    storageBucket: `${projectId}.appspot.com`,
   };
 }
 
@@ -102,12 +111,14 @@ export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
 export function resolveEmulatorHosts(
   env: Record<string, string | undefined> = import.meta.env,
   backend: DevBackend = devBackend,
-): { firestore: string; auth: string } | null {
+): { firestore: string; auth: string; storage: string } | null {
   const firestore = env.VITE_FIRESTORE_EMULATOR_HOST;
   const auth = env.VITE_AUTH_EMULATOR_HOST;
-  if (backend !== "emulator" && !firestore && !auth) return null;
+  const storage = env.VITE_STORAGE_EMULATOR_HOST;
+  if (backend !== "emulator" && !firestore && !auth && !storage) return null;
   return {
     firestore: firestore || DEFAULT_FIRESTORE_EMULATOR_HOST,
     auth: auth || DEFAULT_AUTH_EMULATOR_HOST,
+    storage: storage || DEFAULT_STORAGE_EMULATOR_HOST,
   };
 }
