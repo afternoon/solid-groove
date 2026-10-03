@@ -7,6 +7,9 @@ name: Restack
 #                              rebased onto it
 #  - a PR's branch is pushed -> PRs stacked on it are rebased onto it
 #  - a PR's base is changed  -> it is rebased onto its new base
+#  - main moves              -> every open PR on main that now conflicts with
+#                              it is rebased onto it (one that still merges
+#                              cleanly is left alone)
 #
 # It rebases and force-pushes with a lease, because GitHub's native stacks
 # (stack-link.yml) only merge with a linear history. It moves only each PR's
@@ -20,6 +23,8 @@ name: Restack
 on:
   pull_request:
     types: [closed, synchronize, edited]
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -30,6 +35,7 @@ jobs:
   restack:
     # Forks have no write access here, and nothing in this repo stacks on one.
     if: >-
+      github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository && (
         (github.event.action == 'closed' && github.event.pull_request.merged) ||
         github.event.action == 'synchronize' ||
@@ -39,7 +45,7 @@ jobs:
     # Serialise per PR, never cancel: a cancelled run can leave a stack half
     # updated, and the next event may not come.
     concurrency:
-      group: restack-${{ github.event.pull_request.number }}
+      group: restack-${{ github.event.pull_request.number || github.ref_name }}
       cancel-in-progress: false
     env:
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
@@ -56,8 +62,8 @@ jobs:
 
       - name: Restack
         env:
-          ACTION: ${{ github.event.action }}
-          PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event_name == 'push' && 'push' || github.event.action }}
+          PR: ${{ github.event.pull_request.number || github.ref_name }}
           BEFORE: ${{ github.event.before }}
           OLD_BASE: ${{ github.event.changes.base.ref.from }}
         run: |
@@ -65,6 +71,7 @@ jobs:
             closed) mode=merged; extra="" ;;
             synchronize) mode=pushed; extra="$BEFORE" ;;
             edited) mode=rebased; extra="$OLD_BASE" ;;
+            push) mode=base; extra="" ;;
           esac
           # Run a copy: the script checks out other branches as it goes, and bash
           # reads a script lazily, so it must not change underneath itself.
