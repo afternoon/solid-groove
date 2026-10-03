@@ -404,13 +404,11 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
           analytics={props.analytics}
           variant="bar"
         />
-        <label class="visually-hidden" for={`track-name-${props.track.id}`}>
-          Track name
-        </label>
         <TrackNameInput
           track={props.track}
           dispatch={props.dispatch}
           class="mixer-strip-name"
+          label="Track name"
         />
         {/* Selecting a track is this one control, reading the track's kind,
 				    rather than a click anywhere on the strip: a container handler has

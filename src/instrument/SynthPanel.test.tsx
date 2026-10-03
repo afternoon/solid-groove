@@ -91,6 +91,23 @@ describe("SynthPanel", () => {
     expect(screen.getByLabelText("Resonance")).toBeInTheDocument();
   });
 
+  // #866: an audit that reads a control's name off the element itself found
+  // every synth slider unnamed, because only a sibling `<label for>` named it.
+  it("names every slider on the element itself, after its parameter (#866)", () => {
+    renderPanel();
+    const names = screen
+      .getAllByRole("slider")
+      .map((slider) => slider.getAttribute("aria-label"));
+    expect(names).toEqual([
+      "Cutoff",
+      "Resonance",
+      "Attack",
+      "Decay",
+      "Sustain",
+      "Release",
+    ]);
+  });
+
   it("dispatches a validated instrument parameter.set when a slider commits", () => {
     const { applied } = renderPanel();
     const cutoff = screen.getByLabelText("Cutoff") as HTMLInputElement;
