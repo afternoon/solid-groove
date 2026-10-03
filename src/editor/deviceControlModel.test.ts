@@ -25,10 +25,14 @@ describe("deviceParameterTarget", () => {
     });
   });
 
-  it("refuses a return bus, which has no device parameter scope", () => {
-    expect(() =>
-      deviceParameterTarget(returnChain("ret_1" as ReturnId), deviceId, "size"),
-    ).toThrow();
+  it("addresses a return bus's device through returnDevice (#386)", () => {
+    const returnId = "ret_1" as ReturnId;
+    expect(deviceParameterTarget(returnChain(returnId), deviceId, "size")).toEqual({
+      scope: "returnDevice",
+      returnId,
+      deviceId,
+      parameterId: "size",
+    });
   });
 });
 

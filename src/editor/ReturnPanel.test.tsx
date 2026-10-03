@@ -9,7 +9,8 @@ import type { Project } from "../domain/entities";
 import { createFactoryContext, createReturnBus, createSend } from "../domain/factories";
 import { createReferenceProject } from "../domain/fixtures";
 import { createSeededIdFactory, type ReturnId, type TrackId } from "../domain/ids";
-import { clickAndFlush } from "../testing/events";
+import { moveTo } from "../instrument/panelTesting";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import EditorInstrument from "./EditorInstrument";
 import ReturnPanel from "./ReturnPanel";
@@ -99,6 +100,22 @@ describe("ReturnPanel (#386)", () => {
         createReferenceProject().song.tracks.find((t) => t.id === track.id)?.devices,
       );
     }
+  });
+
+  it("writes a return device's parameter through returnDevice, one entry per drag", () => {
+    const { history, returnId, add, items } = renderPanel();
+    add("Reverb");
+    const entries = history.entries.length;
+    const size = within(items()[0]).getByRole("slider", {
+      name: "Size",
+    }) as HTMLInputElement;
+    moveTo(size, "0.7");
+    fireAndFlush(() => size.dispatchEvent(new Event("change", { bubbles: true })));
+    const bus = history.project.song.returns.find(
+      (candidate) => candidate.id === returnId,
+    );
+    expect(bus?.devices[0].parameters.size).toBe(0.7);
+    expect(history.entries.length).toBe(entries + 1);
   });
 
   it("logs device_added with the return chain", () => {

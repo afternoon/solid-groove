@@ -443,6 +443,14 @@ describe("controlsTouchedBy", () => {
       expect(
         set({ scope: "masterDevice", deviceId: ABSENT_IDS.device, parameterId: "mix" }),
       ).toEqual([at(ABSENT_IDS.device, "mix")]);
+      expect(
+        set({
+          scope: "returnDevice",
+          returnId: fixture.returnId,
+          deviceId: ABSENT_IDS.device,
+          parameterId: "mix",
+        }),
+      ).toEqual([at(ABSENT_IDS.device, "mix")]);
     });
 
     it("addresses the master, a return and a send on their own entities", () => {
