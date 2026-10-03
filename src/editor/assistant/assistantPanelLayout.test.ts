@@ -9,6 +9,7 @@ import {
   dock,
   FLOATING_HEIGHT,
   float,
+  floatingRoom,
   LAYOUT_STORAGE_KEY,
   loadLayout,
   minimise,
@@ -16,6 +17,7 @@ import {
   RESIZE_STEP,
   RESIZE_STEP_LARGE,
   resetSize,
+  resizable,
   resizeBy,
   rightClearance,
   saveLayout,
@@ -89,6 +91,33 @@ describe("resizing", () => {
   it("resets the edge it is on to where that mode starts", () => {
     expect(resetSize(setSize(floating, 700)).height).toBe(560);
     expect(resetSize(setSize(docked, 600)).width).toBe(384);
+  });
+
+  it("lets the floating panel grow to 1000px in a window with room for it", () => {
+    expect(FLOATING_HEIGHT.max).toBe(1000);
+    expect(setSize(floating, 1000, floatingRoom(1200)).height).toBe(1000);
+    expect(setSize(floating, 1200, floatingRoom(1200)).height).toBe(1000);
+  });
+
+  it("keeps the floating panel inside a window too short for it", () => {
+    // A 700px window leaves 650px under the header.
+    const room = floatingRoom(700);
+    expect(room).toBe(650);
+    expect(setSize(floating, 1000, room).height).toBe(650);
+    expect(resizeBy(setSize(floating, 640), RESIZE_STEP_LARGE, room).height).toBe(650);
+    // A remembered height taller than the window reads as the room it has,
+    // so the first step down moves the edge on screen.
+    const tall = setSize(floating, 900);
+    expect(resizable(tall, room)).toEqual({
+      value: 650,
+      range: { min: 260, max: 650, initial: 560 },
+    });
+    expect(resizeBy(tall, -RESIZE_STEP, room).height).toBe(634);
+    // Too short even for the minimum: on screen wins, and the reset fits too.
+    const tiny = floatingRoom(250);
+    expect(setSize(floating, 600, tiny).height).toBe(200);
+    expect(resetSize(setSize(floating, 900), tiny).height).toBe(200);
+    expect(floatingRoom(10)).toBe(0);
   });
 
   it("does nothing with no edge to move", () => {

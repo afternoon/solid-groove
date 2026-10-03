@@ -26,8 +26,19 @@ export interface SizeRange {
   readonly initial: number;
 }
 
-/** The floating panel's height, set by dragging its top edge. */
-export const FLOATING_HEIGHT: SizeRange = { min: 260, max: 720, initial: 560 };
+/**
+ * The floating panel's height, set by dragging its top edge. A window shorter
+ * than this leaves less room, and the panel never grows past it: see
+ * `floatingRoom`.
+ */
+export const FLOATING_HEIGHT: SizeRange = { min: 260, max: 1000, initial: 560 };
+
+/**
+ * What the editor keeps clear above a floating panel: its header and the
+ * dividers either side of it (`--editor-header-height` and `--size-divider`
+ * in EditorView.css), so the transport and the Assistant button stay in reach.
+ */
+export const FLOATING_TOP_CLEARANCE = 50;
 
 /** The docked panel's width, set by dragging its left edge. */
 export const DOCKED_WIDTH: SizeRange = { min: 300, max: 640, initial: 384 };
@@ -126,11 +137,41 @@ export function dismiss(layout: AssistantPanelLayout): AssistantPanelLayout | un
   return undefined;
 }
 
-/** The size the resize edge controls in this mode, if it has one. */
+/**
+ * The most a floating panel can be in a window this tall: the height under
+ * the editor's header, so the whole panel, its resize edge included, is
+ * always on screen.
+ */
+export function floatingRoom(windowHeight: number): number {
+  return Math.max(0, Math.floor(windowHeight - FLOATING_TOP_CLEARANCE));
+}
+
+/**
+ * A range cut down to the room there is. Room short of the range's minimum
+ * lowers the minimum with it, because staying on screen wins over the
+ * minimum; the reset size is pulled in to fit.
+ */
+export function fitRange(range: SizeRange, room: number): SizeRange {
+  const max = Math.min(range.max, room);
+  if (max >= range.max) return range;
+  const min = Math.min(range.min, max);
+  return { min, max, initial: Math.min(range.initial, max) };
+}
+
+/**
+ * The size the resize edge controls in this mode, if it has one, and the
+ * limits it moves within. `room` is the floating height the window has
+ * (`floatingRoom`); the value is what is on screen, so a remembered height
+ * taller than the window reads as the room it has.
+ */
 export function resizable(
   layout: AssistantPanelLayout,
+  room = Number.POSITIVE_INFINITY,
 ): { readonly value: number; readonly range: SizeRange } | undefined {
-  if (layout.mode === "floating") return { value: layout.height, range: FLOATING_HEIGHT };
+  if (layout.mode === "floating") {
+    const range = fitRange(FLOATING_HEIGHT, room);
+    return { value: Math.min(layout.height, range.max), range };
+  }
   if (layout.mode === "docked") return { value: layout.width, range: DOCKED_WIDTH };
   return undefined;
 }
@@ -140,15 +181,17 @@ export function clampSize(value: number, range: SizeRange): number {
 }
 
 /**
- * Sets the size the edge controls (a drag), clamped to its limits. A panel
- * with no edge is returned unchanged.
+ * Sets the size the edge controls (a drag), clamped to its limits and, while
+ * floating, to the room the window has. A panel with no edge is returned
+ * unchanged.
  */
 export function setSize(
   layout: AssistantPanelLayout,
   value: number,
+  room = Number.POSITIVE_INFINITY,
 ): AssistantPanelLayout {
   if (layout.mode === "floating") {
-    return { ...layout, height: clampSize(value, FLOATING_HEIGHT) };
+    return { ...layout, height: clampSize(value, fitRange(FLOATING_HEIGHT, room)) };
   }
   if (layout.mode === "docked") {
     return { ...layout, width: clampSize(value, DOCKED_WIDTH) };
@@ -157,15 +200,22 @@ export function setSize(
 }
 
 /** Moves the edge outward (positive) or inward (negative) by `by` pixels. */
-export function resizeBy(layout: AssistantPanelLayout, by: number): AssistantPanelLayout {
-  const current = resizable(layout);
-  return current ? setSize(layout, current.value + by) : layout;
+export function resizeBy(
+  layout: AssistantPanelLayout,
+  by: number,
+  room = Number.POSITIVE_INFINITY,
+): AssistantPanelLayout {
+  const current = resizable(layout, room);
+  return current ? setSize(layout, current.value + by, room) : layout;
 }
 
 /** A double-click on the edge: back to the size this mode starts at. */
-export function resetSize(layout: AssistantPanelLayout): AssistantPanelLayout {
-  const current = resizable(layout);
-  return current ? setSize(layout, current.range.initial) : layout;
+export function resetSize(
+  layout: AssistantPanelLayout,
+  room = Number.POSITIVE_INFINITY,
+): AssistantPanelLayout {
+  const current = resizable(layout, room);
+  return current ? setSize(layout, current.range.initial, room) : layout;
 }
 
 // --- Remembered per device ---------------------------------------------------
