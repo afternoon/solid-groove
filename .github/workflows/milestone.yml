@@ -4,8 +4,8 @@ name: Milestone
 # is in (a library bug on the milestone the library is built in, an export bug
 # on the export milestone, sign-in or accessibility on hardening), which takes
 # judgement, so a short Claude run picks it. Anything else (a feature or an
-# enhancement) goes on Backlog, to be scheduled by hand. An issue that already has a milestone, or is
-# the Board, is left alone.
+# enhancement) goes on Backlog, to be scheduled by hand. An issue that already
+# has a milestone, or is the Board or the QA sweep's run log, is left alone.
 on:
   issues:
     types: [opened, labeled]
@@ -19,7 +19,8 @@ jobs:
   milestone:
     if: >-
       github.event.issue.milestone == null &&
-      !contains(github.event.issue.labels.*.name, 'board') && (
+      !contains(github.event.issue.labels.*.name, 'board') &&
+      !contains(github.event.issue.labels.*.name, 'qa-sweep') && (
         github.event.action == 'opened' ||
         github.event.label.name == 'bug'
       )
