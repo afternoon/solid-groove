@@ -41,10 +41,10 @@ import { dockTile, expectView, pressView } from "../support/views";
  *  - "inserting into the BD track's drum machine, on the BD pad" is the
  *    header's path, "BD › Drum machine › BD": track, instrument, slot.
  *
- * **Keys and focus.** `Enter` is pressed with an audition button focused,
- * because clicking a row is how a sound is selected. The library context has
- * to own `Enter` there rather than let the browser click the focused button
- * again; that is what this spec holds it to.
+ * **Keys and focus.** `Enter` and `Shift+Enter` are pressed with an audition
+ * button focused, because clicking a row is how a sound is selected. The
+ * library context has to own both there rather than let the browser click the
+ * focused button again; that is what this spec holds it to.
  *
  * Runs against the Firestore/Auth emulator because step 9 is a real reload.
  */
@@ -119,10 +119,10 @@ test.describe("CF-030", () => {
       expect(listed.filter((name) => loops.includes(name))).toEqual([]);
       await step("Press 4: the library, aimed at the BD pad");
 
-      // 5. Select a different kick and press Enter. The library stays open and
-      //    shows that kick as the sound in the slot. Press the down arrow to
-      //    select the next kick and press Enter again. The library is still
-      //    open, and shows the second kick in the slot.
+      // 5. Select a different kick and press Shift+Enter. The library stays
+      //    open and shows that kick as the sound in the slot. Press the down
+      //    arrow to select the next kick and press Shift+Enter again. The
+      //    library is still open, and shows the second kick in the slot.
       const shown = listed.filter((name) => kicks.some((kick) => kick.name === name));
       precondition(
         shown.length >= 3,
@@ -139,30 +139,30 @@ test.describe("CF-030", () => {
       );
 
       await select(page, first);
-      await page.keyboard.press("Enter");
+      await page.keyboard.press("Shift+Enter");
       await expectView(page, "Library");
       await expect(readout(page, "In the slot")).toContainText(first);
-      await step("Enter: the kick goes in, and the library stays");
+      await step("Shift+Enter: the kick goes in, and the library stays");
 
       await page.keyboard.press("ArrowDown");
       await expect(readout(page, "Hearing")).toContainText(second);
-      await page.keyboard.press("Enter");
+      await page.keyboard.press("Shift+Enter");
       await expectView(page, "Library");
       await expect(readout(page, "In the slot")).toContainText(second);
-      await step("Down, Enter: the next kick goes in, still in the library");
+      await step("Down, Shift+Enter: the next kick goes in, still in the library");
 
       // 6. Undo once. The library shows the first kick in the slot again.
       await page.keyboard.press("ControlOrMeta+z");
       await expect(readout(page, "In the slot")).toContainText(first);
       await step("Undo once: the first kick is back in the slot");
 
-      // 7. Select a third kick and press Shift+Enter. The editor goes back to
+      // 7. Select a third kick and press Enter. The editor goes back to
       //    the instrument view, with the "BD" pad selected, its slot naming the
       //    third kick and still marked as the target.
       const third = shown.find((name) => name !== first && name !== second);
       precondition(third, "CF-030", "a third kick besides the starter's");
       await select(page, third);
-      await page.keyboard.press("Shift+Enter");
+      await page.keyboard.press("Enter");
       await expectView(page, "Instrument");
       await expect(library(page)).toHaveCount(0);
       await expect(
@@ -170,7 +170,7 @@ test.describe("CF-030", () => {
       ).toHaveAttribute("aria-pressed", "true");
       await expect.poll(() => slotSound(page, "BD")).toBe(third);
       await expectTarget(sampleSlot(page, "BD"), true);
-      await step("Shift+Enter: back on the BD pad with the third kick");
+      await step("Enter: back on the BD pad with the third kick");
 
       // 8. Press 1, then 4. The library is still aimed at the "BD" pad. Press 3
       //    to go back without inserting. The slot still names the third kick.

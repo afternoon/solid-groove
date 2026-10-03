@@ -553,7 +553,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    * Both paths can decline, and a decline has to be visible: the Loop button
    * used to reach a sampler-only path that returned silently, so inserting a
    * loop closed the window and did nothing at all. Inserting now reports
-   * whether it committed, and only a committed insert goes back on Shift+Enter.
+   * whether it committed, and only a committed insert goes back on Enter.
    */
   function loadLibrarySample(sample: LibrarySample): boolean {
     const currentProject = project();

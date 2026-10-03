@@ -105,7 +105,7 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onActions?(actions: LibraryActions | null): void;
-  /** After the Insert button's insert commits: go back, as Shift+Enter does. */
+  /** After the Insert button's insert commits: go back, as Enter does. */
   onInsertAndReturn?(): void;
 }
 
@@ -397,7 +397,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             type="button"
             class="library-modal-insert"
             disabled={selected() === null}
-            aria-keyshortcuts="Shift+Enter"
+            aria-keyshortcuts="Enter"
             onClick={() => {
               if (insertSelected()) props.onInsertAndReturn?.();
             }}

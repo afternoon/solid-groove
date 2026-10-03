@@ -383,7 +383,7 @@ describe("LibraryModal footer and rail", () => {
   it("badges Insert with the registry's key without changing its name", async () => {
     renderSlot();
     const insert = screen.getByRole("button", { name: "Insert" });
-    // The button inserts and goes back, so it carries Shift+Enter's key.
+    // The button inserts and goes back, so it carries Enter's key.
     const badge = within(insert).getByText("<library.insert_and_return>");
     expect(badge).toHaveClass("library-modal-key");
     expect(badge).toHaveAttribute("aria-hidden", "true");
