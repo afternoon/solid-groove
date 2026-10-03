@@ -39,6 +39,17 @@ describe("shelf", () => {
     expect(shelfFamilies([sounds[7], sounds[8]])).toEqual([]);
   });
 
+  it("keeps every family in scope, at zero when the matches leave it nothing (#878)", () => {
+    const matches = [sounds[1], sounds[2]];
+    expect(shelfFamilies(matches, sounds).map((f) => [f.key, f.count])).toEqual([
+      ["drums", 2],
+      ["bass", 0],
+      ["fx", 0],
+      ["loops", 0],
+    ]);
+    expect(shelfFamilies([], sounds).map((f) => f.count)).toEqual([0, 0, 0, 0]);
+  });
+
   it("lists a family's roles in taxonomy order, omitting empty ones", () => {
     expect(shelfRoles(sounds, "drums").map((r) => [r.key, r.count])).toEqual([
       ["kick", 2],
@@ -84,6 +95,12 @@ describe("settle", () => {
     });
     expect(settle([sounds[1]], { family: "drums", role: "kick" })).toEqual({
       family: "fx",
+      role: null,
+    });
+  });
+  it("holds a just-chosen family with no sounds, on all its roles (#878)", () => {
+    expect(settle(sounds, { family: "bass", role: "sub" }, true)).toEqual({
+      family: "bass",
       role: null,
     });
   });
