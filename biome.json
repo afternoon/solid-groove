@@ -5,6 +5,7 @@
       "**",
       "!.claude",
       "!dist",
+      "!functions/lib",
       "!public",
       "!docs/design",
       "!playwright-report",

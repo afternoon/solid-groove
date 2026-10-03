@@ -27,6 +27,18 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs22",
+      "ignore": ["node_modules", "src", ".gitignore", "*.local"],
+      "predeploy": [
+        "bun build \"$RESOURCE_DIR/src/index.ts\" --outdir \"$RESOURCE_DIR/lib\" --target node --format esm --packages external",
+        "npm --prefix \"$RESOURCE_DIR\" install --no-package-lock --omit=dev --no-audit --no-fund"
+      ]
+    }
+  ],
   "emulators": {
     "firestore": {
       "port": 8080
@@ -36,6 +48,9 @@
     },
     "storage": {
       "port": 9199
+    },
+    "functions": {
+      "port": 5001
     },
     "ui": {
       "enabled": false
