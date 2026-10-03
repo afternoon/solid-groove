@@ -91,6 +91,7 @@ Two rules shape the interface:
 
 - **Every write is revision-checked.** The caller states the revision it wrote against; the repository applies the write and returns the new revision, or reports `revision_conflict` and changes nothing.
 - **Tiers are written independently.** `saveClip` writes one clip document plus the metadata revision — never song structure.
+- **A change set is atomic.** `saveChanges` writes any combination of tiers — metadata patch, song, clip documents, clip deletions — as **one** revision: every document lands or none does. The single-tier writes are `saveChanges` with one field set, so they stay one document each. Autosave sends everything it has queued through it, which is what keeps the store from ever holding a song whose placements point at clip documents that were not written, or a clip whose track the stored song has removed (#965).
 
 `FirestoreProjectRepository` runs each revision-checked write in a Firestore transaction so the tier document and the revision bump commit together. Creating a project takes two steps — claim the metadata document, then write the remaining tiers — because the security rules resolve a child's owner from its parent and rule `get()`s see the database as it was before the write commits. If the second step fails, the claimed metadata document is removed rather than left as a project with no song.
 
@@ -100,7 +101,7 @@ Reads report a permission denial as `not_found`, so the API never confirms the e
 
 `ProjectAutosave` (`src/persistence/autosave.ts`) implements PRJ-03 and has no SolidJS dependency — it exposes a plain listener a provider can adapt into a signal.
 
-- **Coalescing.** Edits are queued per entity (`song`, `clip:{id}`, `metadata`); a second edit to the same entity replaces the first, so a slider drag produces one write with the final value. The window defaults to 400 ms and uses an injectable `Scheduler` (`src/shared/scheduler.ts`) so tests drive it deterministically.
+- **Coalescing.** Edits are queued per entity (`song`, `clip:{id}`, `metadata`); a second edit to the same entity replaces the first, so a slider drag produces one write with the final value. A drain writes the whole queue as one `saveChanges` and one revision. Only a queue too large for one Firestore transaction (over 200 clip documents or about 4 MiB of them) is split, and then clip writes go first and clip deletions last, so every intermediate state still loads. The window defaults to 400 ms and uses an injectable `Scheduler` (`src/shared/scheduler.ts`) so tests drive it deterministically.
 - **Save state.** `idle → pending → saving → saved`, or `failed` with the underlying failure. `flush()` writes everything immediately and is what a `pagehide` handler calls.
 - **Retryable local state.** A failed write stays queued with its value and the drain stops there, so later writes do not burn revisions past a gap. `retry()` writes exactly what the user last saw.
 - **Echo rejection.** A remote snapshot at or below the local revision is this client's own echo; one that arrives while a local edit is queued would overwrite state the user can still see. Both are ignored, and the caller is told which.

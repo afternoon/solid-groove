@@ -15,20 +15,16 @@ import {
 } from "firebase/firestore";
 import type { Clip, Project, ProjectMetadata, Song } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
-import { derivePackDependencies } from "../domain/packs";
 import type { JsonObject } from "../domain/serialize";
 import { type Clock, systemClock } from "../shared/clock";
-import { CLIP_DOCUMENT_BUDGET_BYTES, estimateDocumentBytes } from "./documentSize";
 import {
   ARRANGEMENT_COLLECTION,
   arrangementChunkPath,
   CLIPS_COLLECTION,
   clipDocumentPath,
   clipsCollectionPath,
-  encodeClip,
   encodeProject,
   encodeProjectMetadata,
-  encodeSong,
   findOversizedDocuments,
   PROJECTS_COLLECTION,
   projectDocumentPath,
@@ -38,6 +34,8 @@ import {
   songDocumentPath,
 } from "./documents";
 import {
+  changeSetDerivedFields,
+  encodeChangeSet,
   nextMetadata,
   revisionConflict,
   toMetadataResult,
@@ -48,6 +46,7 @@ import {
   type DerivedMetadataFields,
   type LoadResult,
   loadFailure,
+  type ProjectChangeSet,
   type ProjectMetadataPatch,
   type ProjectRepository,
   type ProjectWatchEvent,
@@ -235,7 +234,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
     patch: ProjectMetadataPatch,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(projectId, baseRevision, async () => {}, patch);
+    return this.saveChanges(projectId, { metadata: patch }, baseRevision);
   }
 
   async saveSong(
@@ -243,38 +242,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
     song: Song,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(
-      projectId,
-      baseRevision,
-      async (tx, _metadata, next) => {
-        const encoded = encodeSong(projectId, song, next.revision, next.modifiedAt);
-        const oversized = findOversizedDocuments(encoded);
-        if (oversized.length > 0) {
-          throw new AbortWrite(tooLarge(oversized));
-        }
-        // The previous song document lists the chunks it wrote, so stale
-        // chunks are removed without a query inside the transaction.
-        const previous = await tx.get(this.ref(songDocumentPath(projectId)));
-        const previousChunks = previous.exists()
-          ? ((previous.data().chunkTrackIds as string[] | undefined) ?? [])
-          : [];
-        const keep = new Set(encoded.arrangement.map((chunk) => chunk.path));
-        for (const trackId of previousChunks) {
-          const path = arrangementChunkPath(projectId, trackId);
-          if (!keep.has(path)) {
-            tx.delete(this.ref(path));
-          }
-        }
-        this.write(tx, encoded.song);
-        for (const chunk of encoded.arrangement) {
-          this.write(tx, chunk);
-        }
-      },
-      {},
-      // The song's assets are what the metadata tier's dependency list is
-      // derived from, so both commit in the same Firestore transaction.
-      { packDependencies: derivePackDependencies(song) },
-    );
+    return this.saveChanges(projectId, { song }, baseRevision);
   }
 
   async saveClip(
@@ -282,26 +250,7 @@ export class FirestoreProjectRepository implements ProjectRepository {
     clip: Clip,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(
-      projectId,
-      baseRevision,
-      async (tx, _metadata, next) => {
-        const document = encodeClip(projectId, clip, next.revision, next.modifiedAt);
-        const bytes = estimateDocumentBytes(document.path, document.data);
-        if (bytes > CLIP_DOCUMENT_BUDGET_BYTES) {
-          throw new AbortWrite(
-            tooLarge([
-              {
-                path: document.path,
-                bytes,
-                budgetBytes: CLIP_DOCUMENT_BUDGET_BYTES,
-              },
-            ]),
-          );
-        }
-        this.write(tx, document);
-      },
-    );
+    return this.saveChanges(projectId, { clips: [clip] }, baseRevision);
   }
 
   async deleteClip(
@@ -309,9 +258,66 @@ export class FirestoreProjectRepository implements ProjectRepository {
     clipId: ClipId,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(projectId, baseRevision, async (tx) => {
-      tx.delete(this.ref(clipDocumentPath(projectId, clipId)));
-    });
+    return this.saveChanges(projectId, { deletedClipIds: [clipId] }, baseRevision);
+  }
+
+  /**
+   * One Firestore transaction for the whole set: the clip documents, the song
+   * and its chunks, the clip deletions, and the metadata revision bump commit
+   * together or not at all (#965).
+   */
+  async saveChanges(
+    projectId: ProjectId,
+    changes: ProjectChangeSet,
+    baseRevision: number,
+  ): Promise<SaveResult> {
+    return this.withRevisionCheck(
+      projectId,
+      baseRevision,
+      async (tx, _metadata, next) => {
+        const encoded = encodeChangeSet(projectId, changes, next);
+        if (!encoded.ok) {
+          throw new AbortWrite(encoded.failure);
+        }
+        // A transaction does every read before its first write. The previous
+        // song document lists the chunks it wrote, so stale chunks are removed
+        // without a query inside the transaction.
+        const previousChunks = encoded.song
+          ? await this.previousChunkTrackIds(tx, projectId)
+          : [];
+        for (const clip of encoded.clips) {
+          this.write(tx, clip);
+        }
+        if (encoded.song) {
+          const keep = new Set(encoded.song.arrangement.map((chunk) => chunk.path));
+          for (const trackId of previousChunks) {
+            const path = arrangementChunkPath(projectId, trackId);
+            if (!keep.has(path)) {
+              tx.delete(this.ref(path));
+            }
+          }
+          this.write(tx, encoded.song.song);
+          for (const chunk of encoded.song.arrangement) {
+            this.write(tx, chunk);
+          }
+        }
+        for (const clipId of changes.deletedClipIds ?? []) {
+          tx.delete(this.ref(clipDocumentPath(projectId, clipId)));
+        }
+      },
+      changes.metadata,
+      changeSetDerivedFields(changes),
+    );
+  }
+
+  private async previousChunkTrackIds(
+    tx: Transaction,
+    projectId: ProjectId,
+  ): Promise<string[]> {
+    const previous = await tx.get(this.ref(songDocumentPath(projectId)));
+    return previous.exists()
+      ? ((previous.data().chunkTrackIds as string[] | undefined) ?? [])
+      : [];
   }
 
   async deleteProject(projectId: ProjectId): Promise<void> {

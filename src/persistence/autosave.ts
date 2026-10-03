@@ -8,12 +8,14 @@ import {
   type Scheduler,
   timeoutScheduler,
 } from "../shared/scheduler";
+import { estimateDocumentBytes } from "./documentSize";
+import { encodeClip } from "./documents";
 import type {
+  ProjectChangeSet,
   ProjectMetadataPatch,
   ProjectRepository,
   ProjectWatchEvent,
   SaveFailure,
-  SaveResult,
 } from "./projectRepository";
 
 /**
@@ -27,6 +29,9 @@ import type {
  *   write with the final value rather than one per frame. Intermediate values
  *   are dropped; the final one never is, including when the edit lands while
  *   the previous write is still in flight.
+ * - **Atomic drains.** Everything queued goes out as one `saveChanges`, so a
+ *   tab closed mid-save leaves the store at the last whole state, never a song
+ *   whose placements point at clips that were not written (#965).
  * - **Revision checks.** Every write states the revision it was made against;
  *   the repository refuses a stale one, so a slow tab cannot clobber newer state.
  * - **Retryable local state.** A failed write stays queued with its value, and
@@ -83,7 +88,60 @@ type PendingEntry =
   | { kind: "clipDeletion"; clipId: ClipId }
   | { kind: "metadata"; patch: ProjectMetadataPatch };
 
+type QueuedEntry = readonly [key: string, entry: PendingEntry];
+
 const DEFAULT_COALESCE_MS = 400;
+
+/**
+ * How many clip documents one write may carry. A Firestore transaction takes
+ * at most 500 writes and 10 MiB, and the song, its arrangement chunks, and the
+ * metadata document share that with the clips; these leave room for them.
+ */
+const MAX_BATCH_CLIP_DOCUMENTS = 200;
+const MAX_BATCH_CLIP_BYTES = 4 * 1024 * 1024;
+
+/** The longest prefix of `writes` one transaction can carry, and never none. */
+function withinBatchBudget(
+  writes: readonly QueuedEntry[],
+  projectId: ProjectId,
+): QueuedEntry[] {
+  const taken: QueuedEntry[] = [];
+  let bytes = 0;
+  for (const queued of writes) {
+    const [, entry] = queued;
+    if (entry.kind !== "clip") continue;
+    const document = encodeClip(projectId, entry.clip, 0, 0);
+    bytes += estimateDocumentBytes(document.path, document.data);
+    const full = taken.length >= MAX_BATCH_CLIP_DOCUMENTS || bytes > MAX_BATCH_CLIP_BYTES;
+    if (full && taken.length > 0) break;
+    taken.push(queued);
+  }
+  return taken;
+}
+
+function toChangeSet(batch: readonly QueuedEntry[]): ProjectChangeSet {
+  const clips: Clip[] = [];
+  const deletedClipIds: ClipId[] = [];
+  let song: Song | undefined;
+  let metadata: ProjectMetadataPatch | undefined;
+  for (const [, entry] of batch) {
+    switch (entry.kind) {
+      case "song":
+        song = entry.song;
+        break;
+      case "clip":
+        clips.push(entry.clip);
+        break;
+      case "clipDeletion":
+        deletedClipIds.push(entry.clipId);
+        break;
+      case "metadata":
+        metadata = entry.patch;
+        break;
+    }
+  }
+  return { song, clips, deletedClipIds, metadata };
+}
 
 export class ProjectAutosave {
   private readonly repository: ProjectRepository;
@@ -101,8 +159,8 @@ export class ProjectAutosave {
    */
   private consecutiveFailures = 0;
   /**
-   * Keyed so a second edit to the same entity replaces the first. Insertion
-   * order is preserved, so writes go out in the order the user made them.
+   * Keyed so a second edit to the same entity replaces the first. A drain
+   * writes the whole queue as one change set (see `nextBatch`).
    */
   private readonly queue = new Map<string, PendingEntry>();
 
@@ -268,8 +326,12 @@ export class ProjectAutosave {
     const retryCountIfRecovered = this.consecutiveFailures;
 
     while (this.queue.size > 0 && !this.disposed) {
-      const [key, entry] = [...this.queue.entries()][0];
-      const result = await this.write(entry);
+      const batch = this.nextBatch();
+      const result = await this.repository.saveChanges(
+        this.projectId,
+        toChangeSet(batch),
+        this.revision,
+      );
       if (!result.ok) {
         // The entry stays queued with its value so a retry — or the browser
         // coming back online — can write exactly what the user last saw.
@@ -291,8 +353,10 @@ export class ProjectAutosave {
       // it here would lose the user's final value while reporting "saved", so
       // only the entry that was actually written is dequeued; a replacement
       // stays queued and the loop writes it at the new revision.
-      if (this.queue.get(key) === entry) {
-        this.queue.delete(key);
+      for (const [key, entry] of batch) {
+        if (this.queue.get(key) === entry) {
+          this.queue.delete(key);
+        }
       }
       this.revision = result.revision;
       this.lastSavedAt = result.modifiedAt;
@@ -313,17 +377,28 @@ export class ProjectAutosave {
     }
   }
 
-  private write(entry: PendingEntry): Promise<SaveResult> {
-    switch (entry.kind) {
-      case "song":
-        return this.repository.saveSong(this.projectId, entry.song, this.revision);
-      case "clip":
-        return this.repository.saveClip(this.projectId, entry.clip, this.revision);
-      case "clipDeletion":
-        return this.repository.deleteClip(this.projectId, entry.clipId, this.revision);
-      case "metadata":
-        return this.repository.saveMetadata(this.projectId, entry.patch, this.revision);
+  /**
+   * What the next write carries: normally everything queued, as one atomic
+   * `saveChanges`, so the store never holds a song whose placements point at
+   * clips that were not written, or a clip whose track was removed (#965).
+   *
+   * Only a queue too large for one backend transaction is split, and then in
+   * the order that keeps every intermediate state loadable: clip writes go
+   * ahead of the song that places them (an unplaced clip is harmless), and
+   * clip deletions follow it (an unplaced clip again).
+   */
+  private nextBatch(): QueuedEntry[] {
+    const entries = [...this.queue.entries()];
+    const clipWrites = entries.filter(([, entry]) => entry.kind === "clip");
+    const leading = withinBatchBudget(clipWrites, this.projectId);
+    if (leading.length < clipWrites.length) {
+      return leading;
     }
+    const deletions = entries.filter(([, entry]) => entry.kind === "clipDeletion");
+    return [
+      ...entries.filter(([, entry]) => entry.kind !== "clipDeletion"),
+      ...deletions.slice(0, MAX_BATCH_CLIP_DOCUMENTS),
+    ];
   }
 
   private publish(): void {
