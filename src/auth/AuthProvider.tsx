@@ -13,9 +13,21 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   isAnonymous: boolean;
+  /**
+   * The anonymous sign-in a visitor with no session needs has failed (a
+   * dropped network, most often). `user` is `null` and `loading` is `false`
+   * alongside it, so a consumer can tell "signing in" from "could not sign in"
+   * and offer `retrySignIn` instead of waiting forever (#868).
+   */
+  signInFailed: boolean;
 }
 
-const AuthContext = createContext<AuthState>();
+export interface AuthContextValue extends Readonly<AuthState> {
+  /** Attempts the anonymous sign-in again after `signInFailed`. */
+  retrySignIn(): void;
+}
+
+const AuthContext = createContext<AuthContextValue>();
 
 export interface AuthProviderProps extends ParentProps {
   /** Overridden in tests; defaults to the app-wide analytics boundary. */
@@ -28,7 +40,43 @@ export function AuthProvider(props: AuthProviderProps) {
     user: null,
     loading: true,
     isAnonymous: false,
+    signInFailed: false,
   });
+
+  // No session yet: sign the visitor in anonymously so they can start working
+  // immediately. Firebase persists this session locally, so returning users
+  // keep their work and uid, and this never runs for them —
+  // `onAuthStateChanged` reports their existing user directly instead. That
+  // is what makes it safe to log `anon_session_created` (PRD `OPS-02`)
+  // unconditionally on success: reaching here at all means a genuinely new
+  // anonymous Firebase identity is about to be created, not a returning one.
+  //
+  // A failure is a state, not just a log line: the consumer is told with
+  // `signInFailed` so it can stop showing its loader and offer a retry.
+  // Success needs no write here — `onAuthStateChanged` reports the new user.
+  const signInAnonymously = () => {
+    authService
+      .signInAnonymously()
+      .then(() => analytics.log("anon_session_created"))
+      .catch((error) => {
+        console.error("Error signing in anonymously:", error);
+        setState((auth) => {
+          auth.user = null;
+          auth.loading = false;
+          auth.isAnonymous = false;
+          auth.signInFailed = true;
+        });
+      });
+  };
+
+  const retrySignIn = () => {
+    if (!state.signInFailed) return;
+    setState((auth) => {
+      auth.loading = true;
+      auth.signInFailed = false;
+    });
+    signInAnonymously();
+  };
 
   // PRD `OPS-02`: account type is a GA4 *user property*, not an event
   // parameter, and it is the only account fact analytics carries. The
@@ -55,25 +103,7 @@ export function AuthProvider(props: AuthProviderProps) {
     () => {
       const unsubscribe = authService.onAuthStateChanged((user) => {
         if (!user) {
-          // No session yet: sign the visitor in anonymously so they can
-          // start working immediately. Firebase persists this session
-          // locally, so returning users keep their work and uid, and this
-          // branch never runs for them — `onAuthStateChanged` reports their
-          // existing user directly instead. That is what makes it safe to
-          // log `anon_session_created` (PRD `OPS-02`) unconditionally here:
-          // reaching this branch at all means a genuinely new anonymous
-          // Firebase identity is about to be created, not a returning one.
-          authService
-            .signInAnonymously()
-            .then(() => analytics.log("anon_session_created"))
-            .catch((error) => {
-              console.error("Error signing in anonymously:", error);
-              setState((auth) => {
-                auth.user = null;
-                auth.loading = false;
-                auth.isAnonymous = false;
-              });
-            });
+          signInAnonymously();
           return;
         }
 
@@ -81,6 +111,7 @@ export function AuthProvider(props: AuthProviderProps) {
           auth.user = user;
           auth.loading = false;
           auth.isAnonymous = user.isAnonymous;
+          auth.signInFailed = false;
         });
       });
 
@@ -88,7 +119,24 @@ export function AuthProvider(props: AuthProviderProps) {
     },
   );
 
-  return <AuthContext value={state}>{props.children}</AuthContext>;
+  // Getters, so every read still goes through the store and stays reactive.
+  const value: AuthContextValue = {
+    get user() {
+      return state.user;
+    },
+    get loading() {
+      return state.loading;
+    },
+    get isAnonymous() {
+      return state.isAnonymous;
+    },
+    get signInFailed() {
+      return state.signInFailed;
+    },
+    retrySignIn,
+  };
+
+  return <AuthContext value={value}>{props.children}</AuthContext>;
 }
 
 export function useAuth() {
