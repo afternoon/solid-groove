@@ -72,13 +72,14 @@ export function eqHandles(values: Values): EqHandle[] {
 
 /**
  * The band whose handle is nearest a press at `point` (`y` measured up from
- * the bottom, as the drag surface reports it). Distance is measured in a box
- * as wide as it is tall, so a handle above the press is not unfairly far.
+ * the bottom, as the drag surface reports it). `aspect` is the surface's width
+ * over its height, so distance is measured as it looks on screen: a handle
+ * above the press is not unfairly near or far.
  */
 export function nearestBand(
   point: { readonly x: number; readonly y: number },
   handles: readonly EqHandle[],
-  aspect = 3,
+  aspect: number,
 ): EqBand {
   let nearest = handles[0];
   let best = Number.POSITIVE_INFINITY;

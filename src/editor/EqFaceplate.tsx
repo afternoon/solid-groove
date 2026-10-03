@@ -17,7 +17,10 @@ import {
 } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
-import DragSurface from "../instrument/DragSurface";
+import DragSurface, {
+  type SurfaceBox,
+  type SurfacePoint,
+} from "../instrument/DragSurface";
 import { frequencyAt, positionOf } from "../instrument/filterResponse";
 import Well from "../instrument/Well";
 import DeviceControls from "./DeviceControls";
@@ -26,7 +29,14 @@ import {
   formatDeviceValue,
   readDeviceParameter,
 } from "./deviceControlModel";
-import { dbAt, dbDepth, eqCurvePath, eqHandles, nearestBand } from "./eqCurve";
+import {
+  dbAt,
+  dbDepth,
+  type EqHandle,
+  eqCurvePath,
+  eqHandles,
+  nearestBand,
+} from "./eqCurve";
 import "./EqFaceplate.css";
 
 export interface EqFaceplateProps {
@@ -40,6 +50,13 @@ export interface EqFaceplateProps {
   readonly analytics?: Analytics;
 }
 
+/** The band a press picked, and its handle's offset from the pointer. */
+interface Grabbed {
+  readonly band: EqBand;
+  readonly dx: number;
+  readonly dy: number;
+}
+
 const WIDTH = 300;
 const HEIGHT = 100;
 const DECADES = [100, 1_000, 10_000];
@@ -49,12 +66,14 @@ const DB_LINES = [12, 0, -12];
  * The EQ's faceplate (LOOP-022, #447): its response curve in a well, a handle
  * per band to drag, and the controls of the band being edited.
  *
- * Dragging a handle sets its band's frequency left and right and, for a shelf
- * or a peak, its gain up and down; dragging a band that is switched off
- * switches it in, since moving it is asking to hear it. The press also picks
- * the band the controls beside the well show, as choosing it in the band strip
- * does. Which band is being edited is the faceplate's own passing state, not
- * the project's: every value it shows and every edit it makes is the device's
+ * Dragging a handle moves its band's frequency left and right and, for a
+ * shelf or a peak, its gain up and down, from where the handle was: it does not
+ * jump under the pointer. Dragging a band that is switched off switches it in,
+ * since moving it is asking to hear it. A press picks the band the controls
+ * beside the well show, as choosing it in the band strip does, and a click
+ * that never moves does nothing more: no edit, no history entry. Which band
+ * is being edited is the faceplate's own passing state, not the project's:
+ * every value it shows and every edit it makes is the device's
  * `parameter.set`, the same command its faders write.
  */
 export default function EqFaceplate(props: EqFaceplateProps): JSX.Element {
@@ -94,17 +113,29 @@ export default function EqFaceplate(props: EqFaceplateProps): JSX.Element {
     return parts.join(" · ");
   };
 
-  /** The edits that put `grabbed` at `point`, switching it in if it was out. */
-  const dragCommands = (point: { x: number; y: number }, grabbed: EqBand) => {
-    const commands = [
-      command(`${grabbed.id}Freq`, clamped(`${grabbed.id}Freq`, frequencyAt(point.x))),
-    ];
-    if (eqBandHasGain(grabbed.kind)) {
-      commands.push(
-        command(`${grabbed.id}Gain`, clamped(`${grabbed.id}Gain`, dbAt(point.y))),
-      );
+  /**
+   * The press: picks the nearest band, and how far its handle sits from the
+   * pointer, so the drag carries the handle from where it is rather than
+   * jumping it under the pointer.
+   */
+  const grab = (point: SurfacePoint, box: SurfaceBox): Grabbed => {
+    const all = handles();
+    const picked = nearestBand(point, all, box.height > 0 ? box.width / box.height : 1);
+    setSelected(picked.id);
+    const handle = all.find((h) => h.band.id === picked.id) as EqHandle;
+    return { band: picked, dx: handle.x - point.x, dy: 1 - handle.y - point.y };
+  };
+
+  /** The edits that move `grabbed` with the pointer, switching it in if it was out. */
+  const dragCommands = (point: SurfacePoint, grabbed: Grabbed) => {
+    const id = grabbed.band.id;
+    const x = Math.min(1, Math.max(0, point.x + grabbed.dx));
+    const y = Math.min(1, Math.max(0, point.y + grabbed.dy));
+    const commands = [command(`${id}Freq`, clamped(`${id}Freq`, frequencyAt(x)))];
+    if (eqBandHasGain(grabbed.band.kind)) {
+      commands.push(command(`${id}Gain`, clamped(`${id}Gain`, dbAt(y))));
     }
-    if (value(`${grabbed.id}On`) < 0.5) commands.push(command(`${grabbed.id}On`, 1));
+    if (value(`${id}On`) < 0.5) commands.push(command(`${id}On`, 1));
     return commands;
   };
 
@@ -148,11 +179,8 @@ export default function EqFaceplate(props: EqFaceplateProps): JSX.Element {
           <path class="well-line" d={curve()} />
         </svg>
         <DragSurface
-          grab={(point) => {
-            const grabbed = nearestBand(point, handles());
-            setSelected(grabbed.id);
-            return grabbed;
-          }}
+          grab={grab}
+          startOnMove
           commands={dragCommands}
           summary={() => `Shape ${band().label.toLowerCase()}`}
           dispatch={(commands) => props.dispatch(commands)}

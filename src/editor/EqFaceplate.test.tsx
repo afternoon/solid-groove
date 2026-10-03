@@ -43,8 +43,11 @@ function renderEq() {
     pointer("pointermove", ...to);
     pointer("pointerup", ...to);
   };
-  return { history, device, container, transport, drag };
+  return { history, device, container, transport, drag, pointer };
 }
+
+/** Where `hz` sits across the 300 px test well. */
+const at = (hz: number) => 300 * (Math.log(hz / 20) / Math.log(1_000));
 
 describe("EqFaceplate (LOOP-022)", () => {
   it("draws the curve with a handle per band, and edits Peak 1 to start", () => {
@@ -97,12 +100,38 @@ describe("EqFaceplate (LOOP-022)", () => {
     const { device, drag } = renderEq();
     expect(device().parameters.lowCutOn).toBe(0);
     // The low cut's handle is at 30 Hz on the 0 dB line; drag it to 100 Hz.
-    const at = (hz: number) => 300 * (Math.log(hz / 20) / Math.log(1_000));
     drag([at(30), 50], [at(100), 10]);
     expect(device().parameters.lowCutOn).toBe(1);
     expect(device().parameters.lowCutFreq).toBeCloseTo(100, 0);
     // A cut has no gain for the drag to set.
     expect(device().parameters).not.toHaveProperty("lowCutGain");
+  });
+
+  it("only picks a band on a click: no edit, no history entry, no first use", () => {
+    const { history, device, transport, pointer } = renderEq();
+    const before = device().parameters;
+    const entries = history.entries.length;
+    // A press just left of the switched-off high cut's handle, released unmoved.
+    pointer("pointerdown", at(18_000) - 3, 50);
+    pointer("pointermove", at(18_000) - 3, 50);
+    pointer("pointerup", at(18_000) - 3, 50);
+    expect(screen.getByRole("radio", { name: "High cut" })).toBeChecked();
+    expect(device().parameters).toEqual(before);
+    expect(device().parameters.highCutOn).toBe(0);
+    expect(history.entries.length).toBe(entries);
+    expect(transport.named("feature_first_use")).toHaveLength(0);
+  });
+
+  it("moves a handle from where it was, not to the pointer", () => {
+    const { device, drag } = renderEq();
+    // Peak 2 sits at 3 kHz on the 0 dB line. Pressed 6 px left of and 10 px
+    // below it, then carried 30 px right and 20 px up, it moves by just that.
+    drag([at(3_000) - 6, 60], [at(3_000) + 24, 40]);
+    expect(device().parameters.peak2Freq).toBeCloseTo(
+      frequencyAt((at(3_000) + 30) / 300),
+      0,
+    );
+    expect(device().parameters.peak2Gain).toBeCloseTo(dbAt(0.7), 5);
   });
 
   it("logs the curve's first use once, however many drags", () => {

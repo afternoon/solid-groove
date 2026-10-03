@@ -50,8 +50,25 @@ describe("EQ curve geometry (LOOP-022)", () => {
   it("picks the band whose handle is nearest the press", () => {
     const handles = eqHandles(values());
     // A press right on the 3 kHz peak, and one a little above the 8 kHz shelf.
-    expect(nearestBand({ x: positionOf(3_000), y: 0.5 }, handles).id).toBe("peak2");
-    expect(nearestBand({ x: positionOf(8_000), y: 0.7 }, handles).id).toBe("highShelf");
-    expect(nearestBand({ x: 0, y: 0.5 }, handles).id).toBe("lowCut");
+    // The well is three times as wide as it is tall.
+    expect(nearestBand({ x: positionOf(3_000), y: 0.5 }, handles, 3).id).toBe("peak2");
+    expect(nearestBand({ x: positionOf(8_000), y: 0.7 }, handles, 3).id).toBe(
+      "highShelf",
+    );
+    expect(nearestBand({ x: 0, y: 0.5 }, handles, 3).id).toBe("lowCut");
+  });
+
+  it("measures the distance to a handle as the surface is drawn", () => {
+    const [, , peak1, peak2] = EQ_BANDS;
+    const handles = [
+      // Just right of the press but well above it, and further right at its height.
+      { band: peak1, x: 0.5, y: 0.2, on: true },
+      { band: peak2, x: 0.6, y: 0.5, on: true },
+    ];
+    const press = { x: 0.52, y: 0.5 };
+    // On a square surface the handle at the press's height is nearer; on a
+    // wide one, a step across is long and the handle just right of it wins.
+    expect(nearestBand(press, handles, 1).id).toBe("peak2");
+    expect(nearestBand(press, handles, 10).id).toBe("peak1");
   });
 });

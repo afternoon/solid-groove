@@ -14,12 +14,19 @@ export interface SurfacePoint {
   readonly y: number;
 }
 
+/** A surface's size on screen, in pixels. */
+export interface SurfaceBox {
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface DragSurfaceProps<G> {
   /**
    * What the press picked up — the nearest handle, say — decided once when
-   * the drag starts and handed back on every move.
+   * the drag starts and handed back on every move. `box` is the surface's size
+   * in pixels, for a caller that measures distance on screen.
    */
-  grab(point: SurfacePoint): G;
+  grab(point: SurfacePoint, box: SurfaceBox): G;
   /** The commands that put the grabbed thing at `point`. */
   commands(point: SurfacePoint, grabbed: G): readonly RawCommandInput[];
   /** History summary for the drag, read when it opens. */
@@ -28,6 +35,12 @@ export interface DragSurfaceProps<G> {
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /**
+   * When set, a press only grabs: nothing is written, and no history entry
+   * opens, until the pointer actually moves. For a surface where a click
+   * means "pick this", not "put it here" (the EQ's band handles).
+   */
+  readonly startOnMove?: boolean;
   /** Called once when a drag lands, for a panel's first-use analytics. */
   onCommit?(): void;
   /** Handles and markers drawn over the well, positioned by the caller. */
@@ -46,6 +59,8 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
   let gesture: Gesture | undefined;
   let grabbed: G | undefined;
   let last: readonly RawCommandInput[] = [];
+  /** Where a `startOnMove` press landed, until the pointer leaves it. */
+  let pressed: SurfacePoint | undefined;
 
   const pointAt = (element: HTMLElement, event: PointerEvent): SurfacePoint => {
     const box = element.getBoundingClientRect();
@@ -54,6 +69,15 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
       x: box.width > 0 ? clamp((event.clientX - box.left) / box.width) : 0,
       y: box.height > 0 ? clamp(1 - (event.clientY - box.top) / box.height) : 0,
     };
+  };
+
+  const open = () => {
+    try {
+      gesture = props.beginGesture({ summary: props.summary() });
+    } catch {
+      // Another gesture is open elsewhere; each move lands on its own.
+      gesture = undefined;
+    }
   };
 
   const move = (commands: readonly RawCommandInput[]) => {
@@ -67,6 +91,7 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
     if (gesture?.active) gesture.commit();
     grabbed = undefined;
     gesture = undefined;
+    pressed = undefined;
     if (last.length > 0) props.onCommit?.();
     last = [];
   };
@@ -86,18 +111,25 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
         const element = event.currentTarget;
         element.setPointerCapture?.(event.pointerId);
         const point = pointAt(element, event);
-        grabbed = props.grab(point);
-        try {
-          gesture = props.beginGesture({ summary: props.summary() });
-        } catch {
-          // Another gesture is open elsewhere; each move lands on its own.
-          gesture = undefined;
+        const box = element.getBoundingClientRect();
+        grabbed = props.grab(point, { width: box.width, height: box.height });
+        if (props.startOnMove) {
+          pressed = point;
+          return;
         }
+        open();
         move(props.commands(point, grabbed));
       }}
       onPointerMove={(event) => {
         if (grabbed === undefined) return;
-        move(props.commands(pointAt(event.currentTarget, event), grabbed));
+        const point = pointAt(event.currentTarget, event);
+        if (pressed) {
+          // A move event that has not left the press is still a click.
+          if (point.x === pressed.x && point.y === pressed.y) return;
+          pressed = undefined;
+          open();
+        }
+        move(props.commands(point, grabbed));
       }}
       onPointerUp={end}
       onPointerCancel={end}

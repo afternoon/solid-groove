@@ -20,7 +20,10 @@ const command = (id: string, value: number) =>
   ({ type: "test.set", payload: { id, value } }) as unknown as RawCommandInput;
 
 /** A surface 200 × 100 px at the origin, writing two values per move. */
-function renderSurface(beginGesture: () => Gesture | undefined) {
+function renderSurface(
+  beginGesture: () => Gesture | undefined,
+  options: { startOnMove?: boolean } = {},
+) {
   const dispatch = vi.fn();
   const grab = vi.fn((point: SurfacePoint) => (point.x < 0.5 ? "left" : "right"));
   const onCommit = vi.fn();
@@ -35,6 +38,7 @@ function renderSurface(beginGesture: () => Gesture | undefined) {
       dispatch={dispatch}
       beginGesture={beginGesture}
       onCommit={onCommit}
+      startOnMove={options.startOnMove}
     />
   ));
   const surface = container.querySelector(".drag-surface") as HTMLElement;
@@ -64,6 +68,37 @@ describe("DragSurface (#447)", () => {
     ]);
     expect(dispatch).not.toHaveBeenCalled();
     expect(commit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands the press the surface's size", () => {
+    const { surface, grab } = renderSurface(() => recordingGesture([]));
+    firePointer(surface, "pointerdown", { button: 0, clientX: 50, clientY: 25 });
+    expect(grab).toHaveBeenCalledWith({ x: 0.25, y: 0.75 }, { width: 200, height: 100 });
+  });
+
+  it("with startOnMove, a click only grabs, and the drag starts when it moves", () => {
+    const applied: RawCommandInput[] = [];
+    const gesture = recordingGesture(applied);
+    const begin = vi.fn(() => gesture);
+    const { surface, dispatch, grab, onCommit } = renderSurface(begin, {
+      startOnMove: true,
+    });
+
+    firePointer(surface, "pointerdown", { button: 0, clientX: 50, clientY: 25 });
+    firePointer(surface, "pointermove", { clientX: 50, clientY: 25 });
+    firePointer(surface, "pointerup");
+    expect(grab).toHaveBeenCalledTimes(1);
+    expect(begin).not.toHaveBeenCalled();
+    expect(applied).toEqual([]);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+
+    firePointer(surface, "pointerdown", { button: 0, clientX: 50, clientY: 25 });
+    firePointer(surface, "pointermove", { clientX: 150, clientY: 100 });
+    firePointer(surface, "pointerup");
+    expect(begin).toHaveBeenCalledTimes(1);
+    expect(applied).toEqual([command("left-x", 0.75), command("y", 0)]);
     expect(onCommit).toHaveBeenCalledTimes(1);
   });
 
