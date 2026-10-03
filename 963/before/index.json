@@ -1,0 +1,10 @@
+{
+  "id": "before",
+  "title": "Before: main",
+  "steps": [
+    {
+      "file": "01-before-the-synth-placement-is-still-1-ba.png",
+      "caption": "Before: the Synth placement is still 1 bar, so bars 2 to 8 never play"
+    }
+  ]
+}
