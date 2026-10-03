@@ -1,0 +1,10 @@
+{
+  "id": "963-after",
+  "title": "After: this fix",
+  "steps": [
+    {
+      "file": "02-after-the-synth-placement-grew-to-8-bars.png",
+      "caption": "After: the Synth placement grew to 8 bars with its clip"
+    }
+  ]
+}
