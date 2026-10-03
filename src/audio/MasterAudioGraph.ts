@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import type { AudioMasterProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
+import { type DeclaredLatency, dynamicsLookaheadFrames } from "./latency";
 import { SummingBus } from "./summingBus";
 
 /**
@@ -14,6 +15,15 @@ import { SummingBus } from "./summingBus";
  * path for that reason.
  */
 export const MASTER_LIMITER_THRESHOLD_DB = -0.5;
+
+/**
+ * How many frames the safety limiter delays everything by (EXP-001, #883).
+ * `Tone.Limiter` is a `DynamicsCompressorNode`, so it holds the signal back by
+ * the engine's compressor lookahead. Live that is an imperceptible lag behind
+ * the playhead; an offline render drops it from the front, so bar 1 is the
+ * file's first frame. Declared, like every device's latency, not measured.
+ */
+export const masterLimiterLatencyFrames: DeclaredLatency = dynamicsLookaheadFrames;
 
 /**
  * The master bus's audio subgraph (PRD AUD-08, section 9.7): an ordered

@@ -1,6 +1,7 @@
 import type { Device } from "../../domain/entities";
 import type { DeviceNode, DeviceNodeFactory } from "../DeviceChain";
-import { createCompressorCore } from "./compressor";
+import { type DeclaredLatency, NO_LATENCY } from "../latency";
+import { compressorLatencyFrames, createCompressorCore } from "./compressor";
 import { createDelayCore } from "./delay";
 import { buildDeviceNode } from "./deviceNode";
 import { createOverdriveCore, createSaturatorCore } from "./distortion";
@@ -13,18 +14,35 @@ export type { DeviceCore, DeviceGraphContext } from "./types";
 export { DEVICE_SMOOTHING_SECONDS, setOrRamp } from "./types";
 
 /**
+ * One device type's DSP: its core, and how many frames that core delays the
+ * signal by. Latency is declared, never measured (#883), and every entry has
+ * to declare it, so a new device cannot silently skip delay compensation.
+ */
+interface DeviceCoreEntry {
+  readonly createCore: DeviceCoreFactory;
+  readonly latencyFrames: DeclaredLatency;
+}
+
+/**
  * The alpha's six core processing devices, keyed by the `type` string
  * `src/domain/devices.ts` registers them under (PRD FX-01). This map is the one
  * place a `device.type` becomes real DSP; adding a seventh device is a new core
  * module plus one entry here.
+ *
+ * Only the compressor looks ahead. The filters are IIR biquads, the shapers
+ * run without oversampling, and the delay's and reverb's time *is* the effect,
+ * so none of them delays the signal it passes.
  */
-const DEVICE_CORES: Readonly<Record<string, DeviceCoreFactory>> = {
-  filter: createFilterCore,
-  overdrive: createOverdriveCore,
-  saturator: createSaturatorCore,
-  compressor: createCompressorCore,
-  delay: createDelayCore,
-  reverb: createReverbCore,
+const DEVICE_CORES: Readonly<Record<string, DeviceCoreEntry>> = {
+  filter: { createCore: createFilterCore, latencyFrames: NO_LATENCY },
+  overdrive: { createCore: createOverdriveCore, latencyFrames: NO_LATENCY },
+  saturator: { createCore: createSaturatorCore, latencyFrames: NO_LATENCY },
+  compressor: {
+    createCore: createCompressorCore,
+    latencyFrames: compressorLatencyFrames,
+  },
+  delay: { createCore: createDelayCore, latencyFrames: NO_LATENCY },
+  reverb: { createCore: createReverbCore, latencyFrames: NO_LATENCY },
 };
 
 /**
@@ -38,10 +56,20 @@ const DEVICE_CORES: Readonly<Record<string, DeviceCoreFactory>> = {
  */
 export function createDeviceNodeFactory(context: DeviceGraphContext): DeviceNodeFactory {
   return (device: Device): DeviceNode | undefined => {
-    const createCore = DEVICE_CORES[device.type];
-    if (!createCore) return undefined;
-    return buildDeviceNode(device, context, createCore);
+    const entry = DEVICE_CORES[device.type];
+    if (!entry) return undefined;
+    return buildDeviceNode(device, context, entry.createCore);
   };
+}
+
+/**
+ * How many frames a device of `type` delays its signal by, at `sampleRate`.
+ * An unknown type is the chain's inert passthrough, which delays nothing.
+ */
+export function deviceLatencyFrames(type: string, sampleRate: number): number {
+  return Object.hasOwn(DEVICE_CORES, type)
+    ? DEVICE_CORES[type].latencyFrames(sampleRate)
+    : 0;
 }
 
 /** Whether a `device.type` has real DSP behind it, rather than a passthrough. */

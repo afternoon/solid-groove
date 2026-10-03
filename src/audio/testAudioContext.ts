@@ -1,5 +1,22 @@
 import * as nwaa from "node-web-audio-api";
+import {
+  type DeclaredLatency,
+  DYNAMICS_PRE_DELAY_SECONDS,
+  declareDynamicsLookahead,
+} from "./latency";
 import { installWebAudioTeardownGuard } from "./testAudioTeardown";
+
+/** Frames per Web Audio render quantum. */
+const RENDER_QUANTUM = 128;
+
+/**
+ * `node-web-audio-api`'s compressor pre-delay: the browsers' 6 ms, rounded up
+ * to whole render quanta (384 frames at 48 kHz, where a browser holds 288).
+ * Declared for this engine the way the browsers' figure is for theirs (see
+ * `latency.ts`), and pinned by `devices/compressor.latency.test.ts`.
+ */
+export const NODE_WEB_AUDIO_DYNAMICS_LOOKAHEAD: DeclaredLatency = (sampleRate) =>
+  Math.ceil((DYNAMICS_PRE_DELAY_SECONDS * sampleRate) / RENDER_QUANTUM) * RENDER_QUANTUM;
 
 /**
  * jsdom has no Web Audio API, so Tone.js cannot render. `node-web-audio-api`
@@ -14,6 +31,9 @@ export function installWebAudioGlobals(): void {
   // torn down; guard against that one teardown-race artifact. See
   // `testAudioTeardown.ts`.
   installWebAudioTeardownGuard();
+  // Every render in these suites runs on this engine, so latency compensation
+  // has to work from its compressor's pre-delay, not a browser's.
+  declareDynamicsLookahead(NODE_WEB_AUDIO_DYNAMICS_LOOKAHEAD);
 
   const classes = [
     "AudioContext",
