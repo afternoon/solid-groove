@@ -200,6 +200,33 @@ describe("EQ core (LOOP-022)", () => {
     }
   });
 
+  it("offers its output spectrum to the panel, which other devices do not", async () => {
+    const filter = await import("./filter");
+    let lengths: number[] = [];
+    let binHz = 0;
+    let filterReads = true;
+    await Tone.Offline(
+      () => {
+        const node = deviceNode.buildDeviceNode(device(), context, eq.createEqCore);
+        const reading = node.readSpectrum?.();
+        lengths = reading ? [reading.db.length] : [];
+        binHz = reading?.binHz ?? 0;
+        const plain = deviceNode.buildDeviceNode(
+          { ...createDevice("dev_filter" as DeviceId, "filter", 1) },
+          context,
+          filter.createFilterCore,
+        );
+        filterReads = plain.readSpectrum !== undefined;
+      },
+      0.05,
+      1,
+      RATE,
+    );
+    expect(lengths).toEqual([1024]);
+    expect(binHz).toBeCloseTo(RATE / 2048, 9);
+    expect(filterReads).toBe(false);
+  });
+
   it("builds one fixed set of stages, whatever is switched in", () => {
     // Every band's stages exist from the start, so switching a band in or out
     // retunes a node and never adds one, and the chain never relinks for it.

@@ -1,13 +1,20 @@
 import * as Tone from "tone";
 import { deviceParameters } from "../../domain/devices";
 import type { Device } from "../../domain/entities";
-import type { DeviceNode } from "../DeviceChain";
+import type { DeviceNode, SpectrumReading } from "../DeviceChain";
 import {
   type DeviceCoreFactory,
   type DeviceGraphContext,
   readDeviceParameters,
   setOrRamp,
 } from "./types";
+
+/**
+ * How many bins a device's spectrum reading has: 1024, from a 2048-point FFT,
+ * which at 48 kHz is about 23 Hz a bin — fine enough to show a kick's
+ * fundamental apart from its bass line, at a cost a frame can afford.
+ */
+const SPECTRUM_BINS = 1024;
 
 /**
  * Wraps a device's DSP core in the mix stage every device shares (FX-01:
@@ -75,6 +82,29 @@ export function buildDeviceNode(
     setOrRamp(trim.volume, next.bypassed || !hasOutput ? 0 : values.output, initial);
   }
 
+  /**
+   * The analyser behind `readSpectrum()`, built on the first read and tapped
+   * off `output`, so it hears exactly what leaves the device — bypass and trim
+   * included — and never feeds anything back into the signal.
+   */
+  let analyser: Tone.Analyser | undefined;
+  let mono: Tone.Gain | undefined;
+  function readSpectrum(): SpectrumReading {
+    if (!analyser) {
+      // Both channels, summed: the drawing is one curve, not two.
+      mono = new Tone.Gain(1);
+      mono.channelCount = 1;
+      mono.channelCountMode = "explicit";
+      analyser = new Tone.Analyser({ type: "fft", size: SPECTRUM_BINS, smoothing: 0.8 });
+      output.connect(mono);
+      mono.connect(analyser);
+    }
+    return {
+      db: analyser.getValue() as Float32Array,
+      binHz: analyser.context.sampleRate / (SPECTRUM_BINS * 2),
+    };
+  }
+
   const initialValues = readDeviceParameters(definitions, device);
   core.apply(initialValues, context, true);
   applyMix(device, initialValues, true);
@@ -90,6 +120,8 @@ export function buildDeviceNode(
       applyMix(next, values, false);
     },
     dispose() {
+      analyser?.dispose();
+      mono?.dispose();
       core.dispose();
       input.dispose();
       dry.dispose();
@@ -99,5 +131,6 @@ export function buildDeviceNode(
     },
     gainReductionDb: core.gainReductionDb?.bind(core),
     resolvedDelaySeconds: core.resolvedDelaySeconds?.bind(core),
+    readSpectrum: core.spectrum ? readSpectrum : undefined,
   };
 }

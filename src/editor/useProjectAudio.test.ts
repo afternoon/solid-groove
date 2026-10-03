@@ -7,10 +7,11 @@ import { createRecordingTransport } from "../analytics/transport";
 import type { AudioHost, AudioProjectScope } from "../audio/AudioRuntime";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import { executeTransaction, setLoopEnabled, setLoopRange } from "../commands";
+import { createDevice } from "../domain/devices";
 import type { Project } from "../domain/entities";
 import { bars } from "../domain/factories";
 import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
-import type { AssetId, TrackId } from "../domain/ids";
+import { type AssetId, createSeededIdFactory, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR } from "../domain/time";
 import type { LibraryAsset } from "../library/manifest";
 import { memoryStorage } from "../testing/storage";
@@ -280,6 +281,54 @@ describe("useProjectAudio", () => {
     expect(afterDispose.byType.node ?? 0).toBe(0);
     expect(afterDispose.byType.schedule ?? 0).toBe(0);
     expect(afterDispose.byType.subscription ?? 0).toBe(0);
+  });
+
+  it("reads an EQ's spectrum only while the transport plays (LOOP-022)", async () => {
+    const base = createSliceFixtureProject();
+    const ids = createSeededIdFactory("spectrum");
+    const eqId = ids("device");
+    const filterId = ids("device");
+    const project: Project = {
+      ...base,
+      song: {
+        ...base.song,
+        master: {
+          ...base.song.master,
+          devices: [createDevice(eqId, "eq", 0), createDevice(filterId, "filter", 1)],
+        },
+      },
+    };
+    // The real runtime's graph, behind a resume that settles: a test context
+    // never unlocks on its own.
+    const real = AudioRuntimeModule.getAudioRuntime();
+    const runtime: AudioHost = {
+      getDestination: () => real.getDestination(),
+      getSampleRate: () => real.getSampleRate(),
+      resume: () => Promise.resolve(),
+      openProjectScope: (owner) => real.openProjectScope(owner),
+    };
+    const { result } = renderHook(
+      () => useProjectAudioModule.useProjectAudio(() => project, { runtime }),
+      {},
+    );
+    void result.isPlaying();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Stopped, there is nothing to draw and nothing is read.
+    expect(result.readDeviceSpectrum(eqId)).toBeNull();
+
+    await result.play();
+    expect(result.isPlaying()).toBe(true);
+    const reading = result.readDeviceSpectrum(eqId);
+    expect(reading?.db).toHaveLength(1024);
+    expect(reading?.binHz).toBeGreaterThan(0);
+    // A device that draws no spectrum, and one that is not in the song.
+    expect(result.readDeviceSpectrum(filterId)).toBeNull();
+    expect(result.readDeviceSpectrum(ids("device"))).toBeNull();
+
+    result.stop();
+    expect(result.readDeviceSpectrum(eqId)).toBeNull();
   });
 
   it("previews a library sound in a slot without touching the project, and clears back (LIB-010)", async () => {

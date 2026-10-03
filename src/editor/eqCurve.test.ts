@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { defaultDeviceParameters, EQ_BANDS } from "../domain/devices";
 import { positionOf } from "../instrument/filterResponse";
-import { dbAt, dbDepth, eqCurvePath, eqHandles, nearestBand } from "./eqCurve";
+import {
+  dbAt,
+  dbDepth,
+  eqCurvePath,
+  eqHandles,
+  nearestBand,
+  SPECTRUM_FLOOR_DB,
+  spectrumPath,
+} from "./eqCurve";
 
 const values = (overrides: Record<string, number> = {}) => ({
   ...defaultDeviceParameters("eq"),
@@ -70,5 +78,28 @@ describe("EQ curve geometry (LOOP-022)", () => {
     // wide one, a step across is long and the handle just right of it wins.
     expect(nearestBand(press, handles, 1).id).toBe("peak2");
     expect(nearestBand(press, handles, 10).id).toBe("peak1");
+  });
+
+  it("draws silence as nothing above the floor", () => {
+    const silent = { db: new Float32Array(1024).fill(-Infinity), binHz: 23.4375 };
+    const ys = [...spectrumPath(silent, 300, 100).matchAll(/,([\d.]+)/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(new Set(ys)).toEqual(new Set([100]));
+  });
+
+  it("draws a tone's spectrum peaking where the tone is", () => {
+    const binHz = 23.4375;
+    const db = new Float32Array(1024).fill(SPECTRUM_FLOOR_DB - 10);
+    db[Math.round(1_000 / binHz)] = -20;
+    const points = [
+      ...spectrumPath({ db, binHz }, 300, 100).matchAll(/L([\d.]+),([\d.]+)/g),
+    ]
+      .map((m) => ({ x: Number(m[1]), y: Number(m[2]) }))
+      .filter((p) => p.y < 100);
+    expect(points.length).toBeGreaterThan(0);
+    for (const point of points) {
+      expect(point.x / 300).toBeCloseTo(positionOf(1_000), 1);
+    }
   });
 });

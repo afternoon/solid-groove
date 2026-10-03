@@ -1,9 +1,9 @@
 import * as Tone from "tone";
-import type { ReturnId } from "../domain/ids";
+import type { DeviceId, ReturnId } from "../domain/ids";
 import type { AudioReturnProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { CompensationDelay } from "./compensationDelay";
-import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
+import { DeviceChain, type DeviceNode, type DeviceNodeFactory } from "./DeviceChain";
 import { SummingBus } from "./summingBus";
 
 /**
@@ -90,6 +90,11 @@ export class ReturnAudioGraph {
     this.panVol.pan.rampTo(next.mixer.pan, 0.02);
     this.panVol.mute = next.mixer.muted;
     this.lastProjection = next;
+  }
+
+  /** The live node for one of this bus's devices, for a panel readout. */
+  deviceNode(id: DeviceId): DeviceNode | undefined {
+    return this.deviceChain.deviceNode(id);
   }
 
   /** Tears down every node this return bus owns. Safe to call more than once. */

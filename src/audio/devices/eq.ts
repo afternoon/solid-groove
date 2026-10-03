@@ -66,6 +66,8 @@ export const createEqCore: DeviceCoreFactory = (device): DeviceCore => {
   return {
     input,
     output,
+    // Its panel draws the spectrum of what leaves it behind the curve.
+    spectrum: true,
     apply(values, _context, initial) {
       eqStageSettings(values).forEach((setting, index) => {
         const { filter, through, around } = stages[index];

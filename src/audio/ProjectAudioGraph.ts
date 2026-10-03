@@ -1,6 +1,13 @@
 import * as Tone from "tone";
 import type { NoteTrigger } from "../domain/entities";
-import type { AssetId, PadId, PlacementId, ReturnId, TrackId } from "../domain/ids";
+import type {
+  AssetId,
+  DeviceId,
+  PadId,
+  PlacementId,
+  ReturnId,
+  TrackId,
+} from "../domain/ids";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import type {
@@ -18,7 +25,7 @@ import {
 } from "./AudioBufferCache";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
 import { playAudioLoop } from "./audioLoopPlayer";
-import type { DeviceNodeFactory } from "./DeviceChain";
+import type { DeviceNodeFactory, SpectrumReading } from "./DeviceChain";
 import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import {
@@ -269,6 +276,20 @@ export class ProjectAudioGraph {
    */
   trackMeter(trackId: TrackId): Tone.Meter | undefined {
     return this.tracks.get(trackId)?.levelMeter;
+  }
+
+  /**
+   * What is leaving one device now, wherever it sits — a track's inserts, a
+   * return's or the master's — for a panel that draws it (the EQ, LOOP-022).
+   * `null` when no device has that id, or the device draws no spectrum.
+   */
+  readDeviceSpectrum(deviceId: DeviceId): SpectrumReading | null {
+    const node =
+      this.master.deviceNode(deviceId) ??
+      [...this.tracks.values(), ...this.returns.values()]
+        .map((owner) => owner.deviceNode(deviceId))
+        .find((found) => found !== undefined);
+    return node?.readSpectrum?.() ?? null;
   }
 
   /** Every track's level now, for one frame of the editor's meters (#447). */
