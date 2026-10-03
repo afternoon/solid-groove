@@ -108,7 +108,7 @@ describe("LibraryModal shell", () => {
 
   function renderShell(
     extra: {
-      onInsert?: () => undefined;
+      onInsert?: LibraryModalProps["onInsert"];
       onActions?: (a: LibraryActions | null) => void;
       keyLabel?: (a: string) => string;
     } = {},
@@ -162,6 +162,30 @@ describe("LibraryModal shell", () => {
     expect(onInsert).toHaveBeenCalledTimes(1);
   });
 
+  it("says Inserted only when an insert went in; a refusal is the footer's", async () => {
+    let accept = false;
+    renderShell({
+      onInsert: () =>
+        accept ? { ok: true } : { ok: false, reason: "Couldn't insert it: no sampler." },
+    });
+    await hearFirstSound();
+    const insert = await waitFor(() => {
+      const button = document.querySelector<HTMLButtonElement>(".library-modal-insert");
+      expect(button).toBeEnabled();
+      return button as HTMLButtonElement;
+    });
+    const status = document.querySelector("output.library-modal-inserted");
+
+    clickAndFlush(insert);
+    expect(await screen.findByText("Couldn't insert it: no sampler.")).toBeVisible();
+    expect(status).toHaveTextContent("");
+
+    accept = true;
+    clickAndFlush(insert);
+    await waitFor(() => expect(status).toHaveTextContent(/^Inserted /));
+    expect(screen.queryByText("Couldn't insert it: no sampler.")).toBeNull();
+  });
+
   it("badges the rail and footer from the registry, and swaps in placeholders", () => {
     renderShell({ keyLabel: (action) => `<${action}>` });
     const rail = within(screen.getByRole("navigation", { name: "Places" }));
@@ -181,12 +205,12 @@ describe("LibraryModal shell", () => {
     expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
   });
 
-  it("hands the host its shortcut actions, and takes them back on close", () => {
+  it("hands the host its shortcut actions, and takes them back on close", async () => {
     const onActions = vi.fn();
     const { unmount } = renderShell({ onActions });
     const actions = onActions.mock.calls[0][0] as LibraryActions;
 
-    expect(actions.insertSelected()).toBe(false);
+    await expect(actions.insertSelected()).resolves.toBe(false);
     actions.press("library.select_next");
     actions.showView("packs");
     unmount();
@@ -277,7 +301,7 @@ describe("LibraryModal shell", () => {
 
     await waitFor(() => expect(screen.queryByText("Nothing yet")).toBeNull());
     expect(document.activeElement).not.toBe(search);
-    expect(actions.insertSelected()).toBe(true);
+    await expect(actions.insertSelected()).resolves.toBe(true);
   });
 
   it("shuffles from the footer, and the search key focuses the search field", async () => {
@@ -365,7 +389,8 @@ describe("LibraryModal footer and rail", () => {
   it("badges Insert with the registry's key without changing its name", async () => {
     renderSlot();
     const insert = screen.getByRole("button", { name: "Insert" });
-    const badge = within(insert).getByText("<library.insert>");
+    // The button inserts and goes back, so it carries Enter's key.
+    const badge = within(insert).getByText("<library.insert_and_return>");
     expect(badge).toHaveClass("library-modal-key");
     expect(badge).toHaveAttribute("aria-hidden", "true");
   });

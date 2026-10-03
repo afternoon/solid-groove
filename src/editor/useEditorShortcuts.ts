@@ -30,9 +30,10 @@ export interface UseEditorShortcutsOptions {
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
   readonly exportOpen: Accessor<boolean>;
-  /** Whether the Library view (`UI-002`) is on screen, and how Escape leaves it. */
+  /** Whether the Library view (`UI-002`) is on screen. */
   readonly libraryOpen: Accessor<boolean>;
-  readonly closeLibrary: () => void;
+  /** Where Enter goes once its insert has committed: the instrument. */
+  readonly returnFromInsert: () => void;
   /** The open library modal's actions (`LIB-010`), or null while it is closed. */
   readonly libraryActions: Accessor<LibraryActions | null>;
   /** The arrangement's placement-editing operations (ARR-002), lifted from
@@ -117,7 +118,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     setGuideOpen,
     exportOpen,
     libraryOpen,
-    closeLibrary,
+    returnFromInsert,
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
@@ -317,7 +318,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.all_sounds": inLibrary((a) => a.showView("all")),
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
+    // Enter inserts and goes back to the instrument, as the Insert button
+    // does; Shift+Enter inserts and stays, so another sound can be tried
+    // (UI-002). Each insert is one history entry.
     "library.insert": onSelectedSound((a) => void a.insertSelected()),
+    "library.insert_and_return": onSelectedSound((a) => {
+      void a.insertSelected().then((committed) => committed && returnFromInsert());
+    }),
     ...Object.fromEntries(
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
     ),
@@ -327,16 +334,15 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // sheet (#813), then the library. Nothing here compares a key — this is
     // the registry's `view.close_surface`, like every other close. A clip
     // drag in flight is innermost of all: Escape cancels it (ARR-011). The
-    // sequence view is a view, not a dialog (UI-002), so Escape does not leave
-    // it: a view key does. With no surface open, it clears the arrangement's
+    // sequence and library views are views, not dialogs (UI-002), so Escape
+    // does not leave them: a view key does. With no surface open, it clears the arrangement's
     // selection (#835).
     "view.close_surface": {
       run: () => {
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
-        else if (libraryOpen()) {
-          if (!libraryActions()?.closeKeys()) closeLibrary();
-        } else arrangementEditingActions()?.clearSelection();
+        else if (libraryOpen()) libraryActions()?.closeKeys();
+        else arrangementEditingActions()?.clearSelection();
       },
       // The Export dialog closes itself on Escape, and nothing beneath it should.
       isEnabled: () =>

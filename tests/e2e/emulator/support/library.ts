@@ -41,7 +41,8 @@ import { expectView, pressView } from "./views";
  *    "Audition <name>" button, a "Favourite <name>" toggle and a
  *    "Sounds like <name>" button;
  *  - the primary action is a button whose name starts "Insert <name>". It does
- *    what `Enter` does: it inserts and stays in the library;
+ *    what `Enter` does: it inserts and goes back to the instrument view
+ *    (`Shift+Enter` inserts and stays in the library);
  *  - a sample slot is still a button named "Sample for <pad>", showing the
  *    sound's name, the library's icon and the key `4`. The slot the library is
  *    aimed at is marked `aria-current="true"`.
@@ -120,6 +121,12 @@ export async function openPadSlot(page: Page, pad: string): Promise<void> {
 }
 
 /** Press `3`: back to the instrument without inserting anything. */
+/** The Insert button inserted and went back to the instrument view (UI-002). */
+export async function insertedBackToInstrument(page: Page): Promise<void> {
+  await expect(library(page)).toHaveCount(0);
+  await expect(drumMachine(page)).toBeVisible();
+}
+
 export async function backToInstrument(page: Page): Promise<void> {
   await pressView(page, "Instrument");
   await expect(library(page)).toHaveCount(0);

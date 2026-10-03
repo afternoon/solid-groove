@@ -57,7 +57,8 @@ const RECENT: RailItem = { id: "recent", label: "Recently viewed" };
  */
 export interface LibraryActions {
   showView(view: LibraryView): void;
-  insertSelected(): boolean;
+  /** Inserts the selected sound; resolves true when the insert committed. */
+  insertSelected(): Promise<boolean>;
   /** Runs a `library.*` key on the visible view, which knows what it means. */
   press(action: ShortcutActionId): void;
   /** Open similar sounds for the selected sound; false when none is selected. */
@@ -112,7 +113,12 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onActions?(actions: LibraryActions | null): void;
+  /** After the Insert button's insert commits: go back, as Enter does. */
+  onInsertAndReturn?(): void;
 }
+
+/** How long a committed insert stays marked on the slot's readout. */
+const INSERTED_MARK_MS = 1600;
 
 /** A boxed key badge. `hidden` when its control already names its key. */
 function Key(props: { label?: string; hidden?: boolean }): JSX.Element {
@@ -340,16 +346,25 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     focusSearch();
   }
 
-  function insertSelected(): boolean {
+  // The sound an insert just put in the slot, marked on its readout for a
+  // moment: an insert can stay here, so this is what shows it worked (UI-002).
+  const [inserted, setInserted] = createSignal<string | null>(null);
+  let insertedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function insertSelected(): Promise<boolean> {
     const asset = selected();
     if (!asset) return false;
-    void insert(asset, false);
-    return true;
+    return insert(asset, false);
   }
 
-  /** Runs one insert and keeps what came back for the footer to show. */
-  async function insert(asset: LibraryAsset, upgradeAnyway: boolean): Promise<void> {
-    if (inserting()) return;
+  /**
+   * Runs one insert: a committed one marks the slot's readout, and anything
+   * else is kept for the footer to show (#892). True when it committed.
+   */
+  async function insert(asset: LibraryAsset, upgradeAnyway: boolean): Promise<boolean> {
+    if (inserting()) return false;
+    clearTimeout(insertedTimer);
+    setInserted(null);
     setNotice(null);
     setInserting(true);
     let outcome: LibraryInsertOutcome | undefined;
@@ -358,9 +373,24 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     } finally {
       setInserting(false);
     }
+    if (!outcome || outcome.ok) {
+      setInserted(asset.name);
+      insertedTimer = setTimeout(() => setInserted(null), INSERTED_MARK_MS);
+      return true;
+    }
     // A selection made while it ran is what the footer is about now.
-    if (!outcome || outcome.ok || selected() !== asset) return;
-    setNotice(noticeFor(asset, outcome));
+    if (selected() === asset) setNotice(noticeFor(asset, outcome));
+    return false;
+  }
+
+  /** The Insert button: insert, and go back once it has committed, as Enter does. */
+  async function insertAndReturn(): Promise<void> {
+    if (await insertSelected()) props.onInsertAndReturn?.();
+  }
+
+  /** "Upgrade anyway" is the Insert it was asked from, so it goes back too. */
+  async function upgradeAndReturn(asset: LibraryAsset): Promise<void> {
+    if (await insert(asset, true)) props.onInsertAndReturn?.();
   }
 
   /** "Cancel" on the upgrade question: nothing changes, and the footer says so. */
@@ -387,6 +417,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       closeKeys,
     });
     return () => {
+      clearTimeout(insertedTimer);
       props.onActions?.(null);
       // Leaving the view ends here: the slot plays its own sound again.
       props.slotAudition?.clear();
@@ -430,10 +461,18 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             <span class="library-modal-label">Inserting into </span>
             <b>{props.path ?? props.heading ?? "Library"}</b>
           </h2>
-          <fieldset class="library-modal-readout">
+          <fieldset
+            class={[
+              "library-modal-readout",
+              { "library-modal-readout-inserted": inserted() !== null },
+            ]}
+          >
             <legend class="library-modal-label">In the slot</legend>
             <b>{props.current ?? "Empty"}</b>
           </fieldset>
+          <output class="library-modal-inserted">
+            {inserted() ? `Inserted ${inserted()}` : ""}
+          </output>
           <fieldset class="library-modal-readout">
             <legend class="library-modal-label">Hearing</legend>
             <b>{selected()?.name ?? "Nothing yet"}</b>
@@ -478,7 +517,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             {(shown) => (
               <InsertNoticeView
                 notice={shown()}
-                onUpgrade={() => void insert(shown().asset, true)}
+                onUpgrade={() => void upgradeAndReturn(shown().asset)}
                 onCancel={cancelUpgrade}
               />
             )}
@@ -506,10 +545,10 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             class="library-modal-insert"
             disabled={selected() === null || inserting()}
             aria-keyshortcuts="Enter"
-            onClick={() => insertSelected()}
+            onClick={() => void insertAndReturn()}
           >
             <span>{selected() ? `Insert ${selected()?.name}` : "Insert"}</span>
-            <Key label={keyOf("library.insert")} hidden />
+            <Key label={keyOf("library.insert_and_return")} hidden />
           </button>
         </>
       }

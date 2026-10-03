@@ -181,8 +181,9 @@ export type EditorViewName = (typeof EDITOR_VIEWS)[number];
  * on its own — the back button, a deep link followed within the session, a
  * restored session. `arrangement` is opening a clip from the timeline (a
  * double-click, or `Enter` on a selected clip), `slot` is pressing a sample
- * slot, which aims the Library at it, and `empty_screen` is the fix button on
- * a view that had nothing to show (`UI-002`).
+ * slot, which aims the Library at it, `empty_screen` is the fix button on
+ * a view that had nothing to show, and `library_insert` is the Library's
+ * Insert button, which inserts and goes back (`UI-002`).
  */
 export const VIEW_CHANGE_SOURCES = [
   "dock",
@@ -191,6 +192,7 @@ export const VIEW_CHANGE_SOURCES = [
   "arrangement",
   "slot",
   "empty_screen",
+  "library_insert",
 ] as const;
 export type ViewChangeSource = (typeof VIEW_CHANGE_SOURCES)[number];
 

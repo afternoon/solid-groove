@@ -855,20 +855,21 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   ),
   libraryKey(
     "library.insert",
-    "Insert sound",
-    "Puts the selected sound in the slot and goes back to where you came from.",
-    "Enter",
-    {
-      // Insert closes the library and focus goes back to the slot that opened
-      // it; a default left to run then presses that slot and reopens it (#860).
-      ableton: { kind: "follows", abletonKeys: "Enter" },
-    },
+    "Insert and stay",
+    "Puts the selected sound in the slot; the library stays, to try another.",
+    "Shift+Enter",
   ),
   libraryKey(
     "library.insert_and_return",
-    "Insert and go back",
-    "Puts the selected sound in the slot and goes back to where you came from.",
-    "Shift+Enter",
+    "Insert sound",
+    "Puts the selected sound in the slot and goes back to the instrument, as the Insert button does.",
+    "Enter",
+    {
+      // The library owns Enter (UI-002, #860): the browser's default would
+      // also press the focused sound row, re-auditioning instead of
+      // inserting. Any other focused control keeps its own Enter.
+      ableton: { kind: "follows", abletonKeys: "Enter" },
+    },
   ),
   libraryKey(
     "library.like",

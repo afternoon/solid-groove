@@ -86,8 +86,8 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `library.select_previous` | Previous sound | `Up` | `Up` | Browser | library | Follows Live (`Up`) |
 | `library.select_next` | Next sound | `Down` | `Down` | Browser | library | Follows Live (`Down`) |
 | `library.audition` | Audition again | `Space` | `Space` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.insert` | Insert sound | `Enter` | `Enter` | Browser | library | Follows Live (`Enter`) |
-| `library.insert_and_return` | Insert and go back | `Shift+Enter` | `Shift+Enter` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.insert` | Insert and stay | `Shift+Enter` | `Shift+Enter` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.insert_and_return` | Insert sound | `Enter` | `Enter` | Browser | library | Follows Live (`Enter`) |
 | `library.like` | Like sound | `L` | `L` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.similar` | Similar sounds | `S` | `S` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.shuffle` | Shuffle | `R` | `R` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
@@ -123,9 +123,12 @@ not a modal: `library` is its only context, so the editor's transport and edits
 stand down while it is up, but `global` (undo, redo, Escape) and the view keys
 `1`-`5` stay live in it. The library's keys use no digit for that reason.
 `Escape` is `view.close_surface` and `?` is `help.shortcut_guide`; the library
-reuses both. Typing in the search field keeps every key except `Escape` and
-`Down`, which leaves the field. `Enter` and `Space` leave the browser default
-alone, so a focused button or checkbox still presses.
+reuses both; Escape closes the keys sheet, and leaving the Library is a view
+key. Typing in the search field keeps every key except `Escape` and `Down`,
+which leaves the field. `Enter` inserts and goes back to the instrument, as
+the Insert button does, `Shift+Enter` inserts and stays to try another, and both are the library's even on a focused
+button; `Space` leaves the browser default alone, so a focused button or
+checkbox still presses.
 The two `device.*` moves act on the device whose header has focus: they are the
 keyboard way to reorder a chain, which the pointer does by dragging.
 

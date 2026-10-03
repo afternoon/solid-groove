@@ -8,6 +8,7 @@ import {
   expectSelected,
   familyTab,
   insertButton,
+  insertedBackToInstrument,
   library,
   libraryHeader,
   listedNames,
@@ -18,7 +19,6 @@ import {
   precondition,
   projectPacks,
   railButton,
-  readout,
   slotSound,
   soundList,
 } from "../support/library";
@@ -147,16 +147,17 @@ test.describe("CF-024", () => {
       .toEqual([...impacts].sort());
     await step("Choose FX, then Impact: only that pack's impacts are listed");
 
-    // 6. Select an impact and press Insert. The library shows it as the sound
-    //    in the slot. Press 3: the "BD" pad's slot names that impact.
+    // 6. Select an impact and press Insert. The editor goes back to the
+    //    instrument view, and the "BD" pad's slot names that impact.
     const impact = impacts[0];
     await audition(soundList(page), impact).click();
     await expectSelected(page, impact);
     await insertButton(page, impact).click();
-    await expect(readout(page, "In the slot")).toContainText(impact);
-    await backToInstrument(page);
+    await insertedBackToInstrument(page);
     await expect.poll(() => slotSound(page, "BD")).toBe(impact);
-    await step('Select an impact and press Insert: the "BD" slot names it');
+    await step(
+      'Select an impact and press Insert: back on the instrument, the "BD" slot names it',
+    );
 
     // 7. Press 4. The library is still aimed at the "BD" pad, and Transitions &
     //    FX is now listed with the project's own packs.

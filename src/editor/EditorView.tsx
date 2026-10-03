@@ -218,7 +218,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // Every other aim is the selected track's own slot (`libraryTarget`), so
   // choosing a track or touching a slot ends this one.
   const [newTrackAim, setNewTrackAim] = createSignal(false);
-  const leaveLibrary = () => selectView(libraryReturn, "keyboard");
+  /**
+   * Where a committed insert goes back to (`UI-002`): the instrument, where the
+   * slot just filled shows its new sound. A loop inserted on a new track goes
+   * back to where it was asked for instead, the arrangement it now sits in.
+   */
+  const returnFromInsert = (via: ViewChangeSource) =>
+    selectView(
+      libraryTargetOf()?.kind === "new-track" ? libraryReturn : "instrument",
+      via,
+    );
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
   // The Export dialog is a modal over the editor, so the editor's keys stand down.
@@ -442,7 +451,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setGuideOpen,
     exportOpen,
     libraryOpen,
-    closeLibrary: leaveLibrary,
+    returnFromInsert: () => returnFromInsert("keyboard"),
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
@@ -558,9 +567,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    *
    * Both paths can decline, and a decline has to be visible: the Loop button
    * used to reach a sampler-only path that returned silently, so inserting a
-   * loop closed the window and did nothing at all. `onInsert` now only closes
-   * on a committed transaction, and a refusal says why: each of these returns
-   * `null` when it landed, else the sentence the library's footer shows (#892).
+   * loop closed the window and did nothing at all. Each of these returns
+   * `null` when it landed, else the sentence the library's footer shows
+   * (#892), and only a committed insert goes back on Enter.
    */
   function loadLibrarySample(sample: LibrarySample): string | null {
     const currentProject = project();
@@ -882,17 +891,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           previewEngine={createAuditionEngine()}
                           slotAudition={slotAudition()}
                           analytics={props.analytics}
-                          onInsert={async (asset, options) => {
-                            // Only a committed insertion leaves (a refusal
-                            // stays, and the footer says why).
-                            const outcome = await insertFromLibrary(
-                              targetHost(target()),
-                              asset,
-                              options,
-                            );
-                            if (outcome.ok) leaveLibrary();
-                            return outcome;
-                          }}
+                          onInsert={(asset, options) =>
+                            insertFromLibrary(targetHost(target()), asset, options)
+                          }
                           addedPackIds={addedPackIds()}
                           assetTypes={targetAssetTypes(target())}
                           heading={
@@ -913,6 +914,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                             targetSound(currentProject(), target())?.storageRef ?? null
                           }
                           onActions={(actions) => setLibraryActions(() => actions)}
+                          onInsertAndReturn={() => returnFromInsert("library_insert")}
                         />
                       )}
                     </Show>

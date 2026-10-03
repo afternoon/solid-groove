@@ -100,6 +100,33 @@
   padding: 0;
 }
 
+/* A committed insert lights the slot's readout for a moment (UI-002): state is
+   brightness, so it goes white and fades back. */
+.library-modal-readout {
+  transition:
+    background-color 600ms ease-out,
+    box-shadow 600ms ease-out;
+}
+
+.library-modal-readout-inserted {
+  background: var(--color-accent);
+  box-shadow: 0 0 0 6px var(--color-accent);
+  transition: none;
+}
+
+.library-modal-readout-inserted b,
+.library-modal-readout-inserted .library-modal-label {
+  color: var(--color-on-accent);
+}
+
+/* What the flash means, in words, and announced. Empty between inserts. */
+.library-modal-inserted {
+  align-self: center;
+  font-size: var(--font-size-small);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
 .library-modal-label {
   font-size: 10px;
   font-weight: 500;
