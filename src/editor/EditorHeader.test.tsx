@@ -42,6 +42,7 @@ function fakeSession(overrides: Partial<EditorSessionState> = {}) {
     notFound: false,
     error: null,
     project: createSliceFixtureProject(),
+    previewing: false,
     canUndo: false,
     canRedo: false,
     undoSummary: null,

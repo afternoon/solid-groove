@@ -2,7 +2,6 @@ import { type Accessor, createEffect, createStore, onCleanup } from "solid-js";
 import type {
   Gesture,
   GestureOptions,
-  HistorySnapshot,
   RawCommandInput,
   TransactionResult,
 } from "../commands";
@@ -10,7 +9,11 @@ import type { Project } from "../domain/entities";
 import type { ProjectId } from "../domain/ids";
 import type { SaveStatus } from "../persistence/autosave";
 import type { ProjectRepository } from "../persistence/projectRepository";
-import { EditorSession } from "./EditorSession";
+import {
+  EditorSession,
+  type EditorSessionSnapshot,
+  type PreviewResult,
+} from "./EditorSession";
 
 /**
  * Attaches the PRD `PRJ-03` navigation-flush behavior for one session: a
@@ -57,7 +60,10 @@ export interface EditorSessionState {
   readonly loading: boolean;
   readonly notFound: boolean;
   readonly error: string | null;
+  /** What the editor shows: the previewed project while a preview is open. */
   readonly project: Project | null;
+  /** True while an uncommitted preview is open (UI-005). */
+  readonly previewing: boolean;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly undoSummary: string | null;
@@ -77,6 +83,13 @@ export interface UseEditorSessionResult {
    * entry, one revision, and one autosave (PRD `CLP-02`, `CLP-03`, `TRK-02`).
    */
   beginGesture(options?: GestureOptions): Gesture | undefined;
+  /**
+   * Shows commands applied without committing them (UI-005), or `undefined`
+   * before a session has loaded. See `EditorSession.beginPreview`.
+   */
+  beginPreview(
+    commands: RawCommandInput | readonly RawCommandInput[],
+  ): PreviewResult | undefined;
   undo(): TransactionResult | null | undefined;
   redo(): TransactionResult | null | undefined;
   /** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
@@ -99,6 +112,7 @@ const INITIAL_STATE: EditorSessionState = {
   notFound: false,
   error: null,
   project: null,
+  previewing: false,
   canUndo: false,
   canRedo: false,
   undoSummary: null,
@@ -164,12 +178,13 @@ export function useEditorSession(
       let unsubscribeHistory: (() => void) | null = null;
       let unsubscribeSave: (() => void) | null = null;
 
-      function applySnapshot(snapshot: HistorySnapshot): void {
+      function applySnapshot(snapshot: EditorSessionSnapshot): void {
         setState((draft) => {
           draft.loading = false;
           draft.notFound = false;
           draft.error = null;
           draft.project = snapshot.project;
+          draft.previewing = snapshot.previewing;
           draft.canUndo = snapshot.canUndo;
           draft.canRedo = snapshot.canRedo;
           draft.undoSummary = snapshot.undoSummary;
@@ -201,7 +216,7 @@ export function useEditorSession(
             draft.saveStatus = status;
           }),
         );
-        applySnapshot(localSession.history.snapshot());
+        applySnapshot(localSession.snapshot());
       });
 
       return () => {
@@ -246,6 +261,7 @@ export function useEditorSession(
     state,
     dispatch: (commands) => session?.dispatch(commands),
     beginGesture: (options) => session?.beginGesture(options),
+    beginPreview: (commands) => session?.beginPreview(commands),
     undo: () => session?.undo(),
     redo: () => session?.redo(),
     retry: () => session?.autosave.retry(),
