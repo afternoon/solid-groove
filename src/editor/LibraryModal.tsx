@@ -309,6 +309,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     action ? props.keyLabel?.(action) : undefined;
 
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
+  let similarKeys: ((action: SoundsKeyAction) => void) | null = null;
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
   // than once, so a ref can end up naming a copy that never mounted.
@@ -331,6 +332,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     }
     const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
     if (digit) pick(Number(digit));
+    else if (similarOf() !== null) similarKeys?.(action as SoundsKeyAction);
     else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
@@ -568,6 +570,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onSelect={setSelected}
                 onBack={back}
                 backLabel={listLabel()}
+                onKeys={(handler) => {
+                  similarKeys = handler;
+                }}
               />
             )}
           </Show>
