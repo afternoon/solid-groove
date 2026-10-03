@@ -92,6 +92,15 @@ test.describe("capability fallbacks", () => {
     await openNewProject(page);
     await expect(notice(page)).toContainText("Export isn't available here.");
     await expect(notice(page)).not.toContainText("can't play sound");
+
+    // The Export dialog stays reachable; trying it gives the notice's advice.
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Export" });
+    await dialog.getByRole("button", { name: "Export", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "can't render audio offline, so songs and stems can't be exported. Open this project in the current version of Chrome, Edge or Firefox to export it.",
+    );
+    await expect(dialog.getByRole("alert")).not.toContainText("Safari");
     expect(errors).toEqual([]);
   });
 
