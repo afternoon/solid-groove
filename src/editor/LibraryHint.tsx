@@ -53,7 +53,8 @@ export default function LibraryHint(props: LibraryHintProps): JSX.Element {
             <b>{props.where}</b> over your beat.{" "}
           </Show>
           {key("library.select_previous")} {key("library.select_next")} for the next,{" "}
-          {key("library.insert")} to insert{props.where ? `; ${putsBack()}` : "."}
+          {key("library.insert_and_return")} to insert
+          {props.where ? `; ${putsBack()}` : "."}
         </Match>
         <Match when={props.place === "other"}>
           Pick a place on the left to find sounds.

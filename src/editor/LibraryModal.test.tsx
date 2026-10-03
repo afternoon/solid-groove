@@ -342,7 +342,7 @@ describe("LibraryModal footer and rail", () => {
     await screen.findAllByRole("listitem");
     expect(hint()).toHaveTextContent(
       "Sounds play in the BD pad over your beat. <library.select_previous> " +
-        "<library.select_next> for the next, <library.insert> to insert; leaving puts back Rounded Club Kick.",
+        "<library.select_next> for the next, <library.insert_and_return> to insert; leaving puts back Rounded Club Kick.",
     );
 
     clickAndFlush(rail.getByRole("button", { name: /^Browse packs/ }));
