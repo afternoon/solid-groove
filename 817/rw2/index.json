@@ -1,0 +1,18 @@
+{
+  "id": "rw2",
+  "title": "Second rework: selection and keys",
+  "steps": [
+    {
+      "file": "01-back-from-2-on-1-the-clip-you-selected-i.png",
+      "caption": "Back from 2 on 1: the clip you selected is still selected"
+    },
+    {
+      "file": "02-shift-enter-inserts-and-stays-in-the-lib.png",
+      "caption": "Shift+Enter inserts and stays in the Library"
+    },
+    {
+      "file": "03-the-library-s-keys-enter-inserts-and-goe.png",
+      "caption": "The Library's keys: Enter inserts and goes back, Shift+Enter stays"
+    }
+  ]
+}
