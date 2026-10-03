@@ -1,0 +1,22 @@
+{
+  "id": "rw",
+  "title": "Rework after QA",
+  "steps": [
+    {
+      "file": "01-one-click-selects-the-clip-tile-2-is-no-.png",
+      "caption": "One click selects the clip: tile 2 is no longer dimmed, and its tip names the clip"
+    },
+    {
+      "file": "02-the-step-grid-s-ground-runs-the-full-wid.png",
+      "caption": "The step grid's ground runs the full width of the view, past the clip's last step"
+    },
+    {
+      "file": "03-enter-inserts-and-stays-the-slot-s-reado.png",
+      "caption": "Enter inserts and stays: the slot's readout lights and says what went in"
+    },
+    {
+      "file": "04-focus-on-the-current-tile-the-ring-is-wh.png",
+      "caption": "Focus on the current tile: the ring is whole, not cut by the tile after it"
+    }
+  ]
+}
