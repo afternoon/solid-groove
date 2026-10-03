@@ -1,0 +1,14 @@
+{
+  "id": "960",
+  "title": "Delete only takes a chosen track",
+  "steps": [
+    {
+      "file": "01-empty-lane-click-then-delete-the-track-i.png",
+      "caption": "Empty-lane click, then Delete: the track is shown, not chosen, and stays"
+    },
+    {
+      "file": "02-header-click-the-chosen-track-is-framed-.png",
+      "caption": "Header click: the chosen track is framed and announced; Delete removes it"
+    }
+  ]
+}
