@@ -1,0 +1,30 @@
+{
+  "id": "mypacks",
+  "title": "My packs in the library (#282)",
+  "steps": [
+    {
+      "file": "01-a-guest-who-chooses-add-pack-is-offered-.png",
+      "caption": "A guest who chooses Add pack is offered an account instead"
+    },
+    {
+      "file": "02-add-pack-the-new-pack-s-name-is-waiting-.png",
+      "caption": "Add pack: the new pack's name is waiting to be typed"
+    },
+    {
+      "file": "03-three-files-dropped-on-the-pack-each-upl.png",
+      "caption": "Three files dropped on the pack: each uploads in its own row"
+    },
+    {
+      "file": "04-each-lands-as-a-sound-in-the-pack-one-is.png",
+      "caption": "Each lands as a sound in the pack; one is selected and heard"
+    },
+    {
+      "file": "05-searching-the-library-finds-it-beside-th.png",
+      "caption": "Searching the library finds it beside the factory sounds"
+    },
+    {
+      "file": "06-a-file-that-is-not-audio-fails-in-its-ow.png",
+      "caption": "A file that is not audio fails in its own row, and deleting a sound warns first"
+    }
+  ]
+}
