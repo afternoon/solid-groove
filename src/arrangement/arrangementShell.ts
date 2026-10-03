@@ -45,6 +45,14 @@ export interface ArrangementShellConfig {
   readonly resizeHandlePx: number;
   /** Device-pixel-ratio cap for canvas backing stores (PRD 9.3: capped at 2). */
   readonly maxDevicePixelRatio: number;
+  /**
+   * CSS pixels of scrollable height beyond the rows themselves: the ruler
+   * above them and any clearance kept below the last one. The scroll range is
+   * the rows plus this, so it matches the spacer the native scroller measures
+   * (#959) and the last row can be scrolled clear of anything floating over
+   * the bottom of the viewport.
+   */
+  readonly extraHeightPx: number;
 }
 
 export const DEFAULT_SHELL_CONFIG: ArrangementShellConfig = {
@@ -54,6 +62,7 @@ export const DEFAULT_SHELL_CONFIG: ArrangementShellConfig = {
   maxPixelsPerTick: 2,
   resizeHandlePx: 6,
   maxDevicePixelRatio: 2,
+  extraHeightPx: 0,
 };
 
 export interface ArrangementShellState {
@@ -105,6 +114,7 @@ export function createArrangementShell(
   // when it is past the end of the song, so a range that runs beyond the last
   // clip can still be shown edge to edge (#292, CF-011).
   let framedExtentTicks = 0;
+  let extraHeightPx = config.extraHeightPx;
 
   const dirty = new Set<DirtyLayer>();
 
@@ -121,9 +131,10 @@ export function createArrangementShell(
     return drained;
   }
 
-  function totalHeight(): number {
+  /** The full scrollable height: every row, plus the ruler and clearance. */
+  function contentHeight(): number {
     const offsets = getProjection().rowOffsets;
-    return offsets[offsets.length - 1] ?? 0;
+    return (offsets[offsets.length - 1] ?? 0) + extraHeightPx;
   }
 
   /** How far the timeline runs: the song, or further if a zoom framed more. */
@@ -136,7 +147,7 @@ export function createArrangementShell(
   }
 
   function maxScrollTop(): number {
-    return Math.max(0, totalHeight() - viewport.height);
+    return Math.max(0, contentHeight() - viewport.height);
   }
 
   function clampScrollLeft(value: number): number {
@@ -319,6 +330,15 @@ export function createArrangementShell(
     };
   }
 
+  /** The space below the rows changed size (the add-track unit wrapped onto
+   * another line, say): re-clamp scroll to the new bottom. */
+  function setExtraHeight(px: number): void {
+    const next = Math.max(0, px);
+    if (next === extraHeightPx) return;
+    extraHeightPx = next;
+    setScroll(viewport.scrollLeft, viewport.scrollTop);
+  }
+
   /** Everything changed (project identity / track count): redraw all layers,
    * re-clamping scroll to the new content bounds. */
   function invalidateAll(): void {
@@ -346,6 +366,8 @@ export function createArrangementShell(
     zoomOut,
     zoomToSpan,
     contentLengthTicks,
+    contentHeight,
+    setExtraHeight,
     scrollToPlayhead,
     seekTo,
     setPlayheadFollow,
