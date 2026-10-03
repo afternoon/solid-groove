@@ -141,4 +141,29 @@ test.describe("assistant panel", () => {
       expect(await hits(close, centre.x, centre.y)).toBe(true);
     });
   }
+
+  test("grows to 1000px, and stays on screen when the window shrinks", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await openEditor(page);
+    await page.keyboard.press(ASSISTANT_CHORD);
+    const edge = panel(page).getByRole("separator");
+    await expect(edge).toHaveAttribute("aria-valuemax", "1000");
+    await edge.focus();
+    for (let step = 0; step < 8; step += 1) await page.keyboard.press("Shift+ArrowUp");
+    await expect(edge).toHaveAttribute("aria-valuenow", "1000");
+    expect((await panel(page).boundingBox())?.height).toBe(1000);
+
+    await page.setViewportSize({ width: 360, height: 500 });
+    await expect(edge).toHaveAttribute("aria-valuemax", "450");
+    const box = await panel(page).boundingBox();
+    if (!box) throw new Error("the panel has no box");
+    // All of it on screen, the resize edge clear of the header.
+    expect(box.y).toBeGreaterThanOrEqual(50);
+    expect(box.y + box.height).toBeLessThanOrEqual(500);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(360);
+    await buttonsAnswer(page, "floating in a small window");
+  });
 });

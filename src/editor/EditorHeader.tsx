@@ -92,7 +92,7 @@ export interface EditorHeaderProps {
  * The editor's top bar, in three zones with one job each (#340, UI-003 #819):
  * the project (projects link, name) on the left; playing it ([play | loop],
  * the editable playhead, [tempo | swing | metronome]) in the centre; the
- * document ([undo | redo], save state, export, help, the assistant) on the right. Every
+ * document ([undo | redo], save state, the assistant, export, help) on the right. Every
  * control but the name and save state sits in one equal-height cell, and a
  * `header-cell-group` joins cells into one strip. Split out of `EditorView` (`REFACTOR-001`) to shrink the parent's
  * merge-clash surface, then handed the audio and session modules whole
@@ -252,6 +252,23 @@ export default function EditorHeader(props: EditorHeaderProps) {
           saveStatus={() => history().saveStatus}
           onRetry={() => void props.session.retry()}
         />
+        <Show when={props.assistant}>
+          {(assistant) => (
+            <button
+              type="button"
+              class="assistant-button"
+              // Bound once, as the button is created: not a value to track.
+              ref={(element) => untrack(() => assistant().bindLauncher(element))}
+              aria-pressed={ariaBool(assistant().open())}
+              aria-keyshortcuts={assistant().ariaKeys}
+              title={`Assistant (${props.keyHint("assistant.toggle")})`}
+              onClick={(event) => assistant().toggle(event.currentTarget)}
+            >
+              <SparkIcon size={12} />
+              Assistant
+            </button>
+          )}
+        </Show>
         {/* Export (EXP-002): the dialog renders the project as it stands when
             Export is pressed, and never edits it. It is portalled to the body
             so the header's own button styles do not reach its controls. */}
@@ -283,23 +300,6 @@ export default function EditorHeader(props: EditorHeaderProps) {
         >
           <HelpIcon size={18} />
         </button>
-        <Show when={props.assistant}>
-          {(assistant) => (
-            <button
-              type="button"
-              class="assistant-button"
-              // Bound once, as the button is created: not a value to track.
-              ref={(element) => untrack(() => assistant().bindLauncher(element))}
-              aria-pressed={ariaBool(assistant().open())}
-              aria-keyshortcuts={assistant().ariaKeys}
-              title={`Assistant (${props.keyHint("assistant.toggle")})`}
-              onClick={(event) => assistant().toggle(event.currentTarget)}
-            >
-              <SparkIcon size={12} />
-              Assistant
-            </button>
-          )}
-        </Show>
       </div>
     </header>
   );

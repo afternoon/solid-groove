@@ -138,7 +138,8 @@ describe("AssistantPanel", () => {
     expect(edge()).toHaveAttribute("aria-orientation", "horizontal");
     expect(edge()).toHaveAttribute("aria-valuenow", "560");
     expect(edge()).toHaveAttribute("aria-valuemin", "260");
-    expect(edge()).toHaveAttribute("aria-valuemax", "720");
+    // jsdom's window is 768px tall: 718px of room under the editor's header.
+    expect(edge()).toHaveAttribute("aria-valuemax", "718");
 
     clickAndFlush(button("Dock to the right"));
     expect(panel()).toHaveAttribute("data-mode", "docked");
@@ -172,7 +173,7 @@ describe("AssistantPanel", () => {
     expect(state().layout().height).toBe(680);
     expect(edge()).toHaveAttribute("aria-valuenow", "680");
     drag(edge(), { x: 0, y: 400 }, { x: 0, y: 0 });
-    expect(state().layout().height).toBe(720);
+    expect(state().layout().height).toBe(718);
     fireAndFlush(() => fireEvent.dblClick(edge()));
     expect(state().layout().height).toBe(560);
 
@@ -184,6 +185,41 @@ describe("AssistantPanel", () => {
     expect(state().layout().width).toBe(300);
     fireAndFlush(() => fireEvent.dblClick(edge()));
     expect(state().layout().width).toBe(384);
+  });
+
+  it("grows to 1000px in a tall window, and stays on screen as the window shrinks", () => {
+    const height = window.innerHeight;
+    const resizeWindow = (to: number) =>
+      fireAndFlush(() => {
+        window.innerHeight = to;
+        window.dispatchEvent(new Event("resize"));
+      });
+    try {
+      resizeWindow(1200);
+      const { state } = renderPanel();
+      clickAndFlush(opener());
+      expect(edge()).toHaveAttribute("aria-valuemax", "1000");
+      drag(edge(), { x: 0, y: 900 }, { x: 0, y: 0 });
+      expect(state().layout().height).toBe(1000);
+      expect(panel().style.getPropertyValue("--assistant-height")).toBe("1000px");
+
+      // A 600px window leaves 550px under the header: the panel shows that
+      // much, announces it, and keeps the height it was given for later.
+      resizeWindow(600);
+      expect(panel().style.getPropertyValue("--assistant-height")).toBe("550px");
+      expect(edge()).toHaveAttribute("aria-valuenow", "550");
+      expect(edge()).toHaveAttribute("aria-valuemax", "550");
+      expect(state().layout().height).toBe(1000);
+      // The next drag starts from what is on screen and stops at the room.
+      drag(edge(), { x: 0, y: 400 }, { x: 0, y: 0 });
+      expect(state().layout().height).toBe(550);
+
+      resizeWindow(1200);
+      expect(panel().style.getPropertyValue("--assistant-height")).toBe("550px");
+      expect(edge()).toHaveAttribute("aria-valuemax", "1000");
+    } finally {
+      resizeWindow(height);
+    }
   });
 
   it("remembers its mode and both sizes on this device", () => {

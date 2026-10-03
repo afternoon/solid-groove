@@ -37,13 +37,15 @@
 }
 
 /* Floating: bottom-right over the view, covering it rather than reflowing it.
-   Never taller than the room under the editor's header, so a short window
-   keeps its transport and its Assistant button in reach. The sizes and the
+   Never taller than the room under the editor's header (assistantPanelLayout.ts
+   follows the window too), so a short window keeps its transport and its
+   Assistant button in reach, and never wider than the window. The sizes and the
    inset are set on the element from assistantPanelLayout.ts. */
 .assistant-panel[data-mode="floating"] {
   right: var(--assistant-inset);
   bottom: 0;
   width: var(--assistant-floating-width);
+  max-width: calc(100vw - 2 * var(--assistant-inset));
   height: var(--assistant-height);
   max-height: calc(
     100vh -

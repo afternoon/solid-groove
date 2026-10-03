@@ -77,7 +77,8 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
         data-mode={props.panel.layout().mode}
         inert={underModal() || undefined}
         style={{
-          "--assistant-height": `${props.panel.layout().height}px`,
+          // The height on screen: never more than the window has room for.
+          "--assistant-height": `${Math.min(props.panel.layout().height, props.panel.room())}px`,
           "--assistant-width": `${props.panel.layout().width}px`,
           "--assistant-floating-width": `${FLOATING_WIDTH}px`,
           "--assistant-bar-width": `${MINIMISED_WIDTH}px`,
@@ -195,7 +196,7 @@ function HeaderButton(props: {
  */
 function ResizeEdge(props: { readonly panel: AssistantPanelState }): JSX.Element {
   const docked = () => props.panel.layout().mode === "docked";
-  const size = () => resizable(props.panel.layout());
+  const size = () => resizable(props.panel.layout(), props.panel.room());
 
   function startDrag(event: PointerEvent & { currentTarget: HTMLDivElement }): void {
     if (event.button !== 0) return;
