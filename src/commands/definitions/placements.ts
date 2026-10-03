@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type Placement, type Project, placementSchema } from "../../domain/entities";
-import { type PlacementId, placementIdSchema } from "../../domain/ids";
+import { type ClipId, type PlacementId, placementIdSchema } from "../../domain/ids";
 import {
   type PlacementSpan,
   placementsOverlap,
@@ -8,7 +8,13 @@ import {
   trimHead,
 } from "../../domain/placementOverlap";
 import { toTicks } from "../../domain/time";
-import { clipLabel, findPlacement, replacePlacement, withSong } from "../projectEdits";
+import {
+  clipLabel,
+  findClip,
+  findPlacement,
+  replacePlacement,
+  withSong,
+} from "../projectEdits";
 import {
   applied,
   type CommandInput,
@@ -233,6 +239,61 @@ export function overwritePlacements(
     });
     return coversTail ? [head] : [head, addPlacement({ ...tail, id: newPlacementId() })];
   });
+}
+
+/**
+ * The placements of `clipId` that follow it when it grows from `fromLength` to
+ * `toLength` ticks long (#963), already grown. A placement that showed the clip
+ * through its old end grows to show the new end, so what the clip editor shows
+ * is what plays and exports. It stops at the next placement on its track, as
+ * the track's placements never overlap. A looped placement already repeats the
+ * clip and one that stopped short of the end showed only part of it, so both
+ * keep their length. Empty when the clip does not grow.
+ */
+export function placementsGrownWithClip(
+  project: Project,
+  clipId: ClipId,
+  fromLength: number,
+  toLength: number,
+): Placement[] {
+  if (toLength <= fromLength) return [];
+  const all = project.song.placements;
+  return all.flatMap((placement): Placement[] => {
+    if (placement.clipId !== clipId || placement.looped) return [];
+    if (placement.clipOffsetTicks + placement.durationTicks < fromLength) return [];
+    const wanted = placement.startTicks + toLength - placement.clipOffsetTicks;
+    const room = all.reduce(
+      (limit, other) =>
+        other.trackId === placement.trackId &&
+        other.startTicks > placement.startTicks &&
+        other.startTicks < limit
+          ? other.startTicks
+          : limit,
+      wanted,
+    );
+    const durationTicks = room - placement.startTicks;
+    return durationTicks > placement.durationTicks
+      ? [{ ...placement, durationTicks: toTicks(durationTicks) }]
+      : [];
+  });
+}
+
+/**
+ * The commands that grow `clipId`'s placements with it when it becomes
+ * `lengthTicks` long. Composed after the `clip.update` that resizes it, in the
+ * same transaction, so the resize is one revision and one undo step.
+ */
+export function growPlacementsWithClip(
+  project: Project,
+  clipId: ClipId,
+  lengthTicks: number,
+): RawCommandInput[] {
+  const clip = findClip(project, clipId);
+  if (!clip) return [];
+  return placementsGrownWithClip(project, clipId, clip.lengthTicks, lengthTicks).map(
+    (placement) =>
+      updatePlacement(placement.id, { durationTicks: placement.durationTicks }),
+  );
 }
 
 /** Registered, payload-erased commands from this module. */

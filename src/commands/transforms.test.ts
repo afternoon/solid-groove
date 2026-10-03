@@ -232,6 +232,27 @@ describe("musical transformations (CLP-04)", () => {
       expect(result.commands).toHaveLength(1);
     });
 
+    // #963: the clip grew but its placement did not, so the copies never played.
+    it("grows the placement that showed the whole clip along with it", () => {
+      const placementOf = (project: Project) =>
+        project.song.placements.find((p) => p.id === fixture.placementAId);
+      const result = executeCommand(
+        fixture.project,
+        duplicateNotes(createIdFactory(), fixture.project, {
+          clipId: fixture.clipAId,
+          offsetTicks: TICKS_PER_BAR,
+        }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(placementOf(result.project)?.durationTicks).toBe(TICKS_PER_BAR * 2);
+
+      const undone = executeTransaction(result.project, result.inverse);
+      expect(undone.ok).toBe(true);
+      if (!undone.ok) return;
+      expect(placementOf(undone.project)?.durationTicks).toBe(TICKS_PER_BAR);
+    });
+
     it("rounds the extension up to a listed length, never an unlisted one", () => {
       const wider = apply(
         fixture.project,

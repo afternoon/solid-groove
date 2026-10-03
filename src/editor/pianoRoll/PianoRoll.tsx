@@ -216,6 +216,7 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
         leading={
           <ClipLengthControl
             clip={props.clip}
+            project={props.project}
             dispatch={props.dispatch}
             analytics={analytics()}
           />
