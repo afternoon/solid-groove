@@ -1,0 +1,53 @@
+import { expect, type Locator, type Page, test } from "@playwright/test";
+
+// #879: inserting a loop through Add loop made its new audio track, but left
+// the editor on the track selected before, so the instrument view went on
+// showing the old track's instrument. A track you just added is the one you
+// want to see, so the new loop track is selected, and the view stays put.
+
+const library = (page: Page): Locator =>
+  page.getByRole("dialog", { name: "Library", exact: true });
+const rail = (page: Page): Locator =>
+  page.getByRole("main").getByRole("list", { name: "Tracks", exact: true });
+
+test("inserting a loop from Add loop selects its new track", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "New Project" }).click();
+  await page.getByTestId("arrangement-view-ready").waitFor();
+  await page
+    .getByRole("navigation", { name: "Views" })
+    .getByRole("link", { name: "Instrument" })
+    .click();
+
+  await rail(page).getByRole("button", { name: "Add loop from library" }).click();
+  await expect(library(page)).toBeVisible();
+  await expect(library(page).getByRole("heading", { name: "Loops" })).toBeVisible();
+
+  // Whichever loop the library lists first: its name is read off the row, so
+  // the test keeps working when the delivered library changes. A row offers
+  // Insert once it is selected.
+  const audition = library(page)
+    .getByRole("list", { name: "Sounds", exact: true })
+    .getByRole("button", { name: /^Audition / })
+    .first();
+  const loopName = ((await audition.getAttribute("aria-label")) ?? "").replace(
+    /^Audition /,
+    "",
+  );
+  expect(loopName).not.toBe("");
+  await audition.click();
+  const insert = library(page).getByRole("button", { name: `Insert ${loopName}` });
+  await insert.click();
+  await expect(library(page)).toHaveCount(0);
+
+  // Still the instrument view, now on the new loop track.
+  await expect(
+    page.getByRole("navigation", { name: "Views" }).getByRole("link", {
+      name: "Instrument",
+    }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    rail(page).getByRole("button", { name: `Edit ${loopName}`, exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("region", { name: `${loopName} loop` })).toBeVisible();
+});

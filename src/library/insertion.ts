@@ -261,6 +261,12 @@ export interface InsertLoopOptions {
   readonly songTempo: number;
 }
 
+/** A loop insertion: its one transaction, and the track that transaction adds. */
+export interface InsertLoop {
+  readonly commands: readonly RawCommandInput[];
+  readonly trackId: TrackId;
+}
+
 /**
  * How long the loop's clip is, in ticks, in whole bars.
  *
@@ -306,13 +312,16 @@ export function loopClipLengthTicks(sample: LibrarySample): number {
  * `sourceTempo` is the loop's own tempo where it states one, and the song's
  * where it does not — which makes the stretch ratio exactly 1 and leaves the
  * audio untouched, rather than guessing a tempo and stretching to a fiction.
+ *
+ * It names the track it adds alongside the commands, because a track you just
+ * added is the one the editor selects (#879), the same as `addTrackOfKind`.
  */
 export function insertLoopCommands(
   project: Project,
   sample: LibrarySample,
   context: DomainFactoryContext,
   options: InsertLoopOptions,
-): readonly RawCommandInput[] {
+): InsertLoop {
   const carried = carry(project, sample, context);
 
   const name = uniqueName(sample.name, options.existingNames);
@@ -341,7 +350,7 @@ export function insertLoopCommands(
   // insertion is one revision and one undo — take it back and the track, the
   // clip and the asset go together, leaving nothing orphaned.
   const create = addTrack(track, { clips: [clip], placements: [placement] });
-  return [...carried.commands, create];
+  return { commands: [...carried.commands, create], trackId: track.id };
 }
 
 /**

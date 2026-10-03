@@ -485,8 +485,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    * **The asset's kind chooses what inserting means.** A one-shot loads onto
    * the sampler of the track the editor is pointed at; a loop has no
    * instrument to load onto, so it arrives as its own audio track carrying an
-   * `audioLoop` clip at bar 1 (`LOOP-019`). Either way it is one transaction,
-   * so it is one revision and one undo.
+   * `audioLoop` clip at bar 1 (`LOOP-019`), and that new track is selected.
+   * Either way it is one transaction, so it is one revision and one undo.
    *
    * Both paths can decline, and a decline has to be visible: the Loop button
    * used to reach a sampler-only path that returned silently, so inserting a
@@ -500,14 +500,17 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     const analytics = props.analytics ?? defaultAnalytics;
 
     if (sample.kind === "loop") {
-      const result = session.dispatch(
-        insertLoopCommands(currentProject, sample, createFactoryContext(), {
-          order: currentProject.song.tracks.length,
-          existingNames: currentProject.song.tracks.map((entry) => entry.name),
-          songTempo: currentProject.song.tempo,
-        }),
-      );
+      const insert = insertLoopCommands(currentProject, sample, createFactoryContext(), {
+        order: currentProject.song.tracks.length,
+        existingNames: currentProject.song.tracks.map((entry) => entry.name),
+        songTempo: currentProject.song.tempo,
+      });
+      const result = session.dispatch(insert.commands);
       if (!result?.ok) return refusedBy(sample);
+      // A track you just added is the one you want to see, as with every other
+      // added track (#879). Selection is UI state, so the insert stays one
+      // transaction; the view does not change.
+      selectTrack(insert.trackId);
       // No `instrument_type`: an audio track carries no instrument, which is
       // the case the catalog leaves that param optional for.
       analytics.log("track_added", { track_type: "audio" });
