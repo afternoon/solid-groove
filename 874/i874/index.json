@@ -1,0 +1,14 @@
+{
+  "id": "i874",
+  "title": "Escape closes the genre menu first",
+  "steps": [
+    {
+      "file": "01-the-genre-menu-open-over-the-library.png",
+      "caption": "The genre menu open over the library"
+    },
+    {
+      "file": "02-escape-closes-only-the-menu-the-library-.png",
+      "caption": "Escape closes only the menu: the library stays open, focus on Any genre"
+    }
+  ]
+}
