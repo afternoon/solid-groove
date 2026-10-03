@@ -191,6 +191,7 @@ export default defineConfig({
         "src/library/**/*.test.{ts,tsx}",
         "src/auth/**/*.test.{ts,tsx}",
         "src/export/**/*.test.{ts,tsx}",
+        "src/userData/**/*.test.{ts,tsx}",
       ]),
       // The cross-cutting rail, plus the handful of root-level
       // `src/*.test.ts` files (telemetry, release, devBackend, firebaseConfig).

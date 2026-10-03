@@ -41,6 +41,7 @@ function parseHostAndPort(
  */
 export async function createTestEnvironment(
   projectId: string = EMULATOR_PROJECT_ID,
+  options: { storage?: boolean } = {},
 ): Promise<RulesTestEnvironment> {
   const firestore = parseHostAndPort(process.env.FIRESTORE_EMULATOR_HOST, 8080);
 
@@ -50,6 +51,17 @@ export async function createTestEnvironment(
       ...firestore,
       rules: readFileSync(resolve(process.cwd(), "firestore.rules"), "utf8"),
     },
+    // The Storage emulator, for `storage.rules` (#282). Opt-in per file, so a
+    // suite about Firestore alone does not need it running. Its host is the
+    // one `emulators:exec` exports, like Firestore's.
+    ...(options.storage
+      ? {
+          storage: {
+            ...parseHostAndPort(process.env.FIREBASE_STORAGE_EMULATOR_HOST, 9199),
+            rules: readFileSync(resolve(process.cwd(), "storage.rules"), "utf8"),
+          },
+        }
+      : {}),
   });
 }
 
@@ -64,6 +76,19 @@ export function anonymousContext(
 ): ReturnType<RulesTestEnvironment["authenticatedContext"]> {
   return testEnv.authenticatedContext(uid, {
     firebase: { sign_in_provider: "anonymous" },
+  });
+}
+
+/**
+ * A context for a registered account: a real sign-in provider rather than
+ * `anonymous`. Personal packs and user audio need one (#282).
+ */
+export function registeredContext(
+  testEnv: RulesTestEnvironment,
+  uid: string,
+): ReturnType<RulesTestEnvironment["authenticatedContext"]> {
+  return testEnv.authenticatedContext(uid, {
+    firebase: { sign_in_provider: "google.com" },
   });
 }
 

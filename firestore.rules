@@ -71,6 +71,55 @@ service cloud.firestore {
         && data.updatedAt is int && data.updatedAt >= 0;
     }
 
+    // A registered account, not a guest. Personal packs need one (#282).
+    function registered() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // One personal pack (#282, LIB-05 `kind: "user"`): its name, its version,
+    // and its sounds, whose audio lives in Cloud Storage under the same user.
+    // `src/userLibrary/userPacks.ts` owns the full shape; the rules check what
+    // keeps one user's library well-formed and theirs.
+    function userPackFields() {
+      return ['schemaVersion', 'id', 'kind', 'name', 'version', 'assets',
+              'createdAt', 'modifiedAt'];
+    }
+
+    function validUserPack(packId, data) {
+      return data.keys().hasOnly(userPackFields())
+        && data.keys().hasAll(userPackFields())
+        && data.schemaVersion == 1
+        && data.id == packId
+        && data.kind == 'user'
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 80
+        && data.version is string && data.version.matches('[0-9]+[.][0-9]+[.][0-9]+')
+        && data.assets is list && data.assets.size() <= 2000
+        && data.createdAt is int && data.modifiedAt is int
+        && data.modifiedAt >= data.createdAt;
+    }
+
+    match /users/{uid} {
+      match /packs/{packId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create: if registered() && request.auth.uid == uid
+          && validUserPack(packId, request.resource.data);
+        allow update: if registered() && request.auth.uid == uid
+          && validUserPack(packId, request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
+      // How much the account stores, kept by the Storage-triggered Cloud
+      // Functions (`functions/src/index.ts`) with the admin credential. The
+      // owner reads it to warn before an import would go over; nobody writes
+      // it from a client, so a user cannot lower their own total.
+      match /usage/{document=**} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
+
     match /projects/{projectId} {
       // A read of a document that does not exist is allowed and returns nothing:
       // every revision-checked write starts by reading the metadata document,

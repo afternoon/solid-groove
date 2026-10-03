@@ -169,7 +169,7 @@ jobs:
         # skipped this whole job, and with it the only automated proof of the
         # FND-009 slice. Prefix it like every other node_modules binary in this
         # workflow (`bunx playwright`, `bun run test:emulator`).
-        run: bunx firebase emulators:exec --only firestore,auth --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=${{ matrix.browser }}"
+        run: bunx firebase emulators:exec --only firestore,auth,storage --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=${{ matrix.browser }}"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
