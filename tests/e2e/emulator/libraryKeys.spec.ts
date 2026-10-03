@@ -65,6 +65,43 @@ test.describe("library keys", () => {
     await expect(library(page)).toBeVisible();
   });
 
+  // #961: a held key auto-repeats, and each repeat of a shortcut that does not
+  // repeat was ignored without suppressing its default, so the browser pressed
+  // the focused button anyway. Playwright's second `keyboard.down` of a key
+  // still down is a `repeat: true` keydown, just like an OS auto-repeat.
+  test("held Space auditions the selection and never presses a focused button", async ({
+    page,
+  }) => {
+    await openBdSlot(page);
+    // A clicked row keeps focus while the arrows move the selection on.
+    const rows = soundList(page).getByRole("button", { name: /^Audition / });
+    await rows.nth(0).click();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    const selected = (await readout(page, "Hearing").textContent()) ?? "";
+
+    await page.keyboard.down(" ");
+    await page.keyboard.down(" ");
+    await page.keyboard.down(" ");
+    await page.keyboard.up(" ");
+
+    await page.waitForTimeout(300);
+    await expect(library(page)).toBeVisible();
+    await expect(readout(page, "Hearing")).toHaveText(selected);
+  });
+
+  test("held Space with focus on Close leaves the library open", async ({ page }) => {
+    await openBdSlot(page);
+    await selectSecondSound(page);
+
+    await page.keyboard.down(" ");
+    await page.keyboard.down(" ");
+    await page.keyboard.up(" ");
+
+    await page.waitForTimeout(300);
+    await expect(library(page)).toBeVisible();
+  });
+
   test("a focused rail button keeps Enter for itself", async ({ page }) => {
     await openBdSlot(page);
     await selectSecondSound(page);
