@@ -1,10 +1,15 @@
 import { cleanup, renderHook } from "@solidjs/testing-library";
-import { flush } from "solid-js";
+import { createMemo, createRoot, DEV, flush, getOwner, type Owner } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ROW_METRICS } from "../arrangement/ArrangementView";
+import { buildArrangementProjection } from "../arrangement/projection";
 import { removeNotes } from "../commands";
-import { createSliceFixtureProject } from "../domain/fixtures";
+import type { Project } from "../domain/entities";
+import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
 import type { ClipId } from "../domain/ids";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
+import { estimateStereoBytes, exportFacts } from "./export/exportFacts";
+import { planStemsFiles } from "./export/stemsExport";
 import { useEditorSession } from "./useEditorSession";
 
 afterEach(() => {
@@ -197,5 +202,75 @@ describe("useEditorSession preview (UI-005)", () => {
 
     expect(result.state.previewing).toBe(false);
     expect(result.state.project?.clips[0].content).toEqual(committed?.clips[0].content);
+  });
+});
+
+/**
+ * #856: the project a session exposes is one immutable value per revision, so
+ * a derivation over it should depend on that value, not on every store node
+ * inside it. Reading it through a deep store proxy made the arrangement's
+ * projection memo and the Export dialog's three memos each track thousands of
+ * nodes (Solid's dev `HUGE_FAN_IN`), re-subscribing to every note per edit.
+ */
+describe("useEditorSession project reads (#856)", () => {
+  /** A memo over `derive(project)`, and how many sources it ended up tracking. */
+  function sourcesOf(read: () => Project, derive: (project: Project) => unknown): number {
+    let node: Owner | null = null;
+    const dispose = createRoot((dispose) => {
+      const memo = createMemo(() => {
+        node = getOwner();
+        return derive(read());
+      });
+      memo();
+      return dispose;
+    });
+    const count = DEV?.getSources(node as never).length ?? Number.NaN;
+    dispose();
+    return count;
+  }
+
+  it("lets the arrangement and Export derivations track the project, not its every node", async () => {
+    // Ten tracks of note clips: just past the size where the issue's
+    // 7-track, 4-bar project crossed Solid's 2,000-source warning.
+    const project = createReferenceProject({
+      trackCount: 10,
+      minutes: 1,
+      placementCount: 7 * 16,
+      automationLaneCount: 0,
+    });
+    const repository = createInMemoryProjectRepository();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    const { result } = renderHook(
+      () =>
+        useEditorSession(
+          () => project.metadata.id,
+          () => repository,
+        ),
+      {},
+    );
+    await vi.waitFor(() => expect(result.state.loading).toBe(false));
+    const read = () => {
+      const current = result.state.project;
+      if (!current) throw new Error("expected a loaded project");
+      return current;
+    };
+
+    const capture = DEV?.diagnostics.capture();
+    const counts = {
+      arrangement: sourcesOf(read, (p) => buildArrangementProjection(p, ROW_METRICS)),
+      facts: sourcesOf(read, exportFacts),
+      plan: sourcesOf(read, (p) => planStemsFiles(p)),
+      stereoBytes: sourcesOf(read, estimateStereoBytes),
+    };
+    const fanIn = (capture?.stop() ?? []).filter(
+      (diagnostic) => diagnostic.code === "HUGE_FAN_IN",
+    );
+
+    expect({ counts, fanIn: fanIn.map((diagnostic) => diagnostic.message) }).toEqual({
+      counts: { arrangement: 1, facts: 1, plan: 1, stereoBytes: 1 },
+      fanIn: [],
+    });
   });
 });

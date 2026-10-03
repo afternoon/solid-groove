@@ -142,9 +142,17 @@ export function useEditorSession(
   projectId: Accessor<string>,
   repository: Accessor<ProjectRepository>,
 ): UseEditorSessionResult {
-  const [state, setState] = createStore<EditorSessionStateDraft>({
-    ...INITIAL_STATE,
-  });
+  // Shallow (#856): each key is tracked, but its value is held raw and replaced
+  // by reference. A `Project` is one immutable value per revision (the command
+  // layer never edits one in place), so a deep store only multiplied it into a
+  // store node per field: a memo deriving from the project then tracked every
+  // note and placement it read, thousands of sources for a 7-track, 4-bar song,
+  // and still re-ran on every revision because the `project` key changed. Held
+  // raw, a derivation tracks the one `project` key and reads plain data.
+  const [state, setState] = createStore<EditorSessionStateDraft>(
+    { ...INITIAL_STATE },
+    { shallow: true },
+  );
   let session: EditorSession | null = null;
   watchNavigationFlush(() => session);
 
