@@ -11,7 +11,12 @@ import UpgradeAccountPrompt from "../components/UpgradeAccountPrompt";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import { formatBytes, IMPORT_EXTENSIONS, importContentType } from "../userData/userData";
-import { type UserPack, userPackAssets } from "../userLibrary/userPacks";
+import {
+  MAX_PACK_NAME_LENGTH,
+  MAX_SOUND_NAME_LENGTH,
+  type UserPack,
+  userPackAssets,
+} from "../userLibrary/userPacks";
 import type { ImportMethod, ImportRow, UserLibrary } from "../userLibrary/useUserLibrary";
 import { writeLibrarySampleDrag } from "./assetDrag";
 import type { LibraryAsset } from "./manifest";
@@ -23,7 +28,8 @@ import "./MyPacks.css";
  * the factory packs.
  *
  * "Add pack" makes one and puts its name in an input; Return keeps what was
- * typed, and clicking away keeps the name it already has. Audio files dragged from the
+ * typed, and clicking away keeps the name it already has. Renaming a pack or
+ * one of its sounds is the same input. Audio files dragged from the
  * desktop import into the pack they are dropped on, or into "My Sounds" when
  * dropped on the space around the packs, and every file shows its own row —
  * its progress, then its sound, or why it failed. Opening a pack lists its
@@ -160,21 +166,68 @@ function ImportRowView(props: { row: ImportRow; library: UserLibrary }): JSX.Ele
   );
 }
 
+/**
+ * A name being typed: a form, so Return submits it and nothing listens for
+ * keys itself (the shortcut registry owns those). Leaving the field does not
+ * submit: clicking away keeps the name it already has.
+ */
+function NameForm(props: {
+  label: string;
+  value: string;
+  maxLength: number;
+  onCommit(name: string): void;
+  onCancel(): void;
+}): JSX.Element {
+  let committed = false;
+  return (
+    <form
+      class="my-packs-name-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const input = event.currentTarget.elements.namedItem("name");
+        if (!(input instanceof HTMLInputElement)) return;
+        committed = true;
+        props.onCommit(input.value);
+      }}
+    >
+      <input
+        name="name"
+        class={["my-packs-name-input", MASK_CONTENT]}
+        aria-label={props.label}
+        value={props.value}
+        maxlength={props.maxLength}
+        ref={(element) => {
+          committed = false;
+          queueMicrotask(() => {
+            element.focus();
+            element.select();
+          });
+        }}
+        onBlur={() => {
+          if (!committed) props.onCancel();
+        }}
+      />
+    </form>
+  );
+}
+
 function SoundItem(props: {
   asset: LibraryAsset;
   selected: boolean;
   inUse: boolean;
   onAudition(): void;
+  onRename(name: string): void;
   onDelete(): void;
 }): JSX.Element {
   const [confirming, setConfirming] = createSignal(false);
+  const [editing, setEditing] = createSignal(false);
   return (
     <li
       class={[
         "my-packs-sound",
-        { "my-packs-sound-selected": props.selected && !confirming() },
+        { "my-packs-sound-selected": props.selected && !confirming() && !editing() },
       ]}
-      draggable="true"
+      draggable={editing() ? "false" : "true"}
       onDragStart={(event) => {
         if (!writeLibrarySampleDrag(event.dataTransfer, props.asset)) {
           event.preventDefault();
@@ -184,7 +237,21 @@ function SoundItem(props: {
       <Show
         when={confirming()}
         fallback={
-          <>
+          <Show
+            when={!editing()}
+            fallback={
+              <NameForm
+                label="Sound name"
+                value={props.asset.name}
+                maxLength={MAX_SOUND_NAME_LENGTH}
+                onCommit={(name) => {
+                  props.onRename(name);
+                  setEditing(false);
+                }}
+                onCancel={() => setEditing(false)}
+              />
+            }
+          >
             <button
               type="button"
               class="my-packs-sound-main"
@@ -200,13 +267,22 @@ function SoundItem(props: {
             <button
               type="button"
               class="my-packs-icon"
+              aria-label="Rename sound"
+              title="Rename sound"
+              onClick={() => setEditing(true)}
+            >
+              <HiOutlinePencil size={13} />
+            </button>
+            <button
+              type="button"
+              class="my-packs-icon"
               aria-label="Delete sound"
               title="Delete sound"
               onClick={() => setConfirming(true)}
             >
               <HiOutlineTrash size={13} />
             </button>
-          </>
+          </Show>
         }
       >
         <div class="my-packs-confirm" role="alert">
@@ -253,11 +329,8 @@ function PackItem(props: {
       .imports()
       .filter((row) => row.packId === props.pack.id),
   );
-  let committed = false;
-
-  function commit(input: HTMLInputElement): void {
-    committed = true;
-    void library().renamePack(props.pack.id, input.value);
+  function commit(name: string): void {
+    void library().renamePack(props.pack.id, name);
     props.onEdit(false);
   }
 
@@ -285,35 +358,13 @@ function PackItem(props: {
             </button>
           }
         >
-          {/* A form, so Return submits it and nothing listens for keys itself
-              (the shortcut registry owns those). Leaving the field does not
-              submit: clicking away keeps the name the pack already has. */}
-          <form
-            class="my-packs-name-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const input = event.currentTarget.elements.namedItem("name");
-              if (input instanceof HTMLInputElement) commit(input);
-            }}
-          >
-            <input
-              name="name"
-              class={["my-packs-name-input", MASK_CONTENT]}
-              aria-label="Pack name"
-              value={props.pack.name}
-              maxlength={80}
-              ref={(element) => {
-                committed = false;
-                queueMicrotask(() => {
-                  element.focus();
-                  element.select();
-                });
-              }}
-              onBlur={() => {
-                if (!committed) props.onEdit(false);
-              }}
-            />
-          </form>
+          <NameForm
+            label="Pack name"
+            value={props.pack.name}
+            maxLength={MAX_PACK_NAME_LENGTH}
+            onCommit={commit}
+            onCancel={() => props.onEdit(false)}
+          />
         </Show>
         <Show when={!props.editing}>
           <span class="my-packs-pack-tools">
@@ -381,6 +432,9 @@ function PackItem(props: {
                   selected={props.shared.selectedId === asset().id}
                   inUse={props.shared.isInUse?.(asset()) ?? false}
                   onAudition={() => props.shared.onAudition(asset())}
+                  onRename={(name) =>
+                    void library().renameSound(props.pack.id, asset().id, name)
+                  }
                   onDelete={() => void library().deleteSound(props.pack.id, asset().id)}
                 />
               )}

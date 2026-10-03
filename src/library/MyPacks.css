@@ -109,6 +109,11 @@
   border: 1px solid var(--color-accent);
 }
 
+/* A sound's name being typed sits where its name was, inside the row's indent. */
+.my-packs-sound .my-packs-name-input {
+  margin: 2px 0;
+}
+
 .my-packs-sound,
 .my-packs-import,
 .my-packs-empty {

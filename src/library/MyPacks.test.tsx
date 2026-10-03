@@ -15,12 +15,13 @@ import { createSeededIdFactory } from "../domain/ids";
 import { createManualClock } from "../shared/clock";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
-import { USER_DATA_CAP_BYTES } from "../userData/userData";
+import { MAX_PACK_SOUNDS, USER_DATA_CAP_BYTES } from "../userData/userData";
 import {
   createInMemoryUserLibraryRepository,
   type InMemoryUserLibraryRepository,
 } from "../userLibrary/inMemoryUserLibraryRepository";
 import type { AudioDecoder } from "../userLibrary/soundAnalysis";
+import type { UserPackAsset } from "../userLibrary/userPacks";
 import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
 import MyPacks from "./MyPacks";
 import type { LibraryAsset } from "./manifest";
@@ -394,6 +395,152 @@ describe("My packs", () => {
     await waitFor(() =>
       expect(within(pack).queryByRole("button", { name: /^Audition / })).toBeNull(),
     );
+  });
+
+  it("renames a sound in place, keeping its pack's version", async () => {
+    const { repository } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    await within(pack).findByRole("button", { name: "Audition tape kick" });
+
+    fireEvent.click(within(pack).getByRole("button", { name: "Rename sound" }));
+    const input = await within(pack).findByRole("textbox", { name: "Sound name" });
+    expect(input).toHaveValue("tape kick");
+    fireEvent.input(input, { target: { value: "Tape Kick, dusty" } });
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+
+    expect(
+      await within(pack).findByRole("button", { name: "Audition Tape Kick, dusty" }),
+    ).toBeVisible();
+    expect(within(pack).queryByRole("textbox", { name: "Sound name" })).toBeNull();
+    const [stored] = await new Promise<readonly { version: string }[]>((resolve) => {
+      const stop = repository.watchPacks(
+        "u1",
+        (packs) => {
+          queueMicrotask(stop);
+          resolve(packs);
+        },
+        () => undefined,
+      );
+    });
+    expect(stored.version).toBe("1.1.0");
+  });
+
+  it("keeps a sound's name when the producer clicks away from renaming it", async () => {
+    setUp();
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    await within(pack).findByRole("button", { name: "Audition tape kick" });
+    fireEvent.click(within(pack).getByRole("button", { name: "Rename sound" }));
+    const input = await within(pack).findByRole("textbox", { name: "Sound name" });
+    fireEvent.input(input, { target: { value: "Something else" } });
+    fireAndFlush(() => fireEvent.blur(input));
+    expect(
+      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+  });
+
+  it("names a just-made pack what was typed, even before its document is written", async () => {
+    const repository = createInMemoryUserLibraryRepository();
+    const createPack = repository.createPack.bind(repository);
+    let land: () => void = () => undefined;
+    repository.createPack = async (uid, pack) => {
+      await new Promise<void>((resolve) => {
+        land = resolve;
+      });
+      await createPack(uid, pack);
+    };
+    setUp({ repository });
+    await loaded();
+    fireEvent.click(screen.getByRole("button", { name: "Add pack" }));
+    const input = await screen.findByRole("textbox", { name: "Pack name" });
+    fireEvent.input(input, { target: { value: "Foley" } });
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+    land();
+    expect(await screen.findByRole("button", { name: /Foley/ })).toBeVisible();
+    expect(screen.queryByText(/could not be renamed/)).toBeNull();
+  });
+
+  it("counts a landed sound against the allowance until the total does", async () => {
+    const repository = createInMemoryUserLibraryRepository();
+    // The usage total only moves when the Cloud Function counts a file, a
+    // moment after it lands: here, only when the test says so.
+    let total = USER_DATA_CAP_BYTES - 100;
+    const listeners = new Set<(bytes: number) => void>();
+    repository.watchUsage = (_uid, onUsage) => {
+      listeners.add(onUsage);
+      queueMicrotask(() => onUsage(total));
+      return () => listeners.delete(onUsage);
+    };
+    const count = (bytes: number) => {
+      total += bytes;
+      for (const listener of listeners) listener(total);
+    };
+    const { transport } = setUp({ repository });
+    const pack = await addNamedPack("Field Recordings");
+
+    drop(pack, [audioFile("tape-kick.wav", "audio/wav", 64)]);
+    await within(pack).findByRole("button", { name: "Audition tape kick" });
+
+    // The total still says 100 bytes free, but 64 of them are taken.
+    drop(pack, [audioFile("door-slam.wav", "audio/wav", 64)]);
+    expect(await within(pack).findByText(/Your library is full/)).toBeVisible();
+    expect(repository.objects.size).toBe(1);
+    expect(transport.named("sound_import_failed")[0].params).toMatchObject({
+      error_code: "quota_exceeded",
+    });
+
+    // Once the total counts it, the 36 bytes left are free to use.
+    fireAndFlush(() => count(64));
+    drop(pack, [audioFile("room-tone.wav", "audio/wav", 30)]);
+    await within(pack).findByRole("button", { name: "Audition room tone" });
+    expect(repository.objects.size).toBe(2);
+  });
+
+  it("refuses a sound past a pack's limit before uploading it", async () => {
+    const { repository, transport } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    const [stored] = await new Promise<readonly { id: string }[]>((resolve) => {
+      const stop = repository.watchPacks(
+        "u1",
+        (packs) => {
+          queueMicrotask(stop);
+          resolve(packs);
+        },
+        () => undefined,
+      );
+    });
+    const filler = (index: number) =>
+      ({
+        id: `ast_fill${String(index).padStart(17, "0")}`,
+        name: `fill ${index}`,
+        type: "one-shot",
+        family: "drums",
+        role: "kick",
+        storagePath: `users/u1/packs/${stored.id}/fill${index}`,
+        contentType: "audio/wav",
+        sizeBytes: 1,
+        durationSeconds: 0.1,
+        sampleRate: null,
+        channelCount: null,
+        bpm: null,
+        peaks: null,
+        addedInVersion: "1.1.0",
+        createdAt: 1,
+      }) as UserPackAsset;
+    await repository.updatePack("u1", stored.id, (current) => ({
+      ...current,
+      assets: Array.from({ length: MAX_PACK_SOUNDS - 1 }, (_, index) => filler(index)),
+    }));
+
+    // Room for one more: of two files dropped together, the second is refused.
+    drop(pack, [audioFile("tape-kick.wav"), audioFile("door-slam.wav")]);
+    expect(await within(pack).findByText(/This pack is full/)).toBeVisible();
+    await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
+    expect(repository.objects.size).toBe(1);
+    expect(transport.named("sound_import_failed")[0].params).toMatchObject({
+      error_code: "pack_full",
+    });
   });
 
   it("renames and deletes a pack", async () => {

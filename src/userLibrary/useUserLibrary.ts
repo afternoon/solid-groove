@@ -3,6 +3,7 @@ import { type Analytics, analytics as defaultAnalytics } from "../analytics/anal
 import type { ErrorCode } from "../analytics/errorCodes";
 import { createIdFactory, type IdFactory } from "../domain/ids";
 import type { LibraryAsset, LibraryPackSummary } from "../library/manifest";
+import type { HeldPackRefs } from "../library/packUpgrade";
 import { type Clock, systemClock } from "../shared/clock";
 import {
   formatBytes,
@@ -25,6 +26,7 @@ import {
   DROP_PACK_NAME,
   newUserPack,
   renamePack,
+  renameSound,
   type UserPack,
   userPackAssets,
   userPackSummary,
@@ -83,6 +85,8 @@ export interface UserLibrary {
   /** Make an empty pack and return its ID, or `null` for a guest. */
   createPack(method: "button" | "drop", name?: string): string | null;
   renamePack(packId: string, name: string): Promise<void>;
+  /** Rename one sound; its pack keeps its version. */
+  renameSound(packId: string, assetId: string, name: string): Promise<void>;
   deletePack(packId: string): Promise<void>;
   deleteSound(packId: string, assetId: string): Promise<void>;
   /**
@@ -96,6 +100,12 @@ export interface UserLibrary {
   ): Promise<void>;
   cancelImport(id: string): void;
   dismissImport(id: string): void;
+  /**
+   * The sounds one of the owner's packs holds at `version`, by storage ref,
+   * or `null` when that is not the version they hold. Inserting a sound added
+   * since the project pinned the pack checks the upgrade against this (#282).
+   */
+  readonly heldPack: HeldPackRefs;
 }
 
 export interface UseUserLibraryOptions {
@@ -112,6 +122,7 @@ const ERROR_CODE: Readonly<Record<ImportFailure, ErrorCode>> = {
   unsupported_type: "unsupported_format",
   too_large: "asset_too_large",
   over_allowance: "quota_exceeded",
+  pack_full: "pack_full",
   undecodable: "decode_failed",
   cancelled: "aborted",
   permission_denied: "permission_denied",
@@ -155,9 +166,48 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
   let packsLoaded = false;
   let latestPacks: readonly UserPack[] = [];
   let latestUsed = 0;
-  /** Bytes of imports in flight, which the usage total does not count yet. */
-  let pendingBytes = 0;
+  /** The usage total has arrived at least once. */
+  let usageLoaded = false;
+  /**
+   * Imports the usage total has not counted yet, by import row ID: every one
+   * from the moment its upload starts until the total rises to include it.
+   * The total moves only once the Cloud Function counts a stored file, a
+   * moment after it lands, so these count against the allowance here in the
+   * meantime, and neither a multi-file drop nor a second drop straight after
+   * the first can slip past it. `path` is set once the sound is listed: one its
+   * pack no longer lists (deleted, or refused over the allowance) stops
+   * counting, and so does one whose import failed.
+   */
+  const uncounted = new Map<string, { bytes: number; path: string | null }>();
+  const uncountedBytes = () =>
+    [...uncounted.values()].reduce((sum, entry) => sum + entry.bytes, 0);
+
+  /** The usage total rose by `delta`: that much of the oldest is counted now. */
+  function settleUncounted(delta: number): void {
+    let left = delta;
+    for (const [id, entry] of uncounted) {
+      if (left <= 0) break;
+      const settled = Math.min(entry.bytes, left);
+      left -= settled;
+      if (settled === entry.bytes) uncounted.delete(id);
+      else uncounted.set(id, { ...entry, bytes: entry.bytes - settled });
+    }
+  }
+
+  /** Forget landed imports their packs no longer list. */
+  function forgetUnlisted(next: readonly UserPack[]): void {
+    if (uncounted.size === 0) return;
+    const listed = new Set(
+      next.flatMap((pack) => pack.assets.map((asset) => asset.storagePath)),
+    );
+    for (const [id, entry] of uncounted) {
+      if (entry.path !== null && !listed.has(entry.path)) uncounted.delete(id);
+    }
+  }
+
   const controllers = new Map<string, AbortController>();
+  /** The pack each import in flight is headed for, by import row ID. */
+  const inFlight = new Map<string, string>();
   /** Packs made here whose document is still being written, by ID. */
   const creating = new Map<string, Promise<boolean>>();
   /**
@@ -212,6 +262,9 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
       guest = uid === null;
       packsLoaded = false;
       latestPacks = [];
+      latestUsed = 0;
+      usageLoaded = false;
+      uncounted.clear();
       creating.clear();
       setPacks([]);
       setImports([]);
@@ -233,6 +286,7 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
               uid,
               (next) => {
                 latestPacks = next;
+                forgetUnlisted(next);
                 setPacks(next);
                 setStatus("ready");
                 if (!packsLoaded) {
@@ -243,6 +297,9 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
               () => failLoading(),
             ),
             repository.watchUsage(uid, (bytes) => {
+              // The first total is where the account stood, not a rise.
+              if (usageLoaded) settleUncounted(bytes - latestUsed);
+              usageLoaded = true;
               latestUsed = bytes;
               setUsedBytes(bytes);
             }),
@@ -323,9 +380,19 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     return startPack(active, method, name).id;
   }
 
+  /**
+   * Whether `packId`'s document is written. A pack made a moment ago is
+   * listed before it is, so a change to it waits for that, and is let go if
+   * it never landed.
+   */
+  async function packLanded(packId: string): Promise<boolean> {
+    return (await creating.get(packId)) !== false;
+  }
+
   async function rename(packId: string, name: string): Promise<void> {
     const active = session();
     if (!active) return;
+    if (!(await packLanded(packId))) return;
     try {
       await active.repository.updatePack(active.uid, packId, (pack) =>
         renamePack(pack, name, clock.now()),
@@ -333,6 +400,28 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     } catch {
       setFailure("The pack could not be renamed. Try again.");
     }
+  }
+
+  async function renameOneSound(
+    packId: string,
+    assetId: string,
+    name: string,
+  ): Promise<void> {
+    const active = session();
+    if (!active) return;
+    try {
+      await active.repository.updatePack(active.uid, packId, (pack) =>
+        renameSound(pack, assetId, name, clock.now()),
+      );
+    } catch {
+      setFailure("The sound could not be renamed. Try again.");
+    }
+  }
+
+  function heldPack(packId: string, version: string): ReadonlySet<string> | null {
+    const pack = latestPacks.find((candidate) => candidate.id === packId);
+    if (!pack || pack.version !== version) return null;
+    return new Set(pack.assets.map((asset) => asset.storagePath));
   }
 
   async function deletePack(packId: string): Promise<void> {
@@ -396,10 +485,16 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     // Everything already on its way counts, so a multi-file drop cannot slip
     // past the allowance one file at a time.
     const before = {
-      usedBytes: latestUsed + pendingBytes,
+      usedBytes: latestUsed + uncountedBytes(),
       capBytes: USER_DATA_CAP_BYTES,
     };
-    pendingBytes += file.size;
+    // Every sound already in the pack or on its way there, so a drop of many
+    // files is refused at the pack's limit before the extra ones upload.
+    const soundsInPack =
+      (latestPacks.find((pack) => pack.id === packId)?.assets.length ?? 0) +
+      [...inFlight.values()].filter((target) => target === packId).length;
+    inFlight.set(id, packId);
+    uncounted.set(id, { bytes: file.size, path: null });
     try {
       const asset = await importSound({
         repository: active.repository,
@@ -410,9 +505,13 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
         ids,
         clock,
         usage: before,
+        soundsInPack,
         signal: controller.signal,
         onProgress: (progress) => updateRow(id, { progress }),
       });
+      // Landed: it counts until the total does, or until its pack lets it go.
+      const waiting = uncounted.get(id);
+      if (waiting) uncounted.set(id, { ...waiting, path: asset.storagePath });
       removeRow(id);
       analytics.log("sound_imported", {
         asset_type: asset.type === "loop" ? "loop" : "one_shot",
@@ -420,6 +519,7 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
       });
       firstUse();
     } catch (error) {
+      uncounted.delete(id);
       let reason: ImportFailure = error instanceof ImportError ? error.reason : "unknown";
       // The rules refuse a write over the allowance as a plain permission
       // failure; near the cap, that is what it was.
@@ -433,8 +533,8 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
         analytics.log("sound_import_failed", { error_code: ERROR_CODE[reason] });
       }
     } finally {
-      pendingBytes -= file.size;
       controllers.delete(id);
+      inFlight.delete(id);
     }
   }
 
@@ -472,10 +572,12 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     upgradeAsked,
     createPack,
     renamePack: rename,
+    renameSound: renameOneSound,
     deletePack,
     deleteSound,
     importFiles,
     cancelImport: (id) => controllers.get(id)?.abort(),
     dismissImport: removeRow,
+    heldPack: (packId, version) => heldPack(packId, version),
   };
 }

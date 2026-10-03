@@ -971,6 +971,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       get analytics() {
         return props.analytics ?? defaultAnalytics;
       },
+      // A newer version of one's own pack is checked against the pack itself.
+      heldPacks: userLibrary.heldPack,
       insert,
     };
   }

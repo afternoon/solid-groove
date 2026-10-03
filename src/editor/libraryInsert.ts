@@ -3,7 +3,11 @@ import type { Project } from "../domain/entities";
 import { type LibrarySample, toLibrarySample } from "../library/insertion";
 import type { LibraryClient } from "../library/libraryClient";
 import type { LibraryAsset } from "../library/manifest";
-import { checkPackUpgrade, type PackUpgradeCheck } from "../library/packUpgrade";
+import {
+  checkPackUpgrade,
+  type HeldPackRefs,
+  type PackUpgradeCheck,
+} from "../library/packUpgrade";
 
 /**
  * What the library's Insert hears back (#892). Inserting either lands, is
@@ -33,6 +37,11 @@ export interface LibraryInsertHost {
   project(): Project | null | undefined;
   readonly client: LibraryClient;
   readonly analytics: Analytics;
+  /**
+   * Pack versions the editor holds itself — the owner's personal packs
+   * (#282) — so upgrading to one is checked against it, not the factory index.
+   */
+  readonly heldPacks?: HeldPackRefs;
   /**
    * Dispatches the insert for `sample` onto whatever the library was opened
    * for, as one transaction. `null` when it landed, else the sentence saying
@@ -66,7 +75,7 @@ export async function insertFromLibrary(
       reason: `Couldn't insert ${asset.name}: the project isn't open.`,
     };
   }
-  const check = await checkPackUpgrade(project, sample, host.client);
+  const check = await checkPackUpgrade(project, sample, host.client, host.heldPacks);
   if (check.kind === "unsafe" && !options.upgradeAnyway) {
     return {
       ok: false,
@@ -94,7 +103,7 @@ export async function dropFromLibrary(
 ): Promise<boolean> {
   const project = host.project();
   if (!project) return false;
-  const check = await checkPackUpgrade(project, sample, host.client);
+  const check = await checkPackUpgrade(project, sample, host.client, host.heldPacks);
   if (check.kind === "unsafe") return false;
   if (host.insert(sample) !== null) return false;
   logUpgrade(host.analytics, check);

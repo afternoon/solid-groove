@@ -19,6 +19,11 @@ import { assetStorageRef } from "./manifest";
  * - **Unsafe** when at least one is not. The upgrade would leave those sounds
  *   in the missing-sound state `resolvePackAvailability` reports — never
  *   deleted, never substituted — so the producer chooses.
+ *
+ * A factory pack's newer version is read from its published manifest. A
+ * personal pack (#282) has none: its owner's browser already holds it, so the
+ * caller hands that in as {@link HeldPackRefs}, and adding a sound to one's
+ * own pack (a minor version) is a safe upgrade like any other.
  */
 
 /** One pack's pin, moving from the version the project holds to a newer one. */
@@ -65,14 +70,28 @@ export function soundsMissingAfterUpgrade(
 }
 
 /**
- * The storage refs one pack version delivers, read from its manifest, or
- * `null` when the index does not list that version or it cannot be loaded.
+ * The storage refs a pack version delivers when the app holds that version
+ * itself rather than reading it from the published library — a personal pack
+ * its owner has loaded — or `null` when it does not.
+ */
+export type HeldPackRefs = (
+  packId: PackId,
+  version: PackVersion,
+) => ReadonlySet<string> | null;
+
+/**
+ * The storage refs one pack version delivers: what `held` has for it, else
+ * read from its manifest. `null` when neither has that version, or the
+ * manifest cannot be loaded.
  */
 export async function deliveredStorageRefs(
   client: LibraryClient,
   packId: PackId,
   version: PackVersion,
+  held?: HeldPackRefs,
 ): Promise<ReadonlySet<string> | null> {
+  const own = held?.(packId, version);
+  if (own) return own;
   const index = await client.loadIndex().catch(() => null);
   const summary = index?.find((pack) => pack.id === packId && pack.version === version);
   if (!summary) return null;
@@ -106,10 +125,11 @@ export async function checkPackUpgrade(
   project: Project,
   sample: { readonly packId: PackId; readonly packVersion: PackVersion },
   client: LibraryClient,
+  held?: HeldPackRefs,
 ): Promise<PackUpgradeCheck> {
   const upgrade = packUpgradeFor(project, sample);
   if (!upgrade) return { kind: "none" };
-  const delivered = await deliveredStorageRefs(client, upgrade.packId, upgrade.to);
+  const delivered = await deliveredStorageRefs(client, upgrade.packId, upgrade.to, held);
   if (!delivered) return { kind: "unsafe", upgrade, missing: null };
   const missing = soundsMissingAfterUpgrade(project, upgrade, delivered);
   return missing === 0 ? { kind: "safe", upgrade } : { kind: "unsafe", upgrade, missing };

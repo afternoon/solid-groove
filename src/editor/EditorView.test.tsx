@@ -3776,6 +3776,53 @@ describe("EditorView personal sounds (#282)", () => {
   const OWNER = "u1";
   const PACK = "pak_fieldfieldfieldfield1" as PackId;
   const SOUND = "ast_tapekicktapekicktape1";
+  const SECOND = "ast_doorslamdoorslamdoor1";
+
+  /** One of the producer's own sounds, as an import stores it. */
+  function personalSound(id: string, name: string): NewUserPackAsset {
+    return {
+      id: id as NewUserPackAsset["id"],
+      name,
+      type: "one-shot",
+      family: "drums",
+      role: "kick",
+      storagePath: packAudioPath(OWNER, PACK, id),
+      contentType: "audio/wav",
+      sizeBytes: 8,
+      durationSeconds: 0.1,
+      sampleRate: 44_100,
+      channelCount: 1,
+      bpm: null,
+      peaks: null,
+      createdAt: 1,
+    };
+  }
+
+  /** Import another sound into the pack: its next minor version. */
+  async function importSecondSound(userLibraryRepository: UserLibraryRepository) {
+    const path = packAudioPath(OWNER, PACK, SECOND);
+    await userLibraryRepository.uploadAudio(
+      path,
+      new Blob([new Uint8Array(8)]),
+      "audio/wav",
+    );
+    const pack = await userLibraryRepository.updatePack(OWNER, PACK, (current) =>
+      addSound(current, personalSound(SECOND, "door slam"), 3),
+    );
+    expect(pack.version).toBe("1.2.0");
+    return pack;
+  }
+
+  /** Wait until the editor's own copy of My packs lists `count` sounds in the pack. */
+  async function myPackHolds(count: number): Promise<void> {
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    const myPacks = await screen.findByRole("region", { name: "My packs" });
+    await vi.waitFor(() =>
+      expect(
+        within(myPacks).getByRole("button", { name: /Field Recordings/ }),
+      ).toHaveTextContent(String(count)),
+    );
+  }
 
   /**
    * The drum-machine fixture with its first pad playing the producer's own
@@ -3792,22 +3839,7 @@ describe("EditorView personal sounds (#282)", () => {
     );
     const pack = addSound(
       newUserPack(PACK, "Field Recordings", 1),
-      {
-        id: SOUND as NewUserPackAsset["id"],
-        name: "tape kick",
-        type: "one-shot",
-        family: "drums",
-        role: "kick",
-        storagePath: path,
-        contentType: "audio/wav",
-        sizeBytes: 8,
-        durationSeconds: 0.1,
-        sampleRate: 44_100,
-        channelCount: 1,
-        bpm: null,
-        peaks: null,
-        createdAt: 1,
-      },
+      personalSound(SOUND, "tape kick"),
       2,
     );
     await userLibraryRepository.createPack(OWNER, pack);
@@ -3842,6 +3874,73 @@ describe("EditorView personal sounds (#282)", () => {
     });
     return { userLibraryRepository, project: seeded.project };
   }
+
+  it("inserts a sound added to the pack since the project pinned it, without asking", async () => {
+    const { userLibraryRepository, project } = await seedPersonalSound();
+    await importSecondSound(userLibraryRepository);
+    await myPackHolds(2);
+
+    // Pad two, which still plays a factory sound.
+    const [drums] = project.song.tracks;
+    if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const second = drums.instrument.pads[1];
+    await goToView("Instrument");
+    clickAndFlush(await screen.findByRole("button", { name: `Audition ${second.name}` }));
+    clickAndFlush(screen.getByRole("button", { name: `Sample for ${second.name}` }));
+    const library = await screen.findByRole("region", { name: "Library" });
+    await insertSound("door slam");
+
+    // Adding a sound to one's own pack is a safe upgrade: nothing to ask.
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument(),
+    );
+    expect(within(library).queryByRole("button", { name: "Upgrade anyway" })).toBeNull();
+    expect(slotSound(`Sample for ${second.name}`)).toBe("door slam");
+  });
+
+  it("loads a dropped sound added to the pack since the project pinned it", async () => {
+    const userLibraryRepository = createInMemoryUserLibraryRepository();
+    const path = packAudioPath(OWNER, PACK, SOUND);
+    await userLibraryRepository.uploadAudio(
+      path,
+      new Blob([new Uint8Array(8)]),
+      "audio/wav",
+    );
+    const first = addSound(
+      newUserPack(PACK, "Field Recordings", 1),
+      personalSound(SOUND, "tape kick"),
+      2,
+    );
+    await userLibraryRepository.createPack(OWNER, first);
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      account: { uid: OWNER, registered: true },
+      userLibraryRepository: async () => userLibraryRepository,
+    });
+    const dropOnSampler = async (pack: typeof first, index: number) => {
+      const sample = toLibrarySample(userPackAssets(pack)[index]);
+      if (!sample) throw new Error("expected an insertable personal sound");
+      await goToView("Instrument");
+      const panel = await screen.findByRole("region", { name: "BD instrument" });
+      fireEvent.drop(panel, { dataTransfer: transferCarrying(sample) });
+    };
+
+    // The first drop pins the project to the pack as it stands, 1.1.0.
+    await myPackHolds(1);
+    await dropOnSampler(first, 0);
+    expect(await within(sampler()).findByText("tape kick")).toBeInTheDocument();
+
+    // A sound imported since is in 1.2.0, and every sound the project already
+    // uses is still there: the drop upgrades the pin rather than doing nothing.
+    const newer = await importSecondSound(userLibraryRepository);
+    await myPackHolds(2);
+    await dropOnSampler(newer, 1);
+    expect(await within(sampler()).findByText("door slam")).toBeInTheDocument();
+  });
 
   it("reports a sound deleted before the project opened as soon as it opens", async () => {
     await seedPersonalSound({ deletedBeforeOpening: true });
