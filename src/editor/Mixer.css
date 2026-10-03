@@ -386,10 +386,14 @@
   list-style: none;
 }
 
+/* Every row is one height, open or not, so the faders below stay on one line
+   across the desk however many sends each track has. */
 .mixer-send {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
+  height: 44px;
   min-width: 0;
 }
 
