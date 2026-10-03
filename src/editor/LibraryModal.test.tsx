@@ -511,6 +511,84 @@ describe("LibraryModal packs", () => {
     );
   });
 
+  const allSounds = () =>
+    within(screen.getByRole("navigation", { name: "Places" })).getByRole("button", {
+      name: /^All sounds/,
+    });
+  const browse = () =>
+    within(screen.getByRole("navigation", { name: "Places" })).getByRole("button", {
+      name: /^Browse packs/,
+    });
+  const closeBanner = async (pack: { name: string }) => {
+    const banner = await screen.findByRole("region", { name: `About ${pack.name}` });
+    clickAndFlush(within(banner).getByRole("button", { name: "Back to all sounds" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: `About ${pack.name}` })).toBeNull(),
+    );
+  };
+  const familyTab = (name: string) =>
+    screen.getByRole("tab", { name: new RegExp(`^${name}`) });
+
+  it("goes to All sounds from a pack opened under Browse packs (#875)", async () => {
+    const { browsePacks } = renderPacks();
+    browsePacks();
+    clickAndFlush(await screen.findByRole("button", { name: `Open ${drums.name}` }));
+
+    await closeBanner(drums);
+
+    expect(allSounds()).toHaveAttribute("aria-current", "true");
+    expect(browse()).not.toHaveAttribute("aria-current");
+    expect(screen.queryByRole("region", { name: "Packs" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Library" })).toBeVisible();
+  });
+
+  it("goes to All sounds from a pack opened in the rail over Browse packs (#875)", async () => {
+    const { browsePacks } = renderPacks([bass.id]);
+    browsePacks();
+    const project = within(screen.getByRole("group", { name: "In this project" }));
+    clickAndFlush(await project.findByRole("button", { name: new RegExp(bass.name) }));
+
+    await closeBanner(bass);
+
+    expect(allSounds()).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("region", { name: "Packs" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Library" })).toBeVisible();
+  });
+
+  it("leaves All sounds' filters and the heard sound as they were (#875)", async () => {
+    renderPacks([drums.id]);
+    await screen.findAllByRole("listitem");
+    // All sounds, narrowed to Bass and a search.
+    clickAndFlush(familyTab("Bass"));
+    const search = screen.getByRole("searchbox", { name: "Search sounds" });
+    fireEvent.input(search, { target: { value: "Sub" } });
+    flush();
+
+    // Open the drums pack, change its filters, and hear one of its sounds.
+    const project = within(screen.getByRole("group", { name: "In this project" }));
+    clickAndFlush(await project.findByRole("button", { name: new RegExp(drums.name) }));
+    await screen.findByRole("region", { name: `About ${drums.name}` });
+    fireEvent.input(search, { target: { value: "" } });
+    flush();
+    clickAndFlush(familyTab("Loops"));
+    const groove = await screen.findByRole("button", {
+      name: "Audition Four Four Club Groove",
+    });
+    clickAndFlush(groove);
+    const hearing = () =>
+      screen.getByText("Hearing", { selector: "legend" }).parentElement as HTMLElement;
+    await waitFor(() => expect(hearing()).toHaveTextContent("Four Four Club Groove"));
+
+    await closeBanner(drums);
+
+    expect(allSounds()).toHaveAttribute("aria-current", "true");
+    expect(familyTab("Bass")).toHaveAttribute("aria-selected", "true");
+    expect(search).toHaveValue("Sub");
+    expect(listed().length).toBeGreaterThan(0);
+    expect(listed().every((name) => /Sub/.test(name ?? ""))).toBe(true);
+    expect(hearing()).toHaveTextContent("Four Four Club Groove");
+  });
+
   it("lists the project's packs in the rail, and opens one", async () => {
     const { actions } = renderPacks([bass.id]);
     const project = within(await screen.findByRole("group", { name: "In this project" }));

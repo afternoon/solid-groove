@@ -272,9 +272,25 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     indexed().filter((pack) => props.addedPackIds.includes(pack.id)),
   );
 
+  // The header search outside any pack, put back when the pack is left (#875).
+  let searchOutsidePack = "";
+
+  /** Scope the sounds view to a pack, keeping every pack's search to come back to. */
+  function openPack(slug: string): void {
+    if (packScope() === null) searchOutsidePack = query();
+    setPackScope(slug);
+  }
+
+  /** Leave an opened pack, with the search it was opened over. */
+  function closePack(): void {
+    if (packScope() === null) return;
+    setPackScope(null);
+    setQuery(searchOutsidePack);
+  }
+
   function showView(next: LibraryView): void {
     setSimilarOf(null);
-    setPackScope(null);
+    closePack();
     setView(next);
   }
 
@@ -294,7 +310,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   /** Back: out of similar sounds, then an opened pack, then the grid of packs. */
   function back(): boolean {
     if (similarOf() !== null) setSimilarOf(null);
-    else if (packScope() !== null) setPackScope(null);
+    else if (packScope() !== null) closePack();
     else if (view() === "packs") setView("all");
     else return false;
     return true;
@@ -544,7 +560,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                   type="button"
                   class="library-modal-rail-item"
                   aria-pressed={ariaBool(packScope() === pack.slug)}
-                  onClick={() => setPackScope(pack.slug)}
+                  onClick={() => openPack(pack.slug)}
                 >
                   <span>{pack.name}</span>
                   <small>{pack.assetCount}</small>
@@ -577,7 +593,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 client={client}
                 slug={slug()}
                 projectPackIds={props.addedPackIds}
-                onClose={() => setPackScope(null)}
+                onClose={() => showView("all")}
               />
             )}
           </Show>
@@ -588,7 +604,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               analytics={props.analytics}
               projectPackIds={props.addedPackIds}
               keyLabel={props.keyLabel}
-              onOpenPack={setPackScope}
+              onOpenPack={openPack}
               onRegisterOpenNth={(open) => {
                 openNthPack = open;
               }}
