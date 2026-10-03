@@ -4,6 +4,7 @@ import {
   formatBytes,
   importContentType,
   MAX_IMPORT_FILE_BYTES,
+  MAX_PACK_SOUNDS,
   packAudioPath,
   type UserDataUsage,
   usageStanding,
@@ -15,7 +16,7 @@ import {
   UserLibraryError,
   type UserLibraryRepository,
 } from "./userLibraryRepository";
-import { addSound, type UserPackAsset } from "./userPacks";
+import { addSound, packHasRoom, type UserPackAsset } from "./userPacks";
 
 /**
  * Bringing one file into a personal pack (#282, LIB-03).
@@ -34,6 +35,7 @@ export type ImportFailure =
   | "unsupported_type"
   | "too_large"
   | "over_allowance"
+  | "pack_full"
   | "undecodable"
   | StorageFailure;
 
@@ -56,6 +58,8 @@ export function importFailureMessage(reason: ImportFailure): string {
       return `Too large to import. Files can be up to ${formatBytes(MAX_IMPORT_FILE_BYTES)}.`;
     case "over_allowance":
       return "Your library is full. Delete sounds you no longer use to make room.";
+    case "pack_full":
+      return `This pack is full: a pack holds up to ${MAX_PACK_SOUNDS} sounds. Start a new pack for more.`;
     case "undecodable":
       return "This file could not be played. It may be damaged.";
     case "cancelled":
@@ -81,6 +85,12 @@ export interface ImportSoundOptions extends UploadOptions {
   readonly clock: Clock;
   /** The account's standing before this file, from the usage document. */
   readonly usage: UserDataUsage;
+  /**
+   * How many sounds the caller knows the pack holds (or is about to), so a
+   * full pack refuses the file before it uploads. The pack write checks again
+   * against what is stored.
+   */
+  readonly soundsInPack?: number;
 }
 
 /** Import one file into one pack. Rejects with an {@link ImportError}. */
@@ -95,6 +105,9 @@ export async function importSound(options: ImportSoundOptions): Promise<UserPack
   }
   if (usageStanding(options.usage, file.size) === "over") {
     throw new ImportError("over_allowance", "Import would exceed the allowance");
+  }
+  if (!packHasRoom(options.soundsInPack ?? 0)) {
+    throw new ImportError("pack_full", "The pack holds as many sounds as it can");
   }
   if (file.size === 0) throw new ImportError("undecodable", "Empty file");
 
@@ -123,8 +136,11 @@ export async function importSound(options: ImportSoundOptions): Promise<UserPack
   try {
     throwIfCancelled(signal);
     const now = options.clock.now();
-    const stored = await repository.updatePack(uid, packId, (pack) =>
-      addSound(
+    const stored = await repository.updatePack(uid, packId, (pack) => {
+      if (!packHasRoom(pack.assets.length)) {
+        throw new ImportError("pack_full", "The pack holds as many sounds as it can");
+      }
+      return addSound(
         pack,
         {
           id: assetId,
@@ -143,8 +159,8 @@ export async function importSound(options: ImportSoundOptions): Promise<UserPack
           createdAt: now,
         },
         now,
-      ),
-    );
+      );
+    });
     const asset = stored.assets.find((candidate) => candidate.id === assetId);
     if (!asset) throw new ImportError("unknown", "The sound was not stored");
     return asset;

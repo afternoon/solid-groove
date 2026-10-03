@@ -13,7 +13,8 @@ import {
   type LibraryPackSummary,
   WAVEFORM_PEAK_COUNT,
 } from "../library/manifest";
-import { parseUserDataPath } from "../userData/userData";
+import { bumpVersion, withoutSound } from "../userData/packVersions";
+import { MAX_PACK_SOUNDS, parseUserDataPath } from "../userData/userData";
 
 /**
  * A producer's own packs (#282; PRD LIB-03, LIB-05 `kind: "user"`).
@@ -30,8 +31,8 @@ import { parseUserDataPath } from "../userData/userData";
  * pinned to an earlier one still resolves every sound it uses, since nothing
  * it used has gone); deleting one is a major version (a project that used it
  * now reports it missing, by name, with its tracks and clips — see
- * {@link userPackHoldings}). Renaming the pack moves nothing: a name is not
- * content.
+ * {@link userPackHoldings}). Renaming the pack or one of its sounds moves
+ * nothing: a name is not content.
  */
 
 export const USER_PACK_SCHEMA_VERSION = 1;
@@ -45,6 +46,9 @@ export const DROP_PACK_NAME = "My Sounds";
 /** A pack name's length limit, matching `firestore.rules`. */
 export const MAX_PACK_NAME_LENGTH = 80;
 
+/** A sound name's length limit. */
+export const MAX_SOUND_NAME_LENGTH = 120;
+
 /** The licence a user's own sound is recorded under: theirs, not ours. */
 export const USER_CONTENT_LICENCE = "user-owned";
 
@@ -53,7 +57,7 @@ const versionSchema = z.string().regex(/^\d+\.\d+\.\d+$/);
 /** One imported sound, as its pack document stores it. */
 export const userPackAssetSchema = z.strictObject({
   id: assetIdSchema,
-  name: z.string().min(1).max(120),
+  name: z.string().min(1).max(MAX_SOUND_NAME_LENGTH),
   type: z.enum(["one-shot", "loop"]),
   family: z.string().min(1),
   role: z.string().min(1),
@@ -84,7 +88,7 @@ export const userPackSchema = z.strictObject({
   kind: z.literal("user"),
   name: z.string().min(1).max(MAX_PACK_NAME_LENGTH),
   version: versionSchema,
-  assets: z.array(userPackAssetSchema),
+  assets: z.array(userPackAssetSchema).max(MAX_PACK_SOUNDS),
   createdAt: z.number().int().min(0),
   modifiedAt: z.number().int().min(0),
 });
@@ -110,10 +114,20 @@ export function newUserPack(id: PackId, name: string, now: number): UserPack {
   };
 }
 
+/** A typed name, trimmed and capped at `limit`, or `null` when nothing is left. */
+function cleanName(raw: string, limit: number): string | null {
+  const name = raw.trim().replace(/\s+/g, " ").slice(0, limit).trim();
+  return name === "" ? null : name;
+}
+
 /** A typed pack name, trimmed and capped, or `null` when nothing is left. */
 export function cleanPackName(raw: string): string | null {
-  const name = raw.trim().replace(/\s+/g, " ").slice(0, MAX_PACK_NAME_LENGTH).trim();
-  return name === "" ? null : name;
+  return cleanName(raw, MAX_PACK_NAME_LENGTH);
+}
+
+/** A typed sound name, trimmed and capped, or `null` when nothing is left. */
+export function cleanSoundName(raw: string): string | null {
+  return cleanName(raw, MAX_SOUND_NAME_LENGTH);
 }
 
 /** The pack with its name changed; the version stays, since no sound changed. */
@@ -123,11 +137,32 @@ export function renamePack(pack: UserPack, name: string, now: number): UserPack 
   return { ...pack, name: cleaned, modifiedAt: now };
 }
 
-type Bump = "major" | "minor";
+/**
+ * The pack with one sound renamed. The version stays: the audio is the same,
+ * and a project that already uses the sound keeps the name it was inserted
+ * under. Unchanged when the sound is not there or the name is empty or the same.
+ */
+export function renameSound(
+  pack: UserPack,
+  assetId: string,
+  name: string,
+  now: number,
+): UserPack {
+  const cleaned = cleanSoundName(name);
+  const current = pack.assets.find((asset) => asset.id === assetId);
+  if (!current || cleaned === null || cleaned === current.name) return pack;
+  return {
+    ...pack,
+    assets: pack.assets.map((asset) =>
+      asset.id === assetId ? { ...asset, name: cleaned } : asset,
+    ),
+    modifiedAt: now,
+  };
+}
 
-function bump(version: string, part: Bump): string {
-  const [major, minor] = version.split(".").map(Number);
-  return part === "major" ? `${major + 1}.0.0` : `${major}.${minor + 1}.0`;
+/** Whether a pack has room for another sound (`MAX_PACK_SOUNDS`, in `firestore.rules` too). */
+export function packHasRoom(soundCount: number): boolean {
+  return soundCount < MAX_PACK_SOUNDS;
 }
 
 /** The asset as it will be stored, before the version it lands in is known. */
@@ -135,7 +170,7 @@ export type NewUserPackAsset = Omit<UserPackAsset, "addedInVersion">;
 
 /** The pack with one more sound, at the next minor version. */
 export function addSound(pack: UserPack, asset: NewUserPackAsset, now: number): UserPack {
-  const version = bump(pack.version, "minor");
+  const version = bumpVersion(pack.version, "minor");
   return {
     ...pack,
     version,
@@ -146,13 +181,7 @@ export function addSound(pack: UserPack, asset: NewUserPackAsset, now: number): 
 
 /** The pack without one sound, at the next major version; unchanged if it was not there. */
 export function removeSound(pack: UserPack, assetId: string, now: number): UserPack {
-  if (!pack.assets.some((asset) => asset.id === assetId)) return pack;
-  return {
-    ...pack,
-    version: bump(pack.version, "major"),
-    assets: pack.assets.filter((asset) => asset.id !== assetId),
-    modifiedAt: now,
-  };
+  return withoutSound(pack, assetId, now);
 }
 
 // ---------------------------------------------------------------------------

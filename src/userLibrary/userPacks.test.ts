@@ -17,6 +17,7 @@ import {
   parseUserPack,
   removeSound,
   renamePack,
+  renameSound,
   type UserPack,
   userPackAssets,
   userPackAvailability,
@@ -93,6 +94,24 @@ describe("a personal pack", () => {
     const renamed = renamePack(pack, "Drums", 3);
     expect(renamed).toMatchObject({ name: "Drums", version: "1.1.0", modifiedAt: 3 });
     expect(renamePack(renamed, "  ", 4)).toBe(renamed);
+  });
+
+  it("keeps its version when one of its sounds is renamed", () => {
+    const pack = addSound(
+      addSound(newUserPack(PACK_ID, "P", 1), sound(KICK), 2),
+      sound(SNARE, "snare"),
+      3,
+    );
+    const renamed = renameSound(pack, KICK, "  Tape   Kick 2 ", 4);
+    expect(renamed).toMatchObject({ version: "1.2.0", modifiedAt: 4 });
+    expect(renamed.assets.map((asset) => asset.name)).toEqual(["Tape Kick 2", "snare"]);
+    expect(renamed.assets[0]).toEqual({ ...pack.assets[0], name: "Tape Kick 2" });
+    expect(renameSound(renamed, KICK, "   ", 5)).toBe(renamed);
+    expect(renameSound(renamed, KICK, "Tape Kick 2", 5)).toBe(renamed);
+    expect(renameSound(renamed, "ast_gonegonegonegonegone1", "x", 5)).toBe(renamed);
+    expect(renameSound(renamed, SNARE, "y".repeat(200), 5).assets[1].name).toHaveLength(
+      120,
+    );
   });
 
   it("rejects a stored document that is not a pack", () => {

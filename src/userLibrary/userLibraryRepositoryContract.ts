@@ -125,6 +125,20 @@ export function describeUserLibraryRepositoryContract(
       ).rejects.toMatchObject({ reason: "not_found" });
     });
 
+    it("writes nothing, and passes the error on, when a change refuses", async () => {
+      const owner = uid();
+      const repository = h.repositoryFor(owner);
+      await repository.createPack(owner, newUserPack(PACK_ID, "Drums", 1));
+      const refusal = new Error("refused");
+      await expect(
+        repository.updatePack(owner, PACK_ID, () => {
+          throw refusal;
+        }),
+      ).rejects.toBe(refusal);
+      const packs = await nextValue(watchPacks(repository, owner), (p) => p.length === 1);
+      expect(packs[0].version).toBe("1.0.0");
+    });
+
     it("deletes a pack", async () => {
       const owner = uid();
       const repository = h.repositoryFor(owner);

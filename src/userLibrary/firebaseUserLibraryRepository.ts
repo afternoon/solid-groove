@@ -102,16 +102,26 @@ export class FirebaseUserLibraryRepository implements UserLibraryRepository {
     change: (pack: UserPack) => UserPack,
   ): Promise<UserPack> {
     const target = doc(this.db, "users", uid, "packs", packId);
+    // What `change` itself refuses with is the caller's own error, not a
+    // storage failure, so it is passed back as thrown.
+    const refusals = new Set<unknown>();
     try {
       return await runTransaction(this.db, async (transaction) => {
         const snapshot = await transaction.get(target);
         const current = snapshot.exists() ? parseUserPack(snapshot.data()) : null;
         if (!current) throw new UserLibraryError("not_found", "No such pack");
-        const next = change(current);
+        let next: UserPack;
+        try {
+          next = change(current);
+        } catch (refusal) {
+          refusals.add(refusal);
+          throw refusal;
+        }
         transaction.set(target, next);
         return next;
       });
     } catch (error) {
+      if (refusals.has(error)) throw error;
       throw toLibraryError(error);
     }
   }

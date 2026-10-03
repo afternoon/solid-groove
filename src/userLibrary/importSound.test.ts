@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createSeededIdFactory, type PackId } from "../domain/ids";
 import { createManualClock } from "../shared/clock";
-import { MAX_IMPORT_FILE_BYTES, USER_DATA_CAP_BYTES } from "../userData/userData";
+import {
+  MAX_IMPORT_FILE_BYTES,
+  MAX_PACK_SOUNDS,
+  USER_DATA_CAP_BYTES,
+} from "../userData/userData";
 import { ImportError, type ImportFailure, importSound } from "./importSound";
 import { createInMemoryUserLibraryRepository } from "./inMemoryUserLibraryRepository";
 import type { AudioDecoder } from "./soundAnalysis";
 import type { UserLibraryRepository } from "./userLibraryRepository";
-import { newUserPack } from "./userPacks";
+import { newUserPack, type UserPackAsset } from "./userPacks";
 
 const UID = "u1";
 const PACK_ID = "pak_importimportimportim1" as PackId;
@@ -103,6 +107,27 @@ describe("importing a sound into a personal pack", () => {
     const repository = await setUp();
     const usage = { usedBytes: USER_DATA_CAP_BYTES - 10, capBytes: USER_DATA_CAP_BYTES };
     expect(await failure(run(repository, wavFile(), { usage }))).toBe("over_allowance");
+    expect(repository.objects.size).toBe(0);
+  });
+
+  it("refuses a full pack before uploading anything", async () => {
+    const repository = await setUp();
+    expect(
+      await failure(run(repository, wavFile(), { soundsInPack: MAX_PACK_SOUNDS })),
+    ).toBe("pack_full");
+    expect(repository.objects.size).toBe(0);
+  });
+
+  it("takes the audio back out when the stored pack filled up meanwhile", async () => {
+    const repository = await setUp();
+    const listed = { name: "x" } as UserPackAsset;
+    await repository.updatePack(UID, PACK_ID, (pack) => ({
+      ...pack,
+      assets: Array.from({ length: MAX_PACK_SOUNDS }, () => listed),
+    }));
+    expect(await failure(run(repository, wavFile(), { soundsInPack: 0 }))).toBe(
+      "pack_full",
+    );
     expect(repository.objects.size).toBe(0);
   });
 

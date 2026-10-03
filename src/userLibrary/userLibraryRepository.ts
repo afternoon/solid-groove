@@ -53,7 +53,8 @@ export interface UserLibraryRepository {
   /**
    * Change one pack atomically: `change` sees the stored pack and returns the
    * next one, and is re-run if another write landed first, so two imports into
-   * the same pack never lose each other's sound.
+   * the same pack never lose each other's sound. An error `change` throws
+   * rejects the update as thrown, and nothing is written.
    */
   updatePack(
     uid: string,
