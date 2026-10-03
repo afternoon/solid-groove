@@ -19,14 +19,6 @@
   touch-action: none;
 }
 
-.step-editor-length {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-small);
-  color: var(--color-text-secondary);
-}
-
 /* Row names and ruler corner in the first column, steps in the second; the
    velocity lane spans both. Everything scrolls sideways together, and the
    names stay put against the left edge. */

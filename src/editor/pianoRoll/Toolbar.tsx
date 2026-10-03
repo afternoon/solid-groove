@@ -2,7 +2,7 @@ import type { JSX } from "@solidjs/web";
 import "./Toolbar.css";
 
 export interface ToolbarProps {
-  /** Anything the editor puts first, as the step grid does its Bars (#643). */
+  /** Anything the editor puts first: both editors put their Bars there (#643, #869). */
   readonly leading?: JSX.Element;
   readonly selectionCount: number;
   onSelectAll(): void;
