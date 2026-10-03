@@ -221,7 +221,7 @@ describe("EditorHeader", () => {
       "Start playback",
       "Enable loop",
       "Playhead",
-      "tempo-input",
+      "Tempo (BPM)",
       "Swing",
       "Enable metronome",
     ]);
@@ -241,7 +241,7 @@ describe("EditorHeader", () => {
     );
     expect(names).toEqual([
       ["Start playback", "Enable loop"],
-      ["tempo-input", "Swing", "Enable metronome"],
+      ["Tempo (BPM)", "Swing", "Enable metronome"],
       ["Undo", "Redo"],
     ]);
   });
@@ -341,6 +341,16 @@ describe("EditorHeader", () => {
     expect(screen.queryByText("4/4", { exact: false })).toBeNull();
     expect(screen.getByText("BPM")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("spinbutton", { name: "Tempo (BPM)" })).toBeInTheDocument();
+  });
+
+  // #866: the tempo box was named only by a visually-hidden `<label for>`, so
+  // an audit reading the name off the element itself found it unlabelled.
+  it("names the tempo box on the element itself (#866)", () => {
+    renderHeader(fakeSession().session, fakeAudio().audio);
+    expect(screen.getByRole("spinbutton", { name: "Tempo (BPM)" })).toHaveAttribute(
+      "aria-label",
+      "Tempo (BPM)",
+    );
   });
 
   it("seeks to a bar and beat typed into the playhead", () => {
