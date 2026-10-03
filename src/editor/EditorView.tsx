@@ -43,6 +43,7 @@ import {
   replaceLoopCommands,
 } from "../library/insertion";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
+import type { LibraryAsset } from "../library/manifest";
 import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -55,6 +56,8 @@ import {
 } from "../selection";
 import { timeoutScheduler } from "../shared/scheduler";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import type { UserLibraryRepository } from "../userLibrary/userLibraryRepository";
+import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
 import AssistantPanel from "./assistant/AssistantPanel";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
 import CompatibilityNotice from "./CompatibilityNotice";
@@ -156,6 +159,13 @@ export interface EditorViewProps {
    * not under the editor and so cannot `useEditorControls()` — and for tests.
    */
   onControlsReady?(controls: EditorControls): void;
+  /**
+   * Who is signed in, for the personal library (#282). A guest, or no one,
+   * sees My packs but is offered an account when they try to use it.
+   */
+  readonly libraryAccount?: UserLibraryAccount | null;
+  /** Injected in tests; Firestore and Cloud Storage (or memory) otherwise. */
+  readonly userLibraryRepository?: () => Promise<UserLibraryRepository>;
 }
 
 /** What the arrangement and the instrument view both show for an empty song. */
@@ -341,6 +351,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // The one shared library client, so the Library view and the
   // pack-upgrade check (#892) share its cached index and manifests.
   const libraryClient = props.libraryClient ?? sharedLibraryClient();
+  // The producer's own packs (#282). Held by the editor, not the library
+  // view, so an import keeps going after you leave the Library view.
+  const userLibrary = useUserLibrary({
+    account: () => props.libraryAccount ?? null,
+    analytics: props.analytics,
+    repository: props.userLibraryRepository,
+  });
+  /** Whether the open project uses a sound: its stored audio is one of the song's. */
+  const projectUses = (asset: LibraryAsset): boolean =>
+    asset.storageRef !== undefined &&
+    (project()?.song.assets.some((used) => used.storageRef === asset.storageRef) ??
+      false);
 
   const createAuditionEngine =
     props.createAuditionEngine ??
@@ -1206,6 +1228,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                 onInsertAndReturn={() =>
                                   returnFromInsert("library_insert")
                                 }
+                                userLibrary={userLibrary}
+                                isInUse={projectUses}
                               />
                             )}
                           </Show>

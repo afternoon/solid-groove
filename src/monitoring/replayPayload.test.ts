@@ -435,6 +435,12 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // The assistant panel's mode (#849): floating, minimised, docked or
       // closed, an enum of our own.
       "props.panel.layout().mode",
+      // My packs (#282): a drop target's state ("none", "accepted",
+      // "refused") and an import row's ("uploading", "failed", "cancelled").
+      // Enums of our own; the file's and the pack's names are masked text.
+      "drop.state()",
+      "emptySpace.state()",
+      "props.row.state",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

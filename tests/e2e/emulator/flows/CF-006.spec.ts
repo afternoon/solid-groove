@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import { seedRegisteredSession } from "../support/authSession";
+import { library, sampleSlot } from "../support/libraryModal";
 
 /**
  * `CF-006` — a producer brings their own sounds into a pack.
@@ -10,20 +11,27 @@ import { seedRegisteredSession } from "../support/authSession";
  * is frozen once it lands: a later PR that changes an assertion here has to say
  * so in its body and justify it.
  *
- * `test.fixme` because personal packs do not exist at all yet — #282 is the PR
- * that removes this marker. What is missing today:
+ * **Made to pass by #282**, which built personal packs: **My packs** in the
+ * library's rail, "Add pack", importing by drop into Cloud Storage under the
+ * owning user, and the Storage emulator in this suite.
  *
- *  - **User packs.** Every pack in `src/library` is factory content fetched
- *    from the delivered manifests (`libraryClient.ts`); there is no "Add pack",
- *    no `kind: "user"` pack, and nothing that writes one.
- *  - **Importing by drop.** `assetDrag.ts` carries a *library* sound out of the
- *    browser; nothing accepts operating-system files coming the other way, and
- *    nothing uploads audio to Cloud Storage under the owning user.
- *  - **The storage emulator.** This suite is started by
- *    `firebase emulators:exec --only firestore,auth` (`package.json`), so the
- *    uploads step 5 makes have nothing to talk to. #282 adds `storage` to that
- *    list — `firebase.json` already configures the emulator on port 9199 —
- *    along with the `storage.rules` the import writes under.
+ * #282 changed how the flow *reaches* the library, not what it asserts. This
+ * spec was written for the library as a region on screen beside the project
+ * (#817's Library view, not yet landed); today the library is the modal a
+ * slot opens (#304). So:
+ *
+ *  - `library` is that modal, read through `../support/libraryModal`, the way
+ *    the live library tests read it; its rail is where My packs lives;
+ *  - step 2 opens it from the starter drum machine's BD pad, and keeps the
+ *    address of that view, so step 7's reload comes back to the same page;
+ *  - step 7 opens the library again after the reload, since a modal does not
+ *    survive one;
+ *  - {@link soundFrom} matches a sound's whole name rather than any name
+ *    containing the file's: the factory library has a "Dusty Tape Kick", and
+ *    a search for "tape" lists both it and the producer's "tape kick".
+ *
+ * When #817 lands, the library is a view again and these return to
+ * `../support/library`.
  *
  * Runs against the emulator rather than the mock backend for two reasons at
  * once: the account in its precondition is a real one, and step 7 is a real
@@ -51,9 +59,6 @@ const PACK_NAME = "Field Recordings";
 /** The three files dropped in step 5, named as they would be on a desktop. */
 const FILE_NAMES = ["room-tone.wav", "tape-kick.wav", "door-slam.wav"] as const;
 
-/** The library panel (`LibraryBrowser`'s `<section aria-label="Library">`). */
-const library = (page: Page): Locator => page.getByRole("region", { name: "Library" });
-
 /** The tree node for the producer's own pack, with everything inside it. */
 const personalPack = (page: Page): Locator =>
   library(page)
@@ -69,9 +74,26 @@ const sounds = (within: Locator): Locator =>
 const soundFrom = (within: Locator, fileName: string): Locator => {
   const stem = fileName.replace(/\.[^.]+$/, "");
   return within.getByRole("button", {
-    name: new RegExp(`^Audition .*${stem.replace(/-/g, "[ -]?")}`, "i"),
+    name: new RegExp(`^Audition ${stem.replace(/-/g, "[ -]?")}$`, "i"),
   });
 };
+
+/**
+ * Open the library from the starter drum machine's BD pad: the instrument
+ * view, the pad, then its sample slot.
+ */
+async function openLibrary(page: Page): Promise<void> {
+  const drumMachine = page.getByRole("region", { name: "Drum machine: BD" });
+  if (!(await drumMachine.isVisible())) {
+    await page
+      .getByRole("navigation", { name: "Views" })
+      .getByRole("link", { name: "Instrument" })
+      .click();
+  }
+  await drumMachine.getByRole("button", { name: "Audition BD", exact: true }).click();
+  await sampleSlot(page).click();
+  await expect(library(page)).toBeVisible();
+}
 
 /** What a guest is told, and a signed-in account is not (`UpgradeAccountPrompt`). */
 const GUEST_NOTICE = /You're working as a guest/;
@@ -129,118 +151,118 @@ async function dropAudioFiles(
 }
 
 test.describe("CF-006", () => {
-  // `test.fixme` until #282 (LIB-09) lands: that PR removes this marker in the
-  // same diff that makes the flow pass.
-  test.fixme(
-    "a producer brings their own sounds into a pack",
-    async ({ page, browserName }) => {
-      // Three uploads against a local emulator: more than the default per-test
-      // timeout allows for.
-      test.setTimeout(120_000);
+  test("a producer brings their own sounds into a pack", async ({
+    page,
+    browserName,
+  }) => {
+    // Three uploads against a local emulator: more than the default per-test
+    // timeout allows for.
+    test.setTimeout(120_000);
 
-      // Precondition: signed in to a registered account whose personal library
-      // is empty. A fresh account per run and per browser — the two gating
-      // browsers share one emulator, and an account reused across runs would
-      // arrive with the last run's pack already in it.
-      await seedRegisteredSession(page, { label: `cf-006-${browserName}` });
+    // Precondition: signed in to a registered account whose personal library
+    // is empty. A fresh account per run and per browser — the two gating
+    // browsers share one emulator, and an account reused across runs would
+    // arrive with the last run's pack already in it.
+    await seedRegisteredSession(page, { label: `cf-006-${browserName}` });
 
-      const step = walkthrough(page, {
-        id: "CF-006",
-        title: "A producer brings their own sounds into a pack",
+    const step = walkthrough(page, {
+      id: "CF-006",
+      title: "A producer brings their own sounds into a pack",
+    });
+
+    // 1. You arrive on the dashboard signed in to your own account, not
+    //    working as a guest.
+    await page.goto("/projects");
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+    await expect(page.getByText(GUEST_NOTICE)).toHaveCount(0);
+    await step("You arrive on the dashboard, signed in to your own account");
+
+    // 2. Open a project, so the library browser is on screen.
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await openLibrary(page);
+    const projectUrl = page.url();
+    await step("Open a project — the library browser is on screen");
+
+    // 3. Choose "Add pack". A new pack appears in the browser with its name
+    //    in an input, waiting to be typed.
+    await library(page).getByRole("button", { name: "Add pack" }).click();
+    const nameInput = library(page).getByRole("textbox", { name: "Pack name" });
+    await expect(nameInput).toBeFocused();
+    await step("Choose Add pack — the new pack's name is waiting to be typed");
+
+    // 4. Type a name for the pack and press Return. The pack is now listed,
+    //    and empty.
+    await nameInput.fill(PACK_NAME);
+    await nameInput.press("Enter");
+    await expect(nameInput).toBeHidden();
+    await expect(personalPack(page)).toBeVisible();
+    // Opening the pack is what shows what is in it; a pack the producer just
+    // made has nothing.
+    await personalPack(page)
+      .getByRole("button", { name: new RegExp(PACK_NAME) })
+      .click();
+    await expect(sounds(personalPack(page))).toHaveCount(0);
+    await step("Name the pack — it is listed, and empty");
+
+    // 5. Drag three audio files from the desktop onto that pack. Each shows
+    //    its own progress, and each lands as a sound in the pack when it
+    //    finishes.
+    //
+    // "Each shows its own progress" is asserted as one row per dropped file,
+    // each of which becomes an auditionable sound of its own. A test cannot
+    // reliably catch a progress bar mid-flight against a local emulator — it
+    // may already have finished — but it can prove the import is per file
+    // rather than one opaque batch, which is what the step is about. The
+    // progress indicator itself is asserted at the component layer.
+    await dropAudioFiles(page, personalPack(page), FILE_NAMES);
+    for (const fileName of FILE_NAMES) {
+      await expect(soundFrom(personalPack(page), fileName)).toBeVisible({
+        timeout: 30_000,
       });
+    }
+    await expect(sounds(personalPack(page))).toHaveCount(FILE_NAMES.length);
+    await step("Drop three files on the pack — each lands as a sound");
 
-      // 1. You arrive on the dashboard signed in to your own account, not
-      //    working as a guest.
-      await page.goto("/projects");
-      await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-      await expect(page.getByText(GUEST_NOTICE)).toHaveCount(0);
-      await step("You arrive on the dashboard, signed in to your own account");
+    // 6. Audition one of them from the browser, and find it by searching the
+    //    library the same way you would find a factory sound.
+    //
+    // Auditioning is asserted in Chromium only: in Firefox here a fresh
+    // `AudioContext` constructs but `resume()` never settles, so no preview
+    // can start. The same known, tracked gap CF-001 and
+    // `tests/e2e/emulator/slice.spec.ts` carry — see docs/testing.md,
+    // "Playback is asserted in Chromium only", and issue #43. The search
+    // half of this step runs in both gating browsers.
+    const canAssertAudition = browserName === "chromium";
+    test.info().annotations.push({
+      type: canAssertAudition ? "playback-asserted" : "playback-skipped",
+      description: canAssertAudition
+        ? `audition asserted in ${browserName}`
+        : `audition not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
+    });
+    if (canAssertAudition) {
+      const audition = soundFrom(personalPack(page), FILE_NAMES[0]);
+      await audition.click();
+      await expect(audition).toHaveAttribute("aria-pressed", "true");
+      await step("Audition one of the imported sounds");
+    }
 
-      // 2. Open a project, so the library browser is on screen.
-      await page.getByRole("button", { name: "New Project" }).click();
-      await expect(page).toHaveURL(/\/projects\/prj_/);
-      const projectUrl = page.url();
-      await expect(library(page)).toBeVisible();
-      await step("Open a project — the library browser is on screen");
+    // The same search box a producer finds a factory sound with.
+    const stem = FILE_NAMES[1].replace(/\.[^.]+$/, "").split("-")[0];
+    await library(page).getByRole("searchbox", { name: "Search sounds" }).fill(stem);
+    await expect(soundFrom(library(page), FILE_NAMES[1])).toBeVisible();
+    await step("Find it by searching the library");
 
-      // 3. Choose "Add pack". A new pack appears in the browser with its name
-      //    in an input, waiting to be typed.
-      await library(page).getByRole("button", { name: "Add pack" }).click();
-      const nameInput = library(page).getByRole("textbox", { name: "Pack name" });
-      await expect(nameInput).toBeFocused();
-      await step("Choose Add pack — the new pack's name is waiting to be typed");
-
-      // 4. Type a name for the pack and press Return. The pack is now listed,
-      //    and empty.
-      await nameInput.fill(PACK_NAME);
-      await nameInput.press("Enter");
-      await expect(nameInput).toBeHidden();
-      await expect(personalPack(page)).toBeVisible();
-      // Opening the pack is what shows what is in it; a pack the producer just
-      // made has nothing.
-      await personalPack(page)
-        .getByRole("button", { name: new RegExp(PACK_NAME) })
-        .click();
-      await expect(sounds(personalPack(page))).toHaveCount(0);
-      await step("Name the pack — it is listed, and empty");
-
-      // 5. Drag three audio files from the desktop onto that pack. Each shows
-      //    its own progress, and each lands as a sound in the pack when it
-      //    finishes.
-      //
-      // "Each shows its own progress" is asserted as one row per dropped file,
-      // each of which becomes an auditionable sound of its own. A test cannot
-      // reliably catch a progress bar mid-flight against a local emulator — it
-      // may already have finished — but it can prove the import is per file
-      // rather than one opaque batch, which is what the step is about. The
-      // progress indicator itself is asserted at the component layer.
-      await dropAudioFiles(page, personalPack(page), FILE_NAMES);
-      for (const fileName of FILE_NAMES) {
-        await expect(soundFrom(personalPack(page), fileName)).toBeVisible({
-          timeout: 30_000,
-        });
-      }
-      await expect(sounds(personalPack(page))).toHaveCount(FILE_NAMES.length);
-      await step("Drop three files on the pack — each lands as a sound");
-
-      // 6. Audition one of them from the browser, and find it by searching the
-      //    library the same way you would find a factory sound.
-      //
-      // Auditioning is asserted in Chromium only: in Firefox here a fresh
-      // `AudioContext` constructs but `resume()` never settles, so no preview
-      // can start. The same known, tracked gap CF-001 and
-      // `tests/e2e/emulator/slice.spec.ts` carry — see docs/testing.md,
-      // "Playback is asserted in Chromium only", and issue #43. The search
-      // half of this step runs in both gating browsers.
-      const canAssertAudition = browserName === "chromium";
-      test.info().annotations.push({
-        type: canAssertAudition ? "playback-asserted" : "playback-skipped",
-        description: canAssertAudition
-          ? `audition asserted in ${browserName}`
-          : `audition not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
-      });
-      if (canAssertAudition) {
-        const audition = soundFrom(personalPack(page), FILE_NAMES[0]);
-        await audition.click();
-        await expect(audition).toHaveAttribute("aria-pressed", "true");
-        await step("Audition one of the imported sounds");
-      }
-
-      // The same search box a producer finds a factory sound with.
-      const stem = FILE_NAMES[1].replace(/\.[^.]+$/, "").split("-")[0];
-      await library(page).getByRole("searchbox", { name: "Search sounds" }).fill(stem);
-      await expect(soundFrom(library(page), FILE_NAMES[1])).toBeVisible();
-      await step("Find it by searching the library");
-
-      // 7. Reload the page. The pack and all three sounds are still there.
-      await page.reload();
-      await expect(page).toHaveURL(projectUrl);
-      await expect(personalPack(page)).toBeVisible();
-      await personalPack(page)
-        .getByRole("button", { name: new RegExp(PACK_NAME) })
-        .click();
-      await expect(sounds(personalPack(page))).toHaveCount(FILE_NAMES.length);
-      await step("Reload — the pack and all three sounds are still there");
-    },
-  );
+    // 7. Reload the page. The pack and all three sounds are still there.
+    await page.reload();
+    await expect(page).toHaveURL(projectUrl);
+    await openLibrary(page);
+    await expect(personalPack(page)).toBeVisible();
+    await personalPack(page)
+      .getByRole("button", { name: new RegExp(PACK_NAME) })
+      .click();
+    await expect(sounds(personalPack(page))).toHaveCount(FILE_NAMES.length);
+    await step("Reload — the pack and all three sounds are still there");
+  });
 });

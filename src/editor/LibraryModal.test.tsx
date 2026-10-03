@@ -8,6 +8,7 @@ import {
 } from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PackId } from "../domain/ids";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import {
   FIXTURE_PACK_INDEX_DOC,
@@ -17,6 +18,9 @@ import {
 import { LibraryClient } from "../library/libraryClient";
 import { packAssets, parsePackManifest } from "../library/manifest";
 import { clickAndFlush } from "../testing/events";
+import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
+import { addSound, newUserPack, type UserPackAsset } from "../userLibrary/userPacks";
+import { useUserLibrary } from "../userLibrary/useUserLibrary";
 import LibraryModal, {
   type LibraryActions,
   type LibraryModalProps,
@@ -751,5 +755,97 @@ describe("LibraryModal refused inserts (#892)", () => {
       ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Upgrade anyway" })).toBeVisible();
+  });
+});
+
+describe("LibraryModal with the producer's own packs (#282)", () => {
+  async function renderWithPack() {
+    const repository = createInMemoryUserLibraryRepository();
+    let pack = newUserPack("pak_mypacksmypacksmypack1" as PackId, "Field Recordings", 1);
+    pack = addSound(
+      pack,
+      {
+        id: "ast_tapekicktapekicktape1" as UserPackAsset["id"],
+        name: "tape kick",
+        type: "one-shot",
+        family: "drums",
+        role: "kick",
+        storagePath: "users/u1/packs/pak_mypacksmypacksmypack1/ast_tapekicktapekicktape1",
+        url: "blob:tape-kick",
+        contentType: "audio/wav",
+        sizeBytes: 64,
+        durationSeconds: 0.1,
+        sampleRate: 44_100,
+        channelCount: 1,
+        bpm: null,
+        peaks: null,
+        createdAt: 1,
+      },
+      2,
+    );
+    await repository.createPack("u1", pack);
+    const engine = fakePreviewEngine();
+    function Harness() {
+      const userLibrary = useUserLibrary({
+        account: () => ({ uid: "u1", registered: true }),
+        repository: async () => repository,
+      });
+      return (
+        <LibraryModal
+          client={new LibraryClient(fixtureFetcher())}
+          previewEngine={engine}
+          onInsert={() => undefined}
+          addedPackIds={[]}
+          onClose={() => {}}
+          userLibrary={userLibrary}
+        />
+      );
+    }
+    render(() => <Harness />);
+    return { engine };
+  }
+
+  it("lists My packs in the rail, and opening one shows its sounds", async () => {
+    await renderWithPack();
+    const rail = screen.getByRole("navigation", { name: "Places" });
+    const myPacks = within(rail).getByRole("region", { name: "My packs" });
+    clickAndFlush(
+      await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
+    );
+    expect(
+      within(myPacks).getByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+  });
+
+  it("finds a personal sound by searching, alongside the factory sounds", async () => {
+    await renderWithPack();
+    const myPacks = screen.getByRole("region", { name: "My packs" });
+    clickAndFlush(
+      await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
+    );
+    fireEvent.input(screen.getByRole("searchbox", { name: "Search sounds" }), {
+      target: { value: "tape" },
+    });
+    const sounds = await screen.findByRole("list", { name: "Sounds" });
+    expect(
+      await within(sounds).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+    // The results are the list: an open pack in the rail stops repeating them.
+    expect(within(myPacks).queryByRole("button", { name: /^Audition / })).toBeNull();
+  });
+
+  it("hears a personal sound from the rail through the library's one audition", async () => {
+    const { engine } = await renderWithPack();
+    const myPacks = screen.getByRole("region", { name: "My packs" });
+    clickAndFlush(
+      await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
+    );
+    clickAndFlush(within(myPacks).getByRole("button", { name: "Audition tape kick" }));
+    await waitFor(() =>
+      expect(engine.starts.map((start) => start.asset.name)).toContain("tape kick"),
+    );
+    expect(
+      within(myPacks).getByRole("button", { name: "Audition tape kick" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });

@@ -336,6 +336,8 @@ export const FEATURE_KEYS = [
   "library_favourites",
   // Adding a drum pad from the Sequence view's [+ Pad] row (#947).
   "sequence_add_pad",
+  // A producer's own packs and the sounds they import into them (#282).
+  "user_packs",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -802,6 +804,35 @@ export const ANALYTICS_EVENTS = {
     // One heart press or `L`: added or removed. The sound is deliberately not
     // named, and neither is its pack: what a producer keeps is theirs.
     params: { favourited: boolParam() },
+  },
+
+  user_pack_created: {
+    phase: 1,
+    owners: ["#282"],
+    // A producer made a pack of their own: with "Add pack", or by dropping
+    // files on empty space, which makes "My Sounds". The pack is never named.
+    params: { method: enumParam(["button", "drop"]) },
+  },
+
+  sound_imported: {
+    phase: 1,
+    owners: ["#282"],
+    // One file landed in a personal pack. What sort of sound it became and how
+    // it came in; never its filename, its name, its pack, or where it is stored.
+    params: {
+      asset_type: enumParam(["one_shot", "loop"]),
+      method: enumParam(["drop", "picker"]),
+    },
+  },
+
+  sound_import_failed: {
+    phase: 1,
+    owners: ["#282"],
+    // An import that did not land, by a stable code: the file's type or size,
+    // the account's allowance, a file that would not decode, or a refused or
+    // dropped upload. A cancelled import is the producer's choice, not a
+    // failure, and is not reported.
+    params: { error_code: enumParam(ERROR_CODES) },
   },
 
   clip_edited: {

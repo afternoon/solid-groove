@@ -4,6 +4,7 @@ import type { Analytics } from "../analytics/analytics";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
+import MyPacks from "../library/MyPacks";
 import type {
   LibraryAsset,
   LibraryAssetType,
@@ -18,6 +19,7 @@ import type { SoundsKeyAction } from "../library/soundKeys";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
+import type { UserLibrary } from "../userLibrary/useUserLibrary";
 import LibraryHint, { type LibraryPlace } from "./LibraryHint";
 import LibraryKeys from "./LibraryKeys";
 import { ClearIcon, DiceIcon, GridIcon, SearchIcon } from "./libraryIcons";
@@ -126,6 +128,13 @@ export interface LibraryModalProps {
   onActions?(actions: LibraryActions | null): void;
   /** After the Insert button's insert commits: go back, as Enter does. */
   onInsertAndReturn?(): void;
+  /**
+   * The producer's own packs (#282), shown as **My packs** in the rail and
+   * listed with every other sound. Unset leaves the rail without them.
+   */
+  readonly userLibrary?: UserLibrary;
+  /** Whether the open project uses a sound, so deleting one warns first. */
+  isInUse?(asset: LibraryAsset): boolean;
 }
 
 /** How long a committed insert stays marked on the slot's readout. */
@@ -337,6 +346,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
   let similarKeys: ((action: SoundsKeyAction) => void) | null = null;
   let closeSoundsMenu: (() => boolean) | null = null;
+  // The sounds view's audition, which a personal sound in the rail plays through.
+  let auditionSound: ((asset: LibraryAsset) => void) | null = null;
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
   // than once, so a ref can end up naming a copy that never mounted.
@@ -607,6 +618,17 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
         <nav class="library-modal-rail" aria-label="Places">
           <RailButton item={BROWSE} browse />
           <For each={PLACES}>{(item) => <RailButton item={item} />}</For>
+          <Show when={props.userLibrary}>
+            {(userLibrary) => (
+              <MyPacks
+                library={userLibrary()}
+                selectedId={selected()?.id ?? null}
+                searching={query().trim() !== ""}
+                onAudition={(asset) => auditionSound?.(asset)}
+                isInUse={props.isInUse}
+              />
+            )}
+          </Show>
           <fieldset class="library-modal-rail-group">
             <legend class="library-modal-label library-modal-rule">
               In this project
@@ -692,6 +714,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               }}
               onCloseMenu={(close) => {
                 closeSoundsMenu = close;
+              }}
+              extraAssets={props.userLibrary?.assets()}
+              extraPacks={props.userLibrary?.summaries()}
+              onAuditioner={(handler) => {
+                auditionSound = handler;
               }}
             />
           </div>
