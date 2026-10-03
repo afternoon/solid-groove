@@ -349,11 +349,21 @@ const line = (i) => [`- #${i.number}`, ...(i.prs ?? []).map((n) => `  #${n}`)].j
 
 const BACKLOG_PER_MILESTONE = 10;
 
-/** The backlog, one sub-heading per milestone in milestone order, then the rest. */
+/** The catch-all milestone: listed after every numbered milestone, whatever its number. */
+const BACKLOG_MILESTONE = "Backlog";
+
+/** Where a milestone's group sorts: by number, then Backlog, then no milestone. */
+function milestoneOrder(milestone) {
+  if (!milestone) return Number.POSITIVE_INFINITY;
+  if (milestone.title === BACKLOG_MILESTONE) return Number.MAX_SAFE_INTEGER;
+  return milestone.number;
+}
+
+/** The backlog, one sub-heading per milestone in milestone order, then Backlog, then the rest. */
 function backlogLines(cards) {
   const groups = new Map();
   for (const card of cards) {
-    const key = card.milestone ? card.milestone.number : Number.POSITIVE_INFINITY;
+    const key = milestoneOrder(card.milestone);
     if (!groups.has(key)) groups.set(key, { milestone: card.milestone, cards: [] });
     groups.get(key).cards.push(card);
   }

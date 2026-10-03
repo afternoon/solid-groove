@@ -4,7 +4,7 @@ name: Milestone
 # is in (a library bug on the milestone the library is built in, an export bug
 # on the export milestone, sign-in or accessibility on hardening), which takes
 # judgement, so a short Claude run picks it. Anything else (a feature or an
-# enhancement) goes on Post-Alpha. An issue that already has a milestone, or is
+# enhancement) goes on Backlog, to be scheduled by hand. An issue that already has a milestone, or is
 # the Board, is left alone.
 on:
   issues:
@@ -43,7 +43,7 @@ jobs:
             echo "bug=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Put a feature on Post-Alpha
+      - name: Put a feature on Backlog
         if: steps.kind.outputs.bug == 'false'
         run: |
           # The event's milestone is a snapshot: another run may have set one since.
@@ -51,7 +51,8 @@ jobs:
             echo "Already has a milestone."; exit 0
           fi
           m=$(gh api "repos/$GITHUB_REPOSITORY/milestones?state=open&per_page=100" \
-            --jq '[.[] | select(.title == "Post-Alpha")][0].number')
+            --jq '[.[] | select(.title == "Backlog")][0].number // empty')
+          if [ -z "$m" ]; then echo "::error::No open milestone named Backlog."; exit 1; fi
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$ISSUE" -F milestone="$m" --jq '"#\(.number) -> \(.milestone.title)"'
 
       - uses: actions/checkout@v4
@@ -69,7 +70,7 @@ jobs:
 
             1. Read the issue: `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}`. If it now has a milestone, stop.
             2. List the open milestones (`gh api "repos/${{ github.repository }}/milestones?state=open"`) and, for each, the titles of its issues, open and closed (`gh api "repos/${{ github.repository }}/issues?milestone=<number>&state=all&per_page=100" --jq '.[].title'`), to see which area each one covers.
-            3. Pick the milestone whose area the bug is in: the one where the feature it breaks was built or is being built. Sign-in, accounts, onboarding, accessibility, cross-browser, security, performance and reliability bugs belong to the hardening milestone unless they are plainly part of another milestone's feature. Never put a bug on Post-Alpha unless the feature it breaks is itself a Post-Alpha feature. If nothing fits, use the hardening milestone.
+            3. Pick the milestone whose area the bug is in: the one where the feature it breaks was built or is being built. Sign-in, accounts, onboarding, accessibility, cross-browser, security, performance and reliability bugs belong to the hardening milestone unless they are plainly part of another milestone's feature. Never put a bug on Backlog unless the feature it breaks is itself on Backlog; a bug in a feature planned for a later milestone goes on that milestone. If nothing fits, use the hardening milestone.
             4. Set it: `gh api -X PATCH repos/${{ github.repository }}/issues/${{ github.event.issue.number }} -F milestone=<number>`.
           claude_args: |
             --model sonnet
