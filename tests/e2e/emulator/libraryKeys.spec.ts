@@ -16,9 +16,10 @@ import { expectView } from "./support/views";
 // Asserted in a real browser, because only a real one turns a key into a click
 // on whatever is focused.
 //
-// Since #817 the library is the view on `4`, and Enter inserts and stays there
-// so another sound can be tried: the insert shows as the sound in the slot,
-// and the library is still the view you are on.
+// Since #817 the library is the view on `4`. Enter inserts and goes back to
+// the instrument; Shift+Enter inserts and stays so another sound can be tried:
+// the insert shows as the sound in the slot, and the library is still the view
+// you are on.
 
 /** Select the second sound in the list with the keyboard, as a producer would. */
 async function selectSecondSound(page: Page): Promise<string> {
@@ -39,17 +40,24 @@ async function expectInsertedAndStayed(page: Page, name: string): Promise<void> 
 }
 
 test.describe("library keys", () => {
-  test("Enter inserts the selected sound and the library stays", async ({ page }) => {
+  test("Enter inserts the selected sound and goes back, once", async ({ page }) => {
     await newProjectOnInstrumentView(page);
     await openPadSlot(page, "BD");
     const name = await selectSecondSound(page);
 
     await page.keyboard.press("Enter");
 
-    await expectInsertedAndStayed(page, name);
+    // Back on the instrument with the sound in the slot, and the slot focus
+    // lands on does not take the same Enter and open the library again (#860).
+    await expectView(page, "Instrument");
+    await page.waitForTimeout(300);
+    await expect(library(page)).toHaveCount(0);
+    await expect.poll(() => slotSound(page, "BD")).toBe(name);
   });
 
-  test("Enter on a clicked row inserts it and the library stays", async ({ page }) => {
+  test("Shift+Enter on a clicked row inserts it and the library stays", async ({
+    page,
+  }) => {
     await newProjectOnInstrumentView(page);
     await openPadSlot(page, "BD");
     const row = soundList(page)
@@ -58,7 +66,7 @@ test.describe("library keys", () => {
     const name = ((await row.getAttribute("aria-label")) ?? "").replace(/^Audition /, "");
     await row.click();
 
-    await page.keyboard.press("Enter");
+    await page.keyboard.press("Shift+Enter");
 
     await expectInsertedAndStayed(page, name);
   });

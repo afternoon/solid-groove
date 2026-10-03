@@ -122,16 +122,53 @@ export function toLibrarySample(asset: LibraryAsset): LibrarySample | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * The sound as this project resolves it: at the version of its pack the
+ * project already pins, when that is not the version the library served.
+ *
+ * A project resolves one version per pack (invariant 12), so a sound from a
+ * pack's newer version would otherwise make every insert into a project made
+ * before that version a rejected transaction. Pinning the sound at the
+ * project's version is what LIB-10 already allows: a pack version is
+ * immutable content, its audio is addressed by hash rather than by version,
+ * and availability is judged per asset across every version held, so the
+ * project keeps the version it recorded and the sound still resolves.
+ */
+export function pinnedToProject(project: Project, sample: LibrarySample): LibrarySample {
+  const pinned = project.metadata.packDependencies.find(
+    (dependency) => dependency.packId === sample.packId,
+  );
+  return pinned && pinned.version !== sample.packVersion
+    ? { ...sample, packVersion: pinned.version }
+    : sample;
+}
+
 /** The project's own reference to this delivery of this sound, if it has one. */
 export function carriedAsset(project: Project, sample: LibrarySample): Asset | null {
+  const { packId, packVersion, storageRef } = pinnedToProject(project, sample);
   return (
     project.song.assets.find(
       (asset) =>
-        asset.packId === sample.packId &&
-        asset.packVersion === sample.packVersion &&
-        asset.storageRef === sample.storageRef,
+        asset.packId === packId &&
+        asset.packVersion === packVersion &&
+        asset.storageRef === storageRef,
     ) ?? null
   );
+}
+
+/** The project's asset for a sound: the one it carries, or a new one to add. */
+function carry(
+  project: Project,
+  sample: LibrarySample,
+  context: DomainFactoryContext,
+): { readonly asset: Asset; readonly added: boolean } {
+  const existing = carriedAsset(project, sample);
+  return existing
+    ? { asset: existing, added: false }
+    : {
+        asset: createLibraryAsset(context, pinnedToProject(project, sample)),
+        added: true,
+      };
 }
 
 /** A fresh project-scoped reference to a library sound. */
@@ -214,10 +251,8 @@ function carryThen(
   context: DomainFactoryContext,
   point: (assetId: AssetId) => RawCommandInput,
 ): readonly RawCommandInput[] {
-  const existing = carriedAsset(project, sample);
-  if (existing) return [point(existing.id)];
-  const asset = createLibraryAsset(context, sample);
-  return [addAsset(asset), point(asset.id)];
+  const { asset, added } = carry(project, sample, context);
+  return added ? [addAsset(asset), point(asset.id)] : [point(asset.id)];
 }
 
 /** What a loop insertion needs to know about the project it is landing in. */
@@ -282,8 +317,7 @@ export function insertLoopCommands(
   context: DomainFactoryContext,
   options: InsertLoopOptions,
 ): readonly RawCommandInput[] {
-  const existing = carriedAsset(project, sample);
-  const asset = existing ?? createLibraryAsset(context, sample);
+  const { asset, added } = carry(project, sample, context);
 
   const name = uniqueName(sample.name, options.existingNames);
   const track = createTrack(context, {
@@ -311,7 +345,7 @@ export function insertLoopCommands(
   // insertion is one revision and one undo — take it back and the track, the
   // clip and the asset go together, leaving nothing orphaned.
   const create = addTrack(track, { clips: [clip], placements: [placement] });
-  return existing ? [create] : [addAsset(asset), create];
+  return added ? [addAsset(asset), create] : [create];
 }
 
 /**
@@ -336,8 +370,7 @@ export function replaceLoopCommands(
   const track = project.song.tracks.find((candidate) => candidate.id === trackId);
   if (!track || track.type !== "audio" || sample.kind !== "loop") return [];
 
-  const existing = carriedAsset(project, sample);
-  const asset = existing ?? createLibraryAsset(context, sample);
+  const { asset, added } = carry(project, sample, context);
   const old =
     project.clips.find(
       (clip) => clip.trackId === trackId && clip.content.kind === "audioLoop",
@@ -375,7 +408,7 @@ export function replaceLoopCommands(
         ];
 
   return [
-    ...(existing ? [] : [addAsset(asset)]),
+    ...(added ? [addAsset(asset)] : []),
     addClip(clip, placements),
     ...(old ? [removeClip(old.id)] : []),
   ];

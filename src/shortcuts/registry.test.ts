@@ -113,10 +113,11 @@ describe("registry shape", () => {
     }
   });
 
-  it("opens a clip on Enter, and inserts and goes back on Shift+Enter (UI-002)", () => {
+  it("opens a clip on Enter, inserts and goes back on Enter, and stays on Shift+Enter (UI-002)", () => {
     expect(shortcutLabel("arrangement.open_clip", "other")).toBe("Enter");
     expect(shortcutById("arrangement.open_clip").contexts).toEqual(["arrangement"]);
-    expect(shortcutLabel("library.insert_and_return", "mac")).toBe("Shift+Enter");
+    expect(shortcutLabel("library.insert_and_return", "mac")).toBe("Enter");
+    expect(shortcutLabel("library.insert", "mac")).toBe("Shift+Enter");
     expect(shortcutById("library.insert_and_return").contexts).toEqual(["library"]);
   });
 });

@@ -286,7 +286,7 @@ exists, so the producer asks the arrangement for a loop and picks one instead.
 
 **Revised for #817 (five views on `1`–`5`).** The library is a view on `4`, not
 a modal, and the sequence editor a view on `2`. Asking the arrangement for a loop
-aims the Library at a **new track** rather than at a slot, and Shift+Enter
+aims the Library at a **new track** rather than at a slot, and Enter
 inserts and goes back to where the producer came from — here, the arrangement.
 Parked at `test.fixme` until #817's stack lands.
 
@@ -301,7 +301,7 @@ tempo-labelled loop whose source tempo is not the tempo a new project opens at.
 3. Find a drum loop that was recorded at a different tempo from the project's,
    and select it. The library opens on loops near the project's tempo, so widen
    it to any tempo to find one.
-4. Press Shift+Enter. The loop is inserted and the editor goes back to the
+4. Press Enter. The loop is inserted and the editor goes back to the
    arrangement. A new track appears at the bottom of the track list, carrying
    that loop as a clip starting at bar 1.
 5. Open that clip. The sequence view names it as a loop that follows the project
@@ -1291,12 +1291,12 @@ kicks besides the starter's.
 4. Press 4. The Library view fills the page. Its header says it is inserting
    into the "BD" track's drum machine, on the "BD" pad, names the kick the pad
    holds now, and lists one-shots, not loops.
-5. Select a different kick and press Enter. The library stays open and shows
-   that kick as the sound in the slot. Press the down arrow to select the next
-   kick and press Enter again. The library is still open, and shows the second
-   kick in the slot.
+5. Select a different kick and press Shift+Enter. The library stays open and
+   shows that kick as the sound in the slot. Press the down arrow to select the
+   next kick and press Shift+Enter again. The library is still open, and shows
+   the second kick in the slot.
 6. Undo once. The library shows the first kick in the slot again.
-7. Select a third kick and press Shift+Enter. The editor goes back to the
+7. Select a third kick and press Enter. The editor goes back to the
    instrument view, with the "BD" pad selected, its slot naming the third kick
    and still marked as the target.
 8. Press 1, then 4. The library is still aimed at the "BD" pad. Press 3 to go

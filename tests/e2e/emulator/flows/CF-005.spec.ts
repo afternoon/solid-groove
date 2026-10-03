@@ -21,7 +21,7 @@ import { backToArrangement, expectView, sequenceView } from "../support/views";
  *
  * **Revised for #817.** The library is the Library view on `4`, not a modal,
  * and the sequence editor the view on `2`. The arrangement's library button aims
- * the Library view at a new track, Shift+Enter inserts and goes back to the
+ * the Library view at a new track, Enter inserts and goes back to the
  * arrangement, and `1` leaves the sequence view. Parked at `test.fixme` until
  * #817's stack lands: the PR that closes #817 removes the marker.
  *
@@ -149,10 +149,10 @@ test.describe("CF-005", () => {
     // Select-then-insert: hearing the loop is what makes it the one to insert.
     await loop.row.getByRole("button", { name: /^Audition / }).click();
 
-    // 4. Press Shift+Enter. The loop is inserted and the editor goes back to the
+    // 4. Press Enter. The loop is inserted and the editor goes back to the
     //    arrangement. A new track appears at the bottom of the track list,
     //    carrying that loop as a clip starting at bar 1.
-    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.press("Enter");
     await expectView(page, "Arrangement");
     await expect(library(page)).toHaveCount(0);
     await expect(trackList(page)).toHaveCount(2);

@@ -21,7 +21,7 @@ import { backToArrangement, expectView, pressView, sequenceView } from "../suppo
  *
  * **Revised for #817.** A clip opens on the sequence view (`/sequence`) and `1`
  * leaves it; a sampler's sound comes from its sample slot through the Library
- * view, and Shift+Enter inserts and comes back.
+ * view, and Enter inserts and comes back.
  */
 
 // Grid steps are 1-indexed, matching the accessible names the step editor and
@@ -114,7 +114,7 @@ async function addSamplerTrack(
   await nameTrack(page, part.name);
 
   // From the library (#817): the sampler's sample slot aims the Library view
-  // at it, Shift+Enter inserts and comes back, and `1` returns to the song.
+  // at it, Enter inserts and comes back, and `1` returns to the song.
   await pressView(page, "Instrument");
   const instrument = page.getByRole("region", { name: `${part.name} instrument` });
   await instrument.getByRole("button", { name: "Sample", exact: true }).click();
@@ -128,7 +128,7 @@ async function addSamplerTrack(
     "",
   );
   await pick.click();
-  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.press("Enter");
   await expectView(page, "Instrument");
 
   // The sampler names what it is holding, so the insert is visible rather
