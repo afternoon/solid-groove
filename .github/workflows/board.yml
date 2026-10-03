@@ -89,6 +89,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # Push as the PAT's user: a github-actions[bot] push leaves the PR's
+          # CI and preview waiting for manual approval.
+          token: ${{ secrets.RESTACK_TOKEN || github.token }}
       - uses: ./.github/actions/claude-env
       - name: Install Chromium for screenshots and browser tests
         run: bunx playwright install --with-deps chromium
@@ -167,6 +170,9 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # Push as the PAT's user: a github-actions[bot] push leaves the PR's
+          # CI and preview waiting for manual approval.
+          token: ${{ secrets.RESTACK_TOKEN || github.token }}
       - uses: ./.github/actions/claude-env
       - name: Install Chromium for screenshots and browser tests
         run: bunx playwright install --with-deps chromium
