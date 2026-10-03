@@ -1,0 +1,18 @@
+{
+  "id": "fam878",
+  "title": "Family tabs during a search",
+  "steps": [
+    {
+      "file": "01-searching-kick-every-family-keeps-its-ta.png",
+      "caption": "Searching kick: every family keeps its tab, at 0 where nothing matches"
+    },
+    {
+      "file": "02-a-0-count-tab-opens-on-the-empty-state.png",
+      "caption": "A 0-count tab opens on the empty state"
+    },
+    {
+      "file": "03-nothing-matches-every-tab-stays-at-0.png",
+      "caption": "Nothing matches: every tab stays, at 0"
+    }
+  ]
+}
