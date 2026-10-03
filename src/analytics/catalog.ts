@@ -183,7 +183,9 @@ export type EditorViewName = (typeof EDITOR_VIEWS)[number];
  * double-click, or `Enter` on a selected clip), `slot` is pressing a sample
  * slot, which aims the Library at it, `empty_screen` is the fix button on
  * a view that had nothing to show, and `library_insert` is the Library's
- * Insert button, which inserts and goes back (`UI-002`).
+ * Insert button, which inserts and goes back (`UI-002`). `reveal` is the
+ * editor moving itself to show a control (`UI-004`): a proposal line followed
+ * to the control it changes, or the view it left restored on Cancel.
  */
 export const VIEW_CHANGE_SOURCES = [
   "dock",
@@ -193,6 +195,7 @@ export const VIEW_CHANGE_SOURCES = [
   "slot",
   "empty_screen",
   "library_insert",
+  "reveal",
 ] as const;
 export type ViewChangeSource = (typeof VIEW_CHANGE_SOURCES)[number];
 
