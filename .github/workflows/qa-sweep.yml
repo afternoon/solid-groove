@@ -89,7 +89,7 @@ jobs:
       matrix:
         flow: ${{ fromJSON(needs.plan.outputs.flows) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/claude-env
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
@@ -118,6 +118,13 @@ jobs:
       - name: Delete the guest's projects
         if: always()
         run: bunx playwright test --config=tests/e2e/hosted/qa-sweep/playwright.config.ts --project=cleanup
+      - name: Drop anything in the report that is not a plain file or directory
+        # upload-artifact follows symlinks: an agent's `out/x.png -> ~/.config/…`
+        # would upload the target. The file job also refuses a symlink.
+        if: always()
+        run: |
+          mkdir -p tmp/qa-sweep/out
+          find tmp/qa-sweep/out ! -type f ! -type d -print -delete
       - name: Upload the report
         # tmp/qa-sweep/out only: the session file beside it holds the guest's
         # refresh token and must never leave the runner.
@@ -140,11 +147,14 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           # The screenshots are pushed to the claude/walkthroughs branch.
           token: ${{ secrets.RESTACK_TOKEN || github.token }}
       - uses: actions/download-artifact@v4
+        # No reports at all (every agent failed before uploading) is still a
+        # run to summarise: file.mjs reports each flow as "no report".
+        continue-on-error: true
         with:
           pattern: qa-sweep-*
           path: tmp/qa-sweep/artifacts
