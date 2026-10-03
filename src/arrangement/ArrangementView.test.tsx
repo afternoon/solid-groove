@@ -889,6 +889,22 @@ describe("dragging a track header to reorder it (TRK-02)", () => {
     ]);
   });
 
+  // #844: the effects that redraw on a drag edge or a project change re-read
+  // the projection from their apply halves, which Solid's dev build reported
+  // as STRICT_READ_UNTRACKED on every edit and every drag.
+  it("drags and reorders without a STRICT_READ_UNTRACKED warning (#844)", () => {
+    const warn = vi.spyOn(console, "warn");
+    const { header, names } = renderReorderable();
+    const [, , c] = names();
+    dragTrackHandle(header(c), { x: 50, y: 2 }, () => {});
+    flush();
+    expect(names()[0]).toBe(c);
+    const strictReads = warn.mock.calls.filter(([message]) =>
+      String(message).includes("STRICT_READ_UNTRACKED"),
+    );
+    expect(strictReads).toHaveLength(0);
+  });
+
   it("does not also select the track: the click a drag ends in is swallowed", async () => {
     const { selected, names, header } = renderReorderable();
     const [a, , c] = names();

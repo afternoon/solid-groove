@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, For, flush } from "solid-js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDevice, CommandHistory, insertChain, setParameter } from "../commands";
 import { createDevice, type DeviceTypeId } from "../domain/devices";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
@@ -55,6 +55,18 @@ function renderChain(
 }
 
 describe("DeviceCard", () => {
+  // #844: the well read the device's type in its component body, which Solid's
+  // dev build reported as STRICT_READ_UNTRACKED on every card it drew.
+  it("draws a device's well without a STRICT_READ_UNTRACKED warning (#844)", () => {
+    const warn = vi.spyOn(console, "warn");
+    renderChain(["overdrive", "compressor", "delay", "filter"]);
+    const strictReads = warn.mock.calls.filter(([message]) =>
+      String(message).includes("STRICT_READ_UNTRACKED"),
+    );
+    warn.mockRestore();
+    expect(strictReads).toHaveLength(0);
+  });
+
   it("names the device and gives it its own controls", () => {
     const { card } = renderChain(["reverb"]);
     expect(card(0).getByRole("heading", { name: "Reverb" })).toBeInTheDocument();

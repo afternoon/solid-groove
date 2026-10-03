@@ -1,5 +1,13 @@
 import type { JSX } from "@solidjs/web";
-import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  Match,
+  Show,
+  Switch,
+  snapshot,
+} from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import ArrangementView, {
   type PlacementEditingActions,
@@ -132,7 +140,20 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const repository = createMemo(() => getProjectRepository());
   const session = useEditorSession(() => props.projectId, repository);
 
-  const project = createMemo(() => session.state.project);
+  // The open project as the plain, immutable `Project` the command layer
+  // produced, not the session store's proxy over it (#844). A `Project` is
+  // never edited in place: every change is a whole new revision written to
+  // `state.project`, so this memo re-runs on every change and nothing gains
+  // from the store's per-property tracking. Handing out the proxy instead made
+  // every effect that reacts to the project (audio wiring, selection
+  // reconciliation) read store properties in its untracked apply half, and
+  // Solid's dev build logged STRICT_READ_UNTRACKED for each one, hundreds per
+  // edit. `snapshot` is identity-preserving here (the store never writes into a
+  // `Project`), so structural sharing between revisions survives intact.
+  const project = createMemo(() => {
+    const current = session.state.project;
+    return current ? snapshot(current) : null;
+  });
   const audio = useProjectAudio(project);
   const [guideOpen, setGuideOpen] = createSignal(false);
 
