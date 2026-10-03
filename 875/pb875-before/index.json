@@ -1,0 +1,10 @@
+{
+  "id": "pb875-before",
+  "title": "Before: on main",
+  "steps": [
+    {
+      "file": "02-after-pressing-back-to-all-sounds.png",
+      "caption": "Before (main): Back to all sounds lands on Browse packs"
+    }
+  ]
+}

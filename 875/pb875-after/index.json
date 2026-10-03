@@ -1,0 +1,14 @@
+{
+  "id": "pb875-after",
+  "title": "After: this fix",
+  "steps": [
+    {
+      "file": "01-a-pack-opened-from-browse-packs-with-its.png",
+      "caption": "A pack opened from Browse packs, with its Back to all sounds close button"
+    },
+    {
+      "file": "02-after-pressing-back-to-all-sounds.png",
+      "caption": "After: Back to all sounds shows All sounds, current in the rail"
+    }
+  ]
+}
