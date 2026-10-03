@@ -17,6 +17,7 @@ import { TICKS_PER_QUARTER } from "../domain/time";
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import {
+  addPadWithSampleCommands,
   insertLoopCommands,
   loadPadSampleCommands,
   loadSampleCommands,
@@ -217,14 +218,20 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // replaces that track's loop rather than adding a new loop track.
   const [loopTarget, setLoopTarget] = createSignal<TrackId | null>(null);
 
+  // The drum track whose Sequence view [+ Pad] row opened the library (#947),
+  // or null. Inserting then adds a new pad playing the sound to that track.
+  const [newPadTarget, setNewPadTarget] = createSignal<TrackId | null>(null);
+
   function openLibrary(
     types?: readonly LibraryAssetType[],
     pad: { trackId: TrackId; padId: PadId } | null = null,
     loopTrackId: TrackId | null = null,
+    newPadTrackId: TrackId | null = null,
   ): void {
     setLibraryTypes(() => types);
     setPadTarget(pad);
     setLoopTarget(loopTrackId);
+    setNewPadTarget(newPadTrackId);
     setLibraryOpen(true);
   }
   // Registered by the open library modal; the `library` shortcuts run them.
@@ -473,7 +480,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
   const libraryLoops = () => libraryTypes()?.includes("loop") ?? false;
   const librarySlot = createMemo(() =>
-    model.librarySlotHeader(project(), track(), padTarget(), libraryLoops()),
+    model.librarySlotHeader(
+      project(),
+      track(),
+      padTarget(),
+      libraryLoops(),
+      newPadTarget() !== null,
+    ),
   );
 
   /**
@@ -594,18 +607,50 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   /**
-   * The library's insert, through the pack-upgrade check (#892): to the pad
-   * or loop track that opened the library, else onto the selected sampler or
-   * as a new loop track.
+   * Adds a pad playing a library one-shot to the drum track whose Sequence
+   * view [+ Pad] row opened the library (#947): one transaction, so one undo
+   * takes the pad away. The new pad's lane is selected, which the step grid
+   * and the instrument view's pad editor share.
+   */
+  function addPadWithSample(sample: LibrarySample, trackId: TrackId): string | null {
+    const currentProject = project();
+    if (!currentProject) return notOpen(sample);
+    if (sample.kind === "loop") {
+      return `Couldn't insert ${sample.name}: a loop can't go on a drum pad.`;
+    }
+    const insert = addPadWithSampleCommands(
+      currentProject,
+      trackId,
+      sample,
+      createFactoryContext(),
+    );
+    const result = session.dispatch(insert.commands);
+    if (!result?.ok) return refusedBy(sample);
+    selectPad(trackId, insert.padId);
+    const analytics = props.analytics ?? defaultAnalytics;
+    // What a pad given a sound logs on the instrument view (PRD OPS-02).
+    analytics.log("instrument_changed", { instrument_type: "drum_machine" });
+    analytics.logFeatureFirstUse("drum_machine");
+    analytics.logFeatureFirstUse("sequence_add_pad");
+    return null;
+  }
+
+  /**
+   * The library's insert, through the pack-upgrade check (#892): to the pad,
+   * new pad or loop track that opened the library, else onto the selected
+   * sampler or as a new loop track.
    */
   const libraryInsertHost = libraryHost((sample) => {
     const pad = padTarget();
     const loopTrackId = loopTarget();
+    const newPadTrackId = newPadTarget();
     return pad
       ? loadPadSample(sample, pad)
-      : loopTrackId
-        ? replaceLoop(sample, loopTrackId)
-        : loadLibrarySample(sample);
+      : newPadTrackId
+        ? addPadWithSample(sample, newPadTrackId)
+        : loopTrackId
+          ? replaceLoop(sample, loopTrackId)
+          : loadLibrarySample(sample);
   });
 
   /** A drop on the instrument panel always loads the selected sampler. */
@@ -768,45 +813,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   </Match>
                 </Switch>
               </div>
-              {/*
-               * The library, opened from the slot it will fill (`UI-001`). A
-               * fresh audition engine per open: `Show` disposes this branch on
-               * close and `useLibraryBrowser` disposes the engine with it, so
-               * a cached one would be dead on the second open (LOOP-013).
-               */}
-              <Show when={libraryOpen()}>
-                <LibraryModal
-                  client={libraryClient}
-                  previewEngine={createAuditionEngine()}
-                  slotAudition={slotAudition()}
-                  analytics={props.analytics}
-                  onInsert={async (asset, options) => {
-                    // Only a committed insertion closes the window. Closing
-                    // regardless is what made a refused insert look like a
-                    // successful one that lost the sound.
-                    const outcome = await insertFromLibrary(
-                      libraryInsertHost,
-                      asset,
-                      options,
-                    );
-                    if (outcome.ok) setLibraryOpen(false);
-                    return outcome;
-                  }}
-                  addedPackIds={addedPackIds()}
-                  assetTypes={libraryTypes()}
-                  heading={libraryLoops() ? "Loops" : "Library"}
-                  eyebrow={librarySlot().eyebrow}
-                  slot={librarySlot().slot}
-                  trackColor={track()?.color}
-                  keyLabel={keyHint}
-                  current={librarySlot().current}
-                  slotKind={librarySlot().kind}
-                  songBpm={tempo()}
-                  currentRef={librarySlot().currentRef}
-                  onActions={(actions) => setLibraryActions(() => actions)}
-                  onClose={() => setLibraryOpen(false)}
-                />
-              </Show>
               {/* The sequence editor, over whichever view opened it
                   (`UI-001`). Keyed on the placement, so deleting or undoing
                   one closes the editor rather than leaving it on a clip the
@@ -840,11 +846,55 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     auditionPad={(padId) =>
                       void audio.auditionPad(open().track.id, padId)
                     }
+                    onAddPad={() =>
+                      openLibrary(["one-shot"], null, null, open().track.id)
+                    }
                     dispatch={session.dispatch}
                     beginGesture={session.beginGesture}
                     onClose={() => setOpenPlacementId(null)}
                   />
                 )}
+              </Show>
+              {/*
+               * The library, opened from the slot it will fill (`UI-001`). A
+               * fresh audition engine per open: `Show` disposes this branch on
+               * close and `useLibraryBrowser` disposes the engine with it, so
+               * a cached one would be dead on the second open (LOOP-013).
+               * After the sequence editor, so the library opened from its
+               * [+ Pad] row (#947) stacks over it: dialogs order by DOM.
+               */}
+              <Show when={libraryOpen()}>
+                <LibraryModal
+                  client={libraryClient}
+                  previewEngine={createAuditionEngine()}
+                  slotAudition={slotAudition()}
+                  analytics={props.analytics}
+                  onInsert={async (asset, options) => {
+                    // Only a committed insertion closes the window. Closing
+                    // regardless is what made a refused insert look like a
+                    // successful one that lost the sound.
+                    const outcome = await insertFromLibrary(
+                      libraryInsertHost,
+                      asset,
+                      options,
+                    );
+                    if (outcome.ok) setLibraryOpen(false);
+                    return outcome;
+                  }}
+                  addedPackIds={addedPackIds()}
+                  assetTypes={libraryTypes()}
+                  heading={libraryLoops() ? "Loops" : "Library"}
+                  eyebrow={librarySlot().eyebrow}
+                  slot={librarySlot().slot}
+                  trackColor={track()?.color}
+                  keyLabel={keyHint}
+                  current={librarySlot().current}
+                  slotKind={librarySlot().kind}
+                  songBpm={tempo()}
+                  currentRef={librarySlot().currentRef}
+                  onActions={(actions) => setLibraryActions(() => actions)}
+                  onClose={() => setLibraryOpen(false)}
+                />
               </Show>
               <ViewDock
                 view={props.view}

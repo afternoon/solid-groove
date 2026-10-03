@@ -215,10 +215,21 @@ export function librarySlotHeader(
   track: Track | null,
   pad: { readonly padId: string } | null,
   loops: boolean,
+  newPad = false,
 ): LibrarySlotHeader {
   if (loops)
     return { eyebrow: "Library", slot: "Loops", current: null, kind: "loop-track" };
   const instrument = editedInstrument(track);
+  // The Sequence view's [+ Pad] (#947): the pad the sound will become.
+  if (newPad && instrument?.kind === "drumMachine") {
+    return {
+      eyebrow: `Drums · Pad ${instrument.pads.length + 1}`,
+      slot: "New pad",
+      current: null,
+      kind: "drum-pad",
+      currentRef: null,
+    };
+  }
   if (pad && instrument?.kind === "drumMachine") {
     const index = instrument.pads.findIndex((entry) => entry.id === pad.padId);
     const found = instrument.pads[index];

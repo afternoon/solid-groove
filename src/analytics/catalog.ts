@@ -287,6 +287,8 @@ export const FEATURE_KEYS = [
   // Moving a project's pin for a pack to a newer version so a sound from it can
   // go in (#892), whether automatic or chosen with "Upgrade anyway".
   "pack_upgrade",
+  // Adding a drum pad from the Sequence view's [+ Pad] row (#947).
+  "sequence_add_pad",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 

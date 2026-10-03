@@ -304,6 +304,20 @@ describe("librarySlotHeader", () => {
       kind: "loop-track",
     });
   });
+
+  it("names the pad the Sequence view's [+ Pad] is about to add (#947)", () => {
+    const drums = createDrumMachineFixtureProject();
+    const track = editedTrack(drums, null);
+    const instrument = track?.instrument;
+    if (instrument?.kind !== "drumMachine") throw new Error("expected a drum machine");
+    expect(librarySlotHeader(drums, track, null, false, true)).toEqual({
+      eyebrow: `Drums · Pad ${instrument.pads.length + 1}`,
+      slot: "New pad",
+      current: null,
+      kind: "drum-pad",
+      currentRef: null,
+    });
+  });
 });
 
 describe("samplerTrackId", () => {
