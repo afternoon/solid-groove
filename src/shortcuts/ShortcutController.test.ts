@@ -198,6 +198,48 @@ describe("dispatch", () => {
     expect(disabled.defaultPrevented).toBe(false);
   });
 
+  it("keeps suppressing a held key's repeats after its action closed the surface (#961)", () => {
+    const insert = vi.fn();
+    const { press, setHandlers, setContexts, transport } = setup({
+      handlers: { "library.insert": { run: insert } },
+      contexts: ["library"],
+    });
+
+    // Enter inserts and closes the library; focus returns to the slot button,
+    // where nothing maps Enter any more.
+    expect(press(keyEvent("Enter")).ran).toBe(true);
+    setHandlers({});
+    setContexts(["editor"]);
+
+    const repeat = keyEvent("Enter", { repeat: true });
+    expect(press(repeat).rejected).toBe("repeat");
+    expect(repeat.defaultPrevented).toBe(true);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(
+      transport.events.filter((event) => event.name === "shortcut_used"),
+    ).toHaveLength(1);
+
+    // A fresh press is the browser's again.
+    const fresh = keyEvent("Enter");
+    expect(press(fresh).rejected).toBe("no_match");
+    expect(fresh.defaultPrevented).toBe(false);
+    const freshRepeat = keyEvent("Enter", { repeat: true });
+    expect(press(freshRepeat).rejected).toBe("no_match");
+    expect(freshRepeat.defaultPrevented).toBe(false);
+  });
+
+  it("only claims the repeats of the key that ran", () => {
+    const { press } = setup({
+      handlers: { "library.insert": { run: vi.fn() } },
+      contexts: ["library"],
+    });
+
+    press(keyEvent("Enter"));
+    const other = keyEvent("j", { repeat: true });
+    expect(press(other).rejected).toBe("no_match");
+    expect(other.defaultPrevented).toBe(false);
+  });
+
   it("leaves the default of a repeat alone in a typing target", () => {
     const { press } = setup({
       handlers: { "library.audition": { run: vi.fn() } },

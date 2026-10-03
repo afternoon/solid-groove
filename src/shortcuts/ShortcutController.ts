@@ -62,6 +62,12 @@ const NO_MATCH: ShortcutDispatch = {
 export class ShortcutController {
   private readonly options: ShortcutControllerOptions;
   readonly platform: ShortcutPlatform;
+  /**
+   * The key whose current press ran an action, until a fresh press. Its
+   * auto-repeats belong to that action wherever focus or context has moved
+   * since (#961).
+   */
+  private heldKey: string | null = null;
 
   constructor(options: ShortcutControllerOptions) {
     this.options = options;
@@ -88,9 +94,27 @@ export class ShortcutController {
    * into a text field, leaves the event exactly as it found it rather than
    * silently eating a key. An auto-repeat of a non-repeatable action is still
    * ignored, but its default is suppressed like the first press's, so holding
-   * the key never falls through to the focused control.
+   * the key never falls through to the focused control. That holds after the
+   * action has moved focus or closed its surface too: Enter inserting from the
+   * library returns focus to the slot button, and a held Enter's next repeat
+   * must not press it and reopen the library.
    */
   handleKeyDown(event: KeyboardEvent): ShortcutDispatch {
+    if (!event.repeat) this.heldKey = null;
+    const holding = event.repeat && this.heldKey === event.key;
+    const dispatch = this.dispatch(event);
+    if (dispatch.ran) {
+      if (!event.repeat && dispatch.shortcut?.preventDefault !== false) {
+        this.heldKey = event.key;
+      }
+      return dispatch;
+    }
+    if (!holding) return dispatch;
+    if (!event.defaultPrevented) event.preventDefault();
+    return { shortcut: dispatch.shortcut, ran: false, rejected: "repeat" };
+  }
+
+  private dispatch(event: KeyboardEvent): ShortcutDispatch {
     const shortcut = matchShortcut(event, this.platform, this.options.contexts());
     if (!shortcut) return NO_MATCH;
 

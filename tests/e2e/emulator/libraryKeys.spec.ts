@@ -102,6 +102,30 @@ test.describe("library keys", () => {
     await expect(library(page)).toBeVisible();
   });
 
+  // The first Enter inserts and closes the library, returning focus to the slot
+  // button; the repeats that follow land there, where no shortcut maps Enter,
+  // and once pressed the library reopened.
+  test("held Enter inserts once and the library stays closed", async ({ page }) => {
+    await openBdSlot(page);
+    const rows = soundList(page).getByRole("button", { name: /^Audition / });
+    await rows.nth(0).click();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    const name = ((await readout(page, "Hearing").textContent()) ?? "")
+      .replace(/^Hearing/, "")
+      .trim();
+
+    await page.keyboard.down("Enter");
+    await expect(library(page)).toBeHidden();
+    await page.keyboard.down("Enter");
+    await page.keyboard.down("Enter");
+    await page.keyboard.up("Enter");
+
+    await expect(sampleSlot(page)).toContainText(name);
+    await page.waitForTimeout(300);
+    await expect(library(page)).toBeHidden();
+  });
+
   test("a focused rail button keeps Enter for itself", async ({ page }) => {
     await openBdSlot(page);
     await selectSecondSound(page);
