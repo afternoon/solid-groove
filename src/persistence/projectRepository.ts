@@ -6,7 +6,7 @@ import type {
   Song,
 } from "../domain/entities";
 import type { ClipId, ProjectId } from "../domain/ids";
-import type { PersistenceIssue } from "./documents";
+import type { DroppedReferences, PersistenceIssue } from "./documents";
 
 /**
  * The repository boundary (PRD section 9.9).
@@ -73,7 +73,16 @@ export type LoadFailureReason =
   | "unavailable";
 
 export type LoadResult<T> =
-  | { readonly ok: true; readonly value: T }
+  | {
+      readonly ok: true;
+      readonly value: T;
+      /**
+       * Present only when the stored documents held references to state that
+       * was never stored, and loading dropped them rather than refusing the
+       * project (#965). See `decodeProject`.
+       */
+      readonly dropped?: DroppedReferences;
+    }
   | {
       readonly ok: false;
       readonly reason: LoadFailureReason;
