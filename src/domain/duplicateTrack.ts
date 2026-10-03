@@ -46,7 +46,10 @@ export interface DuplicatedTrack {
 export interface DuplicateTrackOptions {
   /** Where to insert the copy. Defaults to immediately after the source. */
   readonly order?: number;
-  /** Defaults to a "<name> copy" derived name. */
+  /**
+   * Defaults to "<name> copy", or "<name> copy 2", "<name> copy 3", … when
+   * that is already a track's name, so repeated duplicates stay tellable apart.
+   */
   readonly name?: string;
   readonly ids?: IdFactory;
 }
@@ -71,7 +74,7 @@ export function duplicateTrack(
   const track: Track = {
     ...source,
     id: trackId,
-    name: options.name ?? duplicateName(source.name),
+    name: options.name ?? duplicateName(source.name, project.song.tracks),
     order: options.order ?? source.order + 1,
     instrument: remapInstrument(context, source.instrument, padIds),
     devices: remapDevices(context, source.devices, deviceIds),
@@ -184,6 +187,15 @@ function remap<K>(map: Map<K, K>, key: K): K {
   return next;
 }
 
-function duplicateName(name: string): string {
-  return `${name} copy`;
+/**
+ * The first "<name> copy" / "<name> copy N" (N from 2) no track already uses.
+ * Without the existing names every duplicate of one track came out identical.
+ */
+function duplicateName(name: string, tracks: readonly Track[]): string {
+  const taken = new Set(tracks.map((track) => track.name));
+  const base = `${name} copy`;
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
 }
