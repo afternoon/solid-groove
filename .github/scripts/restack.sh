@@ -155,6 +155,13 @@ merged)
 	;;
 pushed)
 	head="$(pr_field "$pr" headRefName)"
+	# A push that resolved this PR's own restack conflict (an @claude fix)
+	# clears its flag, so a later conflict is reported again.
+	base="$(pr_field "$pr" baseRefName)"
+	git fetch --quiet origin "$base" "$head"
+	if git merge-tree --write-tree "origin/$base" "origin/$head" >/dev/null 2>&1; then
+		gh pr edit "$pr" --repo "$repo" --remove-label "$conflict_label" >/dev/null 2>&1 || true
+	fi
 	for child in $(children_of "$head"); do
 		restack_tree "$child" "$old_ref"
 	done
