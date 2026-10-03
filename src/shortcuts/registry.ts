@@ -868,7 +868,7 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   libraryKey(
     "library.insert_and_return",
     "Insert and go back",
-    "Puts the selected sound in the slot and goes back to where you came from.",
+    "Puts the selected sound in the slot and goes back to the instrument, as the Insert button does.",
     "Shift+Enter",
   ),
   libraryKey(

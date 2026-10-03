@@ -217,7 +217,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // Every other aim is the selected track's own slot (`libraryTarget`), so
   // choosing a track or touching a slot ends this one.
   const [newTrackAim, setNewTrackAim] = createSignal(false);
-  const leaveLibrary = () => selectView(libraryReturn, "keyboard");
+  /**
+   * Where a committed insert goes back to (`UI-002`): the instrument, where the
+   * slot just filled shows its new sound. A loop inserted on a new track goes
+   * back to where it was asked for instead, the arrangement it now sits in.
+   */
+  const returnFromInsert = (via: ViewChangeSource) =>
+    selectView(
+      libraryTargetOf()?.kind === "new-track" ? libraryReturn : "instrument",
+      via,
+    );
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
   // The Export dialog is a modal over the editor, so the editor's keys stand down.
@@ -324,13 +333,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return entry && entry.track.id === selectedTrackId() ? entry : null;
   });
 
-  /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
-  function openPlacement(placementId: PlacementId): void {
+  /**
+   * Makes a placement's clip the one `2` edits (`UI-002`): a click on a clip
+   * in the arrangement selects it for the sequence view.
+   */
+  function selectPlacement(placementId: PlacementId): void {
     setOpenPlacementId(placementId);
     const track = model.openedClip(project(), placementId)?.track;
-    // Opening a clip is also saying "this track": the instrument view and the
+    // Selecting a clip is also saying "this track": the instrument view and the
     // mixer follow it, which is what keeps selection one piece of state.
     if (track) selectTrack(track.id);
+  }
+
+  /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
+  function openPlacement(placementId: PlacementId): void {
+    selectPlacement(placementId);
     selectView("sequence", "arrangement");
   }
 
@@ -438,7 +455,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setGuideOpen,
     exportOpen,
     libraryOpen,
-    leaveLibrary,
+    returnFromInsert: () => returnFromInsert("keyboard"),
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
@@ -704,6 +721,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           selectedTrackId={track()?.id ?? null}
                           onSelectTrack={selectTrack}
                           onOpenPlacement={openPlacement}
+                          onSelectPlacement={selectPlacement}
                           onLoopBraceFocusChange={setLoopBraceFocused}
                           /* The arrangement's own way to add a track
                              (`UI-001`), the same unit and the same route the
@@ -850,6 +868,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                             targetSound(currentProject(), target())?.storageRef ?? null
                           }
                           onActions={(actions) => setLibraryActions(() => actions)}
+                          onInsertAndReturn={() => returnFromInsert("library_insert")}
                         />
                       )}
                     </Show>
