@@ -8,6 +8,7 @@ import type { LibraryAsset } from "./manifest";
 import SoundRow, { lengthLabel, SimilarIcon } from "./SoundRow";
 import { roleLabel } from "./shelf";
 import { ALL_MATCH_ON, type MatchOn, similarSounds } from "./similarity";
+import { tabStopId } from "./stepping";
 import "./SimilarSoundsView.css";
 
 const CRITERIA: readonly { key: keyof MatchOn; label: string }[] = [
@@ -67,6 +68,13 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
 
   const reference = () => trail()[trail().length - 1];
   const results = createMemo(() => similarSounds(reference(), props.library, matchOn()));
+  // The list is one Tab stop (#880): the selected result, or the first.
+  const tabStop = createMemo(() =>
+    tabStopId(
+      results().map((result) => result.asset.id),
+      selectedId(),
+    ),
+  );
 
   const audition = props.previewEngine
     ? new AuditionController(props.previewEngine, { onActiveChange: setPlayingId })
@@ -195,6 +203,7 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
               <SoundRow
                 asset={result.asset}
                 selected={selectedId() === result.asset.id}
+                tabbable={tabStop() === result.asset.id}
                 playing={playingId() === result.asset.id}
                 error={null}
                 color={props.trackColor}

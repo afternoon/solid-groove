@@ -62,15 +62,17 @@ describe("LibraryModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("takes focus when it opens and gives it back when it closes", () => {
+  it("opens with focus in the search field and gives it back when it closes", () => {
     const opener = document.createElement("button");
     document.body.append(opener);
     opener.focus();
 
     const { unmount } = renderModal();
+    // #880: the one dialog whose close button does not take focus on open.
     expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Close library" }),
+      screen.getByRole("searchbox", { name: "Search sounds" }),
     );
+    expect(screen.getByRole("button", { name: "Close library" }).tabIndex).toBe(0);
 
     unmount();
     expect(document.activeElement).toBe(opener);

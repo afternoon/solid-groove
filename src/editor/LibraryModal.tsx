@@ -312,8 +312,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
   // than once, so a ref can end up naming a copy that never mounted.
-  const focusSearch = () =>
-    document.querySelector<HTMLInputElement>(".library-modal-search")?.focus();
+  const searchField = () =>
+    document.querySelector<HTMLInputElement>(".library-modal-search");
+  const focusSearch = () => searchField()?.focus();
 
   function press(action: ShortcutActionId): void {
     if (action === "library.search") {
@@ -430,6 +431,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       label="Library"
       size="modal"
       flush
+      // #880: the library opens ready to type; the close button stays a Tab stop.
+      initialFocus={searchField}
       onClose={() => props.onClose()}
       header={
         <div class="library-modal-head">

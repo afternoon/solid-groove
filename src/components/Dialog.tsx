@@ -42,6 +42,12 @@ export interface DialogProps {
    */
   readonly flush?: boolean;
   readonly children: JSX.Element;
+  /**
+   * What takes focus on open, when it is not the close button. Only the
+   * library uses it (#880): it opens in its search field. Looked up once the
+   * dialog has rendered; nothing found falls back to the close button.
+   */
+  initialFocus?(): HTMLElement | null | undefined;
   /** What the close button, and a click on the scrim, both do. */
   onClose(): void;
 }
@@ -66,9 +72,10 @@ export interface DialogProps {
  * - **The scrim is a real button.** "Click outside to dismiss" is otherwise a
  *   mouse-only affordance; as a button it is one accessible thing, kept out
  *   of the tab order because the close button is the keyboard path.
- * - **Focus goes in and comes back.** The close button takes focus on open,
- *   and whatever opened the dialog gets it back on close, so a keyboard does
- *   not get dropped at the top of the document.
+ * - **Focus goes in and comes back.** The close button takes focus on open
+ *   (unless the surface names its own first stop, as the library's search
+ *   field is, #880), and whatever opened the dialog gets it back on close, so
+ *   a keyboard does not get dropped at the top of the document.
  * - **Nothing behind it can be reached.** While it is open the rest of the
  *   app is `inert` (#876), so Tab, Shift+Tab, a click and a screen reader all
  *   stay inside it. Stacked dialogs hand that on: the newest one wins.
@@ -95,7 +102,7 @@ export default function Dialog(props: DialogProps): JSX.Element {
   onSettled(() => {
     const opener = document.activeElement;
     const release = holdModal(backdrop);
-    closeButton.focus();
+    (props.initialFocus?.() ?? closeButton).focus();
     return () => {
       // Released first: an inert opener cannot take focus back.
       release();
