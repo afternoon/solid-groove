@@ -1341,6 +1341,10 @@ describe("EditorView new-track unit", () => {
     // It says what it is showing, without renaming the region underneath it.
     expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
     expect(within(library).getByRole("region", { name: "Browse sounds" })).toBeVisible();
+    // Aimed at a new track, not at any slot (UI-002).
+    expect(
+      within(library).getByRole("heading", { name: "Inserting into a new track" }),
+    ).toBeVisible();
   });
 
   it("inserting a loop adds a track carrying it, and closes the library", async () => {
@@ -1470,6 +1474,70 @@ describe("EditorView library view", () => {
 
 /** The Library at its own address, on `4` (`UI-002`). */
 describe("EditorView library address", () => {
+  async function renderOn(project: Project) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const rendered = renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    return rendered;
+  }
+
+  it("says a synth plays no samples, with the way to a track that does", async () => {
+    const { location } = await renderOn(createPianoRollFixtureProject());
+    const empty = await screen.findByRole("region", {
+      name: "Synths don't play samples",
+    });
+    expect(empty).toHaveTextContent(
+      "The Library holds samples and loops. Select a sampler or drum machine track to browse sounds for it.",
+    );
+    expect(within(empty).getByRole("button", { name: "Arrangement" })).toHaveTextContent(
+      "1",
+    );
+    clickAndFlush(within(empty).getByRole("button", { name: "Instrument" }));
+    await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
+  });
+
+  it("logs the empty screen's way out once, as reached from the empty screen", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createPianoRollFixtureProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    const { location } = renderEditor(project.metadata.id, {
+      analytics: recordingAnalytics(transport),
+    });
+    await screen.findByTestId("arrangement-view-ready");
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    const empty = await screen.findByRole("region", {
+      name: "Synths don't play samples",
+    });
+    clickAndFlush(within(empty).getByRole("button", { name: "Instrument" }));
+    await vi.waitFor(() => expect(location.get()).toMatch(/\/instrument$/));
+
+    expect(transport.named("view_changed").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "library", via: "keyboard" }),
+      expect.objectContaining({ view: "instrument", via: "empty_screen" }),
+    ]);
+  });
+
+  it("says no track is selected in a song with none", async () => {
+    const fixture = createSliceFixtureProject();
+    await renderOn({
+      ...fixture,
+      clips: [],
+      song: { ...fixture.song, tracks: [], placements: [] },
+    });
+    const empty = await screen.findByRole("region", { name: "No track selected" });
+    expect(empty).toHaveTextContent(
+      "Select a sampler or drum machine track in the arrangement to browse sounds for it.",
+    );
+    expect(
+      within(empty)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["1Arrangement"]);
+  });
+
   it("lands on /library from a slot and on 4, and logs how it was reached", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createSliceFixtureProject();
@@ -2368,6 +2436,25 @@ describe("EditorView sequence editor", () => {
     clickAndFlush(back);
     await screen.findByTestId("arrangement-view-ready");
     expect(location.get()).toBe(`/projects/${project.metadata.id}`);
+  });
+
+  it("logs the empty screen's way out once, as reached from the empty screen", async () => {
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+    await screen.findByTestId("arrangement-view-ready");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    const empty = await screen.findByRole("region", { name: "No clip selected" });
+    clickAndFlush(within(empty).getByRole("button", { name: "Arrangement" }));
+    await screen.findByTestId("arrangement-view-ready");
+
+    expect(transport.named("view_changed").map((event) => event.params)).toEqual([
+      expect.objectContaining({ view: "sequence", via: "keyboard" }),
+      expect.objectContaining({ view: "arrangement", via: "empty_screen" }),
+    ]);
   });
 
   it("has no clip once another track is selected, rather than a stale one", async () => {

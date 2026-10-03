@@ -70,13 +70,13 @@ test.describe("library keys", () => {
     await selectSecondSound(page);
     // The slot is not on the page while the library is the view (#817), so
     // what it holds is read off the library's own readout.
-    const before = (await readout(page, "Was").textContent()) ?? "";
+    const before = (await readout(page, "In the slot").textContent()) ?? "";
 
     await railButton(page, "Browse packs").focus();
     await page.keyboard.press("Enter");
 
     await expect(railButton(page, "Browse packs")).toHaveAttribute("aria-current", /.+/);
     await expect(library(page)).toBeVisible();
-    await expect(readout(page, "Was")).toHaveText(before);
+    await expect(readout(page, "In the slot")).toHaveText(before);
   });
 });

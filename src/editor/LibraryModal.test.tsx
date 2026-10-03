@@ -119,7 +119,7 @@ describe("LibraryModal shell", () => {
         previewEngine={fakePreviewEngine()}
         onInsert={extra.onInsert ?? (() => undefined)}
         addedPackIds={[pack.id]}
-        eyebrow="Drums · Pad 1"
+        path="BD › Drum machine › BD"
         slot="BD"
         current="Rounded Club Kick"
         onActions={extra.onActions}
@@ -133,15 +133,14 @@ describe("LibraryModal shell", () => {
     fireEvent.click(row.querySelector(".sound-row-main") as HTMLElement);
   }
 
-  it("names the slot and what it was, then Hearing and Insert follow the selection", async () => {
+  it("names what it inserts into and the sound there, then Hearing and Insert follow", async () => {
     const onInsert = vi.fn();
     renderShell({ onInsert });
-    // The eyebrow says where the slot sits; the pad's own name is the title.
-    const slot = screen.getByText("BD");
-    expect(slot.tagName).toBe("B");
-    expect(slot.previousElementSibling).toHaveTextContent("Drums · Pad 1");
-    expect(slot.previousElementSibling).toHaveClass("library-modal-label");
-    expect(screen.getByRole("group", { name: "Was" })).toHaveTextContent(
+    // The header names the target as a path: track, instrument, slot (UI-002).
+    expect(
+      screen.getByRole("heading", { name: "Inserting into BD › Drum machine › BD" }),
+    ).toBeVisible();
+    expect(screen.getByRole("group", { name: "In the slot" })).toHaveTextContent(
       "Rounded Club Kick",
     );
     expect(screen.getByRole("group", { name: "Hearing" })).toHaveTextContent(

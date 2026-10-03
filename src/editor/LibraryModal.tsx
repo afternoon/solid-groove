@@ -96,8 +96,9 @@ export interface LibraryModalProps {
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
   readonly heading?: string;
-  /** The small label over the slot's name: its track, and a pad's position. */
-  readonly eyebrow?: string;
+  /** What inserting fills, as a path: "BD › Drum machine › BD" (`UI-002`). */
+  readonly path?: string;
+  /** The slot's own name, for the footer's hint: a pad's name. */
   readonly slot?: string;
   readonly trackColor?: string;
   /** What the library opens for, so the shelf can open on the slot's family. */
@@ -222,8 +223,8 @@ function InsertNoticeView(props: {
 }
 
 /**
- * The library window (`UI-001`, `LIB-010`): a header naming the slot with
- * **Was** and **Hearing** readouts, a rail of places to look, and a footer with
+ * The library window (`UI-001`, `LIB-010`): a header naming what it inserts
+ * into (`UI-002`) with **In the slot** and **Hearing** readouts, a rail of places to look, and a footer with
  * one large Insert button. Hearing a sound selects it and inserting is a second
  * step, so browsing never edits the project. Views other than All sounds are
  * placeholders until they land. It is the view on `4` (`UI-002`), not a
@@ -424,14 +425,13 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             class="library-modal-bar"
             style={{ background: props.trackColor ?? "var(--color-accent)" }}
           />
-          <div class={["library-modal-slot", MASK_CONTENT]}>
-            <Show when={props.eyebrow}>
-              <span class="library-modal-label">{props.eyebrow}</span>
-            </Show>
-            <b>{props.slot ?? props.heading ?? "Library"}</b>
-          </div>
+          {/* A track's and a pad's names are the user's (ADR 0002). */}
+          <h2 class={["library-modal-slot", MASK_CONTENT]}>
+            <span class="library-modal-label">Inserting into </span>
+            <b>{props.path ?? props.heading ?? "Library"}</b>
+          </h2>
           <fieldset class="library-modal-readout">
-            <legend class="library-modal-label">Was</legend>
+            <legend class="library-modal-label">In the slot</legend>
             <b>{props.current ?? "Empty"}</b>
           </fieldset>
           <fieldset class="library-modal-readout">
