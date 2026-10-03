@@ -1,4 +1,9 @@
 import * as Tone from "tone";
+import {
+  SATURATOR_HEADROOM,
+  saturatorFoldCurve,
+  saturatorSoftCurve,
+} from "./saturatorCurves";
 import { type DeviceCore, type DeviceCoreFactory, setOrRamp } from "./types";
 
 /**
@@ -8,11 +13,20 @@ import { type DeviceCore, type DeviceCoreFactory, setOrRamp } from "./types";
  */
 const CURVE_POINTS = 1024;
 
-/** Fills a waveshaper table over the -1..1 input range from a transfer function. */
-function buildCurve(transfer: (x: number) => number): Float32Array {
-  const curve = new Float32Array(CURVE_POINTS);
-  for (let i = 0; i < CURVE_POINTS; i++) {
-    const x = (i / (CURVE_POINTS - 1)) * 2 - 1;
+/**
+ * Fills a waveshaper table from a transfer function. The table always spans
+ * the node's -1..1 input; `span` is the signal level that maps to its ends, so
+ * a curve built with span 4 is evaluated over -4..4 and expects the signal to
+ * be scaled by 1/4 on the way in.
+ */
+function buildCurve(
+  transfer: (x: number) => number,
+  span = 1,
+  points = CURVE_POINTS,
+): Float32Array {
+  const curve = new Float32Array(points);
+  for (let i = 0; i < points; i++) {
+    const x = ((i / (points - 1)) * 2 - 1) * span;
     const y = transfer(x);
     // The transfer functions below are all bounded, but clamping here is what
     // guarantees no curve can ever push an unsafe sample downstream, however
@@ -86,19 +100,26 @@ export const createOverdriveCore: DeviceCoreFactory = (): DeviceCore => {
  * Unlike the overdrive it is driven in *decibels* — `saturator.drive` runs to
  * +48 dB — and `character` morphs the transfer shape itself rather than only
  * how hard the signal hits it: a gentle tape-style soft knee at 0, a hard
- * digital fold at 1. Because a `WaveShaperNode`'s `curve` may only be assigned
+ * sine fold at 1. Both curves leave a normal-level signal at unity at 0 dB
+ * drive, and both run +12 dB past full scale before the table holds (see
+ * `saturatorCurves.ts`, #885). Because a `WaveShaperNode`'s `curve` may only be assigned
  * once, the morph is a *crossfade between two static shapers* rather than a
  * rebuilt curve; that keeps `character` a continuous, rampable control that
  * never replaces a node (FX-01: parameter changes do not rebuild nodes).
  */
 export const createSaturatorCore: DeviceCoreFactory = (): DeviceCore => {
   const preGain = new Tone.Gain(1);
-  const soft = new Tone.WaveShaper(buildCurve((x) => Math.tanh(2 * x) / Math.tanh(2)));
-  // A hard fold: past the knee the curve turns back on itself, which is the
+  // Both tables span ±SATURATOR_HEADROOM, so they get proportionally more
+  // points to keep the knee as finely resolved as a -1..1 table would.
+  const points = CURVE_POINTS * (SATURATOR_HEADROOM / 2);
+  const soft = new Tone.WaveShaper(
+    buildCurve(saturatorSoftCurve, SATURATOR_HEADROOM, points),
+  );
+  // A sine fold: past its peak the curve turns back on itself, which is the
   // deliberately destructive end FX-02 asks to remain reachable — bounded, but
   // obviously broken-sounding.
   const hard = new Tone.WaveShaper(
-    buildCurve((x) => Math.sin(Math.PI * Math.max(-1.5, Math.min(1.5, x)))),
+    buildCurve(saturatorFoldCurve, SATURATOR_HEADROOM, points),
   );
   const softGain = new Tone.Gain(1);
   const hardGain = new Tone.Gain(0);
@@ -119,7 +140,9 @@ export const createSaturatorCore: DeviceCoreFactory = (): DeviceCore => {
     apply(values, _context, initial) {
       setOrRamp(softGain.gain, 1 - values.character, initial);
       setOrRamp(hardGain.gain, values.character, initial);
-      setOrRamp(preGain.gain, 10 ** (values.drive / 20), initial);
+      // The drive, scaled into the tables' ±SATURATOR_HEADROOM span: a
+      // full-scale sample at 0 dB lands a quarter of the way out, on the curve.
+      setOrRamp(preGain.gain, 10 ** (values.drive / 20) / SATURATOR_HEADROOM, initial);
       setOrRamp(postGain.gain, 10 ** (-values.drive / 40), initial);
     },
     dispose() {

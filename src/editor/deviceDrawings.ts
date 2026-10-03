@@ -2,8 +2,9 @@
  * What the shaping and space devices do to a sound, as curves for their wells
  * (#447). Each mirrors its engine in `src/audio/devices` — the same transfer
  * functions, gains and size scaling — so the drawing is the sound's shape, not
- * an illustration. They are written out here because the engine's own copies
- * live inside Tone node factories the editor cannot import.
+ * an illustration. Most are written out here because the engine's own copies
+ * live inside Tone node factories the editor cannot import; the Saturator's
+ * live in a Tone-free module both sides import.
  */
 
 /** A Web Audio waveshaper holds its input to -1..1 before the curve. */
@@ -11,8 +12,6 @@ const shaped = (curve: (x: number) => number, x: number) =>
   curve(Math.max(-1, Math.min(1, x)));
 
 const overdriveCurve = (x: number) => Math.tanh(3 * (x < 0 ? 1.4 : 1) * x) / Math.tanh(3);
-const softCurve = (x: number) => Math.tanh(2 * x) / Math.tanh(2);
-const foldCurve = (x: number) => Math.sin(Math.PI * Math.max(-1.5, Math.min(1.5, x)));
 
 /** Overdrive output for input `x` at `drive` (0..1): gain in, part given back. */
 export function overdriveTransfer(drive: number, x: number): number {
@@ -20,13 +19,8 @@ export function overdriveTransfer(drive: number, x: number): number {
   return gain ** -0.5 * shaped(overdriveCurve, gain * x);
 }
 
-/** Saturator output for input `x`: `driveDb` in, `character` soft → fold. */
-export function saturatorTransfer(driveDb: number, character: number, x: number): number {
-  const into = 10 ** (driveDb / 20) * x;
-  const out =
-    (1 - character) * shaped(softCurve, into) + character * shaped(foldCurve, into);
-  return 10 ** (-driveDb / 40) * out;
-}
+/** The Saturator's curves have no Tone in them, so this is the engine's own copy. */
+export { saturatorTransfer } from "../audio/devices/saturatorCurves";
 
 /** SVG path of `transfer` over -1..1 in a `width` × `height` box, clamped. */
 export function transferPath(

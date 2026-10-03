@@ -24,12 +24,24 @@ describe("device drawings (#447)", () => {
   });
 
   it("morphs a saturator from a soft knee to a fold with its character", () => {
-    const soft = saturatorTransfer(6, 0, 0.9);
-    const fold = saturatorTransfer(6, 1, 0.9);
+    const soft = saturatorTransfer(12, 0, 0.9);
+    const fold = saturatorTransfer(12, 1, 0.9);
     expect(soft).toBeGreaterThan(0);
-    // Past the knee the fold turns back on itself.
+    // Past its peak the fold turns back on itself.
     expect(fold).toBeLessThan(soft);
     expect(saturatorTransfer(0, 0, 0)).toBe(0);
+  });
+
+  it("draws a saturator at 0 dB drive as unity near zero, rounded past full scale (#885)", () => {
+    for (const character of [0, 1]) {
+      expect(saturatorTransfer(0, character, 0.01)).toBeCloseTo(0.01, 5);
+    }
+    const hot = saturatorTransfer(0, 0, 1.4);
+    expect(hot).toBeGreaterThan(saturatorTransfer(0, 0, 1));
+    expect(hot).toBeLessThan(1);
+    // The fold is not silent at or above full scale.
+    expect(saturatorTransfer(0, 1, 1)).toBeGreaterThan(0.5);
+    expect(saturatorTransfer(0, 1, 1.4)).toBeGreaterThan(0.5);
   });
 
   it("draws a transfer across the box, clamped inside it", () => {
