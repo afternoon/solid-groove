@@ -163,7 +163,7 @@ test.describe("library keys", () => {
   // #873: similar sounds took none of the library's keys, so the arrows left
   // Hearing on the source sound and S never grew the trail.
   test("the arrows and S work in similar sounds", async ({ page }) => {
-    await openBdSlot(page);
+    await openPadSlot(page, "BD");
     await selectSecondSound(page);
     await page.keyboard.press("s");
     const results = library(page).getByRole("list", { name: "Similar sounds" });
