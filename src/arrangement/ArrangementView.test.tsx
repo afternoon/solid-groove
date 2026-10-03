@@ -99,7 +99,10 @@ async function setUpEditing(
     deviceStorage: memoryStorage(),
   });
 
-  function renderView(onOpenPlacement?: (placementId: PlacementId) => void) {
+  function renderView(
+    onOpenPlacement?: (placementId: PlacementId) => void,
+    onSelectPlacement?: (placementId: PlacementId) => void,
+  ) {
     return render(() => (
       <ArrangementView
         project={session.project}
@@ -107,6 +110,7 @@ async function setUpEditing(
         dispatch={session.dispatch.bind(session)}
         beginGesture={session.beginGesture.bind(session)}
         onOpenPlacement={onOpenPlacement}
+        onSelectPlacement={onSelectPlacement}
       />
     ));
   }
@@ -434,6 +438,26 @@ describe("opening a placement (UI-001)", () => {
     flush();
 
     expect(opened).toEqual([placementId]);
+  });
+
+  it("reports a click that selects one placement, once (UI-002)", async () => {
+    const { renderView, placementId } = await setUpEditing();
+    const selected: string[] = [];
+    const { container } = renderView(undefined, (id) => selected.push(id));
+    const canvas = interactionCanvasOf(container);
+    const onClip = {
+      clientX: (TICKS_PER_BAR / 2) * PIXELS_PER_TICK,
+      clientY: RULER_HEIGHT_PX + ROW_HEIGHT_PX / 2,
+    };
+
+    firePointer(canvas, "pointerdown", onClip);
+    firePointer(canvas, "pointerup", onClip);
+    // Clicking the clip already selected reports nothing new.
+    firePointer(canvas, "pointerdown", onClip);
+    firePointer(canvas, "pointerup", onClip);
+    flush();
+
+    expect(selected).toEqual([placementId]);
   });
 
   it("reports nothing for a double-click on empty timeline or on the ruler", async () => {
