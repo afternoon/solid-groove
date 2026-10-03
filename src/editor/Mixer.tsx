@@ -34,7 +34,11 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { moveTrack, previewOrder, type ReorderMethod } from "./trackReorder";
-import { toggleTrackFlag, trackSurfaceHandlers } from "./trackSurface";
+import {
+  type TrackSelectionSource,
+  toggleTrackFlag,
+  trackSurfaceHandlers,
+} from "./trackSurface";
 import { useTrackDrag } from "./useTrackDrag";
 import "./Mixer.css";
 import { ariaBool } from "../shared/aria";
@@ -65,7 +69,7 @@ export interface MixerProps {
    */
   readonly selectedTrackId?: TrackId | null;
   /** Called with the track a strip belongs to when the user clicks it. */
-  onSelectTrack?(trackId: TrackId): void;
+  onSelectTrack?(trackId: TrackId, how: TrackSelectionSource): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -110,7 +114,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
       dispatch: props.dispatch,
       analytics: analytics(),
       feature: "mixer",
-      onSelect: selectTrack,
+      onSelect: (trackId) => selectTrack(trackId, "follow"),
     });
   }
 
@@ -119,9 +123,9 @@ export default function Mixer(props: MixerProps): JSX.Element {
    * mixer's, so this reports rather than decides; it counts as mixer use for
    * the OPS-02 `feature_first_use` measure, like every other strip interaction.
    */
-  function selectTrack(trackId: TrackId): void {
+  function selectTrack(trackId: TrackId, how: TrackSelectionSource): void {
     if (!props.onSelectTrack) return;
-    props.onSelectTrack(trackId);
+    props.onSelectTrack(trackId, how);
     analytics().logFeatureFirstUse("mixer");
   }
 
@@ -249,7 +253,7 @@ export default function Mixer(props: MixerProps): JSX.Element {
                       trackCount={trackIds().length}
                       clipCount={clipCount(id)}
                       selected={props.selectedTrackId === id}
-                      onSelect={() => selectTrack(id)}
+                      onSelect={() => selectTrack(id, "header")}
                       onMove={(toIndex) => moveBy(id, toIndex, "button")}
                       onDragStart={(event) => trackDrag.begin(event, id)}
                       dragging={trackDrag.dragging() === id}
