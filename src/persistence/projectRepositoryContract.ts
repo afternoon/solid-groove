@@ -6,7 +6,11 @@ import {
   packVersion,
   type Song,
 } from "../domain/entities";
-import { createFactoryContext, createNoteEvent } from "../domain/factories";
+import {
+  createFactoryContext,
+  createNoteEvent,
+  createPlacement,
+} from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
   createReferenceProject,
@@ -18,7 +22,7 @@ import { createSeededIdFactory } from "../domain/ids";
 import { derivePackDependencies } from "../domain/packs";
 import type { JsonObject } from "../domain/serialize";
 import { serializeClip, stringifyProject } from "../domain/serialize";
-import { TICKS_PER_SIXTEENTH } from "../domain/time";
+import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../domain/time";
 import { loadStoredProjectFixture } from "../testing/fixtures";
 import {
   arrangementChunkPath,
@@ -280,6 +284,70 @@ export function describeProjectRepositoryContract(
       expect(loaded.ok).toBe(true);
       if (!loaded.ok) return;
       expect(loaded.value.clips).toEqual([]);
+    });
+
+    it("writes a song and the clips it places as one revision (#965)", async () => {
+      const project = await store(createSliceFixtureProject());
+      const next = withDuplicatedClip(project);
+
+      const saved = await repository.saveChanges(
+        project.metadata.id,
+        { song: next.song, clips: [next.clips[1]], metadata: { name: "Duplicated" } },
+        project.metadata.revision,
+      );
+      expect(saved.ok).toBe(true);
+      if (!saved.ok) return;
+      expect(saved.revision).toBe(project.metadata.revision + 1);
+
+      const loaded = await repository.loadProject(project.metadata.id);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      expect(loaded.value.song.placements).toHaveLength(2);
+      expect(loaded.value.clips.map((clip) => clip.id).sort()).toEqual(
+        next.clips.map((clip) => clip.id).sort(),
+      );
+      expect(loaded.value.metadata).toMatchObject({
+        name: "Duplicated",
+        revision: saved.revision,
+      });
+    });
+
+    it("removes a track's song entry and its clips in one write (#965)", async () => {
+      const project = await store(createSliceFixtureProject());
+
+      const saved = await repository.saveChanges(
+        project.metadata.id,
+        {
+          song: { ...project.song, tracks: [], placements: [] },
+          deletedClipIds: [project.clips[0].id],
+        },
+        project.metadata.revision,
+      );
+      expect(saved.ok).toBe(true);
+
+      const loaded = await repository.loadProject(project.metadata.id);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      expect(loaded.value.clips).toEqual([]);
+    });
+
+    it("writes nothing from a change set when one document in it is refused (#965)", async () => {
+      const project = await store(createSliceFixtureProject());
+      const next = withDuplicatedClip(project);
+
+      const saved = await repository.saveChanges(
+        project.metadata.id,
+        { song: next.song, clips: [next.clips[1], oversizedClip(project.clips[0])] },
+        project.metadata.revision,
+      );
+      expect(saved.ok).toBe(false);
+      if (saved.ok) return;
+      expect(saved.reason).toBe("document_too_large");
+
+      const loaded = await repository.loadProject(project.metadata.id);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      expect(stringifyProject(loaded.value)).toBe(stringifyProject(project));
     });
 
     it("deletes every document of a project", async () => {
@@ -570,6 +638,56 @@ function songWithoutLoopPack(project: Project): { song: Song; clipId: ClipId } {
       placements: project.song.placements.filter(
         (placement) => placement.clipId !== clip.id,
       ),
+    },
+  };
+}
+
+/**
+ * The fixture with its first clip duplicated into bar 2: a new clip with fresh
+ * IDs throughout, and a placement for it, as Ctrl+D produces.
+ */
+function withDuplicatedClip(project: Project): Project {
+  const context = createFactoryContext({
+    ids: createSeededIdFactory("contract-duplicate"),
+    now: 1_700_000_000_000,
+  });
+  const [clip] = project.clips;
+  const copy: Clip = {
+    ...clip,
+    id: context.ids("clip"),
+    content:
+      clip.content.kind === "notes"
+        ? {
+            ...clip.content,
+            events: clip.content.events.map((event) => ({
+              ...event,
+              id: context.ids("event"),
+            })),
+          }
+        : clip.content,
+  };
+  const placement = createPlacement(context, {
+    clipId: copy.id,
+    trackId: copy.trackId,
+    startTicks: TICKS_PER_BAR,
+    durationTicks: TICKS_PER_BAR,
+  });
+  return {
+    ...project,
+    song: { ...project.song, placements: [...project.song.placements, placement] },
+    clips: [...project.clips, copy],
+  };
+}
+
+/** A clip far over its document budget. */
+function oversizedClip(clip: Clip): Clip {
+  if (clip.content.kind !== "notes") return clip;
+  const [event] = clip.content.events;
+  return {
+    ...clip,
+    content: {
+      ...clip.content,
+      events: Array.from({ length: 4_000 }, () => event),
     },
   };
 }
