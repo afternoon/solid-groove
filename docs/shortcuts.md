@@ -126,7 +126,7 @@ stand down while it is up, but `global` (undo, redo, Escape) and the view keys
 reuses both; Escape closes the keys sheet, and leaving the Library is a view
 key. Typing in the search field keeps every key except `Escape` and `Down`,
 which leaves the field. `Enter` inserts and stays, `Shift+Enter` inserts and
-goes back to where you came from, and both are the library's even on a focused
+goes back to the instrument as the Insert button does, and both are the library's even on a focused
 button; `Space` leaves the browser default alone, so a focused button or
 checkbox still presses.
 The two `device.*` moves act on the device whose header has focus: they are the

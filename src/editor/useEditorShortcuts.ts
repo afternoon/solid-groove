@@ -30,10 +30,10 @@ export interface UseEditorShortcutsOptions {
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
   readonly exportOpen: Accessor<boolean>;
-  /** Whether the Library view (`UI-002`) is on screen, and how Shift+Enter
-   * goes back to where it was reached from. */
+  /** Whether the Library view (`UI-002`) is on screen. */
   readonly libraryOpen: Accessor<boolean>;
-  readonly leaveLibrary: () => void;
+  /** Where Shift+Enter goes once its insert has committed: the instrument. */
+  readonly returnFromInsert: () => void;
   /** The open library modal's actions (`LIB-010`), or null while it is closed. */
   readonly libraryActions: Accessor<LibraryActions | null>;
   /** The arrangement's placement-editing operations (ARR-002), lifted from
@@ -118,7 +118,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     setGuideOpen,
     exportOpen,
     libraryOpen,
-    leaveLibrary,
+    returnFromInsert,
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
@@ -319,10 +319,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
     // Enter inserts and stays, so another sound can be tried; Shift+Enter
-    // inserts and goes back (UI-002). Each insert is one history entry.
+    // inserts and goes back to the instrument, as the Insert button does
+    // (UI-002). Each insert is one history entry.
     "library.insert": onSelectedSound((a) => void a.insertSelected()),
     "library.insert_and_return": onSelectedSound((a) => {
-      if (a.insertSelected()) leaveLibrary();
+      if (a.insertSelected()) returnFromInsert();
     }),
     ...Object.fromEntries(
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
