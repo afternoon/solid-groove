@@ -36,7 +36,7 @@ current versions get a pass here too even though CI runs them:
   ([`docs/testing.md`](../testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap),
   #43). Whether it sounds right (no clicks, no drift, no dropouts) is a human
   judgement on real speakers.
-- **The display.** CI renders in a headless
+- **The display.** CI renders at device pixel ratio 1 and 2 in a headless
   window. A Retina panel, an external 1x monitor and dragging a window between
   them are only real here.
 

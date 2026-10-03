@@ -31,21 +31,37 @@ export function parseInternalTrafficParam(value: string | null): boolean | undef
   return undefined;
 }
 
-/** Reads the persisted flag. Fails closed (not internal) if storage throws. */
-export function isInternalTraffic(storage: Storage = localStorage): boolean {
+/**
+ * The browser's `localStorage`, or `null` where there is none or merely
+ * reading it throws: a "block site data" setting makes the `localStorage`
+ * getter itself throw a `SecurityError` (#75). Resolved here rather than as a
+ * bare `= localStorage` default parameter, because a default is evaluated
+ * before the function's own `try` — which is how blocked site data used to
+ * throw out of `syncInternalTraffic` and leave the app on its loading screen.
+ */
+function defaultStorage(): Storage | null {
   try {
-    return storage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY) === "true";
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Reads the persisted flag. Fails closed (not internal) if storage throws. */
+export function isInternalTraffic(storage: Storage | null = defaultStorage()): boolean {
+  try {
+    return storage?.getItem(INTERNAL_TRAFFIC_STORAGE_KEY) === "true";
   } catch {
     return false;
   }
 }
 
-function setInternalTraffic(value: boolean, storage: Storage): void {
+function setInternalTraffic(value: boolean, storage: Storage | null): void {
   try {
     if (value) {
-      storage.setItem(INTERNAL_TRAFFIC_STORAGE_KEY, "true");
+      storage?.setItem(INTERNAL_TRAFFIC_STORAGE_KEY, "true");
     } else {
-      storage.removeItem(INTERNAL_TRAFFIC_STORAGE_KEY);
+      storage?.removeItem(INTERNAL_TRAFFIC_STORAGE_KEY);
     }
   } catch {
     // Storage can throw (private browsing, quota, disabled). Marking traffic
@@ -61,7 +77,7 @@ function setInternalTraffic(value: boolean, storage: Storage): void {
  */
 export function syncInternalTraffic(
   location: Pick<Location, "search"> = window.location,
-  storage: Storage = localStorage,
+  storage: Storage | null = defaultStorage(),
 ): boolean {
   const params = new URLSearchParams(location.search);
   const claim = parseInternalTrafficParam(params.get("internal"));

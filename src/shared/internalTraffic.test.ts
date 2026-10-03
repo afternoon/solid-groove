@@ -79,3 +79,29 @@ describe("isInternalTraffic / syncInternalTraffic", () => {
     ).not.toThrow();
   });
 });
+
+// #75: "block site data" makes merely reading `window.localStorage` throw. The
+// default storage used to be a bare `= localStorage` parameter, evaluated
+// outside every `try`, so `App` threw on load and never left its loading screen.
+describe("with site data blocked", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+
+  beforeEach(() => {
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("Site data is blocked", "SecurityError");
+      },
+    });
+    return () => {
+      if (original) Object.defineProperty(globalThis, "localStorage", original);
+    };
+  });
+
+  it("reads and syncs the flag without throwing, failing closed", () => {
+    expect(isInternalTraffic()).toBe(false);
+    expect(syncInternalTraffic({ search: "" })).toBe(false);
+    // The URL's claim still holds for this load; it just is not persisted.
+    expect(syncInternalTraffic({ search: "?internal=1" })).toBe(true);
+  });
+});
