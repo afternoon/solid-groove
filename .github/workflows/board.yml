@@ -92,6 +92,16 @@ jobs:
       - uses: ./.github/actions/claude-env
       - name: Install Chromium for screenshots and browser tests
         run: bunx playwright install --with-deps chromium
+      - name: Say on the issue that the run has started
+        id: announce
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+          ISSUE: ${{ needs.status.outputs.ship }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body=$(printf '%s\n\n%s' "**Picking this up.** ([/ship run]($RUN))" "_Reading the issue and working out a plan; this comment will show it and track progress._")
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" -f body="$body" --jq .id)
+          echo "comment=$id" >> "$GITHUB_OUTPUT"
       - name: Ship the issue
         uses: anthropics/claude-code-action@v1
         with:
@@ -104,6 +114,8 @@ jobs:
             Follow `.claude/skills/ship/SKILL.md`, with one change for this environment: do NOT use the Workflow tool. This is a headless run that ends the moment your turn ends, so a background workflow would be killed before it does anything. Instead run the stages in `.claude/workflows/solid-groove-ship.js` yourself, in order (triage, build, review for features only, land), giving each stage's prompt to the Agent tool with `run_in_background: false` and waiting for its result before starting the next. Read the agent briefs in `.claude/agents/` the same way the workflow does.
 
             Do not end your turn until the pull requests are open, or the issue is labelled `status:blocked` with a comment saying why. Before you report a PR, confirm it exists with `gh pr view`. Never report a result you have not seen. Use the `gh` CLI for GitHub (GH_TOKEN is set).
+
+            Keep the issue informed through comment ${{ steps.announce.outputs.comment }}, which this run already posted on the issue. Edit it in place (`gh api --method PATCH repos/${{ github.repository }}/issues/comments/${{ steps.announce.outputs.comment }} -f body=...`), keeping its first line and run link: as soon as you have read the issue, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
           claude_args: |
             --model opus
             --max-turns 400
@@ -160,6 +172,16 @@ jobs:
         run: bunx playwright install --with-deps chromium
       - id: start
         run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Say on the issue that the run has started
+        id: announce
+        env:
+          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+          ISSUE: ${{ needs.status.outputs.rework }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body=$(printf '%s\n\n%s' "**Picking this up again: it was sent back while its PRs were open.** ([rework run]($RUN))" "_Reading the issue and working out a plan; this comment will show it and track progress._")
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" -f body="$body" --jq .id)
+          echo "comment=$id" >> "$GITHUB_OUTPUT"
       - name: Rework the issue's PRs
         uses: anthropics/claude-code-action@v1
         with:
@@ -176,6 +198,8 @@ jobs:
             5. Move the card: `status:qa` if the closing PR has the `deploy-preview` label (the push redeploys it for QA), otherwise `status:review`.
 
             Stop only if two reasonable readings of the feedback would build materially different things: then comment the one question on the issue and add `status:blocked`. Use the `gh` CLI for GitHub (GH_TOKEN is set). Never report a push you have not seen land.
+
+            Keep the issue informed through comment ${{ steps.announce.outputs.comment }}, which this run already posted on the issue. Edit it in place (`gh api --method PATCH repos/${{ github.repository }}/issues/comments/${{ steps.announce.outputs.comment }} -f body=...`), keeping its first line and run link: as soon as you have read the issue, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
           claude_args: |
             --model opus
             --max-turns 300
