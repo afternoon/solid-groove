@@ -213,9 +213,9 @@ const EQ_IN_USE = () =>
 
 /** The synth song the parity renders share: a track strip, inserts, a send to
  * a return with a tempo-synced delay, and a master chain, all off default.
- * `eq` adds an EQ to the track's inserts, so an export of one is proven to be
+ * `eq` adds an EQ to the track's inserts (`true` for {@link EQ_IN_USE}), so an export of one is proven to be
  * what playback sounds like. */
-function paritySong(options: { eq?: boolean } = {}): Project {
+function paritySong(options: { eq?: boolean | Device } = {}): Project {
   const bus = {
     ...createReturnBus(createFactoryContext({ ids }), { name: "FX", order: 0 }),
   };
@@ -227,11 +227,15 @@ function paritySong(options: { eq?: boolean } = {}): Project {
     (track) => ({
       ...track,
       instrument: { kind: "synth", parameters: { filterCutoff: 1_200, ampRelease: 0.3 } },
+      // Each insert takes its place in the chain from its position here. Left
+      // at the helper's order 0, ties fall back to comparing IDs, which every
+      // build mints afresh: the saturator and the EQ would swap places from
+      // one build to the next, and so would the sound.
       devices: [
         device("filter", { cutoff: 2_500 }),
         device("saturator", { drive: 0.6 }),
-        ...(options.eq ? [EQ_IN_USE()] : []),
-      ],
+        ...(options.eq === true ? [EQ_IN_USE()] : options.eq ? [options.eq] : []),
+      ].map((insert, order) => ({ ...insert, order })),
       sendConfig: [createSend(bus.id, 0.5)],
       mixer: { ...track.mixer, volume: -6, pan: 0.4 },
     }),
@@ -302,6 +306,24 @@ describe("offline reference renders: duration and tails", () => {
 });
 
 /**
+ * Builds the song twice and renders each, and asserts not one sample differs
+ * (#867). Each build mints fresh IDs, so this also proves no ID leaks into the
+ * sound.
+ */
+async function expectDeterministic(build: () => Project): Promise<void> {
+  const first = await render(build(), 2);
+  const second = await render(build(), 2);
+  expect(second.frames).toBe(first.frames);
+  for (const channel of [0, 1]) {
+    const a = first.channels[channel];
+    const b = second.channels[channel];
+    let differing = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
+    expect(differing, `channel ${channel}`).toBe(0);
+  }
+}
+
+/**
  * Renders `project` offline and through the graph live playback builds, and
  * asserts the two are the same samples, near enough. Returns the latency the
  * live graph compensates for, which the render drops from its front.
@@ -365,24 +387,29 @@ describe("offline reference renders: parity with live playback", () => {
   });
 
   it("renders the same song to the same samples every time", async () => {
-    const first = await render(paritySong(), 2);
-    const second = await render(paritySong(), 2);
-    expect(second.frames).toBe(first.frames);
-    for (const channel of [0, 1]) {
-      const a = first.channels[channel];
-      const b = second.channels[channel];
-      let differing = 0;
-      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
-      expect(differing, `channel ${channel}`).toBe(0);
-    }
+    await expectDeterministic(() => paritySong());
   });
 
-  // After the determinism render on purpose: an EQ render earlier in this
-  // worker shifts the native graph's internal ordering, and that exposes a
-  // rounding difference between two renders of the unchanged parity song that
-  // is not the EQ's (it shows too when only the filter's cutoff changes).
   it("renders an EQ exactly as the live graph plays it (LOOP-022)", async () => {
     await expectLiveParity(paritySong({ eq: true }));
+  });
+
+  it("renders an EQ to the same samples every time (LOOP-022)", async () => {
+    await expectDeterministic(() => paritySong({ eq: true }));
+  });
+
+  it("renders an EQ's cuts alone to the same samples every time (LOOP-022)", async () => {
+    await expectDeterministic(() =>
+      paritySong({
+        eq: device("eq", {
+          lowCutOn: 1,
+          lowCutFreq: 120,
+          highCutOn: 1,
+          highCutFreq: 8_000,
+          highCutQ: 2,
+        }),
+      }),
+    );
   });
 });
 
