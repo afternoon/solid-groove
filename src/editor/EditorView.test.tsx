@@ -621,13 +621,9 @@ describe("EditorView", () => {
     // The Insert button inserts and goes back, as Enter does (UI-002).
     await backFromInsert();
     // The chosen pad plays it; the first pad keeps its own sound.
-    expect(
-      screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
-    ).toBe(oneShotName);
+    expect(slotSound(`Sample for ${second.name}`)).toBe(oneShotName);
     clickAndFlush(screen.getByRole("button", { name: `Audition ${first.name}` }));
-    expect(
-      screen.getByRole("button", { name: `Sample for ${first.name}` }).textContent,
-    ).not.toBe(oneShotName);
+    expect(slotSound(`Sample for ${first.name}`)).not.toBe(oneShotName);
     const changed = transport.named("instrument_changed");
     expect(changed).toHaveLength(1);
     expect(changed[0].params.instrument_type).toBe("drum_machine");
@@ -777,9 +773,7 @@ describe("EditorView", () => {
     // The Insert button inserts and goes back, as Enter does (UI-002).
     await backFromInsert();
     // The same track now plays the new loop, and no track was added.
-    expect(
-      screen.getByRole("button", { name: `Loop for ${breakTrack.name}` }).textContent,
-    ).toBe(loopName);
+    expect(slotSound(`Loop for ${breakTrack.name}`)).toBe(loopName);
     expect(transport.named("track_added")).toHaveLength(0);
     await goToView("Mixer");
     expect(mixerSelect(breakTrack.name)).toBeInTheDocument();
@@ -1455,6 +1449,35 @@ describe("EditorView library view", () => {
     fireAndFlush(() => fireEvent.keyDown(window, { key: "Escape" }));
     expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
     await leaveLibrary();
+  });
+});
+
+/** The Library's target, shown on the slots (`UI-002`, CF-030). */
+describe("EditorView library target", () => {
+  it("marks the selected pad's slot with the 4 key, and follows the pad", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const [drums] = project.song.tracks;
+    if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [first, second] = drums.instrument.pads;
+    if (!(await repository.createProject(project)).ok) throw new Error("no fixture");
+    renderEditor(project.metadata.id, { createAuditionEngine: fakePreviewEngine });
+    await goToView("Instrument");
+
+    const slot = await screen.findByRole("button", { name: `Sample for ${first.name}` });
+    expect(slot).toHaveAttribute("aria-current", "true");
+    expect(slot).toHaveTextContent("4");
+    expect(slot).toHaveAttribute("aria-keyshortcuts", "4");
+    clickAndFlush(screen.getByRole("button", { name: `Audition ${second.name}` }));
+    expect(
+      screen.getByRole("button", { name: `Sample for ${second.name}` }),
+    ).toHaveAttribute("aria-current", "true");
+
+    // Away and back by key: still aimed at the pad last touched.
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "4" }));
+    const header = await screen.findByRole("heading", { name: /^Inserting into / });
+    expect(header).toHaveTextContent(`${drums.name} › Drum machine › ${second.name}`);
   });
 });
 
@@ -2402,6 +2425,11 @@ async function insertSound(name: string): Promise<void> {
   fireEvent.click(await screen.findByRole("button", { name: `Audition ${name}` }));
   clickAndFlush(await screen.findByRole("button", { name: `Insert ${name}` }));
 }
+
+/** The sound a slot names, apart from the Library's key it also shows. */
+const slotSound = (label: string) =>
+  screen.getByRole("button", { name: label }).querySelector(".sample-slot-name")
+    ?.textContent;
 
 /** Opens the Library from the drum machine's selected pad slot. */
 async function openLibraryFromPad(): Promise<HTMLElement> {

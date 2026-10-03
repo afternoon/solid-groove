@@ -206,6 +206,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               <div class="drum-pad-editor-sample">
                 <SampleSlot
                   label={`Sample for ${pad().name}`}
+                  slot={{ kind: "pad", padId: pad().id }}
                   name={sampleName(pad())}
                   onBrowse={() => {
                     markFeatureUse();

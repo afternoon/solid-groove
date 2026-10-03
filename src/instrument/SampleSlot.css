@@ -1,5 +1,5 @@
-/* The sample slot (#447): a filled button naming the sound, its caret saying
-   it opens something — the library, on this slot. */
+/* The sample slot (#447, UI-002): a filled button naming the sound, with the
+   Library's icon and key — pressing it goes to the Library, on this slot. */
 .sample-slot {
   display: flex;
   align-items: center;
@@ -20,12 +20,21 @@
   background-color: var(--color-background-hover);
 }
 
-.sample-slot::after {
-  content: "";
+/* The Library's key (UI-002): the slot goes to the view on 4. */
+.sample-slot-key {
   flex: none;
-  border-top: 5px solid var(--color-foreground);
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--color-foreground-muted);
+}
+
+/* The slot the Library is aimed at: a white edge and a white key. */
+.sample-slot[aria-current="true"] {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.sample-slot[aria-current="true"] .sample-slot-key {
+  color: var(--color-accent);
 }
 
 /* The library's sound icon: says what the slot holds and where it opens. */
