@@ -3097,6 +3097,83 @@ describe("EditorView sequence editor", () => {
       "into BD",
     );
   });
+
+  // The Sequence view's own way to add a lane (#947): [+ Pad] under the last
+  // lane aims the Library at a new pad, and inserting comes back with its lane.
+  describe("[+ Pad] (#947)", () => {
+    async function renderDrums() {
+      repository = inMemoryModule.createInMemoryProjectRepository();
+      const project = createDrumMachineFixtureProject();
+      const [drums] = project.song.tracks;
+      if (drums.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+      const created = await repository.createProject(project);
+      if (!created.ok) throw new Error("fixture project failed to create");
+      const transport = createRecordingTransport();
+      renderEditor(project.metadata.id, {
+        libraryClient: new LibraryClient(fixtureFetcher()),
+        analytics: recordingAnalytics(transport),
+      });
+      const editor = await openSequenceEditor();
+      return { editor, transport, pads: drums.instrument.pads };
+    }
+    const rowNames = (editor: HTMLElement) =>
+      within(within(editor).getByRole("group", { name: "Rows" }))
+        .getAllByRole("button")
+        .map((button) => button.textContent);
+
+    it("adds a pad with the chosen sound, back on Sequence with its lane selected; one undo removes it", async () => {
+      const { editor, transport, pads } = await renderDrums();
+      clickAndFlush(within(editor).getByRole("button", { name: "Add pad from library" }));
+      const library = await screen.findByRole("region", { name: "Library" });
+      expect(library).toHaveTextContent("Drum machine › New pad");
+      const oneShotName = oneShotAssetName("core-electronic-drums");
+      await insertSound(oneShotName);
+
+      // Back on Sequence, not the instrument, with the new lane last and selected.
+      const sequence = await screen.findByRole("region", { name: "Sequence editor" });
+      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument();
+      expect(rowNames(sequence)).toEqual([...pads.map((pad) => pad.name), oneShotName]);
+      expect(
+        within(within(sequence).getByRole("group", { name: "Rows" })).getByRole(
+          "button",
+          {
+            name: oneShotName,
+          },
+        ),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(sequence).getByRole("region", { name: "Generate" }),
+      ).toHaveTextContent(`into ${oneShotName}`);
+
+      // The event a pad given a sound logs, once, and the entry point's first use.
+      const changed = transport.named("instrument_changed");
+      expect(changed).toHaveLength(1);
+      expect(changed[0].params.instrument_type).toBe("drum_machine");
+      expect(
+        transport
+          .named("feature_first_use")
+          .filter((event) => event.params.feature === "sequence_add_pad"),
+      ).toHaveLength(1);
+
+      fireAndFlush(() => fireEvent.keyDown(window, { key: "z", ctrlKey: true }));
+      await vi.waitFor(() =>
+        expect(rowNames(sequence)).toEqual(pads.map((pad) => pad.name)),
+      );
+    });
+
+    it("leaving the Library without choosing adds nothing", async () => {
+      const { editor, transport, pads } = await renderDrums();
+      clickAndFlush(within(editor).getByRole("button", { name: "Add pad from library" }));
+      await screen.findByRole("region", { name: "Library" });
+
+      fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+
+      const sequence = await screen.findByRole("region", { name: "Sequence editor" });
+      expect(screen.queryByRole("region", { name: "Library" })).not.toBeInTheDocument();
+      expect(rowNames(sequence)).toEqual(pads.map((pad) => pad.name));
+      expect(transport.named("instrument_changed")).toHaveLength(0);
+    });
+  });
 });
 
 /** The three views and the dock that names them (`UI-001`, CF-008). */

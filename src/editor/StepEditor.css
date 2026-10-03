@@ -73,7 +73,7 @@
    unscrolled. The room under the last pad is empty ground. */
 .step-rows,
 .step-lanes {
-  min-height: calc(5 * var(--pr-row));
+  min-height: calc(var(--step-floor, 5) * var(--pr-row));
 }
 
 .step-rows {
@@ -216,4 +216,37 @@
   border: 1px solid var(--color-accent);
   background: var(--tint-soft);
   pointer-events: none;
+}
+
+/* The [+ Pad] row (#947): under the last lane, across the gutter and the
+   steps, the arrangement's [+ Sampler] button in the arrangement's place for
+   it. Transparent to the pointer around the button, so the ground under it
+   still starts a lasso. */
+.step-editor-grid {
+  position: relative;
+}
+
+.step-add-pad {
+  position: absolute;
+  top: calc(var(--pr-ruler) + var(--step-lane-count, 0) * var(--pr-row));
+  right: 0;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--pr-row);
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.step-add-pad > * {
+  pointer-events: auto;
+}
+
+/* A full kit: the button stays where it was, saying why it does nothing. */
+.step-add-pad .new-track-button:disabled {
+  background-color: transparent;
+  color: var(--color-foreground-muted);
+  cursor: not-allowed;
 }

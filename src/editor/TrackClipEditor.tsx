@@ -44,6 +44,8 @@ export interface TrackClipEditorProps {
   readonly selectedPadId?: PadId | null;
   onSelectPad?(padId: PadId): void;
   auditionPad?(padId: PadId): void;
+  /** The step grid's [+ Pad] row on a drum machine (#947). */
+  onAddPad?(): void;
 }
 
 /**
@@ -121,6 +123,7 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
                   onSelectPad={selectPad}
                   auditionPad={(id) => props.auditionPad?.(id)}
                   preview={preview(clip())}
+                  onAddPad={props.onAddPad && (() => props.onAddPad?.())}
                 />
                 {/* Generate takes the Key panel's place beside Transform. */}
                 <div class="roll-panels step-panels">

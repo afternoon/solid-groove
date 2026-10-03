@@ -36,6 +36,7 @@ import {
 import type { LibrarySample } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import {
+  addPadWithSampleCommands,
   insertLoopCommands,
   loadPadSampleCommands,
   loadSampleCommands,
@@ -168,7 +169,18 @@ const SLOT_KINDS: Record<LibraryTarget["kind"], "drum-pad" | "sampler" | "loop-t
   sampler: "sampler",
   loop: "loop-track",
   "new-track": "loop-track",
+  "new-pad": "drum-pad",
 };
+
+/**
+ * The targets a committed insert goes back from to where the Library was
+ * reached, rather than to the instrument: the new track goes back to the
+ * arrangement, the new pad to the Sequence view's [+ Pad] row (#947).
+ */
+const AIMS_BACK: ReadonlySet<LibraryTarget["kind"] | undefined> = new Set([
+  "new-track",
+  "new-pad",
+]);
 
 /** Mints IDs for tracks the arrangement creates. A module singleton. */
 const factoryContext = createFactoryContext();
@@ -290,17 +302,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // Every other aim is the selected track's own slot (`libraryTarget`), so
   // choosing a track or touching a slot ends this one.
   const [newTrackAim, setNewTrackAim] = createSignal(false);
+  // The Sequence view's [+ Pad] row aims it at a pad the drum machine does not
+  // have yet (#947); inserting adds it, which selects it and ends this aim.
+  const [newPadAim, setNewPadAim] = createSignal(false);
   /**
    * Where a committed insert goes back to (`UI-002`): the instrument, where the
    * slot just filled shows its new sound. A loop inserted on a new track goes
-   * back to where it was asked for instead, the arrangement it now sits in.
+   * back to where it was asked for instead, the arrangement it now sits in,
+   * and so does a new pad, to the Sequence view whose [+ Pad] row asked (#947).
    * That reads the target the insert was aimed at: the insert itself selects
    * the new track, which re-aims the Library before going back runs.
    */
   let insertedInto: LibraryTarget | null = null;
   const returnFromInsert = (via: ViewChangeSource) =>
     selectView(
-      (insertedInto ?? libraryTargetOf())?.kind === "new-track"
+      AIMS_BACK.has((insertedInto ?? libraryTargetOf())?.kind)
         ? libraryReturn
         : "instrument",
       via,
@@ -418,6 +434,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   function selectTrack(trackId: TrackId, chosen = false): void {
     setNewTrackAim(false);
     setReturnSelection(null);
+    setNewPadAim(false);
     setSelection(selectOnly({ kind: "track", id: trackId }));
     setChosenTrackId(chosen ? trackId : null);
   }
@@ -481,6 +498,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const [padSelection, setPadSelection] = createSignal<PadSelection>(emptyPadSelection);
   function selectPad(trackId: TrackId, padId: PadId): void {
     setNewTrackAim(false);
+    setNewPadAim(false);
     setPadSelection((current) => withSelectedPad(current, trackId, padId));
   }
 
@@ -491,6 +509,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       track() ?? null,
       selectedPadOf(padSelection(), drumTrack() ?? null),
       newTrackAim(),
+      newPadAim(),
     ),
   );
   const libraryTargetOf = createMemo(() => {
@@ -524,9 +543,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   };
 
-  /** Aims the Library and goes to `4` (`UI-002`). */
-  function aimLibrary(via: ViewChangeSource, newTrack = false): void {
-    setNewTrackAim(newTrack);
+  /**
+   * Aims the Library and goes to `4` (`UI-002`): at the selected track's slot,
+   * or at a new track or a new pad when one was asked for.
+   */
+  function aimLibrary(via: ViewChangeSource, aim?: "new-track" | "new-pad"): void {
+    setNewTrackAim(aim === "new-track");
+    setNewPadAim(aim === "new-pad");
     selectView("library", via);
   }
   const sampleAssets = createMemo(() => model.sampleAssets(project()));
@@ -724,6 +747,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    */
   function insertIntoTarget(sample: LibrarySample, target: LibraryTarget): string | null {
     if (target.kind === "pad") return loadPadSample(sample, target);
+    if (target.kind === "new-pad") return addPadWithSample(sample, target.trackId);
     if (target.kind === "loop") return replaceLoop(sample, target.trackId);
     if (target.kind === "new-track" && sample.kind !== "loop") {
       return `Couldn't insert ${sample.name}: only a loop can start a new loop track.`;
@@ -851,6 +875,35 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     // A pad sample replacement is an instrument change (PRD OPS-02).
     analytics.log("instrument_changed", { instrument_type: "drum_machine" });
     analytics.logFeatureFirstUse("drum_machine");
+    return null;
+  }
+
+  /**
+   * Adds a pad playing a library one-shot to the drum track whose Sequence
+   * view [+ Pad] row opened the library (#947): one transaction, so one undo
+   * takes the pad away. The new pad's lane is selected, which the step grid
+   * and the instrument view's pad editor share.
+   */
+  function addPadWithSample(sample: LibrarySample, trackId: TrackId): string | null {
+    const currentProject = project();
+    if (!currentProject) return notOpen(sample);
+    if (sample.kind === "loop") {
+      return `Couldn't insert ${sample.name}: a loop can't go on a drum pad.`;
+    }
+    const insert = addPadWithSampleCommands(
+      currentProject,
+      trackId,
+      sample,
+      createFactoryContext(),
+    );
+    const result = session.dispatch(insert.commands);
+    if (!result?.ok) return refusedBy(sample);
+    selectPad(trackId, insert.padId);
+    const analytics = props.analytics ?? defaultAnalytics;
+    // What a pad given a sound logs on the instrument view (PRD OPS-02).
+    analytics.log("instrument_changed", { instrument_type: "drum_machine" });
+    analytics.logFeatureFirstUse("drum_machine");
+    analytics.logFeatureFirstUse("sequence_add_pad");
     return null;
   }
 
@@ -992,7 +1045,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                   <NewTrackButtons
                                     label="Add track to the arrangement"
                                     onAdd={(spec) => addTrack(currentProject(), spec)}
-                                    onAddLoop={() => aimLibrary("arrangement", true)}
+                                    onAddLoop={() =>
+                                      aimLibrary("arrangement", "new-track")
+                                    }
                                   />
                                 }
                               />
@@ -1046,6 +1101,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                 auditionPad={(padId) =>
                                   void audio.auditionPad(open().track.id, padId)
                                 }
+                                onAddPad={() => aimLibrary("slot", "new-pad")}
                                 dispatch={session.dispatch}
                                 beginGesture={session.beginGesture}
                               />
@@ -1089,7 +1145,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               onAddTrack={(spec) =>
                                 addTrack(currentProject(), spec, "instrument_add_track")
                               }
-                              onAddLoop={() => aimLibrary("slot", true)}
+                              onAddLoop={() => aimLibrary("slot", "new-track")}
                               dispatch={session.dispatch}
                               beginGesture={session.beginGesture}
                             />

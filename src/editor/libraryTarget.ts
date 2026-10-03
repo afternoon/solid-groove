@@ -11,12 +11,15 @@ import type { LibraryAssetType } from "../library/manifest";
  * it has one slot, except a drum machine, whose slot is its selected pad's.
  * That is why the target needs no state of its own beyond the arrangement's
  * "new track": the last slot touched *is* the selected track's, because
- * touching a slot selects its track and, for a pad, its pad.
+ * touching a slot selects its track and, for a pad, its pad. The one other
+ * aim is the Sequence view's [+ Pad] (#947): a pad the drum machine does not
+ * have yet, which inserting adds.
  */
 export type LibraryTarget =
   | { readonly kind: "new-track" }
   | { readonly kind: "sampler"; readonly trackId: TrackId }
   | { readonly kind: "pad"; readonly trackId: TrackId; readonly padId: PadId }
+  | { readonly kind: "new-pad"; readonly trackId: TrackId }
   | { readonly kind: "loop"; readonly trackId: TrackId };
 
 /** Where the Library is aimed: a target, or why there is none to aim at. */
@@ -35,9 +38,13 @@ export function libraryAim(
   track: Track | null,
   selectedPadId: PadId | null,
   newTrack: boolean,
+  newPad = false,
 ): LibraryAim {
   if (newTrack) return { kind: "target", target: { kind: "new-track" } };
   if (!track) return { kind: "no-track" };
+  if (newPad && track.instrument?.kind === "drumMachine") {
+    return { kind: "target", target: { kind: "new-pad", trackId: track.id } };
+  }
   if (track.type === "audio") {
     return { kind: "target", target: { kind: "loop", trackId: track.id } };
   }
@@ -63,7 +70,7 @@ export function targetAssetTypes(target: LibraryTarget): readonly LibraryAssetTy
 export function targetSound(project: Project, target: LibraryTarget): Asset | null {
   const asset = (id: string | null | undefined) =>
     project.song.assets.find((entry) => entry.id === id) ?? null;
-  if (target.kind === "new-track") return null;
+  if (target.kind === "new-track" || target.kind === "new-pad") return null;
   if (target.kind === "loop") {
     const clip = project.clips.find(
       (entry) => entry.trackId === target.trackId && entry.content.kind === "audioLoop",
@@ -93,6 +100,7 @@ export function targetPath(project: Project, target: LibraryTarget): string {
   const name = track?.name ?? "Track";
   if (target.kind === "loop") return `${name} › Loop`;
   if (target.kind === "sampler") return `${name} › Sampler › Sample`;
+  if (target.kind === "new-pad") return `${name} › Drum machine › New pad`;
   const pads = track?.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
   const pad = pads.find((entry) => entry.id === target.padId);
   return `${name} › Drum machine › ${pad?.name ?? "Pad"}`;
