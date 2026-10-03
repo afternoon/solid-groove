@@ -141,9 +141,11 @@ async function openClip(page: Page, row: number): Promise<Locator> {
   return sequenceEditor(page);
 }
 
+/** Back to the arrangement with `1`: the sequence view is a view (UI-002). */
 async function closeEditor(page: Page): Promise<void> {
-  await page.keyboard.press("Escape");
+  await page.keyboard.press("1");
   await expect(sequenceEditor(page)).toHaveCount(0);
+  await page.getByTestId("arrangement-view-ready").waitFor();
 }
 
 /** Types a new name over a track's own, from its header in the arrangement. */

@@ -3,7 +3,7 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 /**
  * Double grows the clip on the arrangement timeline too (#647): a one-bar
  * synth clip doubled in the piano roll reads as a two-bar clip once the roll
- * is closed. The timeline is a canvas, so its length is read from the
+ * is left. The timeline is a canvas, so its length is read from the
  * selection's accessible announcement ("bars 1 to 2"), as the arrangement
  * clipboard spec does.
  */
@@ -64,9 +64,11 @@ test.describe("Double", () => {
         .getByRole("button", { name: "Step 32" }),
     ).toBeVisible();
 
-    // Leave the roll: the clip on the timeline is now two bars long.
-    await page.keyboard.press("Escape");
+    // Back to the arrangement with 1: the clip on the timeline is now two
+    // bars long.
+    await page.keyboard.press("1");
     await expect(editor).toHaveCount(0);
+    await page.getByTestId("arrangement-view-ready").waitFor();
     await timeline.click({ position: await synthRowAt(page, 1.5) });
     await expect(announcement(page)).toHaveText("Selected clip on Synth, bars 1 to 2");
   });

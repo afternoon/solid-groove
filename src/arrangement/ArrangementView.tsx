@@ -29,9 +29,11 @@ import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
   type ArrangementPosition,
+  type ArrangementSelection,
   barStartPoint,
   clipsSelection,
   placementsTouchedBy,
+  reconcileArrangementSelection,
 } from "../selection";
 import { detectPlatform } from "../shortcuts/keys";
 import {
@@ -203,6 +205,21 @@ export interface ArrangementViewProps {
    * what opening a clip means is the editor's to decide.
    */
   readonly onOpenPlacement?: (placementId: PlacementId) => void;
+  /**
+   * Called when the selection becomes exactly one clip — a click on it, or
+   * anything else that leaves one clip selected (`UI-002`). Selecting a clip
+   * is choosing what `2` edits; a double-click also goes there.
+   */
+  readonly onSelectPlacement?: (placementId: PlacementId) => void;
+  /**
+   * The selection to start with. The arrangement is only on the page while
+   * it is the view (`UI-002`), so a visit to another view rebuilds it; the
+   * editor hands back what was selected when it left, through
+   * `onSelectionChange`, so the clip you were on is still selected.
+   */
+  readonly initialSelection?: ArrangementSelection | null;
+  /** Called with the arrangement's selection each time it changes. */
+  readonly onSelectionChange?: (selection: ArrangementSelection | null) => void;
   /**
    * Rendered in the header column immediately below the last track, scrolling
    * with it — where the way to add a track belongs, because that is where the
@@ -395,6 +412,24 @@ export default function ArrangementView(props: ArrangementViewProps) {
     setStateVersion((value) => value + 1);
   }
 
+  // The one clip last reported selected, so a drag over it, which changes
+  // state on every step, does not report it again each time.
+  let reportedPlacementId: PlacementId | null = null;
+  /** Tell the host when exactly one clip has become the selection (`UI-002`). */
+  function onlyPlacement(selected: ArrangementSelection | null | undefined) {
+    return selected?.kind === "clips" && selected.placementIds.length === 1
+      ? selected.placementIds[0]
+      : null;
+  }
+  function reportSelectedPlacement(): void {
+    const selected = editing?.getArrangementSelection() ?? null;
+    props.onSelectionChange?.(selected);
+    const only = onlyPlacement(selected);
+    if (only === reportedPlacementId) return;
+    reportedPlacementId = only;
+    if (only) props.onSelectPlacement?.(only);
+  }
+
   /**
    * Point the editor at a track (#228). Clicking a row is how you say "this
    * one" here, exactly as clicking a strip is in the mixer; the arrangement
@@ -441,8 +476,19 @@ export default function ArrangementView(props: ArrangementViewProps) {
       onChange: () => {
         shell?.markDirty("interaction");
         bumpState();
+        reportSelectedPlacement();
       },
     });
+    // Back from another view: the selection it left with, less anything the
+    // project lost meanwhile. Restoring it is not a new choice of clip, so it
+    // is not reported as one.
+    const restored =
+      props.initialSelection &&
+      reconcileArrangementSelection(props.initialSelection, props.project);
+    if (restored) {
+      reportedPlacementId = onlyPlacement(restored);
+      editing.setSelection(restored);
+    }
     if (props.dispatch) {
       props.onEditingActionsReady?.({
         ...editing,
