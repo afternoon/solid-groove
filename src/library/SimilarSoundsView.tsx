@@ -1,5 +1,12 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onSettled,
+  untrack,
+} from "solid-js";
 import { PlayIcon, StopIcon } from "../components/icons";
 import { ariaBool } from "../shared/aria";
 import { AuditionController, type PreviewEngine } from "./audition";
@@ -8,6 +15,8 @@ import type { LibraryAsset } from "./manifest";
 import SoundRow, { lengthLabel, SimilarIcon } from "./SoundRow";
 import { roleLabel } from "./shelf";
 import { ALL_MATCH_ON, type MatchOn, similarSounds } from "./similarity";
+import type { SoundsKeyAction } from "./soundKeys";
+import { nextIn, previousIn } from "./stepping";
 import "./SimilarSoundsView.css";
 
 const CRITERIA: readonly { key: keyof MatchOn; label: string }[] = [
@@ -48,6 +57,8 @@ export interface SimilarSoundsViewProps {
   readonly previewEngine?: PreviewEngine;
   /** The selected row's waveform colour. */
   readonly trackColor?: string;
+  /** Hands the modal this view's key handler, and takes it back when unmounted. */
+  onKeys(handler: ((action: SoundsKeyAction) => void) | null): void;
 }
 
 /**
@@ -93,6 +104,38 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
     audition?.stop();
     setTrail(trail().slice(0, index + 1));
   }
+
+  const resultAssets = createMemo(() => results().map((result) => result.asset));
+  const current = () => resultAssets().find((asset) => asset.id === selectedId()) ?? null;
+
+  /** Select the neighbouring result, which auditions it; the ends hold. */
+  function step(direction: 1 | -1): void {
+    const from = current();
+    const target = (direction === 1 ? nextIn : previousIn)(resultAssets(), from);
+    if (target && target !== from) select(target);
+  }
+
+  // The library's keys arrive from the modal, as they do for the Sounds list
+  // (#873): the arrows walk the results, Space hears the selected one again
+  // (the reference while none is), and S hops on from it.
+  function press(action: SoundsKeyAction): void {
+    const sound = current();
+    if (action === "library.select_next") step(1);
+    else if (action === "library.select_previous") step(-1);
+    else if (action === "library.audition") void audition?.play(sound ?? reference());
+    else if (action === "library.similar" && sound) hop(sound);
+  }
+
+  onSettled(() => {
+    props.onKeys(press);
+    return () => props.onKeys(null);
+  });
+
+  let list: HTMLUListElement | undefined;
+  // Keep the heard row on screen as the arrow keys walk the list.
+  createEffect(selectedId, () => {
+    list?.querySelector(".sound-row-selected")?.scrollIntoView?.({ block: "nearest" });
+  });
 
   return (
     <section class="similar-view" aria-label="Similar sounds view">
@@ -189,7 +232,7 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
           </p>
         }
       >
-        <ul class="similar-list" aria-label="Similar sounds">
+        <ul class="similar-list" aria-label="Similar sounds" ref={list}>
           <For each={results()}>
             {(result) => (
               <SoundRow

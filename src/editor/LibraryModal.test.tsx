@@ -267,6 +267,46 @@ describe("LibraryModal shell", () => {
     ).toBeVisible();
   });
 
+  it("moves, re-hears and hops on from the selection in similar sounds by key (#873)", async () => {
+    const onActions = vi.fn();
+    renderShell({ onActions });
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+    await hearFirstSound();
+    await waitFor(() => expect(screen.queryByText("Nothing yet")).toBeNull());
+    actions.press("library.similar");
+    flush();
+    const list = await screen.findByRole("list", { name: "Similar sounds" });
+    const results = () =>
+      within(list)
+        .getAllByRole("button", { name: /^Audition / })
+        .map((b) => b.getAttribute("aria-label")?.replace("Audition ", ""));
+    const hearing = () => screen.getByRole("group", { name: "Hearing" });
+    const crumbs = () =>
+      within(screen.getByRole("navigation", { name: "Similar sounds trail" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+    const [first, second] = results();
+
+    actions.press("library.select_next");
+    flush();
+    expect(hearing()).toHaveTextContent(first as string);
+    actions.press("library.select_next");
+    flush();
+    expect(hearing()).toHaveTextContent(second as string);
+    expect(document.querySelector(".library-modal-insert")).toHaveTextContent(
+      `Insert ${second}`,
+    );
+    actions.press("library.select_previous");
+    flush();
+    expect(hearing()).toHaveTextContent(first as string);
+
+    expect(crumbs()).toHaveLength(1);
+    actions.press("library.similar");
+    flush();
+    expect(crumbs()).toHaveLength(2);
+    expect(crumbs()[1]).toBe(first);
+  });
+
   it("narrows the sounds as you type in the header search", async () => {
     renderShell();
     await screen.findAllByRole("listitem");
