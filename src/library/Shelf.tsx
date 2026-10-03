@@ -36,8 +36,9 @@ export function ChipKey(props: { label?: string }): JSX.Element {
 /**
  * The library's two-level shelf (LIB-010): families as tiles with counts, then
  * the chosen family's categories as chips in one scrolling row, with arrows
- * for the ones past the edge. Only entries with sounds arrive here, so there is
- * nothing to hide. The first nine chips carry the digit keys that pick them.
+ * for the ones past the edge. Every family in scope arrives, at zero when a
+ * search leaves it nothing (#878); only categories with sounds do. The first
+ * nine chips carry the digit keys that pick them.
  */
 export default function Shelf(props: {
   families: readonly ShelfEntry<ShelfFamily>[];
