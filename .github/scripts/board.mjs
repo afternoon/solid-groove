@@ -343,9 +343,17 @@ function column(issue) {
 
 const SHAPING_LABEL = "needs-shaping";
 
+const needsShaping = (i) => (i.labels ?? []).includes(SHAPING_LABEL);
+
 // GitHub expands a bare "#123" in a list item into the issue's title and
-// state, so a line is only numbers: the issue, then each PR that closes it.
-const line = (i) => [`- #${i.number}`, ...(i.prs ?? []).map((n) => `  #${n}`)].join("\n");
+// state, so the issue's line is only its number. Anything else goes on the
+// lines under it: a note if it needs shaping, then each PR that closes it.
+const line = (i) =>
+  [
+    `- #${i.number}`,
+    ...(needsShaping(i) ? ["  _Needs shaping_"] : []),
+    ...(i.prs ?? []).map((n) => `  #${n}`),
+  ].join("\n");
 
 const BACKLOG_PER_MILESTONE = 10;
 
@@ -375,6 +383,11 @@ function backlogLines(cards) {
     const key = card.milestone ? card.milestone.number : 0;
     if (!groups.has(key)) groups.set(key, { milestone: card.milestone, cards: [] });
     groups.get(key).cards.push(card);
+  }
+  // Issues waiting on a shaping session lead their milestone, so the cap
+  // below never hides one.
+  for (const group of groups.values()) {
+    group.cards.sort((a, b) => Number(needsShaping(b)) - Number(needsShaping(a)));
   }
   const out = [];
   for (const { milestone, cards: group } of [...groups.values()].sort((a, b) =>
@@ -413,14 +426,12 @@ function renderBody(issues, done, now) {
     const col = COLUMNS.find((c) => c.label === label);
     const cards = by.get(label);
     if (label === "status:backlog") {
-      // Backlog issues waiting on a shaping session get their own section,
-      // above the backlog: it is the product owner's to-do list.
-      const shaping = cards.filter((c) => c.labels.includes(SHAPING_LABEL));
-      const rest = cards.filter((c) => !c.labels.includes(SHAPING_LABEL));
-      out.push(`## Needs shaping (${shaping.length})`, "");
-      out.push(...(shaping.length ? shaping.map(line) : ["_Empty_"]), "");
-      out.push(`## ${col.title} (${rest.length})`, "");
-      out.push(...(rest.length ? backlogLines(rest) : ["_Empty_", ""]));
+      const shaping = cards.filter(needsShaping).length;
+      out.push(
+        `## ${col.title} (${cards.length}${shaping ? `, ${shaping} need shaping` : ""})`,
+        "",
+      );
+      out.push(...(cards.length ? backlogLines(cards) : ["_Empty_", ""]));
       continue;
     }
     out.push(`## ${col.title} (${cards.length})`, "");
