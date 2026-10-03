@@ -109,6 +109,11 @@ export class MasterAudioGraph {
     this.auxAlign.set(mixFrames);
   }
 
+  /** The frames the auxiliary input is held back by. For tests and diagnostics. */
+  get latencyCompensationFrames(): number {
+    return this.auxAlign.compensationFrames;
+  }
+
   /**
    * The master peak meter. Callers poll it for a level display; it is never
    * the source of an analytics event, so metering adds no per-frame telemetry.

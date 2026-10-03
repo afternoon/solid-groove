@@ -2,8 +2,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDevice } from "../domain/devices";
 import type { Project } from "../domain/entities";
 import type { DeviceId } from "../domain/ids";
+import { TICKS_PER_QUARTER } from "../domain/time";
 import { buildAudioProjection } from "../projection/audioProjection";
-import { createAlignmentProject } from "../testing/latencyProbe";
+import { bestLag, createAlignmentProject, noiseBurst } from "../testing/latencyProbe";
 import { installWebAudioGlobals } from "./testAudioContext";
 
 /**
@@ -20,6 +21,8 @@ let master: typeof import("./MasterAudioGraph");
 let delayModule: typeof import("./compensationDelay");
 let AudioRuntimeModule: typeof import("./AudioRuntime");
 let ProjectAudioGraphModule: typeof import("./ProjectAudioGraph");
+let Tone: typeof import("tone");
+let registryModule: typeof import("./resourceRegistry");
 
 beforeAll(async () => {
   compensation = await import("./latencyCompensation");
@@ -28,6 +31,8 @@ beforeAll(async () => {
   delayModule = await import("./compensationDelay");
   AudioRuntimeModule = await import("./AudioRuntime");
   ProjectAudioGraphModule = await import("./ProjectAudioGraph");
+  Tone = await import("tone");
+  registryModule = await import("./resourceRegistry");
 });
 
 afterEach(async () => {
@@ -196,6 +201,8 @@ describe("ProjectAudioGraph latency compensation, live", () => {
         outputFrames: 0,
       });
       expect(graph.latencyCompensation?.mixFrames).toBe(frames);
+      // The metronome's input is held back by the same frames as the mix.
+      expect(graph.masterGraph.latencyCompensationFrames).toBe(frames);
       expect(graph.latencyCompensation?.totalFrames).toBe(
         frames + master.masterLimiterLatencyFrames(rate),
       );
@@ -204,6 +211,7 @@ describe("ProjectAudioGraph latency compensation, live", () => {
       graph.reconcile(buildAudioProjection(before, second));
       expect(bassGraph?.latencyCompensation.alignFrames).toBe(0);
       expect(graph.latencyCompensation?.mixFrames).toBe(0);
+      expect(graph.masterGraph.latencyCompensationFrames).toBe(0);
     } finally {
       await graph.dispose();
       await runtime.close();
@@ -227,9 +235,109 @@ describe("ProjectAudioGraph latency compensation, live", () => {
         });
       }
       expect(graph.returnGraphs.get(verb)?.latencyCompensationFrames).toBe(0);
+      expect(graph.masterGraph.latencyCompensationFrames).toBe(frames);
     } finally {
       await graph.dispose();
       await runtime.close();
     }
+  });
+});
+
+/** When the rendered events below start, in seconds: clear of time 0. */
+const START_SECONDS = 0.05;
+const RENDER_RATE = 22_050;
+
+/**
+ * Renders the alignment song's graph offline and returns its left channel:
+ * with `source: "notes"` the arrangement's notes play from
+ * {@link START_SECONDS}, and with `"metronome"` none do and the same noise
+ * burst the sampler plays enters `masterInput` at that time instead, as the
+ * metronome's click does live.
+ */
+async function renderGraph(
+  project: Project,
+  source: "notes" | "metronome",
+): Promise<Float32Array> {
+  const burst = noiseBurst(Math.round(RENDER_RATE * 0.05));
+  const projection = buildAudioProjection(project);
+  const tempo = projection.tempo;
+  const rendered = await Tone.Offline(
+    async (context) => {
+      const registry = new registryModule.ResourceRegistry();
+      const owner = "metronome-alignment";
+      const scope: import("./AudioRuntime").AudioProjectScope = {
+        ownerId: owner,
+        register: (type, dispose) => registry.register(owner, type, dispose),
+        release: (handle) => registry.disposeOne(handle),
+        dispose: async () => {
+          await registry.disposeOwner(owner);
+        },
+      };
+      const scheduled: Array<{ callback: (time: number) => void; time: string }> = [];
+      const graph = new ProjectAudioGraphModule.ProjectAudioGraph(
+        {
+          getDestination: () => context.destination,
+          getSampleRate: () => RENDER_RATE,
+          resume: async () => {},
+          openProjectScope: () => scope,
+        },
+        owner,
+        {
+          transport: {
+            bpm: { value: tempo },
+            schedule: (callback, time) => scheduled.push({ callback, time }),
+            clear: () => {},
+          },
+          bufferLoader: { load: async () => Tone.ToneAudioBuffer.fromArray(burst) },
+          now: () => context.immediate(),
+        },
+      );
+      graph.reconcile(projection);
+      // Let the buffer cache install the decoded burst.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (source === "notes") {
+        // Only the first beat: Kick's downbeat, well before Bass's off-beat.
+        for (const { callback, time } of scheduled) {
+          const ticks = Number.parseInt(time, 10);
+          if (ticks >= TICKS_PER_QUARTER / 2) continue;
+          callback(START_SECONDS + (ticks / TICKS_PER_QUARTER) * (60 / tempo));
+        }
+      } else {
+        const player = new Tone.Player(Tone.ToneAudioBuffer.fromArray(burst));
+        player.connect(graph.masterInput);
+        player.start(START_SECONDS);
+      }
+    },
+    0.2,
+    2,
+    RENDER_RATE,
+  );
+  return rendered.getChannelData(0).slice();
+}
+
+describe("the metronome's input, rendered", () => {
+  it("lands on the beat the tracks do when a track Compressor delays the mix", async () => {
+    const frames = devices.deviceLatencyFrames("compressor", RENDER_RATE);
+    expect(frames).toBeGreaterThan(0);
+    const none = createAlignmentProject("none");
+    const kick = createAlignmentProject("kick");
+    const maxLag = 4 * frames;
+
+    // Kick's Compressor makes it, and so the whole mix, `frames` late.
+    const notesLag = bestLag(
+      await renderGraph(none, "notes"),
+      await renderGraph(kick, "notes"),
+      maxLag,
+    );
+    expect(notesLag).toBe(frames);
+
+    // The metronome's input is held back by the same frames, so a click on
+    // the downbeat still sounds with Kick's downbeat.
+    const metronomeLag = bestLag(
+      await renderGraph(none, "metronome"),
+      await renderGraph(kick, "metronome"),
+      maxLag,
+    );
+    expect(metronomeLag).toBe(notesLag);
   });
 });

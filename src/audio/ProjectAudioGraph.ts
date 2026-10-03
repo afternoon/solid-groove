@@ -293,6 +293,11 @@ export class ProjectAudioGraph {
     return this.master.input;
   }
 
+  /** The master bus's subgraph. For tests and diagnostics. */
+  get masterGraph(): MasterAudioGraph {
+    return this.master;
+  }
+
   get returnGraphs(): ReadonlyMap<ReturnId, ReturnAudioGraph> {
     return this.returns;
   }
