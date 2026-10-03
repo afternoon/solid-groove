@@ -24,6 +24,12 @@ export interface TrackHeaderProps {
   readonly track: Track;
   /** Whether the editor is showing this track. */
   readonly selected: boolean;
+  /**
+   * Whether the user chose this track on its header (#960), which is what
+   * makes Delete remove it. Omitted where the host does not track the choice;
+   * the header then treats a selected track as chosen.
+   */
+  readonly chosen?: boolean;
   /** Points the editor at this track. */
   onSelect(): void;
   /**
@@ -66,7 +72,8 @@ const CONTROLS =
  */
 export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
   const surface = trackSurfaceHandlers({
-    selected: () => props.selected,
+    // A header press on a track that is only shown still chooses it (#960).
+    selected: () => props.chosen ?? props.selected,
     onSelect: () => props.onSelect(),
     onDragStart: (event) => props.onDragStart?.(event),
     controls: CONTROLS,
@@ -83,7 +90,11 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
     <div
       class={[
         "track-header",
-        { selected: props.selected, muted: props.track.mixer.muted },
+        {
+          selected: props.selected,
+          chosen: props.chosen === true,
+          muted: props.track.mixer.muted,
+        },
       ]}
       style={{ "--track-ink": props.track.color }}
       onPointerDown={surface.onPointerDown}

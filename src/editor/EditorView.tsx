@@ -94,6 +94,7 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
+import type { TrackSelectionSource } from "./trackSurface";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
@@ -345,11 +346,26 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       setSelection((state) => reconcileSelection(state, current));
     },
   );
-  function selectTrack(trackId: TrackId): void {
+  // Whether the user *chose* the selected track (#960): through its header,
+  // the track list, the instrument rail, or the track arrows. Only a chosen
+  // track is Delete's to remove. Every other way a track ends up selected — a
+  // lane or clip click, opening a clip, a deleted neighbour, a new track —
+  // only points the editor at it, and clears the choice.
+  const [chosenTrackId, setChosenTrackId] = createSignal<TrackId | null>(null);
+  function selectTrack(trackId: TrackId, chosen = false): void {
     setNewTrackAim(false);
     setSelection(selectOnly({ kind: "track", id: trackId }));
+    setChosenTrackId(chosen ? trackId : null);
   }
+  const chooseTrack = (trackId: TrackId) => selectTrack(trackId, true);
+  const selectTrackFrom = (trackId: TrackId, how: TrackSelectionSource) =>
+    selectTrack(trackId, how === "header");
   const selectedTrackId = createMemo(() => model.focusedTrackId(selection()));
+  /** The selected track, if the user chose it; else null. */
+  const deletableTrackId = createMemo(() => {
+    const id = chosenTrackId();
+    return id !== null && id === selectedTrackId() ? id : null;
+  });
   const trackDeletion: TrackDeletionContext = {
     project,
     dispatch: (commands) => session.dispatch(commands),
@@ -527,20 +543,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     adjacentTrack: (by) => {
       if (props.view === "mixer") return undefined;
       const id = model.adjacentTrackId(project(), selectedTrackId(), by);
-      return id ? () => selectTrack(id) : undefined;
+      return id ? () => chooseTrack(id) : undefined;
     },
     // Backspace on the selected track (#537), where its header's trash button
-    // is: not the mixer, and not in the sequence view. Only a track
-    // the user chose — not the first-track fallback — so a stray key on a
-    // freshly opened project deletes nothing.
+    // is: not the mixer, and not in the sequence view. Only a track the user
+    // chose through its header (#960) — not the first-track fallback, and not
+    // one a lane click, a clip click or a deleted clip left selected — so a
+    // slip never takes a whole track.
     deleteSelectedTrack: () => {
-      const id = selectedTrackId();
+      const id = deletableTrackId();
       if (props.view === "mixer" || props.view === "sequence" || id === null)
         return undefined;
       if (!project()?.song.tracks.some((candidate) => candidate.id === id))
         return undefined;
       return () => deleteTrack(trackDeletion, id);
     },
+    dropTrackChoice: () =>
+      deletableTrackId() === null ? undefined : () => setChosenTrackId(null),
   });
 
   /** An empty screen's way out: a view, named and keyed as the dock names it. */
@@ -822,7 +841,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           beginGesture={session.beginGesture}
                           onEditingActionsReady={setArrangementEditingActions}
                           selectedTrackId={track()?.id ?? null}
-                          onSelectTrack={selectTrack}
+                          chosenTrackId={deletableTrackId()}
+                          onSelectTrack={selectTrackFrom}
                           onOpenPlacement={openPlacement}
                           onSelectPlacement={selectPlacement}
                           initialSelection={arrangementSelection}
@@ -920,7 +940,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         watchPeaks={audio.watchAssetPeaks}
                         watchTriggers={audio.watchTriggers}
                         trackLevel={audio.trackLevel}
-                        onSelectTrack={selectTrack}
+                        onSelectTrack={selectTrackFrom}
+                        chosenTrackId={deletableTrackId()}
                         selectedPadId={selectedPadOf(padSelection(), drumTrack() ?? null)}
                         onSelectPad={selectPad}
                         onAddTrack={(spec) =>
@@ -993,7 +1014,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                         beginGesture={session.beginGesture}
                         trackLevel={audio.trackLevel}
                         selectedTrackId={track()?.id ?? null}
-                        onSelectTrack={selectTrack}
+                        onSelectTrack={selectTrackFrom}
                       />
                     </div>
                   </Match>

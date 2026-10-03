@@ -22,6 +22,8 @@ import "./TrackRail.css";
 export interface TrackRailProps {
   readonly tracks: readonly Track[];
   readonly selectedTrackId: TrackId | null;
+  /** The track the user chose on its header (#960), framed as Delete's. */
+  readonly chosenTrackId?: TrackId | null;
   onSelect(trackId: TrackId): void;
   /** Moves a track to a display index, when the rail is dragged (#447). */
   onReorder?(trackId: TrackId, toIndex: number): void;
@@ -98,6 +100,11 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
             <TrackHeader
               track={track()}
               selected={props.selectedTrackId === track().id}
+              chosen={
+                props.chosenTrackId === undefined
+                  ? undefined
+                  : props.chosenTrackId === track().id
+              }
               onSelect={() => props.onSelect(track().id)}
               dispatch={props.dispatch}
               beginGesture={props.beginGesture}
