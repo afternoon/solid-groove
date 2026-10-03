@@ -10,6 +10,7 @@ import {
 import type { Analytics } from "../../analytics/analytics";
 import type { ErrorCode } from "../../analytics/errorCodes";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
+import { CAPABILITY_MESSAGES } from "../../browser/capabilityMessages";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
 import { StemExportError } from "../../export/stems/exportStems";
@@ -65,8 +66,12 @@ export function failureMessage(code: ErrorCode, format: Format = "stereo"): stri
     case "decode_failed":
     case "asset_missing":
       return "A sound in this project could not be loaded. Check your connection and try again.";
-    case "not_supported":
-      return "This browser cannot render audio offline. Try a current version of Chrome, Firefox or Safari.";
+    case "not_supported": {
+      // The same words the editor's compatibility notice uses, so the two
+      // never point the producer at different browsers.
+      const { detail, action } = CAPABILITY_MESSAGES.offline_audio;
+      return `${detail} ${action}`;
+    }
     case "quota_exceeded":
       return "The song is too long to export as one WAV file. Shorten the arrangement and try again.";
     default:

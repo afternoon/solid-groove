@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OfflineRenderError } from "../../audio/offlineRenderer";
+import { CAPABILITY_MESSAGES } from "../../browser/capabilityMessages";
 import { createSliceFixtureProject } from "../../domain/fixtures";
 import { stringifyProject } from "../../domain/serialize";
 import { stubCanvasContext } from "../../testing/canvas";
@@ -133,5 +134,13 @@ describe("failureMessage", () => {
     expect(failureMessage("not_supported")).toMatch(/browser/);
     expect(failureMessage("quota_exceeded")).toMatch(/too long/);
     expect(failureMessage("internal")).toMatch(/Try again/);
+  });
+
+  it("gives the same browser advice as the compatibility notice when export is unsupported", () => {
+    const message = failureMessage("not_supported");
+    expect(message).toContain(CAPABILITY_MESSAGES.offline_audio.detail);
+    expect(message).toContain(CAPABILITY_MESSAGES.offline_audio.action);
+    expect(message).toContain("Chrome, Edge or Firefox");
+    expect(message).not.toMatch(/Safari/);
   });
 });
