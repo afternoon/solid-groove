@@ -141,6 +141,24 @@ describe("overdrive and saturator (FX-01, FX-02)", () => {
     expect(brightness(destroyed)).toBeGreaterThan(brightness(pushed));
   });
 
+  // #962: an asymmetric curve must not leave a DC offset, either on silence
+  // (which kept an export's tail from ever trimming) or under the music.
+  it("passes silence through the overdrive as silence", async () => {
+    const data = settled(
+      await render(buildOverdrive, device("overdrive", { wet: 1 }), { level: 0 }),
+    );
+    expect(Math.max(...data.map(Math.abs))).toBeLessThan(1e-6);
+  });
+
+  it("adds no DC offset to the music it drives", async () => {
+    const data = settled(
+      await render(buildOverdrive, device("overdrive", { drive: 1, wet: 1 }), SINE),
+    );
+    // 0.2 s of a 220 Hz sine is a whole number of cycles, so any mean is DC.
+    const mean = data.reduce((sum, s) => sum + s, 0) / data.length;
+    expect(Math.abs(mean)).toBeLessThan(10 ** (-80 / 20));
+  });
+
   it("darkens with the overdrive tone control", async () => {
     const dark = settled(
       await render(buildOverdrive, device("overdrive", { drive: 0.6, tone: 0 })),

@@ -58,9 +58,14 @@ export interface TrimmedRender {
 
 /**
  * Trims a render to the end of its audible tail, never before `minFrames` (the
- * end of the song). A tail still above the silence threshold at the very end
- * of the rendered buffer is kept whole and faded out over its last
+ * end of the song). A tail still sounding at the very end of the rendered
+ * buffer is kept whole and faded out over its last
  * {@link TRUNCATION_FADE_SECONDS}. Nothing else touches a sample's level.
+ *
+ * "Sounding" is measured against the level each channel settles at, not
+ * against zero: a constant offset (DC) is not audio, however far it sits above
+ * the silence threshold, so a render that ends on a flat line ends where the
+ * signal last moved off it (#962).
  */
 export function trimRenderedTail(
   channels: readonly Float32Array[],
@@ -68,10 +73,12 @@ export function trimRenderedTail(
   minFrames: number,
 ): TrimmedRender {
   const length = channels[0]?.length ?? 0;
+  const window = Math.max(1, Math.round(TRUNCATION_FADE_SECONDS * sampleRate));
   let lastAudible = -1;
   for (const data of channels) {
+    const rest = settledLevel(data, Math.max(minFrames, data.length - window));
     for (let i = data.length - 1; i > lastAudible; i--) {
-      if (Math.abs(data[i]) > SILENCE_THRESHOLD) {
+      if (Math.abs(data[i] - rest) > SILENCE_THRESHOLD) {
         lastAudible = i;
         break;
       }
@@ -81,10 +88,7 @@ export function trimRenderedTail(
   const truncated = lastAudible === length - 1 && length > minFrames;
   const trimmed = channels.map((data) => data.slice(0, frames));
   if (truncated) {
-    const fadeFrames = Math.min(
-      frames - minFrames,
-      Math.round(TRUNCATION_FADE_SECONDS * sampleRate),
-    );
+    const fadeFrames = Math.min(frames - minFrames, window);
     for (const data of trimmed) {
       for (let i = 0; i < fadeFrames; i++) {
         data[frames - 1 - i] *= i / fadeFrames;
@@ -92,4 +96,18 @@ export function trimRenderedTail(
     }
   }
   return { channels: trimmed, frames, truncated };
+}
+
+/**
+ * The level a channel rests at by the end of the render: the mean of its
+ * frames from `from` on (its last {@link TRUNCATION_FADE_SECONDS}, never
+ * reaching back into the song). For a tail that has died it is 0, or the
+ * constant offset it died to; a tail still sounding moves well off it right up
+ * to the end, so it still reads as sounding.
+ */
+function settledLevel(data: Float32Array, from: number): number {
+  if (from >= data.length) return 0;
+  let sum = 0;
+  for (let i = from; i < data.length; i++) sum += data[i];
+  return sum / (data.length - from);
 }
