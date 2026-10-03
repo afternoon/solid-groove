@@ -107,6 +107,32 @@ describe("SoundsView pack scope (LIB-010)", () => {
   });
 });
 
+describe("SoundsView loading (UI-002)", () => {
+  it("shows the loader while the library is still loading", async () => {
+    renderView({ client: new LibraryClient(() => new Promise(() => undefined)) });
+    expect(await screen.findByText("Loading library")).toBeInTheDocument();
+  });
+
+  it("opens straight on the list when the library has already loaded", async () => {
+    const client = new LibraryClient(fixtureFetcher());
+    renderView({ client });
+    await rows();
+    cleanup();
+
+    // A second visit with the same client: the loader never mounts.
+    const shown = vi.fn();
+    const observer = new MutationObserver(() => {
+      if (document.body.textContent?.includes("Loading library")) shown();
+    });
+    observer.observe(document.body, { subtree: true, childList: true });
+    renderView({ client });
+    await rows();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    observer.disconnect();
+    expect(shown).not.toHaveBeenCalled();
+  });
+});
+
 describe("SoundsView", () => {
   it("lists every pack's sounds as compact rows", async () => {
     renderView();
