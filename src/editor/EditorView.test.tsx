@@ -2205,6 +2205,26 @@ describe("EditorView sequence editor", () => {
     expect(within(editor).getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
   });
 
+  it("keeps the clip selected across a visit to the sequence view (UI-002)", async () => {
+    await renderSlice();
+    await screen.findByTestId("arrangement-view-ready");
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    firePointerAtStarterClip(canvas, "pointerdown");
+    firePointerAtStarterClip(canvas, "pointerup");
+    const selected = screen.getByTestId("arrangement-selection-live").textContent;
+    expect(selected).not.toContain("No selection");
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "2" }));
+    await screen.findByRole("region", { name: "Sequence editor" });
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "1" }));
+    await screen.findByTestId("arrangement-view-ready");
+
+    expect(screen.getByTestId("arrangement-selection-live")).toHaveTextContent(
+      selected ?? "",
+    );
+  });
+
   it("says no clip is selected on 2 before one is opened, and its button goes back", async () => {
     const { location, project } = await renderSlice();
     await screen.findByTestId("arrangement-view-ready");
