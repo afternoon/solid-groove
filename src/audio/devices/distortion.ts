@@ -14,10 +14,25 @@ import { type DeviceCore, type DeviceCoreFactory, setOrRamp } from "./types";
 const CURVE_POINTS = 1024;
 
 /**
+ * Where an asymmetric curve's DC blocker sits (#962). An asymmetric transfer
+ * rectifies part of whatever it shapes, so its output carries a DC offset that
+ * tracks the signal's level; a one-pole high-pass this low removes it without
+ * touching anything audible, and lets the device's output settle back to true
+ * silence once the music stops.
+ */
+const DC_BLOCK_HZ = 10;
+
+/**
  * Fills a waveshaper table from a transfer function. The table always spans
  * the node's -1..1 input; `span` is the signal level that maps to its ends, so
  * a curve built with span 4 is evaluated over -4..4 and expects the signal to
  * be scaled by 1/4 on the way in.
+ *
+ * A `WaveShaperNode` maps input 0 to the table's middle, which only lands *on*
+ * a point when the table has an odd length; with an even one it interpolates
+ * the two points either side. An odd-symmetric curve averages those to 0, but
+ * an asymmetric one does not, and turns silence into a constant offset (#962).
+ * So an asymmetric curve takes an odd `points`.
  */
 function buildCurve(
   transfer: (x: number) => number,
@@ -56,15 +71,23 @@ function buildCurve(
 export const createOverdriveCore: DeviceCoreFactory = (): DeviceCore => {
   const preGain = new Tone.Gain(1);
   const shaper = new Tone.WaveShaper(
-    buildCurve((x) => {
-      const asymmetry = x < 0 ? 1.4 : 1;
-      return Math.tanh(3 * asymmetry * x) / Math.tanh(3);
-    }),
+    buildCurve(
+      (x) => {
+        const asymmetry = x < 0 ? 1.4 : 1;
+        return Math.tanh(3 * asymmetry * x) / Math.tanh(3);
+      },
+      1,
+      // Odd, so silence in is silence out (see `buildCurve`).
+      CURVE_POINTS + 1,
+    ),
   );
+  // The asymmetry that gives the curve its even harmonics also gives it DC.
+  const dcBlock = new Tone.OnePoleFilter({ type: "highpass", frequency: DC_BLOCK_HZ });
   const postGain = new Tone.Gain(1);
   const tone = new Tone.Filter({ type: "lowpass", frequency: 8_000 });
   preGain.connect(shaper);
-  shaper.connect(postGain);
+  shaper.connect(dcBlock);
+  dcBlock.connect(postGain);
   postGain.connect(tone);
 
   return {
@@ -87,6 +110,7 @@ export const createOverdriveCore: DeviceCoreFactory = (): DeviceCore => {
     dispose() {
       preGain.dispose();
       shaper.dispose();
+      dcBlock.dispose();
       postGain.dispose();
       tone.dispose();
     },

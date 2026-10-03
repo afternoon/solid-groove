@@ -197,6 +197,28 @@ describe("renderProjectOffline determinism (#867)", () => {
   });
 });
 
+describe("renderProjectOffline with a shaper on the master (#962)", () => {
+  it("ends at the song's real tail, not at the render budget, with an overdrive on the master", async () => {
+    const project = createSliceFixtureProject();
+    // Default settings: an asymmetric curve, which is what once turned the
+    // silence after the song into a constant offset that never trimmed.
+    const overdrive = createDevice("dev_overdrive" as DeviceId, "overdrive", 0);
+    const driven: Project = {
+      ...project,
+      song: {
+        ...project.song,
+        master: { ...project.song.master, devices: [overdrive] },
+      },
+    };
+    const result = await (await render(driven, { maxTailSeconds: 4 })).outcome;
+
+    expect(result.tailTruncated).toBe(false);
+    // The fixture's voices are short: anything near the 4 s budget is a
+    // constant offset being kept as if it were sound.
+    expect(result.frames).toBeLessThan((result.songEndSeconds + 1) * RATE);
+  });
+});
+
 describe("renderProjectOffline with tracksSendOnly (a return's stem)", () => {
   it("silences every track's direct output, so only what reaches a return sounds", async () => {
     const dry = await (await render(withReturn(false), { tracksSendOnly: true })).outcome;
