@@ -29,17 +29,22 @@
 
 /* Row names and ruler corner in the first column, steps in the second; the
    velocity lane spans both. Everything scrolls sideways together, and the
-   names stay put against the left edge. */
+   names stay put against the left edge. The grid spans the view's full width
+   whatever the clip's length, as the piano roll's does: past the last step is
+   empty ground, not the page showing through (UI-002). */
 .step-editor-grid {
   display: grid;
   flex: 1 0 auto;
-  grid-template-columns: var(--pr-gutter) max-content;
-  /* The rows take whatever height the dialog has left over the panels. */
+  grid-template-columns: var(--pr-gutter) minmax(max-content, 1fr);
+  /* The rows take whatever height the view has left over the panels. */
   grid-template-rows: auto minmax(min-content, 1fr) auto;
-  width: max-content;
-  max-width: 100%;
+  width: 100%;
   overflow-x: auto;
-  background: var(--color-background);
+  /* The ruler's band runs the full width too, past the ruler itself. */
+  background: linear-gradient(
+    var(--color-background-secondary) var(--pr-ruler),
+    var(--color-background) 0
+  );
 }
 
 .step-editor-grid > .pr-velocity {

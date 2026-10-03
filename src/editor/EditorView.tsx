@@ -332,13 +332,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return entry && entry.track.id === selectedTrackId() ? entry : null;
   });
 
-  /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
-  function openPlacement(placementId: PlacementId): void {
+  /**
+   * Makes a placement's clip the one `2` edits (`UI-002`): a click on a clip
+   * in the arrangement selects it for the sequence view.
+   */
+  function selectPlacement(placementId: PlacementId): void {
     setOpenPlacementId(placementId);
     const track = model.openedClip(project(), placementId)?.track;
-    // Opening a clip is also saying "this track": the instrument view and the
+    // Selecting a clip is also saying "this track": the instrument view and the
     // mixer follow it, which is what keeps selection one piece of state.
     if (track) selectTrack(track.id);
+  }
+
+  /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
+  function openPlacement(placementId: PlacementId): void {
+    selectPlacement(placementId);
     selectView("sequence", "arrangement");
   }
 
@@ -662,6 +670,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           selectedTrackId={track()?.id ?? null}
                           onSelectTrack={selectTrack}
                           onOpenPlacement={openPlacement}
+                          onSelectPlacement={selectPlacement}
                           onLoopBraceFocusChange={setLoopBraceFocused}
                           /* The arrangement's own way to add a track
                              (`UI-001`), the same unit and the same route the
