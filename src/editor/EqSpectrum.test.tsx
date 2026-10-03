@@ -1,12 +1,42 @@
 import { cleanup, render } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SpectrumReading } from "../audio/DeviceChain";
 import type { DeviceId } from "../domain/ids";
 import type { DeviceSpectrumSource } from "./deviceSpectrum";
 import EqSpectrum, { type FrameScheduler } from "./EqSpectrum";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+/** An `IntersectionObserver` the test moves on and off screen by hand. */
+function stubIntersectionObserver() {
+  const observed: Element[] = [];
+  let report: IntersectionObserverCallback = () => {};
+  class StubObserver {
+    constructor(callback: IntersectionObserverCallback) {
+      report = callback;
+    }
+    observe(target: Element) {
+      observed.push(target);
+    }
+    disconnect() {}
+  }
+  vi.stubGlobal("IntersectionObserver", StubObserver);
+  const setVisible = (isIntersecting: boolean) => {
+    report(
+      observed.map((target) => ({
+        target,
+        isIntersecting,
+      })) as IntersectionObserverEntry[],
+      {} as IntersectionObserver,
+    );
+    flush();
+  };
+  return { observed, setVisible };
+}
 
 /** Frames run only when the test says so. */
 function manualFrames() {
@@ -43,7 +73,7 @@ function renderSpectrum() {
   };
   const { frames, tick, pending } = manualFrames();
   const { container } = render(() => (
-    <svg aria-hidden="true">
+    <svg aria-hidden="true" class="well-drawing">
       <EqSpectrum
         deviceId={"dev_eq" as DeviceId}
         source={source}
@@ -54,7 +84,7 @@ function renderSpectrum() {
     </svg>
   ));
   const path = () => container.querySelector(".eq-spectrum")?.getAttribute("d") ?? "";
-  return { setPlaying, reads, tick, pending, path };
+  return { setPlaying, reads, tick, pending, path, container };
 }
 
 describe("EqSpectrum (LOOP-022)", () => {
@@ -82,5 +112,28 @@ describe("EqSpectrum (LOOP-022)", () => {
     expect(path()).toBe("");
     tick();
     expect(reads).toHaveLength(2);
+  });
+
+  it("stops drawing off screen, and starts again when it comes back", () => {
+    const { observed, setVisible } = stubIntersectionObserver();
+    const { setPlaying, reads, tick, pending, path, container } = renderSpectrum();
+    // It watches the drawing, whose box stays put while the path is empty.
+    expect(observed).toEqual([container.querySelector("svg.well-drawing")]);
+    setPlaying(true);
+    flush();
+    tick();
+    expect(reads).toHaveLength(1);
+
+    setVisible(false);
+    expect(pending.size).toBe(0);
+    expect(path()).toBe("");
+    tick();
+    expect(reads).toHaveLength(1);
+
+    setVisible(true);
+    expect(pending.size).toBe(1);
+    tick();
+    expect(reads).toHaveLength(2);
+    expect(path()).toMatch(/^M0,100 L/);
   });
 });

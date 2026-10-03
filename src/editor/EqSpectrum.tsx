@@ -41,7 +41,9 @@ export default function EqSpectrum(props: EqSpectrumProps): JSX.Element {
     const observer = new IntersectionObserver((entries) =>
       setOnScreen(entries.some((entry) => entry.isIntersecting)),
     );
-    observer.observe(element);
+    // The drawing it sits in, not the path itself: a stopped path is `d=""`,
+    // which has no box, so it would never be seen to come back on screen.
+    observer.observe(element.ownerSVGElement ?? element);
     return () => observer.disconnect();
   });
 

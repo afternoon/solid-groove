@@ -284,11 +284,11 @@ export class ProjectAudioGraph {
    * `null` when no device has that id, or the device draws no spectrum.
    */
   readDeviceSpectrum(deviceId: DeviceId): SpectrumReading | null {
-    const node =
-      this.master.deviceNode(deviceId) ??
-      [...this.tracks.values(), ...this.returns.values()]
-        .map((owner) => owner.deviceNode(deviceId))
-        .find((found) => found !== undefined);
+    // Read every frame while the EQ is on screen, so it walks the owners in
+    // place rather than building a list of them each time.
+    let node = this.master.deviceNode(deviceId);
+    for (const track of this.tracks.values()) node ??= track.deviceNode(deviceId);
+    for (const bus of this.returns.values()) node ??= bus.deviceNode(deviceId);
     return node?.readSpectrum?.() ?? null;
   }
 
