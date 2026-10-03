@@ -30,7 +30,7 @@ export interface UseEditorShortcutsOptions {
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
   readonly exportOpen: Accessor<boolean>;
-  /** Whether the `UI-001` library modal is open, and how to close it. */
+  /** Whether the Library view (`UI-002`) is on screen, and how Escape leaves it. */
   readonly libraryOpen: Accessor<boolean>;
   readonly closeLibrary: () => void;
   /** The open library modal's actions (`LIB-010`), or null while it is closed. */
@@ -268,6 +268,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "view.show_arrangement": { run: () => selectView("arrangement") },
     "view.show_sequence": { run: () => selectView("sequence") },
     "view.show_instrument": { run: () => selectView("instrument") },
+    "view.show_library": { run: () => selectView("library") },
     "view.show_mixer": { run: () => selectView("mixer") },
     // In the library, `?` lists the library's own keys rather than the guide (#813).
     "help.shortcut_guide": {
@@ -488,8 +489,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // can fire — including playback and selection (PRD KEY-02).
   const contexts = (): readonly ShortcutContext[] => {
     if (guideOpen() || exportOpen()) return ["dialog"];
-    // The library is a modal with keys of its own, live only while it is open.
-    return libraryOpen() ? ["dialog", "library"] : editorContexts();
+    // The Library view has keys of its own, and the view keys and undo with
+    // them; the editor's transport and edits stand down while it is up.
+    return libraryOpen() ? ["library"] : editorContexts();
   };
 
   const shortcuts = useShortcuts({ handlers, contexts });

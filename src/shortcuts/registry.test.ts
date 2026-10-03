@@ -214,6 +214,7 @@ describe("conflict rules", () => {
       ["editor", "automation_lane", "timeline", "selection"],
       ["dialog"],
       ["dialog", "library"],
+      ["library"],
       ["dialog", "export_tracks"],
       ["editor", "gesture"],
     ];

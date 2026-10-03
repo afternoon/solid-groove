@@ -1,15 +1,15 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
- * Today's library: the modal a pad's sample slot opens, reached through the
- * three-view dock. The live library tests (`libraryRow`, `libraryKeys`) walk
+ * Today's library: the view a pad's sample slot opens (a region since the
+ * library stopped being a modal), reached through the dock. The live library tests (`libraryRow`, `libraryKeys`) walk
  * this, while the parked core flows walk `./library`, which describes the
  * #817 views. When #817 lands, the live tests move onto `./library` and this
  * file goes.
  */
 
 export const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 
 export const soundList = (page: Page): Locator =>
   library(page).getByRole("list", { name: "Sounds", exact: true });

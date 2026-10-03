@@ -59,11 +59,11 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `arrangement.loop_lengthen` | Lengthen loop | `Shift+Right` | `Shift+Right` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
 | `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Groove addition — Live has no single key that frames the whole set |
 | `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
-| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_sequence` | Show the sequence | `2` | `2` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_instrument` | Show the instrument | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_library` | Show the library | `4` | `4` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_mixer` | Show the mixer | `5` | `5` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_sequence` | Show the sequence | `2` | `2` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_instrument` | Show the instrument | `3` | `3` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_library` | Show the library | `4` | `4` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_mixer` | Show the mixer | `5` | `5` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
 | `arrangement.open_clip` | Open clip | `Enter` | `Enter` | Navigation | arrangement | Groove addition — Live shows a clip's notes under the arrangement; Groove's are a view of their own |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor, library | Groove addition — `?` is the web convention |
@@ -117,11 +117,11 @@ keyboard focus, so `Space`, the arrows and `Cmd/Ctrl+A` mean the list's own
 actions there and nothing behind the dialog. `Escape` stays `view.close_surface`;
 the dialog clears a pick before it closes.
 
-The `library.*` entries are the `Browser` group: the keys of the library modal
-(`LIB-010`), live only while it is open. The `library` context is active
-*beside* `dialog`, never instead of it: `dialog` still suppresses every other
-context, so no editor binding fires underneath, and `library` is the one
-context a modal may keep alive with it. Every other modal is `dialog` alone.
+The `library.*` entries are the `Browser` group: the keys of the Library view
+(`LIB-010`, `UI-002`), live only while it is on screen. The Library is a view,
+not a modal: `library` is its only context, so the editor's transport and edits
+stand down while it is up, but `global` (undo, redo, Escape) and the view keys
+`1`-`5` stay live in it. The library's keys use no digit for that reason.
 `Escape` is `view.close_surface` and `?` is `help.shortcut_guide`; the library
 reuses both. Typing in the search field keeps every key except `Escape` and
 `Down`, which leaves the field. `Enter` and `Space` leave the browser default

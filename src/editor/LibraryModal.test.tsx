@@ -27,7 +27,6 @@ afterEach(cleanup);
 function renderModal(
   overrides: Partial<{
     onInsert: LibraryModalProps["onInsert"];
-    onClose: () => void;
     previewEngine: ReturnType<typeof fakePreviewEngine>;
   }> = {},
 ) {
@@ -38,43 +37,18 @@ function renderModal(
       previewEngine={engine}
       onInsert={overrides.onInsert ?? (() => undefined)}
       addedPackIds={[]}
-      onClose={overrides.onClose ?? (() => {})}
     />
   ));
   return { ...rendered, engine };
 }
 
 describe("LibraryModal", () => {
-  it("is a named modal window holding the library browser", () => {
+  it("is a named region, not a dialog, holding the library browser (UI-002)", () => {
     renderModal();
 
-    const dialog = screen.getByRole("dialog", { name: "Library" });
-    expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(within(dialog).getByRole("region", { name: "Library" })).toBeVisible();
-  });
-
-  it("closes from its close control", () => {
-    const onClose = vi.fn();
-    renderModal({ onClose });
-
-    clickAndFlush(screen.getByRole("button", { name: "Close library" }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("takes focus when it opens and gives it back when it closes", () => {
-    const opener = document.createElement("button");
-    document.body.append(opener);
-    opener.focus();
-
-    const { unmount } = renderModal();
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Close library" }),
-    );
-
-    unmount();
-    expect(document.activeElement).toBe(opener);
-    opener.remove();
+    const view = screen.getByRole("region", { name: "Library" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(within(view).getByRole("region", { name: "Browse sounds" })).toBeVisible();
   });
 
   it("disposes the audition engine it was given when it closes", () => {
@@ -108,7 +82,6 @@ describe("LibraryModal hot-swap", () => {
         slotAudition={slot}
         onInsert={() => undefined}
         addedPackIds={[]}
-        onClose={() => {}}
       />
     ));
     const [first, second] = await screen.findAllByRole("listitem");
@@ -151,7 +124,6 @@ describe("LibraryModal shell", () => {
         current="Rounded Club Kick"
         onActions={extra.onActions}
         keyLabel={extra.keyLabel}
-        onClose={() => {}}
       />
     ));
   }
@@ -204,7 +176,7 @@ describe("LibraryModal shell", () => {
     );
 
     clickAndFlush(place("Favourites"));
-    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Browse sounds" })).toBeNull();
     expect(screen.getByText("Favourites will appear here.")).toBeVisible();
     // Shuffle picks from a list of sounds, which only All sounds has for now.
     expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
@@ -233,14 +205,14 @@ describe("LibraryModal shell", () => {
     expect(actions.similar()).toBe(true);
     flush();
     await screen.findByRole("navigation", { name: "Similar sounds trail" });
-    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Browse sounds" })).toBeNull();
     // The way back names the list it returns to, as the shelf in view calls it.
     expect(screen.getByRole("button", { name: /^Back to All \w+$/ })).toBeVisible();
 
     expect(actions.back()).toBe(true);
     flush();
     expect(screen.queryByRole("navigation", { name: "Similar sounds trail" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Library" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Browse sounds" })).toBeVisible();
   });
 
   it("opens similar sounds from a row's icon and from the S key", async () => {
@@ -342,7 +314,6 @@ describe("LibraryModal footer and rail", () => {
         keyLabel={label}
         onInsert={() => undefined}
         addedPackIds={[drums.id]}
-        onClose={() => {}}
       />
     ));
     return within(screen.getByRole("navigation", { name: "Places" }));
@@ -415,7 +386,6 @@ describe("LibraryModal packs", () => {
         onActions={(next) => {
           actions = next;
         }}
-        onClose={() => {}}
       />
     ));
     const rail = within(screen.getByRole("navigation", { name: "Places" }));
@@ -440,7 +410,7 @@ describe("LibraryModal packs", () => {
     expect(
       await within(grid).findByRole("button", { name: `Open ${bass.name}` }),
     ).toBeVisible();
-    expect(screen.queryByRole("region", { name: "Library" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Browse sounds" })).toBeNull();
   });
 
   it("opens a pack with its banner over a scoped list, and Backspace goes back", async () => {
@@ -454,7 +424,7 @@ describe("LibraryModal packs", () => {
     expect(banner).toHaveTextContent(drums.description);
     expect(banner).toHaveTextContent("In this project");
     // The sounds view shows, scoped to this pack alone.
-    expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Browse sounds" })).toBeVisible();
     const inPack = new Set(
       packAssets(parsePackManifest(fixturePackManifest(drums.slug))).map((a) => a.name),
     );
@@ -466,7 +436,7 @@ describe("LibraryModal packs", () => {
     expect(screen.queryByRole("region", { name: `About ${drums.name}` })).toBeNull();
 
     actions().back();
-    expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Browse sounds" })).toBeVisible();
   });
 
   it("says a pack joins the project on insert when the project lacks it", async () => {
@@ -492,7 +462,7 @@ describe("LibraryModal packs", () => {
     expect(actions().back()).toBe(true);
     expect(await screen.findByRole("region", { name: "Packs" })).toBeVisible();
     expect(actions().back()).toBe(true);
-    expect(await screen.findByRole("region", { name: "Library" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Browse sounds" })).toBeVisible();
     expect(actions().back()).toBe(false);
   });
 
@@ -538,18 +508,15 @@ describe("LibraryModal refused inserts (#892)", () => {
 
   const upgrade = { packName: "Core Electronic Drums", version: "1.1.0", missing: 2 };
 
-  it("shows a refusal's sentence beside Insert, keeps the window, and clears it on the next selection", async () => {
-    const onClose = vi.fn();
+  it("shows a refusal's sentence beside Insert, keeps the view, and clears it on the next selection", async () => {
     renderModal({
       onInsert: () => ({ ok: false, reason: "Couldn't insert it: no sampler." }),
-      onClose,
     });
 
     clickAndFlush(await selectSound(0));
 
     expect(await screen.findByText("Couldn't insert it: no sampler.")).toBeVisible();
-    expect(screen.getByRole("dialog", { name: "Library" })).toBeInTheDocument();
-    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("region", { name: "Library" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Upgrade anyway" })).toBeNull();
 
     await selectSound(1);

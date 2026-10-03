@@ -62,6 +62,9 @@ export interface SoundsViewProps {
  * `useLibraryBrowser`'s; this is the view, and its keys arrive through the
  * shortcut registry rather than a listener of its own.
  */
+/** Clients that have loaded the library once, so their next visit is instant. */
+const warmClients = new WeakSet<LibraryClient>();
+
 export default function SoundsView(props: SoundsViewProps): JSX.Element {
   const browser = useLibraryBrowser({
     client: props.client,
@@ -70,11 +73,17 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     onSelect: (asset) => props.onSelect(asset),
   });
   const [ready, setReady] = createSignal(false);
+  // The loader is for the first load only. A later visit with the same client
+  // finds the index and manifests cached, so it settles at once and opens
+  // straight on the list rather than flashing the loader again (UI-002).
+  const client = props.client;
+  const loaderShown = !(client && warmClients.has(client));
   let list: HTMLUListElement | undefined;
 
   async function load(): Promise<void> {
     await browser.open();
     if (browser.indexError() === null) await browser.selectPack(null);
+    if (client && browser.indexError() === null) warmClients.add(client);
     setReady(true);
   }
   onSettled(() => void load());
@@ -186,7 +195,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
       .filter((pack) => browser.packErrors().some((e) => e.packSlug === pack.slug));
 
   return (
-    <section class="sounds-view" aria-label="Library">
+    <section class="sounds-view" aria-label="Browse sounds">
       <h2 class="visually-hidden">{props.heading ?? "Library"}</h2>
       <Show
         when={browser.indexError() === null}
@@ -200,7 +209,14 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
           </div>
         }
       >
-        <Show when={ready()} fallback={<TapeLoader label="Loading library" />}>
+        <Show
+          when={ready()}
+          fallback={
+            <Show when={loaderShown}>
+              <TapeLoader label="Loading library" />
+            </Show>
+          }
+        >
           <Show when={failedPacks().length > 0}>
             <div class="sounds-notice" role="alert">
               {failedPacks().length === 1 ? "A pack is" : "Some packs are"} unavailable.

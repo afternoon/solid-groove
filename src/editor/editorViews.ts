@@ -53,6 +53,12 @@ export const EDITOR_VIEW_SPECS: readonly EditorViewSpec[] = [
     segment: "instrument",
     actionId: "view.show_instrument",
   },
+  {
+    view: "library",
+    label: "Library",
+    segment: "library",
+    actionId: "view.show_library",
+  },
   { view: "mixer", label: "Mixer", segment: "mixer", actionId: "view.show_mixer" },
 ];
 

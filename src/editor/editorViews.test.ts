@@ -25,6 +25,7 @@ describe("editorViews", () => {
     expect(editorViewPath("prj_abc", "arrangement")).toBe("/projects/prj_abc");
     expect(editorViewPath("prj_abc", "sequence")).toBe("/projects/prj_abc/sequence");
     expect(editorViewPath("prj_abc", "instrument")).toBe("/projects/prj_abc/instrument");
+    expect(editorViewPath("prj_abc", "library")).toBe("/projects/prj_abc/library");
     expect(editorViewPath("prj_abc", "mixer")).toBe("/projects/prj_abc/mixer");
   });
 

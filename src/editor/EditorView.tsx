@@ -22,7 +22,7 @@ import {
   loadSampleCommands,
   replaceLoopCommands,
 } from "../library/insertion";
-import { LibraryClient } from "../library/libraryClient";
+import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import type { LibraryAssetType } from "../library/manifest";
 import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
@@ -148,12 +148,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // measure `view_changed` exists to take.
   let lastView: EditorViewName | undefined;
   let pendingVia: ViewChangeSource | null = null;
+  // Where leaving the Library goes back to (`UI-002`): the view it came from.
+  let libraryReturn: EditorViewName = "instrument";
 
   function selectView(next: EditorViewName, via: ViewChangeSource): void {
     // Asking for the view you are already on is not a switch, so it neither
     // navigates nor logs — otherwise clicking the current dock entry twice
     // would report two switches that never happened.
     if (next === props.view) return;
+    if (next === "library") libraryReturn = props.view;
     pendingVia = via;
     props.onSelectView(next);
   }
@@ -196,11 +199,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // The step editor's note selection, lifted here so the `edit.delete` shortcut
   // can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
   const [selectedNoteIds, setSelectedNoteIds] = createSignal<readonly EventId[]>([]);
-  // The library is a window you open from the slot it is going to fill
-  // (`UI-001`), not a column pinned open beside the arrangement. It starts
-  // closed for the same reason the sequence editor does: the surface you came
-  // for is the one that should be on screen.
-  const [libraryOpen, setLibraryOpen] = createSignal(false);
+  // The library is a view you reach from the slot it is going to fill
+  // (`UI-001`, `UI-002`), at its own address.
+  const libraryOpen = () => props.view === "library";
   // What the library was opened for (`UI-001`): a sampler's slot takes any
   // sound, the arrangement's Loop button takes a loop, and the tree shows what
   // can go in the slot rather than everything with a refusal afterwards.
@@ -220,6 +221,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const [loopTarget, setLoopTarget] = createSignal<TrackId | null>(null);
 
   function openLibrary(
+    via: ViewChangeSource,
     types?: readonly LibraryAssetType[],
     pad: { trackId: TrackId; padId: PadId } | null = null,
     loopTrackId: TrackId | null = null,
@@ -227,8 +229,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setLibraryTypes(() => types);
     setPadTarget(pad);
     setLoopTarget(loopTrackId);
-    setLibraryOpen(true);
+    selectView("library", via);
   }
+  const leaveLibrary = () => selectView(libraryReturn, "keyboard");
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
   // The Export dialog is a modal over the editor, so the editor's keys stand down.
@@ -246,9 +249,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // the second open would reuse a dead engine and every audition would fail
   // with `asset_missing` (LOOP-013). Auditions play through the same
   // destination the project does — never an export/offline context (LIB-01).
-  // One library client for the editor's life, so the library window and the
+  // The one shared library client, so the Library view and the
   // pack-upgrade check (#892) share its cached index and manifests.
-  const libraryClient = props.libraryClient ?? new LibraryClient();
+  const libraryClient = props.libraryClient ?? sharedLibraryClient();
 
   const createAuditionEngine =
     props.createAuditionEngine ??
@@ -430,7 +433,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     // A true modal takes the keyboard, unlike the sequence editor: there is
     // nothing to do underneath the library while you pick a sound.
     libraryOpen,
-    closeLibrary: () => setLibraryOpen(false),
+    closeLibrary: leaveLibrary,
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
@@ -746,7 +749,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                             <NewTrackButtons
                               label="Add track to the arrangement"
                               onAdd={(spec) => addTrack(currentProject(), spec)}
-                              onAddLoop={() => openLibrary(["loop"])}
+                              onAddLoop={() => openLibrary("arrangement", ["loop"])}
                             />
                           }
                         />
@@ -817,11 +820,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       auditionPad={(trackId, padId) =>
                         void audio.auditionPad(trackId, padId)
                       }
-                      onBrowse={() => openLibrary()}
+                      onBrowse={() => openLibrary("slot")}
                       onBrowsePad={(trackId, padId) =>
-                        openLibrary(["one-shot"], { trackId, padId })
+                        openLibrary("slot", ["one-shot"], { trackId, padId })
                       }
-                      onBrowseLoop={(trackId) => openLibrary(["loop"], null, trackId)}
+                      onBrowseLoop={(trackId) =>
+                        openLibrary("slot", ["loop"], null, trackId)
+                      }
                       watchPeaks={audio.watchAssetPeaks}
                       watchTriggers={audio.watchTriggers}
                       trackLevel={audio.trackLevel}
@@ -831,9 +836,42 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       onAddTrack={(spec) =>
                         addTrack(currentProject(), spec, "instrument_add_track")
                       }
-                      onAddLoop={() => openLibrary(["loop"])}
+                      onAddLoop={() => openLibrary("slot", ["loop"])}
                       dispatch={session.dispatch}
                       beginGesture={session.beginGesture}
+                    />
+                  </Match>
+                  <Match when={props.view === "library"}>
+                    {/* A fresh audition engine per visit: leaving disposes it
+                        (LOOP-013), so a cached one would be dead. */}
+                    <LibraryModal
+                      client={libraryClient}
+                      previewEngine={createAuditionEngine()}
+                      slotAudition={slotAudition()}
+                      analytics={props.analytics}
+                      onInsert={async (asset, options) => {
+                        // Only a committed insertion leaves (a refusal stays,
+                        // and the footer says why).
+                        const outcome = await insertFromLibrary(
+                          libraryInsertHost,
+                          asset,
+                          options,
+                        );
+                        if (outcome.ok) leaveLibrary();
+                        return outcome;
+                      }}
+                      addedPackIds={addedPackIds()}
+                      assetTypes={libraryTypes()}
+                      heading={libraryLoops() ? "Loops" : "Library"}
+                      eyebrow={librarySlot().eyebrow}
+                      slot={librarySlot().slot}
+                      trackColor={track()?.color}
+                      keyLabel={keyHint}
+                      current={librarySlot().current}
+                      slotKind={librarySlot().kind}
+                      songBpm={tempo()}
+                      currentRef={librarySlot().currentRef}
+                      onActions={(actions) => setLibraryActions(() => actions)}
                     />
                   </Match>
                   <Match when={props.view === "mixer"}>
@@ -851,45 +889,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   </Match>
                 </Switch>
               </div>
-              {/*
-               * The library, opened from the slot it will fill (`UI-001`). A
-               * fresh audition engine per open: `Show` disposes this branch on
-               * close and `useLibraryBrowser` disposes the engine with it, so
-               * a cached one would be dead on the second open (LOOP-013).
-               */}
-              <Show when={libraryOpen()}>
-                <LibraryModal
-                  client={libraryClient}
-                  previewEngine={createAuditionEngine()}
-                  slotAudition={slotAudition()}
-                  analytics={props.analytics}
-                  onInsert={async (asset, options) => {
-                    // Only a committed insertion closes the window. Closing
-                    // regardless is what made a refused insert look like a
-                    // successful one that lost the sound.
-                    const outcome = await insertFromLibrary(
-                      libraryInsertHost,
-                      asset,
-                      options,
-                    );
-                    if (outcome.ok) setLibraryOpen(false);
-                    return outcome;
-                  }}
-                  addedPackIds={addedPackIds()}
-                  assetTypes={libraryTypes()}
-                  heading={libraryLoops() ? "Loops" : "Library"}
-                  eyebrow={librarySlot().eyebrow}
-                  slot={librarySlot().slot}
-                  trackColor={track()?.color}
-                  keyLabel={keyHint}
-                  current={librarySlot().current}
-                  slotKind={librarySlot().kind}
-                  songBpm={tempo()}
-                  currentRef={librarySlot().currentRef}
-                  onActions={(actions) => setLibraryActions(() => actions)}
-                  onClose={() => setLibraryOpen(false)}
-                />
-              </Show>
               <ViewDock
                 view={props.view}
                 href={props.viewHref}

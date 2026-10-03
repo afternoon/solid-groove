@@ -99,7 +99,7 @@ const viewLink = (page: Page, name: "Arrangement" | "Instrument" | "Mixer"): Loc
   page.getByRole("navigation", { name: "Views" }).getByRole("link", { name });
 
 const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 const librarySearch = (page: Page): Locator =>
   library(page).getByRole("searchbox", { name: "Search sounds" });
 
