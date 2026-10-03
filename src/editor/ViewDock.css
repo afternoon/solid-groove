@@ -4,7 +4,9 @@
 
 .view-dock {
   position: fixed;
-  left: 50%;
+  /* Centred over the views, which leave the docked assistant's column free
+     at the right edge (#849); that column is zero wide otherwise. */
+  left: calc(50% - var(--assistant-dock-space, 0px) / 2);
   bottom: 32px;
   transform: translateX(-50%);
   z-index: 60;
