@@ -15,6 +15,9 @@
  * `plan.mjs` and `file.mjs` are the thin command-line ends that do the I/O.
  */
 
+import * as nodeFs from "node:fs";
+import { join } from "node:path";
+
 /** The spec's defaults (#859): five agents and fifteen new issues a run. */
 export const DEFAULT_AGENTS = 5;
 export const DEFAULT_ISSUES = 15;
@@ -41,7 +44,30 @@ const MAX_FIELD = 4000;
 const MAX_TITLE = 120;
 const MAX_STEPS = 30;
 
+/**
+ * Longest body the sweep posts. GitHub rejects an issue or comment body over
+ * 65,536 characters; a long finding is cut well short of that rather than lost.
+ */
+export const MAX_BODY = 60000;
+
 const SEVERITIES = ["high", "medium", "low"];
+
+/**
+ * Agent-written text with every `@mention` broken by a zero-width space. It is
+ * pasted into issues and comments the sweep posts with a write token: a
+ * verbatim `@claude` would start `claude.yml` on it, and `@someone` would ping
+ * them. The text reads the same; GitHub just no longer sees a mention.
+ */
+export function neutralizeMentions(value) {
+  return value.replace(/@(?=[A-Za-z0-9_-])/g, "@\u200b");
+}
+
+/** A body cut to `MAX_BODY`, saying so, with the footer kept. */
+export function capBody(body, max = MAX_BODY) {
+  if (body.length <= max) return body;
+  const note = `\n\n_…cut to ${max} characters: see the run's artifacts for the rest._\n\n${FOOTER}`;
+  return body.slice(0, max - note.length) + note;
+}
 
 /**
  * A limit from the first source that sets one, in precedence order (the
@@ -129,7 +155,7 @@ const text = (value, field, problems) => {
     problems.push(`${field} is missing`);
     return "";
   }
-  const trimmed = value.trim();
+  const trimmed = neutralizeMentions(value.trim());
   return trimmed.length > MAX_FIELD ? `${trimmed.slice(0, MAX_FIELD)}…` : trimmed;
 };
 
@@ -168,7 +194,10 @@ export function validateFinding(raw) {
     problems.push("steps is missing");
   else if (raw.steps.some((s) => typeof s !== "string" || s.trim() === ""))
     problems.push("steps has an empty step");
-  else steps = raw.steps.slice(0, MAX_STEPS).map((s) => s.trim().slice(0, MAX_FIELD));
+  else
+    steps = raw.steps
+      .slice(0, MAX_STEPS)
+      .map((s) => neutralizeMentions(s.trim()).slice(0, MAX_FIELD));
 
   const severity = raw.severity ?? "medium";
   if (!SEVERITIES.includes(severity))
@@ -214,7 +243,10 @@ export function readReport(json, flow) {
     if (finding) findings.push({ ...finding, flow });
     else rejected.push({ flow, index, problems });
   });
-  const notes = typeof raw.notes === "string" ? raw.notes.trim().slice(0, 600) : "";
+  const notes =
+    typeof raw.notes === "string"
+      ? neutralizeMentions(raw.notes.trim()).slice(0, 600)
+      : "";
   return { flow, ok: true, findings, rejected, notes };
 }
 
@@ -338,7 +370,7 @@ export function issueBody(finding, ctx) {
       "",
     );
   lines.push(FOOTER);
-  return lines.join("\n");
+  return capBody(lines.join("\n"));
 }
 
 /** The comment on an open issue a run saw again. */
@@ -360,7 +392,7 @@ export function reseenComment(entry, ctx) {
       lines.push(`![${finding.flow} finding](${finding.screenshotUrl})`, "");
   }
   lines.push(FOOTER);
-  return lines.join("\n");
+  return capBody(lines.join("\n"));
 }
 
 /** The body the pinned log issue is created with. */
@@ -394,6 +426,7 @@ export function summaryBody({
   reseen,
   overCap,
   cleanup,
+  failures = [],
   dryRun = false,
 }) {
   const reportFor = (id) => reports.find((r) => r.flow === id);
@@ -433,7 +466,11 @@ export function summaryBody({
     "",
     `### Issues filed (${filed.length})`,
     "",
-    ...list(filed, (f) => `- ${f.number ? `#${f.number}` : f.title} (${f.flow})`),
+    ...list(
+      filed,
+      (f) =>
+        `- ${f.number ? `#${f.number}` : f.title} (${f.flow})${f.failed ? " **not filed: the write failed**" : ""}`,
+    ),
     "",
     `### Issues re-seen (${reseen.length})`,
     "",
@@ -457,6 +494,106 @@ export function summaryBody({
       "",
       ...rejected.map((r) => `- ${r.flow} #${r.index + 1}: ${r.problems.join("; ")}`),
     );
+  if (failures.length > 0)
+    lines.push(
+      "",
+      `### GitHub writes that failed (${failures.length})`,
+      "",
+      ...failures.map((f) => `- ${f.what}: ${f.error}`),
+    );
   lines.push("", FOOTER);
-  return lines.join("\n");
+  return capBody(lines.join("\n"));
+}
+
+/**
+ * Do the run's GitHub writes: each new issue, then each re-seen comment.
+ * `post(path, body)` is the one write; one that throws (a rate limit, a 5xx,
+ * a body GitHub refuses) is recorded and the rest still go, so a single bad
+ * write never costs the other findings or the summary.
+ *
+ * Returns the failures, each `{ what, error }`, for the summary.
+ */
+export function fileFindings({
+  plan,
+  ctx,
+  repo,
+  post,
+  dryRun = false,
+  log = console.log,
+}) {
+  const failures = [];
+  const attempt = (what, write) => {
+    try {
+      write();
+      return true;
+    } catch (error) {
+      failures.push({ what, error: describeError(error) });
+      return false;
+    }
+  };
+  for (const finding of plan.file) {
+    const body = issueBody(finding, ctx);
+    if (dryRun) {
+      log(`\n=== would file: ${finding.title}\n${body}`);
+      continue;
+    }
+    const ok = attempt(`filing "${finding.title}"`, () => {
+      finding.number = post(`repos/${repo}/issues`, {
+        title: finding.title,
+        body,
+      }).number;
+    });
+    if (ok) log(`Filed #${finding.number}: ${finding.title}`);
+    else finding.failed = true;
+  }
+  for (const entry of plan.reseen) {
+    const body = reseenComment(entry, ctx);
+    if (dryRun) {
+      log(`\n=== would comment on #${entry.number}\n${body}`);
+      continue;
+    }
+    if (
+      attempt(`commenting on #${entry.number}`, () =>
+        post(`repos/${repo}/issues/${entry.number}/comments`, { body }),
+      )
+    )
+      log(`Commented on #${entry.number}: seen again.`);
+  }
+  return failures;
+}
+
+/** One line of an error, for the summary: no stack, no multi-line `gh` output. */
+export function describeError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const line = message.split("\n").find((l) => l.trim() !== "") ?? "unknown error";
+  return neutralizeMentions(line.trim()).slice(0, 300);
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/**
+ * The screenshot a finding names, as a path safe to publish, or `null`. The
+ * file must be a regular file (not a symlink), resolve inside `dir` through
+ * no symlinked directory, and start with the PNG signature: whatever it is
+ * gets pushed to a public branch.
+ */
+export function resolveScreenshot(dir, relative, fs = nodeFs) {
+  if (!isSafeScreenshotPath(relative)) return null;
+  try {
+    const root = fs.realpathSync(dir);
+    const source = join(root, relative);
+    const stat = fs.lstatSync(source);
+    if (!stat.isFile()) return null;
+    if (fs.realpathSync(source) !== source) return null;
+    const head = Buffer.alloc(PNG_SIGNATURE.length);
+    const fd = fs.openSync(source, "r");
+    try {
+      fs.readSync(fd, head, 0, head.length, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+    return PNG_SIGNATURE.every((byte, i) => head[i] === byte) ? source : null;
+  } catch {
+    return null;
+  }
 }
