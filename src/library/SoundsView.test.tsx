@@ -383,6 +383,27 @@ describe("SoundsView filters", () => {
     );
   });
 
+  // #890: ticking a genre re-counts the menu; the row must survive that, or
+  // focus drops to <body> and the next Space or Enter misses the checkbox.
+  it("keeps focus on a genre checkbox after it toggles, on and off again", async () => {
+    renderView();
+    const before = (await rows()).length;
+    fireEvent.click(picker());
+    const menu = await screen.findByRole("group", { name: "Genres" });
+    const checkbox = menu.querySelectorAll("input")[0];
+    checkbox.focus();
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(count()).toBeLessThan(before));
+    expect(document.activeElement).toBe(checkbox);
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(count()).toBe(before));
+    expect(document.activeElement).toBe(checkbox);
+    expect(checkbox).not.toBeChecked();
+  });
+
   it("clears every genre from the menu's Any genre row, and closes it", async () => {
     renderView();
     const before = (await rows()).length;
