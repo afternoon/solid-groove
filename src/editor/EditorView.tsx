@@ -392,6 +392,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   /** The Library view is on screen with somewhere to insert. */
   const libraryOpen = () => props.view === "library" && libraryTargetOf() !== null;
 
+  /** What a dock tile's tip says its view will open (`UI-002`). */
+  function dockOpens(view: EditorViewName): string | undefined {
+    if (view === "sequence") return opened()?.clip.name;
+    if (view === "instrument") return track()?.name;
+    if (view !== "library") return undefined;
+    const target = libraryTargetOf();
+    if (target?.kind === "new-track") return "loops for a new track";
+    return target ? `sounds for ${track()?.name ?? "the track"}` : undefined;
+  }
+
   /** What every sample slot shows of the Library's aim (`UI-002`). */
   const slotTargeting: SampleSlotTargeting = {
     get keyLabel() {
@@ -959,6 +969,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 href={props.viewHref}
                 onSelect={(view) => selectView(view, "dock")}
                 keyHint={(view) => keyHint(editorViewSpec(view).actionId)}
+                opens={dockOpens}
+                dimmed={(view) => view === "sequence" && opened() === null}
+                marked={(view) => view === "library" && libraryTargetOf() !== null}
               />
               <Show when={guideOpen()}>
                 <ShortcutGuide
