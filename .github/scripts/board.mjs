@@ -343,15 +343,18 @@ function column(issue) {
 
 const SHAPING_LABEL = "needs-shaping";
 
-const needsShaping = (i) => (i.labels ?? []).includes(SHAPING_LABEL);
+/** Labels that mean the product owner has something to do; shown on the card. */
+const ATTENTION_LABELS = [SHAPING_LABEL, "human-input-required"];
 
-// GitHub expands a bare "#123" in a list item into the issue's title and
-// state, so the issue's line is only its number. Anything else goes on the
-// lines under it: a note if it needs shaping, then each PR that closes it.
+const needsShaping = (i) => (i.labels ?? []).includes(SHAPING_LABEL);
+const attention = (i) => ATTENTION_LABELS.filter((l) => (i.labels ?? []).includes(l));
+
+// GitHub expands "#123" in a list item into the issue's title and state. The
+// issue's line carries its attention labels after the number, then each PR
+// that closes it goes on a line of its own under it.
 const line = (i) =>
   [
-    `- #${i.number}`,
-    ...(needsShaping(i) ? ["  _Needs shaping_"] : []),
+    [`- #${i.number}`, ...attention(i).map((l) => `\`${l}\``)].join(" "),
     ...(i.prs ?? []).map((n) => `  #${n}`),
   ].join("\n");
 
@@ -384,10 +387,10 @@ function backlogLines(cards) {
     if (!groups.has(key)) groups.set(key, { milestone: card.milestone, cards: [] });
     groups.get(key).cards.push(card);
   }
-  // Issues waiting on a shaping session lead their milestone, so the cap
+  // Issues waiting on the product owner lead their milestone, so the cap
   // below never hides one.
   for (const group of groups.values()) {
-    group.cards.sort((a, b) => Number(needsShaping(b)) - Number(needsShaping(a)));
+    group.cards.sort((a, b) => attention(b).length - attention(a).length);
   }
   const out = [];
   for (const { milestone, cards: group } of [...groups.values()].sort((a, b) =>
