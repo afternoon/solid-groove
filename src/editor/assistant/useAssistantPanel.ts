@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal } from "solid-js";
+import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../../analytics/analytics";
 import type { AssistantPanelLayout } from "./assistantPanelLayout";
 import * as layouts from "./assistantPanelLayout";
@@ -18,6 +18,11 @@ export interface UseAssistantPanelOptions {
  */
 export interface AssistantPanel {
   readonly layout: Accessor<AssistantPanelLayout>;
+  /**
+   * The most the floating panel can be in this window (`floatingRoom`),
+   * followed as the window resizes, so the panel is always on screen.
+   */
+  readonly room: Accessor<number>;
   /**
    * The header button and Cmd/Ctrl+K: open where it was last, or close.
    * `opener` is what gets focus back when the panel closes; it defaults to
@@ -61,6 +66,16 @@ export function useAssistantPanel(
   const [layout, setLayout] = createSignal<AssistantPanelLayout>(
     layouts.loadLayout(storage),
   );
+  const windowRoom = () =>
+    layouts.floatingRoom(
+      typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerHeight,
+    );
+  const [room, setRoom] = createSignal(windowRoom());
+  if (typeof window !== "undefined") {
+    const onResize = () => setRoom(windowRoom());
+    window.addEventListener("resize", onResize);
+    onCleanup(() => window.removeEventListener("resize", onResize));
+  }
   let panelElement: HTMLElement | undefined;
   let edgeElement: HTMLElement | undefined;
   let launcherElement: HTMLElement | undefined;
@@ -120,6 +135,7 @@ export function useAssistantPanel(
 
   return {
     layout,
+    room,
     toggle(from) {
       if (layouts.isOpen(layout())) close();
       else open(from);
@@ -128,10 +144,10 @@ export function useAssistantPanel(
     float: () => move(layouts.float(layout())),
     dock: () => move(layouts.dock(layout())),
     close,
-    setSize: (value) => apply(layouts.setSize(layout(), value), null, false),
+    setSize: (value) => apply(layouts.setSize(layout(), value, room()), null, false),
     endResize: () => layouts.saveLayout(layout(), storage),
-    resizeBy: (by) => apply(layouts.resizeBy(layout(), by), null),
-    resetSize: () => apply(layouts.resetSize(layout()), null),
+    resizeBy: (by) => apply(layouts.resizeBy(layout(), by, room()), null),
+    resetSize: () => apply(layouts.resetSize(layout(), room()), null),
     dismissAction() {
       if (!focusIsIn(panelElement)) return undefined;
       const next = layouts.dismiss(layout());

@@ -3495,6 +3495,21 @@ describe("EditorView assistant panel", () => {
     ).toContain("assistant");
   });
 
+  it("puts the Assistant button first in the header's document zone: Assistant, Export, Help", async () => {
+    await renderSlice();
+    const end = document.querySelector(".editor-header-end") as HTMLElement;
+    const names = within(end)
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim());
+    const order = ["Assistant", "Export", "Keyboard shortcuts"].map((name) =>
+      names.indexOf(name),
+    );
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order[1] - order[0]).toBe(1);
+    expect(order[2] - order[1]).toBe(1);
+  });
+
   it("opens from the header button, and gives the button focus back on close", async () => {
     await renderSlice();
     launcher().focus();
