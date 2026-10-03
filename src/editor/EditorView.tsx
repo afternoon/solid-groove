@@ -578,11 +578,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     if (target.kind === "sampler" && sample.kind === "loop") {
       return `Couldn't insert ${sample.name}: a loop can't go on a sampler.`;
     }
-    const refusal = loadLibrarySample(sample);
-    if (refusal !== null) return refusal;
-    const added = project()?.song.tracks.at(-1);
-    if (target.kind === "new-track" && added) selectTrack(added.id);
-    return null;
+    // A loop's insert selects the track it created (#879). Reading
+    // `project()` here for "the last track" would see the project from before
+    // the insert, not yet flushed, and select the wrong track.
+    return loadLibrarySample(sample);
   }
 
   /**
