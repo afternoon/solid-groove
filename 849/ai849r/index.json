@@ -1,0 +1,14 @@
+{
+  "id": "ai849r",
+  "title": "Assistant rework",
+  "steps": [
+    {
+      "file": "01-assistant-export-help-in-the-header-the-.png",
+      "caption": "Assistant, Export, Help in the header; the panel at 1000px"
+    },
+    {
+      "file": "02-the-same-panel-in-a-600px-window-it-fits.png",
+      "caption": "The same panel in a 600px window: it fits under the header"
+    }
+  ]
+}
