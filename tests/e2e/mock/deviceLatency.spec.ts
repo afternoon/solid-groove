@@ -10,6 +10,10 @@ import { expect, test } from "@playwright/test";
  * own engine (`src/audio/devices/compressor.latency.test.ts`); this pins the
  * one production uses, in Chromium, Firefox and WebKit, so a browser that
  * holds a different figure fails here instead of misaligning a mix.
+ *
+ * Then the export alignment matrix, on the same engines: with Compressors on
+ * the master (once, twice), on one track or on a return, the stereo WAV and
+ * every stem start on the same frame as the song exported with none.
  */
 
 const HARNESS = "/tests/e2e/mock/support/deviceLatencyHarness.ts";
@@ -28,5 +32,22 @@ test("lookahead nodes delay by exactly their declared latency", async ({ page })
     expect(reading.measured, `${reading.path} at ${reading.sampleRate} Hz`).toBe(
       reading.declared,
     );
+  }
+});
+
+test("every exported file starts at bar 1 whatever Compressors the song holds", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  const readings = await page.evaluate(async (harness) => {
+    const module: typeof import("./support/deviceLatencyHarness") = await import(
+      /* @vite-ignore */ harness
+    );
+    return module.readAlignment();
+  }, HARNESS);
+  expect(readings.length).toBeGreaterThan(0);
+  for (const reading of readings) {
+    expect(reading.lag, `${reading.path} with a Compressor on ${reading.where}`).toBe(0);
   }
 });

@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import type { ReturnId } from "../domain/ids";
 import type { AudioReturnProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
+import { CompensationDelay } from "./compensationDelay";
 import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
 import { SummingBus } from "./summingBus";
 
@@ -17,6 +18,9 @@ export class ReturnAudioGraph {
   private readonly sendsHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly detachFromDestination: () => void;
   private readonly deviceChain: DeviceChain;
+  /** Plugin delay compensation after the devices (#883). */
+  private readonly alignDelay: CompensationDelay;
+  private readonly alignHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly panVol: Tone.PanVol;
   private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
   private lastProjection: AudioReturnProjection | null = null;
@@ -34,6 +38,10 @@ export class ReturnAudioGraph {
       this.sends.dispose();
     });
     this.deviceChain = new DeviceChain(scope, createDeviceNode);
+    this.alignDelay = new CompensationDelay();
+    this.alignHandle = scope.register("node", () => {
+      this.alignDelay.dispose();
+    });
     // Explicit channelCount: 2 — Tone.PanVol's Panner otherwise inherits
     // Web Audio's channelCount: 1 / channelCountMode: "explicit" default and
     // downmixes every stereo signal to mono before panning.
@@ -42,13 +50,28 @@ export class ReturnAudioGraph {
       this.panVol.dispose();
     });
     this.sends.output.connect(this.deviceChain.input);
-    this.deviceChain.output.connect(this.panVol.input);
+    this.deviceChain.output.connect(this.alignDelay.node);
+    this.alignDelay.node.connect(this.panVol.input);
     this.detachFromDestination = destination.add(this.panVol);
   }
 
   /** The bus a track's send gain joins. */
   get input(): SummingBus {
     return this.sends;
+  }
+
+  /**
+   * Applies this return's share of the song's plugin delay compensation
+   * (`latencyCompensation.ts`): `frames` after its devices, so it reaches the
+   * master in step with the slowest return. A change ramps rather than jumps.
+   */
+  setLatencyCompensation(frames: number): void {
+    this.alignDelay.set(frames);
+  }
+
+  /** The frames this return is compensated by. For tests and diagnostics. */
+  get latencyCompensationFrames(): number {
+    return this.alignDelay.compensationFrames;
   }
 
   /**
@@ -76,6 +99,7 @@ export class ReturnAudioGraph {
     this.detachFromDestination();
     void this.scope.release(this.sendsHandle);
     this.deviceChain.dispose();
+    void this.scope.release(this.alignHandle);
     void this.scope.release(this.panVolHandle);
   }
 }

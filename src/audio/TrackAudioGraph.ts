@@ -7,6 +7,7 @@ import type {
 } from "../projection/audioProjection";
 import type { AudioBufferCache } from "./AudioBufferCache";
 import type { AudioProjectScope } from "./AudioRuntime";
+import { CompensationDelay } from "./compensationDelay";
 import { DeviceChain, type DeviceNode, type DeviceNodeFactory } from "./DeviceChain";
 import {
   createInstrumentNode,
@@ -72,6 +73,11 @@ export class TrackAudioGraph {
   private readonly inputsHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly detachFromDestination: () => void;
   private readonly deviceChain: DeviceChain;
+  /** Plugin delay compensation after the devices, before the sends (#883). */
+  private readonly alignDelay: CompensationDelay;
+  /** Plugin delay compensation on the direct output to the master (#883). */
+  private readonly outputDelay: CompensationDelay;
+  private readonly delaysHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly panVol: Tone.PanVol;
   private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly meter: Tone.Meter;
@@ -101,6 +107,12 @@ export class TrackAudioGraph {
       this.inputs.dispose();
     });
     this.deviceChain = new DeviceChain(context.scope, context.createDeviceNode);
+    this.alignDelay = new CompensationDelay();
+    this.outputDelay = new CompensationDelay();
+    this.delaysHandle = context.scope.register("node", () => {
+      this.alignDelay.dispose();
+      this.outputDelay.dispose();
+    });
     // Explicit channelCount: 2 — Tone.PanVol's Panner otherwise inherits
     // Web Audio's channelCount: 1 / channelCountMode: "explicit" default and
     // downmixes every stereo signal to mono before panning.
@@ -141,9 +153,11 @@ export class TrackAudioGraph {
     });
     this.inputs.add(this.instrumentTrim);
     this.inputs.output.connect(this.deviceChain.input);
-    this.deviceChain.output.connect(this.muteGain);
+    this.deviceChain.output.connect(this.alignDelay.node);
+    this.alignDelay.node.connect(this.muteGain);
     this.muteGain.connect(this.panVol.input);
-    this.detachFromDestination = destination.add(this.panVol);
+    this.panVol.connect(this.outputDelay.node);
+    this.detachFromDestination = destination.add(this.outputDelay.node);
     this.panVol.connect(this.meter);
     this.panVol.connect(this.peakTap);
   }
@@ -181,9 +195,34 @@ export class TrackAudioGraph {
     return this.deviceChain.deviceNode(id);
   }
 
-  /** The pre-fader tap point: after devices, before pan/volume/mute. */
+  /**
+   * Applies this track's share of the song's plugin delay compensation
+   * (`latencyCompensation.ts`): `alignFrames` after its devices, so its sends
+   * leave in step with every other track's, and `outputFrames` on its direct
+   * output, so it reaches the master in step with the returns. A change ramps
+   * rather than jumps, and rebuilds nothing.
+   */
+  setLatencyCompensation(alignFrames: number, outputFrames: number): void {
+    this.alignDelay.set(alignFrames);
+    this.outputDelay.set(outputFrames);
+  }
+
+  /** The frames this track is compensated by, after its devices and on its
+   * direct output. Read access for tests and diagnostics. */
+  get latencyCompensation(): {
+    readonly alignFrames: number;
+    readonly outputFrames: number;
+  } {
+    return {
+      alignFrames: this.alignDelay.compensationFrames,
+      outputFrames: this.outputDelay.compensationFrames,
+    };
+  }
+
+  /** The pre-fader tap point: after devices and their compensation, before
+   * pan/volume/mute. */
   private get preFaderTap(): Tone.ToneAudioNode {
-    return this.deviceChain.output;
+    return this.alignDelay.node;
   }
 
   /**
@@ -330,6 +369,7 @@ export class TrackAudioGraph {
     }
     this.sends.clear();
     this.deviceChain.dispose();
+    void this.context.scope.release(this.delaysHandle);
     void this.context.scope.release(this.muteGainHandle);
     void this.context.scope.release(this.panVolHandle);
     void this.context.scope.release(this.meterHandle);

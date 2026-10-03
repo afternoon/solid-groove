@@ -4,7 +4,7 @@ import type { Scheduler } from "../shared/scheduler";
 import type { AssetBufferLoader } from "./AudioBufferCache";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import { disposeVoicesFinishedBy } from "./instruments/assetVoice";
-import { masterLimiterLatencyFrames } from "./MasterAudioGraph";
+import { planLatencyCompensation } from "./latencyCompensation";
 import {
   finishOfflineRender,
   renderOfflineInStep,
@@ -103,9 +103,11 @@ export async function renderProjectOffline(
     options.onProgress?.(fraction);
   };
 
-  // The limiter's pre-delay is rendered, then dropped from the front, so bar 1
-  // is the file's first frame (see `masterLimiterLatencyFrames`).
-  const latencyFrames = masterLimiterLatencyFrames(sampleRate);
+  // Every path is delayed to the slowest, and the master's devices and its
+  // limiter delay the lot (see `latencyCompensation.ts`). All of that is
+  // rendered, then dropped from the front, so bar 1 is the file's first frame
+  // whatever devices any chain holds (#883).
+  const latencyFrames = planLatencyCompensation(projection, sampleRate).totalFrames;
   const tailSeconds = options.maxTailSeconds ?? MAX_TAIL_SECONDS;
   const session = openOfflineSession(projection, {
     ...options,

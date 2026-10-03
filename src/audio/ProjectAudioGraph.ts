@@ -21,6 +21,10 @@ import { playAudioLoop } from "./audioLoopPlayer";
 import type { DeviceNodeFactory } from "./DeviceChain";
 import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
+import {
+  type LatencyCompensationPlan,
+  planLatencyCompensation,
+} from "./latencyCompensation";
 import type { LevelReading } from "./levels";
 import { MasterAudioGraph } from "./MasterAudioGraph";
 import { ReturnAudioGraph } from "./ReturnAudioGraph";
@@ -178,6 +182,7 @@ export class ProjectAudioGraph {
    */
   private readonly assetsById = new Map<AssetId, AudioAssetProjection>();
   private lastProjection: AudioSongProjection | null = null;
+  private compensation: LatencyCompensationPlan | null = null;
   /**
    * The tempo of the projection currently being reconciled, set at the *top* of
    * `reconcile()` — before any child graph runs — so a device reading it during
@@ -364,9 +369,39 @@ export class ProjectAudioGraph {
     // send still targets them — i.e. after `syncTracks` above.
     this.pruneReturns(next);
 
+    this.applyLatencyCompensation(next);
+
     this.syncSchedule(next);
 
     this.lastProjection = next;
+  }
+
+  /**
+   * The plugin delay compensation this graph last applied (#883): how far
+   * each path is held back, and how late the whole song reaches the output.
+   * The offline renderer plans the same figures from the same projection to
+   * drop that lateness from a file's front.
+   */
+  get latencyCompensation(): LatencyCompensationPlan | null {
+    return this.compensation;
+  }
+
+  /**
+   * Re-aligns every path to the slowest (see `latencyCompensation.ts`). Each
+   * path's delay only moves when its own figure does, and moves by a ramp, so
+   * adding a compressor to one track glides the others into step without a
+   * click and without rebuilding or reconnecting any of them.
+   */
+  private applyLatencyCompensation(next: AudioSongProjection): void {
+    const plan = planLatencyCompensation(next, this.runtime.getSampleRate());
+    for (const [id, graph] of this.tracks) {
+      graph.setLatencyCompensation(plan.tracks.get(id) ?? 0, plan.trackOutputFrames);
+    }
+    for (const [id, graph] of this.returns) {
+      graph.setLatencyCompensation(plan.returns.get(id) ?? 0);
+    }
+    this.master.setLatencyCompensation(plan.mixFrames);
+    this.compensation = plan;
   }
 
   /**
