@@ -53,6 +53,11 @@ export interface SoundsViewProps {
   onListLabel?(label: string): void;
   /** Hands the modal this view's key handler, and takes it back when unmounted. */
   onKeys(handler: ((action: SoundsKeyAction) => void) | null): void;
+  /**
+   * Hands the modal this view's Escape step (#874): close the genre menu and
+   * return focus to its button, false when it was not open.
+   */
+  onCloseMenu?(close: (() => boolean) | null): void;
 }
 
 /**
@@ -81,6 +86,15 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
 
   const filters = useSoundFilters(() => props.songBpm ?? 120);
   const [genreMenuOpen, setGenreMenuOpen] = createSignal(false);
+  let genreButton: HTMLButtonElement | undefined;
+
+  /** Escape's innermost step: the menu closes onto its button, the library stays. */
+  function closeGenreMenu(): boolean {
+    if (!genreMenuOpen()) return false;
+    setGenreMenuOpen(false);
+    genreButton?.focus();
+    return true;
+  }
   const typed = createMemo(() =>
     browser
       .assets()
@@ -163,7 +177,11 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
 
   onSettled(() => {
     props.onKeys(press);
-    return () => props.onKeys(null);
+    props.onCloseMenu?.(closeGenreMenu);
+    return () => {
+      props.onKeys(null);
+      props.onCloseMenu?.(null);
+    };
   });
 
   // The list's name, as similar sounds' back button reads it.
@@ -259,6 +277,9 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
             count={sounds().length}
             keyLabel={props.keyLabel}
             onMenuOpen={setGenreMenuOpen}
+            genreButtonRef={(button) => {
+              genreButton = button;
+            }}
             onGenre={filters.toggleGenre}
             onClearGenres={() => {
               filters.clearGenres();
