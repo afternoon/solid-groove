@@ -14,8 +14,9 @@ import {
 // focus on, and closed it. Asserted in a real browser, because only a real one
 // turns a key into a click on whatever is focused.
 //
-// Since #817, Enter inserts and stays in the library so another sound can be
-// tried: the insert shows as the sound in the slot, and the library stays open.
+// Since #817, Enter inserts and goes back to the instrument, and Shift+Enter
+// inserts and stays in the library so another sound can be tried: that insert
+// shows as the sound in the slot, and the library stays open.
 
 /** Select the second sound in the list with the keyboard, as a producer would. */
 async function selectSecondSound(page: Page): Promise<string> {
@@ -27,18 +28,22 @@ async function selectSecondSound(page: Page): Promise<string> {
 }
 
 test.describe("library keys", () => {
-  test("Enter inserts the selected sound and the library stays", async ({ page }) => {
+  test("Enter inserts the selected sound and goes back, once", async ({ page }) => {
     await openBdSlot(page);
-    const name = await selectSecondSound(page);
+    await selectSecondSound(page);
 
     await page.keyboard.press("Enter");
 
-    await expect(readout(page, "In the slot")).toContainText(name);
+    // Back on the instrument, and the slot focus lands on does not take the
+    // same Enter and open the library again (#860).
+    await expect(page).toHaveURL(/\/instrument$/);
     await page.waitForTimeout(300);
-    await expect(library(page)).toBeVisible();
+    await expect(library(page)).toHaveCount(0);
   });
 
-  test("Enter on a clicked row inserts it and the library stays", async ({ page }) => {
+  test("Shift+Enter on a clicked row inserts it and the library stays", async ({
+    page,
+  }) => {
     await openBdSlot(page);
     const row = soundList(page)
       .getByRole("button", { name: /^Audition / })
@@ -46,7 +51,7 @@ test.describe("library keys", () => {
     const name = ((await row.getAttribute("aria-label")) ?? "").replace(/^Audition /, "");
     await row.click();
 
-    await page.keyboard.press("Enter");
+    await page.keyboard.press("Shift+Enter");
 
     await expect(readout(page, "In the slot")).toContainText(name);
     await page.waitForTimeout(300);

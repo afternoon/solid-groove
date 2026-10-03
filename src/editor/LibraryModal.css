@@ -127,6 +127,13 @@
   white-space: nowrap;
 }
 
+/* A refused insert: said in words and framed, as every status is (no red). */
+.library-modal-refused {
+  padding: 4px 8px;
+  background: var(--color-danger-wash);
+  border: 1px solid var(--color-danger-edge);
+}
+
 .library-modal-label {
   font-size: 10px;
   font-weight: 500;

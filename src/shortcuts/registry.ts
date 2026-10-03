@@ -855,8 +855,14 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
   ),
   libraryKey(
     "library.insert",
-    "Insert sound",
+    "Insert and stay",
     "Puts the selected sound in the slot; the library stays, to try another.",
+    "Shift+Enter",
+  ),
+  libraryKey(
+    "library.insert_and_return",
+    "Insert sound",
+    "Puts the selected sound in the slot and goes back to the instrument, as the Insert button does.",
     "Enter",
     {
       // The library owns Enter (UI-002, #860): the browser's default would
@@ -864,12 +870,6 @@ export const SHORTCUTS: readonly ShortcutDefinition[] = [
       // inserting. Any other focused control keeps its own Enter.
       ableton: { kind: "follows", abletonKeys: "Enter" },
     },
-  ),
-  libraryKey(
-    "library.insert_and_return",
-    "Insert and go back",
-    "Puts the selected sound in the slot and goes back to the instrument, as the Insert button does.",
-    "Shift+Enter",
   ),
   libraryKey(
     "library.like",

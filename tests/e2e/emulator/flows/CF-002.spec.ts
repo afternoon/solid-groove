@@ -130,7 +130,7 @@ async function addSamplerTrack(
   await nameTrack(page, part.name);
 
   // From the library (#817): the sampler's sample slot aims the Library view
-  // at it, Shift+Enter inserts and comes back, and `1` returns to the song.
+  // at it, Enter inserts and comes back, and `1` returns to the song.
   await pressView(page, "Instrument");
   const instrument = page.getByRole("region", { name: `${part.name} instrument` });
   await instrument.getByRole("button", { name: "Sample", exact: true }).click();
@@ -140,7 +140,7 @@ async function addSamplerTrack(
     .getByRole("button", { name: new RegExp(`^Audition .*${part.sound}`) })
     .first()
     .click();
-  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.press("Enter");
   await expectView(page, "Instrument");
 
   // The sampler names what it is holding, so the insert is visible rather

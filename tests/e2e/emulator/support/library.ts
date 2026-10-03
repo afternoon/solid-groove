@@ -41,8 +41,8 @@ import { expectView, pressView } from "./views";
  *    "Audition <name>" button, a "Favourite <name>" toggle and a
  *    "Sounds like <name>" button;
  *  - the primary action is a button whose name starts "Insert <name>". It does
- *    what `Shift+Enter` does: it inserts and goes back to the instrument view
- *    (`Enter` inserts and stays in the library);
+ *    what `Enter` does: it inserts and goes back to the instrument view
+ *    (`Shift+Enter` inserts and stays in the library);
  *  - a sample slot is still a button named "Sample for <pad>", showing the
  *    sound's name, the library's icon and the key `4`. The slot the library is
  *    aimed at is marked `aria-current="true"`.
