@@ -10,6 +10,10 @@
 #                        it is brought up to date.
 #   rebased <pr> <old>   A PR's base was changed from branch <old>. It is
 #                        brought up to date on its new base.
+#   base <branch>        <branch> (main) moved. Every open PR on it that now
+#                        conflicts with it is brought up to date. A PR that
+#                        still merges cleanly is left alone, so a merge to main
+#                        does not rebuild every open PR's CI and preview.
 #
 # "Brought up to date" means rebasing the PR's own commits onto the tip of its
 # base and pushing with --force-with-lease. GitHub's native stacks (which
@@ -163,8 +167,27 @@ rebased)
 	fi
 	restack_tree "$pr" "$old_tip"
 	;;
+base)
+	branch="$pr"
+	for candidate in $(children_of "$branch"); do
+		# GitHub works mergeability out lazily after the base moves: ask until
+		# it answers, for up to a minute.
+		state=null
+		for _ in $(seq 1 12); do
+			state="$(gh api "repos/$repo/pulls/$candidate" --jq '.mergeable')"
+			[ "$state" != "null" ] && break
+			sleep 5
+		done
+		if [ "$state" = "false" ]; then
+			log "#$candidate conflicts with $branch; rebasing it"
+			restack_tree "$candidate" ""
+		else
+			log "#$candidate merges cleanly into $branch (mergeable=$state); leaving it"
+		fi
+	done
+	;;
 *)
-	echo "usage: restack.sh merged <pr> | pushed <pr> <before-sha> | rebased <pr> <old-base>" >&2
+	echo "usage: restack.sh merged <pr> | pushed <pr> <before-sha> | rebased <pr> <old-base> | base <branch>" >&2
 	exit 2
 	;;
 esac
