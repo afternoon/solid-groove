@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { COLOR_TOKENS } from "../../arrangement/canvasRenderer";
-import { drawSleeve, resolveSleevePalette, type SleeveFrame } from "./sleeveCanvas";
+import {
+  drawSleeve,
+  pixelRuns,
+  resolveSleevePalette,
+  type SleeveFrame,
+} from "./sleeveCanvas";
 
 /** The sleeve's drawing, against a context that records what it is asked to paint. */
 
@@ -68,7 +73,8 @@ describe("drawSleeve", () => {
     const side = 300 * 0.72;
     const ox = (400 - side) / 2;
     const oy = (300 - side) / 2 - 12;
-    expect(to.args[0]).toBeCloseTo(ox + (2 / 8) * side);
+    // Clip edges land on whole pixels (#839).
+    expect(to.args[0]).toBe(Math.round(ox + (2 / 8) * side));
     expect(to.args[1]).toBeCloseTo(oy + side / 2);
     expect(to.alpha).toBe(1);
   });
@@ -91,6 +97,48 @@ describe("drawSleeve", () => {
     ]);
   });
 
+  it("paints clips that touch or overlap as one span, so their joins leave no seam (#839)", () => {
+    const { ctx, painted } = recordingContext();
+    drawSleeve(
+      ctx,
+      {
+        ...frame,
+        bars: 4,
+        stripes: [
+          {
+            color: RED,
+            lanes: [
+              { startBar: 0, lengthBars: 1 },
+              { startBar: 1, lengthBars: 2 },
+              { startBar: 2, lengthBars: 1 },
+              { startBar: 3, lengthBars: 1 },
+            ],
+          },
+          {
+            color: BLUE,
+            lanes: [
+              { startBar: 0, lengthBars: 1 },
+              { startBar: 2, lengthBars: 2 },
+            ],
+          },
+        ],
+      },
+      1,
+    );
+    const side = 300 * 0.72;
+    const ox = (400 - side) / 2;
+    const spans = (colour: string) =>
+      painted
+        .filter((paint) => paint.style === colour)
+        .map(({ args: [x, , w] }) => [x as number, (x as number) + (w as number)]);
+    const [red] = spans(RED);
+    expect(spans(RED)).toHaveLength(1);
+    expect(red[0]).toBe(Math.round(ox));
+    expect(red[1]).toBe(Math.round(ox + side));
+    // A real gap between clips stays a gap.
+    expect(spans(BLUE)).toHaveLength(2);
+  });
+
   it("draws no stripe in a colour that is not a track's, whatever the progress", () => {
     for (const progress of [0, 0.3, 1]) {
       const { ctx, painted } = recordingContext();
@@ -106,5 +154,44 @@ describe("drawSleeve", () => {
         ]).toContain(colour);
       }
     }
+  });
+});
+
+describe("pixelRuns", () => {
+  const lanes = (...spans: [number, number][]) =>
+    spans.map(([startBar, lengthBars]) => ({ startBar, lengthBars }));
+
+  it("puts every edge on a whole device pixel", () => {
+    for (const scale of [1, 2, 3]) {
+      for (const [left, right] of pixelRuns(
+        lanes([0.3, 1.1], [2, 0.7]),
+        72.8,
+        93.6,
+        scale,
+      )) {
+        expect(Number.isInteger(left * scale)).toBe(true);
+        expect(Number.isInteger(right * scale)).toBe(true);
+      }
+    }
+  });
+
+  it("joins clips a sub-pixel gap apart, so no seam shows between them (#839)", () => {
+    // Four 1-bar clips each a tick short (767 of 768): 0.12px gaps at 1x,
+    // which rounding would otherwise turn into a whole black pixel.
+    const short = 767 / 768;
+    const runs = lanes([0, short], [1, short], [2, short], [3, short]);
+    for (const scale of [1, 2]) {
+      expect(pixelRuns(runs, 72.8, 93.6, scale)).toHaveLength(1);
+    }
+  });
+
+  it("keeps a gap of a pixel or more", () => {
+    // A quarter-bar gap at 93.6px a bar is about 23px.
+    expect(pixelRuns(lanes([0, 1], [1.25, 1]), 0, 93.6, 1)).toHaveLength(2);
+  });
+
+  it("gives a clip too short to see one device pixel", () => {
+    const [[left, right]] = pixelRuns(lanes([0, 0.001]), 10, 93.6, 2);
+    expect(right - left).toBe(0.5);
   });
 });
