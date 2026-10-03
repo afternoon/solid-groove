@@ -631,6 +631,27 @@ describe("useProjectAudio start failures", () => {
     expect(result.startFailure()).toBeNull();
   });
 
+  it("reports a failed audition but leaves explaining it to Play", async () => {
+    const { analytics, transport } = fakeAnalytics();
+    const runtime = unreachableAudioHost(() =>
+      Promise.reject(Object.assign(new Error("blocked"), { name: "NotAllowedError" })),
+    );
+    const { result } = renderHook(() =>
+      useProjectAudioModule.useProjectAudio(() => null, { runtime, analytics }),
+    );
+
+    await expect(
+      result.auditionTrack(
+        "trk_x" as TrackId,
+        { kind: "pitch", pitch: 60 } as never,
+        48,
+        100,
+      ),
+    ).resolves.toBe(false);
+    expect(transport.named("audio_start_failed")).toHaveLength(1);
+    expect(result.startFailure()).toBeNull();
+  });
+
   it("opens a project with no Web Audio without building a graph, and explains a play", async () => {
     const { analytics, transport } = fakeAnalytics();
     let resumed = 0;

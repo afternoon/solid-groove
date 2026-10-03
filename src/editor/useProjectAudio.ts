@@ -527,14 +527,12 @@ export function useProjectAudio(
       startFrameLoop();
     } catch (error) {
       reportStartFailure(error);
+      explainStartFailure(error);
       setIsPlaying(false);
     }
   }
 
-  /**
-   * One failed start: reported as `audio_start_failed` and to monitoring, and
-   * kept for the editor to explain (#75).
-   */
+  /** One failed start, reported as `audio_start_failed` and to monitoring. */
   function reportStartFailure(error: unknown): void {
     const code = codeFor(error);
     analytics.log("audio_start_failed", {
@@ -542,8 +540,17 @@ export function useProjectAudio(
       was_browser_blocked: code === "autoplay_blocked",
     });
     reportError(error, { area: "audio", fatal: false, code });
+  }
+
+  /**
+   * Keeps a failed *playback* start for the editor to explain (#75). Only
+   * Play and Continue do: an audition fails behind a click on a note or a pad,
+   * mid-edit, and a notice arriving then would move the grid under the
+   * pointer. The next press of Play explains it instead.
+   */
+  function explainStartFailure(error: unknown): void {
     startFailures += 1;
-    setStartFailure({ code, attempt: startFailures });
+    setStartFailure({ code: codeFor(error), attempt: startFailures });
   }
 
   function play(): Promise<void> {
