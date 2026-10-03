@@ -287,6 +287,8 @@ export const FEATURE_KEYS = [
   // Moving a project's pin for a pack to a newer version so a sound from it can
   // go in (#892), whether automatic or chosen with "Upgrade anyway".
   "pack_upgrade",
+  // The first EQ added to any chain (LOOP-022).
+  "eq_device",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -681,8 +683,8 @@ export const ANALYTICS_EVENTS = {
     phase: 1,
     owners: ["LOOP-008", "LOOP-009"],
     params: {
-      // The alpha's six core device types (LOOP-008); LOOP-009 extends this
-      // list as it authors more. Kept in sync with `src/domain/devices.ts`.
+      // The alpha's core device types (LOOP-008); LOOP-009 and LOOP-022 (the
+      // EQ) extend this list as they author more. Kept in sync with `src/domain/devices.ts`.
       device_type: enumParam([
         "filter",
         "overdrive",
@@ -690,6 +692,7 @@ export const ANALYTICS_EVENTS = {
         "compressor",
         "delay",
         "reverb",
+        "eq",
       ]),
       chain: enumParam(["insert", "return", "master"]),
     },

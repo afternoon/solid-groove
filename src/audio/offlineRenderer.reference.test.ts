@@ -200,9 +200,26 @@ function lastSound(data: Float32Array, threshold = 1e-3): number {
   return -1;
 }
 
+/** An EQ with every kind of band in use (LOOP-022). */
+const EQ_IN_USE = () =>
+  device("eq", {
+    lowCutOn: 1,
+    lowCutFreq: 80,
+    lowShelfGain: 3,
+    peak1Gain: -4,
+    peak2Gain: 5,
+    peak2Q: 3,
+    highShelfGain: -3,
+    highShelfQ: 2,
+    highCutOn: 1,
+    highCutFreq: 12_000,
+  });
+
 /** The synth song the parity renders share: a track strip, inserts, a send to
- * a return with a tempo-synced delay, and a master chain, all off default. */
-function paritySong(): Project {
+ * a return with a tempo-synced delay, and a master chain, all off default.
+ * `eq` adds an EQ to the track's inserts, so an export of one is proven to be
+ * what playback sounds like. */
+function paritySong(options: { eq?: boolean } = {}): Project {
   const bus = {
     ...createReturnBus(createFactoryContext({ ids }), { name: "FX", order: 0 }),
   };
@@ -214,7 +231,11 @@ function paritySong(): Project {
     (track) => ({
       ...track,
       instrument: { kind: "synth", parameters: { filterCutoff: 1_200, ampRelease: 0.3 } },
-      devices: [device("filter", { cutoff: 2_500 }), device("saturator", { drive: 0.6 })],
+      devices: [
+        device("filter", { cutoff: 2_500 }),
+        device("saturator", { drive: 0.6 }),
+        ...(options.eq ? [EQ_IN_USE()] : []),
+      ],
       sendConfig: [createSend(bus.id, 0.5)],
       mixer: { ...track.mixer, volume: -6, pan: 0.4 },
     }),
@@ -284,49 +305,56 @@ describe("offline reference renders: duration and tails", () => {
   });
 });
 
+/**
+ * Renders `project` offline and through the graph live playback builds, and
+ * asserts the two are the same samples, near enough.
+ */
+async function expectLiveParity(project: Project): Promise<void> {
+  const projection = buildAudioProjection(project);
+  const trackId = project.song.tracks[0].id;
+  const graphModule = await import("./ProjectAudioGraph");
+  // Live: the graph live playback builds — on its default transport, the
+  // global one, which is this render's while the callback runs — auditioning
+  // the same note now. An audition is an immediate trigger, so it needs no
+  // transport clock to sound.
+  const live = await Tone.Offline(
+    async ({ destination }) => {
+      const runtime = new runtimeModule.AudioRuntime();
+      const graph = new graphModule.ProjectAudioGraph(
+        {
+          getDestination: () => destination,
+          getSampleRate: () => RATE,
+          resume: async () => {},
+          openProjectScope: (owner) => runtime.openProjectScope(owner),
+        },
+        "live",
+        { now: () => 0 },
+      );
+      graph.reconcile(projection);
+      graph.auditionTrack(trackId, { kind: "pitch", pitch: 57 }, 96, 0.8);
+    },
+    1.5,
+    2,
+    RATE,
+  );
+  const offline = await render(project, 2);
+  const latency = await masterLatency.masterLatencyFrames(RATE);
+  for (const channel of [0, 1]) {
+    const heard = live.getChannelData(channel).subarray(latency);
+    const rendered = offline.channels[channel];
+    expect(rms(rendered.subarray(0, RATE))).toBeGreaterThan(1e-3);
+    let worst = 0;
+    const frames = Math.min(heard.length, rendered.length);
+    for (let i = 0; i < frames; i++) {
+      worst = Math.max(worst, Math.abs(heard[i] - rendered[i]));
+    }
+    expect(worst, `channel ${channel}`).toBeLessThan(1e-4);
+  }
+}
+
 describe("offline reference renders: parity with live playback", () => {
   it("renders a note exactly as the live graph plays it, every parameter included", async () => {
-    const project = paritySong();
-    const projection = buildAudioProjection(project);
-    const trackId = project.song.tracks[0].id;
-    const graphModule = await import("./ProjectAudioGraph");
-    // Live: the graph live playback builds — on its default transport, the
-    // global one, which is this render's while the callback runs — auditioning
-    // the same note now. An audition is an immediate trigger, so it needs no
-    // transport clock to sound.
-    const live = await Tone.Offline(
-      async ({ destination }) => {
-        const runtime = new runtimeModule.AudioRuntime();
-        const graph = new graphModule.ProjectAudioGraph(
-          {
-            getDestination: () => destination,
-            getSampleRate: () => RATE,
-            resume: async () => {},
-            openProjectScope: (owner) => runtime.openProjectScope(owner),
-          },
-          "live",
-          { now: () => 0 },
-        );
-        graph.reconcile(projection);
-        graph.auditionTrack(trackId, { kind: "pitch", pitch: 57 }, 96, 0.8);
-      },
-      1.5,
-      2,
-      RATE,
-    );
-    const offline = await render(project, 2);
-    const latency = await masterLatency.masterLatencyFrames(RATE);
-    for (const channel of [0, 1]) {
-      const heard = live.getChannelData(channel).subarray(latency);
-      const rendered = offline.channels[channel];
-      expect(rms(rendered.subarray(0, RATE))).toBeGreaterThan(1e-3);
-      let worst = 0;
-      const frames = Math.min(heard.length, rendered.length);
-      for (let i = 0; i < frames; i++) {
-        worst = Math.max(worst, Math.abs(heard[i] - rendered[i]));
-      }
-      expect(worst, `channel ${channel}`).toBeLessThan(1e-4);
-    }
+    await expectLiveParity(paritySong());
   });
 
   it("renders the same song to the same samples every time", async () => {
@@ -340,6 +368,14 @@ describe("offline reference renders: parity with live playback", () => {
       for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
       expect(differing, `channel ${channel}`).toBe(0);
     }
+  });
+
+  // After the determinism render on purpose: an EQ render earlier in this
+  // worker shifts the native graph's internal ordering, and that exposes a
+  // rounding difference between two renders of the unchanged parity song that
+  // is not the EQ's (it shows too when only the filter's cutoff changes).
+  it("renders an EQ exactly as the live graph plays it (LOOP-022)", async () => {
+    await expectLiveParity(paritySong({ eq: true }));
   });
 });
 

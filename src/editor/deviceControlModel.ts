@@ -1,5 +1,10 @@
 import type { DeviceChainTarget, ParameterTarget } from "../commands";
-import { DELAY_DIVISIONS, delayDivision, deviceParameters } from "../domain/devices";
+import {
+  DELAY_DIVISIONS,
+  delayDivision,
+  deviceParameters,
+  EQ_BANDS,
+} from "../domain/devices";
 import type { Device } from "../domain/entities";
 import type { DeviceId } from "../domain/ids";
 import { bareParameterId, type ParameterDefinition } from "../domain/parameters";
@@ -21,6 +26,7 @@ const CHOICE_LABELS: Readonly<Record<string, readonly string[]>> = {
   "filter.mode": ["Low pass", "High pass", "Band pass"],
   "delay.sync": ["Free", "Synced"],
   "delay.division": DELAY_DIVISIONS.map((division) => division.label),
+  ...Object.fromEntries(EQ_BANDS.map((band) => [`eq.${band.id}On`, ["Off", "On"]])),
 };
 
 export interface DeviceChoice {

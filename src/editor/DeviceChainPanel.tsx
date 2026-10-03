@@ -2,7 +2,7 @@ import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidPlus } from "solid-icons/hi";
 import { createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
-import type { DeviceOperation } from "../analytics/catalog";
+import type { DeviceOperation, FeatureKey } from "../analytics/catalog";
 import type { ErrorCode } from "../analytics/errorCodes";
 import {
   addDevice,
@@ -205,6 +205,8 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
     if (!result?.ok) return;
     analytics().log("device_added", { device_type: type, chain: props.chain.chain });
     analytics().logFeatureFirstUse("device_chain");
+    const feature = DEVICE_FIRST_USE[type];
+    if (feature) analytics().logFeatureFirstUse(feature);
   }
 
   return (
@@ -284,6 +286,14 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
     </section>
   );
 }
+
+/**
+ * A device type that is a feature of its own, measured by its own
+ * `feature_first_use` on top of the chain's (PRD OPS-02): the EQ (LOOP-022).
+ */
+const DEVICE_FIRST_USE: Partial<Record<DeviceTypeId, FeatureKey>> = {
+  eq: "eq_device",
+};
 
 /** Which `device.*` command is which reportable edit. */
 const DEVICE_OPERATION_BY_COMMAND: Readonly<Record<string, DeviceOperation>> = {

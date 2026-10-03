@@ -7,7 +7,7 @@ import {
 } from "./parameters";
 
 /**
- * The device-type registry (PRD FX-01, FX-02, LOOP-008).
+ * The device-type registry (PRD FX-01, FX-02, LOOP-008, LOOP-022).
  *
  * Schema v1's `Device` shape is generic (id, type, order, bypass, a sparse
  * numeric parameter map). This module is where the alpha's six core device
@@ -33,7 +33,8 @@ export type DeviceTypeId =
   | "saturator"
   | "compressor"
   | "delay"
-  | "reverb";
+  | "reverb"
+  | "eq";
 
 export interface DeviceTypeDefinition {
   readonly type: DeviceTypeId;
@@ -396,6 +397,139 @@ const REVERB_FILTER = deviceParameter("reverb", {
   scale: "logarithmic",
 });
 
+// --- EQ ----------------------------------------------------------------------
+
+/**
+ * What kind of filter an EQ band is (LOOP-022). A cut removes everything past
+ * its frequency at 12 dB/octave; a shelf lifts or lowers everything past it; a
+ * peak lifts or lowers a bell around it. A cut has no gain, which is why the
+ * band declares which kind it is: the faceplate and the response drawing both
+ * ask, rather than looking for a parameter that may not be there.
+ */
+export type EqBandKind = "lowCut" | "lowShelf" | "peak" | "highShelf" | "highCut";
+
+export interface EqBand {
+  /** The prefix of the band's parameters' bare ids: `${id}On`, `${id}Freq`… */
+  readonly id: string;
+  readonly kind: EqBandKind;
+  /** Its name on the faceplate, in full ("Low shelf"). */
+  readonly label: string;
+  /** Its name where space is short: a band button, a handle on the curve. */
+  readonly short: string;
+}
+
+/**
+ * The EQ's six bands, low to high, in signal order — and the order every
+ * band's parameters are registered in. The six were a product decision
+ * (shaped 2026-10-03): a low cut, a low shelf, two peaks, a high shelf and a
+ * high cut, each with its own on/off switch.
+ */
+export const EQ_BANDS: readonly EqBand[] = [
+  { id: "lowCut", kind: "lowCut", label: "Low cut", short: "LC" },
+  { id: "lowShelf", kind: "lowShelf", label: "Low shelf", short: "LS" },
+  { id: "peak1", kind: "peak", label: "Peak 1", short: "1" },
+  { id: "peak2", kind: "peak", label: "Peak 2", short: "2" },
+  { id: "highShelf", kind: "highShelf", label: "High shelf", short: "HS" },
+  { id: "highCut", kind: "highCut", label: "High cut", short: "HC" },
+];
+
+/** Whether a band of this kind lifts or lowers (a cut only removes). */
+export function eqBandHasGain(kind: EqBandKind): boolean {
+  return kind !== "lowCut" && kind !== "highCut";
+}
+
+/** Where each band starts on a fresh EQ, and whether it starts switched in. */
+const EQ_BAND_DEFAULTS: Readonly<
+  Record<string, { on: number; freq: number; q: number }>
+> = {
+  // The cuts start switched out: a fresh EQ changes nothing until asked to.
+  // Switched in, a 30 Hz low cut is the classic first move on almost any
+  // track, and an 18 kHz high cut takes only fizz.
+  lowCut: { on: 0, freq: 30, q: 0.71 },
+  // Shelves and peaks start in, at 0 dB, spread across the spectrum where
+  // the common moves are — body, mud, presence, air — so a fresh EQ is flat
+  // (and transparent) yet every band is one drag from doing something.
+  lowShelf: { on: 1, freq: 120, q: 0.71 },
+  peak1: { on: 1, freq: 500, q: 1 },
+  peak2: { on: 1, freq: 3_000, q: 1 },
+  highShelf: { on: 1, freq: 8_000, q: 0.71 },
+  highCut: { on: 0, freq: 18_000, q: 0.71 },
+};
+
+/**
+ * One band's parameters, registered in panel order: its on/off switch, then
+ * frequency, gain (shelves and peaks only) and Q.
+ *
+ * Q means the same thing on every band — the standard quality factor, 0.71
+ * being Butterworth — even though Web Audio reads a cut's Q in decibels; the
+ * audio core converts, so a producer never meets that inconsistency.
+ *
+ * A shelf's Q is its resonance at the corner. From 0.71 up it adds a bump at
+ * the corner frequency, in the shelf's own direction, so a shelf can be made
+ * to "speak" the way an analogue one does; at 0.71 it is a plain shelf.
+ */
+function eqBandParameters(band: EqBand): ParameterDefinition[] {
+  const defaults = EQ_BAND_DEFAULTS[band.id];
+  const parameters = [
+    deviceParameter("eq", {
+      id: `${band.id}On`,
+      label: band.label,
+      unit: "normalized",
+      // 0 off, 1 on: a discrete switch, treated like every other mode.
+      min: 0,
+      max: 1,
+      defaultValue: defaults.on,
+      step: 1,
+      clampPolicy: "reject",
+      automatable: false,
+    }),
+    deviceParameter("eq", {
+      id: `${band.id}Freq`,
+      label: `${band.label} frequency`,
+      unit: "hertz",
+      min: 20,
+      max: 20_000,
+      defaultValue: defaults.freq,
+      scale: "logarithmic",
+    }),
+  ];
+  if (eqBandHasGain(band.kind)) {
+    parameters.push(
+      deviceParameter("eq", {
+        id: `${band.id}Gain`,
+        label: `${band.label} gain`,
+        unit: "decibels",
+        // ±18 dB: past any corrective move and well into a creative one,
+        // without a single band able to throw the level into the limiter.
+        min: -18,
+        max: 18,
+        defaultValue: 0,
+      }),
+    );
+  }
+  const shelf = band.kind === "lowShelf" || band.kind === "highShelf";
+  parameters.push(
+    deviceParameter("eq", {
+      id: `${band.id}Q`,
+      label: `${band.label} Q`,
+      unit: "normalized",
+      // A peak runs from a broad tilt (0.1) to a surgical notch (18). A cut's
+      // Q tops out at 6 — a sharp resonant edge, still stable — and a shelf's
+      // starts at 0.71, the plain shelf, and only adds resonance from there.
+      min: shelf ? 0.71 : band.kind === "peak" ? 0.1 : 0.3,
+      max: band.kind === "peak" ? 18 : 6,
+      defaultValue: defaults.q,
+      scale: "logarithmic",
+    }),
+  );
+  return parameters;
+}
+
+const EQ_PARAMETERS: readonly ParameterDefinition[] = [
+  ...EQ_BANDS.flatMap(eqBandParameters),
+  outputTrimParameter("eq"),
+];
+
 const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
   {
     type: "filter",
@@ -461,6 +595,13 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
       wetParameter("reverb", 0.25),
       outputTrimParameter("reverb"),
     ],
+  },
+  {
+    type: "eq",
+    label: "EQ",
+    // No Dry/Wet: blending an EQ with its own dry signal sums two copies a
+    // phase shift apart, which comb-filters instead of mixing.
+    parameters: EQ_PARAMETERS,
   },
 ];
 
