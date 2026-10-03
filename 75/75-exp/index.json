@@ -1,0 +1,10 @@
+{
+  "id": "75-exp",
+  "title": "Export without offline rendering",
+  "steps": [
+    {
+      "file": "01-exporting-where-the-browser-can-t-render.png",
+      "caption": "Exporting where the browser can't render offline"
+    }
+  ]
+}
