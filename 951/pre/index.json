@@ -1,0 +1,10 @@
+{
+  "id": "pre",
+  "title": "Before",
+  "steps": [
+    {
+      "file": "01-guest-dashboard.png",
+      "caption": "Before: a guest's dashboard offers only Sign up with Google"
+    }
+  ]
+}
