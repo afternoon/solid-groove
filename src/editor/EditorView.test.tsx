@@ -690,9 +690,7 @@ describe("EditorView", () => {
       await insertSound(inserted.name);
 
       await closed();
-      expect(
-        screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
-      ).toBe(inserted.name);
+      expect(slotSound(`Sample for ${second.name}`)).toBe(inserted.name);
       const upgraded = transport.named("library_pack_upgraded");
       expect(upgraded).toHaveLength(1);
       expect(upgraded[0].params).toMatchObject({
@@ -707,9 +705,7 @@ describe("EditorView", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: /^Undo/ }));
       await vi.waitFor(() =>
-        expect(
-          screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
-        ).not.toBe(inserted.name),
+        expect(slotSound(`Sample for ${second.name}`)).not.toBe(inserted.name),
       );
     });
 
@@ -727,16 +723,14 @@ describe("EditorView", () => {
       clickAndFlush(within(library).getByRole("button", { name: "Cancel" }));
       expect(within(library).getByText(/^Couldn't insert /)).toBeVisible();
       expect(
-        screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
-      ).not.toBe(inserted.name);
+        within(library).getByRole("group", { name: "In the slot" }),
+      ).not.toHaveTextContent(inserted.name);
       expect(transport.named("library_pack_upgraded")).toHaveLength(0);
 
       clickAndFlush(within(library).getByRole("button", { name: "Upgrade anyway" }));
 
       await closed();
-      expect(
-        screen.getByRole("button", { name: `Sample for ${second.name}` }).textContent,
-      ).toBe(inserted.name);
+      expect(slotSound(`Sample for ${second.name}`)).toBe(inserted.name);
       const upgraded = transport.named("library_pack_upgraded");
       expect(upgraded).toHaveLength(1);
       expect(upgraded[0].params).toMatchObject({

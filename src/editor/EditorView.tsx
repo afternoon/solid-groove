@@ -226,10 +226,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
    * Where a committed insert goes back to (`UI-002`): the instrument, where the
    * slot just filled shows its new sound. A loop inserted on a new track goes
    * back to where it was asked for instead, the arrangement it now sits in.
+   * That reads the target the insert was aimed at: the insert itself selects
+   * the new track, which re-aims the Library before going back runs.
    */
+  let insertedInto: LibraryTarget | null = null;
   const returnFromInsert = (via: ViewChangeSource) =>
     selectView(
-      libraryTargetOf()?.kind === "new-track" ? libraryReturn : "instrument",
+      (insertedInto ?? libraryTargetOf())?.kind === "new-track"
+        ? libraryReturn
+        : "instrument",
       via,
     );
   // Registered by the open library modal; the `library` shortcuts run them.
@@ -580,7 +585,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return null;
   }
 
-
   /**
    * Puts a library sound into the project — the one path the drag onto the
    * instrument panel and the browser's "Insert" button both take, so the
@@ -921,9 +925,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                           previewEngine={createAuditionEngine()}
                           slotAudition={slotAudition()}
                           analytics={props.analytics}
-                          onInsert={(asset, options) =>
-                            insertFromLibrary(targetHost(target()), asset, options)
-                          }
+                          onInsert={(asset, options) => {
+                            insertedInto = target();
+                            return insertFromLibrary(
+                              targetHost(insertedInto),
+                              asset,
+                              options,
+                            );
+                          }}
                           addedPackIds={addedPackIds()}
                           assetTypes={targetAssetTypes(target())}
                           heading={
