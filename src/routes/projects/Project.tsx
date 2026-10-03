@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import { AuthProvider } from "../../auth/AuthProvider";
+import AccountControl from "../../components/AccountControls";
 import ProjectNotFound from "../../components/ProjectNotFound";
 import EditorView from "../../editor/EditorView";
 import { editorViewFromPath, editorViewPath } from "../../editor/editorViews";
@@ -29,6 +30,7 @@ export default function ProjectPage() {
             view={editorViewFromPath(location.pathname)}
             viewHref={(view) => editorViewPath(id(), view)}
             onSelectView={(view) => navigate(editorViewPath(id(), view))}
+            account={<AccountControl class="account-button" />}
           />
         )}
       </Show>

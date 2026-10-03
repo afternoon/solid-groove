@@ -231,6 +231,31 @@ describe("EditorHeader", () => {
     ).toHaveTextContent("Export");
   });
 
+  it("ends the document zone with the account control it is handed (#951)", () => {
+    const { container } = render(() => (
+      <EditorHeader
+        projectName="Untitled"
+        onRename={() => {}}
+        session={fakeSession().session}
+        audio={fakeAudio().audio}
+        onToggleLoop={() => {}}
+        tempo={() => 120}
+        onTempoChange={() => {}}
+        swing={() => 50}
+        onSwingInput={() => {}}
+        onSwingCommit={() => {}}
+        onOpenGuide={() => {}}
+        keyHint={() => "K"}
+        analytics={recordingAnalytics().analytics}
+        account={<button type="button">Log in</button>}
+      />
+    ));
+    const end = Array.from(
+      container.querySelectorAll<HTMLElement>(".editor-header-end button"),
+    );
+    expect(end.at(-1)).toHaveTextContent("Log in");
+  });
+
   it("joins play with loop, the song settings, and undo with redo", () => {
     const { container } = renderHeader(fakeSession().session, fakeAudio().audio);
     const groups = Array.from(container.querySelectorAll(".header-cell-group"));

@@ -9,6 +9,7 @@ import type { ProjectMetadata } from "../domain/entities";
 import type { ProjectId } from "../domain/ids";
 import { createStarterProject } from "../editor/starterProject";
 import { getProjectRepository } from "../projectRepositoryClient";
+import { LogInButton, SignOutButton } from "./AccountControls";
 import type { ProjectActionResult } from "./ProjectList";
 import ProjectList from "./ProjectList";
 import TapeLoader from "./TapeLoader";
@@ -242,6 +243,9 @@ export default function Dashboard(props: DashboardProps = {}) {
         <div>
           <div class="dashboard-actions">
             <div class="action-row">
+              <Show when={!auth.isAnonymous}>
+                <SignOutButton analytics={analytics} class="account-button" />
+              </Show>
               <button
                 type="button"
                 class="new-project"
@@ -257,7 +261,9 @@ export default function Dashboard(props: DashboardProps = {}) {
             </Show>
           </div>
           <Show when={auth.isAnonymous}>
-            <UpgradeAccountPrompt analytics={analytics} />
+            <UpgradeAccountPrompt analytics={analytics}>
+              <LogInButton analytics={analytics} class="account-button" />
+            </UpgradeAccountPrompt>
           </Show>
           <Switch>
             <Match when={projectsState().error}>
