@@ -73,6 +73,11 @@ export interface LibraryActions {
   toggleKeys(): void;
   /** Close that sheet; false when it was not open, so Escape closes the window. */
   closeKeys(): boolean;
+  /**
+   * Close the Sounds view's genre menu, focus back on its button (#874); false
+   * when it was not open, so Escape moves on to the window.
+   */
+  closeMenu(): boolean;
 }
 
 export interface LibraryModalProps {
@@ -309,6 +314,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     action ? props.keyLabel?.(action) : undefined;
 
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
+  let closeSoundsMenu: (() => boolean) | null = null;
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
   // than once, so a ref can end up naming a copy that never mounted.
@@ -342,6 +348,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     if (!keysOpen()) return false;
     setKeysOpen(false);
     return true;
+  }
+
+  /** Only a menu on screen is Escape's to close: a hidden view's waits. */
+  function closeMenu(): boolean {
+    return showsSounds() && (closeSoundsMenu?.() ?? false);
   }
 
   function clearSearch(): void {
@@ -395,6 +406,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       back,
       toggleKeys,
       closeKeys,
+      closeMenu,
     });
     return () => {
       props.onActions?.(null);
@@ -616,6 +628,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               keyLabel={props.keyLabel}
               onKeys={(handler) => {
                 soundsKeys = handler;
+              }}
+              onCloseMenu={(close) => {
+                closeSoundsMenu = close;
               }}
             />
           </div>
