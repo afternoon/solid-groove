@@ -25,6 +25,8 @@ on:
     types: [closed, synchronize, edited]
   push:
     branches: [main]
+  # Rebase whatever on main conflicts, without waiting for main to move.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -35,7 +37,7 @@ jobs:
   restack:
     # Forks have no write access here, and nothing in this repo stacks on one.
     if: >-
-      github.event_name == 'push' ||
+      github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository && (
         (github.event.action == 'closed' && github.event.pull_request.merged) ||
         github.event.action == 'synchronize' ||
@@ -62,7 +64,7 @@ jobs:
 
       - name: Restack
         env:
-          ACTION: ${{ github.event_name == 'push' && 'push' || github.event.action }}
+          ACTION: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'push' || github.event.action }}
           PR: ${{ github.event.pull_request.number || github.ref_name }}
           BEFORE: ${{ github.event.before }}
           OLD_BASE: ${{ github.event.changes.base.ref.from }}
