@@ -3,6 +3,7 @@ import type { DrumPad } from "../../domain/entities";
 import type { PadId } from "../../domain/ids";
 import { PAD_ATTACK, PAD_DECAY, PAD_PITCH } from "../../domain/parameters";
 import type { AudioProjectScope } from "../AudioRuntime";
+import { SummingBus } from "../summingBus";
 import {
   type AssetVoice,
   attachAssetVoice,
@@ -41,9 +42,13 @@ function padParameterValue(
  * schedule or reference behind (PRD AUD-08).
  */
 interface DrumPadStrip extends AssetVoice {
+  /** Where this pad's hits sum, in order (#867), before the strip. */
+  readonly hits: SummingBus;
   /** After the envelope, before the output bus: pan then level/mute. */
   readonly panner: Tone.Panner;
   readonly level: Tone.Gain;
+  /** Takes the strip out of the drum machine's output bus. */
+  readonly detach: () => void;
   chokeGroup: number | null;
   pitch: number;
   attack: number;
@@ -74,17 +79,20 @@ function readPadDynamics(pad: DrumPad): {
 function createDrumPadStrip(
   pad: DrumPad,
   context: InstrumentGraphContext,
-  destination: Tone.ToneAudioNode,
+  destination: SummingBus,
 ): DrumPadStrip {
-  const level = new Tone.Gain(
-    dbToLinear(pad.mixer.muted ? null : pad.mixer.volume),
-  ).connect(destination);
+  const level = new Tone.Gain(dbToLinear(pad.mixer.muted ? null : pad.mixer.volume));
+  const detach = destination.add(level);
   const panner = new Tone.Panner(pad.mixer.pan).connect(level);
+  const hits = new SummingBus();
+  hits.output.connect(panner);
   const dynamics = readPadDynamics(pad);
   const strip: DrumPadStrip = {
     ...createAssetVoice(),
+    hits,
     panner,
     level,
+    detach,
     chokeGroup: pad.chokeGroup,
     active: null,
     ...dynamics,
@@ -138,6 +146,8 @@ function releasePadStrip(strip: DrumPadStrip, scope: AudioProjectScope): void {
   }
   strip.active = null;
   releaseAssetVoice(strip, scope);
+  strip.detach();
+  strip.hits.dispose();
   strip.panner.dispose();
   strip.level.dispose();
 }
@@ -146,7 +156,7 @@ export function createDrumMachineInstrumentNode(
   instrument: DrumMachineInstrument,
   context: InstrumentGraphContext,
 ): InstrumentNode {
-  const output = new Tone.Gain(1);
+  const output = new SummingBus();
   const strips = new Map<PadId, DrumPadStrip>();
   /**
    * Every pad's own mute/solo lives in the pad mixer; "solo wins if any pad is
@@ -197,7 +207,7 @@ export function createDrumMachineInstrumentNode(
 
   return {
     kind: "drumMachine",
-    output,
+    output: output.output,
     trigger(trigger, time, duration, velocity) {
       if (trigger.kind !== "pad") return;
       const strip = strips.get(trigger.padId);
@@ -215,7 +225,8 @@ export function createDrumMachineInstrumentNode(
         strip.active = null;
       }
 
-      const envelope = new Tone.Gain(0).connect(strip.panner);
+      const envelope = new Tone.Gain(0);
+      const detach = strip.hits.add(envelope);
       const player = new Tone.Player(strip.buffer).connect(envelope);
       player.playbackRate = pitchToPlaybackRate(strip.pitch);
       const voice: ActiveVoice = { player, envelope, stopped: false };
@@ -247,6 +258,7 @@ export function createDrumMachineInstrumentNode(
       );
       player.onstop = () => {
         disposeFinishedVoice(player, () => {
+          detach();
           player.dispose();
           envelope.dispose();
         });

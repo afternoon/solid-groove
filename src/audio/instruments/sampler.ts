@@ -9,6 +9,7 @@ import {
   SAMPLER_SAMPLE_END,
   SAMPLER_SAMPLE_START,
 } from "../../domain/parameters";
+import { SummingBus } from "../summingBus";
 import {
   attachAssetVoice,
   clampUnit,
@@ -59,7 +60,7 @@ function readSamplerSettings(instrument: SamplerInstrument): SamplerSettings {
  */
 function playSampledVoice(
   buffer: Tone.ToneAudioBuffer,
-  destination: Tone.ToneAudioNode,
+  destination: SummingBus,
   settings: SamplerSettings,
   time: Tone.Unit.Time,
   duration: Tone.Unit.Time,
@@ -77,7 +78,9 @@ function playSampledVoice(
     decay: settings.decay,
     sustain: settings.sustain,
     release: settings.release,
-  }).connect(destination);
+  });
+  // Through the bus, so a chord sums in one order every render (#867).
+  const detach = destination.add(envelope);
   // Velocity scales the peak so a soft hit is quieter, without touching the
   // envelope's own shape.
   const gain = new Tone.Gain(velocity).connect(envelope);
@@ -99,7 +102,14 @@ function playSampledVoice(
     });
     // The envelope's release runs past the player's stop, so let it ring out
     // before disposal rather than cutting the tail.
-    disposeFinishedVoice(player, () => envelope.dispose(), settings.release + 0.05);
+    disposeFinishedVoice(
+      player,
+      () => {
+        detach();
+        envelope.dispose();
+      },
+      settings.release + 0.05,
+    );
   };
 }
 
@@ -107,19 +117,19 @@ export function createSamplerInstrumentNode(
   instrument: SamplerInstrument,
   context: InstrumentGraphContext,
 ): InstrumentNode {
-  const output = new Tone.Gain(1);
+  const voices = new SummingBus();
   const voice = createAssetVoice();
   attachAssetVoice(voice, context, instrument.assetId);
   let settings = readSamplerSettings(instrument);
 
   return {
     kind: "sampler",
-    output,
+    output: voices.output,
     trigger(trigger, time, duration, velocity) {
       if (trigger.kind !== "pitch" || !voice.buffer) return;
       playSampledVoice(
         voice.buffer,
-        output,
+        voices,
         settings,
         time,
         duration,
@@ -142,7 +152,7 @@ export function createSamplerInstrumentNode(
     },
     dispose() {
       releaseAssetVoice(voice, context.scope);
-      output.dispose();
+      voices.dispose();
     },
   };
 }

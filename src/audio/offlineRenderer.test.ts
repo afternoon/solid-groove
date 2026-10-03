@@ -1,11 +1,12 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { createDevice } from "../domain/devices";
 import type { Project } from "../domain/entities";
 import { createFactoryContext, createReturnBus, createSend } from "../domain/factories";
 import {
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
-import { createSeededIdFactory } from "../domain/ids";
+import { createSeededIdFactory, type DeviceId } from "../domain/ids";
 import { stringifyProject } from "../domain/serialize";
 import { buildAudioProjection } from "../projection/audioProjection";
 import type { Scheduler } from "../shared/scheduler";
@@ -171,6 +172,30 @@ function withReturn(send: boolean): Project {
     },
   };
 }
+
+describe("renderProjectOffline determinism (#867)", () => {
+  it("renders an unchanged song with a reverb identically every time", async () => {
+    // A reverb's tail sets where the render is trimmed, and its impulse
+    // response is noise: two exports of one project must still be one file.
+    const project = withReturn(true);
+    const [bus] = project.song.returns;
+    const device = createDevice("dev_reverb" as DeviceId, "reverb", 0);
+    // A long decay, so the tail rings past the last clip and sets the length.
+    const reverb = { ...device, parameters: { ...device.parameters, decay: 6 } };
+    const reverbed: Project = {
+      ...project,
+      song: { ...project.song, returns: [{ ...bus, devices: [reverb] }] },
+    };
+    const first = await (await render(reverbed, { maxTailSeconds: 4 })).outcome;
+    const second = await (await render(reverbed, { maxTailSeconds: 4 })).outcome;
+
+    expect(first.frames).toBeGreaterThan(first.songEndSeconds * RATE);
+    expect(second.frames).toBe(first.frames);
+    for (const channel of [0, 1]) {
+      expect(second.channels[channel]).toEqual(first.channels[channel]);
+    }
+  });
+});
 
 describe("renderProjectOffline with tracksSendOnly (a return's stem)", () => {
   it("silences every track's direct output, so only what reaches a return sounds", async () => {

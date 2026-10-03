@@ -31,6 +31,7 @@ import {
   computePlacementSchedule,
   ticksToToneTime,
 } from "./scheduling";
+import { SummingBus } from "./summingBus";
 import { TrackAudioGraph } from "./TrackAudioGraph";
 import { toneBufferLoader } from "./toneBufferLoader";
 import type { UnderrunMonitor } from "./underrun";
@@ -158,9 +159,9 @@ export class ProjectAudioGraph {
   private readonly transport: AudioTransport;
   private readonly bufferCache: AudioBufferCache<Tone.ToneAudioBuffer>;
   private readonly master: MasterAudioGraph;
-  /** Where every track's direct output goes: the master, or with
-   * `tracksSendOnly` a gain connected to nothing. */
-  private readonly trackDestination: Tone.ToneAudioNode;
+  /** Where every track's direct output goes: the master's mix, or with
+   * `tracksSendOnly` a bus connected to nothing. */
+  private readonly trackDestination: SummingBus;
   private readonly returns = new Map<ReturnId, ReturnAudioGraph>();
   private readonly tracks = new Map<TrackId, TrackAudioGraph>();
   private readonly placementSchedules = new Map<PlacementId, PlacementScheduleEntry>();
@@ -237,13 +238,13 @@ export class ProjectAudioGraph {
       this.createDeviceNode,
     );
     if (options.tracksSendOnly) {
-      const sink = new Tone.Gain(1);
+      const sink = new SummingBus();
       this.scope.register("node", () => {
         sink.dispose();
       });
       this.trackDestination = sink;
     } else {
-      this.trackDestination = this.master.input;
+      this.trackDestination = this.master.mix;
     }
   }
 
@@ -415,7 +416,7 @@ export class ProjectAudioGraph {
         graph = new ReturnAudioGraph(
           returnProjection.id,
           this.scope,
-          this.master.input,
+          this.master.mix,
           this.createDeviceNode,
         );
         this.returns.set(returnProjection.id, graph);

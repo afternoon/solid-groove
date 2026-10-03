@@ -14,6 +14,7 @@ import {
   type InstrumentNodeFactory,
 } from "./InstrumentGraph";
 import { type LevelReading, loudestDb, peakDbOf } from "./levels";
+import { SummingBus } from "./summingBus";
 
 /**
  * The ramp time applied to every continuous channel-strip change — volume,
@@ -50,7 +51,8 @@ export interface TrackAudioGraphContext {
   readonly scope: AudioProjectScope;
   readonly assetsById: ReadonlyMap<AssetId, AudioAssetProjection>;
   readonly bufferCache: AudioBufferCache<Tone.ToneAudioBuffer>;
-  getReturnInput(id: ReturnId): Tone.ToneAudioNode | undefined;
+  /** The bus a send to return `id` joins. */
+  getReturnInput(id: ReturnId): SummingBus | undefined;
   readonly createInstrument?: InstrumentNodeFactory;
   readonly createDeviceNode?: DeviceNodeFactory;
 }
@@ -65,6 +67,10 @@ export interface TrackAudioGraphContext {
  */
 export class TrackAudioGraph {
   readonly id: TrackId;
+  /** The instrument and every loop player, summed in order (#867). */
+  private readonly inputs: SummingBus;
+  private readonly inputsHandle: ReturnType<AudioProjectScope["register"]>;
+  private readonly detachFromDestination: () => void;
   private readonly deviceChain: DeviceChain;
   private readonly panVol: Tone.PanVol;
   private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
@@ -87,9 +93,13 @@ export class TrackAudioGraph {
   constructor(
     id: TrackId,
     private readonly context: TrackAudioGraphContext,
-    destination: Tone.ToneAudioNode,
+    destination: SummingBus,
   ) {
     this.id = id;
+    this.inputs = new SummingBus();
+    this.inputsHandle = context.scope.register("node", () => {
+      this.inputs.dispose();
+    });
     this.deviceChain = new DeviceChain(context.scope, context.createDeviceNode);
     // Explicit channelCount: 2 — Tone.PanVol's Panner otherwise inherits
     // Web Audio's channelCount: 1 / channelCountMode: "explicit" default and
@@ -129,10 +139,11 @@ export class TrackAudioGraph {
     this.instrumentTrimHandle = context.scope.register("node", () => {
       this.instrumentTrim.dispose();
     });
-    this.instrumentTrim.connect(this.deviceChain.input);
+    this.inputs.add(this.instrumentTrim);
+    this.inputs.output.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.muteGain);
     this.muteGain.connect(this.panVol.input);
-    this.panVol.connect(destination);
+    this.detachFromDestination = destination.add(this.panVol);
     this.panVol.connect(this.meter);
     this.panVol.connect(this.peakTap);
   }
@@ -227,9 +238,9 @@ export class TrackAudioGraph {
     this.instrumentNode?.trigger(trigger, time, duration, velocity);
   }
 
-  /** Where an `audioLoop` clip's player connects for this (`audio`-type) track. */
-  get audioInput(): Tone.ToneAudioNode {
-    return this.deviceChain.input;
+  /** The bus an `audioLoop` clip's player joins for this (`audio`-type) track. */
+  get audioInput(): SummingBus {
+    return this.inputs;
   }
 
   private reconcileInstrument(next: AudioTrackProjection["instrument"]): void {
@@ -283,8 +294,9 @@ export class TrackAudioGraph {
       if (!existing) {
         const gain = new Tone.Gain(send.level);
         tap.connect(gain);
-        gain.connect(target);
+        const detach = target.add(gain);
         const handle = this.context.scope.register("node", () => {
+          detach();
           gain.dispose();
         });
         this.sends.set(send.returnId, {
@@ -309,8 +321,10 @@ export class TrackAudioGraph {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.detachFromDestination();
     this.disposeInstrument();
     void this.context.scope.release(this.instrumentTrimHandle);
+    void this.context.scope.release(this.inputsHandle);
     for (const [, tracked] of this.sends) {
       void this.context.scope.release(tracked.handle);
     }

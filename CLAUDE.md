@@ -44,6 +44,7 @@ src/
 │   ├── ReturnAudioGraph.ts  # One return bus's device chain and channel strip
 │   ├── MasterAudioGraph.ts  # The master bus's device chain and volume stage
 │   ├── DeviceChain.ts       # Ordered, ID-keyed insert-chain reconciliation shared by tracks/returns/master
+│   ├── summingBus.ts        # Sums any number of sources two at a time in a fixed order, so renders are bit-identical (#867)
 │   ├── InstrumentGraph.ts   # Sampler/synth/drum-machine instrument node factory and reconciliation
 │   ├── instruments/         # The per-instrument implementations behind `InstrumentGraph.ts`
 │   │   ├── types.ts             # `InstrumentNode`/`InstrumentGraphContext`/`InstrumentNodeFactory`, smoothing window, kind aliases
@@ -56,6 +57,7 @@ src/
 │   ├── Transport.ts         # Play/pause/stop/seek, playhead, tempo mirror, bar loop, metronome
 │   ├── underrun.ts          # Sampled late-dispatch counter behind `audio_underrun`
 │   ├── audioLoopPlayer.ts   # Pitch-preserving time-stretch for a tempo-labelled loop event
+│   ├── orderedGrainPlayer.ts # `Tone.GrainPlayer` whose overlapping grains sum through a `SummingBus`
 │   ├── offlineRenderer.ts   # `renderProjectOffline`: the shared, cancellable offline renderer behind export (EXP-001)
 │   ├── offlineSession.ts    # One render's `OfflineContext` with the live `ProjectAudioGraph` built on it; coded `OfflineRenderError`
 │   ├── offlineClock.ts      # Runs Tone's offline clock in chunks, the offline context installed only while each chunk runs

@@ -68,15 +68,6 @@ export interface DeviceCore {
    * than stepped.
    */
   resolvedDelaySeconds?(): number;
-  /**
-   * Resolves once any asynchronously-built resource the device needs is in
-   * place. Only the reverb implements it, because its impulse response is
-   * generated off the audio thread. Live playback never awaits it — the node
-   * simply keeps its previous impulse until the new one lands, so a decay edit
-   * mid-tail does not drop to silence — but an *offline* render must, since a
-   * render that starts before the impulse exists produces no tail at all.
-   */
-  ready?(): Promise<void>;
 }
 
 /** A device's parameter values, by bare id, with every default filled in. */

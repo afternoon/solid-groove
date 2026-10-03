@@ -1,5 +1,7 @@
 import * as Tone from "tone";
 import { disposeFinishedVoice } from "./instruments/assetVoice";
+import { OrderedGrainPlayer } from "./orderedGrainPlayer";
+import { SummingBus } from "./summingBus";
 
 /**
  * How a tempo-labelled audio loop is made to follow the project tempo
@@ -51,8 +53,9 @@ export function isLoopStretched(playbackRate: number): boolean {
 }
 
 export interface AudioLoopPlayback {
-  /** Where the destination track's audio input is. */
-  readonly destination: Tone.ToneAudioNode;
+  /** Where the loop plays: a track's input bus, which a loop overlapping
+   * others joins in order (#867), or a plain node for a lone audition. */
+  readonly destination: SummingBus | Tone.ToneAudioNode;
   /** Transport time the loop event starts at. */
   readonly time: Tone.Unit.Time;
   /**
@@ -83,16 +86,19 @@ export function playAudioLoop(
 
   if (!isLoopStretched(playbackRate)) {
     // Source tempo already matches the song: play the recording as recorded.
-    const player = new Tone.Player(buffer).connect(destination);
+    const player = new Tone.Player(buffer);
+    const detach = connectLoop(player, destination);
     player.onstop = () =>
       disposeFinishedVoice(player, () => {
+        detach();
         if (!player.disposed) player.dispose();
       });
     player.start(time, offsetSeconds, durationSeconds);
     return player;
   }
 
-  const player = new Tone.GrainPlayer(buffer).connect(destination);
+  const player = new OrderedGrainPlayer(buffer);
+  const detach = connectLoop(player, destination);
   player.grainSize = LOOP_GRAIN_SIZE_SECONDS;
   player.overlap = LOOP_GRAIN_OVERLAP_SECONDS;
   player.playbackRate = playbackRate;
@@ -112,10 +118,21 @@ export function playAudioLoop(
     disposeFinishedVoice(
       player,
       () => {
+        detach();
         if (!player.disposed) player.dispose();
       },
       tailSeconds,
     );
   };
   return player;
+}
+
+/** Connects a loop player to where it plays; returns how to disconnect it. */
+function connectLoop(
+  player: Tone.Player | Tone.GrainPlayer,
+  destination: SummingBus | Tone.ToneAudioNode,
+): () => void {
+  if (destination instanceof SummingBus) return destination.add(player);
+  player.connect(destination);
+  return () => {};
 }

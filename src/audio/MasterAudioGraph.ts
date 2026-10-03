@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import type { AudioMasterProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
+import { SummingBus } from "./summingBus";
 
 /**
  * The transparent safety limiter's threshold, in dBFS (PRD AUD-04). It sits
@@ -24,6 +25,9 @@ export const MASTER_LIMITER_THRESHOLD_DB = -0.5;
  * the meter/limiter.
  */
 export class MasterAudioGraph {
+  /** Every track and return, summed in order (#867). */
+  readonly mix: SummingBus;
+  private readonly mixHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly deviceChain: DeviceChain;
   private readonly volume: Tone.Volume;
   private readonly meter: Tone.Meter;
@@ -39,6 +43,10 @@ export class MasterAudioGraph {
     destination: Tone.ToneAudioNode,
     createDeviceNode?: DeviceNodeFactory,
   ) {
+    this.mix = new SummingBus();
+    this.mixHandle = scope.register("node", () => {
+      this.mix.dispose();
+    });
     this.deviceChain = new DeviceChain(scope, createDeviceNode);
     this.volume = new Tone.Volume(0);
     this.volumeHandle = scope.register("node", () => {
@@ -58,15 +66,18 @@ export class MasterAudioGraph {
       this.limiter.dispose();
     });
 
-    // deviceChain -> volume -> limiter -> destination, with the meter tapping
-    // the limited signal (a fan-out, not an insert, so it cannot colour it).
+    // mix -> deviceChain -> volume -> limiter -> destination, with the meter
+    // tapping the limited signal (a fan-out, not an insert, so it cannot
+    // colour it).
+    this.mix.output.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.volume);
     this.volume.connect(this.limiter);
     this.limiter.connect(this.meter);
     this.limiter.connect(destination);
   }
 
-  /** Where a track or return's post-fader signal connects. */
+  /** Where an auxiliary source (the metronome) connects, after {@link mix}:
+   * a track or a return joins the mix instead. */
   get input(): Tone.ToneAudioNode {
     return this.deviceChain.input;
   }
@@ -99,6 +110,7 @@ export class MasterAudioGraph {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    void this.scope.release(this.mixHandle);
     this.deviceChain.dispose();
     void this.scope.release(this.volumeHandle);
     void this.scope.release(this.meterHandle);

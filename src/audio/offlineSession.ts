@@ -7,7 +7,6 @@ import type {
 import { type Scheduler, timeoutScheduler } from "../shared/scheduler";
 import type { AssetBufferLoader } from "./AudioBufferCache";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
-import type { DeviceNode, DeviceNodeFactory } from "./DeviceChain";
 import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import { disposeVoicesFinishedBy } from "./instruments/assetVoice";
@@ -128,13 +127,10 @@ export function openOfflineSession(
   let failedAsset: { asset: AudioAssetProjection; error: unknown } | null = null;
 
   // The factory live playback uses, reading the tempo this render is at.
-  const devices: DeviceNode[] = [];
-  const baseDevices = createDeviceNodeFactory({ scope, tempo: () => projection.tempo });
-  const createDeviceNode: DeviceNodeFactory = (device) => {
-    const node = baseDevices(device);
-    if (node) devices.push(node);
-    return node;
-  };
+  const createDeviceNode = createDeviceNodeFactory({
+    scope,
+    tempo: () => projection.tempo,
+  });
 
   let graph: ProjectAudioGraph | null = null;
   let released = false;
@@ -162,11 +158,7 @@ export function openOfflineSession(
     },
     async prepare() {
       await untilSettledOrAborted(Promise.allSettled(loads), options.signal);
-      await untilSettledOrAborted(
-        Promise.all(devices.map((node) => node.ready?.())),
-        options.signal,
-      );
-      // Let the cache install what just decoded, and a reverb its impulse.
+      // Let the cache install what just decoded.
       await new Promise((resolve) => scheduler.schedule(() => resolve(undefined), 0));
       if (failedAsset) throw assetError(failedAsset.asset, failedAsset.error);
     },

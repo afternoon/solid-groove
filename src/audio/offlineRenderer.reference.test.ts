@@ -20,10 +20,10 @@ import { installWebAudioGlobals, rms } from "./testAudioContext";
  * Deterministic reference renders for the offline renderer (EXP-001): small
  * songs whose right answer is known in advance, rendered and measured.
  *
- * "Deterministic" means the same song renders to the same samples every time.
- * The one exception is the reverb, whose impulse `Tone.Reverb` builds from
- * unseeded noise: its tail is asserted by where it ends, never sample by
- * sample.
+ * "Deterministic" means the same song renders to the same samples every time,
+ * the reverb included: its impulse is built from seeded noise (#867). Its tail
+ * is still asserted by where it ends rather than sample by sample, because
+ * the samples of a noise tail are not the point.
  */
 
 // Must run before Tone is imported — see AudioRuntime.test.ts for why.

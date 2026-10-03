@@ -3,15 +3,19 @@ import type { ReturnId } from "../domain/ids";
 import type { AudioReturnProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
+import { SummingBus } from "./summingBus";
 
 /**
  * One return bus's audio subgraph, keyed by its stable id (PRD AUD-08,
  * section 9.7): an ordered device chain feeding a pan/volume/mute channel
- * strip. Track sends connect into {@link ReturnAudioGraph.input}; the strip's
- * output feeds the master bus.
+ * strip. Track sends join {@link ReturnAudioGraph.input}, a bus that sums them
+ * in order (#867); the strip's output feeds the master bus.
  */
 export class ReturnAudioGraph {
   readonly id: ReturnId;
+  private readonly sends: SummingBus;
+  private readonly sendsHandle: ReturnType<AudioProjectScope["register"]>;
+  private readonly detachFromDestination: () => void;
   private readonly deviceChain: DeviceChain;
   private readonly panVol: Tone.PanVol;
   private readonly panVolHandle: ReturnType<AudioProjectScope["register"]>;
@@ -21,10 +25,14 @@ export class ReturnAudioGraph {
   constructor(
     id: ReturnId,
     private readonly scope: AudioProjectScope,
-    destination: Tone.ToneAudioNode,
+    destination: SummingBus,
     createDeviceNode?: DeviceNodeFactory,
   ) {
     this.id = id;
+    this.sends = new SummingBus();
+    this.sendsHandle = scope.register("node", () => {
+      this.sends.dispose();
+    });
     this.deviceChain = new DeviceChain(scope, createDeviceNode);
     // Explicit channelCount: 2 — Tone.PanVol's Panner otherwise inherits
     // Web Audio's channelCount: 1 / channelCountMode: "explicit" default and
@@ -33,13 +41,14 @@ export class ReturnAudioGraph {
     this.panVolHandle = scope.register("node", () => {
       this.panVol.dispose();
     });
+    this.sends.output.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.panVol.input);
-    this.panVol.connect(destination);
+    this.detachFromDestination = destination.add(this.panVol);
   }
 
-  /** Where a track's send gain connects. */
-  get input(): Tone.ToneAudioNode {
-    return this.deviceChain.input;
+  /** The bus a track's send gain joins. */
+  get input(): SummingBus {
+    return this.sends;
   }
 
   /**
@@ -64,6 +73,8 @@ export class ReturnAudioGraph {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.detachFromDestination();
+    void this.scope.release(this.sendsHandle);
     this.deviceChain.dispose();
     void this.scope.release(this.panVolHandle);
   }
