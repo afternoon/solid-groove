@@ -140,7 +140,9 @@ export class InMemoryProjectRepository implements ProjectRepository {
       arrangement: this.collection(arrangementCollectionPath(projectId)),
     });
     if (decoded.ok) {
-      return { ok: true, value: decoded.value };
+      return decoded.dropped
+        ? { ok: true, value: decoded.value, dropped: decoded.dropped }
+        : { ok: true, value: decoded.value };
     }
     return loadFailure(
       decoded.issues.some((issue) => issue.code === "unsupported_schema_version")

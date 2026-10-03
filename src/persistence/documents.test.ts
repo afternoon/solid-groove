@@ -210,16 +210,95 @@ describe("decodeProject", () => {
   it("rejects stored state that breaks a domain invariant", () => {
     const documents = documentsOf();
     const song = documents.song as { placements: unknown[] };
-    const dangling = {
+    const duplicated = {
       ...documents,
-      clips: [],
-      song: { ...song },
+      song: { ...song, placements: [...song.placements, ...song.placements] },
     };
 
-    const decoded = decodeProject(dangling);
+    const decoded = decodeProject(duplicated);
     expect(decoded.ok).toBe(false);
     if (decoded.ok) return;
-    expect(decoded.issues.map((issue) => issue.code)).toContain("dangling_reference");
+    expect(decoded.issues.map((issue) => issue.code)).toContain("duplicate_id");
+  });
+
+  describe("references to documents that were never stored (#965)", () => {
+    it("drops a placement whose clip document is missing and opens the rest", () => {
+      const project = createSliceFixtureProject();
+      const documents = documentsOf(project);
+
+      const decoded = decodeProject({ ...documents, clips: [] });
+
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.value.song.placements).toEqual([]);
+      expect(decoded.value.song.tracks).toEqual(project.song.tracks);
+      expect(decoded.dropped).toEqual({ placements: 1, clipIds: [] });
+    });
+
+    it("drops a placement held in an arrangement chunk the same way", () => {
+      const project = chunkedProject();
+      const documents = documentsOf(project);
+      const [kept, ...missing] = project.clips;
+
+      const decoded = decodeProject({
+        ...documents,
+        clips: (documents.clips as { id: string }[]).filter(
+          (clip) => clip.id === kept.id,
+        ),
+      });
+
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      const missingIds = new Set<string>(missing.map((clip) => clip.id));
+      expect(
+        decoded.value.song.placements.some((placement) =>
+          missingIds.has(placement.clipId),
+        ),
+      ).toBe(false);
+      expect(decoded.dropped?.placements).toBe(
+        project.song.placements.filter((placement) => missingIds.has(placement.clipId))
+          .length,
+      );
+    });
+
+    it("drops a clip whose track the stored song no longer has", () => {
+      const project = createSliceFixtureProject();
+      const documents = documentsOf(project);
+      const song = documents.song as Record<string, unknown>;
+
+      const decoded = decodeProject({
+        ...documents,
+        song: { ...song, tracks: [], placements: [] },
+      });
+
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.value.clips).toEqual([]);
+      expect(decoded.dropped).toEqual({ placements: 0, clipIds: [project.clips[0].id] });
+    });
+
+    it("reports nothing dropped for an intact project", () => {
+      const decoded = decodeProject(documentsOf());
+
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.dropped).toBeUndefined();
+    });
+
+    it("still rejects a malformed reference rather than dropping it", () => {
+      const documents = documentsOf();
+      const song = documents.song as { placements: Record<string, unknown>[] };
+
+      const decoded = decodeProject({
+        ...documents,
+        song: {
+          ...song,
+          placements: song.placements.map((placement) => ({ ...placement, clipId: 7 })),
+        },
+      });
+
+      expect(decoded.ok).toBe(false);
+    });
   });
 });
 

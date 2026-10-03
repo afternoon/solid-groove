@@ -63,6 +63,7 @@ import {
 } from "./editorViews";
 import LibraryEmpty from "./LibraryEmpty";
 import LibraryModal, { type LibraryActions } from "./LibraryModal";
+import LoadRecoveryNotice from "./LoadRecoveryNotice";
 import {
   dropFromLibrary,
   insertFromLibrary,
@@ -844,6 +845,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
               <CompatibilityNotice
                 items={compatibilityNoticeItems(capabilities(), audio.startFailure())}
               />
+              <LoadRecoveryNotice droppedPlacements={session.state.droppedPlacements} />
               <div class="editor-body">
                 {/*
                  * One view at a time (`UI-001`). A view you are not on is not

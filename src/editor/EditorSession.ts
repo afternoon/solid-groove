@@ -17,6 +17,7 @@ import {
 import type { Clip, Project } from "../domain/entities";
 import type { ClipId } from "../domain/ids";
 import { createProjectAutosave, type ProjectAutosave } from "../persistence/autosave";
+import type { DroppedReferences } from "../persistence/documents";
 import type { ProjectRepository } from "../persistence/projectRepository";
 import { type Clock, systemClock } from "../shared/clock";
 import type { Scheduler } from "../shared/scheduler";
@@ -62,6 +63,12 @@ export interface EditorSessionOptions {
    * Tests inject an isolated store; defaults to `localStorage`.
    */
   readonly deviceStorage?: Storage | null;
+  /**
+   * What loading dropped because it referenced documents that were never
+   * stored (#965). The session writes the repaired state back, so the store
+   * heals and the next open is clean.
+   */
+  readonly dropped?: DroppedReferences;
 }
 
 function isCommandId(value: string): value is CommandId {
@@ -139,6 +146,9 @@ export class EditorSession {
       }
     });
     this.logProjectOpened(options.project, options.deviceStorage);
+    if (options.dropped) {
+      this.queueRepair(options.project, options.dropped);
+    }
   }
 
   /** What the editor shows: the previewed project while a preview is open. */
@@ -475,6 +485,20 @@ export class EditorSession {
    * to one track compares `false` for the song and `true` (skip) for every
    * clip it did not touch.
    */
+  /**
+   * Writes back what loading repaired: the song without the placements whose
+   * clips were never stored, and a deletion for each clip document whose track
+   * is gone. It is a save, not an edit, so it is not an undo step.
+   */
+  private queueRepair(project: Project, dropped: DroppedReferences): void {
+    if (dropped.placements > 0) {
+      this.autosave.queueSong(project.song);
+    }
+    for (const clipId of dropped.clipIds) {
+      this.autosave.queueClipDeletion(clipId);
+    }
+  }
+
   private queueAutosave(result: TransactionSuccess, before: Project): void {
     this.queueDiff(result.project, before);
   }

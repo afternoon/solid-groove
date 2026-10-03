@@ -48,6 +48,7 @@ function fakeSession(overrides: Partial<EditorSessionState> = {}) {
     undoSummary: null,
     redoSummary: null,
     saveStatus: null,
+    droppedPlacements: 0,
     ...overrides,
   });
   const session: HeaderSession = {
