@@ -70,17 +70,25 @@ describe("songLengthBars and rulerBars", () => {
     expect(songLengthBars([row([])])).toBe(1);
   });
 
-  it("labels bar 1 and every 16 bars", () => {
-    expect(rulerBars(40)).toEqual([1, 17, 33]);
-    expect(rulerBars(16)).toEqual([1, 17]);
-    expect(rulerBars(8)).toEqual([1]);
+  it("labels bar 1 and every 4 bars that starts inside the song", () => {
+    expect(rulerBars(16)).toEqual([1, 5, 9, 13]);
+    expect(rulerBars(40, 16)).toEqual([1, 17, 33]);
+    expect(rulerBars(16, 16)).toEqual([1]);
+    expect(rulerBars(4, 1)).toEqual([1, 2, 3, 4]);
   });
 });
 
 describe("rulerStep", () => {
-  it("stays at 16 bars while the labels have room, and before the lanes are measured", () => {
-    expect(rulerStep(64, 0)).toBe(16);
-    expect(rulerStep(64, 800)).toBe(16);
+  it("uses the editor's 4 bars before the lanes are measured", () => {
+    expect(rulerStep(64, 0)).toBe(4);
+  });
+
+  it("labels every bar of a short song while each has room (#840)", () => {
+    // 4 bars over 700px: one bar is 175px.
+    expect(rulerStep(4, 700)).toBe(1);
+    expect(rulerBars(4, rulerStep(4, 700))).toEqual([1, 2, 3, 4]);
+    // 16 bars over 700px: one bar is 43.75px, two are 87.5px.
+    expect(rulerStep(16, 700)).toBe(2);
   });
 
   it("doubles until labels are at least 56px apart", () => {
@@ -88,7 +96,11 @@ describe("rulerStep", () => {
     expect(rulerStep(296, 740)).toBe(32);
     expect(rulerStep(296, 300)).toBe(64);
     expect(rulerStep(1000, 300)).toBe(256);
+    expect(rulerStep(64, 800)).toBe(8);
     for (const [bars, width] of [
+      [4, 700],
+      [16, 700],
+      [64, 800],
       [296, 740],
       [296, 300],
       [1000, 300],
