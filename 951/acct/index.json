@@ -1,0 +1,26 @@
+{
+  "id": "acct",
+  "title": "Log in and Sign out in the app",
+  "steps": [
+    {
+      "file": "01-a-guest-s-dashboard-log-in-beside-sign-u.png",
+      "caption": "A guest's dashboard: Log in beside Sign up with Google"
+    },
+    {
+      "file": "02-the-editor-header-ends-with-log-in-for-a.png",
+      "caption": "The editor header ends with Log in for a guest"
+    },
+    {
+      "file": "03-log-in-says-what-happens-to-guest-projec.png",
+      "caption": "Log in says what happens to guest projects before it signs in"
+    },
+    {
+      "file": "04-signed-in-the-dashboard-offers-sign-out.png",
+      "caption": "Signed in: the dashboard offers Sign out"
+    },
+    {
+      "file": "05-sign-out-returns-to-the-landing-page.png",
+      "caption": "Sign out returns to the landing page"
+    }
+  ]
+}

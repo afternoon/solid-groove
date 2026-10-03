@@ -1,0 +1,10 @@
+{
+  "id": "acct-before",
+  "title": "Before",
+  "steps": [
+    {
+      "file": "01-before-a-guest-s-dashboard-offers-only-s.png",
+      "caption": "Before: a guest's dashboard offers only Sign up with Google"
+    }
+  ]
+}
